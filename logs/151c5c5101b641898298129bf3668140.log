@@ -1,0 +1,200 @@
+2026-05-11 15:48:54,622 INFO [backend.app.services.camera] [03f29420] Saved camera frame to: /tmp/tmpdntm8ddd.jpg
+2026-05-11 15:49:02,873 INFO [backend.app.services.camera] [9d9e8d89] Capturing camera frame bytes from [IP] using RTSP (model: P2S)
+2026-05-11 15:49:04,639 INFO [backend.app.services.camera] [9d9e8d89] Successfully captured camera frame bytes: 239514 bytes
+2026-05-11 15:49:04,640 INFO [backend.app.services.camera] [9d9e8d89] Saved camera frame to: /tmp/tmp5fel0ive.jpg
+2026-05-11 15:51:03,183 INFO [backend.app.api.routes.cloud] [fec81e10] get_filament_info called with 2 IDs: ['GFA00', 'GFG02']
+2026-05-11 15:51:03,187 INFO [uvicorn.access] [-] [IP]:57969 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-11 15:53:37,868 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-11 15:58:37,871 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-11 16:03:37,874 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-11 16:08:37,879 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-11 16:13:37,884 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-11 16:18:37,888 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-11 16:23:37,891 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-11 16:28:37,895 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-11 16:33:37,898 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-11 16:34:43,132 INFO [uvicorn.access] [-] [IP]:50446 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-11 16:34:43,157 INFO [backend.app.api.routes.cloud] [a07636b5] get_filament_info called with 2 IDs: ['GFA00', 'GFG02']
+2026-05-11 16:34:43,162 INFO [uvicorn.access] [-] [IP]:56713 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-11 16:34:47,339 INFO [backend.app.services.homeassistant] [8bb14911] Turned OFF HA entity 'SmartplugBambuP2S' (switch.smartplugbambup2s)
+2026-05-11 16:34:47,339 INFO [backend.app.services.printer_manager] [8bb14911] Marking printer 1 as offline (smart plug power off)
+2026-05-11 16:34:47,342 INFO [uvicorn.access] [-] [IP]:56231 - "POST /api/v1/smart-plugs/1/control HTTP/1.1" 200
+2026-05-11 16:34:48,777 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-11 16:35:43,417 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-11 16:35:43,417 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-11 16:38:57,870 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-11 17:04:03,897 INFO [backend.app.services.camera] [a9341075] Capturing camera frame bytes from [IP] using RTSP (model: P2S)
+2026-05-11 17:04:06,973 ERROR [backend.app.services.camera] [a9341075] ffmpeg frame bytes capture failed (code 183): ffmpeg version 7.1.3-0+deb13u1 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 14 (Debian 14.2.0-19)
+  configuration: --prefix=/usr --extra-version=0+deb13u1 --toolchain=hardened --libd
+2026-05-11 17:38:57,882 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-11 18:38:58,174 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-11 19:38:58,213 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-11 20:38:58,223 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-11 21:38:58,233 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-11 22:38:58,243 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-11 23:38:58,253 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 00:38:58,264 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 01:38:58,319 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 02:38:58,511 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 03:38:58,647 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 04:38:58,670 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 05:38:58,697 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 06:38:58,730 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 07:38:58,762 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 08:38:58,796 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 09:38:58,827 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 10:38:58,862 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 11:38:58,896 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 12:38:58,932 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 13:38:58,963 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 14:38:58,994 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 14:47:55,377 INFO [backend.app.services.camera] [1a6fcbed] Capturing camera frame bytes from [IP] using RTSP (model: P2S)
+2026-05-12 14:48:03,553 ERROR [backend.app.services.camera] [1a6fcbed] ffmpeg frame bytes capture failed (code 183): ffmpeg version 7.1.3-0+deb13u1 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 14 (Debian 14.2.0-19)
+  configuration: --prefix=/usr --extra-version=0+deb13u1 --toolchain=hardened --libd
+2026-05-12 15:33:38,678 INFO [backend.app.main] [-] Cleaned up 1 old AMS sensor history entries (older than 30 days)
+2026-05-12 15:38:59,024 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 16:38:59,169 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 17:38:59,189 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-05-12 18:01:42,795 INFO [uvicorn.access] [-] [IP]:56982 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 401
+2026-05-12 18:01:43,816 INFO [uvicorn.access] [-] [IP]:61990 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 401
+2026-05-12 18:01:49,411 INFO [uvicorn.access] [-] [IP]:54194 - "POST /api/v1/auth/login HTTP/1.1" 200
+2026-05-12 18:01:49,502 INFO [uvicorn.access] [-] [IP]:54194 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-12 18:01:49,619 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-12 18:01:49,619 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-12 18:01:49,620 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-12 18:01:49,839 INFO [backend.app.api.routes.cloud] [f881abb3] get_filament_info called with 2 IDs: ['GFA00', 'GFG02']
+2026-05-12 18:01:49,845 INFO [uvicorn.access] [-] [IP]:65154 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-12 18:01:49,892 INFO [backend.app.api.routes.camera] [0553c446] Using RTSP protocol for P2S
+2026-05-12 18:01:49,892 INFO [backend.app.api.routes.camera] [0553c446] Camera viewer attached to printer-1 (subscribers=1)
+2026-05-12 18:01:49,894 INFO [backend.app.api.routes.camera] [0553c446] Starting RTSP camera stream for [IP] (stream_id=1-fanout, model=P2S, fps=15)
+2026-05-12 18:01:51,732 INFO [backend.app.services.firmware_check] [c814685a] Got Bambu Lab build ID: T3V8iVAkjHwVRd4TmOpG_
+2026-05-12 18:01:54,289 INFO [backend.app.api.routes.camera] [0553c446] Camera viewer detached from printer-1 (subscribers=0)
+2026-05-12 18:01:54,290 INFO [backend.app.api.routes.camera] [0553c446] Camera stream cancelled (stream_id=1-fanout)
+2026-05-12 18:01:54,687 INFO [backend.app.api.routes.camera] [9890c7f2] Shut down camera fan-out broadcaster for printer 1
+2026-05-12 18:01:54,687 INFO [backend.app.api.routes.camera] [9890c7f2] Stopped 0 camera stream(s) for printer 1
+2026-05-12 18:01:54,687 INFO [uvicorn.access] [-] [IP]:62839 - "POST /api/v1/printers/1/camera/stop HTTP/1.1" 200
+2026-05-12 18:02:02,810 INFO [backend.app.services.mqtt_relay] [-] MQTT relay disconnected cleanly
+2026-05-12 18:02:02,868 INFO [backend.app.services.mqtt_relay] [-] MQTT relay connected successfully
+2026-05-12 18:02:03,812 INFO [backend.app.services.mqtt_relay] [5ed9ebd0] MQTT relay connected to [IP]:1883
+2026-05-12 18:02:03,815 INFO [uvicorn.access] [-] [IP]:57785 - "PUT /api/v1/settings/ HTTP/1.1" 200
+2026-05-12 18:02:12,345 INFO [backend.app.services.mqtt_relay] [-] MQTT relay disconnected cleanly
+2026-05-12 18:02:12,346 INFO [backend.app.services.mqtt_relay] [-] MQTT relay connected successfully
+2026-05-12 18:02:13,347 INFO [backend.app.services.mqtt_relay] [6e48801e] MQTT relay connected to [IP]:1883
+2026-05-12 18:02:13,349 INFO [uvicorn.access] [-] [IP]:57785 - "PUT /api/v1/settings/ HTTP/1.1" 200
+2026-05-12 18:02:14,265 INFO [backend.app.services.mqtt_relay] [-] MQTT relay disconnected cleanly
+2026-05-12 18:02:14,266 INFO [backend.app.services.mqtt_relay] [-] MQTT relay connected successfully
+2026-05-12 18:02:15,266 INFO [backend.app.services.mqtt_relay] [bbf07c38] MQTT relay connected to [IP]:1883
+2026-05-12 18:02:15,268 INFO [uvicorn.access] [-] [IP]:57785 - "PUT /api/v1/settings/ HTTP/1.1" 200
+2026-05-12 18:02:16,034 INFO [backend.app.services.mqtt_relay] [-] MQTT relay disconnected cleanly
+2026-05-12 18:02:16,035 INFO [backend.app.services.mqtt_relay] [-] MQTT relay connected successfully
+2026-05-12 18:02:17,036 INFO [backend.app.services.mqtt_relay] [2a5b48f9] MQTT relay connected to [IP]:1883
+2026-05-12 18:02:17,038 INFO [uvicorn.access] [-] [IP]:57785 - "PUT /api/v1/settings/ HTTP/1.1" 200
+2026-05-12 18:03:15,112 INFO [backend.app.services.virtual_printer.bind_server] [-] Bind server: client connected from [IP]:58770
+2026-05-12 18:03:15,115 INFO [backend.app.services.virtual_printer.bind_server] [-] Bind server: received from [IP]:58770: {'login': {'command': 'detect', 'sequence_id': '20000'}}
+2026-05-12 18:03:15,116 INFO [backend.app.services.virtual_printer.bind_server] [-] Bind server: sent detect response to [IP]:58770 (serial=22E00A391800001)
+2026-05-12 18:03:28,394 INFO [backend.app.services.virtual_printer.mqtt_server] [-] [P2S Queue] MQTT TLS connection from ('[IP]', 64082) - cipher=('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256), version=TLSv1.3
+2026-05-12 18:03:28,394 INFO [backend.app.services.virtual_printer.mqtt_server] [-] [P2S Queue] MQTT client connected: [IP]:64082
+2026-05-12 18:03:28,398 INFO [backend.app.services.virtual_printer.mqtt_server] [-] [P2S Queue] MQTT client authenticated successfully
+2026-05-12 18:03:28,403 INFO [backend.app.services.virtual_printer.mqtt_server] [-] [P2S Queue] MQTT subscribe: device/22E00A391800001/report QoS=0
+2026-05-12 18:03:28,536 INFO [backend.app.services.virtual_printer.mqtt_server] [-] MQTT publish to device/22E00A391800001/request: {"pushing":{"command":"pushall","push_target":1,"sequence_id":"20000","version":1}}...
+2026-05-12 18:03:28,536 INFO [backend.app.services.virtual_printer.mqtt_server] [-] MQTT pushing command: pushall
+2026-05-12 18:03:28,536 INFO [backend.app.services.virtual_printer.mqtt_server] [-] Sending status report in response to pushall
+2026-05-12 18:03:28,540 INFO [backend.app.services.virtual_printer.mqtt_server] [-] MQTT publish to device/22E00A391800001/request: {"info":{"command":"get_version","sequence_id":"20001"}}...
+2026-05-12 18:03:28,540 INFO [backend.app.services.virtual_printer.mqtt_server] [-] MQTT info command: get_version
+2026-05-12 18:03:28,540 INFO [backend.app.services.virtual_printer.mqtt_server] [-] Sent version response (product_name=P2S)
+2026-05-12 18:03:28,575 INFO [backend.app.services.virtual_printer.mqtt_server] [-] MQTT publish to device/22E00A391800001/request: {"info":{"command":"get_version","sequence_id":"20002"}}...
+2026-05-12 18:03:28,575 INFO [backend.app.services.virtual_printer.mqtt_server] [-] MQTT info command: get_version
+2026-05-12 18:03:28,575 INFO [backend.app.services.virtual_printer.mqtt_server] [-] Sent version response (product_name=P2S)
+2026-05-12 18:03:31,110 INFO [backend.app.services.mqtt_relay] [-] MQTT relay disconnected cleanly
+2026-05-12 18:03:31,112 INFO [backend.app.services.mqtt_relay] [-] MQTT relay connected successfully
+2026-05-12 18:03:32,112 INFO [backend.app.services.mqtt_relay] [c957330f] MQTT relay connected to [IP]:1883
+2026-05-12 18:03:32,115 INFO [uvicorn.access] [-] [IP]:52522 - "PUT /api/v1/settings/ HTTP/1.1" 200
+2026-05-12 18:04:29,685 INFO [backend.app.services.virtual_printer.mqtt_server] [-] [P2S Queue] MQTT TLS connection from ('[IP]', 53913) - cipher=('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256), version=TLSv1.3
+2026-05-12 18:04:29,685 INFO [backend.app.services.virtual_printer.mqtt_server] [-] [P2S Queue] MQTT client connected: [IP]:53913
+2026-05-12 18:04:29,688 INFO [backend.app.services.virtual_printer.mqtt_server] [-] [P2S Queue] MQTT client authenticated successfully
+2026-05-12 18:04:29,693 INFO [backend.app.services.virtual_printer.mqtt_server] [-] [P2S Queue] MQTT subscribe: device/22E00A391800001/report QoS=0
+2026-05-12 18:12:30,560 INFO [uvicorn.access] [-] [IP]:59435 - "POST /api/v1/makerworld/resolve HTTP/1.1" 200
+2026-05-12 18:13:10,876 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-12 18:13:11,621 INFO [uvicorn.access] [-] [IP]:56290 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-12 18:13:11,722 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-12 18:13:11,722 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-12 18:13:11,723 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-12 18:13:11,731 INFO [uvicorn.access] [-] [IP]:56290 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-12 18:13:29,901 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-12 18:13:30,304 INFO [uvicorn.access] [-] [IP]:58578 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-12 18:13:30,356 INFO [uvicorn.access] [-] [IP]:58578 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-12 18:13:30,378 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-12 18:13:30,378 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-12 18:13:30,379 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-12 18:13:32,039 INFO [backend.app.api.routes.camera] [d16b9e5f] Using RTSP protocol for P2S
+2026-05-12 18:13:32,039 INFO [backend.app.api.routes.camera] [d16b9e5f] Camera viewer attached to printer-1 (subscribers=1)
+2026-05-12 18:13:32,040 INFO [backend.app.api.routes.camera] [d16b9e5f] Starting RTSP camera stream for [IP] (stream_id=1-fanout, model=P2S, fps=15)
+2026-05-12 18:13:32,078 INFO [backend.app.api.routes.cloud] [5a33a391] get_filament_info called with 2 IDs: ['GFA00', 'GFG02']
+2026-05-12 18:13:32,080 INFO [uvicorn.access] [-] [IP]:49194 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-12 18:13:35,223 WARNING [backend.app.api.routes.camera] [d16b9e5f] ffmpeg stderr (stream_id=1-fanout): [in#0 @ 0x55e0d17e7ec0] Error opening input: Invalid data found when processing input
+Error opening input file rtsp://[CREDENTIALS]@[IP]:36685/streaming/live/1.
+Error opening input files: Invalid data found when processing input
+2026-05-12 18:13:35,223 WARNING [backend.app.api.routes.camera] [d16b9e5f] RTSP stream ended for [IP] (stream_id=1-fanout), will reconnect
+2026-05-12 18:13:35,223 INFO [backend.app.api.routes.camera] [d16b9e5f] RTSP reconnecting (1/30) for [IP] (stream_id=1-fanout)
+2026-05-12 18:13:35,527 INFO [backend.app.api.routes.camera] [d16b9e5f] Camera viewer detached from printer-1 (subscribers=0)
+2026-05-12 18:13:35,556 INFO [backend.app.api.routes.camera] [d16b9e5f] Camera stream cancelled (stream_id=1-fanout)
+2026-05-12 18:13:38,227 INFO [backend.app.api.routes.camera] [f8fe8063] Shut down camera fan-out broadcaster for printer 1
+2026-05-12 18:13:38,227 INFO [backend.app.api.routes.camera] [f8fe8063] Stopped 0 camera stream(s) for printer 1
+2026-05-12 18:13:38,227 INFO [uvicorn.access] [-] [IP]:58982 - "POST /api/v1/printers/1/camera/stop HTTP/1.1" 200
+2026-05-12 18:13:41,200 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-12 18:13:45,798 INFO [uvicorn.access] [-] [IP]:60643 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-12 18:13:45,870 INFO [backend.app.api.routes.camera] [2ab486f7] Using RTSP protocol for P2S
+2026-05-12 18:13:45,870 INFO [backend.app.api.routes.camera] [2ab486f7] Camera viewer attached to printer-1 (subscribers=1)
+2026-05-12 18:13:45,871 INFO [backend.app.api.routes.camera] [2ab486f7] Starting RTSP camera stream for [IP] (stream_id=1-fanout, model=P2S, fps=15)
+2026-05-12 18:13:45,906 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-12 18:13:45,906 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-12 18:13:45,907 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-12 18:13:45,919 INFO [uvicorn.access] [-] [IP]:60643 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-12 18:13:46,009 INFO [backend.app.api.routes.cloud] [759f9b12] get_filament_info called with 2 IDs: ['GFA00', 'GFG02']
+2026-05-12 18:13:46,009 INFO [uvicorn.access] [-] [IP]:60643 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-12 18:13:46,054 INFO [backend.app.api.routes.camera] [0fed2635] Using RTSP protocol for P2S
+2026-05-12 18:13:46,054 INFO [backend.app.api.routes.camera] [0fed2635] Camera viewer attached to printer-1 (subscribers=2)
+2026-05-12 18:13:48,927 WARNING [backend.app.api.routes.camera] [2ab486f7] ffmpeg stderr (stream_id=1-fanout): [in#0 @ 0x55894b9d7ec0] Error opening input: Invalid data found when processing input
+Error opening input file rtsp://[CREDENTIALS]@[IP]:44139/streaming/live/1.
+Error opening input files: Invalid data found when processing input
+2026-05-12 18:13:48,927 WARNING [backend.app.api.routes.camera] [2ab486f7] RTSP stream ended for [IP] (stream_id=1-fanout), will reconnect
+2026-05-12 18:13:48,927 INFO [backend.app.api.routes.camera] [2ab486f7] RTSP reconnecting (1/30) for [IP] (stream_id=1-fanout)
+2026-05-12 18:13:50,894 INFO [backend.app.api.routes.camera] [2ab486f7] Camera viewer detached from printer-1 (subscribers=1)
+2026-05-12 18:13:50,911 INFO [backend.app.api.routes.camera] [0fed2635] Camera viewer detached from printer-1 (subscribers=0)
+2026-05-12 18:13:50,912 INFO [backend.app.api.routes.camera] [2ab486f7] Camera stream cancelled (stream_id=1-fanout)
+2026-05-12 18:13:51,931 INFO [backend.app.api.routes.camera] [28cd26d0] Shut down camera fan-out broadcaster for printer 1
+2026-05-12 18:13:51,931 INFO [backend.app.api.routes.camera] [28cd26d0] Stopped 0 camera stream(s) for printer 1
+2026-05-12 18:13:51,931 INFO [uvicorn.access] [-] [IP]:58514 - "POST /api/v1/printers/1/camera/stop HTTP/1.1" 200
+2026-05-12 18:15:16,400 INFO [backend.app.api.routes.camera] [0c04ca2e] Using RTSP protocol for P2S
+2026-05-12 18:15:16,400 INFO [backend.app.api.routes.camera] [0c04ca2e] Camera viewer attached to printer-1 (subscribers=1)
+2026-05-12 18:15:16,401 INFO [backend.app.api.routes.camera] [0c04ca2e] Starting RTSP camera stream for [IP] (stream_id=1-fanout, model=P2S, fps=15)
+2026-05-12 18:15:17,713 INFO [backend.app.api.routes.camera] [0c04ca2e] Camera viewer detached from printer-1 (subscribers=0)
+2026-05-12 18:15:17,719 INFO [backend.app.api.routes.camera] [0c04ca2e] Camera stream cancelled (stream_id=1-fanout)
+2026-05-12 18:15:19,645 INFO [backend.app.api.routes.camera] [c055096c] Shut down camera fan-out broadcaster for printer 1
+2026-05-12 18:15:19,645 INFO [backend.app.api.routes.camera] [c055096c] Stopped 0 camera stream(s) for printer 1
+2026-05-12 18:15:19,645 INFO [uvicorn.access] [-] [IP]:61203 - "POST /api/v1/printers/1/camera/stop HTTP/1.1" 200
+2026-05-12 18:17:55,772 INFO [uvicorn.access] [-] [IP]:56053 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-12 18:17:55,859 INFO [backend.app.api.routes.camera] [613c1bbb] Using RTSP protocol for P2S
+2026-05-12 18:17:55,860 INFO [backend.app.api.routes.camera] [613c1bbb] Camera viewer attached to printer-1 (subscribers=1)
+2026-05-12 18:17:55,860 INFO [backend.app.api.routes.camera] [613c1bbb] Starting RTSP camera stream for [IP] (stream_id=1-fanout, model=P2S, fps=15)
+2026-05-12 18:17:55,908 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-12 18:17:55,908 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-12 18:17:55,909 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-12 18:17:55,914 INFO [uvicorn.access] [-] [IP]:56053 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-12 18:17:56,030 INFO [backend.app.api.routes.cloud] [9768f1b1] get_filament_info called with 2 IDs: ['GFA00', 'GFG02']
+2026-05-12 18:17:56,032 INFO [uvicorn.access] [-] [IP]:64798 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-12 18:17:56,064 INFO [backend.app.api.routes.camera] [8e6aad2b] Using RTSP protocol for P2S
+2026-05-12 18:17:56,064 INFO [backend.app.api.routes.camera] [8e6aad2b] Camera viewer attached to printer-1 (subscribers=2)
+2026-05-12 18:17:57,458 INFO [backend.app.api.routes.camera] [613c1bbb] Camera viewer detached from printer-1 (subscribers=1)
+2026-05-12 18:17:57,473 INFO [backend.app.api.routes.camera] [8e6aad2b] Camera viewer detached from printer-1 (subscribers=0)
+2026-05-12 18:17:57,476 INFO [backend.app.api.routes.camera] [613c1bbb] Camera stream cancelled (stream_id=1-fanout)
+2026-05-12 18:17:58,909 INFO [backend.app.api.routes.camera] [a79b501b] Shut down camera fan-out broadcaster for printer 1
+2026-05-12 18:17:58,909 INFO [backend.app.api.routes.camera] [a79b501b] Stopped 0 camera stream(s) for printer 1
+2026-05-12 18:17:58,909 INFO [uvicorn.access] [-] [IP]:62360 - "POST /api/v1/printers/1/camera/stop HTTP/1.1" 200
+2026-05-12 18:18:26,963 INFO [backend.app.api.routes.support] [cf89de21] Log level changed to DEBUG
+2026-05-12 18:18:26,963 INFO [backend.app.api.routes.bug_report] [cf89de21] Bug report: enabled debug logging
+2026-05-12 18:18:26,963 WARNING [backend.app.services.bambu_mqtt] [cf89de21] [[SERIAL]] request_status_update: not connected
+2026-05-12 18:18:26,963 INFO [uvicorn.access] [-] [IP]:49257 - "POST /api/v1/bug-report/start-logging HTTP/1.1" 200
+2026-05-12 18:18:30,111 DEBUG [backend.app.services.virtual_printer.ssdp_server] [-] Sent SSDP NOTIFY for P2S Queue (Location=[IP], USN=22E00A391800001, bind=[IP])
