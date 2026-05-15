@@ -1,0 +1,200 @@
+2026-05-15 10:56:29,332 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 10:56:29,332 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 10:58:32,450 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 11:03:32,467 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 11:05:25,778 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Request topic subscription accepted. ams_mapping capture enabled for slicer-initiated prints.
+2026-05-15 11:08:32,475 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 11:13:32,478 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 11:18:32,494 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 11:23:32,497 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 11:28:32,504 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 11:33:32,511 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 11:38:32,528 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 11:43:32,535 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 11:48:32,551 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 11:53:32,567 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 11:58:32,572 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 12:03:32,576 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 12:08:32,592 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 12:13:32,599 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 12:18:32,616 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 12:23:32,620 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 12:28:32,624 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 12:33:32,627 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 12:38:32,630 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 12:43:32,647 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 12:48:32,664 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 12:53:32,667 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 12:58:32,699 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 13:03:32,718 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 13:08:32,734 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 13:13:32,738 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 13:18:32,754 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 13:23:32,770 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 13:28:32,774 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 13:33:32,777 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 13:38:32,780 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 13:43:32,797 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 13:48:32,800 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 13:53:32,816 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 13:58:32,819 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 14:03:32,822 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 14:08:32,825 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 14:13:32,829 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 14:18:32,833 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 14:23:32,837 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 14:28:32,841 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 14:33:32,844 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 14:36:33,903 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 14:36:33,903 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 14:38:32,847 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 14:41:33,922 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Request topic subscription accepted. ams_mapping capture enabled for slicer-initiated prints.
+2026-05-15 14:43:32,850 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 14:48:32,854 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 14:53:32,857 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 14:56:43,191 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 14:56:43,192 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 14:57:27,377 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Request topic subscription accepted. ams_mapping capture enabled for slicer-initiated prints.
+2026-05-15 14:58:32,861 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 15:03:32,865 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 15:06:32,289 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 15:06:32,289 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 15:08:32,868 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 15:13:32,872 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 15:18:32,876 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 15:23:32,879 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 15:28:32,883 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 15:33:32,886 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 15:38:32,889 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 15:43:32,893 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 15:48:32,897 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 15:50:49,532 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Request topic subscription accepted. ams_mapping capture enabled for slicer-initiated prints.
+2026-05-15 15:53:32,901 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 15:57:22,877 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 15:57:22,877 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 15:57:23,960 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Request topic subscription accepted. ams_mapping capture enabled for slicer-initiated prints.
+2026-05-15 15:58:32,904 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 16:01:25,647 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Unspecified error, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 16:01:26,747 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Request topic subscription accepted. ams_mapping capture enabled for slicer-initiated prints.
+2026-05-15 16:02:26,708 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 16:02:26,708 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 16:03:32,907 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 16:08:32,910 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 16:10:15,155 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Request topic subscription accepted. ams_mapping capture enabled for slicer-initiated prints.
+2026-05-15 16:13:32,913 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 16:18:32,917 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 16:19:19,944 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 16:19:19,944 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 16:19:58,214 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Request topic subscription accepted. ams_mapping capture enabled for slicer-initiated prints.
+2026-05-15 16:23:32,920 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 16:25:31,632 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 16:25:31,632 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 16:25:37,507 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Request topic subscription accepted. ams_mapping capture enabled for slicer-initiated prints.
+2026-05-15 16:26:38,294 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 16:26:38,294 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 16:26:59,729 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Request topic subscription accepted. ams_mapping capture enabled for slicer-initiated prints.
+2026-05-15 16:28:32,923 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 16:33:32,928 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 16:36:35,591 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 16:36:35,591 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 16:38:32,930 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 16:43:32,934 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 16:48:17,715 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Request topic subscription accepted. ams_mapping capture enabled for slicer-initiated prints.
+2026-05-15 16:48:32,938 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 16:53:32,954 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 16:58:32,957 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 17:03:32,961 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 17:08:32,964 INFO [backend.app.main] [-] Recorded 4 AMS sensor history entries
+2026-05-15 17:11:33,395 INFO [uvicorn.access] [-] [IP]:61531 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-15 17:11:33,427 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-15 17:11:33,427 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-15 17:11:33,428 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 2 printers
+2026-05-15 17:11:33,435 INFO [uvicorn.access] [-] [IP]:59664 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-15 17:11:33,661 INFO [backend.app.api.routes.cloud] [9e55dde0] get_filament_info called with 4 IDs: ['GFA01', 'GFG00', 'GFA00', 'GFA50']
+2026-05-15 17:11:33,671 INFO [backend.app.api.routes.cloud] [c5f98630] get_filament_info called with 3 IDs: ['GFA01', 'GFA00', 'GFA50']
+2026-05-15 17:11:34,357 WARNING [backend.app.api.routes.cloud] [9e55dde0] Failed to get cloud preset GFG00 (API ID: GFSG00): Failed to get setting detail: 400
+2026-05-15 17:11:34,541 WARNING [backend.app.api.routes.cloud] [c5f98630] Failed to get cloud preset GFA50 (API ID: GFSA50): Failed to get setting detail: 400
+2026-05-15 17:11:34,542 INFO [uvicorn.access] [-] [IP]:65498 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-15 17:11:34,640 INFO [backend.app.services.firmware_check] [8a1c82a5] Got Bambu Lab build ID: DGVvLxp_mb7yePrzlGQYu
+2026-05-15 17:11:34,750 WARNING [backend.app.api.routes.cloud] [9e55dde0] Failed to get cloud preset GFA50 (API ID: GFSA50): Failed to get setting detail: 400
+2026-05-15 17:11:34,752 INFO [uvicorn.access] [-] [IP]:61531 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-15 17:11:35,338 INFO [backend.app.services.firmware_check] [0315fd0c] Got Bambu Lab build ID: DGVvLxp_mb7yePrzlGQYu
+2026-05-15 17:13:32,645 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 17:13:32,645 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 17:13:32,968 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-15 17:13:33,725 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Request topic subscription accepted. ams_mapping capture enabled for slicer-initiated prints.
+2026-05-15 17:14:34,257 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 17:14:34,257 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-15 17:16:31,332 INFO [backend.app.api.routes.support] [f92a7254] Log level changed to DEBUG
+2026-05-15 17:16:31,332 INFO [backend.app.api.routes.bug_report] [f92a7254] Bug report: enabled debug logging
+2026-05-15 17:16:31,332 WARNING [backend.app.services.bambu_mqtt] [f92a7254] [[SERIAL]] request_status_update: not connected
+2026-05-15 17:16:31,332 DEBUG [backend.app.services.bambu_mqtt] [f92a7254] [[SERIAL]] Requesting status update (pushall)
+2026-05-15 17:16:31,332 INFO [uvicorn.access] [-] [IP]:57334 - "POST /api/v1/bug-report/start-logging HTTP/1.1" 200
+2026-05-15 17:16:32,335 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'allow_skip_parts': False, 'buildplate_marker_detector': True, 'first_layer_inspector': False, 'halt_print_sensitivity': 'medium', 'print_halt': True, 'printing_monitor': False, 'spaghetti_detector': False}
+2026-05-15 17:16:32,335 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['allow_skip_parts', 'buildplate_marker_detector', 'first_layer_inspector', 'halt_print_sensitivity', 'print_halt', 'printing_monitor', 'spaghetti_detector']
+2026-05-15 17:16:32,335 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: IDLE, gcode_file: , subtask_name: 
+2026-05-15 17:16:32,335 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '3', 'ams_exist_bits_raw': '3', 'insert_flag': True, 'power_on_flag': False, 'tray_exist_bits': 'f', 'tray_is_bbl_bits': 'f', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': 'f', 'tray_reading_bits': '0', 'tray_tar': '255', 'version': 1716}
+2026-05-15 17:16:32,335 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-05-15 17:16:32,335 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 2 new units, 2 total
+2026-05-15 17:16:32,335 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-05-15 17:16:32,335 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-15 17:16:32,335 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 27.0
+2026-05-15 17:16:32,335 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 27.0°C (heater OFF)
+2026-05-15 17:16:32,335 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=27.0, heating=False, respect_local=False
+2026-05-15 17:16:32,335 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 27.0, target: 0.0, heating: False
+2026-05-15 17:16:32,335 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: []
+2026-05-15 17:16:32,335 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'agora_service': 'disable', 'ipcam_dev': '1', 'ipcam_record': 'disable', 'mode_bits': 2, 'resolution': '1080p', 'rtsp_url': 'rtsps://[IP]:322/streaming/live/1', 'timelapse': 'disable', 'tutk_server': 'disable'}
+2026-05-15 17:16:32,336 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -49dBm
+2026-05-15 17:16:32,336 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'mode': 'on', 'node': 'chamber_light'}, {'mode': 'flashing', 'node': 'work_light'}]
+2026-05-15 17:16:32,336 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: IDLE -> IDLE, file: , subtask: 
+2026-05-15 17:16:33,361 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'allow_skip_parts': False, 'buildplate_marker_detector': True, 'first_layer_inspector': False, 'halt_print_sensitivity': 'medium', 'print_halt': True, 'printing_monitor': False, 'spaghetti_detector': False}
+2026-05-15 17:16:33,361 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['allow_skip_parts', 'buildplate_marker_detector', 'first_layer_inspector', 'halt_print_sensitivity', 'print_halt', 'printing_monitor', 'spaghetti_detector']
+2026-05-15 17:16:33,362 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: IDLE, gcode_file: , subtask_name: 
+2026-05-15 17:16:33,362 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '3', 'ams_exist_bits_raw': '3', 'insert_flag': True, 'power_on_flag': False, 'tray_exist_bits': 'f', 'tray_is_bbl_bits': 'f', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': 'f', 'tray_reading_bits': '0', 'tray_tar': '255', 'version': 1716}
+2026-05-15 17:16:33,362 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-05-15 17:16:33,362 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 2 new units, 2 total
+2026-05-15 17:16:33,362 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-05-15 17:16:33,362 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-15 17:16:33,362 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 27.0
+2026-05-15 17:16:33,362 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 27.0°C (heater OFF)
+2026-05-15 17:16:33,362 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=27.0, heating=False, respect_local=False
+2026-05-15 17:16:33,362 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 27.0, target: 0.0, heating: False
+2026-05-15 17:16:33,362 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: []
+2026-05-15 17:16:33,362 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'agora_service': 'disable', 'ipcam_dev': '1', 'ipcam_record': 'disable', 'mode_bits': 2, 'resolution': '1080p', 'rtsp_url': 'rtsps://[IP]:322/streaming/live/1', 'timelapse': 'disable', 'tutk_server': 'disable'}
+2026-05-15 17:16:33,362 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -49dBm
+2026-05-15 17:16:33,362 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'mode': 'on', 'node': 'chamber_light'}, {'mode': 'flashing', 'node': 'work_light'}]
+2026-05-15 17:16:33,362 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: IDLE -> IDLE, file: , subtask: 
+2026-05-15 17:16:34,358 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'allow_skip_parts': False, 'buildplate_marker_detector': True, 'first_layer_inspector': False, 'halt_print_sensitivity': 'medium', 'print_halt': True, 'printing_monitor': False, 'spaghetti_detector': False}
+2026-05-15 17:16:34,359 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['allow_skip_parts', 'buildplate_marker_detector', 'first_layer_inspector', 'halt_print_sensitivity', 'print_halt', 'printing_monitor', 'spaghetti_detector']
+2026-05-15 17:16:34,359 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: IDLE, gcode_file: , subtask_name: 
+2026-05-15 17:16:34,359 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '3', 'ams_exist_bits_raw': '3', 'insert_flag': True, 'power_on_flag': False, 'tray_exist_bits': 'f', 'tray_is_bbl_bits': 'f', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': 'f', 'tray_reading_bits': '0', 'tray_tar': '255', 'version': 1716}
+2026-05-15 17:16:34,359 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-05-15 17:16:34,359 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 2 new units, 2 total
+2026-05-15 17:16:34,359 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-05-15 17:16:34,359 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-15 17:16:34,359 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 27.0
+2026-05-15 17:16:34,359 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 27.0°C (heater OFF)
+2026-05-15 17:16:34,359 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=27.0, heating=False, respect_local=False
+2026-05-15 17:16:34,359 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 27.0, target: 0.0, heating: False
+2026-05-15 17:16:34,359 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: []
+2026-05-15 17:16:34,359 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'agora_service': 'disable', 'ipcam_dev': '1', 'ipcam_record': 'disable', 'mode_bits': 2, 'resolution': '1080p', 'rtsp_url': 'rtsps://[IP]:322/streaming/live/1', 'timelapse': 'disable', 'tutk_server': 'disable'}
+2026-05-15 17:16:34,359 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -49dBm
+2026-05-15 17:16:34,359 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'mode': 'on', 'node': 'chamber_light'}, {'mode': 'flashing', 'node': 'work_light'}]
+2026-05-15 17:16:34,359 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: IDLE -> IDLE, file: , subtask: 
+2026-05-15 17:16:35,366 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'allow_skip_parts': False, 'buildplate_marker_detector': True, 'first_layer_inspector': False, 'halt_print_sensitivity': 'medium', 'print_halt': True, 'printing_monitor': False, 'spaghetti_detector': False}
+2026-05-15 17:16:35,366 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['allow_skip_parts', 'buildplate_marker_detector', 'first_layer_inspector', 'halt_print_sensitivity', 'print_halt', 'printing_monitor', 'spaghetti_detector']
+2026-05-15 17:16:35,366 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: IDLE, gcode_file: , subtask_name: 
+2026-05-15 17:16:35,366 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '3', 'ams_exist_bits_raw': '3', 'insert_flag': True, 'power_on_flag': False, 'tray_exist_bits': 'f', 'tray_is_bbl_bits': 'f', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': 'f', 'tray_reading_bits': '0', 'tray_tar': '255', 'version': 1716}
+2026-05-15 17:16:35,366 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-05-15 17:16:35,366 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 2 new units, 2 total
+2026-05-15 17:16:35,366 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-05-15 17:16:35,366 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-15 17:16:35,366 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 27.0
+2026-05-15 17:16:35,366 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 27.0°C (heater OFF)
+2026-05-15 17:16:35,366 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=27.0, heating=False, respect_local=False
+2026-05-15 17:16:35,366 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 27.0, target: 0.0, heating: False
+2026-05-15 17:16:35,366 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: []
+2026-05-15 17:16:35,367 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'agora_service': 'disable', 'ipcam_dev': '1', 'ipcam_record': 'disable', 'mode_bits': 2, 'resolution': '1080p', 'rtsp_url': 'rtsps://[IP]:322/streaming/live/1', 'timelapse': 'disable', 'tutk_server': 'disable'}
+2026-05-15 17:16:35,367 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -49dBm
+2026-05-15 17:16:35,367 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'mode': 'on', 'node': 'chamber_light'}, {'mode': 'flashing', 'node': 'work_light'}]
+2026-05-15 17:16:35,367 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: IDLE -> IDLE, file: , subtask: 
