@@ -1,0 +1,200 @@
+2026-05-17 04:56:16,674 ERROR [asyncio] [48617a5d] Task was destroyed but it is pending!
+task: <Task pending name='camera-fanout-grace-printer-1' coro=<MjpegBroadcaster._grace_then_stop() running at /app/backend/app/services/camera_fanout.py:125> wait_for=<Task cancelling name='camera-fanout-pump-printer-1' coro=<MjpegBroadcaster._pump() done, defined at /app/backend/app/services/camera_fanout.py:165> wait_for=<Future pending cb=[Task.task_wakeup()]> cb=[Task.task_wakeup()]>>
+2026-05-17 04:56:16,674 INFO [backend.app.api.routes.camera] [48617a5d] Camera stream generator closed (stream_id=1-fanout)
+2026-05-17 04:56:16,674 INFO [backend.app.api.routes.camera] [48617a5d] Camera stream stopped for [IP] (stream_id=1-fanout)
+2026-05-17 04:56:16,675 ERROR [asyncio] [48617a5d] Task was destroyed but it is pending!
+task: <Task pending name='camera-fanout-grace-printer-1' coro=<MjpegBroadcaster._grace_then_stop() running at /app/backend/app/services/camera_fanout.py:125> wait_for=<Task cancelling name='camera-fanout-pump-printer-1' coro=<MjpegBroadcaster._pump() done, defined at /app/backend/app/services/camera_fanout.py:165> wait_for=<Future pending cb=[Task.task_wakeup()]> cb=[Task.task_wakeup()]>>
+2026-05-17 04:56:23,440 INFO [backend.app.api.routes.camera] [d439fba4] Using RTSP protocol for [PRINTER]
+2026-05-17 04:56:23,440 INFO [backend.app.api.routes.camera] [d439fba4] Camera viewer attached to printer-1 (subscribers=4)
+2026-05-17 04:56:30,614 INFO [backend.app.api.routes.camera] [b1cb9db3] Using RTSP protocol for [PRINTER]
+2026-05-17 04:56:30,614 INFO [backend.app.api.routes.camera] [b1cb9db3] Camera viewer attached to printer-1 (subscribers=5)
+2026-05-17 04:56:34,894 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-17 04:56:34,896 INFO [backend.app.api.routes.camera] [d439fba4] Camera viewer detached from printer-1 (subscribers=4)
+2026-05-17 04:56:34,898 INFO [backend.app.api.routes.camera] [b1cb9db3] Camera viewer detached from printer-1 (subscribers=3)
+2026-05-17 04:56:34,898 INFO [backend.app.api.routes.camera] [48617a5d] Camera viewer detached from printer-1 (subscribers=2)
+2026-05-17 04:56:34,898 INFO [backend.app.api.routes.camera] [fab292cd] Camera viewer detached from printer-1 (subscribers=1)
+2026-05-17 04:56:57,713 INFO [backend.app.api.routes.camera] [-] Killing orphaned ffmpeg process found via /proc (pid=12546)
+2026-05-17 04:56:57,713 INFO [backend.app.api.routes.camera] [-] Cleaned up 1 orphaned camera stream(s)
+2026-05-17 04:56:57,741 WARNING [backend.app.api.routes.camera] [12937b5d] ffmpeg stderr (stream_id=1-fanout): frame=12613 fps= 15 q=5.0 size=  283735KiB time=00:14:02.40 bitrate=2759.2kbits/s dup=0 drop=4153 speed=   1x    
+frame=12621 fps= 15 q=5.0 size=  283914KiB time=00:14:02.93 bitrate=2759.2kbits/s dup=0 drop=4156 speed=   1x    
+frame=12628 fps= 15 q=5.0 size=  284071KiB time=00:14:03.40 bitrate=2759.2kbits/s dup=0 drop=4158 speed=   1x    
+frame=12636 fps= 15 q=5.0 size=  284254KiB time=00:14:03.93 bitrate=2759.2kbits/s dup=0 drop=4161 speed=   1x    
+frame=12644 fps= 15 q=5.0 size=  284433KiB time=00:14:04.46 bitrate=2759.2kbits/s dup=0 drop=4163 speed=   1x    
+frame=12651 fps= 15 q=5.0 size=  284590KiB time=00:14:04.93 bitrate=2759.2kbits/s dup=0 drop=4166 speed=   1x    
+frame=12659 fps= 15 q=5.0 size=  284772KiB time=00:14:05.46 bitrate=2759.3kbits/s dup=0 drop=4168 speed=   1x    
+frame=12666 fps= 15 q=5.0 size=  284927KiB time=00:14:05.93 bitrate=2759.2kbits/s dup=0 drop=4171 speed=   1x    
+frame=12674 fps= 15 q=5.0 size=  285104KiB time=00:14:06.46 bitrate=2759.2kbits/s dup=0 drop=4173 speed=   1x    
+frame=12681 fps= 15 q=5.0 size=  285263KiB time=00:14:06.93 bitrate=2759.2kbits/s dup=0 drop=4176 speed=   1x    
+2026-05-17 04:56:57,741 WARNING [backend.app.api.routes.camera] [12937b5d] RTSP stream ended for [IP] (stream_id=1-fanout), will reconnect
+2026-05-17 04:56:57,742 INFO [backend.app.api.routes.camera] [12937b5d] Stream 1-fanout removed from active streams, stopping reconnect
+2026-05-17 04:56:57,742 INFO [backend.app.api.routes.camera] [12937b5d] Camera viewer detached from printer-1 (subscribers=0)
+2026-05-17 04:57:01,360 INFO [backend.app.api.routes.camera] [685440ec] Using RTSP protocol for [PRINTER]
+2026-05-17 04:57:01,361 INFO [backend.app.api.routes.camera] [685440ec] Camera viewer attached to printer-1 (subscribers=1)
+2026-05-17 04:57:01,364 INFO [backend.app.api.routes.camera] [685440ec] Starting RTSP camera stream for [IP] (stream_id=1-fanout, model=[PRINTER], fps=15)
+2026-05-17 04:58:08,871 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 05:03:08,878 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 05:08:08,889 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 05:13:08,911 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 05:18:08,927 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 05:23:08,941 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 05:28:08,960 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 05:33:08,975 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 05:38:08,989 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 05:40:01,769 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-17 05:40:01,905 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-17 05:43:09,002 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 05:48:09,015 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 05:53:09,030 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 05:55:18,082 INFO [backend.app.api.routes.camera] [685440ec] Camera viewer detached from printer-1 (subscribers=0)
+2026-05-17 05:55:23,084 INFO [backend.app.api.routes.camera] [685440ec] Camera stream cancelled (stream_id=1-fanout)
+2026-05-17 05:55:25,085 WARNING [backend.app.api.routes.camera] [685440ec] ffmpeg didn't terminate gracefully, killing (stream_id=1-fanout)
+2026-05-17 05:55:57,801 INFO [backend.app.api.routes.camera] [-] Cleaned up 1 orphaned camera stream(s)
+2026-05-17 05:56:17,003 INFO [backend.app.api.routes.camera] [8b05a1ed] Using RTSP protocol for [PRINTER]
+2026-05-17 05:56:17,004 INFO [backend.app.api.routes.camera] [8b05a1ed] Camera viewer attached to printer-1 (subscribers=1)
+2026-05-17 05:56:17,007 INFO [backend.app.api.routes.camera] [8b05a1ed] Starting RTSP camera stream for [IP] (stream_id=1-fanout, model=[PRINTER], fps=15)
+2026-05-17 05:56:18,002 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-17 05:56:18,003 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-17 05:56:18,005 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-17 05:56:18,025 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-17 05:56:18,025 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-17 05:56:18,027 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-17 05:58:09,048 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 05:59:28,064 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-17 05:59:28,076 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-17 06:03:09,063 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 06:08:09,078 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 06:13:09,095 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 06:14:41,346 INFO [backend.app.api.routes.camera] [8b05a1ed] Camera viewer detached from printer-1 (subscribers=0)
+2026-05-17 06:14:45,668 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-17 06:14:45,668 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-17 06:14:45,673 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-17 06:14:45,700 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-17 06:14:45,700 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-17 06:14:45,702 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-17 06:14:46,347 INFO [backend.app.api.routes.camera] [8b05a1ed] Camera stream cancelled (stream_id=1-fanout)
+2026-05-17 06:14:48,348 WARNING [backend.app.api.routes.camera] [8b05a1ed] ffmpeg didn't terminate gracefully, killing (stream_id=1-fanout)
+2026-05-17 06:14:57,826 INFO [backend.app.api.routes.camera] [-] Cleaned up 1 orphaned camera stream(s)
+2026-05-17 06:15:09,668 INFO [backend.app.api.routes.camera] [227039af] Using RTSP protocol for [PRINTER]
+2026-05-17 06:15:09,668 INFO [backend.app.api.routes.camera] [227039af] Camera viewer attached to printer-1 (subscribers=1)
+2026-05-17 06:15:09,671 INFO [backend.app.api.routes.camera] [227039af] Starting RTSP camera stream for [IP] (stream_id=1-fanout, model=[PRINTER], fps=15)
+2026-05-17 06:15:55,761 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-17 06:15:55,761 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-17 06:18:09,113 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 06:21:36,818 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-17 06:21:36,819 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-17 06:21:36,821 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-17 06:21:36,982 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-17 06:21:36,982 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-17 06:21:36,984 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-17 06:22:26,824 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-17 06:22:26,988 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-17 06:23:09,130 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 06:25:44,555 INFO [uvicorn.access] [-] [IP]:50112 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-17 06:25:44,576 INFO [backend.app.api.routes.camera] [eba23613] Using RTSP protocol for [PRINTER]
+2026-05-17 06:25:44,576 INFO [backend.app.api.routes.camera] [eba23613] Camera viewer attached to printer-1 (subscribers=2)
+2026-05-17 06:25:59,418 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-17 06:25:59,418 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-17 06:25:59,420 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-17 06:25:59,447 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-17 06:25:59,447 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-17 06:25:59,450 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-17 06:26:44,713 INFO [backend.app.api.routes.camera] [227039af] Camera viewer detached from printer-1 (subscribers=1)
+2026-05-17 06:28:09,149 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 06:33:09,157 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 06:33:23,513 ERROR [asyncio] [eba23613] Task was destroyed but it is pending!
+task: <Task cancelling name='camera-fanout-pump-printer-1' coro=<MjpegBroadcaster._pump() running at /app/backend/app/services/camera_fanout.py:168> wait_for=<Future pending cb=[Task.task_wakeup()]> cb=[Task.task_wakeup()]>
+2026-05-17 06:33:23,513 INFO [backend.app.api.routes.camera] [eba23613] Camera stream generator closed (stream_id=1-fanout)
+2026-05-17 06:33:23,513 INFO [backend.app.api.routes.camera] [eba23613] Camera stream stopped for [IP] (stream_id=1-fanout)
+2026-05-17 06:33:23,514 ERROR [asyncio] [eba23613] Task was destroyed but it is pending!
+task: <Task cancelling name='camera-fanout-pump-printer-1' coro=<MjpegBroadcaster._pump() running at /app/backend/app/services/camera_fanout.py:168> wait_for=<Future pending cb=[Task.task_wakeup()]> cb=[Task.task_wakeup()]>
+2026-05-17 06:33:23,514 ERROR [asyncio] [eba23613] Task was destroyed but it is pending!
+task: <Task pending name='camera-fanout-grace-printer-1' coro=<MjpegBroadcaster._grace_then_stop() running at /app/backend/app/services/camera_fanout.py:125> wait_for=<Task cancelling name='camera-fanout-pump-printer-1' coro=<MjpegBroadcaster._pump() done, defined at /app/backend/app/services/camera_fanout.py:165> wait_for=<Future pending cb=[Task.task_wakeup()]> cb=[Task.task_wakeup()]>>
+2026-05-17 06:33:23,514 INFO [backend.app.api.routes.camera] [eba23613] Camera stream generator closed (stream_id=1-fanout)
+2026-05-17 06:33:23,514 INFO [backend.app.api.routes.camera] [eba23613] Camera stream stopped for [IP] (stream_id=1-fanout)
+2026-05-17 06:33:23,514 ERROR [asyncio] [eba23613] Task was destroyed but it is pending!
+task: <Task pending name='camera-fanout-grace-printer-1' coro=<MjpegBroadcaster._grace_then_stop() running at /app/backend/app/services/camera_fanout.py:125> wait_for=<Task cancelling name='camera-fanout-pump-printer-1' coro=<MjpegBroadcaster._pump() done, defined at /app/backend/app/services/camera_fanout.py:165> wait_for=<Future pending cb=[Task.task_wakeup()]> cb=[Task.task_wakeup()]>>
+2026-05-17 06:33:27,400 INFO [backend.app.api.routes.camera] [eba23613] Camera viewer detached from printer-1 (subscribers=0)
+2026-05-17 06:33:27,407 INFO [backend.app.api.routes.camera] [f3e7043f] Using RTSP protocol for [PRINTER]
+2026-05-17 06:33:27,407 INFO [backend.app.api.routes.camera] [f3e7043f] Camera viewer attached to printer-1 (subscribers=1)
+2026-05-17 06:33:34,545 INFO [backend.app.api.routes.camera] [f3e7043f] Camera viewer detached from printer-1 (subscribers=0)
+2026-05-17 06:33:34,557 INFO [backend.app.api.routes.camera] [09cfb128] Using RTSP protocol for [PRINTER]
+2026-05-17 06:33:34,557 INFO [backend.app.api.routes.camera] [09cfb128] Camera viewer attached to printer-1 (subscribers=1)
+2026-05-17 06:33:41,747 INFO [backend.app.api.routes.camera] [09cfb128] Camera viewer detached from printer-1 (subscribers=0)
+2026-05-17 06:33:41,751 INFO [backend.app.api.routes.camera] [78a1873c] Using RTSP protocol for [PRINTER]
+2026-05-17 06:33:41,751 INFO [backend.app.api.routes.camera] [78a1873c] Camera viewer attached to printer-1 (subscribers=1)
+2026-05-17 06:33:48,887 INFO [backend.app.api.routes.camera] [78a1873c] Camera viewer detached from printer-1 (subscribers=0)
+2026-05-17 06:33:48,903 INFO [backend.app.api.routes.camera] [29828f8b] Using RTSP protocol for [PRINTER]
+2026-05-17 06:33:48,903 INFO [backend.app.api.routes.camera] [29828f8b] Camera viewer attached to printer-1 (subscribers=1)
+2026-05-17 06:33:56,008 INFO [backend.app.api.routes.camera] [29828f8b] Camera viewer detached from printer-1 (subscribers=0)
+2026-05-17 06:33:56,024 INFO [backend.app.api.routes.camera] [31b1e560] Using RTSP protocol for [PRINTER]
+2026-05-17 06:33:56,024 INFO [backend.app.api.routes.camera] [31b1e560] Camera viewer attached to printer-1 (subscribers=1)
+2026-05-17 06:33:57,859 INFO [backend.app.api.routes.camera] [-] Killing orphaned ffmpeg process found via /proc (pid=13938)
+2026-05-17 06:33:57,859 INFO [backend.app.api.routes.camera] [-] Cleaned up 1 orphaned camera stream(s)
+2026-05-17 06:33:57,887 WARNING [backend.app.api.routes.camera] [227039af] ffmpeg stderr (stream_id=1-fanout): frame=12606 fps= 15 q=5.0 size=  633664KiB time=00:14:01.93 bitrate=6165.5kbits/s dup=0 drop=4509 speed=   1x    
+frame=12614 fps= 15 q=5.0 size=  635592KiB time=00:14:02.46 bitrate=6180.4kbits/s dup=0 drop=4517 speed=   1x    
+frame=12621 fps= 15 q=5.0 size=  637266KiB time=00:14:02.93 bitrate=6193.2kbits/s dup=0 drop=4524 speed=   1x    
+frame=12629 fps= 15 q=5.0 size=  639184KiB time=00:14:03.46 bitrate=6207.9kbits/s dup=0 drop=4532 speed=   1x    
+frame=12636 fps= 15 q=5.0 size=  640862KiB time=00:14:03.93 bitrate=6220.8kbits/s dup=0 drop=4539 speed=   1x    
+frame=12644 fps= 15 q=5.0 size=  642793KiB time=00:14:04.46 bitrate=6235.6kbits/s dup=0 drop=4547 speed=   1x    
+frame=12651 fps= 15 q=5.0 size=  644476KiB time=00:14:04.93 bitrate=6248.5kbits/s dup=0 drop=4554 speed=   1x    
+frame=12659 fps= 15 q=5.0 size=  646411KiB time=00:14:05.46 bitrate=6263.3kbits/s dup=0 drop=4562 speed=   1x    
+frame=12666 fps= 15 q=5.0 size=  648100KiB time=00:14:05.93 bitrate=6276.2kbits/s dup=0 drop=4569 speed=   1x    
+frame=12674 fps= 15 q=5.0 size=  650041KiB time=00:14:06.46 bitrate=6291.0kbits/s dup=0 drop=4577 speed=   1x    
+2026-05-17 06:33:57,887 WARNING [backend.app.api.routes.camera] [227039af] RTSP stream ended for [IP] (stream_id=1-fanout), will reconnect
+2026-05-17 06:33:57,887 INFO [backend.app.api.routes.camera] [227039af] Stream 1-fanout removed from active streams, stopping reconnect
+2026-05-17 06:33:57,888 INFO [backend.app.api.routes.camera] [31b1e560] Camera viewer detached from printer-1 (subscribers=0)
+2026-05-17 06:34:03,220 INFO [backend.app.api.routes.camera] [d0050b3c] Using RTSP protocol for [PRINTER]
+2026-05-17 06:34:03,221 INFO [backend.app.api.routes.camera] [d0050b3c] Camera viewer attached to printer-1 (subscribers=1)
+2026-05-17 06:34:03,224 INFO [backend.app.api.routes.camera] [d0050b3c] Starting RTSP camera stream for [IP] (stream_id=1-fanout, model=[PRINTER], fps=15)
+2026-05-17 06:36:34,816 INFO [uvicorn.access] [-] [IP]:50251 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-17 06:38:09,171 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 06:43:09,178 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-17 06:44:07,949 INFO [backend.app.api.routes.cloud] [cf80a379] get_filament_info called with 1 IDs: ['GFB01']
+2026-05-17 06:44:08,071 WARNING [backend.app.api.routes.cloud] [cf80a379] Failed to get cloud preset GFB01 (API ID: GFSB01): Failed to get setting detail: 400
+2026-05-17 06:44:08,074 INFO [uvicorn.access] [-] [IP]:50369 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-17 06:44:18,163 INFO [backend.app.services.bambu_mqtt] [b07a9851] [[SERIAL]] Set chamber lights off (seq=6)
+2026-05-17 06:44:18,165 INFO [uvicorn.access] [-] [IP]:50370 - "POST /api/v1/printers/1/chamber-light?on=false HTTP/1.1" 200
+2026-05-17 06:44:23,417 INFO [backend.app.api.routes.camera] [d0050b3c] Camera viewer detached from printer-1 (subscribers=0)
+2026-05-17 06:44:23,423 INFO [backend.app.api.routes.camera] [d0050b3c] Camera stream cancelled (stream_id=1-fanout)
+2026-05-17 06:44:25,424 WARNING [backend.app.api.routes.camera] [d0050b3c] ffmpeg didn't terminate gracefully, killing (stream_id=1-fanout)
+2026-05-17 06:44:27,926 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=[PRINTER], prot_c=False)
+2026-05-17 06:44:27,941 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=[PRINTER], prot_c=False)
+2026-05-17 06:44:36,807 INFO [backend.app.api.routes.camera] [cf7b23d8] Using RTSP protocol for [PRINTER]
+2026-05-17 06:44:36,808 INFO [backend.app.api.routes.camera] [cf7b23d8] Camera viewer attached to printer-1 (subscribers=1)
+2026-05-17 06:44:36,814 INFO [backend.app.api.routes.camera] [cf7b23d8] Starting RTSP camera stream for [IP] (stream_id=1-fanout, model=[PRINTER], fps=15)
+2026-05-17 06:44:36,832 INFO [uvicorn.access] [-] [IP]:50377 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-17 06:44:36,847 INFO [backend.app.api.routes.camera] [bf021136] Using RTSP protocol for [PRINTER]
+2026-05-17 06:44:36,847 INFO [backend.app.api.routes.camera] [bf021136] Camera viewer attached to printer-1 (subscribers=2)
+2026-05-17 06:44:38,749 INFO [backend.app.api.routes.camera] [cf7b23d8] Camera viewer detached from printer-1 (subscribers=1)
+2026-05-17 06:44:38,920 INFO [backend.app.api.routes.camera] [bf021136] Camera viewer detached from printer-1 (subscribers=0)
+2026-05-17 06:44:38,933 INFO [backend.app.api.routes.camera] [cf7b23d8] Camera stream cancelled (stream_id=1-fanout)
+2026-05-17 06:44:40,934 WARNING [backend.app.api.routes.camera] [cf7b23d8] ffmpeg didn't terminate gracefully, killing (stream_id=1-fanout)
+2026-05-17 06:44:40,935 INFO [backend.app.api.routes.camera] [f3043532] Shut down camera fan-out broadcaster for printer 1
+2026-05-17 06:44:40,935 INFO [backend.app.api.routes.camera] [f3043532] Stopped 0 camera stream(s) for printer 1
+2026-05-17 06:44:40,936 INFO [uvicorn.access] [-] [IP]:50377 - "POST /api/v1/printers/1/camera/stop HTTP/1.1" 200
+2026-05-17 06:46:30,864 INFO [backend.app.api.routes.support] [4b4ef7b5] Log level changed to DEBUG
+2026-05-17 06:46:30,865 INFO [backend.app.api.routes.bug_report] [4b4ef7b5] Bug report: enabled debug logging
+2026-05-17 06:46:30,865 DEBUG [backend.app.services.bambu_mqtt] [4b4ef7b5] [[SERIAL]] Requesting status update (pushall)
+2026-05-17 06:46:30,866 INFO [uvicorn.access] [-] [IP]:50427 - "POST /api/v1/bug-report/start-logging HTTP/1.1" 200
+2026-05-17 06:46:32,267 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'allow_skip_parts': False, 'buildplate_marker_detector': True, 'cfg': 1797559, 'first_layer_inspector': True, 'halt_print_sensitivity': 'medium', 'print_halt': True, 'printing_monitor': True, 'spaghetti_detector': True}
+2026-05-17 06:46:32,267 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['allow_skip_parts', 'buildplate_marker_detector', 'cfg', 'first_layer_inspector', 'halt_print_sensitivity', 'print_halt', 'printing_monitor', 'spaghetti_detector']
+2026-05-17 06:46:32,267 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] xcam cfg bitmask: 1797559 (binary: 0b110110110110110110111)
+2026-05-17 06:46:32,267 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: FINISH, gcode_file: /data/Metadata/plate_1.gcode, subtask_name: WIRED_Dayton_Trash_Can_Wheel_Rims
+2026-05-17 06:46:32,268 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '1', 'ams_exist_bits_raw': '1', 'cali_id': 255, 'cali_stat': 0, 'insert_flag': True, 'power_on_flag': False, 'tray_exist_bits': '1', 'tray_hall_out_bits': '0', 'tray_is_bbl_bits': '1', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': '1', 'tray_reading_bits': '0', 'tray_tar': '255', 'unbind_ams_stat': 0, 'version': 55838}
+2026-05-17 06:46:32,268 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-05-17 06:46:32,268 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-05-17 06:46:32,268 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x10001003 -> extruder 0
+2026-05-17 06:46:32,268 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-05-17 06:46:32,268 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-05-17 06:46:32,268 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-17 06:46:32,269 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] device.extruder.state=1 (switch_state bits 12-14: 0)
+2026-05-17 06:46:32,269 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] info.temp direct: 27°C (heater OFF)
+2026-05-17 06:46:32,269 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ctc_info keys: ['temp']
+2026-05-17 06:46:32,269 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=27.0, heating=False, respect_local=False
+2026-05-17 06:46:32,269 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 27.0, target: 0.0, heating: False
+2026-05-17 06:46:32,269 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: []
+2026-05-17 06:46:32,270 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'agora_service': 'disable', 'brtc_service': 'enable', 'bs_state': 0, 'cap_pic_enable': 'invalid', 'ipcam_dev': '1', 'ipcam_record': 'enable', 'laser_preview_res': 4, 'mode_bits': 2, 'resolution': '1080p', 'rtsp_url': 'rtsps://[IP]:322/streaming/live/1', 'timelapse': 'disable', 'tl_store_hpd_type': 2, 'tl_store_path_type': 2, 'tutk_server': 'disable'}
+2026-05-17 06:46:32,270 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -63dBm
+2026-05-17 06:46:32,270 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'mode': 'off', 'node': 'chamber_light'}, {'mode': 'flashing', 'node': 'work_light'}, {'mode': 'off', 'node': 'chamber_light2'}]
+2026-05-17 06:46:32,270 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT mapping field: [0]
+2026-05-17 06:46:32,270 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: FINISH -> FINISH, file: /data/Metadata/plate_1.gcode, subtask: WIRED_Dayton_Trash_Can_Wheel_Rims
