@@ -1,0 +1,200 @@
+2026-05-20 03:58:15,920 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 04:03:15,926 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 04:08:15,932 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 04:13:15,938 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 04:18:15,945 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 04:21:09,498 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-20 04:23:15,952 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 04:28:15,959 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 04:33:15,966 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 04:38:15,972 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 04:43:15,979 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 04:48:15,985 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 04:53:15,991 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 04:58:15,997 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 05:03:16,002 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 05:08:16,008 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 05:13:16,013 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 05:18:16,020 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 05:23:16,026 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 05:28:16,033 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 05:33:16,039 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 05:38:16,046 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 05:43:16,052 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 05:48:16,059 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 05:53:16,065 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 05:58:16,072 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 06:03:16,078 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 06:08:16,084 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 06:13:16,091 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 06:18:16,099 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 06:23:16,105 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 06:28:16,113 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 06:33:16,120 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 06:38:16,127 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 06:43:16,134 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 06:48:16,141 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 06:53:16,150 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 06:58:16,157 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 07:03:16,164 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 07:08:16,172 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 07:13:16,179 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 07:18:16,185 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 07:23:16,193 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 07:28:16,199 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 07:33:16,206 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 07:38:16,213 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 07:43:16,219 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 07:48:16,229 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 07:53:16,236 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 07:58:16,243 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 08:03:16,250 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 08:08:16,257 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 08:13:16,265 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 08:18:16,272 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 08:23:16,278 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 08:28:16,285 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 08:33:16,291 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 08:38:16,297 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 08:43:16,304 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 08:48:16,311 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 08:53:16,318 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 08:58:16,326 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 09:03:16,334 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 09:08:16,340 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 09:13:16,347 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 09:18:16,356 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 09:23:16,363 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 09:28:16,370 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 09:33:16,376 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 09:36:57,366 INFO [uvicorn.access] [-] [IP]:41442 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 401
+2026-05-20 09:36:58,747 INFO [uvicorn.access] [-] [IP]:41494 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 401
+2026-05-20 09:37:11,343 INFO [uvicorn.access] [-] [IP]:56082 - "POST /api/v1/auth/login HTTP/1.1" 401
+2026-05-20 09:37:32,789 INFO [uvicorn.access] [-] [IP]:38142 - "POST /api/v1/auth/login HTTP/1.1" 200
+2026-05-20 09:37:32,994 INFO [uvicorn.access] [-] [IP]:38178 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-20 09:37:33,058 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-20 09:37:33,058 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-20 09:37:33,061 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-20 09:37:33,480 INFO [backend.app.api.routes.cloud] [9660efb8] get_filament_info called with 2 IDs: ['GFL99', 'GFB99']
+2026-05-20 09:37:33,865 INFO [uvicorn.access] [-] [IP]:38458 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-20 09:38:16,383 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 09:38:22,247 INFO [backend.app.api.routes.smart_plugs] [0e703352] Updated smart plug '3D Printer Switch'
+2026-05-20 09:38:22,248 INFO [uvicorn.access] [-] [IP]:42908 - "PATCH /api/v1/smart-plugs/1 HTTP/1.1" 200
+2026-05-20 09:38:29,452 INFO [backend.app.api.routes.smart_plugs] [e6de326b] Updated smart plug '3D Printer Switch'
+2026-05-20 09:38:29,452 INFO [uvicorn.access] [-] [IP]:58214 - "PATCH /api/v1/smart-plugs/1 HTTP/1.1" 200
+2026-05-20 09:38:35,729 INFO [backend.app.services.homeassistant] [71a8a5d3] Turned OFF HA entity '3D Printer Switch' (switch.pcth01ha_switch_1)
+2026-05-20 09:38:35,730 INFO [backend.app.services.printer_manager] [71a8a5d3] Marking printer 1 as offline (smart plug power off)
+2026-05-20 09:38:35,736 INFO [uvicorn.access] [-] [IP]:58286 - "POST /api/v1/smart-plugs/1/control HTTP/1.1" 200
+2026-05-20 09:38:55,529 INFO [backend.app.services.virtual_printer.mqtt_server] [-] [[PRINTER] Buddy] MQTT TLS connection from ('[IP]', 50815) - cipher=('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256), version=TLSv1.3
+2026-05-20 09:38:55,529 INFO [backend.app.services.virtual_printer.mqtt_server] [-] [[PRINTER] Buddy] MQTT client connected: [IP]:50815
+2026-05-20 09:38:55,529 INFO [backend.app.services.virtual_printer.mqtt_server] [-] [[PRINTER] Buddy] MQTT client authenticated successfully
+2026-05-20 09:38:55,530 INFO [backend.app.services.virtual_printer.mqtt_server] [-] [[PRINTER] Buddy] MQTT subscribe: device/[SERIAL]/report QoS=0
+2026-05-20 09:38:55,530 INFO [backend.app.services.virtual_printer.mqtt_server] [-] [[PRINTER] Buddy] MQTT client subscribed with serial [SERIAL] (VP serial is [SERIAL]) — adapting responses
+2026-05-20 09:38:55,531 INFO [backend.app.services.virtual_printer.mqtt_server] [-] MQTT publish to device/[SERIAL]/request: {"pushing": {"sequence_id": "0", "command": "pushall"}}...
+2026-05-20 09:38:55,531 INFO [backend.app.services.virtual_printer.mqtt_server] [-] MQTT pushing command: pushall
+2026-05-20 09:38:55,531 INFO [backend.app.services.virtual_printer.mqtt_server] [-] Sending status report in response to pushall
+2026-05-20 09:39:13,950 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-20 09:39:13,951 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-05-20 09:39:15,565 INFO [backend.app.services.homeassistant] [7f7ce50b] Turned ON HA entity '3D Printer Switch' (switch.pcth01ha_switch_1)
+2026-05-20 09:39:15,569 INFO [uvicorn.access] [-] [IP]:36444 - "POST /api/v1/smart-plugs/1/control HTTP/1.1" 200
+2026-05-20 09:39:36,468 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-05-20 09:39:36,501 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 0 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:39:36,502 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 1 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:39:36,502 INFO [backend.app.services.spoolman] [-] Updating spool 36 by slot-assignment hint (no RFID tag available)
+2026-05-20 09:39:36,522 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 3 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:39:36,522 INFO [backend.app.main] [-] Auto-synced 1 AMS trays to Spoolman for printer 1
+2026-05-20 09:39:38,505 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-05-20 09:39:38,537 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 0 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:39:38,537 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 1 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:39:38,537 INFO [backend.app.services.spoolman] [-] Updating spool 36 by slot-assignment hint (no RFID tag available)
+2026-05-20 09:39:38,546 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 3 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:39:38,546 INFO [backend.app.main] [-] Auto-synced 1 AMS trays to Spoolman for printer 1
+2026-05-20 09:39:40,547 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-05-20 09:39:40,581 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 0 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:39:40,581 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 1 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:39:40,582 INFO [backend.app.services.spoolman] [-] Updating spool 36 by slot-assignment hint (no RFID tag available)
+2026-05-20 09:39:40,592 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 3 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:39:40,592 INFO [backend.app.main] [-] Auto-synced 1 AMS trays to Spoolman for printer 1
+2026-05-20 09:40:09,389 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-05-20 09:40:10,761 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-05-20 09:40:10,794 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 0 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:40:10,794 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 1 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:40:10,794 INFO [backend.app.services.spoolman] [-] Updating spool 36 by slot-assignment hint (no RFID tag available)
+2026-05-20 09:40:10,804 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 3 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:40:10,804 INFO [backend.app.main] [-] Auto-synced 1 AMS trays to Spoolman for printer 1
+2026-05-20 09:40:32,194 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-05-20 09:40:32,226 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 0 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:40:32,226 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 1 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:40:32,226 INFO [backend.app.services.spoolman] [-] Updating spool 36 by slot-assignment hint (no RFID tag available)
+2026-05-20 09:40:32,236 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 3 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:40:32,236 INFO [backend.app.main] [-] Auto-synced 1 AMS trays to Spoolman for printer 1
+2026-05-20 09:40:47,462 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-20 09:41:02,286 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-05-20 09:41:02,319 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 0 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:02,320 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 1 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:02,320 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 3 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:06,397 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-05-20 09:41:06,428 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 0 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:06,429 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 1 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:06,429 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 2 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:06,429 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 3 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:10,521 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-05-20 09:41:10,551 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 0 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:10,551 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 1 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:10,552 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 2 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:10,552 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 3 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:32,966 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-05-20 09:41:32,996 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 0 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:32,996 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 1 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:32,996 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 2 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:32,996 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 3 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:39,165 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-05-20 09:41:39,195 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 0 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:39,196 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 1 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:39,196 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 2 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:39,196 INFO [backend.app.services.spoolman] [-] [PRINTER] AMS 0 tray 3 — skipping (no RFID tag and no slot-assignment hint)
+2026-05-20 09:41:54,548 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-20 09:41:54,549 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-20 09:41:54,549 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-20 09:43:16,391 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-20 09:44:36,917 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-20 09:45:28,703 INFO [backend.app.api.routes.cloud] [a68625a2] get_filament_info called with 2 IDs: ['GFL99', 'GFB99']
+2026-05-20 09:45:29,103 INFO [uvicorn.access] [-] [IP]:53204 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-20 09:45:30,381 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-20 09:45:30,381 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-20 09:45:30,382 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-20 09:46:45,052 INFO [backend.app.api.routes.support] [36d3563a] Log level changed to DEBUG
+2026-05-20 09:46:45,052 INFO [backend.app.api.routes.bug_report] [36d3563a] Bug report: enabled debug logging
+2026-05-20 09:46:45,053 DEBUG [backend.app.services.bambu_mqtt] [36d3563a] [[SERIAL]] Requesting status update (pushall)
+2026-05-20 09:46:45,053 INFO [uvicorn.access] [-] [IP]:34208 - "POST /api/v1/bug-report/start-logging HTTP/1.1" 200
+2026-05-20 09:46:45,366 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: IDLE, gcode_file: , subtask_name: 
+2026-05-20 09:46:45,367 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '1', 'tray_exist_bits': 'f', 'tray_is_bbl_bits': 'f', 'tray_tar': '255', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': 'f', 'tray_reading_bits': '0', 'version': 34, 'insert_flag': True, 'power_on_flag': True}
+2026-05-20 09:46:45,367 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-05-20 09:46:45,367 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-05-20 09:46:45,367 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-05-20 09:46:45,367 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-20 09:46:45,368 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 5.0
+2026-05-20 09:46:45,368 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 5.0°C (heater OFF)
+2026-05-20 09:46:45,368 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=5.0, heating=False, respect_local=False
+2026-05-20 09:46:45,368 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 5.0, target: 0.0, heating: False
+2026-05-20 09:46:45,368 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: []
+2026-05-20 09:46:45,369 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'ipcam_dev': '1', 'ipcam_record': 'disable', 'timelapse': 'disable', 'resolution': '', 'tutk_server': 'enable', 'mode_bits': 3}
+2026-05-20 09:46:45,369 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -38dBm
+2026-05-20 09:46:45,369 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'node': 'chamber_light', 'mode': 'off'}]
+2026-05-20 09:46:45,369 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: IDLE -> IDLE, file: , subtask: 
+2026-05-20 09:46:47,401 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-20 09:46:47,401 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -37dBm
+2026-05-20 09:46:49,438 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-20 09:46:49,439 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -38dBm
+2026-05-20 09:46:49,509 DEBUG [backend.app.services.virtual_printer.ssdp_server] [-] Sent SSDP NOTIFY for [PRINTER] Buddy (Location=[IP], USN=[SERIAL], bind=[IP])
+2026-05-20 09:46:55,557 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-20 09:46:55,558 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -37dBm
+2026-05-20 09:46:57,599 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-20 09:46:57,600 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -38dBm
+2026-05-20 09:47:01,078 DEBUG [backend.app.api.routes.printers] [e222334e] API returning ams_mapping: [], ams_extruder_map: {}
+2026-05-20 09:47:01,078 DEBUG [backend.app.api.routes.printers] [e222334e] Using tray_now directly as global ID: 255
+2026-05-20 09:47:01,647 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-20 09:47:01,647 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -37dBm
+2026-05-20 09:47:03,684 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-20 09:47:05,721 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-20 09:47:05,722 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -38dBm
