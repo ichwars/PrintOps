@@ -1,0 +1,200 @@
+2026-05-19 14:13:16,489 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 14:18:16,492 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 14:23:16,494 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 14:28:16,497 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 14:33:16,500 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 14:38:16,502 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 14:43:16,505 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 14:48:16,508 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 14:53:16,511 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 14:58:16,514 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 15:03:16,516 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 15:08:16,519 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 15:13:16,521 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 15:18:16,524 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 15:23:16,526 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 15:28:16,530 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 15:33:16,533 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 15:38:16,535 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 15:43:16,536 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 15:48:16,540 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 15:53:16,542 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 15:58:16,545 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 16:03:16,547 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 16:08:16,549 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 16:13:16,551 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 16:18:16,554 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 16:23:16,557 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 16:28:16,559 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 16:33:16,562 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 16:38:16,564 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 16:43:16,567 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 16:48:16,569 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 16:53:16,571 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 16:58:16,574 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 16:59:24,625 INFO [uvicorn.access] [-] [IP]:45126 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-19 16:59:24,693 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-19 16:59:24,693 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-19 16:59:24,694 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-19 17:03:16,576 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 17:08:16,579 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 17:12:22,322 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:12:27,746 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:12:32,767 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:12:38,187 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:12:43,105 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:12:48,618 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:12:53,632 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:12:58,746 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:13:03,762 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:13:09,180 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:13:14,198 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:13:16,580 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 17:13:19,625 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:13:24,554 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:13:29,781 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:13:34,712 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:13:39,738 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:13:44,761 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:13:50,088 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 17:15:30,154 INFO [backend.app.services.virtual_printer.bind_server] [3b569f1b] Bind server: client connected from [IP]:48784
+2026-05-19 17:15:30,173 INFO [backend.app.services.virtual_printer.bind_server] [3b569f1b] Bind server: received from [IP]:48784: {'login': {'command': 'detect', 'sequence_id': '20000'}}
+2026-05-19 17:15:30,174 INFO [backend.app.services.virtual_printer.bind_server] [3b569f1b] Bind server: sent detect response to [IP]:48784 (serial=[SERIAL])
+2026-05-19 17:17:49,487 INFO [backend.app.services.virtual_printer.bind_server] [3b569f1b] Bind server: client connected from [IP]:34468
+2026-05-19 17:18:16,584 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 17:19:59,528 INFO [backend.app.services.virtual_printer.bind_server] [3b569f1b] Bind server: client connected from [IP]:46078
+2026-05-19 17:19:59,534 INFO [backend.app.services.virtual_printer.bind_server] [3b569f1b] Bind server: received from [IP]:46078: {'login': {'command': 'detect', 'sequence_id': '20001'}}
+2026-05-19 17:19:59,534 INFO [backend.app.services.virtual_printer.bind_server] [3b569f1b] Bind server: sent detect response to [IP]:46078 (serial=[SERIAL])
+2026-05-19 17:23:16,587 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 17:28:16,589 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 17:33:16,592 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 17:38:16,594 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 17:43:16,598 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 17:48:16,601 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 17:53:16,604 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 17:58:16,606 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 17:59:03,222 INFO [uvicorn.access] [-] [IP]:59218 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-19 18:03:14,969 INFO [backend.app.services.virtual_printer.bind_server] [3b569f1b] Bind server: client connected from [IP]:34928
+2026-05-19 18:03:14,991 INFO [backend.app.services.virtual_printer.bind_server] [3b569f1b] Bind server: received from [IP]:34928: {'login': {'command': 'detect', 'sequence_id': '20002'}}
+2026-05-19 18:03:14,991 INFO [backend.app.services.virtual_printer.bind_server] [3b569f1b] Bind server: sent detect response to [IP]:34928 (serial=[SERIAL])
+2026-05-19 18:03:16,165 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT TLS connection from ('[IP]', 52738) - cipher=('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256), version=TLSv1.3
+2026-05-19 18:03:16,165 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client connected: [IP]:52738
+2026-05-19 18:03:16,166 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client authenticated successfully
+2026-05-19 18:03:16,206 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT subscribe: device/[SERIAL]/report QoS=0
+2026-05-19 18:03:16,225 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT publish to device/[SERIAL]/request: {"pushing":{"command":"pushall","push_target":1,"sequence_id":"20000","version":1}}...
+2026-05-19 18:03:16,225 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT pushing command: pushall
+2026-05-19 18:03:16,225 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] Sending status report in response to pushall
+2026-05-19 18:03:16,226 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT publish to device/[SERIAL]/request: {"info":{"command":"get_version","sequence_id":"20001"}}...
+2026-05-19 18:03:16,226 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT info command: get_version
+2026-05-19 18:03:16,226 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] Sent version response (product_name=P1S)
+2026-05-19 18:03:16,608 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 18:03:31,016 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT publish to device/[SERIAL]/request: {"info":{"command":"get_version","sequence_id":"20002"}}...
+2026-05-19 18:03:31,016 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT info command: get_version
+2026-05-19 18:03:31,017 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] Sent version response (product_name=P1S)
+2026-05-19 18:03:31,017 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT publish to device/[SERIAL]/request: {"info":{"command":"get_version","sequence_id":"20003"}}...
+2026-05-19 18:03:31,017 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT info command: get_version
+2026-05-19 18:03:31,017 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] Sent version response (product_name=P1S)
+2026-05-19 18:04:31,133 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT TLS connection from ('[IP]', 40416) - cipher=('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256), version=TLSv1.3
+2026-05-19 18:04:31,133 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client connected: [IP]:40416
+2026-05-19 18:04:31,133 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client authenticated successfully
+2026-05-19 18:05:35,197 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT TLS connection from ('[IP]', 37244) - cipher=('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256), version=TLSv1.3
+2026-05-19 18:05:35,197 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client connected: [IP]:37244
+2026-05-19 18:05:35,197 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client authenticated successfully
+2026-05-19 18:05:35,248 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT subscribe: device/[SERIAL]/report QoS=0
+2026-05-19 18:06:01,948 INFO [backend.app.api.routes.cloud] [8d6360f6] get_filament_info called with 3 IDs: ['GFS05', 'GFA06', 'GFU01']
+2026-05-19 18:06:02,224 WARNING [backend.app.api.routes.cloud] [8d6360f6] Failed to get cloud preset GFS05 (API ID: GFS05): Failed to get setting detail: 400
+2026-05-19 18:06:02,405 WARNING [backend.app.api.routes.cloud] [8d6360f6] Failed to get cloud preset GFA06 (API ID: GFSA06): Failed to get setting detail: 400
+2026-05-19 18:06:02,610 INFO [uvicorn.access] [-] [IP]:40894 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-19 18:06:35,390 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT TLS connection from ('[IP]', 36742) - cipher=('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256), version=TLSv1.3
+2026-05-19 18:06:35,390 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client connected: [IP]:36742
+2026-05-19 18:06:35,390 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client authenticated successfully
+2026-05-19 18:07:38,453 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT TLS connection from ('[IP]', 57456) - cipher=('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256), version=TLSv1.3
+2026-05-19 18:07:38,453 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client connected: [IP]:57456
+2026-05-19 18:07:38,454 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client authenticated successfully
+2026-05-19 18:07:38,480 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT subscribe: device/[SERIAL]/report QoS=0
+2026-05-19 18:08:16,609 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 18:08:17,429 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT TLS connection from ('[IP]', 33330) - cipher=('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256), version=TLSv1.3
+2026-05-19 18:08:17,429 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client connected: [IP]:33330
+2026-05-19 18:08:17,430 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client authenticated successfully
+2026-05-19 18:08:17,445 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT subscribe: device/[SERIAL]/report QoS=0
+2026-05-19 18:08:17,480 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT publish to device/[SERIAL]/request: {"pushing":{"command":"pushall","push_target":1,"sequence_id":"20000","version":1}}...
+2026-05-19 18:08:17,481 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT pushing command: pushall
+2026-05-19 18:08:17,481 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] Sending status report in response to pushall
+2026-05-19 18:08:17,481 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT publish to device/[SERIAL]/request: {"info":{"command":"get_version","sequence_id":"20001"}}...
+2026-05-19 18:08:17,481 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT info command: get_version
+2026-05-19 18:08:17,481 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] Sent version response (product_name=P1S)
+2026-05-19 18:09:17,620 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT TLS connection from ('[IP]', 36888) - cipher=('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256), version=TLSv1.3
+2026-05-19 18:09:17,620 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client connected: [IP]:36888
+2026-05-19 18:09:17,621 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client authenticated successfully
+2026-05-19 18:10:20,707 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT TLS connection from ('[IP]', 35628) - cipher=('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256), version=TLSv1.3
+2026-05-19 18:10:20,708 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client connected: [IP]:35628
+2026-05-19 18:10:20,708 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client authenticated successfully
+2026-05-19 18:10:20,772 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT subscribe: device/[SERIAL]/report QoS=0
+2026-05-19 18:11:20,899 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT TLS connection from ('[IP]', 39536) - cipher=('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256), version=TLSv1.3
+2026-05-19 18:11:20,899 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client connected: [IP]:39536
+2026-05-19 18:11:20,900 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client authenticated successfully
+2026-05-19 18:11:47,654 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT TLS connection from ('[IP]', 56072) - cipher=('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256), version=TLSv1.3
+2026-05-19 18:11:47,654 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client connected: [IP]:56072
+2026-05-19 18:11:47,654 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client authenticated successfully
+2026-05-19 18:11:47,689 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT subscribe: device/[SERIAL]/report QoS=0
+2026-05-19 18:11:47,707 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT publish to device/[SERIAL]/request: {"pushing":{"command":"pushall","push_target":1,"sequence_id":"20000","version":1}}...
+2026-05-19 18:11:47,707 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT pushing command: pushall
+2026-05-19 18:11:47,707 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] Sending status report in response to pushall
+2026-05-19 18:11:47,707 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT publish to device/[SERIAL]/request: {"info":{"command":"get_version","sequence_id":"20001"}}...
+2026-05-19 18:11:47,708 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT info command: get_version
+2026-05-19 18:11:47,708 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] Sent version response (product_name=P1S)
+2026-05-19 18:12:47,829 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT TLS connection from ('[IP]', 49522) - cipher=('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256), version=TLSv1.3
+2026-05-19 18:12:47,829 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client connected: [IP]:49522
+2026-05-19 18:12:47,830 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client authenticated successfully
+2026-05-19 18:13:16,612 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 18:13:53,908 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT TLS connection from ('[IP]', 55984) - cipher=('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256), version=TLSv1.3
+2026-05-19 18:13:53,908 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client connected: [IP]:55984
+2026-05-19 18:13:53,908 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client authenticated successfully
+2026-05-19 18:13:53,952 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT subscribe: device/[SERIAL]/report QoS=0
+2026-05-19 18:18:16,615 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 18:23:16,617 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-05-19 18:23:55,203 INFO [backend.app.api.routes.cloud] [9117183f] get_filament_info called with 3 IDs: ['GFS05', 'GFA06', 'GFU01']
+2026-05-19 18:23:55,451 WARNING [backend.app.api.routes.cloud] [9117183f] Failed to get cloud preset GFS05 (API ID: GFS05): Failed to get setting detail: 400
+2026-05-19 18:23:55,636 WARNING [backend.app.api.routes.cloud] [9117183f] Failed to get cloud preset GFA06 (API ID: GFSA06): Failed to get setting detail: 400
+2026-05-19 18:23:55,830 INFO [uvicorn.access] [-] [IP]:48600 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-19 18:27:00,576 INFO [backend.app.api.routes.support] [d0c20f53] Log level changed to DEBUG
+2026-05-19 18:27:00,576 INFO [backend.app.api.routes.bug_report] [d0c20f53] Bug report: enabled debug logging
+2026-05-19 18:27:00,576 DEBUG [backend.app.services.bambu_mqtt] [d0c20f53] [[SERIAL]] Requesting status update (pushall)
+2026-05-19 18:27:00,576 INFO [uvicorn.access] [-] [IP]:54442 - "POST /api/v1/bug-report/start-logging HTTP/1.1" 200
+2026-05-19 18:27:00,989 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: IDLE, gcode_file: , subtask_name: 
+2026-05-19 18:27:00,989 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '1', 'tray_exist_bits': '6', 'tray_is_bbl_bits': '6', 'tray_tar': '255', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': '6', 'tray_reading_bits': '0', 'version': 4, 'insert_flag': True, 'power_on_flag': False}
+2026-05-19 18:27:00,990 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-05-19 18:27:00,990 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-05-19 18:27:00,990 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-05-19 18:27:00,990 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-05-19 18:27:00,990 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-05-19 18:27:00,990 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-19 18:27:00,990 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 5.0
+2026-05-19 18:27:00,990 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 5.0°C (heater OFF)
+2026-05-19 18:27:00,990 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=5.0, heating=False, respect_local=False
+2026-05-19 18:27:00,990 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 5.0, target: 0.0, heating: False
+2026-05-19 18:27:00,991 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: []
+2026-05-19 18:27:00,991 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'ipcam_dev': '1', 'ipcam_record': 'enable', 'timelapse': 'disable', 'resolution': '', 'tutk_server': 'disable', 'mode_bits': 3}
+2026-05-19 18:27:00,991 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -49dBm
+2026-05-19 18:27:00,991 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'node': 'chamber_light', 'mode': 'off'}]
+2026-05-19 18:27:00,991 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: IDLE -> IDLE, file: , subtask: 
+2026-05-19 18:27:02,955 DEBUG [backend.app.api.routes.printers] [a09d1511] API returning ams_mapping: [], ams_extruder_map: {'0': 0}
+2026-05-19 18:27:02,955 DEBUG [backend.app.api.routes.printers] [a09d1511] Using tray_now directly as global ID: 255
+2026-05-19 18:27:07,083 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-19 18:27:09,115 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-19 18:27:10,609 DEBUG [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP NOTIFY for Bambddy virtuell (Location=[IP], USN=[SERIAL], bind=[IP])
+2026-05-19 18:27:14,929 DEBUG [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Received M-SEARCH from [IP]
+2026-05-19 18:27:14,929 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
+2026-05-19 18:27:15,156 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT TLS connection from ('[IP]', 53096) - cipher=('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256), version=TLSv1.3
+2026-05-19 18:27:15,156 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client connected: [IP]:53096
+2026-05-19 18:27:15,157 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT client authenticated successfully
+2026-05-19 18:27:15,195 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] [Bambddy virtuell] MQTT subscribe: device/[SERIAL]/report QoS=0
+2026-05-19 18:27:15,211 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-19 18:27:15,213 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT publish to device/[SERIAL]/request: {"pushing":{"command":"pushall","push_target":1,"sequence_id":"20000","version":1}}...
+2026-05-19 18:27:15,213 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT pushing command: pushall
+2026-05-19 18:27:15,214 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] Sending status report in response to pushall
+2026-05-19 18:27:15,214 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT publish to device/[SERIAL]/request: {"info":{"command":"get_version","sequence_id":"20001"}}...
+2026-05-19 18:27:15,214 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] MQTT info command: get_version
+2026-05-19 18:27:15,215 INFO [backend.app.services.virtual_printer.mqtt_server] [3b569f1b] Sent version response (product_name=P1S)
+2026-05-19 18:27:19,948 DEBUG [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Received M-SEARCH from [IP]
+2026-05-19 18:27:19,948 INFO [backend.app.services.virtual_printer.ssdp_server] [3b569f1b] Sent SSDP response to [IP] for 'Bambddy virtuell' (Location=[IP], USN=[SERIAL])
