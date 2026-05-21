@@ -1,0 +1,200 @@
+2026-05-21 18:34:29,662 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Firmware version: 01.10.00.00
+2026-05-21 18:34:31,064 INFO [uvicorn.access] [-] [IP]:59482 - "POST /api/v1/printers/ HTTP/1.1" 400
+2026-05-21 18:34:31,838 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-05-21 18:34:31,881 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Firmware version: 01.10.00.00
+2026-05-21 18:34:31,890 INFO [backend.app.services.spoolman] [-] Updating existing spool 104 for tag 72A3A25143434F25...
+2026-05-21 18:34:31,906 INFO [backend.app.services.spoolman] [-] Updating existing spool 105 for tag 1336E8B4A30644D0...
+2026-05-21 18:34:31,908 INFO [uvicorn.access] [-] [IP]:59479 - "POST /api/v1/printers/ HTTP/1.1" 200
+2026-05-21 18:34:31,916 INFO [backend.app.services.spoolman] [-] Updating existing spool 108 for tag D3900B2000D84C22...
+2026-05-21 18:34:31,930 INFO [backend.app.services.spoolman] [-] Updating existing spool 107 for tag 17A3907B07034CD2...
+2026-05-21 18:34:31,943 INFO [backend.app.services.spoolman] [-] Updating existing spool 91 for tag 44FAB1CD53FA484F...
+2026-05-21 18:34:31,954 INFO [uvicorn.access] [-] [IP]:59483 - "POST /api/v1/discovery/stop HTTP/1.1" 200
+2026-05-21 18:34:31,959 INFO [backend.app.services.spoolman] [-] Updating existing spool 102 for tag 4F34EC708C9E4094...
+2026-05-21 18:34:31,972 INFO [uvicorn.access] [-] [IP]:59484 - "POST /api/v1/discovery/scan/stop HTTP/1.1" 200
+2026-05-21 18:34:31,974 INFO [backend.app.main] [-] Auto-synced 6 AMS trays to Spoolman for printer 1
+2026-05-21 18:34:37,902 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Probing developer mode via ams_filament_setting (seq=3)
+2026-05-21 18:34:37,914 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Developer mode probe: ENABLED (result='success')
+2026-05-21 18:35:43,921 INFO [backend.app.api.routes.support] [2c7982c4] Log level changed to DEBUG
+2026-05-21 18:35:43,921 INFO [backend.app.api.routes.bug_report] [2c7982c4] Bug report: enabled debug logging
+2026-05-21 18:35:43,921 DEBUG [backend.app.services.bambu_mqtt] [2c7982c4] [[SERIAL]] Requesting status update (pushall)
+2026-05-21 18:35:43,922 INFO [uvicorn.access] [-] [IP]:59506 - "POST /api/v1/bug-report/start-logging HTTP/1.1" 200
+2026-05-21 18:35:44,032 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: IDLE, gcode_file: , subtask_name: 
+2026-05-21 18:35:44,033 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '31', 'tray_exist_bits': '3000f', 'tray_is_bbl_bits': '3000f', 'tray_tar': '255', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': '3000f', 'tray_reading_bits': '0', 'version': 80, 'insert_flag': True, 'power_on_flag': True}
+2026-05-21 18:35:44,033 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-05-21 18:35:44,033 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-05-21 18:35:44,033 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-05-21 18:35:44,034 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 128 info=0x2004 -> extruder 0
+2026-05-21 18:35:44,034 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 129 info=0x2004 -> extruder 0
+2026-05-21 18:35:44,034 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0, '128': 0, '129': 0}
+2026-05-21 18:35:44,034 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-05-21 18:35:44,034 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:35:44,034 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 5.0
+2026-05-21 18:35:44,035 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 5.0°C (heater OFF)
+2026-05-21 18:35:44,035 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=5.0, heating=False, respect_local=False
+2026-05-21 18:35:44,035 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 5.0, target: 0.0, heating: False
+2026-05-21 18:35:44,035 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: []
+2026-05-21 18:35:44,035 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'ipcam_dev': '1', 'ipcam_record': 'disable', 'timelapse': 'disable', 'resolution': '', 'tutk_server': 'disable', 'mode_bits': 3}
+2026-05-21 18:35:44,036 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -63dBm
+2026-05-21 18:35:44,036 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'node': 'chamber_light', 'mode': 'off'}]
+2026-05-21 18:35:44,036 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: IDLE -> IDLE, file: , subtask: 
+2026-05-21 18:35:46,066 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-05-21 18:35:46,067 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-05-21 18:35:46,067 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 128 info=0x2004 -> extruder 0
+2026-05-21 18:35:46,067 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 129 info=0x2004 -> extruder 0
+2026-05-21 18:35:46,067 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0, '128': 0, '129': 0}
+2026-05-21 18:35:46,067 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:35:52,591 INFO [backend.app.services.bambu_mqtt] [e994af02] [[SERIAL]] Triggering RFID re-read: AMS 0, slot 1
+2026-05-21 18:35:52,592 INFO [uvicorn.access] [-] [IP]:59506 - "POST /api/v1/printers/1/ams/0/slot/1/refresh HTTP/1.1" 200
+2026-05-21 18:35:52,609 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: ams_get_rfid
+2026-05-21 18:35:56,147 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'tray_is_bbl_bits': '3000d', 'tray_read_done_bits': '3000d', 'version': 81}
+2026-05-21 18:35:56,148 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-05-21 18:35:56,148 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-05-21 18:35:56,148 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 128 info=0x2004 -> extruder 0
+2026-05-21 18:35:56,148 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 129 info=0x2004 -> extruder 0
+2026-05-21 18:35:56,148 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0, '128': 0, '129': 0}
+2026-05-21 18:35:56,148 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS data changed, triggering sync callback
+2026-05-21 18:35:56,148 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:35:56,149 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-05-21 18:35:56,160 DEBUG [backend.app.main] [-] [Printer 1] Fetching spools cache for AMS sync...
+2026-05-21 18:35:56,183 DEBUG [backend.app.main] [-] [Printer 1] Cached 95 spools for batch sync
+2026-05-21 18:35:56,185 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 0 tray 0: type=PLA, idx=GFA01, uuid=72A3A25143434F25, tag=C2D8986D...
+2026-05-21 18:35:56,185 DEBUG [backend.app.services.spoolman] [-] Found spool 104 matching tag 72A3A25143434F25819A0B65B0E72807
+2026-05-21 18:35:56,185 INFO [backend.app.services.spoolman] [-] Updating existing spool 104 for tag 72A3A25143434F25...
+2026-05-21 18:35:56,200 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 0 tray 1: type=PLA, idx=GFA01, uuid=1336E8B4A30644D0, tag=7622A0CD...
+2026-05-21 18:35:56,200 DEBUG [backend.app.services.spoolman] [-] Found spool 105 matching tag 1336E8B4A30644D0929D3F385D3A69C2
+2026-05-21 18:35:56,200 INFO [backend.app.services.spoolman] [-] Updating existing spool 105 for tag 1336E8B4A30644D0...
+2026-05-21 18:35:56,208 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 0 tray 2: type=PLA, idx=GFA01, uuid=D3900B2000D84C22, tag=3D6BBD2F...
+2026-05-21 18:35:56,208 DEBUG [backend.app.services.spoolman] [-] Found spool 108 matching tag D3900B2000D84C22876272226C6AB25A
+2026-05-21 18:35:56,208 INFO [backend.app.services.spoolman] [-] Updating existing spool 108 for tag D3900B2000D84C22...
+2026-05-21 18:35:56,215 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 0 tray 3: type=PLA, idx=GFA01, uuid=17A3907B07034CD2, tag=0D21B33A...
+2026-05-21 18:35:56,215 DEBUG [backend.app.services.spoolman] [-] Found spool 107 matching tag 17A3907B07034CD2958EFD03A48067CF
+2026-05-21 18:35:56,215 INFO [backend.app.services.spoolman] [-] Updating existing spool 107 for tag 17A3907B07034CD2...
+2026-05-21 18:35:56,223 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 128 tray 0: type=TPU-AMS, idx=GFU02, uuid=44FAB1CD53FA484F, tag=44239501...
+2026-05-21 18:35:56,223 DEBUG [backend.app.services.spoolman] [-] Found spool 91 matching tag 44FAB1CD53FA484FA4E55A2AC7A60B93
+2026-05-21 18:35:56,223 INFO [backend.app.services.spoolman] [-] Updating existing spool 91 for tag 44FAB1CD53FA484F...
+2026-05-21 18:35:56,231 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 129 tray 0: type=PLA-S, idx=GFS05, uuid=4F34EC708C9E4094, tag=04D85101...
+2026-05-21 18:35:56,231 DEBUG [backend.app.services.spoolman] [-] Found spool 102 matching tag 4F34EC708C9E4094AD4D89A59E33B3BE
+2026-05-21 18:35:56,231 INFO [backend.app.services.spoolman] [-] Updating existing spool 102 for tag 4F34EC708C9E4094...
+2026-05-21 18:35:56,238 INFO [backend.app.main] [-] Auto-synced 6 AMS trays to Spoolman for printer 1
+2026-05-21 18:35:57,597 DEBUG [backend.app.api.routes.printers] [e994af02] PA re-apply AMS0-T1: no stored or live cali_idx — skipping MQTT
+2026-05-21 18:36:00,198 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'tray_pre': '1', 'tray_reading_bits': '2', 'version': 82}
+2026-05-21 18:36:00,198 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-05-21 18:36:00,198 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-05-21 18:36:00,198 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 128 info=0x2004 -> extruder 0
+2026-05-21 18:36:00,198 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 129 info=0x2004 -> extruder 0
+2026-05-21 18:36:00,198 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0, '128': 0, '129': 0}
+2026-05-21 18:36:00,198 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:36:00,199 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -64dBm
+2026-05-21 18:36:02,278 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'tray_pre': '0', 'version': 84}
+2026-05-21 18:36:02,279 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS partial update (no tray data)
+2026-05-21 18:36:02,279 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:36:04,292 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'tray_now': '1', 'tray_pre': '1', 'version': 85}
+2026-05-21 18:36:04,293 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 1
+2026-05-21 18:36:04,293 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-05-21 18:36:04,293 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-05-21 18:36:04,293 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 128 info=0x2004 -> extruder 0
+2026-05-21 18:36:04,293 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 129 info=0x2004 -> extruder 0
+2026-05-21 18:36:04,293 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0, '128': 0, '129': 0}
+2026-05-21 18:36:04,293 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:36:08,346 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-05-21 18:36:08,346 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-05-21 18:36:08,346 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 128 info=0x2004 -> extruder 0
+2026-05-21 18:36:08,346 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 129 info=0x2004 -> extruder 0
+2026-05-21 18:36:08,346 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0, '128': 0, '129': 0}
+2026-05-21 18:36:08,346 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:36:12,404 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'tray_is_bbl_bits': '3000f', 'tray_read_done_bits': '3000f', 'version': 86}
+2026-05-21 18:36:12,404 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-05-21 18:36:12,404 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-05-21 18:36:12,404 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 128 info=0x2004 -> extruder 0
+2026-05-21 18:36:12,404 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 129 info=0x2004 -> extruder 0
+2026-05-21 18:36:12,404 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0, '128': 0, '129': 0}
+2026-05-21 18:36:12,405 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS data changed, triggering sync callback
+2026-05-21 18:36:12,405 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:36:12,405 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-05-21 18:36:12,420 DEBUG [backend.app.main] [-] [Printer 1] Fetching spools cache for AMS sync...
+2026-05-21 18:36:12,455 DEBUG [backend.app.main] [-] [Printer 1] Cached 95 spools for batch sync
+2026-05-21 18:36:12,459 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 0 tray 0: type=PLA, idx=GFA01, uuid=72A3A25143434F25, tag=C2D8986D...
+2026-05-21 18:36:12,460 DEBUG [backend.app.services.spoolman] [-] Found spool 104 matching tag 72A3A25143434F25819A0B65B0E72807
+2026-05-21 18:36:12,460 INFO [backend.app.services.spoolman] [-] Updating existing spool 104 for tag 72A3A25143434F25...
+2026-05-21 18:36:12,477 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 0 tray 1: type=PLA, idx=GFA01, uuid=1336E8B4A30644D0, tag=7622A0CD...
+2026-05-21 18:36:12,477 DEBUG [backend.app.services.spoolman] [-] Found spool 105 matching tag 1336E8B4A30644D0929D3F385D3A69C2
+2026-05-21 18:36:12,477 INFO [backend.app.services.spoolman] [-] Updating existing spool 105 for tag 1336E8B4A30644D0...
+2026-05-21 18:36:12,487 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 0 tray 2: type=PLA, idx=GFA01, uuid=D3900B2000D84C22, tag=3D6BBD2F...
+2026-05-21 18:36:12,487 DEBUG [backend.app.services.spoolman] [-] Found spool 108 matching tag D3900B2000D84C22876272226C6AB25A
+2026-05-21 18:36:12,487 INFO [backend.app.services.spoolman] [-] Updating existing spool 108 for tag D3900B2000D84C22...
+2026-05-21 18:36:12,496 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 0 tray 3: type=PLA, idx=GFA01, uuid=17A3907B07034CD2, tag=0D21B33A...
+2026-05-21 18:36:12,496 DEBUG [backend.app.services.spoolman] [-] Found spool 107 matching tag 17A3907B07034CD2958EFD03A48067CF
+2026-05-21 18:36:12,496 INFO [backend.app.services.spoolman] [-] Updating existing spool 107 for tag 17A3907B07034CD2...
+2026-05-21 18:36:12,504 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 128 tray 0: type=TPU-AMS, idx=GFU02, uuid=44FAB1CD53FA484F, tag=44239501...
+2026-05-21 18:36:12,505 DEBUG [backend.app.services.spoolman] [-] Found spool 91 matching tag 44FAB1CD53FA484FA4E55A2AC7A60B93
+2026-05-21 18:36:12,505 INFO [backend.app.services.spoolman] [-] Updating existing spool 91 for tag 44FAB1CD53FA484F...
+2026-05-21 18:36:12,513 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 129 tray 0: type=PLA-S, idx=GFS05, uuid=4F34EC708C9E4094, tag=04D85101...
+2026-05-21 18:36:12,513 DEBUG [backend.app.services.spoolman] [-] Found spool 102 matching tag 4F34EC708C9E4094AD4D89A59E33B3BE
+2026-05-21 18:36:12,514 INFO [backend.app.services.spoolman] [-] Updating existing spool 102 for tag 4F34EC708C9E4094...
+2026-05-21 18:36:12,522 INFO [backend.app.main] [-] Auto-synced 6 AMS trays to Spoolman for printer 1
+2026-05-21 18:36:14,420 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'version': 87}
+2026-05-21 18:36:14,420 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS partial update (no tray data)
+2026-05-21 18:36:14,420 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:36:18,462 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'tray_pre': '255'}
+2026-05-21 18:36:18,462 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS partial update (no tray data)
+2026-05-21 18:36:18,462 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:36:18,462 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -65dBm
+2026-05-21 18:36:20,513 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'tray_now': '255', 'tray_pre': '1', 'version': 88}
+2026-05-21 18:36:20,513 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-05-21 18:36:20,513 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-05-21 18:36:20,514 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-05-21 18:36:20,514 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 128 info=0x2004 -> extruder 0
+2026-05-21 18:36:20,514 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 129 info=0x2004 -> extruder 0
+2026-05-21 18:36:20,514 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0, '128': 0, '129': 0}
+2026-05-21 18:36:20,514 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:36:20,514 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -64dBm
+2026-05-21 18:36:22,554 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'tray_now': '1', 'version': 89}
+2026-05-21 18:36:22,554 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 1
+2026-05-21 18:36:22,554 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-05-21 18:36:22,554 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-05-21 18:36:22,554 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 128 info=0x2004 -> extruder 0
+2026-05-21 18:36:22,554 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 129 info=0x2004 -> extruder 0
+2026-05-21 18:36:22,555 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0, '128': 0, '129': 0}
+2026-05-21 18:36:22,555 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:36:26,620 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-05-21 18:36:26,620 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-05-21 18:36:26,620 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 128 info=0x2004 -> extruder 0
+2026-05-21 18:36:26,620 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 129 info=0x2004 -> extruder 0
+2026-05-21 18:36:26,620 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0, '128': 0, '129': 0}
+2026-05-21 18:36:26,621 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:36:28,663 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-05-21 18:36:28,663 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-05-21 18:36:28,663 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 128 info=0x2004 -> extruder 0
+2026-05-21 18:36:28,663 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 129 info=0x2004 -> extruder 0
+2026-05-21 18:36:28,663 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0, '128': 0, '129': 0}
+2026-05-21 18:36:28,664 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS data changed, triggering sync callback
+2026-05-21 18:36:28,664 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:36:28,664 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-05-21 18:36:28,675 DEBUG [backend.app.main] [-] [Printer 1] Fetching spools cache for AMS sync...
+2026-05-21 18:36:28,698 DEBUG [backend.app.main] [-] [Printer 1] Cached 95 spools for batch sync
+2026-05-21 18:36:28,700 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 0 tray 0: type=PLA, idx=GFA01, uuid=72A3A25143434F25, tag=C2D8986D...
+2026-05-21 18:36:28,700 DEBUG [backend.app.services.spoolman] [-] Found spool 104 matching tag 72A3A25143434F25819A0B65B0E72807
+2026-05-21 18:36:28,700 INFO [backend.app.services.spoolman] [-] Updating existing spool 104 for tag 72A3A25143434F25...
+2026-05-21 18:36:28,714 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 0 tray 1: type=PLA, idx=GFA01, uuid=1336E8B4A30644D0, tag=7622A0CD...
+2026-05-21 18:36:28,715 DEBUG [backend.app.services.spoolman] [-] Found spool 105 matching tag 1336E8B4A30644D0929D3F385D3A69C2
+2026-05-21 18:36:28,715 INFO [backend.app.services.spoolman] [-] Updating existing spool 105 for tag 1336E8B4A30644D0...
+2026-05-21 18:36:28,722 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 0 tray 2: type=PLA, idx=GFA01, uuid=D3900B2000D84C22, tag=3D6BBD2F...
+2026-05-21 18:36:28,722 DEBUG [backend.app.services.spoolman] [-] Found spool 108 matching tag D3900B2000D84C22876272226C6AB25A
+2026-05-21 18:36:28,722 INFO [backend.app.services.spoolman] [-] Updating existing spool 108 for tag D3900B2000D84C22...
+2026-05-21 18:36:28,730 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 0 tray 3: type=PLA, idx=GFA01, uuid=17A3907B07034CD2, tag=0D21B33A...
+2026-05-21 18:36:28,730 DEBUG [backend.app.services.spoolman] [-] Found spool 107 matching tag 17A3907B07034CD2958EFD03A48067CF
+2026-05-21 18:36:28,730 INFO [backend.app.services.spoolman] [-] Updating existing spool 107 for tag 17A3907B07034CD2...
+2026-05-21 18:36:28,738 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 128 tray 0: type=TPU-AMS, idx=GFU02, uuid=44FAB1CD53FA484F, tag=44239501...
+2026-05-21 18:36:28,738 DEBUG [backend.app.services.spoolman] [-] Found spool 91 matching tag 44FAB1CD53FA484FA4E55A2AC7A60B93
+2026-05-21 18:36:28,738 INFO [backend.app.services.spoolman] [-] Updating existing spool 91 for tag 44FAB1CD53FA484F...
+2026-05-21 18:36:28,745 DEBUG [backend.app.services.spoolman] [-] Processing [PRINTER] AMS 129 tray 0: type=PLA-S, idx=GFS05, uuid=4F34EC708C9E4094, tag=04D85101...
+2026-05-21 18:36:28,745 DEBUG [backend.app.services.spoolman] [-] Found spool 102 matching tag 4F34EC708C9E4094AD4D89A59E33B3BE
+2026-05-21 18:36:28,745 INFO [backend.app.services.spoolman] [-] Updating existing spool 102 for tag 4F34EC708C9E4094...
+2026-05-21 18:36:28,753 INFO [backend.app.main] [-] Auto-synced 6 AMS trays to Spoolman for printer 1
+2026-05-21 18:36:34,718 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:36:36,738 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'tray_now': '255', 'tray_pre': '255', 'tray_reading_bits': '0', 'version': 91}
+2026-05-21 18:36:36,738 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-05-21 18:36:36,738 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS partial update (no tray data)
+2026-05-21 18:36:36,739 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:36:38,759 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-21 18:36:38,760 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -63dBm
