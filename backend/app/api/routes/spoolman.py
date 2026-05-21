@@ -655,7 +655,7 @@ async def get_unlinked_spools(
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.FILAMENTS_READ),
 ):
-    """Get all Spoolman spools that don't have a tag (not linked to AMS)."""
+    """Get all Spoolman spools not currently assigned to an AMS slot."""
     sm = await get_spoolman_settings(db)
     enabled, url = sm["enabled"], sm["url"]
     if not enabled:
@@ -672,27 +672,34 @@ async def get_unlinked_spools(
         raise HTTPException(status_code=503, detail="Spoolman is not reachable")
 
     spools = await client.get_spools()
-    unlinked = []
 
+    # A spool is "assignable" iff it does not currently occupy an AMS slot.
+    # Assignability is decided by the spoolman_slot_assignments ledger — NOT by
+    # the presence of extra.tag. extra.tag is only an RFID/NFC matching key, and
+    # OpenSpoolman writes its own NFC tag value into that same field (#1122);
+    # treating any non-empty extra.tag as "linked" hid every OpenSpoolman-tagged
+    # spool from this picker even when it occupied no slot. Both link_spool and
+    # the AMS auto-sync upsert a row here for every occupied slot, so the ledger
+    # is a complete record of what is actually assigned.
+    assigned_result = await db.execute(select(SpoolmanSlotAssignment.spoolman_spool_id))
+    assigned_spool_ids = set(assigned_result.scalars().all())
+
+    unlinked = []
     for spool in spools:
-        # Check if spool has a tag in extra field
-        extra = spool.get("extra", {}) or {}
-        tag = extra.get("tag", "")
-        # Remove quotes if present (JSON encoded string) and check if empty
-        clean_tag = tag.strip('"') if tag else ""
-        if not clean_tag:
-            filament = spool.get("filament", {}) or {}
-            unlinked.append(
-                UnlinkedSpool(
-                    id=spool["id"],
-                    filament_name=filament.get("name"),
-                    filament_vendor=(filament.get("vendor") or {}).get("name"),
-                    filament_material=filament.get("material"),
-                    filament_color_hex=filament.get("color_hex"),
-                    remaining_weight=spool.get("remaining_weight"),
-                    location=spool.get("location"),
-                )
+        if spool["id"] in assigned_spool_ids:
+            continue
+        filament = spool.get("filament", {}) or {}
+        unlinked.append(
+            UnlinkedSpool(
+                id=spool["id"],
+                filament_name=filament.get("name"),
+                filament_vendor=(filament.get("vendor") or {}).get("name"),
+                filament_material=filament.get("material"),
+                filament_color_hex=filament.get("color_hex"),
+                remaining_weight=spool.get("remaining_weight"),
+                location=spool.get("location"),
             )
+        )
 
     return unlinked
 
