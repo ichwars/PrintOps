@@ -4933,6 +4933,12 @@ async def lifespan(app: FastAPI):
     # L-2: Start periodic auth cleanup (stale TOTP + expired revoked JTIs)
     start_auth_cleanup()
 
+    # Event-loop stall watchdog: dumps all thread stacks to stderr if the loop
+    # freezes (#1486 — silent "container hangs after adding a printer" reports).
+    from backend.app.services.loop_watchdog import start_loop_watchdog
+
+    start_loop_watchdog()
+
     # Initialize virtual printer manager and sync from DB
     from backend.app.services.virtual_printer import virtual_printer_manager
 
@@ -4960,6 +4966,9 @@ async def lifespan(app: FastAPI):
     stop_runtime_tracking()
     stop_spoolbuddy_watchdog()
     stop_camera_cleanup()
+    from backend.app.services.loop_watchdog import stop_loop_watchdog
+
+    stop_loop_watchdog()
     # Tear down all camera fan-out broadcasters (#1089) so subscribers exit
     # cleanly rather than waiting on a queue that nothing will ever fill.
     try:
