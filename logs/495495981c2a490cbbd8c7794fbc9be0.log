@@ -1,0 +1,200 @@
+2026-05-23 14:32:11,565 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 14:37:11,581 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 14:42:11,596 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 14:47:11,613 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 14:52:11,630 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 14:57:11,637 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 15:02:11,641 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 15:07:11,656 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 15:12:11,672 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 15:17:11,744 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 15:22:11,775 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 15:27:11,809 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 15:32:11,850 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 15:37:11,892 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 15:42:11,897 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 15:47:11,912 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 15:52:11,917 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 15:57:11,925 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 15:57:16,349 INFO [backend.app.main] [-] [Printer 2] Broadcasting AMS change via WebSocket
+2026-05-23 15:57:34,510 INFO [backend.app.main] [-] [Printer 2] Broadcasting AMS change via WebSocket
+2026-05-23 15:58:01,477 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-23 15:58:01,478 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-23 15:58:01,702 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 2 printers
+2026-05-23 15:58:02,008 INFO [uvicorn.access] [-] [IP]:60257 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-23 15:58:04,545 INFO [backend.app.api.routes.cloud] [d425e83a] get_filament_info called with 1 IDs: ['GFG00']
+2026-05-23 15:58:04,859 INFO [backend.app.api.routes.cloud] [5672198f] get_filament_info called with 1 IDs: ['GFA00']
+2026-05-23 15:58:04,987 WARNING [backend.app.api.routes.cloud] [d425e83a] Failed to get cloud preset GFG00 (API ID: GFSG00): Failed to get setting detail: 400
+2026-05-23 15:58:05,182 INFO [uvicorn.access] [-] [IP]:60256 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-23 15:58:05,237 INFO [uvicorn.access] [-] [IP]:60259 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-23 15:58:09,015 INFO [backend.app.services.bambu_mqtt] [db8f720c] [[SERIAL]] Sent drying command: ams_id=0, temp=65, duration=12, mode=1
+2026-05-23 15:58:09,018 INFO [uvicorn.access] [-] [IP]:60258 - "POST /api/v1/printers/2/drying/start?ams_id=0&temp=65&duration=12&filament=PETG&rotate_tray=false HTTP/1.1" 200
+2026-05-23 15:58:27,210 INFO [uvicorn.access] [-] [IP]:60266 - "POST /api/v1/printers/2/refresh-status HTTP/1.1" 200
+2026-05-23 15:58:44,117 INFO [backend.app.services.bambu_mqtt] [2fe1e1a9] [[SERIAL]] Sent drying command: ams_id=0, temp=65, duration=12, mode=1
+2026-05-23 15:58:44,118 INFO [uvicorn.access] [-] [IP]:60269 - "POST /api/v1/printers/2/drying/start?ams_id=0&temp=65&duration=12&filament=PETG&rotate_tray=false HTTP/1.1" 200
+2026-05-23 15:59:07,244 INFO [backend.app.services.camera] [a01fae62] Capturing camera frame bytes from [IP] using chamber image protocol (model: P1S)
+2026-05-23 15:59:09,100 INFO [backend.app.services.camera] [a01fae62] Saved camera frame to: /tmp/tmpli45z4h_.jpg
+2026-05-23 15:59:19,242 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-23 16:02:11,968 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 16:06:24,727 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-23 16:06:24,729 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-23 16:06:24,735 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 2 printers
+2026-05-23 16:07:12,001 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 16:12:12,018 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 16:13:19,582 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-23 16:13:19,582 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-23 16:13:19,584 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 2 printers
+2026-05-23 16:14:09,583 ERROR [asyncio] [-] ConnectionClosedError exception in shielded future
+future: <Future finished exception=ConnectionClosedError(None, Close(code=<CloseCode.INTERNAL_ERROR: 1011>, reason='keepalive ping timeout'), None)>
+Traceback (most recent call last):
+  File "/home/[user]/bambuddy/venv/lib/python3.14/site-packages/websockets/legacy/protocol.py", line 1276, in close_connection
+    await self.transfer_data_task
+  File "/home/[user]/bambuddy/venv/lib/python3.14/site-packages/websockets/legacy/protocol.py", line 940, in transfer_data
+    message = await self.read_message()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/[user]/bambuddy/venv/lib/python3.14/site-packages/websockets/legacy/protocol.py", line 1010, in read_message
+    frame = await self.read_data_frame(max_size=self.max_size)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/[user]/bambuddy/venv/lib/python3.14/site-packages/websockets/legacy/protocol.py", line 1087, in read_data_frame
+    frame = await self.read_frame(max_size)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/[user]/bambuddy/venv/lib/python3.14/site-packages/websockets/legacy/protocol.py", line 1144, in read_frame
+    frame = await Frame.read(
+            ^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+    )
+    ^
+  File "/home/[user]/bambuddy/venv/lib/python3.14/site-packages/websockets/legacy/framing.py", line 70, in read
+    data = await reader(2)
+           ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/asyncio/streams.py", line 769, in readexactly
+    await self._wait_for_data('readexactly')
+  File "/usr/lib/python3.14/asyncio/streams.py", line 539, in _wait_for_data
+    await self._waiter
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+websockets.exceptions.ConnectionClosedError: sent 1011 (internal error) keepalive ping timeout; no close frame received
+2026-05-23 16:14:09,644 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-23 16:17:12,036 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 16:22:12,051 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 16:27:12,057 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 16:29:00,288 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-23 16:29:03,741 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-23 16:29:03,743 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-23 16:29:03,749 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 2 printers
+2026-05-23 16:29:23,462 INFO [uvicorn.access] [-] [IP]:50183 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-23 16:29:23,637 INFO [backend.app.api.routes.cloud] [250b6600] get_filament_info called with 1 IDs: ['GFG00']
+2026-05-23 16:29:23,638 INFO [backend.app.api.routes.cloud] [32ec564e] get_filament_info called with 1 IDs: ['GFA00']
+2026-05-23 16:29:23,791 WARNING [backend.app.api.routes.cloud] [250b6600] Failed to get cloud preset GFG00 (API ID: GFSG00): Failed to get setting detail: 400
+2026-05-23 16:29:23,796 INFO [uvicorn.access] [-] [IP]:63403 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-23 16:29:23,808 INFO [uvicorn.access] [-] [IP]:50183 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-23 16:30:08,961 INFO [uvicorn.access] [-] [IP]:61050 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-23 16:30:09,000 INFO [backend.app.api.routes.cloud] [8c2bc5b3] get_filament_info called with 1 IDs: ['GFG00']
+2026-05-23 16:30:09,000 INFO [uvicorn.access] [-] [IP]:61050 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-23 16:30:09,012 INFO [backend.app.api.routes.cloud] [5e589eac] get_filament_info called with 1 IDs: ['GFA00']
+2026-05-23 16:30:09,012 INFO [uvicorn.access] [-] [IP]:61050 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-23 16:30:11,815 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-23 16:30:11,816 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-23 16:30:11,822 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 2 printers
+2026-05-23 16:30:33,764 ERROR [asyncio] [-] ConnectionClosedError exception in shielded future
+future: <Future finished exception=ConnectionClosedError(None, Close(code=<CloseCode.INTERNAL_ERROR: 1011>, reason='keepalive ping timeout'), None)>
+Traceback (most recent call last):
+  File "/home/[user]/bambuddy/venv/lib/python3.14/site-packages/websockets/legacy/protocol.py", line 1276, in close_connection
+    await self.transfer_data_task
+  File "/home/[user]/bambuddy/venv/lib/python3.14/site-packages/websockets/legacy/protocol.py", line 940, in transfer_data
+    message = await self.read_message()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/[user]/bambuddy/venv/lib/python3.14/site-packages/websockets/legacy/protocol.py", line 1010, in read_message
+    frame = await self.read_data_frame(max_size=self.max_size)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/[user]/bambuddy/venv/lib/python3.14/site-packages/websockets/legacy/protocol.py", line 1087, in read_data_frame
+    frame = await self.read_frame(max_size)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/[user]/bambuddy/venv/lib/python3.14/site-packages/websockets/legacy/protocol.py", line 1144, in read_frame
+    frame = await Frame.read(
+            ^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+    )
+    ^
+  File "/home/[user]/bambuddy/venv/lib/python3.14/site-packages/websockets/legacy/framing.py", line 70, in read
+    data = await reader(2)
+           ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/asyncio/streams.py", line 769, in readexactly
+    await self._wait_for_data('readexactly')
+  File "/usr/lib/python3.14/asyncio/streams.py", line 539, in _wait_for_data
+    await self._waiter
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+websockets.exceptions.ConnectionClosedError: sent 1011 (internal error) keepalive ping timeout; no close frame received
+2026-05-23 16:30:33,769 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-23 16:32:12,074 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-05-23 16:34:03,672 INFO [backend.app.api.routes.support] [57331942] Log level changed to DEBUG
+2026-05-23 16:34:03,673 INFO [backend.app.api.routes.bug_report] [57331942] Bug report: enabled debug logging
+2026-05-23 16:34:03,673 DEBUG [backend.app.services.bambu_mqtt] [57331942] [[SERIAL]] Requesting status update (pushall)
+2026-05-23 16:34:03,674 DEBUG [backend.app.services.bambu_mqtt] [57331942] [[SERIAL]] Requesting status update (pushall)
+2026-05-23 16:34:03,675 INFO [uvicorn.access] [-] [IP]:55480 - "POST /api/v1/bug-report/start-logging HTTP/1.1" 200
+2026-05-23 16:34:03,719 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: FINISH, gcode_file: , subtask_name: SootSpirit-lg
+2026-05-23 16:34:03,719 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '1', 'tray_exist_bits': 'f', 'tray_is_bbl_bits': 'f', 'tray_tar': '255', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': 'f', 'tray_reading_bits': '0', 'version': 328, 'insert_flag': True, 'power_on_flag': False}
+2026-05-23 16:34:03,719 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-05-23 16:34:03,719 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-05-23 16:34:03,719 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-05-23 16:34:03,719 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-05-23 16:34:03,720 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-05-23 16:34:03,720 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-23 16:34:03,720 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 5.0
+2026-05-23 16:34:03,720 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 5.0°C (heater OFF)
+2026-05-23 16:34:03,720 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=5.0, heating=False, respect_local=False
+2026-05-23 16:34:03,721 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 5.0, target: 0.0, heating: False
+2026-05-23 16:34:03,721 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: []
+2026-05-23 16:34:03,721 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'ipcam_dev': '1', 'ipcam_record': 'enable', 'timelapse': 'disable', 'resolution': '', 'tutk_server': 'disable', 'mode_bits': 3}
+2026-05-23 16:34:03,721 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -53dBm
+2026-05-23 16:34:03,721 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'node': 'chamber_light', 'mode': 'on'}]
+2026-05-23 16:34:03,722 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: FINISH -> FINISH, file: , subtask: SootSpirit-lg
+2026-05-23 16:34:04,047 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: FINISH, gcode_file: , subtask_name: PoopChute&BasketOutlet_(Official)_2024-09-01_OUTLET
+2026-05-23 16:34:04,047 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '1', 'tray_exist_bits': 'f', 'tray_is_bbl_bits': 'f', 'tray_tar': '255', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': 'f', 'tray_reading_bits': '0', 'version': 395, 'insert_flag': False, 'power_on_flag': False}
+2026-05-23 16:34:04,047 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-05-23 16:34:04,047 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-05-23 16:34:04,047 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x2003 -> extruder 0
+2026-05-23 16:34:04,047 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-05-23 16:34:04,047 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-05-23 16:34:04,047 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-23 16:34:04,048 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 5.0
+2026-05-23 16:34:04,048 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 5.0°C (heater OFF)
+2026-05-23 16:34:04,048 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=5.0, heating=False, respect_local=False
+2026-05-23 16:34:04,049 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 5.0, target: 0.0, heating: False
+2026-05-23 16:34:04,049 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: []
+2026-05-23 16:34:04,049 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'ipcam_dev': '1', 'ipcam_record': 'enable', 'timelapse': 'disable', 'resolution': '', 'tutk_server': 'disable', 'mode_bits': 3}
+2026-05-23 16:34:04,049 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -60dBm
+2026-05-23 16:34:04,049 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'node': 'chamber_light', 'mode': 'on'}]
+2026-05-23 16:34:04,049 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: FINISH -> FINISH, file: , subtask: PoopChute&BasketOutlet_(Official)_2024-09-01_OUTLET
+2026-05-23 16:34:05,745 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-05-23 16:34:05,746 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-05-23 16:34:05,747 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-05-23 16:34:05,748 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-23 16:34:05,749 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -55dBm
+2026-05-23 16:34:08,069 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-23 16:34:08,071 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -59dBm
+2026-05-23 16:34:09,775 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-05-23 16:34:09,777 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-05-23 16:34:09,777 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-05-23 16:34:09,777 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-23 16:34:09,778 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -54dBm
+2026-05-23 16:34:12,103 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-23 16:34:12,104 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -60dBm
+2026-05-23 16:34:12,402 DEBUG [backend.app.api.routes.printers] [dc054b40] API returning ams_mapping: [], ams_extruder_map: {'0': 0}
+2026-05-23 16:34:12,402 DEBUG [backend.app.api.routes.printers] [dc054b40] Using tray_now directly as global ID: 255
+2026-05-23 16:34:12,406 DEBUG [backend.app.api.routes.printers] [06a96e44] API returning ams_mapping: [], ams_extruder_map: {'0': 0}
+2026-05-23 16:34:12,406 DEBUG [backend.app.api.routes.printers] [06a96e44] Using tray_now directly as global ID: 255
+2026-05-23 16:34:13,471 INFO [backend.app.services.bambu_mqtt] [736ed898] [[SERIAL]] Sent drying command: ams_id=0, temp=65, duration=12, mode=1
+2026-05-23 16:34:13,472 INFO [uvicorn.access] [-] [IP]:53866 - "POST /api/v1/printers/2/drying/start?ams_id=0&temp=65&duration=12&filament=PETG&rotate_tray=false HTTP/1.1" 200
+2026-05-23 16:34:13,486 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: ams_filament_drying
+2026-05-23 16:34:13,501 DEBUG [backend.app.api.routes.printers] [2c438407] API returning ams_mapping: [], ams_extruder_map: {'0': 0}
+2026-05-23 16:34:13,501 DEBUG [backend.app.api.routes.printers] [2c438407] Using tray_now directly as global ID: 255
+2026-05-23 16:34:13,806 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-23 16:34:13,806 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -53dBm
+2026-05-23 16:34:16,169 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-23 16:34:16,171 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -61dBm
