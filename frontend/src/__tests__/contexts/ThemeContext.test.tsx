@@ -2,7 +2,7 @@
  * Tests for the ThemeContext system theme detection feature.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { ThemeProvider, useTheme } from '../../contexts/ThemeContext';
 import type { ReactNode } from 'react';
