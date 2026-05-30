@@ -1,0 +1,200 @@
+2026-05-29 23:57:59,716 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-29 23:59:09,724 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-29 23:59:37,001 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 00:04:37,026 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 00:09:37,046 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 00:14:08,597 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-30 00:14:08,600 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-30 00:14:08,602 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-30 00:14:37,065 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 00:14:58,605 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-30 00:19:37,084 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 00:24:37,111 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 00:29:37,121 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 00:29:43,582 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-30 00:29:43,583 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-30 00:29:43,584 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-30 00:30:53,605 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-30 00:34:37,138 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 00:39:37,158 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 00:39:38,084 INFO [backend.app.services.smart_plug_manager] [-] Captured 4 energy snapshot(s)
+2026-05-30 00:43:00,124 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-30 00:43:00,130 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-30 00:43:00,133 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-30 00:44:30,258 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-30 00:44:37,177 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 00:49:37,197 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 00:54:37,211 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 00:59:05,217 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-30 00:59:05,218 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-30 00:59:05,219 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-30 00:59:37,238 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 01:00:15,225 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-30 01:04:37,266 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 01:09:37,281 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 01:12:56,603 INFO [backend.app.services.github_backup] [-] Running scheduled backup for config 1
+2026-05-30 01:12:56,626 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Requesting K-profiles for nozzle_diameter=0.2 (attempt 1/3)
+2026-05-30 01:12:56,678 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] K-profile response: nozzle=0.2, seq_id=23, 0 profiles, expected=0.2
+2026-05-30 01:12:56,678 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Got 0 K-profiles for nozzle=0.2
+2026-05-30 01:12:56,679 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Got 0 K-profiles for nozzle=0.2 on attempt 1
+2026-05-30 01:12:56,680 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Requesting K-profiles for nozzle_diameter=0.4 (attempt 1/3)
+2026-05-30 01:12:56,747 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] K-profile response: nozzle=0.4, seq_id=24, 0 profiles, expected=0.4
+2026-05-30 01:12:56,747 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Got 0 K-profiles for nozzle=0.4
+2026-05-30 01:12:56,748 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Got 0 K-profiles for nozzle=0.4 on attempt 1
+2026-05-30 01:12:56,748 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Requesting K-profiles for nozzle_diameter=0.6 (attempt 1/3)
+2026-05-30 01:12:56,833 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] K-profile response: nozzle=0.6, seq_id=25, 0 profiles, expected=0.6
+2026-05-30 01:12:56,834 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Got 0 K-profiles for nozzle=0.6
+2026-05-30 01:12:56,834 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Got 0 K-profiles for nozzle=0.6 on attempt 1
+2026-05-30 01:12:56,835 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Requesting K-profiles for nozzle_diameter=0.8 (attempt 1/3)
+2026-05-30 01:12:56,880 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] K-profile response: nozzle=0.8, seq_id=26, 0 profiles, expected=0.8
+2026-05-30 01:12:56,880 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Got 0 K-profiles for nozzle=0.8
+2026-05-30 01:12:56,881 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Got 0 K-profiles for nozzle=0.8 on attempt 1
+2026-05-30 01:12:56,884 INFO [backend.app.services.github_backup] [-] Cloud not authenticated, skipping cloud profiles
+2026-05-30 01:12:56,907 INFO [backend.app.services.github_backup] [-] Collected 20 spools and 104 usage records
+2026-05-30 01:12:56,934 INFO [backend.app.services.github_backup] [-] Collected 84 print archives
+2026-05-30 01:14:37,298 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 01:14:42,086 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-30 01:14:42,087 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-30 01:14:42,089 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-30 01:16:12,230 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-30 01:19:37,320 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 01:24:37,346 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 01:29:37,361 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 01:30:34,989 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-30 01:30:34,996 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-30 01:30:34,998 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-30 01:31:45,005 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-30 01:34:37,380 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 01:39:37,397 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 01:39:38,162 INFO [backend.app.services.smart_plug_manager] [-] Captured 4 energy snapshot(s)
+2026-05-30 01:43:59,598 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-30 01:43:59,599 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-30 01:43:59,600 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-30 01:44:37,417 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 01:45:29,699 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-30 01:49:37,435 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 01:50:37,777 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-30 01:50:37,779 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-30 01:50:37,781 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-30 01:51:47,788 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-30 01:54:37,450 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 01:59:37,470 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 02:04:37,482 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 02:09:37,514 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 02:14:37,536 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 02:19:01,953 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-30 02:19:01,959 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-30 02:19:01,960 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-30 02:19:37,551 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 02:24:37,565 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 02:27:12,682 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-30 02:29:37,583 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 02:34:37,608 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 02:39:37,633 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 02:39:38,252 INFO [backend.app.services.smart_plug_manager] [-] Captured 4 energy snapshot(s)
+2026-05-30 02:44:37,647 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 02:49:37,667 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 02:54:37,681 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 02:59:37,705 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 02:59:47,674 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-30 02:59:47,675 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-30 02:59:47,676 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-30 03:04:37,717 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 03:09:37,732 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 03:14:37,753 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 03:19:37,773 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 03:24:37,793 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 03:29:37,811 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 03:34:37,830 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 03:34:37,851 INFO [backend.app.main] [-] Cleaned up 864 old AMS sensor history entries (older than 30 days)
+2026-05-30 03:39:37,860 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 03:39:38,352 INFO [backend.app.services.smart_plug_manager] [-] Captured 4 energy snapshot(s)
+2026-05-30 03:44:37,895 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 03:49:37,912 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 03:54:37,927 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 03:59:37,947 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 04:04:37,966 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 04:09:37,986 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 04:14:38,007 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 04:19:38,020 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 04:24:38,038 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 04:29:38,053 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 04:34:38,072 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 04:39:38,088 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 04:39:38,435 INFO [backend.app.services.smart_plug_manager] [-] Captured 4 energy snapshot(s)
+2026-05-30 04:44:38,102 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 04:49:38,122 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 04:54:38,141 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 04:59:38,162 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 05:04:38,176 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 05:09:38,187 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 05:14:38,207 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 05:19:38,220 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 05:24:38,234 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 05:29:38,245 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 05:34:38,267 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 05:39:38,283 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 05:39:38,504 INFO [backend.app.services.smart_plug_manager] [-] Captured 4 energy snapshot(s)
+2026-05-30 05:44:38,309 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 05:49:38,316 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 05:54:38,332 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 05:59:38,349 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 06:04:38,356 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 06:09:38,369 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 06:14:38,382 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 06:19:38,396 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 06:24:38,422 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 06:29:38,445 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 06:34:38,452 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 06:39:38,471 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 06:39:38,581 INFO [backend.app.services.smart_plug_manager] [-] Captured 4 energy snapshot(s)
+2026-05-30 06:44:38,486 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 06:49:38,504 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 06:54:38,515 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 06:59:38,527 INFO [backend.app.main] [-] Recorded 3 AMS sensor history entries
+2026-05-30 06:59:47,622 INFO [uvicorn.access] [-] [IP]:58453 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 401
+2026-05-30 07:03:29,594 INFO [uvicorn.access] [-] [IP]:58509 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 401
+2026-05-30 07:03:30,969 INFO [uvicorn.access] [-] [IP]:58509 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 401
+2026-05-30 07:03:32,300 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-05-30 07:03:33,062 INFO [uvicorn.access] [-] [IP]:58512 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 401
+2026-05-30 07:03:34,146 INFO [uvicorn.access] [-] [IP]:58509 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 401
+2026-05-30 07:03:39,462 INFO [uvicorn.access] [-] [IP]:58515 - "POST /api/v1/auth/login HTTP/1.1" 200
+2026-05-30 07:03:39,536 INFO [uvicorn.access] [-] [IP]:58515 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-05-30 07:03:39,655 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-05-30 07:03:39,655 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-05-30 07:03:39,656 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-05-30 07:03:39,972 INFO [backend.app.api.routes.cloud] [fe896ca2] get_filament_info called with 5 IDs: ['GFG02', 'GFA00', 'GFG96', ',', 'GFG00']
+2026-05-30 07:03:40,248 WARNING [backend.app.api.routes.cloud] [fe896ca2] Failed to get cloud preset GFG02 (API ID: GFSG02): Failed to get setting detail: 400
+2026-05-30 07:03:40,706 WARNING [backend.app.api.routes.cloud] [fe896ca2] Failed to get cloud preset GFG96 (API ID: GFSG96): Failed to get setting detail: 400
+2026-05-30 07:03:40,899 WARNING [backend.app.api.routes.cloud] [fe896ca2] Failed to get cloud preset , (API ID: ,): Failed to get setting detail: 422
+2026-05-30 07:03:41,096 WARNING [backend.app.api.routes.cloud] [fe896ca2] Failed to get cloud preset GFG00 (API ID: GFSG00): Failed to get setting detail: 400
+2026-05-30 07:03:41,099 INFO [uvicorn.access] [-] [IP]:58520 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-05-30 07:03:41,795 INFO [backend.app.services.firmware_check] [f5ed5248] Got Bambu Lab build ID: OBnqx55dVGe-He_GGOIK1
+2026-05-30 07:04:26,553 INFO [backend.app.api.routes.support] [2aef4c7e] Log level changed to DEBUG
+2026-05-30 07:04:26,553 INFO [backend.app.api.routes.bug_report] [2aef4c7e] Bug report: enabled debug logging
+2026-05-30 07:04:26,553 DEBUG [backend.app.services.bambu_mqtt] [2aef4c7e] [[SERIAL]] Requesting status update (pushall)
+2026-05-30 07:04:26,554 INFO [uvicorn.access] [-] [IP]:58546 - "POST /api/v1/bug-report/start-logging HTTP/1.1" 200
+2026-05-30 07:04:27,705 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'allow_skip_parts': False, 'buildplate_marker_detector': True, 'cfg': 1797559, 'first_layer_inspector': True, 'halt_print_sensitivity': 'medium', 'print_halt': True, 'printing_monitor': True, 'spaghetti_detector': True}
+2026-05-30 07:04:27,705 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['allow_skip_parts', 'buildplate_marker_detector', 'cfg', 'first_layer_inspector', 'halt_print_sensitivity', 'print_halt', 'printing_monitor', 'spaghetti_detector']
+2026-05-30 07:04:27,706 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] xcam cfg bitmask: 1797559 (binary: 0b110110110110110110111)
+2026-05-30 07:04:27,706 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: IDLE, gcode_file: , subtask_name: 
+2026-05-30 07:04:27,706 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '13', 'ams_exist_bits_raw': '13', 'cali_id': 255, 'cali_stat': 0, 'cfs': [], 'insert_flag': True, 'power_on_flag': False, 'tray_exist_bits': '5f', 'tray_hall_out_bits': '0', 'tray_is_bbl_bits': '5f', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': '5f', 'tray_reading_bits': '0', 'tray_tar': '255', 'unbind_ams_stat': 0, 'version': 98457}
+2026-05-30 07:04:27,707 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-05-30 07:04:27,707 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-05-30 07:04:27,707 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x10001003 -> extruder 0
+2026-05-30 07:04:27,707 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 1 info=0x10002003 -> extruder 0
+2026-05-30 07:04:27,708 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 128 info=0x11001104 -> extruder 1
+2026-05-30 07:04:27,708 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0, '1': 0, '128': 1}
+2026-05-30 07:04:27,708 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-05-30 07:04:27,708 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-05-30 07:04:27,708 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] device.extruder.state=274 (switch_state bits 12-14: 0)
+2026-05-30 07:04:27,709 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] info.temp direct: 28°C (heater OFF)
+2026-05-30 07:04:27,709 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ctc_info keys: ['temp']
+2026-05-30 07:04:27,709 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=28.0, heating=False, respect_local=False
+2026-05-30 07:04:27,709 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 28.0, target: 0.0, heating: False
+2026-05-30 07:04:27,709 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: [{'attr': 83886336, 'code': 196614}, {'attr': 83887360, 'code': 65543}]
+2026-05-30 07:04:27,709 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'agora_service': 'disable', 'brtc_service': 'enable', 'bs_state': 0, 'cap_pic_enable': 'disable', 'ipcam_dev': '1', 'ipcam_record': 'enable', 'laser_preview_res': 6, 'mode_bits': 2, 'resolution': '1080p', 'rtsp_url': 'rtsps://[IP]:322/streaming/live/1', 'timelapse': 'disable', 'tl_store_hpd_type': 2, 'tl_store_path_type': 2, 'tutk_server': 'disable'}
+2026-05-30 07:04:27,709 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -52dBm
+2026-05-30 07:04:27,710 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'mode': 'off', 'node': 'chamber_light'}, {'mode': 'flashing', 'node': 'work_light'}, {'mode': 'off', 'node': 'chamber_light2'}]
+2026-05-30 07:04:27,710 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT mapping field: []
+2026-05-30 07:04:27,710 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: IDLE -> IDLE, file: , subtask: 
