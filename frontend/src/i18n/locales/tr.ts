@@ -2200,7 +2200,7 @@ export default {
     updateAvailableVersion: 'Güncelleme mevcut: v{{version}}',
     releaseNotes: 'Sürüm Notları',
     updateViaDocker: 'Docker Compose ile güncelle:',
-    updateViaHomeAssistant: "Güncellemeler Home Assistant Supervisor tarafından yönetilir. Yeni sürümü yüklemek için Home Assistant'ta Ayarlar → Eklentiler → Bambuddy\'ye gidin.",
+    updateViaHomeAssistant: "Güncellemeler Home Assistant Supervisor tarafından yönetilir. Yeni sürümü yüklemek için Home Assistant'ta Ayarlar → Eklentiler → Bambuddy'ye gidin.",
     installUpdate: 'Güncellemeyi Yükle',
     latestVersionRunning: 'En son sürümü çalıştırıyorsunuz',
     failedToCheckUpdates: 'Güncellemeler kontrol edilemedi: {{error}}',
@@ -3548,7 +3548,7 @@ export default {
     subtitle: 'Makaralarınızı yönetin',
     spoolmanMixedContentTitle: 'Spoolman HTTPS üzerinden yüklenemiyor — tarayıcınız tarafından karışık içerik engellendi',
     spoolmanMixedContentBody: 'Bambuddy HTTPS üzerinden sunuluyor (ters proxy\'niz aracılığıyla), ancak Spoolman URL\'niz hâlâ düz HTTP. Tarayıcılar güvenlik için karışık içeriği engeller, bu nedenle gömülü Spoolman arayüzü oluşturulamaz. Bunun çalışması için Spoolman\'in HTTPS üzerinden erişilebilir olması gerekiyor.',
-    spoolmanMixedContentFixReverseProxy: "Spoolman'i Bambuddy ile aynı ters proxy\'nin (Traefik / Nginx / Caddy) arkasına HTTPS ile koyun, ardından Ayarlardaki Spoolman URL\'sini yeni HTTPS adresine güncelleyin.",
+    spoolmanMixedContentFixReverseProxy: "Spoolman'i Bambuddy ile aynı ters proxy'nin (Traefik / Nginx / Caddy) arkasına HTTPS ile koyun, ardından Ayarlardaki Spoolman URL'sini yeni HTTPS adresine güncelleyin.",
     spoolmanMixedContentFixOpenNewTab: 'Geçici bir çözüm olarak, Spoolman\'i HTTP üzerinden yeni bir tarayıcı sekmesinde açın — karışık içerik kuralları yalnızca gömülü çerçevelere uygulanır, bu nedenle bağımsız bir sekme yine çalışır.',
     spoolmanOpenInNewTab: 'Spoolman\'i yeni sekmede aç',
     labels: {
