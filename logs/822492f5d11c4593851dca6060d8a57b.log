@@ -1,0 +1,200 @@
+2026-06-04 22:40:03,706 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1 Mini, prot_c=False)
+2026-06-04 22:40:03,802 WARNING [backend.app.main] [-] [TIMELAPSE] All attempts exhausted for archive 1, giving up
+2026-06-04 22:43:54,276 INFO [backend.app.services.homeassistant] [-] Turned OFF HA entity 'plug_1' (switch.filament_printer_plug)
+2026-06-04 22:43:54,276 INFO [backend.app.services.smart_plug_manager] [-] Turned off plug 1 after time delay
+2026-06-04 22:43:54,284 INFO [backend.app.services.smart_plug_manager] [-] Auto-off executed and disabled for plug 1
+2026-06-04 22:43:54,285 INFO [backend.app.services.printer_manager] [-] Marking printer 1 as offline (smart plug power off)
+2026-06-04 22:44:52,741 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-06-04 22:44:52,742 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-06-04 22:54:25,927 INFO [backend.app.api.routes.cloud] [f038d242] get_filament_info called with 1 IDs: ['GFL99']
+2026-06-04 22:54:25,965 INFO [uvicorn.access] [-] [IP]:64208 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-06-04 22:54:26,334 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-06-04 22:54:26,764 INFO [uvicorn.access] [-] [IP]:64208 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-04 22:54:27,274 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-06-04 22:54:27,274 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-06-04 22:54:27,278 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-06-04 22:54:27,612 INFO [backend.app.api.routes.cloud] [627da3f5] get_filament_info called with 1 IDs: ['GFL99']
+2026-06-04 22:54:27,615 INFO [uvicorn.access] [-] [IP]:64217 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-06-04 22:54:34,748 INFO [backend.app.services.homeassistant] [139381d7] Turned ON HA entity 'filament_printer_plug' (switch.filament_printer_plug)
+2026-06-04 22:54:34,774 INFO [uvicorn.access] [-] [IP]:64211 - "POST /api/v1/smart-plugs/1/control HTTP/1.1" 200
+2026-06-04 22:56:13,120 INFO [uvicorn.access] [-] [IP]:64329 - "POST /api/v1/library/files?generate_stl_thumbnails=true HTTP/1.1" 200
+2026-06-04 22:56:44,756 INFO [uvicorn.access] [-] [IP]:64353 - "POST /api/v1/library/files/3/print?printer_id=1 HTTP/1.1" 200
+2026-06-04 22:56:45,805 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1 Mini, prot_c=False)
+2026-06-04 22:56:45,817 WARNING [backend.app.services.bambu_ftp] [-] Failed to delete /MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf: 550 
+2026-06-04 22:56:45,829 INFO [backend.app.services.bambu_ftp] [-] FTP connecting to [IP] for upload (model=A1 Mini, mode=prot_p, socket_timeout=30.0s)...
+2026-06-04 22:56:46,642 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1 Mini, prot_c=False)
+2026-06-04 22:56:46,642 INFO [backend.app.services.bambu_ftp] [-] FTP connected to [IP]
+2026-06-04 22:56:46,643 INFO [backend.app.services.bambu_ftp] [-] FTP uploading /app/data/archive/library/files/226bc8ffa6d745eda47863fb5904b8fd.3mf (3850302 bytes) to /MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf
+2026-06-04 22:56:46,692 INFO [backend.app.services.bambu_ftp] [-] FTP data channel ready in 0.0s (PASV + TLS handshake)
+2026-06-04 22:57:03,434 INFO [backend.app.services.bambu_ftp] [-] FTP STOR confirmed for /MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf: 226
+2026-06-04 22:57:03,434 INFO [backend.app.services.bambu_ftp] [-] FTP upload complete: /MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf (3850302 bytes in 16.8s, 224 KB/s)
+2026-06-04 22:57:03,434 INFO [backend.app.services.bambu_ftp] [-] FTP mode cached for [IP]: prot_p
+2026-06-04 22:57:03,454 INFO [backend.app.main] [-] Registered expected print: printer=1, file=MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf, archive=2, ams_mapping=[-1, 254]
+2026-06-04 22:57:03,460 INFO [backend.app.services.printer_manager] [-] PRINT COMMAND: printer=1, file=MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf, caller=background_dispatch.py:553:_process_job
+2026-06-04 22:57:03,461 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] All filament slots use external spool — setting use_ams=False
+2026-06-04 22:57:03,461 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Sending print command: {"print": {"sequence_id": "20000", "command": "project_file", "param": "Metadata/plate_1.gcode", "url": "ftp://MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf", "file": "MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf", "md5": "", "bed_type": "auto", "timelapse": false, "bed_leveling": true, "auto_bed_leveling": 1, "flow_cali": false, "vibration_cali": false, "layer_inspect": false, "use_ams": false, "cfg": "0", "extrude_cali_flag": 2, "extrude_cali_manual_mode": 0, "nozzle_offset_cali": 2, "subtask_name": "MonoColor_Spool_Roller_without_screws_A1mini_single_part", "profile_id": "0", "project_id": "342680098", "subtask_id": "342680098", "task_id": "342680098", "ams_mapping": [-1, -1], "ams_mapping2": [{"ams_id": 255, "slot_id": 255}, {"ams_id": 255, "slot_id": 0}]}}
+2026-06-04 22:57:10,460 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] PRINT START detected - file: MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf, subtask: MonoColor_Spool_Roller_without_screws_A1mini_single_part, is_new: True, is_file_change: False
+2026-06-04 22:57:10,461 INFO [backend.app.main] [-] [CALLBACK] on_print_start called for printer 1, data keys: ['filename', 'subtask_name', 'remaining_time', 'raw_data', 'ams_mapping']
+2026-06-04 22:57:10,465 INFO [backend.app.services.usage_tracker] [-] [UsageTracker] PRINT START printer 1: mapping=None, tray_now=255, last_loaded_tray=254
+2026-06-04 22:57:10,470 INFO [backend.app.services.usage_tracker] [-] [UsageTracker] Captured start remain% for printer 1 (1 trays): {'255-0': 0}
+2026-06-04 22:57:10,478 INFO [backend.app.main] [-] [PLATE CHECK] printer_id=1, plate_detection_enabled=True
+2026-06-04 22:57:10,478 INFO [backend.app.main] [-] [PLATE CHECK] ENTERING plate detection code for printer 1
+2026-06-04 22:57:11,569 INFO [backend.app.main] [-] [PLATE CHECK] Running plate detection for printer 1
+2026-06-04 22:57:11,572 INFO [backend.app.services.camera] [-] Capturing camera frame bytes from [IP] using chamber image protocol (model: A1 Mini)
+2026-06-04 22:57:13,104 INFO [backend.app.services.camera] [-] Saved camera frame to: /tmp/tmpto1zm4mn.jpg
+2026-06-04 22:57:13,468 WARNING [backend.app.main] [-] [PLATE CHECK] Objects detected on plate for printer 1! Confidence: 100%, Diff: 44.1%
+2026-06-04 22:57:13,469 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Sent pause print command
+2026-06-04 22:57:13,470 INFO [backend.app.main] [-] [PLATE CHECK] Print paused for printer 1
+2026-06-04 22:57:13,483 INFO [backend.app.main] [-] [CALLBACK] Print start detected - filename: MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf, subtask: MonoColor_Spool_Roller_without_screws_A1mini_single_part
+2026-06-04 22:57:13,484 INFO [backend.app.main] [-] Using expected archive 2 for print (skipping duplicate)
+2026-06-04 22:57:13,496 INFO [backend.app.main] [-] [CALLBACK] Injected ams_mapping into usage tracker session: [-1, 254]
+2026-06-04 22:57:13,577 INFO [backend.app.main] [-] [ENERGY] Recorded starting energy (expected-print) for archive 2: 0.26 kWh
+2026-06-04 22:57:13,584 INFO [backend.app.main] [-] [SNAPSHOT] Capturing fresh frame for printer 1
+2026-06-04 22:57:13,585 INFO [backend.app.services.camera] [-] Capturing camera frame bytes from [IP] using chamber image protocol (model: A1 Mini)
+2026-06-04 22:57:15,177 INFO [backend.app.main] [-] [SNAPSHOT] Fresh camera frame: 162919 bytes
+2026-06-04 22:57:15,178 INFO [backend.app.services.notification_service] [-] on_print_start called for printer 1 ([PRINTER])
+2026-06-04 22:57:15,201 INFO [backend.app.services.notification_service] [-] No notification providers configured for print_start event on printer 1
+2026-06-04 22:57:15,293 INFO [backend.app.main] [-] Loaded 1 printable objects for printer 1
+2026-06-04 22:57:16,121 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1 Mini, prot_c=False)
+2026-06-04 22:57:16,229 INFO [backend.app.main] [-] [TIMELAPSE] Baseline at print start: 1 video files for printer 1
+2026-06-04 22:58:11,429 INFO [backend.app.api.routes.printers] [c8d08bea] Cover: resolved plate 1 before download (subtask=MonoColor_Spool_Roller_without_screws_A1mini_single_part)
+2026-06-04 22:58:11,430 INFO [backend.app.api.routes.printers] [c8d08bea] Cover using cached 3MF from /app/data/archive/library/files/226bc8ffa6d745eda47863fb5904b8fd.3mf (avoided duplicate FTP)
+2026-06-04 22:58:11,430 INFO [backend.app.api.routes.printers] [c8d08bea] Downloaded file size: 3850302 bytes
+2026-06-04 22:58:16,954 INFO [backend.app.services.bambu_mqtt] [69ac6e17] [[SERIAL]] Sent resume print command
+2026-06-04 22:58:16,955 INFO [uvicorn.access] [-] [IP]:64377 - "POST /api/v1/printers/1/print/resume HTTP/1.1" 200
+2026-06-04 22:59:27,689 INFO [backend.app.main] [-] [SNAPSHOT] Capturing fresh frame for printer 1
+2026-06-04 22:59:27,690 INFO [backend.app.services.camera] [-] Capturing camera frame bytes from [IP] using chamber image protocol (model: A1 Mini)
+2026-06-04 22:59:29,220 INFO [backend.app.main] [-] [SNAPSHOT] Fresh camera frame: 126242 bytes
+2026-06-04 23:01:03,267 INFO [backend.app.main] [-] [SNAPSHOT] Capturing fresh frame for printer 1
+2026-06-04 23:01:03,267 INFO [backend.app.services.camera] [-] Capturing camera frame bytes from [IP] using chamber image protocol (model: A1 Mini)
+2026-06-04 23:01:03,269 INFO [backend.app.main] [-] [SNAPSHOT] Capturing fresh frame for printer 1
+2026-06-04 23:01:03,269 INFO [backend.app.services.camera] [-] Capturing camera frame bytes from [IP] using chamber image protocol (model: A1 Mini)
+2026-06-04 23:01:05,083 INFO [backend.app.main] [-] [SNAPSHOT] Fresh camera frame: 115775 bytes
+2026-06-04 23:01:07,076 INFO [backend.app.main] [-] [SNAPSHOT] Fresh camera frame: 115198 bytes
+2026-06-04 23:03:46,062 INFO [backend.app.main] [-] [SNAPSHOT] Capturing fresh frame for printer 1
+2026-06-04 23:03:46,062 INFO [backend.app.services.camera] [-] Capturing camera frame bytes from [IP] using chamber image protocol (model: A1 Mini)
+2026-06-04 23:03:47,589 INFO [backend.app.main] [-] [SNAPSHOT] Fresh camera frame: 118783 bytes
+2026-06-04 23:04:06,335 INFO [backend.app.api.routes.cloud] [b6f51f3c] get_filament_info called with 1 IDs: ['GFL99']
+2026-06-04 23:04:06,376 INFO [uvicorn.access] [-] [IP]:64474 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-06-04 23:04:42,616 INFO [backend.app.services.bambu_mqtt] [1812b33d] [[SERIAL]] Requesting K-profiles for nozzle_diameter=0.4 (attempt 1/3)
+2026-06-04 23:04:42,668 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] K-profile response: nozzle=0.4, seq_id=9, 0 profiles, expected=0.4
+2026-06-04 23:04:42,669 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Got 0 K-profiles for nozzle=0.4
+2026-06-04 23:04:42,670 INFO [backend.app.services.bambu_mqtt] [1812b33d] [[SERIAL]] Got 0 K-profiles for nozzle=0.4 on attempt 1
+2026-06-04 23:04:50,256 INFO [backend.app.services.bambu_mqtt] [040dbcd4] [[SERIAL]] Requesting K-profiles for nozzle_diameter=0.4 (attempt 1/3)
+2026-06-04 23:04:50,301 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] K-profile response: nozzle=0.4, seq_id=10, 0 profiles, expected=0.4
+2026-06-04 23:04:50,302 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Got 0 K-profiles for nozzle=0.4
+2026-06-04 23:04:50,303 INFO [backend.app.services.bambu_mqtt] [040dbcd4] [[SERIAL]] Got 0 K-profiles for nozzle=0.4 on attempt 1
+2026-06-04 23:05:30,098 INFO [uvicorn.access] [-] [IP]:64514 - "POST /api/v1/inventory/spools HTTP/1.1" 200
+2026-06-04 23:05:30,130 INFO [uvicorn.access] [-] [IP]:64514 - "PUT /api/v1/inventory/spools/2/k-profiles HTTP/1.1" 200
+2026-06-04 23:05:41,288 INFO [backend.app.services.bambu_mqtt] [f0a5f3fb] [[SERIAL]] Publishing ams_filament_setting: AMS 255, tray 0, tray_info_idx=GFL99, setting_id=GFSL99
+2026-06-04 23:05:41,288 INFO [backend.app.services.bambu_mqtt] [f0a5f3fb] [[SERIAL]] Publishing extrusion_cali_sel: AMS 255, tray 0, cali_idx=-1
+2026-06-04 23:05:41,289 INFO [backend.app.api.routes.inventory] [f0a5f3fb] No stored K-profile for spool 2 — reset slot to Default K (cali_idx=-1)
+2026-06-04 23:05:41,301 INFO [backend.app.api.routes.inventory] [f0a5f3fb] Auto-configured AMS slot ams=255 tray=0 for spool 2 on printer 1
+2026-06-04 23:05:41,338 INFO [uvicorn.access] [-] [IP]:64521 - "POST /api/v1/inventory/assignments HTTP/1.1" 200
+2026-06-04 23:05:41,480 INFO [uvicorn.access] [-] [IP]:64518 - "POST /api/v1/printers/1/refresh-status HTTP/1.1" 200
+2026-06-04 23:06:01,099 INFO [uvicorn.access] [-] [IP]:64529 - "PATCH /api/v1/archives/1 HTTP/1.1" 200
+2026-06-04 23:06:26,292 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] PRINT COMPLETE detected - state: FINISH, status: completed, file: MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf, subtask: MonoColor_Spool_Roller_without_screws_A1mini_single_part, was_running: True, timelapse_during_print: False
+2026-06-04 23:06:26,293 INFO [backend.app.main] [-] [CALLBACK] on_print_complete started for printer 1
+2026-06-04 23:06:26,294 INFO [backend.app.main] [-] [TIMING] WebSocket send_print_complete: 0.001s elapsed
+2026-06-04 23:06:26,294 INFO [backend.app.main] [-] Print complete - filename: MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf, subtask: MonoColor_Spool_Roller_without_screws_A1mini_single_part, status: completed
+2026-06-04 23:06:26,295 INFO [backend.app.main] [-] Looking for archive in _active_prints, keys to try: [(1, 'MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf'), (1, 'MonoColor_Spool_Roller_without_screws_A1mini_single_part.gcode.3mf'), (1, 'MonoColor_Spool_Roller_without_screws_A1mini_single_part'), (1, 'MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf'), (1, 'MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf')]...
+2026-06-04 23:06:26,295 INFO [backend.app.main] [-] Current _active_prints: [(1, 'MonoColor_Spool_Roller_without_screws_A1mini_single_part.gcode.3mf'), (1, 'MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf')]
+2026-06-04 23:06:26,295 INFO [backend.app.main] [-] Found archive 2 with key (1, 'MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf')
+2026-06-04 23:06:27,106 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1 Mini, prot_c=False)
+2026-06-04 23:06:27,153 INFO [backend.app.main] [-] Deleted /MonoColor_Spool_Roller_without_screws_A1mini_single_part.3mf from printer [PRINTER] SD card
+2026-06-04 23:06:27,978 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1 Mini, prot_c=False)
+2026-06-04 23:06:27,990 WARNING [backend.app.services.bambu_ftp] [-] Failed to delete /MonoColor_Spool_Roller_without_screws_A1mini_single_part.gcode: 550 
+2026-06-04 23:06:30,810 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1 Mini, prot_c=False)
+2026-06-04 23:06:30,822 WARNING [backend.app.services.bambu_ftp] [-] Failed to delete /MonoColor_Spool_Roller_without_screws_A1mini_single_part.gcode: 550 
+2026-06-04 23:06:33,633 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1 Mini, prot_c=False)
+2026-06-04 23:06:33,645 WARNING [backend.app.services.bambu_ftp] [-] Failed to delete /MonoColor_Spool_Roller_without_screws_A1mini_single_part.gcode: 550 
+2026-06-04 23:06:33,656 WARNING [backend.app.main] [-] SD card cleanup failed after 3 attempts for /MonoColor_Spool_Roller_without_screws_A1mini_single_part.gcode (file may linger on SD card)
+2026-06-04 23:06:33,656 INFO [backend.app.main] [-] [TIMING] SD card cleanup: 7.363s elapsed
+2026-06-04 23:06:33,660 INFO [backend.app.main] [-] [TIMING] Queue item update: 7.368s elapsed
+2026-06-04 23:06:33,674 INFO [backend.app.services.usage_tracker] [-] [UsageTracker] on_print_complete: printer=1, archive=2, session=yes, ams_mapping=[-1, 254]
+2026-06-04 23:06:33,674 INFO [backend.app.services.usage_tracker] [-] [UsageTracker] PRINT COMPLETE printer 1: mapping=None, tray_now=254, last_loaded_tray=254
+2026-06-04 23:06:33,680 INFO [backend.app.services.usage_tracker] [-] [UsageTracker] 3MF: archive 2, filament_usage=[{'slot_id': 2, 'used_g': 2.14, 'type': 'PLA', 'color': '#FFFFFF'}]
+2026-06-04 23:06:33,680 INFO [backend.app.services.usage_tracker] [-] [UsageTracker] 3MF: slot_to_tray=[-1, 254] (source: print_cmd)
+2026-06-04 23:06:33,681 INFO [backend.app.services.usage_tracker] [-] [UsageTracker] 3MF: slot_id=2 -> global_tray=254 -> AMS255-T0 (used_g=2.1, tray_now_override=None)
+2026-06-04 23:06:33,687 INFO [backend.app.services.usage_tracker] [-] [UsageTracker] Spool 2 consumed 2.1g (3MF, print_cmd_map) on printer 1 AMS255-T0 (completed)
+2026-06-04 23:06:33,687 INFO [backend.app.services.usage_tracker] [-] [UsageTracker] 3MF: archive 2 filament_color '#FFFFFF' -> '#46C8D4' (from inventory spools)
+2026-06-04 23:06:33,710 INFO [backend.app.main] [-] [TIMING] Usage tracker: 7.417s elapsed
+2026-06-04 23:06:33,714 INFO [backend.app.services.spoolman_tracking] [-] [SPOOLMAN] No tracking data for print (printer=1, archive=2)
+2026-06-04 23:06:33,715 INFO [backend.app.main] [-] [TIMING] Spoolman usage report: 7.423s elapsed
+2026-06-04 23:06:33,716 INFO [backend.app.main] [-] [TIMING] Filament usage tracking: 7.423s elapsed
+2026-06-04 23:06:33,716 INFO [backend.app.main] [-] [TIMING] Archive lookup: 7.423s elapsed
+2026-06-04 23:06:33,716 INFO [backend.app.main] [-] [ARCHIVE] Updating archive 2 status...
+2026-06-04 23:06:33,727 INFO [backend.app.main] [-] [ARCHIVE] Archive 2 status updated to completed, failure_reason=None
+2026-06-04 23:06:33,728 INFO [backend.app.main] [-] [ARCHIVE] WebSocket notification sent for archive 2
+2026-06-04 23:06:33,729 INFO [backend.app.main] [-] [TIMING] Archive status update: 7.436s elapsed
+2026-06-04 23:06:33,738 INFO [backend.app.main] [-] [PRINT_LOG] Log entry written for archive 2
+2026-06-04 23:06:33,739 INFO [backend.app.main] [-] [TIMING] Print log entry: 7.446s elapsed
+2026-06-04 23:06:33,739 INFO [backend.app.main] [-] [TIMING] Background tasks scheduled (energy, photo): 7.446s elapsed
+2026-06-04 23:06:33,739 INFO [backend.app.main] [-] [TIMING] All background tasks scheduled: 7.447s elapsed
+2026-06-04 23:06:33,739 INFO [backend.app.main] [-] [CALLBACK] on_print_complete finished for printer 1, archive 2
+2026-06-04 23:06:33,740 INFO [backend.app.main] [-] [ENERGY-BG] Starting energy calculation for archive 2
+2026-06-04 23:06:33,741 INFO [backend.app.main] [-] [PHOTO-BG] Starting finish photo capture for archive 2
+2026-06-04 23:06:33,743 INFO [backend.app.main] [-] [AUTO-OFF-BG] Starting smart plug automation for printer 1
+2026-06-04 23:06:33,745 INFO [backend.app.main] [-] [MAINT-BG] Starting maintenance check for printer 1
+2026-06-04 23:06:33,746 INFO [backend.app.main] [-] [LAYER-TL] Stitching layer timelapse for printer 1
+2026-06-04 23:06:33,754 INFO [backend.app.main] [-] [AUTO-OFF-BG] Completed
+2026-06-04 23:06:33,762 INFO [backend.app.services.camera] [-] Capturing camera frame bytes from [IP] using chamber image protocol (model: A1 Mini)
+2026-06-04 23:06:33,832 INFO [backend.app.services.notification_service] [-] No notification providers configured for maintenance_due event on printer 1
+2026-06-04 23:06:33,833 INFO [backend.app.main] [-] [MAINT-BG] Sent notification: 4 items need attention
+2026-06-04 23:06:33,848 INFO [backend.app.main] [-] [ENERGY-BG] Energy response: {'power': 10.0, 'voltage': None, 'current': None, 'today': None, 'total': 0.28, 'yesterday': None, 'factor': None, 'apparent_power': None, 'reactive_power': None}
+2026-06-04 23:06:33,848 INFO [backend.app.main] [-] [ENERGY-BG] Per-print energy: 0.02 kWh
+2026-06-04 23:06:33,869 INFO [backend.app.main] [-] [ENERGY-BG] Saved: 0.02 kWh, cost=0.003
+2026-06-04 23:06:36,385 INFO [backend.app.services.camera] [-] Saved camera frame to: /app/data/archive/1/20260604_225644_MonoColor_Spool_Roller_without_screws_A1mini_single_part/photos/finish_20260604_230633_bcf3368d.jpg
+2026-06-04 23:06:36,385 INFO [backend.app.services.camera] [-] Finish photo saved: finish_20260604_230633_bcf3368d.jpg
+2026-06-04 23:06:36,392 INFO [backend.app.main] [-] [PHOTO-BG] Saved: finish_20260604_230633_bcf3368d.jpg
+2026-06-04 23:06:36,393 INFO [backend.app.main] [-] [PHOTO-NOTIFY] Photo task returned: finish_20260604_230633_bcf3368d.jpg
+2026-06-04 23:06:36,393 INFO [backend.app.main] [-] [NOTIFY-BG] Starting notifications for printer 1, photo=finish_20260604_230633_bcf3368d.jpg
+2026-06-04 23:06:36,402 INFO [backend.app.main] [-] [NOTIFY-BG] Loaded finish photo bytes: 177411 bytes
+2026-06-04 23:06:36,403 INFO [backend.app.services.notification_service] [-] on_print_complete called for printer 1 ([PRINTER]), status=completed
+2026-06-04 23:06:36,406 INFO [backend.app.services.notification_service] [-] No notification providers configured for on_print_complete event on printer 1
+2026-06-04 23:06:36,407 INFO [backend.app.main] [-] [NOTIFY-BG] Completed
+2026-06-04 23:07:10,056 INFO [uvicorn.access] [-] [IP]:64555 - "POST /api/v1/printers/1/clear-plate HTTP/1.1" 200
+2026-06-04 23:07:17,580 INFO [backend.app.services.homeassistant] [cca6e0ce] Turned OFF HA entity 'filament_printer_plug' (switch.filament_printer_plug)
+2026-06-04 23:07:17,581 INFO [backend.app.services.printer_manager] [cca6e0ce] Marking printer 1 as offline (smart plug power off)
+2026-06-04 23:07:17,595 INFO [uvicorn.access] [-] [IP]:64555 - "POST /api/v1/smart-plugs/1/control HTTP/1.1" 200
+2026-06-04 23:08:07,019 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-06-04 23:08:07,019 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Keep alive timeout, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-06-04 23:08:16,030 WARNING [backend.app.services.bambu_ftp] [-] FTP connection failed to [IP]: [Errno 113] No route to host (type: OSError)
+2026-06-04 23:08:19,133 WARNING [backend.app.services.bambu_ftp] [-] FTP connection failed to [IP]: [Errno 113] No route to host (type: OSError)
+2026-06-04 23:08:22,238 WARNING [backend.app.services.bambu_ftp] [-] FTP connection failed to [IP]: [Errno 113] No route to host (type: OSError)
+2026-06-04 23:08:25,341 WARNING [backend.app.services.bambu_ftp] [-] FTP connection failed to [IP]: [Errno 113] No route to host (type: OSError)
+2026-06-04 23:08:25,347 INFO [uvicorn.access] [-] [IP]:64593 - "POST /api/v1/archives/2/timelapse/scan HTTP/1.1" 500
+2026-06-04 23:17:08,640 INFO [uvicorn.access] [-] [IP]:64829 - "POST /api/v1/projects/ HTTP/1.1" 200
+2026-06-04 23:17:23,932 INFO [uvicorn.access] [-] [IP]:64837 - "PATCH /api/v1/archives/2 HTTP/1.1" 200
+2026-06-04 23:17:26,920 INFO [uvicorn.access] [-] [IP]:64840 - "PATCH /api/v1/archives/1 HTTP/1.1" 200
+2026-06-04 23:18:04,119 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-06-04 23:18:04,496 INFO [uvicorn.access] [-] [IP]:64863 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-04 23:18:04,851 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-06-04 23:18:04,853 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-06-04 23:18:04,856 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-06-04 23:18:24,391 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-06-04 23:18:24,696 INFO [uvicorn.access] [-] [IP]:64874 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-04 23:18:24,867 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-06-04 23:18:24,868 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-06-04 23:18:24,871 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-06-04 23:26:31,364 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-06-04 23:26:31,986 INFO [uvicorn.access] [-] [IP]:65183 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-04 23:26:32,342 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-06-04 23:26:32,343 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-06-04 23:26:32,346 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-06-04 23:26:50,570 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-06-04 23:26:50,875 INFO [uvicorn.access] [-] [IP]:65189 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-04 23:26:51,082 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-06-04 23:26:51,084 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-06-04 23:26:51,088 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-06-04 23:27:10,307 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-06-04 23:27:10,545 INFO [uvicorn.access] [-] [IP]:65212 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-04 23:27:10,724 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-06-04 23:27:10,725 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-06-04 23:27:10,731 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-06-04 23:27:49,900 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-04 23:28:03,399 INFO [backend.app.api.routes.support] [50f4ff0b] Log level changed to DEBUG
+2026-06-04 23:28:03,399 INFO [backend.app.api.routes.bug_report] [50f4ff0b] Bug report: enabled debug logging
+2026-06-04 23:28:03,400 WARNING [backend.app.services.bambu_mqtt] [50f4ff0b] [[SERIAL]] request_status_update: not connected
+2026-06-04 23:28:03,401 INFO [uvicorn.access] [-] [IP]:65212 - "POST /api/v1/bug-report/start-logging HTTP/1.1" 200
+2026-06-04 23:28:06,923 DEBUG [backend.app.main] [-] [[PRINTER]] Runtime tracking: not connected
