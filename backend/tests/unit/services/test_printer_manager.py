@@ -1362,6 +1362,9 @@ class TestSupportsDrying:
         assert supports_drying("P1S", "01.08.00.00") is True
         assert supports_drying("H2D", "01.02.30.00") is True
         assert supports_drying("H2S", "01.02.00.00") is True
+        assert supports_drying("H2C", "01.02.00.00") is True
+        assert supports_drying("O1C", "01.02.00.00") is True
+        assert supports_drying("O1C2", "01.02.00.00") is True
         assert supports_drying("P2S", "01.02.00.00") is True
         assert supports_drying("N7", "01.02.00.00") is True
 
@@ -1370,6 +1373,9 @@ class TestSupportsDrying:
         assert supports_drying("X1C", "01.08.00.00") is False
         assert supports_drying("P1S", "01.07.00.00") is False
         assert supports_drying("H2S", "01.01.00.00") is False
+        assert supports_drying("H2C", "01.01.99.99") is False
+        assert supports_drying("O1C", "01.01.99.99") is False
+        assert supports_drying("O1C2", "01.01.99.99") is False
         assert supports_drying("P2S", "01.01.99.99") is False
         assert supports_drying("N7", "01.01.99.99") is False
 
@@ -1380,7 +1386,7 @@ class TestSupportsDrying:
 
     def test_unsupported_models(self):
         """Verify models without AMS drying support return False regardless of firmware."""
-        for model in ["A1", "A1MINI", "A1-MINI", "H2C", "N1", "N2S"]:
+        for model in ["A1", "A1MINI", "A1-MINI", "N1", "N2S"]:
             assert supports_drying(model, "99.99.99.99") is False, f"Expected False for {model}"
 
     def test_unknown_models_allowed(self):
