@@ -3519,6 +3519,7 @@ export default {
     assignSpool: '스풀 할당',
     unassignSpool: '할당 해제',
     assignSuccess: '스풀 할당 및 AMS 슬롯 구성됨',
+    assignPendingInsert: '할당됨. 스풀을 삽입하면 슬롯이 구성됩니다.',
     assignFailed: '스풀 할당 실패',
     selectSpool: '이 슬롯에 할당할 스풀 선택',
     assigned: '할당됨',

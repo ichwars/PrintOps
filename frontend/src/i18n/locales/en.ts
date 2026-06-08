@@ -3739,6 +3739,7 @@ export default {
     assignSpool: 'Assign Spool',
     unassignSpool: 'Unassign',
     assignSuccess: 'Spool assigned and AMS slot configured',
+    assignPendingInsert: 'Assigned. Slot will configure when you insert the spool.',
     assignFailed: 'Failed to assign spool',
     selectSpool: 'Select a spool to assign to this slot',
     assigned: 'Assigned',

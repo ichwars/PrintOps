@@ -3718,6 +3718,7 @@ export default {
     assignSpool: '分配耗材',
     unassignSpool: '取消分配',
     assignSuccess: '耗材已分配，AMS 槽位已設定',
+    assignPendingInsert: '已分配。插入耗材後將設定槽位。',
     assignFailed: '分配耗材失敗',
     assignMismatchTitle: '材料不符',
     assignMismatchMessage: '所選料盤材料 "{{spoolMaterial}}" 與 {{location}} 的料槽材料 "{{trayMaterial}}" 不符。仍要分配嗎？',

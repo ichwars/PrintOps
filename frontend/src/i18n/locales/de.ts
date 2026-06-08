@@ -3731,6 +3731,7 @@ export default {
     assignSpool: 'Spule zuweisen',
     unassignSpool: 'Zuweisung aufheben',
     assignSuccess: 'Spule zugewiesen und AMS-Slot konfiguriert',
+    assignPendingInsert: 'Zugewiesen. Slot wird beim Einsetzen der Spule konfiguriert.',
     assignFailed: 'Spulenzuweisung fehlgeschlagen',
     selectSpool: 'Wählen Sie eine Spule für diesen Slot',
     assigned: 'Zugewiesen',

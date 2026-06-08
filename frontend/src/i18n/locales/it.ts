@@ -3718,6 +3718,7 @@ export default {
     assignSpool: 'Assegna Bobina',
     unassignSpool: 'Scollega',
     assignSuccess: 'Bobina assegnata e slot AMS configurato',
+    assignPendingInsert: 'Assegnato. Lo slot verrà configurato all\'inserimento della bobina.',
     assignFailed: 'Assegnazione bobina fallita',
     selectSpool: 'Seleziona una bobina da assegnare a questo slot',
     assigned: 'Assegnato',

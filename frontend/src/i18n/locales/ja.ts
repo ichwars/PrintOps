@@ -3730,6 +3730,7 @@ export default {
     assignSpool: 'スプールを割り当て',
     unassignSpool: '割り当て解除',
     assignSuccess: 'スプールを割り当て、AMSスロットを設定しました',
+    assignPendingInsert: '割り当てました。スプールを挿入したときにスロットが設定されます。',
     assignFailed: 'スプールの割り当てに失敗しました',
     selectSpool: 'このスロットに割り当てるスプールを選択',
     assigned: '割り当て済み',

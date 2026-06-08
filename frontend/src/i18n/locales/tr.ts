@@ -3718,6 +3718,7 @@ export default {
     assignSpool: 'Makara Ata',
     unassignSpool: 'Atamayı Kaldır',
     assignSuccess: 'Makara atandı ve AMS yuvası yapılandırıldı',
+    assignPendingInsert: 'Atandı. Makarayı yerleştirdiğinizde yuva yapılandırılacak.',
     assignFailed: 'Makara atanamadı',
     selectSpool: 'Bu yuvaya atamak için bir makara seçin',
     assigned: 'Atandı',

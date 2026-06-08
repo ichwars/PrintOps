@@ -3719,6 +3719,7 @@ export default {
     assignSpool: 'Assigner Bobine',
     unassignSpool: 'Désassigner',
     assignSuccess: 'Bobine assignée et slot AMS configuré',
+    assignPendingInsert: 'Assigné. Le slot sera configuré lors de l\'insertion de la bobine.',
     assignFailed: 'Échec assignation',
     selectSpool: 'Choisir une bobine pour ce slot',
     assigned: 'Assigné',

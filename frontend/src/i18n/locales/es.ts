@@ -3735,6 +3735,7 @@ export default {
     assignSpool: 'Asignar bobina',
     unassignSpool: 'Desasignar',
     assignSuccess: 'Bobina asignada y ranura del AMS configurada',
+    assignPendingInsert: 'Asignada. La ranura se configurará cuando inserte la bobina.',
     assignFailed: 'Error al asignar la bobina',
     selectSpool: 'Seleccione una bobina para asignar a esta ranura',
     assigned: 'Asignada',

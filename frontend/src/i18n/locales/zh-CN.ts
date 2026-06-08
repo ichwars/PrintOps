@@ -3718,6 +3718,7 @@ export default {
     assignSpool: '分配耗材',
     unassignSpool: '取消分配',
     assignSuccess: '耗材已分配，AMS 槽位已配置',
+    assignPendingInsert: '已分配。插入耗材后将配置槽位。',
     assignFailed: '分配耗材失败',
     assignMismatchTitle: '材料不匹配',
     assignMismatchMessage: '所选线轴材料 "{{spoolMaterial}}" 与 {{location}} 的料槽材料 "{{trayMaterial}}" 不匹配。仍要分配吗？',

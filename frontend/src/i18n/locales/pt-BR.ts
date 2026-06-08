@@ -3718,6 +3718,7 @@ export default {
     assignSpool: 'Atribuir Carretel',
     unassignSpool: 'Desatribuir',
     assignSuccess: 'Carretel atribuído e slot AMS configurado',
+    assignPendingInsert: 'Atribuído. O slot será configurado quando você inserir o carretel.',
     assignFailed: 'Falha ao atribuir carretel',
     selectSpool: 'Selecione um carretel para atribuir a este slot',
     assigned: 'Atribuído',
