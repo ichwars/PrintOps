@@ -47,7 +47,8 @@ If you sponsor and your name isn't here within 48h, please write an email to mar
 - [@PJMCL1618033](https://github.com/PJMCL1618033
 - [@mgf99](https://github.com/mgf99)
 - [@Geoff-S](https://github.com/Geoff-S)
-
+- [@andyspinball](https://github.com/andyspinball
+- [@avandeputte](https://github.com/avandeputte)
 ---
 
 ## One-time and historical supporters
