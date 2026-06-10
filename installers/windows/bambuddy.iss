@@ -123,6 +123,40 @@ Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Bamb
 Type: filesandordirs; Name: "{app}"
 
 [Code]
+
+// Stop the Bambuddy service BEFORE the [Files] section copies anything,
+// so file locks on python.exe / .pyd / nssm.exe release in time for the
+// overwrite. Without this, upgrading over a running install fails with
+// "permission denied" on every file the service has open.
+//
+// On a fresh install {app}\bin\nssm.exe doesn't exist yet — FileExists
+// guards that path so the hook is a no-op for first-time installers.
+// The Sleep gives Windows a beat to finalize the python.exe unload
+// before the [Files] step starts grabbing exclusive handles.
+//
+// The install-service.bat in [Run] does `nssm remove ... confirm` plus
+// a fresh `nssm install`, so even if we leave the old service entry in
+// place here, the post-install step re-registers it cleanly.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+  NssmPath: string;
+begin
+  Result := '';
+  NeedsRestart := False;
+
+  NssmPath := ExpandConstant('{app}\bin\nssm.exe');
+  if FileExists(NssmPath) then
+  begin
+    Log('Stopping Bambuddy service before file copy...');
+    Exec(NssmPath, 'stop Bambuddy', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    // ResultCode 0 == stopped; non-zero is fine too (already stopped /
+    // service not registered). The lock we care about is python.exe's,
+    // and it's released the moment the process exits.
+    Sleep(1500);
+  end;
+end;
+
 // Pre-install check: refuse to install if port 8000 is already in use by
 // something other than a previous Bambuddy install. This catches the
 // "I have something else on 8000" case early instead of after install.
