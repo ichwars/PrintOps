@@ -110,11 +110,13 @@ Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""Bambudd
 Filename: "http://localhost:{#DefaultPort}"; Flags: shellexec postinstall nowait skipifsilent; Description: "Open Bambuddy Dashboard"
 
 [UninstallRun]
-; Stop + deregister the service before file removal
-Filename: "{app}\service\uninstall-service.bat"; Parameters: """{app}"""; Flags: runhidden waituntilterminated
+; Stop + deregister the service before file removal. RunOnceId makes the
+; entry run-once per uninstall pass (Inno Setup default is to re-run on
+; every pass, which can fire multiple times during upgrade flows).
+Filename: "{app}\service\uninstall-service.bat"; Parameters: """{app}"""; Flags: runhidden waituntilterminated; RunOnceId: "StopBambuddyService"
 
 ; Remove the firewall rule (silently — if it doesn't exist, netsh just complains)
-Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Bambuddy Dashboard"""; Flags: runhidden waituntilterminated
+Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Bambuddy Dashboard"""; Flags: runhidden waituntilterminated; RunOnceId: "RemoveFirewallRule"
 
 [UninstallDelete]
 ; Remove install dir contents; leave ProgramData\Bambuddy alone so the
