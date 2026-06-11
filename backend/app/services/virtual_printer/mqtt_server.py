@@ -15,7 +15,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from backend.app.services.virtual_printer._debug import dump_wire
+from backend.app.services.virtual_printer._debug import append_event, dump_wire
 
 if TYPE_CHECKING:
     from backend.app.services.virtual_printer.mqtt_bridge import MQTTBridge
@@ -1211,6 +1211,11 @@ class SimpleMQTTServer:
                     message[:200],
                 )
                 return
+
+            # Env-flagged command trace (#1622): every slicer-originated publish
+            # gets a line in vp_wire/<vp>_cmd.jsonl alongside the printer-side
+            # responses captured in mqtt_bridge. Off by default.
+            append_event(self.vp_name, "slicer_to_bridge", topic, data)
 
             # The synthetic flow below is the original (pre-bridge) behaviour and is
             # what the proven-working FTP "Send" depends on. Do NOT replace any

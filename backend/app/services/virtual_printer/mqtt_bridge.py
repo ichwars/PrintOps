@@ -41,7 +41,7 @@ import logging
 import socket
 from typing import TYPE_CHECKING
 
-from backend.app.services.virtual_printer._debug import dump_wire
+from backend.app.services.virtual_printer._debug import append_event, dump_wire
 
 if TYPE_CHECKING:
     from backend.app.services.bambu_mqtt import BambuMQTTClient
@@ -670,6 +670,13 @@ class MQTTBridge:
         if target_bytes in payload:
             payload = payload.replace(target_bytes, self.vp_serial.encode("ascii"))
         vp_topic = f"device/{self.vp_serial}/{suffix}"
+        # Env-flagged command trace (#1622): every printer-originated response
+        # that gets fanned to the slicer (extrusion_cali_get / ams write acks /
+        # xcam / system / etc.) gets a line in vp_wire/<vp>_cmd.jsonl. Pair
+        # with the slicer-side publishes captured in mqtt_server. Off by
+        # default. Capture AFTER serial rewrite so the dump matches what the
+        # slicer actually sees on the wire.
+        append_event(self.vp_name, "printer_to_slicer", vp_topic, payload)
         try:
             asyncio.run_coroutine_threadsafe(
                 self._mqtt_server.push_raw_to_clients(vp_topic, payload),

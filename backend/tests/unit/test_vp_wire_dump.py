@@ -121,3 +121,86 @@ def test_env_check_is_per_call_not_module_load(_isolated_log_dir, monkeypatch):
         assert (_isolated_log_dir / "vp_wire" / "VP1_out.json").is_file()
     finally:
         os.environ.pop("BAMBUDDY_VP_DUMP_WIRE", None)
+
+
+# --- append_event (command-flow trace) --------------------------------------
+
+
+def _read_jsonl(path):
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def test_append_event_disabled_by_default_writes_nothing(_isolated_log_dir, monkeypatch):
+    monkeypatch.delenv("BAMBUDDY_VP_DUMP_WIRE", raising=False)
+    _debug.append_event("VP1", "slicer_to_bridge", "device/X/request", {"hello": "world"})
+    assert not (_isolated_log_dir / "vp_wire").exists()
+
+
+def test_append_event_appends_one_jsonl_line_per_call(_isolated_log_dir, monkeypatch):
+    monkeypatch.setenv("BAMBUDDY_VP_DUMP_WIRE", "1")
+    _debug.append_event("VP1", "slicer_to_bridge", "device/X/request", {"print": {"command": "ams_filament_setting"}})
+    _debug.append_event(
+        "VP1", "printer_to_slicer", "device/X/report", {"print": {"command": "ams_filament_setting", "result": "ok"}}
+    )
+    path = _isolated_log_dir / "vp_wire" / "VP1_cmd.jsonl"
+    rows = _read_jsonl(path)
+    assert len(rows) == 2
+    assert rows[0]["dir"] == "slicer_to_bridge"
+    assert rows[0]["topic"] == "device/X/request"
+    assert rows[0]["cmd"] == "print.ams_filament_setting"
+    assert rows[0]["payload"] == {"print": {"command": "ams_filament_setting"}}
+    assert rows[1]["dir"] == "printer_to_slicer"
+    assert rows[1]["cmd"] == "print.ams_filament_setting"
+
+
+def test_append_event_parses_bytes_payload(_isolated_log_dir, monkeypatch):
+    monkeypatch.setenv("BAMBUDDY_VP_DUMP_WIRE", "1")
+    raw = b'{"info": {"command": "get_version", "sequence_id": "0"}}'
+    _debug.append_event("VP1", "slicer_to_bridge", "device/X/request", raw)
+    rows = _read_jsonl(_isolated_log_dir / "vp_wire" / "VP1_cmd.jsonl")
+    assert rows[0]["payload"] == {"info": {"command": "get_version", "sequence_id": "0"}}
+    assert rows[0]["cmd"] == "info.get_version"
+
+
+def test_append_event_unparseable_payload_kept_as_raw(_isolated_log_dir, monkeypatch):
+    monkeypatch.setenv("BAMBUDDY_VP_DUMP_WIRE", "1")
+    _debug.append_event("VP1", "printer_to_slicer", "device/X/report", b"not-json-just-bytes")
+    rows = _read_jsonl(_isolated_log_dir / "vp_wire" / "VP1_cmd.jsonl")
+    assert rows[0]["payload"] == {"raw": "not-json-just-bytes"}
+    assert rows[0]["cmd"] == "?"
+
+
+def test_append_event_handles_trailing_null_from_orca(_isolated_log_dir, monkeypatch):
+    """Same #927 quirk as ``_handle_publish``: OrcaSlicer can ship publishes with a
+    trailing C-string null. The trace must still parse so the dump matches what
+    the bridge actually saw, not raw text."""
+    monkeypatch.setenv("BAMBUDDY_VP_DUMP_WIRE", "1")
+    _debug.append_event("VP1", "slicer_to_bridge", "device/X/request", b'{"info":{"command":"get_version"}}\x00')
+    rows = _read_jsonl(_isolated_log_dir / "vp_wire" / "VP1_cmd.jsonl")
+    assert rows[0]["payload"] == {"info": {"command": "get_version"}}
+
+
+def test_append_event_sanitizes_vp_name(_isolated_log_dir, monkeypatch):
+    monkeypatch.setenv("BAMBUDDY_VP_DUMP_WIRE", "1")
+    _debug.append_event("../../etc/passwd", "slicer_to_bridge", "device/X/request", {"x": 1})
+    files = list((_isolated_log_dir / "vp_wire").glob("*_cmd.jsonl"))
+    assert len(files) == 1
+    assert "/" not in files[0].name
+
+
+def test_append_event_includes_iso_timestamp(_isolated_log_dir, monkeypatch):
+    monkeypatch.setenv("BAMBUDDY_VP_DUMP_WIRE", "1")
+    _debug.append_event("VP1", "slicer_to_bridge", "device/X/request", {"x": 1})
+    rows = _read_jsonl(_isolated_log_dir / "vp_wire" / "VP1_cmd.jsonl")
+    ts = rows[0]["ts"]
+    # ISO-8601 with timezone (Z or +00:00 suffix from UTC).
+    assert "T" in ts and (ts.endswith("+00:00") or ts.endswith("Z"))
+
+
+def test_append_event_failure_swallowed(_isolated_log_dir, monkeypatch):
+    """Debug instrumentation must never crash the bridge or slicer loop."""
+    monkeypatch.setenv("BAMBUDDY_VP_DUMP_WIRE", "1")
+    blocker = _isolated_log_dir / "blocker"
+    blocker.write_text("not a dir")
+    with patch.object(app_settings, "log_dir", blocker):
+        _debug.append_event("VP1", "slicer_to_bridge", "device/X/request", {"x": 1})  # must not raise
