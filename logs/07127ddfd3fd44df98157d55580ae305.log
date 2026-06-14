@@ -1,0 +1,200 @@
+2026-06-13 08:11:01,901 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-06-13 08:16:35,197 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-13 09:16:35,220 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-13 10:16:35,241 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-13 11:16:35,262 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-13 12:16:35,284 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-13 12:21:37,912 INFO [uvicorn.access] [-] [IP]:42418 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-13 13:16:35,308 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-13 14:16:35,331 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-13 15:16:35,355 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-13 16:16:35,378 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-13 17:16:35,400 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-13 17:31:02,199 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-06-13 17:31:12,239 INFO [uvicorn.access] [-] [IP]:51828 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-13 17:31:12,927 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-06-13 17:31:12,927 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-06-13 17:31:12,928 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-06-13 18:01:08,978 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-06-13 18:01:19,539 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-06-13 18:01:19,539 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-06-13 18:01:19,540 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-06-13 18:16:35,423 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-13 18:31:14,999 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-06-13 19:16:35,444 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-13 20:16:35,467 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-13 21:16:35,488 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-13 21:46:03,647 INFO [uvicorn.access] [-] [IP]:54454 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-13 21:46:04,083 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-06-13 21:46:04,084 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-06-13 21:46:04,084 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-06-13 22:16:35,509 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-13 23:16:35,538 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-13 23:28:52,487 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-06-14 00:16:35,561 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 01:16:35,583 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 02:16:35,603 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 03:16:35,623 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 04:16:35,645 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 05:16:35,667 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 06:16:35,690 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 07:16:35,712 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 08:16:35,734 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 08:33:10,543 INFO [uvicorn.access] [-] [IP]:56034 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-14 08:33:10,573 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-06-14 08:33:10,573 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-06-14 08:33:10,577 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-06-14 08:34:05,213 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-06-14 08:34:14,143 INFO [uvicorn.access] [-] [IP]:43604 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-14 08:34:14,214 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting...
+2026-06-14 08:34:14,215 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-06-14 08:34:14,216 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-06-14 09:16:35,756 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 10:16:35,778 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 11:16:35,799 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 12:16:35,821 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 13:16:35,844 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 14:16:35,865 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 15:16:35,890 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 16:16:35,912 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 17:16:35,933 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 18:00:58,056 INFO [uvicorn.access] [-] [IP]:42242 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-14 18:16:35,955 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 19:16:35,977 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 20:16:36,005 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 20:23:23,498 INFO [uvicorn.access] [-] [IP]:49162 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-14 20:26:37,177 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 20:28:58,775 INFO [uvicorn.access] [-] [IP]:43646 - "POST /api/v1/library/files?generate_stl_thumbnails=true HTTP/1.1" 200
+2026-06-14 20:29:14,845 INFO [uvicorn.access] [-] [IP]:38034 - "POST /api/v1/library/files/12/print?printer_id=1 HTTP/1.1" 200
+2026-06-14 20:29:15,646 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=[PRINTER], prot_c=False)
+2026-06-14 20:29:15,658 WARNING [backend.app.services.bambu_ftp] [-] Failed to delete /BushJaeger_momentary_switch_PLA_21copies.3mf: 550 
+2026-06-14 20:29:15,667 INFO [backend.app.services.bambu_ftp] [-] FTP connecting to [IP] for upload (model=[PRINTER], mode=prot_p, socket_timeout=30.0s)...
+2026-06-14 20:29:16,446 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=[PRINTER], prot_c=False)
+2026-06-14 20:29:16,446 INFO [backend.app.services.bambu_ftp] [-] FTP connected to [IP]
+2026-06-14 20:29:16,446 INFO [backend.app.services.bambu_ftp] [-] FTP uploading /app/data/archive/library/files/46e115812d7842c3b4f2adad1207c6e4.3mf (886557 bytes) to /BushJaeger_momentary_switch_PLA_21copies.3mf
+2026-06-14 20:29:16,493 INFO [backend.app.services.bambu_ftp] [-] FTP data channel ready in 0.0s (PASV + TLS handshake)
+2026-06-14 20:29:21,233 INFO [backend.app.services.bambu_ftp] [-] FTP STOR confirmed for /BushJaeger_momentary_switch_PLA_21copies.3mf: 226
+2026-06-14 20:29:21,234 INFO [backend.app.services.bambu_ftp] [-] FTP upload complete: /BushJaeger_momentary_switch_PLA_21copies.3mf (886557 bytes in 4.8s, 181 KB/s)
+2026-06-14 20:29:21,234 INFO [backend.app.services.bambu_ftp] [-] FTP mode cached for [IP]: prot_p
+2026-06-14 20:29:21,252 INFO [backend.app.main] [-] Registered expected print: printer=1, file=BushJaeger_momentary_switch_PLA_21copies.3mf, archive=14, ams_mapping=[3]
+2026-06-14 20:29:21,252 INFO [backend.app.services.printer_manager] [-] PRINT COMMAND: printer=1, file=BushJaeger_momentary_switch_PLA_21copies.3mf, caller=background_dispatch.py:553:_process_job
+2026-06-14 20:29:21,252 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Sending print command: {"print": {"sequence_id": "20000", "command": "project_file", "param": "Metadata/plate_1.gcode", "url": "ftp://BushJaeger_momentary_switch_PLA_21copies.3mf", "file": "BushJaeger_momentary_switch_PLA_21copies.3mf", "md5": "", "bed_type": "auto", "timelapse": false, "bed_leveling": true, "auto_bed_leveling": 1, "flow_cali": false, "vibration_cali": true, "layer_inspect": false, "use_ams": true, "cfg": "0", "extrude_cali_flag": 2, "extrude_cali_manual_mode": 0, "nozzle_offset_cali": 2, "subtask_name": "BushJaeger_momentary_switch_PLA_21copies", "profile_id": "0", "project_id": "1197817889", "subtask_id": "1197817889", "task_id": "1197817889", "ams_mapping": [3], "ams_mapping2": [{"ams_id": 0, "slot_id": 3}]}}
+2026-06-14 20:29:26,033 INFO [backend.app.main] [-] [SNAPSHOT] Capturing fresh frame for printer 1
+2026-06-14 20:29:26,033 INFO [backend.app.services.camera] [-] Capturing camera frame bytes from [IP] using chamber image protocol (model: [PRINTER])
+2026-06-14 20:29:28,444 INFO [backend.app.main] [-] [SNAPSHOT] Fresh camera frame: 36945 bytes
+2026-06-14 20:29:28,447 INFO [backend.app.main] [-] [HMS] Sent notification for 1 error(s) on printer 1
+2026-06-14 20:29:30,100 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] PRINT START detected - file: BushJaeger_momentary_switch_PLA_21copies.3mf, subtask: BushJaeger_momentary_switch_PLA_21copies, is_new: True, is_file_change: False
+2026-06-14 20:29:30,101 INFO [backend.app.main] [-] [CALLBACK] on_print_start called for printer 1, data keys: ['filename', 'subtask_name', 'remaining_time', 'raw_data', 'ams_mapping']
+2026-06-14 20:29:30,103 INFO [backend.app.services.usage_tracker] [-] [UsageTracker] Skipped trays with invalid remain% for printer 1: AMS0-T0(remain=-1), AMS0-T1(remain=-1), AMS0-T2(remain=-1), AMS0-T3(remain=-1)
+2026-06-14 20:29:30,103 INFO [backend.app.services.usage_tracker] [-] [UsageTracker] PRINT START printer 1: mapping=None, tray_now=255, last_loaded_tray=3
+2026-06-14 20:29:30,103 INFO [backend.app.services.usage_tracker] [-] [UsageTracker] PRINT START printer 1: mapping-related keys: {'ams_extruder_map': {'0': 0}}
+2026-06-14 20:29:30,104 INFO [backend.app.services.usage_tracker] [-] [UsageTracker] PRINT START printer 1 AMS 0: T0(type=PETG-CF, color=161616FF, now=?, tar=?), T1(type=PLA, color=AF7933FF, now=?, tar=?), T2(type=PLA, color=000000FF, now=?, tar=?), T3(type=PLA, color=161616FF, now=?, tar=?)
+2026-06-14 20:29:30,105 INFO [backend.app.services.usage_tracker] [-] [UsageTracker] Snapshotted 1 spool assignments for printer 1: {'0-2': 1}
+2026-06-14 20:29:30,105 INFO [backend.app.services.usage_tracker] [-] [UsageTracker] Captured start remain% for printer 1 (1 trays): {'255-0': 0}
+2026-06-14 20:29:30,108 INFO [backend.app.main] [-] [PLATE CHECK] printer_id=1, plate_detection_enabled=True
+2026-06-14 20:29:30,108 INFO [backend.app.main] [-] [PLATE CHECK] ENTERING plate detection code for printer 1
+2026-06-14 20:29:30,108 INFO [backend.app.main] [-] [PLATE CHECK] Running plate detection for printer 1
+2026-06-14 20:29:30,109 INFO [backend.app.services.camera] [-] Capturing camera frame bytes from [IP] using chamber image protocol (model: [PRINTER])
+2026-06-14 20:29:31,750 INFO [backend.app.services.camera] [-] Saved camera frame to: /tmp/tmpkq1hkcry.jpg
+2026-06-14 20:29:31,752 INFO [backend.app.main] [-] [PLATE CHECK] Plate is empty for printer 1, proceeding with print
+2026-06-14 20:29:31,753 INFO [backend.app.main] [-] [CALLBACK] Print start detected - filename: BushJaeger_momentary_switch_PLA_21copies.3mf, subtask: BushJaeger_momentary_switch_PLA_21copies
+2026-06-14 20:29:31,753 INFO [backend.app.main] [-] Using expected archive 14 for print (skipping duplicate)
+2026-06-14 20:29:31,755 INFO [backend.app.main] [-] [CALLBACK] Injected ams_mapping into usage tracker session: [3]
+2026-06-14 20:29:31,757 INFO [backend.app.main] [-] [ENERGY] No smart plug for printer 1 (archive 14)
+2026-06-14 20:29:31,759 INFO [backend.app.main] [-] [SNAPSHOT] Capturing fresh frame for printer 1
+2026-06-14 20:29:31,759 INFO [backend.app.services.camera] [-] Capturing camera frame bytes from [IP] using chamber image protocol (model: [PRINTER])
+2026-06-14 20:29:33,616 INFO [backend.app.main] [-] [SNAPSHOT] Fresh camera frame: 75067 bytes
+2026-06-14 20:29:33,616 INFO [backend.app.services.notification_service] [-] on_print_start called for printer 1 ([PRINTER])
+2026-06-14 20:29:33,618 INFO [backend.app.services.notification_service] [-] No notification providers configured for print_start event on printer 1
+2026-06-14 20:29:33,621 INFO [backend.app.main] [-] Loaded 21 printable objects for printer 1
+2026-06-14 20:29:34,485 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=[PRINTER], prot_c=False)
+2026-06-14 20:29:34,796 INFO [backend.app.main] [-] [TIMELAPSE] Baseline at print start: 14 video files for printer 1
+2026-06-14 20:31:37,183 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 20:36:37,190 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 20:40:51,905 INFO [backend.app.main] [-] [SNAPSHOT] Capturing fresh frame for printer 1
+2026-06-14 20:40:51,906 INFO [backend.app.services.camera] [-] Capturing camera frame bytes from [IP] using chamber image protocol (model: [PRINTER])
+2026-06-14 20:40:53,238 INFO [backend.app.main] [-] [SNAPSHOT] Fresh camera frame: 85093 bytes
+2026-06-14 20:41:37,199 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 20:46:37,210 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 20:50:35,418 INFO [backend.app.main] [-] [SNAPSHOT] Capturing fresh frame for printer 1
+2026-06-14 20:50:35,418 INFO [backend.app.services.camera] [-] Capturing camera frame bytes from [IP] using chamber image protocol (model: [PRINTER])
+2026-06-14 20:50:37,447 INFO [backend.app.main] [-] [SNAPSHOT] Fresh camera frame: 99264 bytes
+2026-06-14 20:51:37,216 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 20:56:37,223 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 21:01:37,231 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 21:06:37,238 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 21:11:09,633 INFO [backend.app.main] [-] [SNAPSHOT] Capturing fresh frame for printer 1
+2026-06-14 21:11:09,633 INFO [backend.app.services.camera] [-] Capturing camera frame bytes from [IP] using chamber image protocol (model: [PRINTER])
+2026-06-14 21:11:11,029 INFO [backend.app.main] [-] [SNAPSHOT] Fresh camera frame: 104118 bytes
+2026-06-14 21:11:37,245 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 21:16:36,029 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 21:16:37,252 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 21:21:37,261 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 21:26:37,268 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 21:31:23,215 INFO [backend.app.main] [-] [SNAPSHOT] Capturing fresh frame for printer 1
+2026-06-14 21:31:23,215 INFO [backend.app.services.camera] [-] Capturing camera frame bytes from [IP] using chamber image protocol (model: [PRINTER])
+2026-06-14 21:31:25,304 INFO [backend.app.main] [-] [SNAPSHOT] Fresh camera frame: 105366 bytes
+2026-06-14 21:31:37,276 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 21:36:37,283 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 21:41:37,290 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 21:46:28,629 INFO [backend.app.main] [-] [SNAPSHOT] Capturing fresh frame for printer 1
+2026-06-14 21:46:28,629 INFO [backend.app.services.camera] [-] Capturing camera frame bytes from [IP] using chamber image protocol (model: [PRINTER])
+2026-06-14 21:46:30,511 INFO [backend.app.main] [-] [SNAPSHOT] Fresh camera frame: 109966 bytes
+2026-06-14 21:46:30,514 INFO [backend.app.main] [-] [HMS] Sent notification for 1 error(s) on printer 1
+2026-06-14 21:46:37,295 INFO [backend.app.main] [-] Sending temperature alarm for [PRINTER] AMS-A: 36.8°C > 35.0°C
+2026-06-14 21:46:37,298 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 21:51:37,304 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 21:56:37,312 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 22:01:37,319 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 22:06:37,325 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 22:11:37,332 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 22:16:36,053 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 22:16:37,339 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 22:21:37,346 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 22:26:37,354 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 22:30:54,164 INFO [backend.app.main] [-] Evicted 1 stale expected-print entries (TTL=7200s)
+2026-06-14 22:31:37,361 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 22:36:37,368 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 22:41:37,375 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 22:46:37,379 INFO [backend.app.main] [-] Sending temperature alarm for [PRINTER] AMS-A: 36.9°C > 35.0°C
+2026-06-14 22:46:37,382 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 22:51:37,388 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 22:56:37,394 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 23:01:37,400 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 23:06:37,406 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 23:11:37,411 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 23:16:36,076 INFO [backend.app.services.smart_plug_manager] [-] Captured 1 energy snapshot(s)
+2026-06-14 23:16:37,418 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 23:21:37,424 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 23:26:37,431 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 23:28:06,990 INFO [uvicorn.access] [-] [IP]:45488 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-14 23:28:12,754 INFO [backend.app.api.routes.printers] [97a432eb] Cover: resolved plate 1 before download (subtask=BushJaeger_momentary_switch_PLA_21copies)
+2026-06-14 23:28:12,755 INFO [backend.app.api.routes.printers] [97a432eb] Cover using cached 3MF from /app/data/archive/library/files/46e115812d7842c3b4f2adad1207c6e4.3mf (avoided duplicate FTP)
+2026-06-14 23:28:12,755 INFO [backend.app.api.routes.printers] [97a432eb] Downloaded file size: 886557 bytes
+2026-06-14 23:28:12,770 INFO [backend.app.api.routes.cloud] [9e56ff12] get_filament_info called with 4 IDs: ['GFG50', 'GFL99', 'GFA01', 'GFG99']
+2026-06-14 23:28:12,785 INFO [uvicorn.access] [-] [IP]:45538 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-06-14 23:31:37,437 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-14 23:31:49,882 INFO [backend.app.api.routes.support] [1483c658] Log level changed to DEBUG
+2026-06-14 23:31:49,882 INFO [backend.app.api.routes.bug_report] [1483c658] Bug report: enabled debug logging
+2026-06-14 23:31:49,882 DEBUG [backend.app.services.bambu_mqtt] [1483c658] [[SERIAL]] Requesting status update (pushall)
+2026-06-14 23:31:49,883 INFO [uvicorn.access] [-] [IP]:37862 - "POST /api/v1/bug-report/start-logging HTTP/1.1" 200
+2026-06-14 23:31:50,302 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: PAUSE, gcode_file: BushJaeger_momentary_switch_PLA_21copies.3mf, subtask_name: BushJaeger_momentary_switch_PLA_21copies
+2026-06-14 23:31:50,302 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '1', 'tray_exist_bits': 'f', 'tray_is_bbl_bits': 'f', 'tray_tar': '3', 'tray_now': '255', 'tray_pre': '3', 'tray_read_done_bits': 'f', 'tray_reading_bits': '0', 'version': 14, 'insert_flag': True, 'power_on_flag': False}
+2026-06-14 23:31:50,302 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-06-14 23:31:50,302 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-06-14 23:31:50,303 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-06-14 23:31:50,303 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-06-14 23:31:50,303 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 261 (main=1, sub=5)
+2026-06-14 23:31:50,303 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-14 23:31:50,303 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 5.0
+2026-06-14 23:31:50,303 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 5.0°C (heater OFF)
+2026-06-14 23:31:50,304 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=5.0, heating=False, respect_local=False
+2026-06-14 23:31:50,304 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 5.0, target: 0.0, heating: False
+2026-06-14 23:31:50,304 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: [{'attr': 117465856, 'code': 131073, 'action': 0, 'timestamp': 1779391327}]
+2026-06-14 23:31:50,304 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] print_error: 117473296 (0x07008010) -> short_code=0700_8010
+2026-06-14 23:31:50,304 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'ipcam_dev': '1', 'ipcam_record': 'enable', 'timelapse': 'disable', 'resolution': '', 'tutk_server': 'disable', 'mode_bits': 3}
+2026-06-14 23:31:50,304 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -58dBm
+2026-06-14 23:31:50,305 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'node': 'chamber_light', 'mode': 'on'}]
+2026-06-14 23:31:50,305 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: PAUSE -> PAUSE, file: BushJaeger_momentary_switch_PLA_21copies.3mf, subtask: BushJaeger_momentary_switch_PLA_21copies
+2026-06-14 23:31:52,316 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-14 23:31:52,316 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -60dBm
