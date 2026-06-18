@@ -1,0 +1,200 @@
+2026-06-18 18:53:32,145 DEBUG [backend.app.main] [-] Updated runtime for 1 printer(s)
+2026-06-18 18:53:32,217 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2097152/6457513 bytes
+2026-06-18 18:53:32,538 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2162688/6457513 bytes
+2026-06-18 18:53:32,907 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2228224/6457513 bytes
+2026-06-18 18:53:33,200 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2293760/6457513 bytes
+2026-06-18 18:53:33,504 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:33,505 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -25dBm
+2026-06-18 18:53:33,538 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2359296/6457513 bytes
+2026-06-18 18:53:33,629 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:33,647 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:33,647 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -44dBm
+2026-06-18 18:53:33,941 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2424832/6457513 bytes
+2026-06-18 18:53:34,253 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2490368/6457513 bytes
+2026-06-18 18:53:34,573 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2555904/6457513 bytes
+2026-06-18 18:53:34,874 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2621440/6457513 bytes
+2026-06-18 18:53:35,208 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2686976/6457513 bytes
+2026-06-18 18:53:35,453 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:35,453 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -68dBm
+2026-06-18 18:53:35,526 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2752512/6457513 bytes
+2026-06-18 18:53:35,560 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:35,561 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -26dBm
+2026-06-18 18:53:35,713 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:35,715 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:35,843 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2818048/6457513 bytes
+2026-06-18 18:53:36,173 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2883584/6457513 bytes
+2026-06-18 18:53:36,497 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2949120/6457513 bytes
+2026-06-18 18:53:36,804 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 3014656/6457513 bytes
+2026-06-18 18:53:37,121 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 3080192/6457513 bytes
+2026-06-18 18:53:37,443 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 3145728/6457513 bytes
+2026-06-18 18:53:37,600 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:37,601 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -25dBm
+2026-06-18 18:53:37,753 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:37,757 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:37,757 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -42dBm
+2026-06-18 18:53:37,819 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 3211264/6457513 bytes
+2026-06-18 18:53:38,107 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 3276800/6457513 bytes
+2026-06-18 18:53:38,431 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 3342336/6457513 bytes
+2026-06-18 18:53:38,807 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 3407872/6457513 bytes
+2026-06-18 18:53:39,118 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 3473408/6457513 bytes
+2026-06-18 18:53:39,462 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 3538944/6457513 bytes
+2026-06-18 18:53:39,631 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:39,632 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -26dBm
+2026-06-18 18:53:39,786 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 3604480/6457513 bytes
+2026-06-18 18:53:40,117 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 3670016/6457513 bytes
+2026-06-18 18:53:40,431 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 3735552/6457513 bytes
+2026-06-18 18:53:40,730 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 3801088/6457513 bytes
+2026-06-18 18:53:41,116 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 3866624/6457513 bytes
+2026-06-18 18:53:41,470 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 3932160/6457513 bytes
+2026-06-18 18:53:41,684 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:41,684 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -25dBm
+2026-06-18 18:53:41,793 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 3997696/6457513 bytes
+2026-06-18 18:53:41,871 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:41,872 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -43dBm
+2026-06-18 18:53:42,113 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 4063232/6457513 bytes
+2026-06-18 18:53:42,444 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 4128768/6457513 bytes
+2026-06-18 18:53:42,752 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 4194304/6457513 bytes
+2026-06-18 18:53:43,071 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 4259840/6457513 bytes
+2026-06-18 18:53:43,367 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 4325376/6457513 bytes
+2026-06-18 18:53:43,688 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 4390912/6457513 bytes
+2026-06-18 18:53:43,892 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:43,918 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:43,919 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -42dBm
+2026-06-18 18:53:43,992 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 4456448/6457513 bytes
+2026-06-18 18:53:44,301 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 4521984/6457513 bytes
+2026-06-18 18:53:44,614 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 4587520/6457513 bytes
+2026-06-18 18:53:44,971 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 4653056/6457513 bytes
+2026-06-18 18:53:45,364 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 4718592/6457513 bytes
+2026-06-18 18:53:45,730 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 4784128/6457513 bytes
+2026-06-18 18:53:45,953 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:45,980 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:45,980 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -43dBm
+2026-06-18 18:53:46,070 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 4849664/6457513 bytes
+2026-06-18 18:53:46,435 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 4915200/6457513 bytes
+2026-06-18 18:53:46,814 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 4980736/6457513 bytes
+2026-06-18 18:53:47,195 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 5046272/6457513 bytes
+2026-06-18 18:53:47,527 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 5111808/6457513 bytes
+2026-06-18 18:53:47,972 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 5177344/6457513 bytes
+2026-06-18 18:53:48,037 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:48,038 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -44dBm
+2026-06-18 18:53:48,308 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 5242880/6457513 bytes
+2026-06-18 18:53:48,689 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 5308416/6457513 bytes
+2026-06-18 18:53:49,098 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 5373952/6457513 bytes
+2026-06-18 18:53:49,417 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 5439488/6457513 bytes
+2026-06-18 18:53:49,759 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 5505024/6457513 bytes
+2026-06-18 18:53:49,861 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:49,861 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -26dBm
+2026-06-18 18:53:50,033 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:50,077 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 5570560/6457513 bytes
+2026-06-18 18:53:50,087 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:50,088 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -41dBm
+2026-06-18 18:53:50,426 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 5636096/6457513 bytes
+2026-06-18 18:53:50,725 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 5701632/6457513 bytes
+2026-06-18 18:53:51,049 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 5767168/6457513 bytes
+2026-06-18 18:53:51,343 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 5832704/6457513 bytes
+2026-06-18 18:53:51,691 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 5898240/6457513 bytes
+2026-06-18 18:53:51,914 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:51,914 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -25dBm
+2026-06-18 18:53:51,982 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 5963776/6457513 bytes
+2026-06-18 18:53:52,142 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:52,143 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -44dBm
+2026-06-18 18:53:52,301 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 6029312/6457513 bytes
+2026-06-18 18:53:52,581 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 6094848/6457513 bytes
+2026-06-18 18:53:52,940 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 6160384/6457513 bytes
+2026-06-18 18:53:53,162 DEBUG [backend.app.api.routes.printers] [4c934a96] API returning ams_mapping: [], ams_extruder_map: {'0': 0}
+2026-06-18 18:53:53,162 DEBUG [backend.app.api.routes.printers] [4c934a96] Using tray_now directly as global ID: 255
+2026-06-18 18:53:53,250 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 6225920/6457513 bytes
+2026-06-18 18:53:53,317 DEBUG [backend.app.api.routes.printers] [3a061ad7] API returning ams_mapping: [], ams_extruder_map: {}
+2026-06-18 18:53:53,317 DEBUG [backend.app.api.routes.printers] [3a061ad7] Using tray_now directly as global ID: 254
+2026-06-18 18:53:53,458 DEBUG [backend.app.api.routes.printers] [f4ad9ec4] API returning ams_mapping: [], ams_extruder_map: {}
+2026-06-18 18:53:53,458 DEBUG [backend.app.api.routes.printers] [f4ad9ec4] Using tray_now directly as global ID: 255
+2026-06-18 18:53:53,627 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 6291456/6457513 bytes
+2026-06-18 18:53:53,949 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 6356992/6457513 bytes
+2026-06-18 18:53:53,958 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:54,142 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:54,193 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:54,194 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -42dBm
+2026-06-18 18:53:54,295 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 6422528/6457513 bytes
+2026-06-18 18:53:54,376 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 6457513/6457513 bytes
+2026-06-18 18:53:54,376 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload: final chunk reached
+2026-06-18 18:53:55,087 INFO [backend.app.services.bambu_ftp] [-] FTP STOR confirmed for /FL_S2_DN50_Male-Female-5x_v1.3mf: 226
+2026-06-18 18:53:55,088 INFO [backend.app.services.bambu_ftp] [-] FTP upload complete: /FL_S2_DN50_Male-Female-5x_v1.3mf (6457513 bytes in 32.7s, 193 KB/s)
+2026-06-18 18:53:55,088 INFO [backend.app.services.bambu_ftp] [-] FTP mode cached for [IP]: prot_p
+2026-06-18 18:53:55,119 INFO [backend.app.main] [-] Registered expected print: printer=1, file=FL_S2_DN50_Male-Female-5x_v1.3mf, archive=64, ams_mapping=[-1, 254], plate_id=1
+2026-06-18 18:53:55,120 INFO [backend.app.services.printer_manager] [-] PRINT COMMAND: printer=1, file=FL_S2_DN50_Male-Female-5x_v1.3mf, caller=background_dispatch.py:555:_process_job
+2026-06-18 18:53:55,121 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] All filament slots use external spool — setting use_ams=False
+2026-06-18 18:53:55,121 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Sending print command: {"print": {"sequence_id": "20000", "command": "project_file", "param": "Metadata/plate_1.gcode", "url": "ftp://FL_S2_DN50_Male-Female-5x_v1.3mf", "file": "FL_S2_DN50_Male-Female-5x_v1.3mf", "md5": "", "bed_type": "auto", "timelapse": false, "bed_leveling": true, "auto_bed_leveling": 1, "flow_cali": false, "vibration_cali": true, "layer_inspect": false, "use_ams": false, "cfg": "0", "extrude_cali_flag": 0, "extrude_cali_manual_mode": 0, "nozzle_offset_cali": 0, "subtask_name": "FL_S2_DN50_Male-Female-5x_v1", "profile_id": "0", "project_id": "1544891758", "subtask_id": "1544891758", "task_id": "1544891758", "ams_mapping": [-1, -1], "ams_mapping2": [{"ams_id": 255, "slot_id": 255}, {"ams_id": 255, "slot_id": 0}]}}
+2026-06-18 18:53:55,166 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: project_file
+2026-06-18 18:53:55,166 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] timelapse field: False
+2026-06-18 18:53:55,999 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:56,000 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -26dBm
+2026-06-18 18:53:56,233 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:56,234 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -67dBm
+2026-06-18 18:53:58,053 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:58,054 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -25dBm
+2026-06-18 18:53:58,263 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:58,263 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: [{'attr': 83887360, 'code': 65543, 'action': 0, 'timestamp': 1781808835}]
+2026-06-18 18:53:58,264 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -66dBm
+2026-06-18 18:53:58,289 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:53:58,290 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -43dBm
+2026-06-18 18:54:00,090 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:00,090 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -26dBm
+2026-06-18 18:54:00,310 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:00,354 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:02,127 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:02,128 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -25dBm
+2026-06-18 18:54:02,151 DEBUG [backend.app.main] [-] [[PRINTER]] Runtime tracking: added 30s, total=176682s (49.08h)
+2026-06-18 18:54:02,160 DEBUG [backend.app.main] [-] Updated runtime for 1 printer(s)
+2026-06-18 18:54:02,318 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:02,392 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:02,393 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -42dBm
+2026-06-18 18:54:04,177 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:04,445 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:06,224 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:06,431 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:06,503 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:06,503 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -43dBm
+2026-06-18 18:54:08,274 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:08,274 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -26dBm
+2026-06-18 18:54:08,471 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:08,538 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:08,539 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -42dBm
+2026-06-18 18:54:10,320 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:10,591 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:12,516 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:12,516 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -67dBm
+2026-06-18 18:54:12,587 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:13,871 DEBUG [backend.app.services.firmware_check] [d3f4f7ae] Unknown printer model: Unknown
+2026-06-18 18:54:14,575 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:14,575 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -66dBm
+2026-06-18 18:54:14,681 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:14,682 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -45dBm
+2026-06-18 18:54:16,444 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:16,661 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:16,747 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:16,747 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -43dBm
+2026-06-18 18:54:18,647 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:18,648 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -65dBm
+2026-06-18 18:54:18,715 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:18,819 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:18,820 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -44dBm
+2026-06-18 18:54:20,690 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:20,691 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -66dBm
+2026-06-18 18:54:20,876 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:20,877 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -42dBm
+2026-06-18 18:54:22,594 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:22,594 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -25dBm
+2026-06-18 18:54:22,934 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:22,935 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -44dBm
+2026-06-18 18:54:23,365 DEBUG [backend.app.api.routes.printers] [6ece917e] API returning ams_mapping: [], ams_extruder_map: {}
+2026-06-18 18:54:23,366 DEBUG [backend.app.api.routes.printers] [6ece917e] Using tray_now directly as global ID: 254
+2026-06-18 18:54:23,506 DEBUG [backend.app.api.routes.printers] [a2b79959] API returning ams_mapping: [], ams_extruder_map: {}
+2026-06-18 18:54:23,506 DEBUG [backend.app.api.routes.printers] [a2b79959] Using tray_now directly as global ID: 255
+2026-06-18 18:54:24,648 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:24,985 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:24,985 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -42dBm
+2026-06-18 18:54:26,701 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:26,701 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -26dBm
+2026-06-18 18:54:26,919 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:27,054 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-18 18:54:27,055 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -43dBm
