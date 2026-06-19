@@ -1,0 +1,200 @@
+2026-06-19 13:20:23,152 INFO [backend.app.services.bambu_ftp] [-] FTP download failed for /cache/auto_cali_for_user_param.gcode.gcode.3mf: 550  (not on printer)
+2026-06-19 13:20:23,212 INFO [backend.app.services.bambu_ftp] [-] FTP download failed for /model/auto_cali_for_user_param.gcode.gcode.3mf: 550  (not on printer)
+2026-06-19 13:20:23,260 INFO [backend.app.services.bambu_ftp] [-] FTP download failed for /data/auto_cali_for_user_param.gcode.gcode.3mf: 550  (not on printer)
+2026-06-19 13:20:23,303 INFO [backend.app.services.bambu_ftp] [-] FTP download failed for /auto_cali_for_user_param.gcode.3mf: 550  (not on printer)
+2026-06-19 13:20:23,359 INFO [backend.app.services.bambu_ftp] [-] FTP download failed for /cache/auto_cali_for_user_param.gcode.3mf: 550  (not on printer)
+2026-06-19 13:20:23,408 INFO [backend.app.services.bambu_ftp] [-] FTP download failed for /model/auto_cali_for_user_param.gcode.3mf: 550  (not on printer)
+2026-06-19 13:20:23,473 INFO [backend.app.services.bambu_ftp] [-] FTP download failed for /data/auto_cali_for_user_param.gcode.3mf: 550  (not on printer)
+2026-06-19 13:20:23,515 INFO [uvicorn.access] [-] [IP]:59601 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-19 13:20:39,188 INFO [uvicorn.access] [-] [IP]:59601 - "POST /api/v1/printers/1/refresh-status HTTP/1.1" 200
+2026-06-19 13:20:48,903 INFO [uvicorn.access] [-] [IP]:59601 - "POST /api/v1/printers/1/logging/enable HTTP/1.1" 200
+2026-06-19 13:21:04,881 INFO [uvicorn.access] [-] [IP]:57445 - "POST /api/v1/printers/1/logging/disable HTTP/1.1" 200
+2026-06-19 13:21:53,332 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:21:54,309 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:21:58,451 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:22:07,507 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:22:47,498 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:22:47,544 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F0.2mm%20layer%2C%202%20walls%2C%2015%25%20infill.3mf HTTP/1.1" 200
+2026-06-19 13:22:49,243 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:22:49,317 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F0_plate_1.gcode HTTP/1.1" 200
+2026-06-19 13:22:49,344 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:22:49,369 INFO [uvicorn.access] [-] [IP]:61966 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F0.2mm%20layer%2C%202%20walls%2C%2015%25%20infill.3mf HTTP/1.1" 404
+2026-06-19 13:22:50,360 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:22:50,406 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F1_0.2mm%20layer%2C%202%20walls%2C%2010%25%20infill%20Unten%20Flach%20zum%20stellen.bbl HTTP/1.1" 200
+2026-06-19 13:22:51,388 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:22:51,433 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2FCorner_shelf_v15.3mf HTTP/1.1" 200
+2026-06-19 13:22:52,404 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:22:52,469 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2FCorner_shelf_v15_plate_1.gcode HTTP/1.1" 200
+2026-06-19 13:22:53,361 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:22:53,405 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F1_Corner_shelf_v15.bbl HTTP/1.1" 200
+2026-06-19 13:22:55,132 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:22:55,181 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F0.28mm%20layer%2C%202%20walls%2C%205%25%20infill.3mf HTTP/1.1" 200
+2026-06-19 13:22:55,200 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:22:55,225 INFO [uvicorn.access] [-] [IP]:58391 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F0.2mm%20layer%2C%202%20walls%2C%2015%25%20infill.3mf HTTP/1.1" 404
+2026-06-19 13:22:56,875 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:22:56,931 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F_plate_1.gcode HTTP/1.1" 200
+2026-06-19 13:22:56,952 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:22:56,976 INFO [uvicorn.access] [-] [IP]:58391 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F0.2mm%20layer%2C%202%20walls%2C%2015%25%20infill.3mf HTTP/1.1" 404
+2026-06-19 13:22:57,950 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:22:57,998 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F1_.4mm%20nozzle%200.2mm%20layer%2C%202%20walls%2C%2015%25%20infill%20WITH%20SUPPORTS.bbl HTTP/1.1" 200
+2026-06-19 13:22:59,736 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:22:59,782 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F0_auto_cali_for_user_param.bbl HTTP/1.1" 200
+2026-06-19 13:22:59,802 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:22:59,826 INFO [uvicorn.access] [-] [IP]:58391 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F0.2mm%20layer%2C%202%20walls%2C%2015%25%20infill.3mf HTTP/1.1" 404
+2026-06-19 13:23:00,695 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:00,742 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F1_0.28mm%20layer%2C%202%20walls%2C%205%25%20infill.bbl HTTP/1.1" 200
+2026-06-19 13:23:01,740 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:01,850 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F1_0.2mm%20layer%2C%202%20walls%2C%2015%25%20infill.bbl HTTP/1.1" 200
+2026-06-19 13:23:02,758 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:02,813 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F5%20inches%20wide%20.3mf HTTP/1.1" 200
+2026-06-19 13:23:03,758 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:03,833 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F5%20inches%20wide%20_plate_1.gcode HTTP/1.1" 200
+2026-06-19 13:23:04,805 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:04,848 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F1_5%20inches%20wide%20.bbl HTTP/1.1" 200
+2026-06-19 13:23:05,835 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:05,879 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F0.2mm%20layer%2C%202%20walls%2C%2010%25%20infill.3mf HTTP/1.1" 200
+2026-06-19 13:23:07,615 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:07,667 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F1_0.2mm%20layer%2C%202%20walls%2C%2010%25%20infill.bbl HTTP/1.1" 200
+2026-06-19 13:23:07,688 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:08,652 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:08,697 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2FPETG%20HF%20-%200.6mm%20nozzle%2C%200.18mm%20layer%2C%203%20walls%2C%2015%25%20infill.3mf HTTP/1.1" 200
+2026-06-19 13:23:09,640 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:09,686 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2FPETG%20HF%20-%200_plate_1.gcode HTTP/1.1" 200
+2026-06-19 13:23:10,631 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:10,677 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F1_PETG%20HF%20-%200.6mm%20nozzle%2C%200.18mm%20layer%2C%203%20walls%2C%2015%25%20infill.bbl HTTP/1.1" 200
+2026-06-19 13:23:11,671 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:11,716 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2FPETG%20-%200.2mm%20layer%2C%201%20walls%2C%2015%25%20infill.3mf HTTP/1.1" 200
+2026-06-19 13:23:12,681 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:12,725 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2FPETG%20-%200_plate_1.gcode HTTP/1.1" 200
+2026-06-19 13:23:14,489 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:14,538 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F1_PETG%20-%200.2mm%20layer%2C%201%20walls%2C%2015%25%20infill.bbl HTTP/1.1" 200
+2026-06-19 13:23:14,559 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:15,516 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:15,561 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F0.2mm%20layer%2C%201%20walls%2C%2015%25%20infill.%20Light%20But%20Strong.3mf HTTP/1.1" 200
+2026-06-19 13:23:16,487 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:16,531 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F1_0.2mm%20layer%2C%201%20walls%2C%2015%25%20infill.%20Light%20But%20Strong.bbl HTTP/1.1" 200
+2026-06-19 13:23:17,509 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:17,558 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F90x90mm_Fence_Post_Cap.3mf HTTP/1.1" 200
+2026-06-19 13:23:18,529 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:18,606 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F90x90mm_Fence_Post_Cap_plate_1.gcode HTTP/1.1" 200
+2026-06-19 13:23:20,213 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:20,224 INFO [backend.app.services.bambu_ftp] [-] FTP list_files failed for /model: 550 
+2026-06-19 13:23:20,273 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:20,318 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F1_90x90mm_Fence_Post_Cap.bbl HTTP/1.1" 200
+2026-06-19 13:23:21,307 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:21,351 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2FFor%20125-130%20mm%20diameter%20bowl%20.3mf HTTP/1.1" 200
+2026-06-19 13:23:22,334 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:22,383 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2FFor%20125-130%20mm%20diameter%20bowl%20_plate_1.gcode HTTP/1.1" 200
+2026-06-19 13:23:24,111 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:24,158 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Fcache%2F1_For%20125-130%20mm%20diameter%20bowl%20.bbl HTTP/1.1" 200
+2026-06-19 13:23:24,183 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:33,392 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:33,891 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-03-11_22-56-33.avi HTTP/1.1" 200
+2026-06-19 13:23:35,582 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:36,912 INFO [uvicorn.access] [-] [IP]:62113 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-03-12_23-42-31.avi HTTP/1.1" 200
+2026-06-19 13:23:38,539 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:38,571 INFO [uvicorn.access] [-] [IP]:57452 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-03-11_22-56-33.avi HTTP/1.1" 404
+2026-06-19 13:23:38,574 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:38,593 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:38,606 INFO [uvicorn.access] [-] [IP]:56036 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-03-11_22-56-33.avi HTTP/1.1" 404
+2026-06-19 13:23:38,625 INFO [uvicorn.access] [-] [IP]:51647 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-03-11_22-56-33.avi HTTP/1.1" 404
+2026-06-19 13:23:38,636 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:38,992 INFO [uvicorn.access] [-] [IP]:56330 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-03-13_06-05-40.avi HTTP/1.1" 200
+2026-06-19 13:23:40,599 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:41,441 INFO [uvicorn.access] [-] [IP]:56330 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-03-14_03-33-48.avi HTTP/1.1" 200
+2026-06-19 13:23:41,471 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:41,528 INFO [uvicorn.access] [-] [IP]:50813 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-03-11_22-56-33.avi HTTP/1.1" 404
+2026-06-19 13:23:42,351 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:42,965 INFO [uvicorn.access] [-] [IP]:56330 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-03-11_02-22-41.avi HTTP/1.1" 200
+2026-06-19 13:23:43,929 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:44,824 INFO [uvicorn.access] [-] [IP]:56330 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-03-15_08-41-14.avi HTTP/1.1" 200
+2026-06-19 13:23:45,768 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:45,821 INFO [uvicorn.access] [-] [IP]:56330 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-04-15_16-30-47.avi HTTP/1.1" 200
+2026-06-19 13:23:46,835 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:47,569 INFO [uvicorn.access] [-] [IP]:56330 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-04-15_16-52-15.avi HTTP/1.1" 200
+2026-06-19 13:23:48,536 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:49,063 INFO [uvicorn.access] [-] [IP]:56330 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-04-16_10-23-01.avi HTTP/1.1" 200
+2026-06-19 13:23:50,062 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:50,109 INFO [uvicorn.access] [-] [IP]:56330 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-04-17_08-45-52.avi HTTP/1.1" 200
+2026-06-19 13:23:51,084 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:51,128 INFO [uvicorn.access] [-] [IP]:56330 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-04-17_09-13-20.avi HTTP/1.1" 200
+2026-06-19 13:23:52,085 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:52,154 INFO [uvicorn.access] [-] [IP]:56330 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-04-17_12-46-20.avi HTTP/1.1" 200
+2026-06-19 13:23:53,159 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=P1S, prot_c=False)
+2026-06-19 13:23:53,291 INFO [uvicorn.access] [-] [IP]:51647 - "DELETE /api/v1/printers/1/files?path=%2Ftimelapse%2Fvideo_2026-04-17_12-58-09.avi HTTP/1.1" 200
+2026-06-19 13:24:01,180 INFO [backend.app.services.mqtt_relay] [8c7db3d2] MQTT relay disabled
+2026-06-19 13:24:01,189 INFO [uvicorn.access] [-] [IP]:56330 - "PUT /api/v1/settings/ HTTP/1.1" 200
+2026-06-19 13:24:06,931 INFO [backend.app.services.mqtt_relay] [2b3d6574] MQTT relay disabled
+2026-06-19 13:24:06,937 INFO [uvicorn.access] [-] [IP]:56330 - "PUT /api/v1/settings/ HTTP/1.1" 200
+2026-06-19 13:24:10,622 INFO [backend.app.services.mqtt_relay] [8116c0c8] MQTT relay disabled
+2026-06-19 13:24:10,629 INFO [uvicorn.access] [-] [IP]:56330 - "PUT /api/v1/settings/ HTTP/1.1" 200
+2026-06-19 13:24:29,091 INFO [uvicorn.access] [-] [IP]:64506 - "PUT /api/v1/settings/ HTTP/1.1" 200
+2026-06-19 13:24:33,122 INFO [uvicorn.access] [-] [IP]:64506 - "PUT /api/v1/settings/ HTTP/1.1" 200
+2026-06-19 13:24:39,072 INFO [uvicorn.access] [-] [IP]:64506 - "PUT /api/v1/settings/ HTTP/1.1" 200
+2026-06-19 13:24:43,097 INFO [uvicorn.access] [-] [IP]:56834 - "PUT /api/v1/settings/ HTTP/1.1" 200
+2026-06-19 13:24:46,269 INFO [uvicorn.access] [-] [IP]:56834 - "PUT /api/v1/settings/ HTTP/1.1" 200
+2026-06-19 13:26:17,449 INFO [backend.app.api.routes.notifications] [3041c85f] Deleted 0 notification logs older than 30 days
+2026-06-19 13:26:17,451 INFO [uvicorn.access] [-] [IP]:60403 - "DELETE /api/v1/notifications/logs?older_than_days=30 HTTP/1.1" 200
+2026-06-19 13:27:14,829 INFO [backend.app.services.virtual_printer.certificate] [8d79091c] Using existing CA certificate (expires in 7299 days)
+2026-06-19 13:28:45,080 INFO [backend.app.api.routes.virtual_printers] [a1f77763] Created virtual printer: p1s#1 (id=1)
+2026-06-19 13:28:45,082 INFO [uvicorn.access] [-] [IP]:63270 - "POST /api/v1/virtual-printers HTTP/1.1" 200
+2026-06-19 13:29:01,298 INFO [backend.app.api.routes.virtual_printers] [89fe5a38] Updated virtual printer: [PRINTER] (id=1)
+2026-06-19 13:29:01,303 INFO [uvicorn.access] [-] [IP]:60679 - "PUT /api/v1/virtual-printers/1 HTTP/1.1" 200
+2026-06-19 13:29:25,350 INFO [backend.app.api.routes.virtual_printers] [768ca0db] Updated virtual printer: [PRINTER] (id=1)
+2026-06-19 13:29:25,355 INFO [uvicorn.access] [-] [IP]:60679 - "PUT /api/v1/virtual-printers/1 HTTP/1.1" 200
+2026-06-19 13:29:31,316 INFO [backend.app.api.routes.virtual_printers] [1d3281cc] Updated virtual printer: [PRINTER] (id=1)
+2026-06-19 13:29:31,320 INFO [uvicorn.access] [-] [IP]:60679 - "PUT /api/v1/virtual-printers/1 HTTP/1.1" 200
+2026-06-19 13:29:34,910 INFO [backend.app.api.routes.virtual_printers] [eb6d07ef] Updated virtual printer: [PRINTER] (id=1)
+2026-06-19 13:29:34,915 INFO [uvicorn.access] [-] [IP]:60679 - "PUT /api/v1/virtual-printers/1 HTTP/1.1" 200
+2026-06-19 13:29:44,533 INFO [backend.app.api.routes.virtual_printers] [173d20aa] Updated virtual printer: [PRINTER] (id=1)
+2026-06-19 13:29:44,536 INFO [uvicorn.access] [-] [IP]:62916 - "PUT /api/v1/virtual-printers/1 HTTP/1.1" 200
+2026-06-19 13:30:00,542 INFO [backend.app.api.routes.virtual_printers] [d25c069d] Updated virtual printer: [PRINTER] (id=1)
+2026-06-19 13:30:00,546 INFO [uvicorn.access] [-] [IP]:63612 - "PUT /api/v1/virtual-printers/1 HTTP/1.1" 200
+2026-06-19 13:30:07,514 INFO [backend.app.api.routes.virtual_printers] [9d311085] Updated virtual printer: [PRINTER] (id=1)
+2026-06-19 13:30:07,518 INFO [uvicorn.access] [-] [IP]:58146 - "PUT /api/v1/virtual-printers/1 HTTP/1.1" 200
+2026-06-19 13:31:55,451 INFO [uvicorn.access] [-] [IP]:64659 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-19 13:32:56,548 INFO [backend.app.services.bambu_mqtt] [b0018c57] [[SERIAL]] Sent clear HMS errors command
+2026-06-19 13:32:56,550 INFO [uvicorn.access] [-] [IP]:62015 - "POST /api/v1/printers/1/hms/clear HTTP/1.1" 200
+2026-06-19 13:33:01,868 INFO [backend.app.services.bambu_mqtt] [63b5d0e1] [[SERIAL]] Sent stop print command
+2026-06-19 13:33:01,868 INFO [backend.app.main] [63b5d0e1] Marked printer 1 as user-stopped from queue
+2026-06-19 13:33:01,870 INFO [uvicorn.access] [-] [IP]:61695 - "POST /api/v1/printers/1/print/stop HTTP/1.1" 200
+2026-06-19 13:34:15,933 INFO [backend.app.api.routes.support] [beccc2ab] Log level changed to DEBUG
+2026-06-19 13:34:15,934 INFO [backend.app.api.routes.bug_report] [beccc2ab] Bug report: enabled debug logging
+2026-06-19 13:34:15,934 DEBUG [backend.app.services.bambu_mqtt] [beccc2ab] [[SERIAL]] Requesting status update (pushall)
+2026-06-19 13:34:15,935 INFO [uvicorn.access] [-] [IP]:60921 - "POST /api/v1/bug-report/start-logging HTTP/1.1" 200
+2026-06-19 13:34:16,029 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: PAUSE, gcode_file: auto_cali_for_user_param.gcode, subtask_name: auto_cali_for_user_param.gcode
+2026-06-19 13:34:16,030 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '0', 'tray_exist_bits': '0', 'tray_is_bbl_bits': '0', 'tray_tar': '255', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': '0', 'tray_reading_bits': '0', 'version': 1, 'insert_flag': True, 'power_on_flag': True}
+2026-06-19 13:34:16,030 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-06-19 13:34:16,030 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 0 new units, 0 total
+2026-06-19 13:34:16,031 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-06-19 13:34:16,031 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-19 13:34:16,031 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 5.0
+2026-06-19 13:34:16,031 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 5.0°C (heater OFF)
+2026-06-19 13:34:16,032 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=5.0, heating=False, respect_local=False
+2026-06-19 13:34:16,032 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 5.0, target: 0.0, heating: False
+2026-06-19 13:34:16,032 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: [{'attr': 50332160, 'code': 65543, 'action': 0, 'timestamp': 1781889200}, {'attr': 83887360, 'code': 65543, 'action': 0, 'timestamp': 1781890351}]
+2026-06-19 13:34:16,033 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] print_error: 50364424 (0x03008008) -> short_code=0300_8008
+2026-06-19 13:34:16,033 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'ipcam_dev': '1', 'ipcam_record': 'enable', 'timelapse': 'disable', 'resolution': '', 'tutk_server': 'disable', 'mode_bits': 3}
+2026-06-19 13:34:16,034 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -45dBm
+2026-06-19 13:34:16,034 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'node': 'chamber_light', 'mode': 'on'}]
+2026-06-19 13:34:16,034 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: PAUSE -> PAUSE, file: auto_cali_for_user_param.gcode, subtask: auto_cali_for_user_param.gcode
+2026-06-19 13:34:19,985 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-19 13:34:19,986 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -44dBm
+2026-06-19 13:34:22,156 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-19 13:34:22,156 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -45dBm
+2026-06-19 13:34:24,102 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-19 13:34:24,102 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -44dBm
+2026-06-19 13:34:28,090 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-19 13:34:28,091 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -43dBm
+2026-06-19 13:34:30,038 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-19 13:34:30,039 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -44dBm
+2026-06-19 13:34:32,091 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-19 13:34:32,092 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -42dBm
+2026-06-19 13:34:32,101 DEBUG [backend.app.api.routes.printers] [98cff270] API returning ams_mapping: [], ams_extruder_map: {}
+2026-06-19 13:34:32,101 DEBUG [backend.app.api.routes.printers] [98cff270] Using tray_now directly as global ID: 255
+2026-06-19 13:34:34,140 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-19 13:34:34,141 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -46dBm
+2026-06-19 13:34:38,140 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-19 13:34:38,141 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -48dBm
+2026-06-19 13:34:42,125 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-19 13:34:42,125 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -46dBm
