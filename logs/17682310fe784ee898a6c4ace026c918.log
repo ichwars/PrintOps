@@ -1,0 +1,200 @@
+2026-06-20 10:03:32,909 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 10:08:32,923 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 10:13:32,936 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 10:18:32,959 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 10:23:32,978 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 10:28:32,989 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 10:33:33,008 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 10:34:54,116 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Unspecified error, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-06-20 10:34:54,116 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Unspecified error, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-06-20 10:34:55,999 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS unit 0: serial number not available in version info
+2026-06-20 10:34:55,999 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS unit 0: firmware version not available in version info
+2026-06-20 10:38:33,020 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 10:43:33,031 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 10:48:33,036 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 10:53:33,045 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 10:58:33,064 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 11:03:33,083 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 11:08:33,097 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 11:13:33,116 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 11:18:33,124 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 11:23:33,139 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 11:28:33,154 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 11:33:33,162 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 11:38:33,179 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 11:43:33,198 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 11:48:33,204 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 11:53:33,209 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 11:58:33,228 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 12:03:33,242 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 12:08:33,259 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 12:13:33,271 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 12:18:33,284 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 12:23:33,290 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 12:28:33,298 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 12:33:33,313 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 12:38:33,327 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 12:43:33,334 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 12:48:33,351 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 15:33:11,167 INFO [root] [-] Logging to file: C:\ProgramData\Bambuddy\logs\bambuddy.log
+2026-06-20 15:33:11,168 INFO [root] [-] Bambuddy starting - debug=False, log_level=INFO
+2026-06-20 15:33:13,847 INFO [backend.app.services.mqtt_relay] [-] MQTT relay disabled
+2026-06-20 15:33:14,776 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Unspecified error, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-06-20 15:33:14,776 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Disconnected shortly after request topic subscription. Disabling request topic for this printer.
+2026-06-20 15:33:15,833 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Unspecified error, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-06-20 15:33:15,833 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Disconnected shortly after request topic subscription. Disabling request topic for this printer.
+2026-06-20 15:33:15,924 INFO [backend.app.services.background_dispatch] [-] Background dispatch dispatcher started
+2026-06-20 15:33:15,924 INFO [backend.app.services.smart_plug_manager] [-] Smart plug scheduler started
+2026-06-20 15:33:15,924 INFO [backend.app.services.smart_plug_manager] [-] Smart plug energy snapshot loop started
+2026-06-20 15:33:15,926 INFO [backend.app.services.print_scheduler] [-] Print scheduler started
+2026-06-20 15:33:15,928 INFO [backend.app.services.notification_service] [-] Notification digest scheduler started
+2026-06-20 15:33:15,928 INFO [backend.app.services.github_backup] [-] Starting GitHub backup scheduler
+2026-06-20 15:33:15,928 INFO [backend.app.services.local_backup] [-] Starting local backup scheduler
+2026-06-20 15:33:15,933 INFO [backend.app.services.obico_detection] [-] Starting Obico detection service
+2026-06-20 15:33:15,933 INFO [backend.app.services.library_trash] [-] Starting library trash sweeper
+2026-06-20 15:33:15,933 INFO [backend.app.services.archive_purge] [-] Starting archive auto-purge sweeper
+2026-06-20 15:33:15,933 INFO [backend.app.main] [-] AMS history recording started
+2026-06-20 15:33:15,933 INFO [backend.app.main] [-] Printer runtime tracking started
+2026-06-20 15:33:15,933 INFO [backend.app.main] [-] SpoolBuddy watchdog started
+2026-06-20 15:33:15,933 INFO [backend.app.main] [-] Camera stream cleanup started
+2026-06-20 15:33:15,933 INFO [backend.app.main] [-] Expected prints cleanup started
+2026-06-20 15:33:15,933 INFO [backend.app.main] [-] Auth periodic cleanup started
+2026-06-20 15:33:15,934 INFO [backend.app.services.loop_watchdog] [-] Event-loop stall watchdog started — dumps all thread stacks to stderr if the loop stalls for more than 30s
+2026-06-20 15:33:15,939 INFO [root] [-] Virtual printer manager synced from database
+2026-06-20 15:33:16,691 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-06-20 15:33:16,697 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Firmware version: 01.08.00.12
+2026-06-20 15:33:16,698 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS unit 0: serial number not available in version info
+2026-06-20 15:33:16,698 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS unit 0: firmware version not available in version info
+2026-06-20 15:33:17,730 INFO [backend.app.main] [-] [Printer 2] Broadcasting AMS change via WebSocket
+2026-06-20 15:33:17,731 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Firmware version: 01.07.02.13
+2026-06-20 15:33:22,853 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Probing developer mode via ams_filament_setting (seq=5)
+2026-06-20 15:33:22,867 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Developer mode probe: ENABLED (result='success')
+2026-06-20 15:33:25,955 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 15:33:31,909 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Probing developer mode via ams_filament_setting (seq=5)
+2026-06-20 15:33:31,922 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Developer mode probe: ENABLED (result='success')
+2026-06-20 15:34:06,233 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Unspecified error, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-06-20 15:34:06,233 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT disconnected: rc=Unspecified error, flags=DisconnectFlags(is_disconnect_packet_from_server=False)
+2026-06-20 15:34:08,135 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS unit 0: serial number not available in version info
+2026-06-20 15:34:08,136 WARNING [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS unit 0: firmware version not available in version info
+2026-06-20 15:38:25,966 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 15:39:41,287 INFO [uvicorn.access] [-] [IP]:50849 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-20 15:39:41,409 INFO [uvicorn.access] [-] [IP]:50849 - "POST /api/v1/auth/ws-token HTTP/1.1" 200
+2026-06-20 15:39:41,785 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting (principal=<anonymous>)
+2026-06-20 15:39:41,786 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-06-20 15:39:41,787 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 2 printers
+2026-06-20 15:39:42,343 INFO [backend.app.api.routes.cloud] [18175120] get_filament_info called with 4 IDs: ['GFA05', 'GFL01', 'GFG02', 'GFU99']
+2026-06-20 15:39:42,350 INFO [uvicorn.access] [-] [IP]:60221 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-06-20 15:39:42,358 INFO [backend.app.api.routes.cloud] [4d38ba0c] get_filament_info called with 2 IDs: ['GFL01', 'GFG02']
+2026-06-20 15:39:42,359 INFO [uvicorn.access] [-] [IP]:51034 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-06-20 15:39:43,127 INFO [backend.app.services.firmware_check] [e8684385] Got Bambu Lab build ID: RbGM17gxZSOpE_U9kFy92
+2026-06-20 15:39:46,018 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1, prot_c=False)
+2026-06-20 15:40:03,691 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1, prot_c=False)
+2026-06-20 15:40:21,615 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1, prot_c=False)
+2026-06-20 15:40:22,847 INFO [backend.app.services.firmware_check] [ad659db8] Downloading firmware from https://public-cdn.bblmw.com/upgrade/device/offline/N2S/01.08.00.00/45ea644d25/offline-ota-n2s_v01.08.00.00-20260414064307.zip
+2026-06-20 15:40:22,848 INFO [uvicorn.access] [-] [IP]:50469 - "POST /api/v1/firmware/updates/2/upload?version=01.08.00.00 HTTP/1.1" 200
+2026-06-20 15:40:24,047 INFO [backend.app.services.firmware_check] [ad659db8] Firmware downloaded successfully: C:\ProgramData\Bambuddy\data\firmware\offline-ota-n2s_v01.08.00.00-20260414064307.zip
+2026-06-20 15:40:24,047 INFO [backend.app.services.firmware_update] [ad659db8] Uploading firmware to printer 2: /offline-ota-n2s_v01.08.00.00-20260414064307.zip
+2026-06-20 15:40:24,049 INFO [backend.app.services.bambu_ftp] [-] FTP connecting to [IP] for upload (model=A1, mode=prot_p, socket_timeout=30.0s)...
+2026-06-20 15:40:24,874 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1, prot_c=False)
+2026-06-20 15:40:24,874 INFO [backend.app.services.bambu_ftp] [-] FTP connected to [IP]
+2026-06-20 15:40:24,875 INFO [backend.app.services.bambu_ftp] [-] FTP uploading C:\ProgramData\Bambuddy\data\firmware\offline-ota-n2s_v01.08.00.00-20260414064307.zip (7654408 bytes) to /offline-ota-n2s_v01.08.00.00-20260414064307.zip
+2026-06-20 15:40:24,984 INFO [backend.app.services.bambu_ftp] [-] FTP data channel ready in 0.1s (PASV + TLS handshake)
+2026-06-20 15:41:11,407 INFO [backend.app.services.bambu_ftp] [-] FTP STOR confirmed for /offline-ota-n2s_v01.08.00.00-20260414064307.zip: 226
+2026-06-20 15:41:11,407 INFO [backend.app.services.bambu_ftp] [-] FTP upload complete: /offline-ota-n2s_v01.08.00.00-20260414064307.zip (7654408 bytes in 46.5s, 161 KB/s)
+2026-06-20 15:41:11,407 INFO [backend.app.services.bambu_ftp] [-] FTP mode cached for [IP]: prot_p
+2026-06-20 15:41:11,423 INFO [backend.app.services.firmware_update] [ad659db8] Firmware upload complete for printer 2
+2026-06-20 15:41:13,718 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1, prot_c=False)
+2026-06-20 15:43:25,972 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 15:44:25,454 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1, prot_c=False)
+2026-06-20 15:44:33,211 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1, prot_c=False)
+2026-06-20 15:44:34,842 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1, prot_c=False)
+2026-06-20 15:44:36,273 INFO [backend.app.services.firmware_check] [16bfcdd0] Using cached firmware: C:\ProgramData\Bambuddy\data\firmware\offline-ota-n2s_v01.08.00.00-20260414064307.zip
+2026-06-20 15:44:36,273 INFO [backend.app.services.firmware_update] [16bfcdd0] Uploading firmware to printer 2: /offline-ota-n2s_v01.08.00.00-20260414064307.zip
+2026-06-20 15:44:36,274 INFO [uvicorn.access] [-] [IP]:52053 - "POST /api/v1/firmware/updates/2/upload?version=01.08.00.00 HTTP/1.1" 200
+2026-06-20 15:44:36,277 INFO [backend.app.services.bambu_ftp] [-] FTP connecting to [IP] for upload (model=A1, mode=prot_p, socket_timeout=30.0s)...
+2026-06-20 15:44:37,120 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1, prot_c=False)
+2026-06-20 15:44:37,120 INFO [backend.app.services.bambu_ftp] [-] FTP connected to [IP]
+2026-06-20 15:44:37,120 INFO [backend.app.services.bambu_ftp] [-] FTP uploading C:\ProgramData\Bambuddy\data\firmware\offline-ota-n2s_v01.08.00.00-20260414064307.zip (7654408 bytes) to /offline-ota-n2s_v01.08.00.00-20260414064307.zip
+2026-06-20 15:44:37,257 INFO [backend.app.services.bambu_ftp] [-] FTP data channel ready in 0.1s (PASV + TLS handshake)
+2026-06-20 15:45:22,543 INFO [backend.app.services.bambu_ftp] [-] FTP STOR confirmed for /offline-ota-n2s_v01.08.00.00-20260414064307.zip: 226
+2026-06-20 15:45:22,543 INFO [backend.app.services.bambu_ftp] [-] FTP upload complete: /offline-ota-n2s_v01.08.00.00-20260414064307.zip (7654408 bytes in 45.4s, 165 KB/s)
+2026-06-20 15:45:22,543 INFO [backend.app.services.bambu_ftp] [-] FTP mode cached for [IP]: prot_p
+2026-06-20 15:45:22,558 INFO [backend.app.services.firmware_update] [16bfcdd0] Firmware upload complete for printer 2
+2026-06-20 15:45:25,134 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1, prot_c=False)
+2026-06-20 15:45:30,161 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-06-20 15:45:30,449 INFO [uvicorn.access] [-] [IP]:57388 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-06-20 15:45:30,487 INFO [uvicorn.access] [-] [IP]:57388 - "POST /api/v1/auth/ws-token HTTP/1.1" 200
+2026-06-20 15:45:30,847 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting (principal=<anonymous>)
+2026-06-20 15:45:30,848 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-06-20 15:45:30,849 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 2 printers
+2026-06-20 15:45:30,946 INFO [backend.app.api.routes.cloud] [4160b2de] get_filament_info called with 4 IDs: ['GFA05', 'GFL01', 'GFG02', 'GFU99']
+2026-06-20 15:45:30,946 INFO [backend.app.api.routes.cloud] [d39fa377] get_filament_info called with 2 IDs: ['GFL01', 'GFG02']
+2026-06-20 15:45:30,950 INFO [uvicorn.access] [-] [IP]:51180 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-06-20 15:45:30,950 INFO [uvicorn.access] [-] [IP]:59002 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-06-20 15:45:35,443 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1, prot_c=False)
+2026-06-20 15:45:40,007 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=A1, prot_c=False)
+2026-06-20 15:48:25,978 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 15:53:25,994 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 15:53:43,010 INFO [backend.app.api.routes.cloud] [9c528384] get_filament_info called with 4 IDs: ['GFA05', 'GFL01', 'GFG02', 'GFU99']
+2026-06-20 15:53:43,024 INFO [uvicorn.access] [-] [IP]:50953 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-06-20 15:53:43,040 INFO [backend.app.api.routes.cloud] [c1c6d6c6] get_filament_info called with 2 IDs: ['GFL01', 'GFG02']
+2026-06-20 15:53:43,042 INFO [uvicorn.access] [-] [IP]:50953 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-06-20 15:53:49,663 INFO [backend.app.services.camera] [4fb4da4c] Found ffmpeg at: C:\Program Files\Bambuddy\bin\ffmpeg.EXE
+2026-06-20 15:53:50,602 INFO [backend.app.services.mqtt_relay] [6f5c7646] MQTT relay disabled
+2026-06-20 15:53:50,606 INFO [uvicorn.access] [-] [IP]:50953 - "PUT /api/v1/settings/ HTTP/1.1" 200
+2026-06-20 15:53:56,241 INFO [backend.app.services.virtual_printer.certificate] [1ccf5851] Generating new Virtual Printer CA certificate...
+2026-06-20 15:53:56,306 INFO [backend.app.services.virtual_printer.certificate] [1ccf5851] Saved new CA certificate
+2026-06-20 15:54:03,482 INFO [uvicorn.access] [-] [IP]:50953 - "PUT /api/v1/settings/ HTTP/1.1" 200
+2026-06-20 15:56:19,090 INFO [uvicorn.access] [-] [IP]:55273 - "PUT /api/v1/settings/ HTTP/1.1" 200
+2026-06-20 15:58:26,005 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 16:03:24,710 INFO [uvicorn.access] [-] [IP]:65396 - "POST /api/v1/orca-cloud/auth/start HTTP/1.1" 200
+2026-06-20 16:03:26,013 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 16:08:26,031 INFO [backend.app.main] [-] Recorded 2 AMS sensor history entries
+2026-06-20 16:10:38,748 INFO [uvicorn.access] [-] [IP]:63704 - "POST /api/v1/orca-cloud/auth/start HTTP/1.1" 200
+2026-06-20 16:11:30,970 INFO [backend.app.api.routes.support] [f31445f6] Log level changed to DEBUG
+2026-06-20 16:11:30,970 INFO [backend.app.api.routes.bug_report] [f31445f6] Bug report: enabled debug logging
+2026-06-20 16:11:30,970 DEBUG [backend.app.services.bambu_mqtt] [f31445f6] [[SERIAL]] Requesting status update (pushall)
+2026-06-20 16:11:30,970 DEBUG [backend.app.services.bambu_mqtt] [f31445f6] [[SERIAL]] Requesting status update (pushall)
+2026-06-20 16:11:30,970 INFO [uvicorn.access] [-] [IP]:63225 - "POST /api/v1/bug-report/start-logging HTTP/1.1" 200
+2026-06-20 16:11:31,052 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'buildplate_marker_detector': True}
+2026-06-20 16:11:31,052 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['buildplate_marker_detector']
+2026-06-20 16:11:31,052 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: IDLE, gcode_file: , subtask_name: 
+2026-06-20 16:11:31,052 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '1', 'tray_exist_bits': 'f', 'tray_is_bbl_bits': 'f', 'tray_tar': '255', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': 'f', 'tray_reading_bits': '0', 'version': 11, 'insert_flag': True, 'power_on_flag': False}
+2026-06-20 16:11:31,052 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-06-20 16:11:31,052 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-06-20 16:11:31,052 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1002 -> extruder 0
+2026-06-20 16:11:31,052 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-06-20 16:11:31,052 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-06-20 16:11:31,052 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-20 16:11:31,052 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 5.0
+2026-06-20 16:11:31,052 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 5.0°C (heater OFF)
+2026-06-20 16:11:31,052 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=5.0, heating=False, respect_local=False
+2026-06-20 16:11:31,053 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 5.0, target: 0.0, heating: False
+2026-06-20 16:11:31,053 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: []
+2026-06-20 16:11:31,053 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'ipcam_dev': '0', 'ipcam_record': 'disable', 'timelapse': 'disable', 'resolution': '1080p', 'tutk_server': 'disable', 'mode_bits': 3}
+2026-06-20 16:11:31,053 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -49dBm
+2026-06-20 16:11:31,053 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'node': 'chamber_light', 'mode': 'off'}]
+2026-06-20 16:11:31,053 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: IDLE -> IDLE, file: , subtask: 
+2026-06-20 16:11:31,697 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'buildplate_marker_detector': True}
+2026-06-20 16:11:31,697 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['buildplate_marker_detector']
+2026-06-20 16:11:31,697 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: IDLE, gcode_file: , subtask_name: 
+2026-06-20 16:11:31,697 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '1', 'tray_exist_bits': 'f', 'tray_is_bbl_bits': 'f', 'tray_tar': '255', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': 'f', 'tray_reading_bits': '0', 'version': 39, 'insert_flag': True, 'power_on_flag': True}
+2026-06-20 16:11:31,697 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-06-20 16:11:31,698 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-06-20 16:11:31,698 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1003 -> extruder 0
+2026-06-20 16:11:31,698 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-06-20 16:11:31,698 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-06-20 16:11:31,698 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-20 16:11:31,698 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 5.0
+2026-06-20 16:11:31,698 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 5.0°C (heater OFF)
+2026-06-20 16:11:31,698 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=5.0, heating=False, respect_local=False
+2026-06-20 16:11:31,698 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 5.0, target: 0.0, heating: False
+2026-06-20 16:11:31,698 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: []
+2026-06-20 16:11:31,698 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'ipcam_dev': '1', 'ipcam_record': 'enable', 'timelapse': 'disable', 'resolution': '1080p', 'tutk_server': 'disable', 'mode_bits': 3}
+2026-06-20 16:11:31,698 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -54dBm
+2026-06-20 16:11:31,698 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'node': 'chamber_light', 'mode': 'off'}]
+2026-06-20 16:11:31,698 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: IDLE -> IDLE, file: , subtask: 
+2026-06-20 16:11:33,023 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-20 16:11:33,681 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-20 16:11:39,098 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-20 16:11:39,768 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
