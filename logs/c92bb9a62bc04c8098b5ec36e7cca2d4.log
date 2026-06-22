@@ -1,0 +1,200 @@
+2026-06-22 16:25:26,891 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 32768 bytes (total: 1212416)
+2026-06-22 16:25:26,891 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 1277952)
+2026-06-22 16:25:26,891 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 32768 bytes (total: 1310720)
+2026-06-22 16:25:26,892 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 1376256)
+2026-06-22 16:25:26,893 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 16384 bytes (total: 1392640)
+2026-06-22 16:25:26,893 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 1458176)
+2026-06-22 16:25:26,893 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 32768 bytes (total: 1490944)
+2026-06-22 16:25:26,894 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 1556480)
+2026-06-22 16:25:26,894 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 32768 bytes (total: 1589248)
+2026-06-22 16:25:26,894 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 1654784)
+2026-06-22 16:25:26,895 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 1720320)
+2026-06-22 16:25:26,896 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 1785856)
+2026-06-22 16:25:26,896 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 1851392)
+2026-06-22 16:25:26,897 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 49152 bytes (total: 1900544)
+2026-06-22 16:25:26,897 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 1966080)
+2026-06-22 16:25:26,898 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 2031616)
+2026-06-22 16:25:26,898 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 2097152)
+2026-06-22 16:25:26,899 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 2162688)
+2026-06-22 16:25:26,899 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 2228224)
+2026-06-22 16:25:26,900 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 49152 bytes (total: 2277376)
+2026-06-22 16:25:26,900 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 2342912)
+2026-06-22 16:25:26,902 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 2408448)
+2026-06-22 16:25:26,903 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 2473984)
+2026-06-22 16:25:26,903 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 32768 bytes (total: 2506752)
+2026-06-22 16:25:26,904 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 65536 bytes (total: 2572288)
+2026-06-22 16:25:26,904 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] FTP received chunk: 27477 bytes (total: 2599765)
+2026-06-22 16:25:27,004 INFO [backend.app.services.virtual_printer.ftp_server] [-] FTP saved file: /opt/[user]/data/virtual_printer/uploads/1/usb_reel_v3_medium.gcode.3mf (2599765 bytes)
+2026-06-22 16:25:27,004 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] [Bambuddy] FTP -> [IP]: 226 Transfer complete
+2026-06-22 16:25:27,004 INFO [backend.app.services.virtual_printer.manager] [-] [VP Bambuddy] Received file: usb_reel_v3_medium.gcode.3mf from [IP]
+2026-06-22 16:25:28,246 DEBUG [backend.app.services.virtual_printer.ssdp_server] [-] Sent SSDP NOTIFY for Bambuddy (Location=[IP], USN=[SERIAL], bind=[IP])
+2026-06-22 16:25:29,039 INFO [backend.app.services.virtual_printer.manager] [-] [VP Bambuddy] Archived: 26 - USB Cable Reel v3.0 /Organizer/storage/travel
+2026-06-22 16:25:29,048 INFO [backend.app.services.virtual_printer.manager] [-] [VP Bambuddy] Added 3 queue items for multi-plate upload (plates [1, 2, 3]): [42, 43, 44]
+2026-06-22 16:25:30,017 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] [Bambuddy] FTP <- [IP]: QUIT
+2026-06-22 16:25:30,017 DEBUG [backend.app.services.virtual_printer.ftp_server] [-] [Bambuddy] FTP -> [IP]: 221 Goodbye
+2026-06-22 16:25:30,017 INFO [backend.app.services.virtual_printer.ftp_server] [-] [Bambuddy] FTP session cancelled from [IP]
+2026-06-22 16:25:30,017 INFO [backend.app.services.virtual_printer.ftp_server] [-] [Bambuddy] FTP session ended from [IP]
+2026-06-22 16:25:31,439 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:25:31,439 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -92dBm
+2026-06-22 16:25:33,463 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-06-22 16:25:33,463 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-06-22 16:25:33,463 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-06-22 16:25:33,464 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:25:33,464 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -91dBm
+2026-06-22 16:25:35,479 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:25:35,479 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -90dBm
+2026-06-22 16:25:41,523 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:25:41,523 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -85dBm
+2026-06-22 16:25:42,885 DEBUG [backend.app.api.routes.printers] [74209303] API returning ams_mapping: [], ams_extruder_map: {'0': 0}
+2026-06-22 16:25:42,885 DEBUG [backend.app.api.routes.printers] [74209303] Using tray_now directly as global ID: 255
+2026-06-22 16:25:42,919 DEBUG [backend.app.api.routes.printers] [091efb67] API returning ams_mapping: [], ams_extruder_map: {'0': 0}
+2026-06-22 16:25:42,919 DEBUG [backend.app.api.routes.printers] [091efb67] Using tray_now directly as global ID: 255
+2026-06-22 16:25:43,546 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:25:43,546 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -87dBm
+2026-06-22 16:25:47,570 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:25:47,571 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -89dBm
+2026-06-22 16:25:49,590 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:25:49,591 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -87dBm
+2026-06-22 16:25:49,632 INFO [backend.app.services.print_scheduler] [-] Queue check: found 3 pending items: [(42, 1, 26, None), (43, 1, 26, None), (44, 1, 26, None)]
+2026-06-22 16:25:49,635 INFO [backend.app.services.print_scheduler] [-] Queue skip summary: {'manual_start': 3}
+2026-06-22 16:25:51,178 INFO [backend.app.api.routes.print_queue] [61c17223] Updated queue item 42
+2026-06-22 16:25:51,181 INFO [uvicorn.access] [-] [IP]:0 - "PATCH /api/v1/queue/42 HTTP/1.1" 200
+2026-06-22 16:25:51,614 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:25:51,615 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -88dBm
+2026-06-22 16:25:53,633 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:25:53,633 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -87dBm
+2026-06-22 16:25:57,662 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:25:57,662 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -88dBm
+2026-06-22 16:25:58,326 DEBUG [backend.app.services.virtual_printer.ssdp_server] [-] Sent SSDP NOTIFY for Bambuddy (Location=[IP], USN=[SERIAL], bind=[IP])
+2026-06-22 16:25:59,682 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:25:59,682 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -90dBm
+2026-06-22 16:26:07,740 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:26:07,741 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -91dBm
+2026-06-22 16:26:09,760 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:26:09,760 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -92dBm
+2026-06-22 16:26:13,785 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:26:13,786 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -90dBm
+2026-06-22 16:26:15,804 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:26:15,804 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -91dBm
+2026-06-22 16:26:17,827 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:26:17,827 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -88dBm
+2026-06-22 16:26:19,641 INFO [backend.app.services.print_scheduler] [-] Queue check: found 3 pending items: [(42, 1, 26, None), (43, 1, 26, None), (44, 1, 26, None)]
+2026-06-22 16:26:19,650 INFO [backend.app.services.print_scheduler] [-] Starting queue item 42
+2026-06-22 16:26:19,656 INFO [backend.app.services.print_scheduler] [-] Queue item 42: FTP upload starting - printer=[PRINTER] ([PRINTER]), ip=[IP], file=usb_reel_v3_medium.3mf, local_path=/opt/[user]/data/archive/unassigned/20260622_162529_usb_reel_v3_medium/usb_reel_v3_medium.gcode.3mf, retry_enabled=True, retry_count=3, timeout=30.0
+2026-06-22 16:26:19,656 DEBUG [backend.app.services.print_scheduler] [-] Queue item 42: Deleting existing file /usb_reel_v3_medium.3mf if present...
+2026-06-22 16:26:19,656 DEBUG [backend.app.services.bambu_ftp] [-] FTP connecting to [IP]:990 (timeout=30.0s, model=[PRINTER], prot_c=False, cap_tls_v1_2=False)
+2026-06-22 16:26:20,423 DEBUG [backend.app.services.bambu_ftp] [-] FTP connected, logging in as bblp
+2026-06-22 16:26:20,437 DEBUG [backend.app.services.bambu_ftp] [-] FTP logged in, setting prot_p (protected) and passive mode
+2026-06-22 16:26:20,453 DEBUG [backend.app.services.bambu_ftp] [-] FTP server welcome: 220 BBL-P003 FTP Server
+2026-06-22 16:26:20,453 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=[PRINTER], prot_c=False)
+2026-06-22 16:26:20,461 DEBUG [backend.app.services.bambu_ftp] [-] FTP delete: /usb_reel_v3_medium.3mf not on printer (550)
+2026-06-22 16:26:20,470 DEBUG [backend.app.services.print_scheduler] [-] Queue item 42: Delete result: DeleteResult.NOT_FOUND
+2026-06-22 16:26:20,471 INFO [backend.app.services.bambu_ftp] [-] FTP connecting to [IP] for upload (model=[PRINTER], mode=prot_p, socket_timeout=30.0s)...
+2026-06-22 16:26:20,471 DEBUG [backend.app.services.bambu_ftp] [-] FTP connecting to [IP]:990 (timeout=30.0s, model=[PRINTER], prot_c=False, cap_tls_v1_2=False)
+2026-06-22 16:26:21,229 DEBUG [backend.app.services.bambu_ftp] [-] FTP connected, logging in as bblp
+2026-06-22 16:26:21,287 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-06-22 16:26:21,287 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-06-22 16:26:21,288 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-06-22 16:26:21,288 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:26:21,288 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -87dBm
+2026-06-22 16:26:21,300 DEBUG [backend.app.services.bambu_ftp] [-] FTP logged in, setting prot_p (protected) and passive mode
+2026-06-22 16:26:21,315 DEBUG [backend.app.services.bambu_ftp] [-] FTP server welcome: 220 BBL-P003 FTP Server
+2026-06-22 16:26:21,315 INFO [backend.app.services.bambu_ftp] [-] FTP connected successfully to [IP] (model=[PRINTER], prot_c=False)
+2026-06-22 16:26:21,316 INFO [backend.app.services.bambu_ftp] [-] FTP connected to [IP]
+2026-06-22 16:26:21,316 INFO [backend.app.services.bambu_ftp] [-] FTP uploading /opt/[user]/data/archive/unassigned/20260622_162529_usb_reel_v3_medium/usb_reel_v3_medium.gcode.3mf (2599765 bytes) to /usb_reel_v3_medium.3mf
+2026-06-22 16:26:21,316 DEBUG [backend.app.services.bambu_ftp] [-] FTP STOR command starting for /usb_reel_v3_medium.3mf
+2026-06-22 16:26:21,369 INFO [backend.app.services.bambu_ftp] [-] FTP data channel ready in 0.1s (PASV + TLS handshake)
+2026-06-22 16:26:21,384 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 65536/2599765 bytes
+2026-06-22 16:26:21,476 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 131072/2599765 bytes
+2026-06-22 16:26:21,477 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 196608/2599765 bytes
+2026-06-22 16:26:22,102 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 262144/2599765 bytes
+2026-06-22 16:26:22,449 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 327680/2599765 bytes
+2026-06-22 16:26:22,815 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 393216/2599765 bytes
+2026-06-22 16:26:23,188 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 458752/2599765 bytes
+2026-06-22 16:26:23,589 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 524288/2599765 bytes
+2026-06-22 16:26:23,945 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 589824/2599765 bytes
+2026-06-22 16:26:23,959 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 655360/2599765 bytes
+2026-06-22 16:26:24,745 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 720896/2599765 bytes
+2026-06-22 16:26:25,100 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 786432/2599765 bytes
+2026-06-22 16:26:25,446 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 851968/2599765 bytes
+2026-06-22 16:26:25,447 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 917504/2599765 bytes
+2026-06-22 16:26:26,060 INFO [backend.app.services.virtual_printer.mqtt_server] [-] [Bambuddy] 1Hz status push: 60 pushes/min to [IP]:65444
+2026-06-22 16:26:26,232 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 983040/2599765 bytes
+2026-06-22 16:26:26,599 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 1048576/2599765 bytes
+2026-06-22 16:26:26,985 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 1114112/2599765 bytes
+2026-06-22 16:26:27,330 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 1179648/2599765 bytes
+2026-06-22 16:26:27,733 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 1245184/2599765 bytes
+2026-06-22 16:26:28,103 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 1310720/2599765 bytes
+2026-06-22 16:26:28,125 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 1376256/2599765 bytes
+2026-06-22 16:26:28,386 DEBUG [backend.app.services.virtual_printer.ssdp_server] [-] Sent SSDP NOTIFY for Bambuddy (Location=[IP], USN=[SERIAL], bind=[IP])
+2026-06-22 16:26:28,508 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 1441792/2599765 bytes
+2026-06-22 16:26:29,252 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 1507328/2599765 bytes
+2026-06-22 16:26:29,597 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 1572864/2599765 bytes
+2026-06-22 16:26:29,984 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 1638400/2599765 bytes
+2026-06-22 16:26:30,368 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 1703936/2599765 bytes
+2026-06-22 16:26:30,780 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 1769472/2599765 bytes
+2026-06-22 16:26:31,130 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 1835008/2599765 bytes
+2026-06-22 16:26:31,175 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 1900544/2599765 bytes
+2026-06-22 16:26:31,913 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 1966080/2599765 bytes
+2026-06-22 16:26:32,015 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-06-22 16:26:32,287 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2031616/2599765 bytes
+2026-06-22 16:26:32,644 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2097152/2599765 bytes
+2026-06-22 16:26:32,675 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2162688/2599765 bytes
+2026-06-22 16:26:33,433 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2228224/2599765 bytes
+2026-06-22 16:26:33,751 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2293760/2599765 bytes
+2026-06-22 16:26:34,144 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2359296/2599765 bytes
+2026-06-22 16:26:34,154 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2424832/2599765 bytes
+2026-06-22 16:26:34,905 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2490368/2599765 bytes
+2026-06-22 16:26:35,248 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2555904/2599765 bytes
+2026-06-22 16:26:35,253 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload progress: 2599765/2599765 bytes
+2026-06-22 16:26:35,253 DEBUG [backend.app.services.bambu_ftp] [-] FTP upload: final chunk reached
+2026-06-22 16:26:36,291 INFO [backend.app.services.bambu_ftp] [-] FTP STOR confirmed for /usb_reel_v3_medium.3mf: 226
+2026-06-22 16:26:36,291 INFO [backend.app.services.bambu_ftp] [-] FTP upload complete: /usb_reel_v3_medium.3mf (2599765 bytes in 15.0s, 170 KB/s)
+2026-06-22 16:26:36,292 INFO [backend.app.services.bambu_ftp] [-] FTP mode cached for [IP]: prot_p
+2026-06-22 16:26:36,308 INFO [backend.app.main] [-] Registered expected print: printer=1, file=usb_reel_v3_medium.3mf, archive=26, ams_mapping=[-1, -1, 2], plate_id=1
+2026-06-22 16:26:36,310 INFO [backend.app.services.print_scheduler] [-] Queue item 42: Status set to 'printing', sending print command...
+2026-06-22 16:26:36,310 INFO [backend.app.services.printer_manager] [-] PRINT COMMAND: printer=1, file=usb_reel_v3_medium.3mf, caller=print_scheduler.py:317:check_queue
+2026-06-22 16:26:36,310 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Sending print command: {"print": {"sequence_id": "20000", "command": "project_file", "param": "Metadata/plate_1.gcode", "url": "ftp://usb_reel_v3_medium.3mf", "file": "usb_reel_v3_medium.3mf", "md5": "", "bed_type": "auto", "timelapse": false, "bed_leveling": true, "auto_bed_leveling": 1, "flow_cali": false, "vibration_cali": true, "layer_inspect": true, "use_ams": true, "cfg": "0", "extrude_cali_flag": 0, "extrude_cali_manual_mode": 0, "nozzle_offset_cali": 0, "subtask_name": "usb_reel_v3_medium", "profile_id": "0", "project_id": "1881652947", "subtask_id": "1881652947", "task_id": "1881652947", "ams_mapping": [-1, -1, 2], "ams_mapping2": [{"ams_id": 255, "slot_id": 255}, {"ams_id": 255, "slot_id": 255}, {"ams_id": 0, "slot_id": 2}]}}
+2026-06-22 16:26:36,311 INFO [backend.app.services.print_scheduler] [-] Queue item 42: Print started successfully - usb_reel_v3_medium.gcode.3mf
+2026-06-22 16:26:36,316 INFO [backend.app.services.print_scheduler] [-] Queue skip summary: {'manual_start': 2}
+2026-06-22 16:26:36,316 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=IDLE, awaiting_plate_clear=False
+2026-06-22 16:26:36,327 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: project_file
+2026-06-22 16:26:36,327 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] timelapse field: False
+2026-06-22 16:26:37,602 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:26:37,603 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -90dBm
+2026-06-22 16:26:39,622 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:26:39,622 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -94dBm
+2026-06-22 16:26:41,641 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:26:41,641 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -88dBm
+2026-06-22 16:26:47,683 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:26:47,684 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -90dBm
+2026-06-22 16:26:51,724 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:26:51,725 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -89dBm
+2026-06-22 16:26:55,750 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:26:55,750 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -85dBm
+2026-06-22 16:26:57,772 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:26:57,773 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -89dBm
+2026-06-22 16:26:58,434 DEBUG [backend.app.services.virtual_printer.ssdp_server] [-] Sent SSDP NOTIFY for Bambuddy (Location=[IP], USN=[SERIAL], bind=[IP])
+2026-06-22 16:26:59,793 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:26:59,793 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -91dBm
+2026-06-22 16:27:03,816 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:27:03,816 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -88dBm
+2026-06-22 16:27:05,844 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-06-22 16:27:05,845 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-06-22 16:27:05,845 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-06-22 16:27:05,845 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:27:05,845 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -89dBm
+2026-06-22 16:27:06,321 INFO [backend.app.services.print_scheduler] [-] Queue check: found 2 pending items: [(43, 1, 26, None), (44, 1, 26, None)]
+2026-06-22 16:27:06,323 INFO [backend.app.services.print_scheduler] [-] Queue skip summary: {'manual_start': 2}
+2026-06-22 16:27:06,323 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=IDLE, awaiting_plate_clear=False
+2026-06-22 16:27:06,442 DEBUG [backend.app.api.routes.printers] [95f6e850] API returning ams_mapping: [], ams_extruder_map: {'0': 0}
+2026-06-22 16:27:06,442 DEBUG [backend.app.api.routes.printers] [95f6e850] Using tray_now directly as global ID: 255
+2026-06-22 16:27:07,874 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-06-22 16:27:07,874 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-06-22 16:27:07,874 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-06-22 16:27:07,874 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:27:11,921 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-06-22 16:27:11,921 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-06-22 16:27:11,922 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-06-22 16:27:11,922 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-22 16:27:11,922 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -92dBm
