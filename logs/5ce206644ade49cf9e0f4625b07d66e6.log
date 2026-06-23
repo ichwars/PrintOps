@@ -1,0 +1,200 @@
+2026-06-23 20:24:03,378 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 43.0, target: 0.0, heating: False
+2026-06-23 20:24:03,380 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: [{'attr': 83887616, 'code': 131184, 'ts_boot': 15802, 'ts_unix': '20260601152145'}]
+2026-06-23 20:24:03,382 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'agora_service': 'disable', 'brtc_service': 'enable', 'bs_state': 0, 'cap_pic_enable': 'invalid', 'ipcam_dev': '1', 'ipcam_record': 'disable', 'laser_preview_res': 7, 'liveview_preview': True, 'mode_bits': 2, 'resolution': '1080p', 'rtsp_url': 'rtsps://[IP]:322/streaming/live/1', 'timelapse': 'disable', 'tl_external_free_kb': 2185920, 'tl_external_total_kb': 30310720, 'tl_internal_free_kb': 942805, 'tl_internal_total_kb': 962560, 'tl_store_hpd_type': 2, 'tl_store_path_type': 2, 'tutk_server': 'disable'}
+2026-06-23 20:24:03,383 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -63dBm
+2026-06-23 20:24:03,385 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'mode': 'on', 'node': 'chamber_light'}, {'mode': 'flashing', 'node': 'work_light'}]
+2026-06-23 20:24:03,387 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT mapping field: [65535, 65024]
+2026-06-23 20:24:03,388 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: RUNNING -> RUNNING, file: /data/Metadata/plate_6.gcode, subtask: I2C_C09_POWER_plate_6
+2026-06-23 20:24:03,908 DEBUG [backend.app.main] [-] [[PRINTER]] Runtime tracking: not connected
+2026-06-23 20:24:03,909 DEBUG [backend.app.main] [-] [A1] Runtime tracking: not connected
+2026-06-23 20:24:03,910 DEBUG [backend.app.main] [-] [[PRINTER]] Runtime tracking: added 30s, total=740036s (205.57h)
+2026-06-23 20:24:03,935 DEBUG [backend.app.main] [-] Updated runtime for 1 printer(s)
+2026-06-23 20:24:04,668 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'allow_skip_parts': False, 'buildplate_marker_detector': True, 'cfg': 8089303, 'first_layer_inspector': True, 'halt_print_sensitivity': 'medium', 'print_halt': True, 'printing_monitor': True, 'spaghetti_detector': True}
+2026-06-23 20:24:04,670 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['allow_skip_parts', 'buildplate_marker_detector', 'cfg', 'first_layer_inspector', 'halt_print_sensitivity', 'print_halt', 'printing_monitor', 'spaghetti_detector']
+2026-06-23 20:24:04,671 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] xcam cfg bitmask: 8089303 (binary: 0b11110110110111011010111)
+2026-06-23 20:24:04,672 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: RUNNING, gcode_file: /data/Metadata/plate_6.gcode, subtask_name: I2C_C09_POWER_plate_6
+2026-06-23 20:24:04,673 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '0', 'ams_exist_bits_raw': '0', 'cali_id': 255, 'cali_stat': 0, 'cfs': [2, 5, 6, 7], 'insert_flag': True, 'power_on_flag': False, 'tray_exist_bits': '0', 'tray_hall_out_bits': '0', 'tray_is_bbl_bits': '0', 'tray_now': '0', 'tray_pre': '0', 'tray_read_done_bits': '0', 'tray_reading_bits': '0', 'tray_tar': '0', 'unbind_ams_stat': 0, 'version': 222}
+2026-06-23 20:24:04,674 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] H2D tray_now: ams.tray_now slot 0 != snow slot -1, using snow value 254
+2026-06-23 20:24:04,675 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 254
+2026-06-23 20:24:04,676 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 0 new units, 0 total
+2026-06-23 20:24:04,677 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 768 (main=3, sub=0)
+2026-06-23 20:24:04,678 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-23 20:24:04,681 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] device.extruder.state=33042 (switch_state bits 12-14: 0)
+2026-06-23 20:24:04,682 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] info.temp direct: 42°C (heater OFF)
+2026-06-23 20:24:04,684 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ctc_info keys: ['temp']
+2026-06-23 20:24:04,685 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=42.0, heating=False, respect_local=False
+2026-06-23 20:24:04,687 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 42.0, target: 0.0, heating: False
+2026-06-23 20:24:04,689 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: [{'attr': 83887616, 'code': 131184, 'ts_boot': 15802, 'ts_unix': '20260601152145'}]
+2026-06-23 20:24:04,690 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'agora_service': 'disable', 'brtc_service': 'enable', 'bs_state': 0, 'cap_pic_enable': 'invalid', 'ipcam_dev': '1', 'ipcam_record': 'disable', 'laser_preview_res': 7, 'liveview_preview': True, 'mode_bits': 2, 'resolution': '1080p', 'rtsp_url': 'rtsps://[IP]:322/streaming/live/1', 'timelapse': 'disable', 'tl_external_free_kb': 2185920, 'tl_external_total_kb': 30310720, 'tl_internal_free_kb': 942805, 'tl_internal_total_kb': 962560, 'tl_store_hpd_type': 2, 'tl_store_path_type': 2, 'tutk_server': 'disable'}
+2026-06-23 20:24:04,692 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -63dBm
+2026-06-23 20:24:04,693 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'mode': 'on', 'node': 'chamber_light'}, {'mode': 'flashing', 'node': 'work_light'}]
+2026-06-23 20:24:04,696 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT mapping field: [65535, 65024]
+2026-06-23 20:24:04,697 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: RUNNING -> RUNNING, file: /data/Metadata/plate_6.gcode, subtask: I2C_C09_POWER_plate_6
+2026-06-23 20:24:05,697 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'allow_skip_parts': False, 'buildplate_marker_detector': True, 'cfg': 8089303, 'first_layer_inspector': True, 'halt_print_sensitivity': 'medium', 'print_halt': True, 'printing_monitor': True, 'spaghetti_detector': True}
+2026-06-23 20:24:05,700 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['allow_skip_parts', 'buildplate_marker_detector', 'cfg', 'first_layer_inspector', 'halt_print_sensitivity', 'print_halt', 'printing_monitor', 'spaghetti_detector']
+2026-06-23 20:24:05,701 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] xcam cfg bitmask: 8089303 (binary: 0b11110110110111011010111)
+2026-06-23 20:24:05,702 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: RUNNING, gcode_file: /data/Metadata/plate_6.gcode, subtask_name: I2C_C09_POWER_plate_6
+2026-06-23 20:24:05,703 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '0', 'ams_exist_bits_raw': '0', 'cali_id': 255, 'cali_stat': 0, 'cfs': [2, 5, 6, 7], 'insert_flag': True, 'power_on_flag': False, 'tray_exist_bits': '0', 'tray_hall_out_bits': '0', 'tray_is_bbl_bits': '0', 'tray_now': '0', 'tray_pre': '0', 'tray_read_done_bits': '0', 'tray_reading_bits': '0', 'tray_tar': '0', 'unbind_ams_stat': 0, 'version': 222}
+2026-06-23 20:24:05,704 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] H2D tray_now: ams.tray_now slot 0 != snow slot -1, using snow value 254
+2026-06-23 20:24:05,705 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 254
+2026-06-23 20:24:05,706 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 0 new units, 0 total
+2026-06-23 20:24:05,707 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 768 (main=3, sub=0)
+2026-06-23 20:24:05,707 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-23 20:24:05,708 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] device.extruder.state=33042 (switch_state bits 12-14: 0)
+2026-06-23 20:24:05,708 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] info.temp direct: 43°C (heater OFF)
+2026-06-23 20:24:05,709 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ctc_info keys: ['temp']
+2026-06-23 20:24:05,709 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=43.0, heating=False, respect_local=False
+2026-06-23 20:24:05,710 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 43.0, target: 0.0, heating: False
+2026-06-23 20:24:05,710 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: [{'attr': 83887616, 'code': 131184, 'ts_boot': 15802, 'ts_unix': '20260601152145'}]
+2026-06-23 20:24:05,711 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'agora_service': 'disable', 'brtc_service': 'enable', 'bs_state': 0, 'cap_pic_enable': 'invalid', 'ipcam_dev': '1', 'ipcam_record': 'disable', 'laser_preview_res': 7, 'liveview_preview': True, 'mode_bits': 2, 'resolution': '1080p', 'rtsp_url': 'rtsps://[IP]:322/streaming/live/1', 'timelapse': 'disable', 'tl_external_free_kb': 2185920, 'tl_external_total_kb': 30310720, 'tl_internal_free_kb': 942805, 'tl_internal_total_kb': 962560, 'tl_store_hpd_type': 2, 'tl_store_path_type': 2, 'tutk_server': 'disable'}
+2026-06-23 20:24:05,711 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -63dBm
+2026-06-23 20:24:05,712 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'mode': 'on', 'node': 'chamber_light'}, {'mode': 'flashing', 'node': 'work_light'}]
+2026-06-23 20:24:05,713 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT mapping field: [65535, 65024]
+2026-06-23 20:24:05,713 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: RUNNING -> RUNNING, file: /data/Metadata/plate_6.gcode, subtask: I2C_C09_POWER_plate_6
+2026-06-23 20:24:06,995 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'allow_skip_parts': False, 'buildplate_marker_detector': True, 'cfg': 8089303, 'first_layer_inspector': True, 'halt_print_sensitivity': 'medium', 'print_halt': True, 'printing_monitor': True, 'spaghetti_detector': True}
+2026-06-23 20:24:06,996 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['allow_skip_parts', 'buildplate_marker_detector', 'cfg', 'first_layer_inspector', 'halt_print_sensitivity', 'print_halt', 'printing_monitor', 'spaghetti_detector']
+2026-06-23 20:24:06,997 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] xcam cfg bitmask: 8089303 (binary: 0b11110110110111011010111)
+2026-06-23 20:24:06,998 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: RUNNING, gcode_file: /data/Metadata/plate_6.gcode, subtask_name: I2C_C09_POWER_plate_6
+2026-06-23 20:24:06,999 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '0', 'ams_exist_bits_raw': '0', 'cali_id': 255, 'cali_stat': 0, 'cfs': [2, 5, 6, 7], 'insert_flag': True, 'power_on_flag': False, 'tray_exist_bits': '0', 'tray_hall_out_bits': '0', 'tray_is_bbl_bits': '0', 'tray_now': '0', 'tray_pre': '0', 'tray_read_done_bits': '0', 'tray_reading_bits': '0', 'tray_tar': '0', 'unbind_ams_stat': 0, 'version': 222}
+2026-06-23 20:24:07,000 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] H2D tray_now: ams.tray_now slot 0 != snow slot -1, using snow value 254
+2026-06-23 20:24:07,001 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 254
+2026-06-23 20:24:07,002 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 0 new units, 0 total
+2026-06-23 20:24:07,003 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 768 (main=3, sub=0)
+2026-06-23 20:24:07,004 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-23 20:24:07,006 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] device.extruder.state=33042 (switch_state bits 12-14: 0)
+2026-06-23 20:24:07,007 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] info.temp direct: 43°C (heater OFF)
+2026-06-23 20:24:07,008 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ctc_info keys: ['temp']
+2026-06-23 20:24:07,010 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=43.0, heating=False, respect_local=False
+2026-06-23 20:24:07,012 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 43.0, target: 0.0, heating: False
+2026-06-23 20:24:07,013 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: [{'attr': 83887616, 'code': 131184, 'ts_boot': 15802, 'ts_unix': '20260601152145'}]
+2026-06-23 20:24:07,015 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'agora_service': 'disable', 'brtc_service': 'enable', 'bs_state': 0, 'cap_pic_enable': 'invalid', 'ipcam_dev': '1', 'ipcam_record': 'disable', 'laser_preview_res': 7, 'liveview_preview': True, 'mode_bits': 2, 'resolution': '1080p', 'rtsp_url': 'rtsps://[IP]:322/streaming/live/1', 'timelapse': 'disable', 'tl_external_free_kb': 2185920, 'tl_external_total_kb': 30310720, 'tl_internal_free_kb': 942805, 'tl_internal_total_kb': 962560, 'tl_store_hpd_type': 2, 'tl_store_path_type': 2, 'tutk_server': 'disable'}
+2026-06-23 20:24:07,017 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -63dBm
+2026-06-23 20:24:07,018 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'mode': 'on', 'node': 'chamber_light'}, {'mode': 'flashing', 'node': 'work_light'}]
+2026-06-23 20:24:07,021 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT mapping field: [65535, 65024]
+2026-06-23 20:24:07,023 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: RUNNING -> RUNNING, file: /data/Metadata/plate_6.gcode, subtask: I2C_C09_POWER_plate_6
+2026-06-23 20:24:08,031 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'allow_skip_parts': False, 'buildplate_marker_detector': True, 'cfg': 8089303, 'first_layer_inspector': True, 'halt_print_sensitivity': 'medium', 'print_halt': True, 'printing_monitor': True, 'spaghetti_detector': True}
+2026-06-23 20:24:08,032 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['allow_skip_parts', 'buildplate_marker_detector', 'cfg', 'first_layer_inspector', 'halt_print_sensitivity', 'print_halt', 'printing_monitor', 'spaghetti_detector']
+2026-06-23 20:24:08,033 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] xcam cfg bitmask: 8089303 (binary: 0b11110110110111011010111)
+2026-06-23 20:24:08,033 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: RUNNING, gcode_file: /data/Metadata/plate_6.gcode, subtask_name: I2C_C09_POWER_plate_6
+2026-06-23 20:24:08,034 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '0', 'ams_exist_bits_raw': '0', 'cali_id': 255, 'cali_stat': 0, 'cfs': [2, 5, 6, 7], 'insert_flag': True, 'power_on_flag': False, 'tray_exist_bits': '0', 'tray_hall_out_bits': '0', 'tray_is_bbl_bits': '0', 'tray_now': '0', 'tray_pre': '0', 'tray_read_done_bits': '0', 'tray_reading_bits': '0', 'tray_tar': '0', 'unbind_ams_stat': 0, 'version': 222}
+2026-06-23 20:24:08,036 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] H2D tray_now: ams.tray_now slot 0 != snow slot -1, using snow value 254
+2026-06-23 20:24:08,036 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 254
+2026-06-23 20:24:08,037 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 0 new units, 0 total
+2026-06-23 20:24:08,037 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 768 (main=3, sub=0)
+2026-06-23 20:24:08,038 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-23 20:24:08,038 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] device.extruder.state=33042 (switch_state bits 12-14: 0)
+2026-06-23 20:24:08,039 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] info.temp direct: 43°C (heater OFF)
+2026-06-23 20:24:08,039 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ctc_info keys: ['temp']
+2026-06-23 20:24:08,040 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=43.0, heating=False, respect_local=False
+2026-06-23 20:24:08,040 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 43.0, target: 0.0, heating: False
+2026-06-23 20:24:08,041 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: [{'attr': 83887616, 'code': 131184, 'ts_boot': 15802, 'ts_unix': '20260601152145'}]
+2026-06-23 20:24:08,042 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'agora_service': 'disable', 'brtc_service': 'enable', 'bs_state': 0, 'cap_pic_enable': 'invalid', 'ipcam_dev': '1', 'ipcam_record': 'disable', 'laser_preview_res': 7, 'liveview_preview': True, 'mode_bits': 2, 'resolution': '1080p', 'rtsp_url': 'rtsps://[IP]:322/streaming/live/1', 'timelapse': 'disable', 'tl_external_free_kb': 2185920, 'tl_external_total_kb': 30310720, 'tl_internal_free_kb': 942805, 'tl_internal_total_kb': 962560, 'tl_store_hpd_type': 2, 'tl_store_path_type': 2, 'tutk_server': 'disable'}
+2026-06-23 20:24:08,042 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -63dBm
+2026-06-23 20:24:08,043 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'mode': 'on', 'node': 'chamber_light'}, {'mode': 'flashing', 'node': 'work_light'}]
+2026-06-23 20:24:08,044 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT mapping field: [65535, 65024]
+2026-06-23 20:24:08,044 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: RUNNING -> RUNNING, file: /data/Metadata/plate_6.gcode, subtask: I2C_C09_POWER_plate_6
+2026-06-23 20:24:09,374 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'allow_skip_parts': False, 'buildplate_marker_detector': True, 'cfg': 8089303, 'first_layer_inspector': True, 'halt_print_sensitivity': 'medium', 'print_halt': True, 'printing_monitor': True, 'spaghetti_detector': True}
+2026-06-23 20:24:09,377 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['allow_skip_parts', 'buildplate_marker_detector', 'cfg', 'first_layer_inspector', 'halt_print_sensitivity', 'print_halt', 'printing_monitor', 'spaghetti_detector']
+2026-06-23 20:24:09,378 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] xcam cfg bitmask: 8089303 (binary: 0b11110110110111011010111)
+2026-06-23 20:24:09,379 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: RUNNING, gcode_file: /data/Metadata/plate_6.gcode, subtask_name: I2C_C09_POWER_plate_6
+2026-06-23 20:24:09,380 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '0', 'ams_exist_bits_raw': '0', 'cali_id': 255, 'cali_stat': 0, 'cfs': [2, 5, 6, 7], 'insert_flag': True, 'power_on_flag': False, 'tray_exist_bits': '0', 'tray_hall_out_bits': '0', 'tray_is_bbl_bits': '0', 'tray_now': '0', 'tray_pre': '0', 'tray_read_done_bits': '0', 'tray_reading_bits': '0', 'tray_tar': '0', 'unbind_ams_stat': 0, 'version': 222}
+2026-06-23 20:24:09,381 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] H2D tray_now: ams.tray_now slot 0 != snow slot -1, using snow value 254
+2026-06-23 20:24:09,382 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 254
+2026-06-23 20:24:09,383 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 0 new units, 0 total
+2026-06-23 20:24:09,384 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 768 (main=3, sub=0)
+2026-06-23 20:24:09,385 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-23 20:24:09,387 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] device.extruder.state=33042 (switch_state bits 12-14: 0)
+2026-06-23 20:24:09,388 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] info.temp direct: 43°C (heater OFF)
+2026-06-23 20:24:09,389 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ctc_info keys: ['temp']
+2026-06-23 20:24:09,391 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=43.0, heating=False, respect_local=False
+2026-06-23 20:24:09,393 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 43.0, target: 0.0, heating: False
+2026-06-23 20:24:09,394 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: [{'attr': 83887616, 'code': 131184, 'ts_boot': 15802, 'ts_unix': '20260601152145'}]
+2026-06-23 20:24:09,396 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'agora_service': 'disable', 'brtc_service': 'enable', 'bs_state': 0, 'cap_pic_enable': 'invalid', 'ipcam_dev': '1', 'ipcam_record': 'disable', 'laser_preview_res': 7, 'liveview_preview': True, 'mode_bits': 2, 'resolution': '1080p', 'rtsp_url': 'rtsps://[IP]:322/streaming/live/1', 'timelapse': 'disable', 'tl_external_free_kb': 2185920, 'tl_external_total_kb': 30310720, 'tl_internal_free_kb': 942805, 'tl_internal_total_kb': 962560, 'tl_store_hpd_type': 2, 'tl_store_path_type': 2, 'tutk_server': 'disable'}
+2026-06-23 20:24:09,398 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -63dBm
+2026-06-23 20:24:09,399 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'mode': 'on', 'node': 'chamber_light'}, {'mode': 'flashing', 'node': 'work_light'}]
+2026-06-23 20:24:09,401 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT mapping field: [65535, 65024]
+2026-06-23 20:24:09,403 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: RUNNING -> RUNNING, file: /data/Metadata/plate_6.gcode, subtask: I2C_C09_POWER_plate_6
+2026-06-23 20:24:10,427 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'allow_skip_parts': False, 'buildplate_marker_detector': True, 'cfg': 8089303, 'first_layer_inspector': True, 'halt_print_sensitivity': 'medium', 'print_halt': True, 'printing_monitor': True, 'spaghetti_detector': True}
+2026-06-23 20:24:10,429 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['allow_skip_parts', 'buildplate_marker_detector', 'cfg', 'first_layer_inspector', 'halt_print_sensitivity', 'print_halt', 'printing_monitor', 'spaghetti_detector']
+2026-06-23 20:24:10,430 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] xcam cfg bitmask: 8089303 (binary: 0b11110110110111011010111)
+2026-06-23 20:24:10,431 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: RUNNING, gcode_file: /data/Metadata/plate_6.gcode, subtask_name: I2C_C09_POWER_plate_6
+2026-06-23 20:24:10,432 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '0', 'ams_exist_bits_raw': '0', 'cali_id': 255, 'cali_stat': 0, 'cfs': [2, 5, 6, 7], 'insert_flag': True, 'power_on_flag': False, 'tray_exist_bits': '0', 'tray_hall_out_bits': '0', 'tray_is_bbl_bits': '0', 'tray_now': '0', 'tray_pre': '0', 'tray_read_done_bits': '0', 'tray_reading_bits': '0', 'tray_tar': '0', 'unbind_ams_stat': 0, 'version': 222}
+2026-06-23 20:24:10,433 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] H2D tray_now: ams.tray_now slot 0 != snow slot -1, using snow value 254
+2026-06-23 20:24:10,434 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 254
+2026-06-23 20:24:10,435 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 0 new units, 0 total
+2026-06-23 20:24:10,436 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 768 (main=3, sub=0)
+2026-06-23 20:24:10,437 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-23 20:24:10,439 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] device.extruder.state=33042 (switch_state bits 12-14: 0)
+2026-06-23 20:24:10,440 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] info.temp direct: 43°C (heater OFF)
+2026-06-23 20:24:10,441 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ctc_info keys: ['temp']
+2026-06-23 20:24:10,443 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=43.0, heating=False, respect_local=False
+2026-06-23 20:24:10,445 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 43.0, target: 0.0, heating: False
+2026-06-23 20:24:10,446 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: [{'attr': 83887616, 'code': 131184, 'ts_boot': 15802, 'ts_unix': '20260601152145'}]
+2026-06-23 20:24:10,448 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'agora_service': 'disable', 'brtc_service': 'enable', 'bs_state': 0, 'cap_pic_enable': 'invalid', 'ipcam_dev': '1', 'ipcam_record': 'disable', 'laser_preview_res': 7, 'liveview_preview': True, 'mode_bits': 2, 'resolution': '1080p', 'rtsp_url': 'rtsps://[IP]:322/streaming/live/1', 'timelapse': 'disable', 'tl_external_free_kb': 2185920, 'tl_external_total_kb': 30310720, 'tl_internal_free_kb': 942805, 'tl_internal_total_kb': 962560, 'tl_store_hpd_type': 2, 'tl_store_path_type': 2, 'tutk_server': 'disable'}
+2026-06-23 20:24:10,450 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -63dBm
+2026-06-23 20:24:10,451 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'mode': 'on', 'node': 'chamber_light'}, {'mode': 'flashing', 'node': 'work_light'}]
+2026-06-23 20:24:10,453 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT mapping field: [65535, 65024]
+2026-06-23 20:24:10,455 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: RUNNING -> RUNNING, file: /data/Metadata/plate_6.gcode, subtask: I2C_C09_POWER_plate_6
+2026-06-23 20:24:11,749 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'allow_skip_parts': False, 'buildplate_marker_detector': True, 'cfg': 8089303, 'first_layer_inspector': True, 'halt_print_sensitivity': 'medium', 'print_halt': True, 'printing_monitor': True, 'spaghetti_detector': True}
+2026-06-23 20:24:11,751 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['allow_skip_parts', 'buildplate_marker_detector', 'cfg', 'first_layer_inspector', 'halt_print_sensitivity', 'print_halt', 'printing_monitor', 'spaghetti_detector']
+2026-06-23 20:24:11,752 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] xcam cfg bitmask: 8089303 (binary: 0b11110110110111011010111)
+2026-06-23 20:24:11,753 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: RUNNING, gcode_file: /data/Metadata/plate_6.gcode, subtask_name: I2C_C09_POWER_plate_6
+2026-06-23 20:24:11,754 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '0', 'ams_exist_bits_raw': '0', 'cali_id': 255, 'cali_stat': 0, 'cfs': [2, 5, 6, 7], 'insert_flag': True, 'power_on_flag': False, 'tray_exist_bits': '0', 'tray_hall_out_bits': '0', 'tray_is_bbl_bits': '0', 'tray_now': '0', 'tray_pre': '0', 'tray_read_done_bits': '0', 'tray_reading_bits': '0', 'tray_tar': '0', 'unbind_ams_stat': 0, 'version': 222}
+2026-06-23 20:24:11,755 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] H2D tray_now: ams.tray_now slot 0 != snow slot -1, using snow value 254
+2026-06-23 20:24:11,755 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 254
+2026-06-23 20:24:11,756 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 0 new units, 0 total
+2026-06-23 20:24:11,756 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 768 (main=3, sub=0)
+2026-06-23 20:24:11,756 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-23 20:24:11,757 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] device.extruder.state=33042 (switch_state bits 12-14: 0)
+2026-06-23 20:24:11,757 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] info.temp direct: 43°C (heater OFF)
+2026-06-23 20:24:11,758 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ctc_info keys: ['temp']
+2026-06-23 20:24:11,758 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=43.0, heating=False, respect_local=False
+2026-06-23 20:24:11,759 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 43.0, target: 0.0, heating: False
+2026-06-23 20:24:11,759 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: [{'attr': 83887616, 'code': 131184, 'ts_boot': 15802, 'ts_unix': '20260601152145'}]
+2026-06-23 20:24:11,760 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'agora_service': 'disable', 'brtc_service': 'enable', 'bs_state': 0, 'cap_pic_enable': 'invalid', 'ipcam_dev': '1', 'ipcam_record': 'disable', 'laser_preview_res': 7, 'liveview_preview': True, 'mode_bits': 2, 'resolution': '1080p', 'rtsp_url': 'rtsps://[IP]:322/streaming/live/1', 'timelapse': 'disable', 'tl_external_free_kb': 2185920, 'tl_external_total_kb': 30310720, 'tl_internal_free_kb': 942805, 'tl_internal_total_kb': 962560, 'tl_store_hpd_type': 2, 'tl_store_path_type': 2, 'tutk_server': 'disable'}
+2026-06-23 20:24:11,760 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -63dBm
+2026-06-23 20:24:11,761 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'mode': 'on', 'node': 'chamber_light'}, {'mode': 'flashing', 'node': 'work_light'}]
+2026-06-23 20:24:11,761 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT mapping field: [65535, 65024]
+2026-06-23 20:24:11,762 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: RUNNING -> RUNNING, file: /data/Metadata/plate_6.gcode, subtask: I2C_C09_POWER_plate_6
+2026-06-23 20:24:12,795 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'allow_skip_parts': False, 'buildplate_marker_detector': True, 'cfg': 8089303, 'first_layer_inspector': True, 'halt_print_sensitivity': 'medium', 'print_halt': True, 'printing_monitor': True, 'spaghetti_detector': True}
+2026-06-23 20:24:12,796 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['allow_skip_parts', 'buildplate_marker_detector', 'cfg', 'first_layer_inspector', 'halt_print_sensitivity', 'print_halt', 'printing_monitor', 'spaghetti_detector']
+2026-06-23 20:24:12,796 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] xcam cfg bitmask: 8089303 (binary: 0b11110110110111011010111)
+2026-06-23 20:24:12,797 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: RUNNING, gcode_file: /data/Metadata/plate_6.gcode, subtask_name: I2C_C09_POWER_plate_6
+2026-06-23 20:24:12,797 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '0', 'ams_exist_bits_raw': '0', 'cali_id': 255, 'cali_stat': 0, 'cfs': [2, 5, 6, 7], 'insert_flag': True, 'power_on_flag': False, 'tray_exist_bits': '0', 'tray_hall_out_bits': '0', 'tray_is_bbl_bits': '0', 'tray_now': '0', 'tray_pre': '0', 'tray_read_done_bits': '0', 'tray_reading_bits': '0', 'tray_tar': '0', 'unbind_ams_stat': 0, 'version': 222}
+2026-06-23 20:24:12,798 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] H2D tray_now: ams.tray_now slot 0 != snow slot -1, using snow value 254
+2026-06-23 20:24:12,799 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 254
+2026-06-23 20:24:12,799 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 0 new units, 0 total
+2026-06-23 20:24:12,800 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 768 (main=3, sub=0)
+2026-06-23 20:24:12,800 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-23 20:24:12,801 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] device.extruder.state=33042 (switch_state bits 12-14: 0)
+2026-06-23 20:24:12,801 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] info.temp direct: 43°C (heater OFF)
+2026-06-23 20:24:12,802 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ctc_info keys: ['temp']
+2026-06-23 20:24:12,803 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=43.0, heating=False, respect_local=False
+2026-06-23 20:24:12,804 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 43.0, target: 0.0, heating: False
+2026-06-23 20:24:12,805 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: [{'attr': 83887616, 'code': 131184, 'ts_boot': 15802, 'ts_unix': '20260601152145'}]
+2026-06-23 20:24:12,805 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'agora_service': 'disable', 'brtc_service': 'enable', 'bs_state': 0, 'cap_pic_enable': 'invalid', 'ipcam_dev': '1', 'ipcam_record': 'disable', 'laser_preview_res': 7, 'liveview_preview': True, 'mode_bits': 2, 'resolution': '1080p', 'rtsp_url': 'rtsps://[IP]:322/streaming/live/1', 'timelapse': 'disable', 'tl_external_free_kb': 2185920, 'tl_external_total_kb': 30310720, 'tl_internal_free_kb': 942805, 'tl_internal_total_kb': 962560, 'tl_store_hpd_type': 2, 'tl_store_path_type': 2, 'tutk_server': 'disable'}
+2026-06-23 20:24:12,806 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -63dBm
+2026-06-23 20:24:12,807 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'mode': 'on', 'node': 'chamber_light'}, {'mode': 'flashing', 'node': 'work_light'}]
+2026-06-23 20:24:12,808 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT mapping field: [65535, 65024]
+2026-06-23 20:24:12,808 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: RUNNING -> RUNNING, file: /data/Metadata/plate_6.gcode, subtask: I2C_C09_POWER_plate_6
+2026-06-23 20:24:14,090 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Found xcam inside print data: {'allow_skip_parts': False, 'buildplate_marker_detector': True, 'cfg': 8089303, 'first_layer_inspector': True, 'halt_print_sensitivity': 'medium', 'print_halt': True, 'printing_monitor': True, 'spaghetti_detector': True}
+2026-06-23 20:24:14,092 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Parsing xcam data - all fields: ['allow_skip_parts', 'buildplate_marker_detector', 'cfg', 'first_layer_inspector', 'halt_print_sensitivity', 'print_halt', 'printing_monitor', 'spaghetti_detector']
+2026-06-23 20:24:14,093 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] xcam cfg bitmask: 8089303 (binary: 0b11110110110111011010111)
+2026-06-23 20:24:14,094 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: RUNNING, gcode_file: /data/Metadata/plate_6.gcode, subtask_name: I2C_C09_POWER_plate_6
+2026-06-23 20:24:14,095 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '0', 'ams_exist_bits_raw': '0', 'cali_id': 255, 'cali_stat': 0, 'cfs': [2, 5, 6, 7], 'insert_flag': True, 'power_on_flag': False, 'tray_exist_bits': '0', 'tray_hall_out_bits': '0', 'tray_is_bbl_bits': '0', 'tray_now': '0', 'tray_pre': '0', 'tray_read_done_bits': '0', 'tray_reading_bits': '0', 'tray_tar': '0', 'unbind_ams_stat': 0, 'version': 222}
+2026-06-23 20:24:14,096 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] H2D tray_now: ams.tray_now slot 0 != snow slot -1, using snow value 254
+2026-06-23 20:24:14,097 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 254
+2026-06-23 20:24:14,098 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 0 new units, 0 total
+2026-06-23 20:24:14,099 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 768 (main=3, sub=0)
+2026-06-23 20:24:14,100 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-23 20:24:14,102 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] device.extruder.state=33042 (switch_state bits 12-14: 0)
+2026-06-23 20:24:14,103 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] info.temp direct: 43°C (heater OFF)
+2026-06-23 20:24:14,104 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ctc_info keys: ['temp']
+2026-06-23 20:24:14,106 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=43.0, heating=False, respect_local=False
+2026-06-23 20:24:14,108 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 43.0, target: 0.0, heating: False
+2026-06-23 20:24:14,110 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: [{'attr': 83887616, 'code': 131184, 'ts_boot': 15802, 'ts_unix': '20260601152145'}]
+2026-06-23 20:24:14,111 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'agora_service': 'disable', 'brtc_service': 'enable', 'bs_state': 0, 'cap_pic_enable': 'invalid', 'ipcam_dev': '1', 'ipcam_record': 'disable', 'laser_preview_res': 7, 'liveview_preview': True, 'mode_bits': 2, 'resolution': '1080p', 'rtsp_url': 'rtsps://[IP]:322/streaming/live/1', 'timelapse': 'disable', 'tl_external_free_kb': 2185920, 'tl_external_total_kb': 30310720, 'tl_internal_free_kb': 942805, 'tl_internal_total_kb': 962560, 'tl_store_hpd_type': 2, 'tl_store_path_type': 2, 'tutk_server': 'disable'}
+2026-06-23 20:24:14,113 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -63dBm
+2026-06-23 20:24:14,114 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'mode': 'on', 'node': 'chamber_light'}, {'mode': 'flashing', 'node': 'work_light'}]
+2026-06-23 20:24:14,116 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] MQTT mapping field: [65535, 65024]
+2026-06-23 20:24:14,118 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: RUNNING -> RUNNING, file: /data/Metadata/plate_6.gcode, subtask: I2C_C09_POWER_plate_6
