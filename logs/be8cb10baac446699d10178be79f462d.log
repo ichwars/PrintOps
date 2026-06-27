@@ -1,0 +1,200 @@
+2026-06-27 10:16:14,693 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -56dBm
+2026-06-27 10:16:15,353 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:15,354 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -67dBm
+2026-06-27 10:16:16,708 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:17,459 INFO [backend.app.services.bambu_mqtt] [04c8161d] [[SERIAL]] Publishing ams_filament_setting: AMS 2, tray 1, tray_info_idx=GFG00, setting_id=GFSG00
+2026-06-27 10:16:17,459 DEBUG [backend.app.services.bambu_mqtt] [04c8161d] [[SERIAL]] ams_filament_setting command: {"print": {"command": "ams_filament_setting", "ams_id": 2, "tray_id": 1, "slot_id": 1, "tray_info_idx": "GFG00", "tray_type": "PETG", "tray_sub_brands": "ELEGOO PETG Pro", "tray_color": "000000FF", "nozzle_temp_min": 220, "nozzle_temp_max": 260, "sequence_id": "0", "setting_id": "GFSG00"}}
+2026-06-27 10:16:17,460 INFO [backend.app.services.bambu_mqtt] [04c8161d] [[SERIAL]] Publishing extrusion_cali_sel: AMS 2, tray 1, cali_idx=-1
+2026-06-27 10:16:17,461 DEBUG [backend.app.services.bambu_mqtt] [04c8161d] [[SERIAL]] extrusion_cali_sel command: {"print": {"command": "extrusion_cali_sel", "cali_idx": -1, "filament_id": "GFG00", "nozzle_diameter": "0.4", "ams_id": 2, "tray_id": 9, "slot_id": 1, "sequence_id": "0"}}
+2026-06-27 10:16:17,462 INFO [backend.app.api.routes.inventory] [04c8161d] No stored K-profile for spool 18 — reset slot to Default K (cali_idx=-1)
+2026-06-27 10:16:17,471 INFO [backend.app.api.routes.inventory] [04c8161d] Auto-configured AMS slot ams=2 tray=1 for spool 18 on printer 2
+2026-06-27 10:16:17,485 INFO [uvicorn.access] [-] [IP]:53954 - "POST /api/v1/inventory/assignments HTTP/1.1" 200
+2026-06-27 10:16:17,503 DEBUG [backend.app.services.bambu_mqtt] [13888108] [[SERIAL]] Requesting status update (pushall)
+2026-06-27 10:16:17,503 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: ams_filament_setting
+2026-06-27 10:16:17,504 INFO [uvicorn.access] [-] [IP]:53954 - "POST /api/v1/printers/2/refresh-status HTTP/1.1" 200
+2026-06-27 10:16:17,504 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_filament_setting response: {'command': 'ams_filament_setting', 'ams_id': 2, 'tray_id': 1, 'slot_id': 1, 'tray_info_idx': 'GFG00', 'tray_type': 'PETG', 'tray_sub_brands': 'ELEGOO PETG Pro', 'tray_color': '000000FF', 'nozzle_temp_min': 220, 'nozzle_temp_max': 260, 'sequence_id': '0', 'setting_id': 'GFSG00', 'reason': 'success', 'result': 'success'}
+2026-06-27 10:16:17,506 DEBUG [backend.app.api.routes.printers] [7a77b32b] API returning ams_mapping: [], ams_extruder_map: {}
+2026-06-27 10:16:17,506 DEBUG [backend.app.api.routes.printers] [7a77b32b] Using tray_now directly as global ID: 255
+2026-06-27 10:16:17,570 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: extrusion_cali_sel
+2026-06-27 10:16:17,571 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] extrusion_cali_sel response: {'command': 'extrusion_cali_sel', 'cali_idx': -1, 'filament_id': 'GFG00', 'nozzle_diameter': '0.4', 'ams_id': 2, 'tray_id': 9, 'slot_id': 1, 'sequence_id': '0', 'reason': 'success', 'result': 'success'}
+2026-06-27 10:16:17,777 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: FINISH, gcode_file: , subtask_name: font_name-Barbie_test_Item
+2026-06-27 10:16:17,778 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '7', 'tray_exist_bits': '2fc', 'tray_is_bbl_bits': '2fc', 'tray_tar': '255', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': '2fc', 'tray_reading_bits': '0', 'version': 140, 'insert_flag': True, 'power_on_flag': False}
+2026-06-27 10:16:17,778 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-06-27 10:16:17,780 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-06-27 10:16:17,781 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-06-27 10:16:17,781 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:17,783 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 5.0
+2026-06-27 10:16:17,783 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 5.0°C (heater OFF)
+2026-06-27 10:16:17,784 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=5.0, heating=False, respect_local=False
+2026-06-27 10:16:17,785 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 5.0, target: 0.0, heating: False
+2026-06-27 10:16:17,786 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: []
+2026-06-27 10:16:17,787 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'ipcam_dev': '1', 'ipcam_record': 'enable', 'timelapse': 'disable', 'resolution': '', 'tutk_server': 'disable', 'mode_bits': 3}
+2026-06-27 10:16:17,788 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -56dBm
+2026-06-27 10:16:17,788 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'node': 'chamber_light', 'mode': 'on'}]
+2026-06-27 10:16:17,789 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: FINISH -> FINISH, file: , subtask: font_name-Barbie_test_Item
+2026-06-27 10:16:19,849 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'tray_is_bbl_bits': 'fc', 'tray_read_done_bits': 'fc', 'version': 141}
+2026-06-27 10:16:19,849 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-06-27 10:16:19,850 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS data changed, triggering sync callback
+2026-06-27 10:16:19,850 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:19,850 INFO [backend.app.main] [-] [Printer 2] Broadcasting AMS change via WebSocket
+2026-06-27 10:16:19,850 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -57dBm
+2026-06-27 10:16:21,393 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:21,393 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -66dBm
+2026-06-27 10:16:23,945 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'tray_is_bbl_bits': '2fc', 'tray_read_done_bits': '2fc', 'version': 142}
+2026-06-27 10:16:23,946 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-06-27 10:16:23,946 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS data changed, triggering sync callback
+2026-06-27 10:16:23,946 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:23,946 INFO [backend.app.main] [-] [Printer 2] Broadcasting AMS change via WebSocket
+2026-06-27 10:16:23,946 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -56dBm
+2026-06-27 10:16:23,950 INFO [backend.app.main] [-] Auto-unlink: spool 18 AMS2-T1 — fingerprint mismatch (cur=00000000/ fp=000000FF/PETG spool=000000FF/PETG)
+2026-06-27 10:16:23,951 INFO [backend.app.main] [-] Auto-unlinked 1 stale spool assignments for printer 2
+2026-06-27 10:16:24,067 INFO [backend.app.api.routes.cloud] [773b62a4] get_filament_info called with 3 IDs: ['GFA01', 'GFL99', 'GFA00']
+2026-06-27 10:16:24,067 INFO [uvicorn.access] [-] [IP]:41660 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-06-27 10:16:25,909 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-06-27 10:16:25,910 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS data changed, triggering sync callback
+2026-06-27 10:16:25,911 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:25,912 INFO [backend.app.main] [-] [Printer 2] Broadcasting AMS change via WebSocket
+2026-06-27 10:16:26,032 INFO [backend.app.api.routes.cloud] [383929d4] get_filament_info called with 4 IDs: ['GFA01', 'GFL99', 'GFA00', 'GFG00']
+2026-06-27 10:16:26,144 WARNING [backend.app.api.routes.cloud] [383929d4] Failed to get cloud preset GFG00 (API ID: GFSG00): Failed to get setting detail: 400
+2026-06-27 10:16:26,150 INFO [uvicorn.access] [-] [IP]:41660 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-06-27 10:16:27,939 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:27,940 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -55dBm
+2026-06-27 10:16:29,996 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-06-27 10:16:29,997 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS data changed, triggering sync callback
+2026-06-27 10:16:29,997 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:29,998 INFO [backend.app.main] [-] [Printer 2] Broadcasting AMS change via WebSocket
+2026-06-27 10:16:29,999 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -56dBm
+2026-06-27 10:16:33,997 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:34,890 INFO [backend.app.services.bambu_mqtt] [0493ff2a] [[SERIAL]] Publishing ams_filament_setting: AMS 1, tray 3, tray_info_idx=GFL99, setting_id=GFSL99
+2026-06-27 10:16:34,891 DEBUG [backend.app.services.bambu_mqtt] [0493ff2a] [[SERIAL]] ams_filament_setting command: {"print": {"command": "ams_filament_setting", "ams_id": 1, "tray_id": 3, "slot_id": 3, "tray_info_idx": "GFL99", "tray_type": "PLA", "tray_sub_brands": "ELEGOO PLA Matte", "tray_color": "000000FF", "nozzle_temp_min": 190, "nozzle_temp_max": 230, "sequence_id": "0", "setting_id": "GFSL99"}}
+2026-06-27 10:16:34,891 INFO [backend.app.services.bambu_mqtt] [0493ff2a] [[SERIAL]] Publishing extrusion_cali_sel: AMS 1, tray 3, cali_idx=-1
+2026-06-27 10:16:34,892 DEBUG [backend.app.services.bambu_mqtt] [0493ff2a] [[SERIAL]] extrusion_cali_sel command: {"print": {"command": "extrusion_cali_sel", "cali_idx": -1, "filament_id": "GFL99", "nozzle_diameter": "0.4", "ams_id": 1, "tray_id": 7, "slot_id": 3, "sequence_id": "0"}}
+2026-06-27 10:16:34,892 INFO [backend.app.api.routes.inventory] [0493ff2a] No stored K-profile for spool 20 — reset slot to Default K (cali_idx=-1)
+2026-06-27 10:16:34,896 INFO [backend.app.api.routes.inventory] [0493ff2a] Auto-configured AMS slot ams=1 tray=3 for spool 20 on printer 2
+2026-06-27 10:16:34,905 INFO [uvicorn.access] [-] [IP]:41660 - "POST /api/v1/inventory/assignments HTTP/1.1" 200
+2026-06-27 10:16:34,914 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: ams_filament_setting
+2026-06-27 10:16:34,915 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_filament_setting response: {'command': 'ams_filament_setting', 'ams_id': 1, 'tray_id': 3, 'slot_id': 3, 'tray_info_idx': 'GFL99', 'tray_type': 'PLA', 'tray_sub_brands': 'ELEGOO PLA Matte', 'tray_color': '000000FF', 'nozzle_temp_min': 190, 'nozzle_temp_max': 230, 'sequence_id': '0', 'setting_id': 'GFSL99', 'reason': 'success', 'result': 'success'}
+2026-06-27 10:16:34,936 DEBUG [backend.app.api.routes.printers] [305cb9c6] API returning ams_mapping: [], ams_extruder_map: {}
+2026-06-27 10:16:34,937 DEBUG [backend.app.api.routes.printers] [305cb9c6] Using tray_now directly as global ID: 255
+2026-06-27 10:16:34,941 DEBUG [backend.app.services.bambu_mqtt] [c7b91ab5] [[SERIAL]] Requesting status update (pushall)
+2026-06-27 10:16:34,944 INFO [uvicorn.access] [-] [IP]:45488 - "POST /api/v1/printers/2/refresh-status HTTP/1.1" 200
+2026-06-27 10:16:34,978 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: extrusion_cali_sel
+2026-06-27 10:16:34,978 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] extrusion_cali_sel response: {'command': 'extrusion_cali_sel', 'cali_idx': -1, 'filament_id': 'GFL99', 'nozzle_diameter': '0.4', 'ams_id': 1, 'tray_id': 7, 'slot_id': 3, 'sequence_id': '0', 'reason': 'success', 'result': 'success'}
+2026-06-27 10:16:35,064 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: FINISH, gcode_file: , subtask_name: font_name-Barbie_test_Item
+2026-06-27 10:16:35,065 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '7', 'tray_exist_bits': '2fc', 'tray_is_bbl_bits': '2fc', 'tray_tar': '255', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': '2fc', 'tray_reading_bits': '0', 'version': 142, 'insert_flag': True, 'power_on_flag': False}
+2026-06-27 10:16:35,065 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-06-27 10:16:35,066 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-06-27 10:16:35,066 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-06-27 10:16:35,066 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:35,066 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 5.0
+2026-06-27 10:16:35,067 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 5.0°C (heater OFF)
+2026-06-27 10:16:35,067 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=5.0, heating=False, respect_local=False
+2026-06-27 10:16:35,067 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 5.0, target: 0.0, heating: False
+2026-06-27 10:16:35,067 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: []
+2026-06-27 10:16:35,068 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'ipcam_dev': '1', 'ipcam_record': 'enable', 'timelapse': 'disable', 'resolution': '', 'tutk_server': 'disable', 'mode_bits': 3}
+2026-06-27 10:16:35,068 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -56dBm
+2026-06-27 10:16:35,068 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'node': 'chamber_light', 'mode': 'on'}]
+2026-06-27 10:16:35,068 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: FINISH -> FINISH, file: , subtask: font_name-Barbie_test_Item
+2026-06-27 10:16:37,090 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:37,090 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -55dBm
+2026-06-27 10:16:37,526 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:37,527 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -67dBm
+2026-06-27 10:16:38,334 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(165, None, 105, None)]
+2026-06-27 10:16:38,341 DEBUG [backend.app.services.print_scheduler] [-] Printer 1: not idle — awaiting plate-clear acknowledgment (state=FAILED)
+2026-06-27 10:16:38,342 DEBUG [backend.app.services.print_scheduler] [-] Printer 1 ([PRINTER]) is busy but also has wrong force-color: ['PLA (#FF8000)']
+2026-06-27 10:16:38,343 DEBUG [backend.app.services.print_scheduler] [-] Printer 2: not idle — awaiting plate-clear acknowledgment (state=FINISH)
+2026-06-27 10:16:38,344 DEBUG [backend.app.services.print_scheduler] [-] Printer 2 ([PRINTER]) is busy but also has wrong force-color: ['PLA (#FF8000)']
+2026-06-27 10:16:39,130 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'version': 144}
+2026-06-27 10:16:39,131 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-06-27 10:16:39,131 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS data changed, triggering sync callback
+2026-06-27 10:16:39,131 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:39,132 INFO [backend.app.main] [-] [Printer 2] Broadcasting AMS change via WebSocket
+2026-06-27 10:16:39,132 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -57dBm
+2026-06-27 10:16:39,137 INFO [backend.app.main] [-] Auto-unlink: spool 20 AMS1-T3 — fingerprint mismatch (cur=00000000/ fp=000000FF/PLA spool=000000FF/PLA)
+2026-06-27 10:16:39,137 INFO [backend.app.main] [-] Auto-unlinked 1 stale spool assignments for printer 2
+2026-06-27 10:16:39,534 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:39,535 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -68dBm
+2026-06-27 10:16:40,129 DEBUG [backend.app.services.virtual_printer.ssdp_server] [-] Sent SSDP NOTIFY for Bambuddy (Location=[IP], USN=[SERIAL], bind=[IP])
+2026-06-27 10:16:41,177 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-06-27 10:16:41,178 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS data changed, triggering sync callback
+2026-06-27 10:16:41,179 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:41,180 INFO [backend.app.main] [-] [Printer 2] Broadcasting AMS change via WebSocket
+2026-06-27 10:16:41,180 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -56dBm
+2026-06-27 10:16:41,558 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:41,558 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -66dBm
+2026-06-27 10:16:43,001 DEBUG [backend.app.api.routes.printers] [ae271715] API returning ams_mapping: [], ams_extruder_map: {}
+2026-06-27 10:16:43,001 DEBUG [backend.app.api.routes.printers] [ae271715] Using tray_now directly as global ID: 255
+2026-06-27 10:16:47,253 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-06-27 10:16:47,254 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS data changed, triggering sync callback
+2026-06-27 10:16:47,254 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:47,254 INFO [backend.app.main] [-] [Printer 2] Broadcasting AMS change via WebSocket
+2026-06-27 10:16:47,254 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -55dBm
+2026-06-27 10:16:47,327 INFO [backend.app.services.bambu_mqtt] [dee30c35] [[SERIAL]] Publishing ams_filament_setting: AMS 2, tray 1, tray_info_idx=GFG00, setting_id=GFSG00
+2026-06-27 10:16:47,327 DEBUG [backend.app.services.bambu_mqtt] [dee30c35] [[SERIAL]] ams_filament_setting command: {"print": {"command": "ams_filament_setting", "ams_id": 2, "tray_id": 1, "slot_id": 1, "tray_info_idx": "GFG00", "tray_type": "PETG", "tray_sub_brands": "ELEGOO PETG Pro", "tray_color": "000000FF", "nozzle_temp_min": 220, "nozzle_temp_max": 260, "sequence_id": "0", "setting_id": "GFSG00"}}
+2026-06-27 10:16:47,327 INFO [backend.app.services.bambu_mqtt] [dee30c35] [[SERIAL]] Publishing extrusion_cali_sel: AMS 2, tray 1, cali_idx=-1
+2026-06-27 10:16:47,328 DEBUG [backend.app.services.bambu_mqtt] [dee30c35] [[SERIAL]] extrusion_cali_sel command: {"print": {"command": "extrusion_cali_sel", "cali_idx": -1, "filament_id": "GFG00", "nozzle_diameter": "0.4", "ams_id": 2, "tray_id": 9, "slot_id": 1, "sequence_id": "0"}}
+2026-06-27 10:16:47,328 INFO [backend.app.api.routes.inventory] [dee30c35] No stored K-profile for spool 18 — reset slot to Default K (cali_idx=-1)
+2026-06-27 10:16:47,330 INFO [backend.app.api.routes.inventory] [dee30c35] Auto-configured AMS slot ams=2 tray=1 for spool 18 on printer 2
+2026-06-27 10:16:47,337 INFO [uvicorn.access] [-] [IP]:45488 - "POST /api/v1/inventory/assignments HTTP/1.1" 200
+2026-06-27 10:16:47,352 DEBUG [backend.app.services.bambu_mqtt] [08ecadb9] [[SERIAL]] Requesting status update (pushall)
+2026-06-27 10:16:47,352 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: ams_filament_setting
+2026-06-27 10:16:47,353 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_filament_setting response: {'command': 'ams_filament_setting', 'ams_id': 2, 'tray_id': 1, 'slot_id': 1, 'tray_info_idx': 'GFG00', 'tray_type': 'PETG', 'tray_sub_brands': 'ELEGOO PETG Pro', 'tray_color': '000000FF', 'nozzle_temp_min': 220, 'nozzle_temp_max': 260, 'sequence_id': '0', 'setting_id': 'GFSG00', 'reason': 'success', 'result': 'success'}
+2026-06-27 10:16:47,353 INFO [uvicorn.access] [-] [IP]:39912 - "POST /api/v1/printers/2/refresh-status HTTP/1.1" 200
+2026-06-27 10:16:47,355 DEBUG [backend.app.api.routes.printers] [f64e94cf] API returning ams_mapping: [], ams_extruder_map: {}
+2026-06-27 10:16:47,355 DEBUG [backend.app.api.routes.printers] [f64e94cf] Using tray_now directly as global ID: 255
+2026-06-27 10:16:47,420 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: extrusion_cali_sel
+2026-06-27 10:16:47,420 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] extrusion_cali_sel response: {'command': 'extrusion_cali_sel', 'cali_idx': -1, 'filament_id': 'GFG00', 'nozzle_diameter': '0.4', 'ams_id': 2, 'tray_id': 9, 'slot_id': 1, 'sequence_id': '0', 'reason': 'success', 'result': 'success'}
+2026-06-27 10:16:48,025 DEBUG [backend.app.main] [-] Recorded 6 printer sensor history entries
+2026-06-27 10:16:48,329 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: FINISH, gcode_file: , subtask_name: font_name-Barbie_test_Item
+2026-06-27 10:16:48,330 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '7', 'tray_exist_bits': '2fc', 'tray_is_bbl_bits': '2fc', 'tray_tar': '255', 'tray_now': '255', 'tray_pre': '255', 'tray_read_done_bits': '2fc', 'tray_reading_bits': '0', 'version': 144, 'insert_flag': True, 'power_on_flag': False}
+2026-06-27 10:16:48,330 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 255
+2026-06-27 10:16:48,330 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-06-27 10:16:48,331 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 0 (main=0, sub=0)
+2026-06-27 10:16:48,331 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:48,331 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 5.0
+2026-06-27 10:16:48,331 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 5.0°C (heater OFF)
+2026-06-27 10:16:48,331 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=5.0, heating=False, respect_local=False
+2026-06-27 10:16:48,331 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 5.0, target: 0.0, heating: False
+2026-06-27 10:16:48,332 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: []
+2026-06-27 10:16:48,332 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'ipcam_dev': '1', 'ipcam_record': 'enable', 'timelapse': 'disable', 'resolution': '', 'tutk_server': 'disable', 'mode_bits': 3}
+2026-06-27 10:16:48,332 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -55dBm
+2026-06-27 10:16:48,332 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'node': 'chamber_light', 'mode': 'on'}]
+2026-06-27 10:16:48,332 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: FINISH -> FINISH, file: , subtask: font_name-Barbie_test_Item
+2026-06-27 10:16:49,618 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:50,367 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'tray_is_bbl_bits': 'fc', 'tray_read_done_bits': 'fc', 'version': 145}
+2026-06-27 10:16:50,368 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-06-27 10:16:50,369 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS data changed, triggering sync callback
+2026-06-27 10:16:50,370 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:50,371 INFO [backend.app.main] [-] [Printer 2] Broadcasting AMS change via WebSocket
+2026-06-27 10:16:52,400 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'tray_is_bbl_bits': '2fc', 'tray_read_done_bits': '2fc', 'version': 146}
+2026-06-27 10:16:52,402 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-06-27 10:16:52,403 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS data changed, triggering sync callback
+2026-06-27 10:16:52,404 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:52,404 INFO [backend.app.main] [-] [Printer 2] Broadcasting AMS change via WebSocket
+2026-06-27 10:16:52,405 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -56dBm
+2026-06-27 10:16:52,423 INFO [backend.app.main] [-] Auto-unlink: spool 18 AMS2-T1 — fingerprint mismatch (cur=00000000/ fp=000000FF/PETG spool=000000FF/PETG)
+2026-06-27 10:16:52,424 INFO [backend.app.main] [-] Auto-unlinked 1 stale spool assignments for printer 2
+2026-06-27 10:16:53,641 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:53,643 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -67dBm
+2026-06-27 10:16:55,662 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:55,663 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -66dBm
+2026-06-27 10:16:56,443 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-06-27 10:16:56,444 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS data changed, triggering sync callback
+2026-06-27 10:16:56,445 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:56,445 INFO [backend.app.main] [-] [Printer 2] Broadcasting AMS change via WebSocket
+2026-06-27 10:16:56,446 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -57dBm
+2026-06-27 10:16:57,700 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:58,490 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 3 new units, 3 total
+2026-06-27 10:16:58,491 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS data changed, triggering sync callback
+2026-06-27 10:16:58,491 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:16:58,491 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -55dBm
+2026-06-27 10:16:58,491 INFO [backend.app.main] [-] [Printer 2] Broadcasting AMS change via WebSocket
+2026-06-27 10:17:04,535 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:17:04,535 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -56dBm
+2026-06-27 10:17:07,071 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-06-27 10:17:07,072 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -53dBm
+2026-06-27 10:17:08,366 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(165, None, 105, None)]
+2026-06-27 10:17:08,373 DEBUG [backend.app.services.print_scheduler] [-] Printer 1: not idle — awaiting plate-clear acknowledgment (state=FAILED)
+2026-06-27 10:17:08,374 DEBUG [backend.app.services.print_scheduler] [-] Printer 1 ([PRINTER]) is busy but also has wrong force-color: ['PLA (#FF8000)']
+2026-06-27 10:17:08,375 DEBUG [backend.app.services.print_scheduler] [-] Printer 2: not idle — awaiting plate-clear acknowledgment (state=FINISH)
+2026-06-27 10:17:08,375 DEBUG [backend.app.services.print_scheduler] [-] Printer 2 ([PRINTER]) is busy but also has wrong force-color: ['PLA (#FF8000)']
