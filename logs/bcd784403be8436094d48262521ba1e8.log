@@ -1,0 +1,200 @@
+2026-07-06 18:44:34,270 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:44:34,271 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:45:04,276 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:45:04,277 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:45:34,281 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:45:34,282 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:46:04,287 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:46:04,288 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:46:34,294 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:46:34,295 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:46:38,839 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-07-06 18:47:04,300 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:47:04,301 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:47:34,306 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:47:34,307 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:48:04,312 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:48:04,313 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:48:34,318 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:48:34,319 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:49:04,324 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:49:04,325 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:49:34,330 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:49:34,331 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:50:04,336 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:50:04,337 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:50:34,344 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:50:34,346 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:51:04,351 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:51:04,352 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:51:34,357 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:51:34,358 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:51:38,844 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-07-06 18:52:04,362 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:52:04,362 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:52:34,368 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:52:34,369 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:53:04,375 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:53:04,376 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:53:34,380 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:53:34,381 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:54:04,386 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:54:04,387 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:54:34,392 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:54:34,393 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:55:04,397 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:55:04,398 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:55:34,403 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:55:34,404 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:56:04,408 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:56:04,409 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:56:34,414 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:56:34,415 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:56:38,849 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-07-06 18:57:04,419 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:57:04,420 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:57:34,425 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:57:34,426 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:58:04,431 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:58:04,432 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:58:34,436 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:58:34,437 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:59:04,443 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:59:04,444 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 18:59:34,450 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 18:59:34,451 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:00:04,456 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 19:00:04,457 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:00:34,462 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 19:00:34,463 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:01:04,468 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 19:01:04,469 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:01:34,474 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 19:01:34,475 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:01:38,854 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-07-06 19:02:04,479 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 19:02:04,480 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:02:34,485 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(6, 1, None, 5)]
+2026-07-06 19:02:34,486 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:02:44,170 INFO [backend.app.api.routes.print_queue] [67bc92b0] Cancelled queue item 6
+2026-07-06 19:02:44,171 INFO [uvicorn.access] [-] [IP]:49971 - "POST /api/v1/queue/6/cancel HTTP/1.1" 200
+2026-07-06 19:03:00,175 INFO [backend.app.api.routes.cloud] [07627a63] get_filament_info called with 1 IDs: ['GFL99']
+2026-07-06 19:03:00,183 INFO [uvicorn.access] [-] [IP]:61598 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-07-06 19:03:10,031 INFO [uvicorn.access] [-] [IP]:51968 - "PATCH /api/v1/printers/1 HTTP/1.1" 200
+2026-07-06 19:03:13,094 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Firmware version: 01.10.00.00
+2026-07-06 19:03:13,276 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] State is FAILED but completion NOT triggered: prev=unknown, was_running=False, already_triggered=False, has_callback=True
+2026-07-06 19:03:13,276 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-07-06 19:03:13,278 INFO [uvicorn.access] [-] [IP]:56096 - "PATCH /api/v1/printers/1 HTTP/1.1" 200
+2026-07-06 19:03:16,946 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] State is FAILED but completion NOT triggered: prev=None, was_running=False, already_triggered=False, has_callback=True
+2026-07-06 19:03:16,946 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-07-06 19:03:17,026 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Firmware version: 01.10.00.00
+2026-07-06 19:03:17,153 INFO [uvicorn.access] [-] [IP]:56096 - "POST /api/v1/printers/1/connect HTTP/1.1" 200
+2026-07-06 19:03:25,004 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Probing developer mode via ams_filament_setting (seq=3)
+2026-07-06 19:03:25,017 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Developer mode probe: ENABLED (result='success')
+2026-07-06 19:03:26,497 INFO [uvicorn.access] [-] [IP]:56096 - "DELETE /api/v1/library/files/5 HTTP/1.1" 200
+2026-07-06 19:03:54,700 INFO [backend.app.api.routes.print_queue] [b626d561] Added library file 1 to queue for 1
+2026-07-06 19:03:54,703 INFO [uvicorn.access] [-] [IP]:57055 - "POST /api/v1/queue/ HTTP/1.1" 200
+2026-07-06 19:04:04,500 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(7, 1, None, 1)]
+2026-07-06 19:04:04,501 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:04:16,934 INFO [backend.app.api.routes.websocket] [-] WebSocket client disconnected normally
+2026-07-06 19:04:20,268 INFO [uvicorn.access] [-] [IP]:62517 - "POST /api/v1/auth/ws-token HTTP/1.1" 200
+2026-07-06 19:04:20,276 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting (principal=[USER])
+2026-07-06 19:04:20,276 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-07-06 19:04:20,276 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-07-06 19:04:21,071 INFO [uvicorn.access] [-] [IP]:50258 - "POST /api/v1/auth/ws-token HTTP/1.1" 200
+2026-07-06 19:04:21,077 INFO [backend.app.api.routes.websocket] [-] WebSocket client connecting (principal=[USER])
+2026-07-06 19:04:21,078 INFO [backend.app.api.routes.websocket] [-] WebSocket client connected
+2026-07-06 19:04:21,078 INFO [backend.app.api.routes.websocket] [-] Sent initial status for 1 printers
+2026-07-06 19:04:27,871 INFO [uvicorn.access] [-] [IP]:50258 - "DELETE /api/v1/archives/1 HTTP/1.1" 200
+2026-07-06 19:04:27,912 INFO [uvicorn.access] [-] [IP]:62517 - "POST /api/v1/printers/camera/stream-token HTTP/1.1" 200
+2026-07-06 19:04:34,506 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(7, 1, None, 1)]
+2026-07-06 19:04:34,507 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:05:04,512 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(7, 1, None, 1)]
+2026-07-06 19:05:04,513 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:05:20,721 INFO [uvicorn.access] [-] [IP]:64168 - "POST /api/v1/printers/diagnostic HTTP/1.1" 200
+2026-07-06 19:05:21,595 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] State is FAILED but completion NOT triggered: prev=None, was_running=False, already_triggered=False, has_callback=True
+2026-07-06 19:05:21,596 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-07-06 19:05:21,644 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Firmware version: 01.10.00.00
+2026-07-06 19:05:21,739 INFO [uvicorn.access] [-] [IP]:64168 - "PATCH /api/v1/printers/1 HTTP/1.1" 200
+2026-07-06 19:05:27,661 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Probing developer mode via ams_filament_setting (seq=3)
+2026-07-06 19:05:27,671 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Developer mode probe: ENABLED (result='success')
+2026-07-06 19:05:31,664 INFO [uvicorn.access] [-] [IP]:64168 - "POST /api/v1/printers/1/logging/enable HTTP/1.1" 200
+2026-07-06 19:05:34,517 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(7, 1, None, 1)]
+2026-07-06 19:05:34,518 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:06:04,523 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(7, 1, None, 1)]
+2026-07-06 19:06:04,524 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:06:31,012 INFO [backend.app.api.routes.print_queue] [d5d06936] Cancelled queue item 7
+2026-07-06 19:06:31,013 INFO [uvicorn.access] [-] [IP]:51567 - "POST /api/v1/queue/7/cancel HTTP/1.1" 200
+2026-07-06 19:06:37,969 INFO [uvicorn.access] [-] [IP]:59675 - "POST /api/v1/library/files?generate_stl_thumbnails=true HTTP/1.1" 200
+2026-07-06 19:06:38,858 INFO [backend.app.main] [-] Recorded 1 AMS sensor history entries
+2026-07-06 19:06:46,254 INFO [backend.app.api.routes.print_queue] [22d7e72b] Added library file 6 to queue for 1
+2026-07-06 19:06:46,257 INFO [uvicorn.access] [-] [IP]:52072 - "POST /api/v1/queue/ HTTP/1.1" 200
+2026-07-06 19:07:04,533 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(8, 1, None, 6)]
+2026-07-06 19:07:04,534 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:07:30,258 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] State is FAILED but completion NOT triggered: prev=None, was_running=False, already_triggered=False, has_callback=True
+2026-07-06 19:07:30,259 INFO [backend.app.main] [-] [Printer 1] Broadcasting AMS change via WebSocket
+2026-07-06 19:07:30,300 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Firmware version: 01.10.00.00
+2026-07-06 19:07:30,468 INFO [uvicorn.access] [-] [IP]:59541 - "POST /api/v1/printers/1/connect HTTP/1.1" 200
+2026-07-06 19:07:34,539 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(8, 1, None, 6)]
+2026-07-06 19:07:34,540 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:07:39,668 INFO [uvicorn.access] [-] [IP]:59541 - "POST /api/v1/printers/1/logging/enable HTTP/1.1" 200
+2026-07-06 19:07:40,342 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Probing developer mode via ams_filament_setting (seq=3)
+2026-07-06 19:07:40,350 INFO [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Developer mode probe: ENABLED (result='success')
+2026-07-06 19:08:04,545 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(8, 1, None, 6)]
+2026-07-06 19:08:04,546 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:08:34,550 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(8, 1, None, 6)]
+2026-07-06 19:08:34,551 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:08:55,967 INFO [backend.app.api.routes.support] [e1dc7970] Log level changed to DEBUG
+2026-07-06 19:08:55,967 INFO [backend.app.api.routes.bug_report] [e1dc7970] Bug report: enabled debug logging
+2026-07-06 19:08:55,967 DEBUG [backend.app.services.bambu_mqtt] [e1dc7970] [[SERIAL]] Requesting status update (pushall)
+2026-07-06 19:08:55,968 INFO [uvicorn.access] [-] [IP]:54059 - "POST /api/v1/bug-report/start-logging HTTP/1.1" 200
+2026-07-06 19:08:56,013 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received gcode_state: FAILED, gcode_file: , subtask_name: KleinesZahnrad
+2026-07-06 19:08:56,013 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS dict fields: {'ams_exist_bits': '1', 'tray_exist_bits': '7', 'tray_is_bbl_bits': '7', 'tray_tar': '2', 'tray_now': '2', 'tray_pre': '2', 'tray_read_done_bits': '7', 'tray_reading_bits': '0', 'version': 14, 'insert_flag': False, 'power_on_flag': False}
+2026-07-06 19:08:56,013 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] tray_now updated: 2
+2026-07-06 19:08:56,013 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-07-06 19:08:56,013 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-07-06 19:08:56,013 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-07-06 19:08:56,013 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_status: 768 (main=3, sub=0)
+2026-07-06 19:08:56,013 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-07-06 19:08:56,013 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper raw value: 5.0
+2026-07-06 19:08:56,013 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] chamber_temper direct value: 5.0°C (heater OFF)
+2026-07-06 19:08:56,014 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber heating calculated: target=0.0, current=5.0, heating=False, respect_local=False
+2026-07-06 19:08:56,014 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Chamber temp updated to: 5.0, target: 0.0, heating: False
+2026-07-06 19:08:56,014 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] HMS data received: []
+2026-07-06 19:08:56,014 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ipcam field: {'ipcam_dev': '1', 'ipcam_record': 'disable', 'timelapse': 'disable', 'resolution': '', 'tutk_server': 'disable', 'mode_bits': 3}
+2026-07-06 19:08:56,014 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -55dBm
+2026-07-06 19:08:56,014 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] lights_report: [{'node': 'chamber_light', 'mode': 'on'}]
+2026-07-06 19:08:56,014 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] gcode_state: FAILED -> FAILED, file: , subtask: KleinesZahnrad
+2026-07-06 19:09:00,031 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-07-06 19:09:00,031 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -58dBm
+2026-07-06 19:09:02,052 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-07-06 19:09:02,052 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] wifi_signal received: -55dBm
+2026-07-06 19:09:04,556 INFO [backend.app.services.print_scheduler] [-] Queue check: found 1 pending items: [(8, 1, None, 6)]
+2026-07-06 19:09:04,557 DEBUG [backend.app.services.print_scheduler] [-] Printer 1: not idle — awaiting plate-clear acknowledgment (state=FAILED)
+2026-07-06 19:09:04,557 INFO [backend.app.services.print_scheduler] [-] Queue: printer 1 not available — connected=True, state=FAILED, awaiting_plate_clear=True
+2026-07-06 19:09:06,784 INFO [backend.app.api.routes.print_queue] [275b4576] Cancelled queue item 8
+2026-07-06 19:09:06,785 INFO [uvicorn.access] [-] [IP]:58480 - "POST /api/v1/queue/8/cancel HTTP/1.1" 200
+2026-07-06 19:09:08,093 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-07-06 19:09:08,093 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-07-06 19:09:08,093 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-07-06 19:09:08,094 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-07-06 19:09:08,841 INFO [backend.app.api.routes.cloud] [8269663d] get_filament_info called with 1 IDs: ['GFL99']
+2026-07-06 19:09:08,849 INFO [uvicorn.access] [-] [IP]:58480 - "POST /api/v1/cloud/filament-info HTTP/1.1" 200
+2026-07-06 19:09:10,111 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Merged AMS data: 1 new units, 1 total
+2026-07-06 19:09:10,111 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] AMS 0 info=0x1001 -> extruder 0
+2026-07-06 19:09:10,112 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] ams_extruder_map: {'0': 0}
+2026-07-06 19:09:10,112 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-07-06 19:09:12,131 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-07-06 19:09:13,263 INFO [uvicorn.access] [-] [IP]:52165 - "POST /api/v1/library/files?generate_stl_thumbnails=true HTTP/1.1" 200
+2026-07-06 19:09:13,334 DEBUG [backend.app.api.routes.printers] [0513ec37] API returning ams_mapping: [], ams_extruder_map: {'0': 0}
+2026-07-06 19:09:13,334 DEBUG [backend.app.api.routes.printers] [0513ec37] Using tray_now directly as global ID: 2
+2026-07-06 19:09:16,157 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-07-06 19:09:18,173 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-07-06 19:09:18,757 INFO [backend.app.api.routes.print_queue] [bb1c9799] Added library file 7 to queue for 1
+2026-07-06 19:09:18,761 INFO [uvicorn.access] [-] [IP]:55151 - "POST /api/v1/queue/ HTTP/1.1" 200
+2026-07-06 19:09:18,774 DEBUG [backend.app.api.routes.printers] [f53ef00d] API returning ams_mapping: [], ams_extruder_map: {'0': 0}
+2026-07-06 19:09:18,774 DEBUG [backend.app.api.routes.printers] [f53ef00d] Using tray_now directly as global ID: 2
+2026-07-06 19:09:18,852 DEBUG [backend.app.api.routes.printers] [300d681d] API returning ams_mapping: [], ams_extruder_map: {'0': 0}
+2026-07-06 19:09:18,853 DEBUG [backend.app.api.routes.printers] [300d681d] Using tray_now directly as global ID: 2
+2026-07-06 19:09:24,217 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
+2026-07-06 19:09:26,232 DEBUG [backend.app.services.bambu_mqtt] [-] [[SERIAL]] Received command response: push_status
