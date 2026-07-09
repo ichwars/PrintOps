@@ -201,7 +201,7 @@ export function StreamOverlayPage() {
   useEffect(() => {
     document.title = printer ? `${printer.name} - ${t('streamOverlay.title')}` : t('streamOverlay.title');
     return () => {
-      document.title = 'Bambuddy';
+      document.title = 'PrintOps';
     };
   }, [printer, t]);
 
@@ -246,16 +246,16 @@ export function StreamOverlayPage() {
         />
       )}
 
-      {/* Bambuddy logo - top right */}
+      {/* PrintOps logo - top right */}
       <a
-        href="https://github.com/maziggy/bambuddy"
+        href="https://github.com/ichwars/PrintOps"
         target="_blank"
         rel="noopener noreferrer"
         className="absolute top-4 right-4 z-10"
       >
         <img
-          src="/img/bambuddy_logo_dark_transparent.png"
-          alt="Bambuddy"
+          src="/img/printops_logo.svg"
+          alt="PrintOps"
           className={`${sizes.logoHeight} object-contain drop-shadow-lg hover:scale-105 transition-transform`}
         />
       </a>

@@ -1,7 +1,7 @@
 [project]
-name = "bambuddy"
+name = "printops"
 version = "0.1.5"
-description = "Archive and manage Bambu Lab 3MF files"
+description = "Operate and manage local 3D printing workflows"
 requires-python = ">=3.10"
 
 [tool.ruff]

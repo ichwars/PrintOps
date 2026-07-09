@@ -28,7 +28,7 @@ export default {
     smartSwitches: 'Smart Switches',
     logout: 'Abmelden',
     installApp: 'App installieren',
-    installAppSuccess: 'Bambuddy wurde installiert',
+    installAppSuccess: 'PrintOps wurde installiert',
   },
 
   // Common
@@ -2166,7 +2166,7 @@ export default {
     disableAuthenticationMessage: 'Möchten Sie die Authentifizierung wirklich deaktivieren? Dadurch wird Ihre Bambuddy-Instanz ohne Anmeldung zugänglich. Alle Benutzer bleiben in der Datenbank, aber die Authentifizierung wird deaktiviert.',
     disableAuthentication: 'Authentifizierung deaktivieren',
     // Additional settings
-    configureBambuddy: 'Bambuddy konfigurieren',
+    configureBambuddy: 'PrintOps konfigurieren',
     systemDefault: 'Systemstandard',
     archiveSettings: 'Archiv-Einstellungen',
     newWindow: 'Neues Fenster',
@@ -2431,7 +2431,7 @@ export default {
     // Updates
     printerFirmware: 'Drucker-Firmware',
     checkFirmwareDescription: 'Nach Firmware-Updates von Bambu Lab suchen',
-    bambuddySoftware: 'Bambuddy-Software',
+    bambuddySoftware: 'PrintOps-Software',
     autoCheckDescription: 'Automatisch beim Start nach neuen Versionen suchen',
     checkNow: 'Jetzt prüfen',
     updateAvailableVersion: 'Update verfügbar: v{{version}}',
@@ -2449,8 +2449,8 @@ export default {
     goToBackup: 'Zur Sicherung',
     // Network tab
     externalUrl: 'Externe URL',
-    externalUrlDescription: 'Die externe URL, unter der Bambuddy erreichbar ist. Wird für Benachrichtigungsbilder und externe Integrationen verwendet.',
-    bambuddyUrl: 'Bambuddy-URL',
+    externalUrlDescription: 'Die externe URL, unter der PrintOps erreichbar ist. Wird für Benachrichtigungsbilder und externe Integrationen verwendet.',
+    bambuddyUrl: 'PrintOps-URL',
     externalUrlHint: 'Protokoll und Port angeben (z.B. http://192.168.1.100:8000)',
     ftpRetry: 'FTP-Wiederholung',
     ftpRetryDescription: 'FTP-Operationen bei unzuverlässigem Drucker-WLAN wiederholen. Gilt für 3MF-Downloads, Druck-Uploads, Zeitraffer-Downloads und Firmware-Updates.',
@@ -2875,7 +2875,7 @@ export default {
 
   // Login page
   login: {
-    title: 'Bambuddy Anmeldung',
+    title: 'PrintOps Anmeldung',
     subtitle: 'Melden Sie sich bei Ihrem Konto an',
     username: 'Benutzername',
     usernamePlaceholder: 'Benutzername eingeben',
@@ -2923,7 +2923,7 @@ export default {
     sending: 'Wird gesendet...',
     sendResetEmail: 'Zurücksetzungs-E-Mail senden',
     howToReset: 'So setzen Sie Ihr Passwort zurück:',
-    resetStep1: 'Kontaktieren Sie Ihren Bambuddy-Administrator',
+    resetStep1: 'Kontaktieren Sie Ihren PrintOps-Administrator',
     resetStep2: 'Bitten Sie ihn, Ihr Passwort in der Benutzerverwaltung zurückzusetzen',
     resetStep3: 'Er kann ein neues temporäres Passwort für Sie festlegen',
     resetStep4: 'Melden Sie sich mit dem neuen Passwort an und ändern Sie es in den Einstellungen',
@@ -2948,7 +2948,7 @@ export default {
       methodAuthenticator: 'Authenticator-App',
       methodEmail: 'E-Mail-Code',
       methodBackup: 'Wiederherstellungscode',
-      instructionsTotp: 'Öffnen Sie Ihre Authenticator-App und geben Sie den 6-stelligen Code für Bambuddy ein.',
+      instructionsTotp: 'Öffnen Sie Ihre Authenticator-App und geben Sie den 6-stelligen Code für PrintOps ein.',
       instructionsEmail: 'Ein 6-stelliger Code wurde an Ihre E-Mail-Adresse gesendet. Er ist 10 Minuten gültig.',
       instructionsEmailNotSent: 'Klicken Sie unten, um einen Bestätigungscode per E-Mail zu erhalten.',
       instructionsBackup: 'Geben Sie einen Ihrer 8-stelligen Wiederherstellungscodes ein. Jeder Code kann nur einmal verwendet werden.',
@@ -2973,8 +2973,8 @@ export default {
 
   // Setup page
   setup: {
-    title: 'Bambuddy Einrichtung',
-    subtitle: 'Konfigurieren Sie die Authentifizierung für Ihre Bambuddy-Instanz',
+    title: 'PrintOps Einrichtung',
+    subtitle: 'Konfigurieren Sie die Authentifizierung für Ihre PrintOps-Instanz',
     enableAuth: 'Authentifizierung aktivieren',
     adminAccount: 'Admin-Konto',
     adminAccountDesc: 'Wenn bereits Admin-Benutzer existieren, wird die Authentifizierung mit den vorhandenen Admin-Konten aktiviert. Lassen Sie die Felder unten leer, um vorhandene Admins zu verwenden, oder geben Sie neue Anmeldedaten ein, um einen neuen Admin-Benutzer zu erstellen.',
@@ -5626,7 +5626,7 @@ export default {
     title: 'Seitenleisten-Links',
     sidebarLayout: 'Seitenleiste',
     sidebarLayoutDescription: 'Integrierte Seiten ein- oder ausblenden, externe Links hinzufügen und Elemente ziehen, um die Seitenleisten-Navigation neu zu ordnen.',
-    systemPages: 'Bambuddy-Seiten',
+    systemPages: 'PrintOps-Seiten',
     externalLinks: 'Externe Links',
     visibleInSidebar: 'In Seitenleiste sichtbar',
     hiddenFromSidebar: 'In Seitenleiste ausgeblendet',

@@ -6,31 +6,30 @@
     <!-- L-4: Restrict Referer header to origin-only on cross-origin navigation so
          sensitive tokens in query parameters are not leaked to third-party servers. -->
     <meta name="referrer" content="strict-origin-when-cross-origin" />
-    <title>Bambuddy</title>
+    <title>PrintOps</title>
 
     <!-- PWA Meta Tags -->
-    <meta name="description" content="Monitor and manage your Bambu Lab 3D printers" />
-    <meta name="theme-color" content="#00ae42" />
+    <meta name="description" content="Operate and manage local 3D printing workflows" />
+    <meta name="theme-color" content="#04AAA4" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Bambuddy" />
+    <meta name="apple-mobile-web-app-title" content="PrintOps" />
 
     <!-- Manifest -->
     <link rel="manifest" href="/manifest.json" />
 
     <!-- Favicons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/img/favicon-16x16.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/img/printops_icon.svg" />
+    <link rel="apple-touch-icon" href="/img/printops_icon.svg" />
 
     <!-- Splash screens for iOS -->
-    <link rel="apple-touch-startup-image" href="/img/android-chrome-512x512.png" />
-    <script type="module" crossorigin src="/assets/index-D_ORAGtA.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DvjR9OL3.css">
+    <link rel="apple-touch-startup-image" href="/img/printops_icon.svg" />
+    <script type="module" crossorigin src="/assets/index-CIWkEZ3X.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-2yRmzTYF.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
 
     <!-- Service Worker Registration (skip on SpoolBuddy kiosk).
          Kept as an external file so the CSP `script-src 'self'` covers it

@@ -2599,7 +2599,7 @@ export function SettingsPage() {
                           {t('settings.updateViaWindowsInstaller')}
                         </p>
                         <a
-                          href={updateCheck.installer_download_url || updateCheck.release_url || `https://github.com/maziggy/bambuddy/releases/tag/v${updateCheck.latest_version}`}
+                          href={updateCheck.installer_download_url || updateCheck.release_url || `https://github.com/ichwars/PrintOps/releases/tag/v${updateCheck.latest_version}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-bambu-dark disabled:opacity-50 bg-bambu-green hover:bg-bambu-green-light text-white focus:ring-bambu-green px-4 py-2 text-sm gap-2 min-h-[44px] md:min-h-0"

@@ -1,18 +1,13 @@
-// Bambuddy Service Worker
-const CACHE_NAME = 'bambuddy-v30';
-const STATIC_CACHE = 'bambuddy-static-v29';
+// PrintOps Service Worker
+const CACHE_NAME = 'printops-v1';
+const STATIC_CACHE = 'printops-static-v1';
 
 // Static assets to cache on install
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
-  '/img/favicon.png',
-  '/img/favicon-16x16.png',
-  '/img/favicon-32x32.png',
-  '/img/android-chrome-192x192.png',
-  '/img/android-chrome-512x512.png',
-  '/img/apple-touch-icon.png',
-  '/img/bambuddy_logo_dark.png',
+  '/img/printops_icon.svg',
+  '/img/printops_logo.svg',
   // Self-hosted Inter font (#1460) - cached so the UI renders offline.
   '/fonts/inter-latin.woff2',
   '/fonts/inter-latin-ext.woff2',
@@ -191,7 +186,7 @@ self.addEventListener('push', (event) => {
 
   const data = event.data.json();
   const options = {
-    body: data.body || 'New notification from Bambuddy',
+    body: data.body || 'New notification from PrintOps',
     icon: '/img/android-chrome-192x192.png',
     badge: '/img/favicon-32x32.png',
     vibrate: [100, 50, 100],
@@ -201,7 +196,7 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Bambuddy', options)
+    self.registration.showNotification(data.title || 'PrintOps', options)
   );
 });
 

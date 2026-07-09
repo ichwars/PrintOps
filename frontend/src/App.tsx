@@ -13,6 +13,8 @@ import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { FileManagerPage } from './pages/FileManagerPage';
 import { LibraryTrashPage } from './pages/LibraryTrashPage';
+import { WarehousePage } from './pages/WarehousePage';
+import { OrdersPage } from './pages/OrdersPage';
 import { CameraPage } from './pages/CameraPage';
 import { StreamOverlayPage } from './pages/StreamOverlayPage';
 import { ExternalLinkPage } from './pages/ExternalLinkPage';
@@ -206,7 +208,14 @@ function App() {
                   <Route path="maintenance" element={<MaintenancePage />} />
                   <Route path="projects" element={<ProjectsPage />} />
                   <Route path="projects/:id" element={<ProjectDetailPage />} />
-                  <Route path="inventory" element={<InventoryPage />} />
+                  <Route path="warehouse" element={<WarehousePage />} />
+                  <Route path="warehouse/filament" element={<InventoryPage />} />
+                  <Route path="inventory" element={<Navigate to="/warehouse/filament" replace />} />
+                  <Route path="orders" element={<OrdersPage />} />
+                  <Route path="orders/customers" element={<OrdersPage />} />
+                  <Route path="orders/calculation" element={<OrdersPage />} />
+                  <Route path="orders/offers" element={<OrdersPage />} />
+                  <Route path="orders/invoices" element={<OrdersPage />} />
                   <Route path="files" element={<FileManagerPage />} />
                   <Route path="files/trash" element={<LibraryTrashPage />} />
                   <Route path="makerworld" element={<PermissionRoute permission="makerworld:view"><MakerworldPage /></PermissionRoute>} />

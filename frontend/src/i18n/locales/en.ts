@@ -28,7 +28,7 @@ export default {
     smartSwitches: 'Smart Switches',
     logout: 'Logout',
     installApp: 'Install app',
-    installAppSuccess: 'Bambuddy was installed',
+    installAppSuccess: 'PrintOps was installed',
   },
 
   // Common
@@ -2185,7 +2185,7 @@ export default {
     disableAuthenticationMessage: 'Are you sure you want to disable authentication? This will make your Bambuddy instance accessible without login. All users will remain in the database but authentication will be disabled.',
     disableAuthentication: 'Disable Authentication',
     // Additional settings
-    configureBambuddy: 'Configure Bambuddy',
+    configureBambuddy: 'Configure PrintOps',
     systemDefault: 'System Default',
     archiveSettings: 'Archive Settings',
     newWindow: 'New Window',
@@ -2450,7 +2450,7 @@ export default {
     // Updates
     printerFirmware: 'Printer Firmware',
     checkFirmwareDescription: 'Check for printer firmware updates from Bambu Lab',
-    bambuddySoftware: 'Bambuddy Software',
+    bambuddySoftware: 'PrintOps Software',
     autoCheckDescription: 'Automatically check for new versions on startup',
     checkNow: 'Check now',
     updateAvailableVersion: 'Update available: v{{version}}',
@@ -2468,8 +2468,8 @@ export default {
     goToBackup: 'Go to Backup',
     // Network tab
     externalUrl: 'External URL',
-    externalUrlDescription: 'The external URL where Bambuddy is accessible. Used for notification images and external integrations.',
-    bambuddyUrl: 'Bambuddy URL',
+    externalUrlDescription: 'The external URL where PrintOps is accessible. Used for notification images and external integrations.',
+    bambuddyUrl: 'PrintOps URL',
     externalUrlHint: 'Include protocol and port (e.g., http://192.168.1.100:8000)',
     ftpRetry: 'FTP Retry',
     ftpRetryDescription: 'Retry FTP operations when printer WiFi is unreliable. Applies to 3MF downloads, print uploads, timelapse downloads, and firmware updates.',
@@ -2904,7 +2904,7 @@ export default {
 
   // Login page
   login: {
-    title: 'Bambuddy Login',
+    title: 'PrintOps Login',
     subtitle: 'Sign in to your account',
     username: 'Username',
     usernamePlaceholder: 'Enter your username',
@@ -2952,7 +2952,7 @@ export default {
     sending: 'Sending...',
     sendResetEmail: 'Send Reset Email',
     howToReset: 'How to reset your password:',
-    resetStep1: 'Contact your Bambuddy administrator',
+    resetStep1: 'Contact your PrintOps administrator',
     resetStep2: 'Ask them to reset your password in User Management',
     resetStep3: 'They can set a new temporary password for you',
     resetStep4: 'Log in with the new password and change it in Settings',
@@ -2977,7 +2977,7 @@ export default {
       methodAuthenticator: 'Authenticator App',
       methodEmail: 'Email Code',
       methodBackup: 'Backup Code',
-      instructionsTotp: 'Open your authenticator app and enter the 6-digit code for Bambuddy.',
+      instructionsTotp: 'Open your authenticator app and enter the 6-digit code for PrintOps.',
       instructionsEmail: 'A 6-digit code has been sent to your email address. It expires in 10 minutes.',
       instructionsEmailNotSent: 'Click the button below to receive a verification code via email.',
       instructionsBackup: 'Enter one of your 8-character backup recovery codes. Each code can only be used once.',
@@ -3002,8 +3002,8 @@ export default {
 
   // Setup page
   setup: {
-    title: 'Bambuddy Setup',
-    subtitle: 'Configure authentication for your Bambuddy instance',
+    title: 'PrintOps Setup',
+    subtitle: 'Configure authentication for your PrintOps instance',
     enableAuth: 'Enable Authentication',
     adminAccount: 'Admin Account',
     adminAccountDesc: 'If admin users already exist, authentication will be enabled using the existing admin accounts. Leave the fields below empty to use existing admins, or enter new credentials to create a new admin user.',
@@ -5670,7 +5670,7 @@ export default {
     title: 'Sidebar Links',
     sidebarLayout: 'Sidebar',
     sidebarLayoutDescription: 'Show or hide built-in pages, add external links, and drag items to reorder the sidebar navigation.',
-    systemPages: 'Bambuddy pages',
+    systemPages: 'PrintOps pages',
     externalLinks: 'External links',
     visibleInSidebar: 'Visible in sidebar',
     hiddenFromSidebar: 'Hidden from sidebar',

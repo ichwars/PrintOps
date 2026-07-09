@@ -120,7 +120,7 @@ describe('Layout', () => {
       await waitFor(() => {
         const sidebar = document.querySelector('aside');
         expect(sidebar).toBeInTheDocument();
-        expect(sidebar?.querySelector('a[href="/inventory"]')).toBeInTheDocument();
+        expect(sidebar?.querySelector('a[href="/warehouse"]')).toBeInTheDocument();
       });
 
       expect(document.querySelector('aside a[href="/"]')).toBeNull();
@@ -148,7 +148,7 @@ describe('Layout', () => {
       await waitFor(() => {
         const sidebar = document.querySelector('aside');
         expect(sidebar).toBeInTheDocument();
-        expect(sidebar?.querySelector('a[href="/inventory"]')).toBeInTheDocument();
+        expect(sidebar?.querySelector('a[href="/warehouse"]')).toBeInTheDocument();
       });
 
       await waitFor(() => {
