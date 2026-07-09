@@ -306,6 +306,7 @@ export function SettingsPage() {
   // Switch the Workflow tab's sub-tab and reflect it in the URL so deep-links work.
   const handleQueueSubTabChange = (sub: QueueSubTab) => {
     setQueueSubTab(sub);
+    searchParams.set('tab', 'printers-production');
     if (sub === 'pipelines') {
       searchParams.set('sub', 'pipelines');
     } else {

@@ -1666,6 +1666,20 @@ describe('SettingsPage', () => {
       });
     });
 
+    it('normalizes legacy queue Pipelines URLs to printers-production', async () => {
+      const user = userEvent.setup();
+      window.history.replaceState({}, '', '/settings?tab=queue');
+      render(<SettingsPage />);
+
+      await user.click(await screen.findByRole('button', { name: /^Pipelines$/i }));
+      await waitFor(() => {
+        expect(screen.getByText(/No pipelines yet/i)).toBeInTheDocument();
+        expect(window.location.search).toContain('tab=printers-production');
+        expect(window.location.search).toContain('sub=pipelines');
+        expect(window.location.search).not.toContain('tab=queue');
+      });
+    });
+
     it('clicking Pipelines sub-tab shows the empty-state hint and updates the URL', async () => {
       render(<SettingsPage />);
       const user = userEvent.setup();
