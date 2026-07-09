@@ -53,7 +53,7 @@ async function clickSettingsSearchResult(query: string) {
 describe('SettingsPage', () => {
   beforeEach(() => {
     // BrowserRouter shares window.location across tests; reset it so a tab
-    // switch in one test (e.g. clicking "Workflow") doesn't carry into
+    // switch in one test (e.g. clicking "Printers & Production") doesn't carry into
     // sibling tests that expect to land on the default General tab.
     window.history.replaceState({}, '', '/');
     vi.mocked(localStorage.getItem).mockReset();
@@ -109,18 +109,48 @@ describe('SettingsPage', () => {
       });
     });
 
-    it('shows settings tabs', async () => {
+    it('shows canonical settings tabs', async () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        // Use getAllByText since "General" appears both as tab and section heading
         expect(screen.getAllByText('General').length).toBeGreaterThan(0);
-        expect(screen.getByText('Smart Plugs')).toBeInTheDocument();
-        expect(screen.getAllByText('Notifications').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('Filament').length).toBeGreaterThan(0);
-        expect(screen.getByText('Network')).toBeInTheDocument();
-        expect(screen.getByText('API Keys')).toBeInTheDocument();
+        expect(screen.getByText('Users & Security')).toBeInTheDocument();
+        expect(screen.getByText('Printers & Production')).toBeInTheDocument();
+        expect(screen.getByText('Projects & Files')).toBeInTheDocument();
+        expect(screen.getByText('Warehouse & Material')).toBeInTheDocument();
+        expect(screen.getByText('Orders & Calculation')).toBeInTheDocument();
+        expect(screen.getByText('Integrations')).toBeInTheDocument();
+        expect(screen.getByText('Operations')).toBeInTheDocument();
       });
+    });
+
+    it('opens Printers & Production from legacy queue tab URL', async () => {
+      window.history.replaceState({}, '', '/settings?tab=queue');
+      render(<SettingsPage />);
+
+      expect(await screen.findByText('Printers & Production')).toHaveClass('text-bambu-green');
+    });
+
+    it('opens Warehouse & Material from legacy filament tab URL', async () => {
+      window.history.replaceState({}, '', '/settings?tab=filament');
+      render(<SettingsPage />);
+
+      expect(await screen.findByText('Warehouse & Material')).toHaveClass('text-bambu-green');
+    });
+
+    it('opens Operations from legacy backup tab URL', async () => {
+      window.history.replaceState({}, '', '/settings?tab=backup');
+      render(<SettingsPage />);
+
+      expect(await screen.findByText('Operations')).toHaveClass('text-bambu-green');
+    });
+
+    it('opens Users & Security email settings from legacy email tab URL', async () => {
+      window.history.replaceState({}, '', '/settings?tab=email');
+      render(<SettingsPage />);
+
+      expect(await screen.findByText('Users & Security')).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('Email Authentication')).toHaveClass('text-bambu-green');
     });
   });
 
@@ -149,30 +179,22 @@ describe('SettingsPage', () => {
       });
     });
 
-    it('shows preferred slicer setting on Workflow tab', async () => {
+    it('shows preferred slicer setting on Printers & Production', async () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
-      await waitFor(() => {
-        expect(screen.getByText('Workflow')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Workflow'));
+      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       await waitFor(() => {
         expect(screen.getByText('Preferred Slicer')).toBeInTheDocument();
       });
     });
 
-    it('shows slicer dropdown with both options on Workflow tab', async () => {
+    it('shows slicer dropdown with both options on Printers & Production', async () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
-      await waitFor(() => {
-        expect(screen.getByText('Workflow')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Workflow'));
+      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       await waitFor(() => {
         const slicerSelect = screen.getAllByDisplayValue('Bambu Studio');
@@ -247,7 +269,7 @@ describe('SettingsPage', () => {
       await user.type(search, 'SpoolBuddy');
 
       expect((await screen.findAllByText('SpoolBuddy')).length).toBeGreaterThan(0);
-      expect(screen.getByText('Warehouse & Material')).toBeInTheDocument();
+      expect(screen.getAllByText('Warehouse & Material').length).toBeGreaterThan(0);
     });
 
     it('searches Virtual Printer in Printers & Production', async () => {
@@ -258,7 +280,7 @@ describe('SettingsPage', () => {
       await user.type(search, 'Virtual Printer');
 
       expect((await screen.findAllByText('Virtual Printer')).length).toBeGreaterThan(0);
-      expect(screen.getByText('Printers & Production')).toBeInTheDocument();
+      expect(screen.getAllByText('Printers & Production').length).toBeGreaterThan(0);
     });
 
     it('opens the rendered SpoolBuddy pane from search results', async () => {
@@ -699,7 +721,7 @@ describe('SettingsPage', () => {
   });
 
   describe('tabs navigation', () => {
-    it('can switch to Network tab', async () => {
+    it('can switch to Integrations for network settings', async () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
@@ -708,56 +730,41 @@ describe('SettingsPage', () => {
         expect(screen.getByText('Date Format')).toBeInTheDocument();
       });
 
-      await user.click(screen.getByText('Network'));
+      await user.click(await screen.findByRole('button', { name: 'Integrations' }));
 
       await waitFor(() => {
-        // Network tab contains MQTT Publishing section
+        // Integrations contains MQTT Publishing.
         expect(screen.getByText('MQTT Publishing')).toBeInTheDocument();
       });
     });
 
-    it('can switch to Smart Plugs tab', async () => {
+    it('can switch to Integrations for smart plugs', async () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
-      await waitFor(() => {
-        expect(screen.getByText('Smart Plugs')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Smart Plugs'));
+      await user.click(await screen.findByRole('button', { name: 'Integrations' }));
 
       await waitFor(() => {
         expect(screen.getByText('Add Smart Plug')).toBeInTheDocument();
       });
     });
 
-    it('can switch to Notifications tab', async () => {
+    it('can switch to Integrations for notifications', async () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
-      await waitFor(() => {
-        expect(screen.getAllByText('Notifications').length).toBeGreaterThan(0);
-      });
-
-      // Click the tab button (not the mobile dropdown option)
-      const notificationButtons = screen.getAllByText('Notifications');
-      const tabButton = notificationButtons.find(el => el.tagName === 'BUTTON') || notificationButtons[0];
-      await user.click(tabButton);
+      await user.click(await screen.findByRole('button', { name: 'Integrations' }));
 
       await waitFor(() => {
         expect(screen.getByText('Add Provider')).toBeInTheDocument();
       });
     });
 
-    it('can switch to Filament tab', async () => {
+    it('can switch to Warehouse & Material', async () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
-      await waitFor(() => {
-        expect(screen.getAllByText('Filament').length).toBeGreaterThan(0);
-      });
-
-      await user.click(screen.getAllByText('Filament')[0]);
+      await user.click(await screen.findByRole('button', { name: 'Warehouse & Material' }));
 
       await waitFor(() => {
         expect(screen.getByText('AMS Display Thresholds')).toBeInTheDocument();
@@ -765,31 +772,23 @@ describe('SettingsPage', () => {
     });
   });
 
-  describe('Workflow tab', () => {
-    it('can switch to Workflow tab', async () => {
+  describe('Printers & Production tab', () => {
+    it('can switch to Printers & Production', async () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
-      await waitFor(() => {
-        expect(screen.getByText('Workflow')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Workflow'));
+      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       await waitFor(() => {
         expect(screen.getByText('Staggered Start')).toBeInTheDocument();
       });
     });
 
-    it('shows stagger settings on Workflow tab', async () => {
+    it('shows stagger settings on Printers & Production', async () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
-      await waitFor(() => {
-        expect(screen.getByText('Workflow')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Workflow'));
+      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       await waitFor(() => {
         expect(screen.getByText('Staggered Start')).toBeInTheDocument();
@@ -798,30 +797,22 @@ describe('SettingsPage', () => {
       });
     });
 
-    it('shows auto-drying settings on Workflow tab', async () => {
+    it('shows auto-drying settings on Printers & Production until Task 4 moves cards', async () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
-      await waitFor(() => {
-        expect(screen.getByText('Workflow')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Workflow'));
+      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       await waitFor(() => {
         expect(screen.getByText('Queue Auto-Drying')).toBeInTheDocument();
       });
     });
 
-    it('shows per-filament humidity threshold editor on Workflow tab (#1605)', async () => {
+    it('shows per-filament humidity threshold editor on Printers & Production until Task 4 moves cards (#1605)', async () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
-      await waitFor(() => {
-        expect(screen.getByText('Workflow')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Workflow'));
+      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       await waitFor(() => {
         expect(screen.getByText('Humidity Thresholds')).toBeInTheDocument();
@@ -836,15 +827,11 @@ describe('SettingsPage', () => {
       });
     });
 
-    it('shows default print options on Workflow tab', async () => {
+    it('shows default print options on Printers & Production', async () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
-      await waitFor(() => {
-        expect(screen.getByText('Workflow')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Workflow'));
+      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       await waitFor(() => {
         expect(screen.getByText('Default Print Options')).toBeInTheDocument();
@@ -860,11 +847,7 @@ describe('SettingsPage', () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
-      await waitFor(() => {
-        expect(screen.getByText('Workflow')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Workflow'));
+      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       await waitFor(() => {
         expect(screen.getByText(/overridden per print in the print dialog/)).toBeInTheDocument();
@@ -872,16 +855,12 @@ describe('SettingsPage', () => {
     });
   });
 
-  describe('API Keys tab', () => {
-    it('can switch to API Keys tab', async () => {
+  describe('Users & Security tab', () => {
+    it('can switch to Users & Security for API keys', async () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
-      await waitFor(() => {
-        expect(screen.getByText('API Keys')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('API Keys'));
+      await user.click(await screen.findByRole('button', { name: 'Users & Security' }));
 
       await waitFor(() => {
         // Button text is "Create Key"
@@ -932,9 +911,9 @@ describe('SettingsPage', () => {
       );
       render(<SettingsPage />);
 
-      // Find the tab button (not the header) — it's the <button> containing the SpoolBuddy text
+      // Find the canonical rail button that now carries the SpoolBuddy device status.
       const tabButton = await waitFor(() => {
-        const buttons = screen.getAllByRole('button').filter((b) => b.textContent?.includes('SpoolBuddy'));
+        const buttons = screen.getAllByRole('button').filter((b) => b.textContent?.includes('Warehouse & Material'));
         expect(buttons.length).toBeGreaterThan(0);
         return buttons[0];
       });
@@ -959,7 +938,7 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       const tabButton = await waitFor(() => {
-        const buttons = screen.getAllByRole('button').filter((b) => b.textContent?.includes('SpoolBuddy'));
+        const buttons = screen.getAllByRole('button').filter((b) => b.textContent?.includes('Warehouse & Material'));
         expect(buttons.length).toBeGreaterThan(0);
         return buttons[0];
       });
@@ -977,14 +956,16 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       const tabButton = await waitFor(() => {
-        const buttons = screen.getAllByRole('button').filter((b) => b.textContent?.includes('SpoolBuddy'));
+        const buttons = screen.getAllByRole('button').filter((b) => b.textContent?.includes('Warehouse & Material'));
         expect(buttons.length).toBeGreaterThan(0);
         return buttons[0];
       });
 
       // The only numeric content should NOT be present — tab label only
       await waitFor(() => {
-        expect(tabButton.textContent).toBe('SpoolBuddy');
+        expect(tabButton.textContent).toContain('Warehouse & Material');
+        expect(tabButton.textContent).not.toContain('1');
+        expect(tabButton.textContent).not.toContain('2');
       });
     });
   });
@@ -1023,12 +1004,12 @@ describe('SettingsPage', () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
-      // Switch to API Keys tab. Both desktop tab + mobile dropdown render
+      // Switch to Users & Security. Both desktop tab + mobile dropdown render
       // the label, so just grab the button form.
       await waitFor(() => {
-        expect(screen.getAllByText('API Keys').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Users & Security').length).toBeGreaterThan(0);
       });
-      const tabButton = screen.getAllByText('API Keys').find((el) => el.tagName === 'BUTTON');
+      const tabButton = screen.getAllByText('Users & Security').find((el) => el.tagName === 'BUTTON');
       expect(tabButton).toBeDefined();
       await user.click(tabButton!);
 
@@ -1103,9 +1084,9 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getAllByText('API Keys').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Users & Security').length).toBeGreaterThan(0);
       });
-      const tabButton = screen.getAllByText('API Keys').find((el) => el.tagName === 'BUTTON');
+      const tabButton = screen.getAllByText('Users & Security').find((el) => el.tagName === 'BUTTON');
       await user.click(tabButton!);
 
       await waitFor(() => {
@@ -1158,9 +1139,9 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getAllByText('API Keys').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Users & Security').length).toBeGreaterThan(0);
       });
-      const tabButton = screen.getAllByText('API Keys').find((el) => el.tagName === 'BUTTON');
+      const tabButton = screen.getAllByText('Users & Security').find((el) => el.tagName === 'BUTTON');
       await user.click(tabButton!);
 
       // Open the create form. With an empty key list the empty-state card
@@ -1236,9 +1217,9 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getAllByText('API Keys').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Users & Security').length).toBeGreaterThan(0);
       });
-      const tabButton = screen.getAllByText('API Keys').find((el) => el.tagName === 'BUTTON');
+      const tabButton = screen.getAllByText('Users & Security').find((el) => el.tagName === 'BUTTON');
       await user.click(tabButton!);
 
       await waitFor(() => {
@@ -1281,9 +1262,9 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getAllByText('API Keys').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Users & Security').length).toBeGreaterThan(0);
       });
-      const tabButton = screen.getAllByText('API Keys').find((el) => el.tagName === 'BUTTON');
+      const tabButton = screen.getAllByText('Users & Security').find((el) => el.tagName === 'BUTTON');
       await user.click(tabButton!);
 
       const openButton = await screen.findByRole('button', { name: /Create Your First Key/i });
@@ -1470,7 +1451,7 @@ describe('SettingsPage', () => {
   });
 
   // --------------------------------------------------------------------
-  // Slicer Pipelines (#1425) — Workflow tab sub-tabs
+  // Slicer Pipelines (#1425) — Printers & Production sub-tabs
   // --------------------------------------------------------------------
   describe('workflow sub-tabs (#1425)', () => {
     beforeEach(() => {
@@ -1490,15 +1471,10 @@ describe('SettingsPage', () => {
       );
     });
 
-    it('renders Queue & Dispatch + Pipelines sub-tabs under Workflow', async () => {
+    it('renders Queue & Dispatch + Pipelines sub-tabs under Printers & Production', async () => {
       render(<SettingsPage />);
       const user = userEvent.setup();
-      await waitFor(() => {
-        // Workflow tab in the sidebar — exact match to avoid colliding with
-        // "Print Queue" or "Queue Settings" labels elsewhere on the page.
-        expect(screen.getByRole('button', { name: 'Workflow' })).toBeInTheDocument();
-      });
-      await user.click(screen.getByRole('button', { name: 'Workflow' }));
+      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /Queue & Dispatch/i })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /^Pipelines$/i })).toBeInTheDocument();
@@ -1508,14 +1484,13 @@ describe('SettingsPage', () => {
     it('clicking Pipelines sub-tab shows the empty-state hint and updates the URL', async () => {
       render(<SettingsPage />);
       const user = userEvent.setup();
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Workflow' })).toBeInTheDocument());
-      await user.click(screen.getByRole('button', { name: 'Workflow' }));
+      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
       await user.click(screen.getByRole('button', { name: /^Pipelines$/i }));
 
       await waitFor(() => {
         expect(screen.getByText(/No pipelines yet/i)).toBeInTheDocument();
-        // Deep-link URL carries both ?tab=queue and ?sub=pipelines
-        expect(window.location.search).toContain('tab=queue');
+        // New clicks write the canonical tab id while preserving the queue sub-tab.
+        expect(window.location.search).toContain('tab=printers-production');
         expect(window.location.search).toContain('sub=pipelines');
       });
     });

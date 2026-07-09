@@ -49,11 +49,16 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Palette } from 'lucide-react';
 import { registerSettingsSearch, getSettingsSearchEntries } from '../lib/settingsSearch';
 import type { SettingsSearchEntry } from '../lib/settingsSearch';
-import type { UsersSubTab } from '../lib/settingsSearch';
-import { SETTINGS_NAV_ITEMS, settingsTabLabelKey } from '../lib/settingsNavigation';
-
-const validTabs = ['general', 'plugs', 'notifications', 'queue', 'filament', 'network', 'apikeys', 'virtual-printer', 'spoolbuddy', 'failure-detection', 'users', 'backup'] as const;
-type TabType = typeof validTabs[number];
+import {
+  SETTINGS_NAV_ITEMS,
+  canonicalTabToUrlParam,
+  legacySettingsTabDefaultSubTab,
+  resolveSettingsTab,
+  settingsTabLabelKey,
+  type CanonicalSettingsTab,
+  type QueueSubTab,
+  type UsersSubTab,
+} from '../lib/settingsNavigation';
 
 // Cross-tab search registrations for cards rendered inline in this file.
 // Adding a new settings card? Register it here (or, if the card lives in its
@@ -161,7 +166,7 @@ const settingsSearchTabFallbackLabels = Object.fromEntries(
   SETTINGS_NAV_ITEMS.map((item) => [item.id, item.fallback]),
 ) as Record<string, string>;
 
-const legacySearchTabByAnchor: Record<string, TabType> = {
+const legacySearchTabByAnchor: Record<string, string> = {
   'card-general': 'general',
   'card-appearance': 'general',
   'card-sidebar-links': 'general',
@@ -229,7 +234,7 @@ const legacySearchTabByAnchor: Record<string, TabType> = {
   'card-backup-scheduled': 'backup',
 };
 
-function resolveLegacySearchTab(entry: SettingsSearchEntry): TabType {
+function resolveLegacySearchTab(entry: SettingsSearchEntry): string {
   return legacySearchTabByAnchor[entry.anchor] ?? 'general';
 }
 
@@ -264,38 +269,41 @@ export function SettingsPage() {
   const [showLogViewer, setShowLogViewer] = useState(false);
   const [defaultView, setDefaultViewState] = useState<string>(getDefaultView());
 
-  // Initialize tab from URL params (handle legacy ?tab=email → users tab + email sub-tab)
+  // Initialize tab from URL params, resolving legacy aliases to canonical tabs.
   const tabParam = searchParams.get('tab');
-  const isLegacyEmailTab = tabParam === 'email';
-  const initialTab = isLegacyEmailTab ? 'users' : (tabParam && validTabs.includes(tabParam as TabType) ? tabParam as TabType : 'general');
-  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
-  const [usersSubTab, setUsersSubTab] = useState<UsersSubTab>(isLegacyEmailTab ? 'email' : 'users');
+  const initialTab = resolveSettingsTab(tabParam);
+  const legacySubTabs = legacySettingsTabDefaultSubTab(tabParam);
+  const [activeTab, setActiveTab] = useState<CanonicalSettingsTab>(initialTab);
+  const [usersSubTab, setUsersSubTab] = useState<UsersSubTab>(legacySubTabs.usersSubTab ?? 'users');
   // Workflow tab sub-tabs (#1425): 'dispatch' = current Workflow content,
   // 'pipelines' = Slicer Pipelines management. URL: ?tab=queue&sub=pipelines.
-  const initialQueueSub: 'dispatch' | 'pipelines' =
-    tabParam === 'queue' && searchParams.get('sub') === 'pipelines' ? 'pipelines' : 'dispatch';
-  const [queueSubTab, setQueueSubTab] = useState<'dispatch' | 'pipelines'>(initialQueueSub);
+  const initialQueueSub: QueueSubTab =
+    tabParam === 'queue' && searchParams.get('sub') === 'pipelines'
+      ? 'pipelines'
+      : legacySubTabs.queueSubTab ?? 'dispatch';
+  const [queueSubTab, setQueueSubTab] = useState<QueueSubTab>(initialQueueSub);
 
   // Update URL when tab changes
-  const handleTabChange = (tab: TabType) => {
+  const handleTabChange = (tab: CanonicalSettingsTab) => {
     setActiveTab(tab);
-    if (tab === 'users') {
+    if (tab !== 'users-security') {
       setUsersSubTab('users');
     }
-    if (tab === 'queue') {
+    if (tab !== 'printers-production') {
       setQueueSubTab('dispatch');
       searchParams.delete('sub');
     }
-    if (tab === 'general') {
-      searchParams.delete('tab');
+    const urlTab = canonicalTabToUrlParam(tab);
+    if (urlTab) {
+      searchParams.set('tab', urlTab);
     } else {
-      searchParams.set('tab', tab);
+      searchParams.delete('tab');
     }
     setSearchParams(searchParams, { replace: true });
   };
 
   // Switch the Workflow tab's sub-tab and reflect it in the URL so deep-links work.
-  const handleQueueSubTabChange = (sub: 'dispatch' | 'pipelines') => {
+  const handleQueueSubTabChange = (sub: QueueSubTab) => {
     setQueueSubTab(sub);
     if (sub === 'pipelines') {
       searchParams.set('sub', 'pipelines');
@@ -459,8 +467,8 @@ export function SettingsPage() {
         totalPlugs: smartPlugs.filter(p => p.enabled).length,
       };
     },
-    enabled: activeTab === 'plugs' && !!smartPlugs && smartPlugs.length > 0,
-    refetchInterval: activeTab === 'plugs' ? 10000 : false, // Refresh every 10s when on plugs tab
+    enabled: activeTab === 'integrations' && !!smartPlugs && smartPlugs.length > 0,
+    refetchInterval: activeTab === 'integrations' ? 10000 : false, // Refresh every 10s when on integrations tab
   });
 
   const { data: notificationProviders, isLoading: providersLoading } = useQuery({
@@ -637,11 +645,11 @@ export function SettingsPage() {
     },
   });
 
-  // MQTT status for Network tab
+  // MQTT status for integrations-related settings
   const { data: mqttStatus } = useQuery({
     queryKey: ['mqtt-status'],
     queryFn: api.getMQTTStatus,
-    refetchInterval: activeTab === 'network' ? 5000 : false, // Poll every 5s when on Network tab
+    refetchInterval: activeTab === 'integrations' ? 5000 : false, // Poll every 5s when on integrations tab
   });
 
   // GitHub backup status for Backup tab indicator
@@ -1344,7 +1352,11 @@ export function SettingsPage() {
     : [];
 
   const jumpToSetting = (entry: typeof searchIndex[number]) => {
-    handleTabChange(resolveLegacySearchTab(entry));
+    const legacyTargetTab = resolveLegacySearchTab(entry);
+    handleTabChange(resolveSettingsTab(legacyTargetTab));
+    if (legacyTargetTab === 'queue') {
+      setQueueSubTab('dispatch');
+    }
     if (entry.subTab) {
       setUsersSubTab(entry.subTab as UsersSubTab);
     }
@@ -1359,6 +1371,17 @@ export function SettingsPage() {
       }
     }, 50);
   };
+
+  const settingsNavIcons = {
+    settings: SettingsIcon,
+    shield: Shield,
+    printer: Printer,
+    fileText: FileText,
+    warehouse: Home,
+    calculator: DollarSign,
+    plug: Plug,
+    database: Database,
+  } as const;
 
   return (
     <CardDensityProvider density="dense">
@@ -1417,167 +1440,34 @@ export function SettingsPage() {
 
       {/* Tab Navigation + content: horizontal tabs on mobile, vertical rail on lg+ */}
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-      <nav className="flex flex-wrap gap-1 border-b border-bambu-dark-tertiary lg:flex-col lg:flex-nowrap lg:gap-0 lg:border-b-0 lg:border-r lg:w-48 lg:flex-shrink-0 lg:self-start lg:sticky lg:top-4">
-        <button
-          onClick={() => handleTabChange('general')}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
-            activeTab === 'general'
-              ? 'text-bambu-green border-bambu-green'
-              : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-          }`}
-        >
-          <SettingsIcon className="w-4 h-4" />
-          {t('settings.tabs.general')}
-        </button>
-        <button
-          onClick={() => handleTabChange('plugs')}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
-            activeTab === 'plugs'
-              ? 'text-bambu-green border-bambu-green'
-              : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-          }`}
-        >
-          <Plug className="w-4 h-4" />
-          {t('settings.tabs.smartPlugs')}
-          {smartPlugs && smartPlugs.length > 0 && (
-            <span className="text-xs bg-bambu-dark-tertiary px-1.5 py-0.5 rounded-full">
-              {smartPlugs.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => handleTabChange('notifications')}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
-            activeTab === 'notifications'
-              ? 'text-bambu-green border-bambu-green'
-              : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-          }`}
-        >
-          <Bell className="w-4 h-4" />
-          {t('settings.tabs.notifications')}
-          {notificationProviders && notificationProviders.length > 0 && (
-            <span className="text-xs bg-bambu-dark-tertiary px-1.5 py-0.5 rounded-full">
-              {notificationProviders.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => handleTabChange('queue')}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
-            activeTab === 'queue'
-              ? 'text-bambu-green border-bambu-green'
-              : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-          }`}
-        >
-          <ListOrdered className="w-4 h-4" />
-          {t('settings.tabs.queue', 'Workflow')}
-        </button>
-        <button
-          onClick={() => handleTabChange('filament')}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
-            activeTab === 'filament'
-              ? 'text-bambu-green border-bambu-green'
-              : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-          }`}
-        >
-          <Cylinder className="w-4 h-4" />
-          {t('settings.tabs.filament')}
-        </button>
-        <button
-          onClick={() => handleTabChange('network')}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
-            activeTab === 'network'
-              ? 'text-bambu-green border-bambu-green'
-              : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-          }`}
-        >
-          <Wifi className="w-4 h-4" />
-          {t('settings.tabs.network')}
-          <span className={`w-2 h-2 rounded-full ${mqttStatus?.enabled ? 'bg-green-400' : 'bg-gray-500'}`} />
-        </button>
-        <button
-          onClick={() => handleTabChange('apikeys')}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
-            activeTab === 'apikeys'
-              ? 'text-bambu-green border-bambu-green'
-              : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-          }`}
-        >
-          <Key className="w-4 h-4" />
-          {t('settings.tabs.apiKeys')}
-          {apiKeys && apiKeys.length > 0 && (
-            <span className="text-xs bg-bambu-dark-tertiary px-1.5 py-0.5 rounded-full">
-              {apiKeys.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => handleTabChange('virtual-printer')}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
-            activeTab === 'virtual-printer'
-              ? 'text-bambu-green border-bambu-green'
-              : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-          }`}
-        >
-          <Printer className="w-4 h-4" />
-          {t('settings.tabs.virtualPrinter')}
-          <span className={`w-2 h-2 rounded-full ${virtualPrinterRunning ? 'bg-green-400' : 'bg-gray-500'}`} />
-        </button>
-        <button
-          onClick={() => handleTabChange('spoolbuddy')}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
-            activeTab === 'spoolbuddy'
-              ? 'text-bambu-green border-bambu-green'
-              : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-          }`}
-        >
-          <Scale className="w-4 h-4" />
-          {t('settings.tabs.spoolbuddy')}
-          {spoolbuddyDeviceCount > 0 && (
-            <span className="text-xs bg-bambu-dark-tertiary px-1.5 py-0.5 rounded-full">
-              {spoolbuddyDeviceCount}
-            </span>
-          )}
-          <span className={`w-2 h-2 rounded-full ${spoolbuddyAnyOnline ? 'bg-green-400' : 'bg-gray-500'}`} />
-        </button>
-        <button
-          onClick={() => handleTabChange('failure-detection')}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
-            activeTab === 'failure-detection'
-              ? 'text-bambu-green border-bambu-green'
-              : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-          }`}
-        >
-          <ScanEye className="w-4 h-4" />
-          {t('settings.tabs.failureDetection')}
-          <span className={`w-2 h-2 rounded-full ${obicoActive ? 'bg-green-400' : 'bg-gray-500'}`} />
-        </button>
-        <button
-          onClick={() => handleTabChange('users')}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
-            activeTab === 'users'
-              ? 'text-bambu-green border-bambu-green'
-              : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          {t('settings.tabs.users')}
-          {authEnabled && (
-            <span className="w-2 h-2 rounded-full bg-green-400" />
-          )}
-        </button>
-        <button
-          onClick={() => handleTabChange('backup')}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
-            activeTab === 'backup'
-              ? 'text-bambu-green border-bambu-green'
-              : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-          }`}
-        >
-          <Database className="w-4 h-4" />
-          {t('settings.tabs.backup')}
-          <span className={`w-2 h-2 rounded-full ${(cloudAuthStatus?.is_authenticated && githubBackupStatus?.configured && githubBackupStatus?.enabled) || settings?.local_backup_enabled ? 'bg-green-400' : 'bg-gray-500'}`} />
-        </button>
+      <nav className="flex flex-wrap gap-1 border-b border-bambu-dark-tertiary lg:flex-col lg:flex-nowrap lg:gap-0 lg:border-b-0 lg:border-r lg:w-56 lg:flex-shrink-0 lg:self-start lg:sticky lg:top-4">
+        {SETTINGS_NAV_ITEMS.map((item) => {
+          const Icon = settingsNavIcons[item.icon];
+          return (
+            <button
+              key={item.id}
+              onClick={() => handleTabChange(item.id)}
+              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
+                activeTab === item.id
+                  ? 'text-bambu-green border-bambu-green'
+                  : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {t(item.labelKey, item.fallback)}
+              {item.id === 'warehouse-material' && spoolbuddyDeviceCount > 0 && (
+                <span className="text-xs bg-bambu-dark-tertiary px-1.5 py-0.5 rounded-full">
+                  {spoolbuddyDeviceCount}
+                </span>
+              )}
+              {item.id === 'warehouse-material' && (
+                <span
+                  className={`w-2 h-2 rounded-full ${spoolbuddyAnyOnline ? 'bg-green-400' : 'bg-gray-500'}`}
+                />
+              )}
+            </button>
+          );
+        })}
       </nav>
       <div className="flex-1 min-w-0">
       {activeTab === 'general' && (
@@ -2511,7 +2401,7 @@ export function SettingsPage() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => handleTabChange('backup')}
+                  onClick={() => handleTabChange('operations')}
                 >
                   <Database className="w-4 h-4" />
                   {t('settings.goToBackup')}
@@ -2726,7 +2616,7 @@ export function SettingsPage() {
       )}
 
       {/* Network Tab */}
-      {activeTab === 'network' && localSettings && (
+      {activeTab === 'integrations' && localSettings && (
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Left Column - External URL & FTP Retry */}
         <div className="flex-1 lg:max-w-xl space-y-3">
@@ -3260,7 +3150,7 @@ export function SettingsPage() {
       )}
 
       {/* Smart Plugs Tab */}
-      {activeTab === 'plugs' && (
+      {activeTab === 'integrations' && (
         <div id="card-plugs">
           <div className="flex items-start justify-between mb-6">
             <div>
@@ -3451,7 +3341,7 @@ export function SettingsPage() {
       )}
 
       {/* Notifications Tab */}
-      {activeTab === 'notifications' && (
+      {activeTab === 'integrations' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Left Column: Providers */}
           <div>
@@ -3750,7 +3640,7 @@ export function SettingsPage() {
       )}
 
       {/* API Keys Tab */}
-      {activeTab === 'apikeys' && (
+      {activeTab === 'users-security' && (
         <div className={hasPermission('api_keys:read')
           ? 'grid grid-cols-1 xl:grid-cols-2 gap-4'
           : 'grid grid-cols-1 gap-4'}>
@@ -4216,14 +4106,14 @@ export function SettingsPage() {
       )}
 
       {/* Virtual Printer Tab */}
-      {activeTab === 'virtual-printer' && (
+      {activeTab === 'printers-production' && (
         <div id="card-vp">
           <VirtualPrinterList />
         </div>
       )}
 
       {/* SpoolBuddy Tab */}
-      {activeTab === 'spoolbuddy' && (
+      {activeTab === 'warehouse-material' && (
         <div id="card-spoolbuddy">
           <SpoolBuddySettings />
         </div>
@@ -4231,7 +4121,7 @@ export function SettingsPage() {
 
       {/* Filament Tab */}
       {/* Queue Tab — sub-tabs: Queue & Dispatch (current content) / Pipelines (#1425) */}
-      {activeTab === 'queue' && (
+      {activeTab === 'printers-production' && (
         <div className="space-y-3">
           {/* Sub-tab nav, mirroring the Authentication tab pattern */}
           <div className="flex gap-1 border-b border-bambu-dark-tertiary">
@@ -5130,7 +5020,7 @@ export function SettingsPage() {
         </div>
       )}
 
-      {activeTab === 'filament' && localSettings && (
+      {activeTab === 'warehouse-material' && localSettings && (
         <>
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
           {/* Left Column (1/3) - Mode Selector + AMS Thresholds */}
@@ -5511,7 +5401,7 @@ export function SettingsPage() {
       )}
 
       {/* Users Tab */}
-      {activeTab === 'users' && (
+      {activeTab === 'users-security' && (
         <div className="space-y-3">
           {/* Sub-tab Navigation */}
           <div className="flex gap-1 border-b border-bambu-dark-tertiary">
@@ -6563,13 +6453,13 @@ export function SettingsPage() {
       )}
 
       {/* Backup Tab */}
-      {activeTab === 'failure-detection' && (
+      {activeTab === 'printers-production' && (
         <div id="card-failure-detection">
           <FailureDetectionSettings />
         </div>
       )}
 
-      {activeTab === 'backup' && (
+      {activeTab === 'operations' && (
         <div id="card-backup">
           <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 rounded-lg flex items-start gap-2">
             <Shield className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" size={16} />
