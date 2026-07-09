@@ -4,27 +4,27 @@
   <img src="static/img/printops_logo.svg" alt="PrintOps Logo" width="360">
 </p>
 
-PrintOps ist ein Fork von [Bambuddy](https://github.com/maziggy/bambuddy) und wird als lokale, selbst gehostete Arbeitsplattform fuer 3D-Druckbetriebe weiterentwickelt. Die technische Basis bleibt bewusst nah am upstream-Projekt; die fachliche Richtung erweitert sie Schritt fuer Schritt um Lager, Auftraege, Kalkulation, Angebote und Rechnungen.
+PrintOps is a fork of [Bambuddy](https://github.com/maziggy/bambuddy) that is being evolved into a local, self-hosted operations platform for 3D printing businesses. The technical foundation intentionally stays close to the upstream project, while the product direction adds warehouse, order, costing, quotation, and invoicing workflows step by step.
 
-## Aktueller Stand
+## Current Status
 
-- Fork-Remote: `https://github.com/ichwars/PrintOps`
+- Fork remote: `https://github.com/ichwars/PrintOps`
 - Upstream: `https://github.com/maziggy/bambuddy`
-- Basis: lokale Druckersteuerung, Inventar, Queue, Archiv, Dateien und Bambu-Lab-nahe Workflows aus Bambuddy
-- PrintOps-Erweiterung: erste Navigation und Grundseiten fuer `Lager` und `Auftraege`
-- Logo-Assets: transparente SVGs fuer Icon und Wortmarke
+- Foundation: local printer control, inventory, queue, archive, files, and Bambu Lab focused workflows from Bambuddy
+- PrintOps extension: first navigation and foundation pages for `Warehouse` and `Orders`
+- Brand assets: transparent SVG files for the icon and wordmark
 
-## Projektziel
+## Product Goal
 
-PrintOps soll die operative Arbeit rund um 3D-Druckauftraege zusammenfuehren:
+PrintOps is intended to bring the operational work around 3D printing orders into one place:
 
-- Drucker, Warteschlange und Archiv verwalten
-- Filament und Materialbestand nachverfolgen
-- Kunden, Auftraege, Angebote und Rechnungen vorbereiten
-- Kalkulationen und Reservierungen in den Druckprozess integrieren
-- bestehende Bambuddy-Funktionen ohne harte Migration weiter nutzbar halten
+- Manage printers, the print queue, and the archive
+- Track filament and material inventory
+- Prepare customers, orders, quotations, and invoices
+- Connect costing and reservations with the print workflow
+- Keep existing Bambuddy functionality usable without a hard migration
 
-## Entwicklung
+## Development
 
 ```bash
 cd frontend
@@ -32,10 +32,10 @@ npm install
 npm run build
 ```
 
-Der Frontend-Build schreibt nach `static/`, wo das Backend die fertigen Assets ausliefert.
+The frontend build writes to `static/`, where the backend serves the compiled assets.
 
-## Lizenz und Herkunft
+## License and Origin
 
-PrintOps basiert auf Bambuddy und uebernimmt dessen Lizenzmodell. Der Code steht unter der `AGPL-3.0`-Lizenz; Details stehen in [LICENSE](LICENSE).
+PrintOps is based on Bambuddy and follows its licensing model. The code is licensed under `AGPL-3.0`; see [LICENSE](LICENSE) for details.
 
-Bei Veroeffentlichung, Bereitstellung oder Netzwerkzugriff auf eine modifizierte Version muessen die korrespondierenden Quelltexte gemaess AGPL bereitgestellt werden.
+When publishing, hosting, or providing network access to a modified version, the corresponding source code must be made available according to the AGPL.
