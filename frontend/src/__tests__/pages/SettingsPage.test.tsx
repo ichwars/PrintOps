@@ -420,6 +420,28 @@ describe('SettingsPage', () => {
       expect(card).not.toBeNull();
     });
 
+    it('opens File Manager from search results on its canonical tab', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('File Manager');
+
+      expect(await screen.findByRole('button', { name: 'Projects & Files' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('File Manager')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=projects-files');
+      expect(document.getElementById('card-filemanager')).not.toBeNull();
+    });
+
+    it('opens Cost Tracking from search results on its canonical tab', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Cost Tracking');
+
+      expect(await screen.findByRole('button', { name: 'Orders & Calculation' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('Cost Tracking')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=orders-calculation');
+      expect(document.getElementById('card-cost')).not.toBeNull();
+    });
+
     it('shows a previously hidden PrintOps sidebar page from Sidebar', async () => {
       vi.mocked(localStorage.getItem).mockImplementation((key) => {
         if (key === SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY) return JSON.stringify(['printers']);
@@ -1566,6 +1588,31 @@ describe('SettingsPage', () => {
         // New clicks write the canonical tab id while preserving the queue sub-tab.
         expect(window.location.search).toContain('tab=printers-production');
         expect(window.location.search).toContain('sub=pipelines');
+      });
+    });
+
+    it('loads Pipelines from the canonical printers-production URL', async () => {
+      window.history.replaceState({}, '', '/settings?tab=printers-production&sub=pipelines');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/No pipelines yet/i)).toBeInTheDocument();
+        expect(window.location.search).toContain('tab=printers-production');
+        expect(window.location.search).toContain('sub=pipelines');
+      });
+    });
+
+    it('clears stale pipelines substate when search jumps back to dispatch content', async () => {
+      window.history.replaceState({}, '', '/settings?tab=printers-production&sub=pipelines');
+      render(<SettingsPage />);
+
+      await screen.findByText(/No pipelines yet/i);
+      await clickSettingsSearchResult('FTP Retry');
+
+      await waitFor(() => {
+        expect(screen.getByText('FTP Retry')).toBeInTheDocument();
+        expect(window.location.search).toContain('tab=printers-production');
+        expect(window.location.search).not.toContain('sub=pipelines');
       });
     });
   });

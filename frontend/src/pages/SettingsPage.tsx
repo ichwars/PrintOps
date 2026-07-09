@@ -276,9 +276,10 @@ export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<CanonicalSettingsTab>(initialTab);
   const [usersSubTab, setUsersSubTab] = useState<UsersSubTab>(legacySubTabs.usersSubTab ?? 'users');
   // Workflow tab sub-tabs (#1425): 'dispatch' = current Workflow content,
-  // 'pipelines' = Slicer Pipelines management. URL: ?tab=queue&sub=pipelines.
+  // 'pipelines' = Slicer Pipelines management. Canonical URL:
+  // ?tab=printers-production&sub=pipelines. Keep the legacy queue alias working too.
   const initialQueueSub: QueueSubTab =
-    tabParam === 'queue' && searchParams.get('sub') === 'pipelines'
+    initialTab === 'printers-production' && searchParams.get('sub') === 'pipelines'
       ? 'pipelines'
       : legacySubTabs.queueSubTab ?? 'dispatch';
   const [queueSubTab, setQueueSubTab] = useState<QueueSubTab>(initialQueueSub);
@@ -1353,9 +1354,14 @@ export function SettingsPage() {
 
   const jumpToSetting = (entry: typeof searchIndex[number]) => {
     const legacyTargetTab = resolveLegacySearchTab(entry);
-    handleTabChange(resolveSettingsTab(legacyTargetTab));
-    if (legacyTargetTab === 'queue') {
+    const targetTab = resolveSettingsTab(legacyTargetTab);
+    handleTabChange(targetTab);
+    if (targetTab === 'printers-production' && entry.anchor !== 'card-pipelines') {
       setQueueSubTab('dispatch');
+      const nextSearchParams = new URLSearchParams(searchParams);
+      nextSearchParams.set('tab', 'printers-production');
+      nextSearchParams.delete('sub');
+      setSearchParams(nextSearchParams, { replace: true });
     }
     if (entry.subTab) {
       setUsersSubTab(entry.subTab as UsersSubTab);
