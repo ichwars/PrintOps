@@ -184,21 +184,70 @@ describe('SettingsPage', () => {
       });
     });
 
-    it('hides a Bambuddy sidebar page from Sidebar', async () => {
+    it('hides a PrintOps sidebar page from Sidebar', async () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
       await screen.findByRole('heading', { name: 'Sidebar' });
-      await screen.findAllByText('Visible in sidebar');
+      await screen.findAllByText(/Visible in sidebar/);
 
       vi.mocked(localStorage.setItem).mockClear();
       await user.click((await screen.findAllByLabelText('Hide page'))[0]);
 
-      expect(localStorage.setItem).toHaveBeenCalledWith(SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY, JSON.stringify(['printers']));
-      expect(screen.getByText('Hidden from sidebar')).toBeInTheDocument();
+      expect(localStorage.setItem).toHaveBeenCalledWith(SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY, JSON.stringify(['dashboard']));
+      expect(screen.getByText(/Hidden from sidebar/)).toBeInTheDocument();
     });
 
-    it('shows a previously hidden Bambuddy sidebar page from Sidebar', async () => {
+    it('renders PrintOps Sidebar labels and child context instead of translation keys', async () => {
+      render(<SettingsPage />);
+
+      const heading = await screen.findByRole('heading', { name: 'Sidebar' });
+      const card = heading.closest('#card-sidebar-links') as HTMLElement;
+      expect(card).not.toBeNull();
+      await within(card).findAllByText(/Visible in sidebar/);
+
+      expect(within(card).getByText('Dashboard')).toBeInTheDocument();
+      expect(within(card).getByText('Warehouse')).toBeInTheDocument();
+      expect(within(card).getByText('Orders')).toBeInTheDocument();
+      expect(within(card).queryByText('printops.nav.dashboard')).not.toBeInTheDocument();
+      expect(within(card).queryByText('printops.nav.warehouse')).not.toBeInTheDocument();
+      expect(within(card).getAllByText('Child page of Printers · Visible in sidebar').length).toBeGreaterThan(0);
+    });
+
+    it('searches Sidebar in Allgemein after canonical IA changes', async () => {
+      const user = userEvent.setup();
+      render(<SettingsPage />);
+
+      const search = await screen.findByPlaceholderText('Search settings…');
+      await user.type(search, 'Sidebar');
+
+      expect((await screen.findAllByText('Sidebar')).length).toBeGreaterThan(0);
+      expect(screen.getAllByText('General').length).toBeGreaterThan(0);
+    });
+
+    it('searches SpoolBuddy in Warehouse & Material', async () => {
+      const user = userEvent.setup();
+      render(<SettingsPage />);
+
+      const search = await screen.findByPlaceholderText('Search settings…');
+      await user.type(search, 'SpoolBuddy');
+
+      expect((await screen.findAllByText('SpoolBuddy')).length).toBeGreaterThan(0);
+      expect(screen.getByText('Warehouse & Material')).toBeInTheDocument();
+    });
+
+    it('searches Virtual Printer in Printers & Production', async () => {
+      const user = userEvent.setup();
+      render(<SettingsPage />);
+
+      const search = await screen.findByPlaceholderText('Search settings…');
+      await user.type(search, 'Virtual Printer');
+
+      expect((await screen.findAllByText('Virtual Printer')).length).toBeGreaterThan(0);
+      expect(screen.getByText('Printers & Production')).toBeInTheDocument();
+    });
+
+    it('shows a previously hidden PrintOps sidebar page from Sidebar', async () => {
       vi.mocked(localStorage.getItem).mockImplementation((key) => {
         if (key === SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY) return JSON.stringify(['printers']);
         return null;
@@ -208,27 +257,27 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       await screen.findByRole('heading', { name: 'Sidebar' });
-      await screen.findByText('Hidden from sidebar');
+      await screen.findByText(/Hidden from sidebar/);
 
       vi.mocked(localStorage.setItem).mockClear();
       await user.click(await screen.findByLabelText('Show page'));
 
       expect(localStorage.setItem).toHaveBeenCalledWith(SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY, JSON.stringify([]));
-      expect(screen.getAllByText('Visible in sidebar').length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Visible in sidebar/).length).toBeGreaterThan(0);
     });
 
     it('does not allow Settings to be hidden from Sidebar', async () => {
       render(<SettingsPage />);
 
       await screen.findByRole('heading', { name: 'Sidebar' });
-      await screen.findByText('Required in sidebar');
+      await screen.findByText(/Required in sidebar/);
 
       const settingsVisibilityButton = await screen.findByLabelText('Settings cannot be hidden');
       expect(settingsVisibilityButton).toBeDisabled();
-      expect(screen.getByText('Required in sidebar')).toBeInTheDocument();
+      expect(screen.getByText(/Required in sidebar/)).toBeInTheDocument();
     });
 
-    it('presents external links and Bambuddy pages in saved sidebar order', async () => {
+    it('presents external links and PrintOps pages in saved sidebar order', async () => {
       vi.mocked(localStorage.getItem).mockImplementation((key) => {
         if (key === SIDEBAR_ORDER_KEY) return JSON.stringify(['ext-7', 'printers', 'settings']);
         return null;
@@ -303,13 +352,35 @@ describe('SettingsPage', () => {
 
       expect(localStorage.setItem).toHaveBeenCalledWith(
         SIDEBAR_ORDER_KEY,
-        JSON.stringify(['ext-7', 'printers', 'inventory', 'archives', 'queue', 'projects', 'files', 'makerworld', 'profiles', 'maintenance', 'stats', 'notifications', 'settings']),
+        JSON.stringify([
+          'dashboard',
+          'ext-7',
+          'printers',
+          'archives',
+          'queue',
+          'profiles',
+          'maintenance',
+          'projects',
+          'files',
+          'makerworld',
+          'inventory',
+          'warehouse-filament',
+          'warehouse-parts',
+          'warehouse-stock',
+          'orders',
+          'orders-offers',
+          'orders-calculation',
+          'orders-customers',
+          'orders-invoice',
+          'notifications',
+          'settings',
+        ]),
       );
     });
 
     it('resets Sidebar to all pages first and configured links at the bottom', async () => {
       vi.mocked(localStorage.getItem).mockImplementation((key) => {
-        if (key === SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY) return JSON.stringify(['printers', 'stats']);
+        if (key === SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY) return JSON.stringify(['printers', 'dashboard']);
         if (key === SIDEBAR_ORDER_KEY) return JSON.stringify(['ext-7', 'settings', 'printers']);
         return null;
       });
@@ -345,7 +416,29 @@ describe('SettingsPage', () => {
       expect(localStorage.setItem).toHaveBeenCalledWith(SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY, JSON.stringify([]));
       expect(localStorage.setItem).toHaveBeenCalledWith(
         SIDEBAR_ORDER_KEY,
-        JSON.stringify(['printers', 'inventory', 'archives', 'queue', 'projects', 'files', 'makerworld', 'profiles', 'maintenance', 'stats', 'notifications', 'settings', 'ext-7']),
+        JSON.stringify([
+          'dashboard',
+          'printers',
+          'archives',
+          'queue',
+          'profiles',
+          'maintenance',
+          'projects',
+          'files',
+          'makerworld',
+          'inventory',
+          'warehouse-filament',
+          'warehouse-parts',
+          'warehouse-stock',
+          'orders',
+          'orders-offers',
+          'orders-calculation',
+          'orders-customers',
+          'orders-invoice',
+          'notifications',
+          'settings',
+          'ext-7',
+        ]),
       );
 
       const settingsRow = screen.getAllByText('Settings')
@@ -355,13 +448,13 @@ describe('SettingsPage', () => {
       expect(settingsRow).not.toBeNull();
       expect(docsRow).not.toBeNull();
       expect(settingsRow!.compareDocumentPosition(docsRow!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(screen.queryByText('Hidden from sidebar')).not.toBeInTheDocument();
+      expect(screen.queryByText(/Hidden from sidebar/)).not.toBeInTheDocument();
     });
 
     it('sets the current Sidebar order as the backend default for settings admins', async () => {
       let defaultSidebarOrderPayload: string | null = null;
       vi.mocked(localStorage.getItem).mockImplementation((key) => {
-        if (key === SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY) return JSON.stringify(['stats']);
+        if (key === SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY) return JSON.stringify(['dashboard']);
         return null;
       });
 
@@ -406,20 +499,28 @@ describe('SettingsPage', () => {
       });
       expect(JSON.parse(defaultSidebarOrderPayload!)).toEqual({
         order: [
+          'dashboard',
           'printers',
-          'inventory',
           'archives',
           'queue',
+          'profiles',
+          'maintenance',
           'projects',
           'files',
           'makerworld',
-          'profiles',
-          'maintenance',
-          'stats',
+          'inventory',
+          'warehouse-filament',
+          'warehouse-parts',
+          'warehouse-stock',
+          'orders',
+          'orders-offers',
+          'orders-calculation',
+          'orders-customers',
+          'orders-invoice',
           'notifications',
           'settings',
         ],
-        hiddenSystemItemIds: ['stats'],
+        hiddenSystemItemIds: ['dashboard'],
       });
     });
   });
@@ -492,14 +593,14 @@ describe('SettingsPage', () => {
 
     it('shows the installer-download link for Windows installer installs', async () => {
       const downloadUrl =
-        'https://github.com/maziggy/bambuddy/releases/download/v0.2.5/bambuddy-0.2.5-windows-x64-setup.exe';
+        'https://github.com/ichwars/PrintOps/releases/download/v0.2.5/printops-0.2.5-windows-x64-setup.exe';
       await renderWithUpdateCheck({
         update_available: true,
         current_version: '0.2.4',
         latest_version: '0.2.5',
         release_name: '0.2.5',
         release_notes: '',
-        release_url: 'https://github.com/maziggy/bambuddy/releases/tag/v0.2.5',
+        release_url: 'https://github.com/ichwars/PrintOps/releases/tag/v0.2.5',
         published_at: '2099-01-01T00:00:00Z',
         is_docker: false,
         is_ha_addon: false,

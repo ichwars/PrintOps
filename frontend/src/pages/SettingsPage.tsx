@@ -49,6 +49,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Palette } from 'lucide-react';
 import { registerSettingsSearch, getSettingsSearchEntries } from '../lib/settingsSearch';
 import type { UsersSubTab } from '../lib/settingsSearch';
+import { settingsTabLabelKey } from '../lib/settingsNavigation';
 
 const validTabs = ['general', 'plugs', 'notifications', 'queue', 'filament', 'network', 'apikeys', 'virtual-printer', 'spoolbuddy', 'failure-detection', 'users', 'backup'] as const;
 type TabType = typeof validTabs[number];
@@ -58,70 +59,70 @@ type TabType = typeof validTabs[number];
 // own component file, call registerSettingsSearch at that file's module scope).
 registerSettingsSearch({ labelKey: 'settings.general', tab: 'general', keywords: 'language date time format printer model printers cards', anchor: 'card-general' });
 registerSettingsSearch({ labelKey: 'settings.appearance', tab: 'general', keywords: 'theme dark light mode colors', anchor: 'card-appearance' });
-registerSettingsSearch({ labelKey: 'settings.archiveSettings', tab: 'general', keywords: 'archive auto save thumbnails captures', anchor: 'card-archive' });
-registerSettingsSearch({ labelKey: 'settings.camera', tab: 'general', keywords: 'camera external video stream', anchor: 'card-camera' });
-registerSettingsSearch({ labelKey: 'settings.costTracking', tab: 'general', keywords: 'currency filament cost energy kwh price', anchor: 'card-cost' });
-registerSettingsSearch({ labelKey: 'settings.fileManager', tab: 'general', keywords: 'file manager archive mode disk warning storage', anchor: 'card-filemanager' });
-registerSettingsSearch({ labelKey: 'settings.updates', tab: 'general', keywords: 'updates version firmware beta check', anchor: 'card-updates' });
-registerSettingsSearch({ labelKey: 'settings.dataManagement', tab: 'general', keywords: 'data reset clear logs notifications preferences', anchor: 'card-data' });
-registerSettingsSearch({ labelKey: 'settings.smartPlugs', tab: 'plugs', keywords: 'smart plug energy power automation tapo kasa tplink shelly', anchor: 'card-plugs' });
-registerSettingsSearch({ labelKey: 'settings.providers', tab: 'notifications', keywords: 'telegram discord email notification providers webhook', anchor: 'card-providers' });
-registerSettingsSearch({ labelKey: 'settings.messageTemplates', tab: 'notifications', keywords: 'message templates notification text edit', anchor: 'card-templates' });
-registerSettingsSearch({ labelKey: 'settings.defaultPrintOptions', labelFallback: 'Default Print Options', tab: 'queue', keywords: 'print bed leveling flow calibration vibration first layer timelapse', anchor: 'card-print-options' });
-registerSettingsSearch({ labelKey: 'settings.tempFanPresetsTitle', labelFallback: 'Temperature & Fan Presets', tab: 'queue', keywords: 'temperature fan presets nozzle bed chamber quick buttons popover', anchor: 'card-temp-fan-presets' });
-registerSettingsSearch({ labelKey: 'settings.staggeredStart', labelFallback: 'Staggered Start', tab: 'queue', keywords: 'staggered batch delay start queue group', anchor: 'card-staggered' });
-registerSettingsSearch({ labelKey: 'settings.plateClear', labelFallback: 'Plate-Clear Confirmation', tab: 'queue', keywords: 'plate clear confirm auto queue', anchor: 'card-plate' });
-registerSettingsSearch({ labelKey: 'settings.gcodeInjection', labelFallback: 'G-code Injection', tab: 'queue', keywords: 'gcode injection start end autoprint farmloop swapmod autoclear printflow', anchor: 'card-gcode' });
-registerSettingsSearch({ labelKey: 'settings.slicerCard', labelFallback: 'Slicer', tab: 'queue', keywords: 'slicer orcaslicer bambustudio orca bambu api sidecar url docker preferred', anchor: 'card-slicer' });
-registerSettingsSearch({ labelKey: 'settings.queueDrying', tab: 'queue', keywords: 'drying presets temperature time humidity ams', anchor: 'card-drying' });
-registerSettingsSearch({ labelKey: 'settings.filamentChecks', tab: 'filament', keywords: 'filament check warning runout remaining', anchor: 'card-filamentchecks' });
-registerSettingsSearch({ labelKey: 'settings.printModal', tab: 'filament', keywords: 'print modal custom mapping', anchor: 'card-printmodal' });
-registerSettingsSearch({ labelKey: 'settings.amsDisplayThresholds', tab: 'filament', keywords: 'ams humidity temperature threshold history retention', anchor: 'card-amsthresholds' });
-registerSettingsSearch({ labelKey: 'settings.externalUrl', tab: 'network', keywords: 'external url reverse proxy public notification link', anchor: 'card-externalurl' });
-registerSettingsSearch({ labelKey: 'settings.ftpRetry', tab: 'network', keywords: 'ftp retry upload retries backoff', anchor: 'card-ftpretry' });
-registerSettingsSearch({ labelKey: 'settings.homeAssistant', tab: 'network', keywords: 'home assistant ha hass mqtt integration', anchor: 'card-ha' });
-registerSettingsSearch({ labelKey: 'settings.mqttPublishing', tab: 'network', keywords: 'mqtt publish broker topic', anchor: 'card-mqtt' });
-registerSettingsSearch({ labelKey: 'settings.prometheusMetrics', tab: 'network', keywords: 'prometheus metrics grafana monitoring bearer token', anchor: 'card-prometheus' });
-registerSettingsSearch({ labelKey: 'settings.createNewApiKey', tab: 'apikeys', keywords: 'api key create permission scope', anchor: 'card-createapi' });
-registerSettingsSearch({ labelKey: 'settings.webhookEndpoints', tab: 'apikeys', keywords: 'webhook endpoint post http', anchor: 'card-webhooks' });
-registerSettingsSearch({ labelKey: 'settings.apiBrowser', tab: 'apikeys', keywords: 'api browser endpoint documentation test', anchor: 'card-apibrowser' });
-registerSettingsSearch({ labelKey: 'cameraTokens.title', tab: 'apikeys', keywords: 'camera token long-lived home assistant frigate kiosk stream', anchor: 'card-camera-tokens' });
-registerSettingsSearch({ labelKey: 'settings.tabs.virtualPrinter', tab: 'virtual-printer', keywords: 'virtual printer proxy archive slicer bambustudio orcaslicer ip bind', anchor: 'card-vp' });
-registerSettingsSearch({ labelKey: 'settings.tabs.spoolbuddy', tab: 'spoolbuddy', keywords: 'spoolbuddy device scale nfc rfid kiosk unregister', anchor: 'card-spoolbuddy' });
-registerSettingsSearch({ labelKey: 'settings.currentUser', tab: 'users', subTab: 'users', keywords: 'current user profile password change', anchor: 'card-currentuser' });
-registerSettingsSearch({ labelKey: 'settings.users', tab: 'users', subTab: 'users', keywords: 'users accounts list', anchor: 'card-users' });
-registerSettingsSearch({ labelKey: 'settings.groups', tab: 'users', subTab: 'users', keywords: 'groups roles permissions administrators operators viewers', anchor: 'card-groups' });
-registerSettingsSearch({ labelKey: 'settings.sessionPolicy.title', labelFallback: 'Session Policy', tab: 'users', subTab: 'users', keywords: 'session timeout expiry logout remember me jwt token lifetime', anchor: 'card-session-policy' });
-registerSettingsSearch({ labelKey: 'settings.email.smtpSettings', labelFallback: 'SMTP Configuration', tab: 'users', subTab: 'email', keywords: 'smtp email send server port password auth starttls ssl', anchor: 'card-smtp' });
-registerSettingsSearch({ labelKey: 'settings.ldap.title', labelFallback: 'LDAP Authentication', tab: 'users', subTab: 'ldap', keywords: 'ldap active directory ad authentication bind dn search base group mapping', anchor: 'card-ldap' });
-registerSettingsSearch({ labelKey: 'settings.tabs.backup', tab: 'backup', keywords: 'backup github restore download cloud sync profiles archives', anchor: 'card-backup' });
+registerSettingsSearch({ labelKey: 'settings.archiveSettings', tab: 'printers-production', keywords: 'archive auto save thumbnails captures', anchor: 'card-archive' });
+registerSettingsSearch({ labelKey: 'settings.camera', tab: 'printers-production', keywords: 'camera external video stream', anchor: 'card-camera' });
+registerSettingsSearch({ labelKey: 'settings.costTracking', tab: 'orders-calculation', keywords: 'currency filament cost energy kwh price', anchor: 'card-cost' });
+registerSettingsSearch({ labelKey: 'settings.fileManager', tab: 'projects-files', keywords: 'file manager archive mode disk warning storage', anchor: 'card-filemanager' });
+registerSettingsSearch({ labelKey: 'settings.updates', tab: 'operations', keywords: 'updates version firmware beta check', anchor: 'card-updates' });
+registerSettingsSearch({ labelKey: 'settings.dataManagement', tab: 'operations', keywords: 'data reset clear logs notifications preferences', anchor: 'card-data' });
+registerSettingsSearch({ labelKey: 'settings.smartPlugs', tab: 'integrations', keywords: 'smart plug energy power automation tapo kasa tplink shelly', anchor: 'card-plugs' });
+registerSettingsSearch({ labelKey: 'settings.providers', tab: 'integrations', keywords: 'telegram discord email notification providers webhook', anchor: 'card-providers' });
+registerSettingsSearch({ labelKey: 'settings.messageTemplates', tab: 'integrations', keywords: 'message templates notification text edit', anchor: 'card-templates' });
+registerSettingsSearch({ labelKey: 'settings.defaultPrintOptions', labelFallback: 'Default Print Options', tab: 'printers-production', keywords: 'print bed leveling flow calibration vibration first layer timelapse', anchor: 'card-print-options' });
+registerSettingsSearch({ labelKey: 'settings.tempFanPresetsTitle', labelFallback: 'Temperature & Fan Presets', tab: 'printers-production', keywords: 'temperature fan presets nozzle bed chamber quick buttons popover', anchor: 'card-temp-fan-presets' });
+registerSettingsSearch({ labelKey: 'settings.staggeredStart', labelFallback: 'Staggered Start', tab: 'printers-production', keywords: 'staggered batch delay start queue group', anchor: 'card-staggered' });
+registerSettingsSearch({ labelKey: 'settings.plateClear', labelFallback: 'Plate-Clear Confirmation', tab: 'printers-production', keywords: 'plate clear confirm auto queue', anchor: 'card-plate' });
+registerSettingsSearch({ labelKey: 'settings.gcodeInjection', labelFallback: 'G-code Injection', tab: 'printers-production', keywords: 'gcode injection start end autoprint farmloop swapmod autoclear printflow', anchor: 'card-gcode' });
+registerSettingsSearch({ labelKey: 'settings.slicerCard', labelFallback: 'Slicer', tab: 'printers-production', keywords: 'slicer orcaslicer bambustudio orca bambu api sidecar url docker preferred', anchor: 'card-slicer' });
+registerSettingsSearch({ labelKey: 'settings.queueDrying', tab: 'warehouse-material', keywords: 'drying presets temperature time humidity ams', anchor: 'card-drying' });
+registerSettingsSearch({ labelKey: 'settings.filamentChecks', tab: 'warehouse-material', keywords: 'filament check warning runout remaining', anchor: 'card-filamentchecks' });
+registerSettingsSearch({ labelKey: 'settings.printModal', tab: 'warehouse-material', keywords: 'print modal custom mapping', anchor: 'card-printmodal' });
+registerSettingsSearch({ labelKey: 'settings.amsDisplayThresholds', tab: 'warehouse-material', keywords: 'ams humidity temperature threshold history retention', anchor: 'card-amsthresholds' });
+registerSettingsSearch({ labelKey: 'settings.externalUrl', tab: 'integrations', keywords: 'external url reverse proxy public notification link', anchor: 'card-externalurl' });
+registerSettingsSearch({ labelKey: 'settings.ftpRetry', tab: 'printers-production', keywords: 'ftp retry upload retries backoff', anchor: 'card-ftpretry' });
+registerSettingsSearch({ labelKey: 'settings.homeAssistant', tab: 'integrations', keywords: 'home assistant ha hass mqtt integration', anchor: 'card-ha' });
+registerSettingsSearch({ labelKey: 'settings.mqttPublishing', tab: 'integrations', keywords: 'mqtt publish broker topic', anchor: 'card-mqtt' });
+registerSettingsSearch({ labelKey: 'settings.prometheusMetrics', tab: 'operations', keywords: 'prometheus metrics grafana monitoring bearer token', anchor: 'card-prometheus' });
+registerSettingsSearch({ labelKey: 'settings.createNewApiKey', tab: 'users-security', keywords: 'api key create permission scope', anchor: 'card-createapi' });
+registerSettingsSearch({ labelKey: 'settings.webhookEndpoints', tab: 'integrations', keywords: 'webhook endpoint post http', anchor: 'card-webhooks' });
+registerSettingsSearch({ labelKey: 'settings.apiBrowser', tab: 'integrations', keywords: 'api browser endpoint documentation test', anchor: 'card-apibrowser' });
+registerSettingsSearch({ labelKey: 'cameraTokens.title', tab: 'users-security', keywords: 'camera token long-lived home assistant frigate kiosk stream', anchor: 'card-camera-tokens' });
+registerSettingsSearch({ labelKey: 'settings.tabs.virtualPrinter', tab: 'printers-production', keywords: 'virtual printer proxy archive slicer bambustudio orcaslicer ip bind', anchor: 'card-vp' });
+registerSettingsSearch({ labelKey: 'settings.tabs.spoolbuddy', tab: 'warehouse-material', keywords: 'spoolbuddy device scale nfc rfid kiosk unregister', anchor: 'card-spoolbuddy' });
+registerSettingsSearch({ labelKey: 'settings.currentUser', tab: 'users-security', subTab: 'users', keywords: 'current user profile password change', anchor: 'card-currentuser' });
+registerSettingsSearch({ labelKey: 'settings.users', tab: 'users-security', subTab: 'users', keywords: 'users accounts list', anchor: 'card-users' });
+registerSettingsSearch({ labelKey: 'settings.groups', tab: 'users-security', subTab: 'users', keywords: 'groups roles permissions administrators operators viewers', anchor: 'card-groups' });
+registerSettingsSearch({ labelKey: 'settings.sessionPolicy.title', labelFallback: 'Session Policy', tab: 'users-security', subTab: 'users', keywords: 'session timeout expiry logout remember me jwt token lifetime', anchor: 'card-session-policy' });
+registerSettingsSearch({ labelKey: 'settings.email.smtpSettings', labelFallback: 'SMTP Configuration', tab: 'users-security', subTab: 'email', keywords: 'smtp email send server port password auth starttls ssl', anchor: 'card-smtp' });
+registerSettingsSearch({ labelKey: 'settings.ldap.title', labelFallback: 'LDAP Authentication', tab: 'users-security', subTab: 'ldap', keywords: 'ldap active directory ad authentication bind dn search base group mapping', anchor: 'card-ldap' });
+registerSettingsSearch({ labelKey: 'settings.tabs.backup', tab: 'operations', keywords: 'backup github restore download cloud sync profiles archives', anchor: 'card-backup' });
 // Sidebar (system pages and external links settings is rendered in the General tab)
 registerSettingsSearch({ labelKey: 'externalLinks.sidebarLayout', labelFallback: 'Sidebar', tab: 'general', keywords: 'sidebar layout links pages hide show external custom navigation url add', anchor: 'card-sidebar-links' });
 // Filament tab — integrations
-registerSettingsSearch({ labelKey: 'settings.filamentTracking', tab: 'filament', keywords: 'spoolman filament tracking inventory sync remote integration', anchor: 'card-spoolman' });
-registerSettingsSearch({ labelKey: 'settings.catalog.spoolCatalog', labelFallback: 'Spool Catalog', tab: 'filament', keywords: 'spool catalog entries brand material reset import export', anchor: 'card-spool-catalog' });
-registerSettingsSearch({ labelKey: 'settings.colorCatalog.title', labelFallback: 'Color Catalog', tab: 'filament', keywords: 'color catalog hex swatch palette sync reset', anchor: 'card-color-catalog' });
+registerSettingsSearch({ labelKey: 'settings.filamentTracking', tab: 'warehouse-material', keywords: 'spoolman filament tracking inventory sync remote integration', anchor: 'card-spoolman' });
+registerSettingsSearch({ labelKey: 'settings.catalog.spoolCatalog', labelFallback: 'Spool Catalog', tab: 'warehouse-material', keywords: 'spool catalog entries brand material reset import export', anchor: 'card-spool-catalog' });
+registerSettingsSearch({ labelKey: 'settings.colorCatalog.title', labelFallback: 'Color Catalog', tab: 'warehouse-material', keywords: 'color catalog hex swatch palette sync reset', anchor: 'card-color-catalog' });
 // Failure detection sub-cards
-registerSettingsSearch({ labelKey: 'settings.tabs.failureDetection', labelFallback: 'Failure Detection', tab: 'failure-detection', keywords: 'failure detection ai ml obico spaghetti detect monitoring', anchor: 'card-fd-ml' });
-registerSettingsSearch({ labelKey: 'failureDetection.perPrinterTitle', labelFallback: 'Per-Printer Settings', tab: 'failure-detection', keywords: 'failure detection per printer enable per-printer sensitivity', anchor: 'card-fd-perprinter' });
-registerSettingsSearch({ labelKey: 'failureDetection.statusTitle', labelFallback: 'Detection Status', tab: 'failure-detection', keywords: 'failure detection status running connection', anchor: 'card-fd-status' });
-registerSettingsSearch({ labelKey: 'failureDetection.historyTitle', labelFallback: 'Detection History', tab: 'failure-detection', keywords: 'failure detection history log events', anchor: 'card-fd-history' });
+registerSettingsSearch({ labelKey: 'settings.tabs.failureDetection', labelFallback: 'Failure Detection', tab: 'printers-production', keywords: 'failure detection ai ml obico spaghetti detect monitoring', anchor: 'card-fd-ml' });
+registerSettingsSearch({ labelKey: 'failureDetection.perPrinterTitle', labelFallback: 'Per-Printer Settings', tab: 'printers-production', keywords: 'failure detection per printer enable per-printer sensitivity', anchor: 'card-fd-perprinter' });
+registerSettingsSearch({ labelKey: 'failureDetection.statusTitle', labelFallback: 'Detection Status', tab: 'printers-production', keywords: 'failure detection status running connection', anchor: 'card-fd-status' });
+registerSettingsSearch({ labelKey: 'failureDetection.historyTitle', labelFallback: 'Detection History', tab: 'printers-production', keywords: 'failure detection history log events', anchor: 'card-fd-history' });
 // Email auth sub-cards (subTab=email)
-registerSettingsSearch({ labelKey: 'settings.email.advancedAuth', labelFallback: 'Advanced Email Authentication', tab: 'users', subTab: 'email', keywords: 'email authentication advanced password reset self-service forgot', anchor: 'card-email-advanced-auth' });
-registerSettingsSearch({ labelKey: 'settings.email.testConnection', labelFallback: 'Test SMTP Connection', tab: 'users', subTab: 'email', keywords: 'email smtp test connection send check', anchor: 'card-email-test' });
+registerSettingsSearch({ labelKey: 'settings.email.advancedAuth', labelFallback: 'Advanced Email Authentication', tab: 'users-security', subTab: 'email', keywords: 'email authentication advanced password reset self-service forgot', anchor: 'card-email-advanced-auth' });
+registerSettingsSearch({ labelKey: 'settings.email.testConnection', labelFallback: 'Test SMTP Connection', tab: 'users-security', subTab: 'email', keywords: 'email smtp test connection send check', anchor: 'card-email-test' });
 // Two-Factor sub-cards (subTab=twofa)
-registerSettingsSearch({ labelKey: 'settings.twoFa.totpTitle', labelFallback: 'Authenticator App (TOTP)', tab: 'users', subTab: 'twofa', keywords: 'two factor 2fa totp authenticator app google authy otp', anchor: 'card-2fa-totp' });
-registerSettingsSearch({ labelKey: 'settings.twoFa.emailOtpTitle', labelFallback: 'Email One-Time Codes', tab: 'users', subTab: 'twofa', keywords: 'two factor 2fa email otp one time code', anchor: 'card-2fa-emailotp' });
-registerSettingsSearch({ labelKey: 'settings.twoFa.linkedAccounts', labelFallback: 'Linked Accounts', tab: 'users', subTab: 'twofa', keywords: 'two factor 2fa linked accounts sso oidc provider google github', anchor: 'card-2fa-linked' });
+registerSettingsSearch({ labelKey: 'settings.twoFa.totpTitle', labelFallback: 'Authenticator App (TOTP)', tab: 'users-security', subTab: 'twofa', keywords: 'two factor 2fa totp authenticator app google authy otp', anchor: 'card-2fa-totp' });
+registerSettingsSearch({ labelKey: 'settings.twoFa.emailOtpTitle', labelFallback: 'Email One-Time Codes', tab: 'users-security', subTab: 'twofa', keywords: 'two factor 2fa email otp one time code', anchor: 'card-2fa-emailotp' });
+registerSettingsSearch({ labelKey: 'settings.twoFa.linkedAccounts', labelFallback: 'Linked Accounts', tab: 'users-security', subTab: 'twofa', keywords: 'two factor 2fa linked accounts sso oidc provider google github', anchor: 'card-2fa-linked' });
 // OIDC / SSO (subTab=oidc)
-registerSettingsSearch({ labelKey: 'settings.oidc.title', labelFallback: 'Single Sign-On (OIDC)', tab: 'users', subTab: 'oidc', keywords: 'sso oidc openid single sign-on pocketid authentik keycloak google okta azure provider', anchor: 'card-oidc' });
+registerSettingsSearch({ labelKey: 'settings.oidc.title', labelFallback: 'Single Sign-On (OIDC)', tab: 'users-security', subTab: 'oidc', keywords: 'sso oidc openid single sign-on pocketid authentik keycloak google okta azure provider', anchor: 'card-oidc' });
 // LDAP server config card (complements existing card-ldap)
-registerSettingsSearch({ labelKey: 'settings.ldap.serverConfig', labelFallback: 'LDAP Server Configuration', tab: 'users', subTab: 'ldap', keywords: 'ldap server url bind dn user search base group filter tls', anchor: 'card-ldap-server' });
+registerSettingsSearch({ labelKey: 'settings.ldap.serverConfig', labelFallback: 'LDAP Server Configuration', tab: 'users-security', subTab: 'ldap', keywords: 'ldap server url bind dn user search base group filter tls', anchor: 'card-ldap-server' });
 // Backup sub-cards
-registerSettingsSearch({ labelKey: 'backup.githubBackup', labelFallback: 'GitHub Backup', tab: 'backup', keywords: 'github backup cloud remote sync profiles token', anchor: 'card-backup-github' });
-registerSettingsSearch({ labelKey: 'backup.history', labelFallback: 'Backup History', tab: 'backup', keywords: 'backup history log runs github commits', anchor: 'card-backup-history' });
-registerSettingsSearch({ labelKey: 'backup.localBackup', labelFallback: 'Local Backup', tab: 'backup', keywords: 'local backup download zip manual export', anchor: 'card-backup-local' });
-registerSettingsSearch({ labelKey: 'backup.scheduledBackup', labelFallback: 'Scheduled Backups', tab: 'backup', keywords: 'scheduled backup automatic hourly daily weekly retention local path', anchor: 'card-backup-scheduled' });
+registerSettingsSearch({ labelKey: 'backup.githubBackup', labelFallback: 'GitHub Backup', tab: 'operations', keywords: 'github backup cloud remote sync profiles token', anchor: 'card-backup-github' });
+registerSettingsSearch({ labelKey: 'backup.history', labelFallback: 'Backup History', tab: 'operations', keywords: 'backup history log runs github commits', anchor: 'card-backup-history' });
+registerSettingsSearch({ labelKey: 'backup.localBackup', labelFallback: 'Local Backup', tab: 'operations', keywords: 'local backup download zip manual export', anchor: 'card-backup-local' });
+registerSettingsSearch({ labelKey: 'backup.scheduledBackup', labelFallback: 'Scheduled Backups', tab: 'operations', keywords: 'scheduled backup automatic hourly daily weekly retention local path', anchor: 'card-backup-scheduled' });
 
 const STORAGE_CATEGORY_COLORS: Record<string, string> = {
   database: 'bg-blue-600',
@@ -154,6 +155,17 @@ const STORAGE_FALLBACK_COLORS = [
 
 const getStorageColor = (key: string, index: number) =>
   STORAGE_CATEGORY_COLORS[key] || STORAGE_FALLBACK_COLORS[index % STORAGE_FALLBACK_COLORS.length];
+
+const settingsSearchTabFallbackLabels = {
+  general: 'General',
+  'users-security': 'Users & Security',
+  'printers-production': 'Printers & Production',
+  'projects-files': 'Projects & Files',
+  'warehouse-material': 'Warehouse & Material',
+  'orders-calculation': 'Orders & Calculation',
+  integrations: 'Integrations',
+  operations: 'Operations',
+} as const;
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -1291,7 +1303,7 @@ export function SettingsPage() {
             <SettingsIcon className="w-7 h-7 text-bambu-green" />
             {t('settings.title')}
           </h1>
-          <p className="text-bambu-gray mt-1">{t('settings.configureBambuddy')}</p>
+          <p className="text-bambu-gray mt-1">{t('settings.configurePrintOps')}</p>
         </div>
         {/* Cross-tab search */}
         <div className="relative sm:w-72">
@@ -1322,7 +1334,7 @@ export function SettingsPage() {
                 >
                   <p className="text-sm text-white">{entry.label}</p>
                   <p className="text-xs text-bambu-gray">
-                    {t(`settings.tabs.${entry.tab === 'virtual-printer' ? 'virtualPrinter' : entry.tab === 'failure-detection' ? 'failureDetection' : entry.tab}`)}
+                    {t(settingsTabLabelKey(entry.tab), settingsSearchTabFallbackLabels[entry.tab])}
                     {entry.subTab ? ` › ${t(`settings.tabs.${entry.subTab}`, entry.subTab)}` : ''}
                   </p>
                 </button>
@@ -1506,7 +1518,7 @@ export function SettingsPage() {
       <>
       {/* Sponsor banner — prominent independence callout */}
       <a
-        href="https://bambuddy.cool/sponsors.html?from=app-settings"
+        href="https://github.com/ichwars/PrintOps?from=app-settings"
         target="_blank"
         rel="noopener noreferrer"
         className="group block mb-4 lg:mb-6 rounded-xl border border-bambu-green/30 bg-gradient-to-br from-bambu-green/15 via-bambu-green/5 to-transparent hover:border-bambu-green/50 hover:from-bambu-green/20 transition-colors"
@@ -1522,7 +1534,7 @@ export function SettingsPage() {
             <p className="text-sm text-bambu-gray mt-0.5">
               {t(
                 'sponsors.tagline',
-                'Bambuddy is free and stays that way because people choose to support it. No VC, no cloud lock-in.'
+                'PrintOps is free and stays that way because people choose to support it. No VC, no cloud lock-in.'
               )}
             </p>
           </div>
@@ -1587,7 +1599,11 @@ export function SettingsPage() {
                   >
                     {defaultNavItems.map((item) => (
                       <option key={item.id} value={item.to}>
-                        {t(item.labelKey)}
+                        {t(item.labelKey, {
+                          defaultValue: i18n.resolvedLanguage?.startsWith('de')
+                            ? item.defaultLabelDe ?? item.defaultLabel
+                            : item.defaultLabel,
+                        })}
                       </option>
                     ))}
                   </select>
@@ -2465,7 +2481,7 @@ export function SettingsPage() {
                 </label>
               </div>
               <div className="border-t border-bambu-dark-tertiary pt-4">
-                <p className="text-xs font-medium text-bambu-gray uppercase tracking-wider mb-4">{t('settings.bambuddySoftware')}</p>
+                <p className="text-xs font-medium text-bambu-gray uppercase tracking-wider mb-4">{t('settings.printopsSoftware')}</p>
               </div>
               <div className="flex items-center justify-between">
                 <div>
@@ -2662,7 +2678,7 @@ export function SettingsPage() {
               </p>
               <div>
                 <label className="block text-sm text-bambu-gray mb-1">
-                  {t('settings.bambuddyUrl')}
+                  {t('settings.printopsUrl')}
                 </label>
                 <input
                   type="text"
@@ -3047,13 +3063,13 @@ export function SettingsPage() {
                     </label>
                     <input
                       type="text"
-                      value={localSettings.mqtt_topic_prefix ?? 'bambuddy'}
+                      value={localSettings.mqtt_topic_prefix ?? 'printops'}
                       onChange={(e) => updateSetting('mqtt_topic_prefix', e.target.value)}
-                      placeholder="bambuddy"
+                      placeholder="printops"
                       className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                     />
                     <p className="text-xs text-bambu-gray mt-1">
-                      {t('settings.topicPrefixHint', { prefix: localSettings.mqtt_topic_prefix || 'bambuddy' })}
+                      {t('settings.topicPrefixHint', { prefix: localSettings.mqtt_topic_prefix || 'printops' })}
                     </p>
                   </div>
 
@@ -3129,12 +3145,12 @@ export function SettingsPage() {
                   <div className="pt-2 border-t border-bambu-dark-tertiary">
                     <p className="text-sm text-white mb-2">{t('settings.availableMetrics')}</p>
                     <div className="text-xs text-bambu-gray space-y-1">
-                      <p><code className="text-orange-700 dark:text-orange-400">bambuddy_printer_connected</code> - {t('settings.metricsConnectionStatus')}</p>
-                      <p><code className="text-orange-700 dark:text-orange-400">bambuddy_printer_state</code> - {t('settings.metricsPrinterState')}</p>
-                      <p><code className="text-orange-700 dark:text-orange-400">bambuddy_print_progress</code> - {t('settings.metricsPrintProgress')}</p>
-                      <p><code className="text-orange-700 dark:text-orange-400">bambuddy_bed_temp_celsius</code> - {t('settings.metricsBedTemp')}</p>
-                      <p><code className="text-orange-700 dark:text-orange-400">bambuddy_nozzle_temp_celsius</code> - {t('settings.metricsNozzleTemp')}</p>
-                      <p><code className="text-orange-700 dark:text-orange-400">bambuddy_prints_total</code> - {t('settings.metricsPrintsTotal')}</p>
+                      <p><code className="text-orange-700 dark:text-orange-400">printops_printer_connected</code> - {t('settings.metricsConnectionStatus')}</p>
+                      <p><code className="text-orange-700 dark:text-orange-400">printops_printer_state</code> - {t('settings.metricsPrinterState')}</p>
+                      <p><code className="text-orange-700 dark:text-orange-400">printops_print_progress</code> - {t('settings.metricsPrintProgress')}</p>
+                      <p><code className="text-orange-700 dark:text-orange-400">printops_bed_temp_celsius</code> - {t('settings.metricsBedTemp')}</p>
+                      <p><code className="text-orange-700 dark:text-orange-400">printops_nozzle_temp_celsius</code> - {t('settings.metricsNozzleTemp')}</p>
+                      <p><code className="text-orange-700 dark:text-orange-400">printops_prints_total</code> - {t('settings.metricsPrintsTotal')}</p>
                       <p className="text-bambu-gray/70 italic">{t('settings.metricsMore')}</p>
                     </div>
                   </div>
@@ -4455,7 +4471,7 @@ export function SettingsPage() {
                   </button>
                 </div>
                 <p className="text-xs text-bambu-gray mb-2">
-                  {t('settings.preheatFilamentTargetsHint', 'Bambuddy picks the highest target across the loaded AMS slots; PLA-only prints derive 0 and skip the chamber phase automatically.')}
+                  {t('settings.preheatFilamentTargetsHint', 'PrintOps picks the highest target across the loaded AMS slots; PLA-only prints derive 0 and skip the chamber phase automatically.')}
                 </p>
                 <PreheatFilamentTargetsEditor
                   value={localSettings.preheat_filament_targets ?? ''}
