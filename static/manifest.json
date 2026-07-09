@@ -1,47 +1,47 @@
 {
   "id": "/",
-  "name": "Bambuddy",
-  "short_name": "Bambuddy",
-  "description": "Monitor and manage your Bambu Lab 3D printers",
+  "name": "PrintOps",
+  "short_name": "PrintOps",
+  "description": "Operate and manage local 3D printing workflows",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1a1a1a",
-  "theme_color": "#00ae42",
+  "theme_color": "#04AAA4",
   "orientation": "any",
   "scope": "/",
   "icons": [
     {
-      "src": "/img/favicon-16x16.png",
-      "sizes": "16x16",
-      "type": "image/png"
+      "src": "/img/printops_icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
     },
     {
-      "src": "/img/favicon-32x32.png",
-      "sizes": "32x32",
-      "type": "image/png"
+      "src": "/img/printops_icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
     },
     {
-      "src": "/img/android-chrome-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
+      "src": "/img/printops_icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/img/android-chrome-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
+      "src": "/img/printops_icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/img/android-chrome-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
+      "src": "/img/printops_icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
       "purpose": "maskable"
     },
     {
-      "src": "/img/android-chrome-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
+      "src": "/img/printops_icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
       "purpose": "maskable"
     }
   ],
@@ -51,14 +51,14 @@
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Bambuddy on mobile"
+      "label": "PrintOps on mobile"
     },
     {
       "src": "/img/screenshot-desktop.png",
       "sizes": "1920x1080",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Bambuddy on desktop"
+      "label": "PrintOps on desktop"
     }
   ],
   "categories": ["utilities", "productivity"],
@@ -68,28 +68,28 @@
       "short_name": "Printers",
       "description": "View your printers",
       "url": "/",
-      "icons": [{ "src": "/img/android-chrome-192x192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/img/printops_icon.svg", "sizes": "any" }]
     },
     {
       "name": "Archives",
       "short_name": "Archives",
       "description": "View print archives",
       "url": "/archives",
-      "icons": [{ "src": "/img/android-chrome-192x192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/img/printops_icon.svg", "sizes": "any" }]
     },
     {
       "name": "Queue",
       "short_name": "Queue",
       "description": "View print queue",
       "url": "/queue",
-      "icons": [{ "src": "/img/android-chrome-192x192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/img/printops_icon.svg", "sizes": "any" }]
     },
     {
       "name": "Projects",
       "short_name": "Projects",
       "description": "View print projects",
       "url": "/projects",
-      "icons": [{ "src": "/img/android-chrome-192x192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/img/printops_icon.svg", "sizes": "any" }]
     }
   ]
 }

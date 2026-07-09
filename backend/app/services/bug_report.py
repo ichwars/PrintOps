@@ -1,4 +1,4 @@
-"""Bug report service — posts to the bambuddy.cool relay which holds the GitHub PAT."""
+"""Bug report service for an optional external relay."""
 
 import logging
 import time
@@ -33,7 +33,7 @@ async def submit_report(
     screenshot_base64: str | None,
     support_info: dict | None,
 ) -> dict:
-    """Submit a bug report via the bambuddy.cool relay."""
+    """Submit a bug report via the configured relay."""
     if not _check_rate_limit():
         return {
             "success": False,

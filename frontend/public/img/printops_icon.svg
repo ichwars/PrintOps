@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="358" height="390" viewBox="0 0 358 390" role="img" aria-labelledby="title desc" shape-rendering="geometricPrecision">
+  <title id="title">PrintOps Icon</title>
+  <desc id="desc">Saubere vektorbasierte PrintOps Bildmarke mit transparentem Hintergrund, ohne eingebettete Rastergrafik.</desc>
+  <defs>
+    <linearGradient id="po-dark" x1="0" y1="0" x2="0" y2="390" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1F2930"/>
+      <stop offset="0.52" stop-color="#34414A"/>
+      <stop offset="1" stop-color="#182229"/>
+    </linearGradient>
+    <linearGradient id="po-teal" x1="0" y1="0" x2="0" y2="390" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#12C9C2"/>
+      <stop offset="0.55" stop-color="#04AAA4"/>
+      <stop offset="1" stop-color="#159B98"/>
+    </linearGradient>
+    <linearGradient id="po-word-dark" x1="428" y1="119" x2="428" y2="305" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1F2930"/>
+      <stop offset="0.52" stop-color="#2B363E"/>
+      <stop offset="1" stop-color="#182229"/>
+    </linearGradient>
+    <linearGradient id="po-word-teal" x1="879" y1="119" x2="879" y2="305" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#12C9C2"/>
+      <stop offset="0.55" stop-color="#04AAA4"/>
+      <stop offset="1" stop-color="#159B98"/>
+    </linearGradient>
+  </defs>
+
+  <g id="printops-icon" stroke-linecap="round" stroke-linejoin="round">
+    <g id="hexagon-cycle" fill="none" stroke="url(#po-dark)" stroke-width="16">
+      <path d="M24 142 V101 Q24 93 31 89 L168 10 Q179 4 190 10 L327 89 Q334 93 334 102 V143"/>
+      <path d="M24 238 V288 Q24 296 31 301 L168 379 Q179 385 190 379 L242 350"/>
+      <path d="M334 238 V279"/>
+    </g>
+
+    <g id="arrows" fill="url(#po-teal)">
+      <path d="M16 227 V181 H1 L24 154 L47 181 H32 V227 Z"/>
+      <path d="M326 154 H342 V200 H357 L334 227 L310 200 H326 Z"/>
+    </g>
+
+    <g id="printer-head" fill="url(#po-dark)">
+      <rect x="72" y="90" width="62" height="12" rx="0.5"/>
+      <rect x="220" y="90" width="64" height="12" rx="0.5"/>
+      <rect x="142" y="66" width="72" height="55" rx="1.5"/>
+      <path d="M148 128 H208 L186 153 V163 Q186 169 180 169 H176 Q170 169 170 163 V153 Z"/>
+    </g>
+
+    <g id="printed-stack" fill-rule="evenodd" clip-rule="evenodd">
+      <path id="top-layer" fill="url(#po-teal)" d="M179 166 L260 204 L179 244 L97 201 Z"/>
+      <g id="stack-sides" fill="url(#po-dark)">
+        <path d="M96 213 L174 252 V285 L96 245 Z"/>
+        <path d="M184 252 L260 214 V245 L184 285 Z"/>
+        <path d="M96 255 L174 295 V327 L96 287 Z"/>
+        <path d="M184 295 L260 256 V287 L184 327 Z"/>
+        <path d="M96 297 L174 337 V356 L96 316 Z"/>
+        <path d="M184 337 L260 298 V318 L184 356 Z"/>
+      </g>
+    </g>
+
+    <g id="approval-badge">
+      <circle cx="300" cy="329" r="50" fill="url(#po-teal)"/>
+      <path d="M276 327 L293 344 L326 311" fill="none" stroke="#FFFFFF" stroke-width="9"/>
+    </g>
+  </g>
+</svg>

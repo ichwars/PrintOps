@@ -50,6 +50,10 @@ firmware/
 # Screenshots (development - root folder only)
 /screenshots/
 
+# Local agent/session artifacts
+/outputs/
+/work/
+
 # Logs
 *.log
 logs/

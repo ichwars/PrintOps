@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Printer, Archive, ListOrdered, BarChart3, Cloud, Settings, Sun, Moon, Monitor, ChevronLeft, ChevronRight, Keyboard, Github, ArrowUpCircle, Wrench, FolderKanban, FolderOpen, X, Menu, Info, Plug, Bug, LogOut, Key, Loader2, Disc3, ShieldAlert, Globe, Bell, type LucideIcon } from 'lucide-react';
+import { Printer, Archive, ListOrdered, BarChart3, Cloud, Settings, Sun, Moon, Monitor, ChevronLeft, ChevronRight, Keyboard, Github, ArrowUpCircle, Wrench, FolderKanban, FolderOpen, X, Menu, Info, Plug, Bug, LogOut, Key, Loader2, ShieldAlert, Globe, Bell, Warehouse, ClipboardList, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
@@ -35,19 +35,22 @@ interface NavItem {
   to: string;
   icon: LucideIcon;
   labelKey: string; // Translation key
+  defaultLabel?: string;
+  defaultLabelDe?: string;
 }
 
 export const defaultNavItems: NavItem[] = [
   { id: 'printers', to: '/', icon: Printer, labelKey: 'nav.printers' },
-  { id: 'inventory', to: '/inventory', icon: Disc3, labelKey: 'nav.inventory' },
-  { id: 'archives', to: '/archives', icon: Archive, labelKey: 'nav.archives' },
-  { id: 'queue', to: '/queue', icon: ListOrdered, labelKey: 'nav.queue' },
   { id: 'projects', to: '/projects', icon: FolderKanban, labelKey: 'nav.projects' },
+  { id: 'inventory', to: '/warehouse', icon: Warehouse, labelKey: 'printops.nav.warehouse', defaultLabel: 'Warehouse', defaultLabelDe: 'Lager' },
+  { id: 'orders', to: '/orders', icon: ClipboardList, labelKey: 'printops.nav.orders', defaultLabel: 'Orders', defaultLabelDe: 'Aufträge' },
+  { id: 'queue', to: '/queue', icon: ListOrdered, labelKey: 'nav.queue' },
+  { id: 'archives', to: '/archives', icon: Archive, labelKey: 'nav.archives' },
   { id: 'files', to: '/files', icon: FolderOpen, labelKey: 'nav.files' },
   { id: 'makerworld', to: '/makerworld', icon: Globe, labelKey: 'nav.makerworld' },
+  { id: 'stats', to: '/stats', icon: BarChart3, labelKey: 'nav.stats' },
   { id: 'profiles', to: '/profiles', icon: Cloud, labelKey: 'nav.profiles' },
   { id: 'maintenance', to: '/maintenance', icon: Wrench, labelKey: 'nav.maintenance' },
-  { id: 'stats', to: '/stats', icon: BarChart3, labelKey: 'nav.stats' },
   // User-account feature: gated in isHidden() on advanced auth + user_notifications
   // + the notifications:user_email permission. Kept adjacent to Settings
   // intentionally. Do not drop this entry — without it the /notifications page
@@ -69,8 +72,8 @@ export function setDefaultView(path: string) {
 export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { mode, resolvedMode, toggleMode } = useTheme();
-  const { t } = useTranslation();
+  const { mode, toggleMode } = useTheme();
+  const { t, i18n } = useTranslation();
   const isSidebarCompact = useIsSidebarCompact();
 
   // Theme toggle: mode → icon and tooltip
@@ -197,6 +200,13 @@ export function Layout() {
   });
 
   const hasSwitchbarPlugs = smartPlugs?.some(p => p.show_in_switchbar) ?? false;
+
+  const getNavItemLabel = useCallback((item: NavItem) => {
+    const defaultValue = i18n.resolvedLanguage?.startsWith('de')
+      ? item.defaultLabelDe ?? item.defaultLabel
+      : item.defaultLabel;
+    return t(item.labelKey, { defaultValue });
+  }, [i18n.resolvedLanguage, t]);
 
   // Check debug logging state
   const { data: debugLoggingState } = useQuery({
@@ -490,8 +500,8 @@ export function Layout() {
             <Menu className="w-6 h-6 text-white" />
           </button>
           <img
-            src={resolvedMode === 'dark' ? '/img/bambuddy_logo_dark_transparent.png' : '/img/bambuddy_logo_light.png'}
-            alt="Bambuddy"
+            src="/img/printops_logo.svg"
+            alt="PrintOps"
             className="h-8 ml-3"
           />
         </header>
@@ -516,9 +526,9 @@ export function Layout() {
         {/* Logo */}
         <div className={`border-b border-bambu-dark-tertiary flex items-center justify-center ${isSidebarCompact || sidebarExpanded ? 'p-4' : 'p-2'}`}>
           <img
-            src={resolvedMode === 'dark' ? '/img/bambuddy_logo_dark_transparent.png' : '/img/bambuddy_logo_light.png'}
-            alt="Bambuddy"
-            className={isSidebarCompact || sidebarExpanded ? 'h-16 w-auto' : 'h-8 w-8 object-cover object-left'}
+            src={isSidebarCompact || sidebarExpanded ? '/img/printops_logo.svg' : '/img/printops_icon.svg'}
+            alt="PrintOps"
+            className={isSidebarCompact || sidebarExpanded ? 'h-16 w-auto' : 'h-8 w-8 object-contain'}
           />
         </div>
 
@@ -586,7 +596,7 @@ export function Layout() {
                 const navItem = navItemsMap.get(id);
                 if (!navItem) return null;
 
-                const { to, icon: Icon, labelKey } = navItem;
+                const { to, icon: Icon } = navItem;
                 const showQueueBadge = id === 'queue' && pendingQueueCount > 0;
                 const showArchiveBadge = id === 'archives' && pendingUploadsCount > 0;
                 const badgeCount = showQueueBadge ? pendingQueueCount : showArchiveBadge ? pendingUploadsCount : 0;
@@ -604,7 +614,7 @@ export function Layout() {
                             : 'text-bambu-gray-light hover:bg-bambu-dark-tertiary hover:text-white'
                         }`
                       }
-                      title={!isSidebarCompact && !sidebarExpanded ? t(labelKey) : undefined}
+                      title={!isSidebarCompact && !sidebarExpanded ? getNavItemLabel(navItem) : undefined}
                     >
                       <div className="relative">
                         <Icon className="w-5 h-5 flex-shrink-0" />
@@ -619,7 +629,7 @@ export function Layout() {
                           </span>
                         )}
                       </div>
-                      {(isSidebarCompact || sidebarExpanded) && <span>{t(labelKey)}</span>}
+                      {(isSidebarCompact || sidebarExpanded) && <span>{getNavItemLabel(navItem)}</span>}
                     </NavLink>
                   </li>
                 );
@@ -687,7 +697,7 @@ export function Layout() {
                 )}
                 <InstallAppButton />
                 <a
-                  href="https://github.com/maziggy/bambuddy"
+                  href="https://github.com/ichwars/PrintOps"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-2 rounded-lg hover:bg-bambu-dark-tertiary transition-colors text-bambu-gray-light hover:text-white"
@@ -792,7 +802,7 @@ export function Layout() {
               )}
               <InstallAppButton />
               <a
-                href="https://github.com/maziggy/bambuddy"
+                href="https://github.com/ichwars/PrintOps"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-2 rounded-lg hover:bg-bambu-dark-tertiary transition-colors text-bambu-gray-light hover:text-white"
@@ -928,7 +938,9 @@ export function Layout() {
               return extLink ? { type: 'external' as const, label: extLink.name } : null;
             } else {
               const navItem = navItemsMap.get(id);
-              return navItem ? { type: 'nav' as const, label: navItem.labelKey, labelKey: navItem.labelKey } : null;
+              return navItem
+                ? { type: 'nav' as const, label: getNavItemLabel(navItem), labelKey: navItem.defaultLabel ? undefined : navItem.labelKey }
+                : null;
             }
           }).filter(Boolean) as { type: 'nav' | 'external'; label: string; labelKey?: string }[]}
         />
