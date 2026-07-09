@@ -1370,12 +1370,24 @@ export function SettingsPage() {
     setSettingsSearch('');
     // Scroll to the card after the tab has rendered
     setTimeout(() => {
-      const el = document.getElementById(entry.anchor);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        el.classList.add('ring-2', 'ring-bambu-green');
-        setTimeout(() => el.classList.remove('ring-2', 'ring-bambu-green'), 1500);
-      }
+      scrollToSettingsCard(entry.anchor);
+    }, 50);
+  };
+
+  const scrollToSettingsCard = (cardId: string) => {
+    const el = document.getElementById(cardId);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.add('ring-2', 'ring-bambu-green');
+    setTimeout(() => el.classList.remove('ring-2', 'ring-bambu-green'), 1500);
+  };
+
+  const goToBackupFromDataManagement = () => {
+    if (activeTab !== 'operations') {
+      handleTabChange('operations');
+    }
+    setTimeout(() => {
+      scrollToSettingsCard('card-backup');
     }, 50);
   };
 
@@ -2008,7 +2020,7 @@ export function SettingsPage() {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => handleTabChange('operations')}
+            onClick={goToBackupFromDataManagement}
           >
             <Database className="w-4 h-4" />
             {t('settings.goToBackup')}

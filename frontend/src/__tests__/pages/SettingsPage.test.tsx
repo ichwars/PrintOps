@@ -485,6 +485,26 @@ describe('SettingsPage', () => {
       expect(document.getElementById('card-data')).not.toBeNull();
     });
 
+    it('scrolls to backup when Go to Backup is clicked from Data Management', async () => {
+      const user = userEvent.setup();
+      render(<SettingsPage />);
+
+      await user.click(await screen.findByRole('button', { name: 'Operations' }));
+      const goToBackupButton = await screen.findByRole('button', { name: /go to backup/i });
+      const backupCard = await waitFor(() => document.getElementById('card-backup'));
+      expect(backupCard).not.toBeNull();
+      const backupScrollSpy = vi.spyOn(backupCard as HTMLElement, 'scrollIntoView').mockImplementation(() => {});
+
+      await user.click(goToBackupButton);
+
+      await waitFor(() => {
+        expect(backupScrollSpy).toHaveBeenCalled();
+        expect(backupScrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+        expect(backupCard).toHaveClass('ring-2', 'ring-bambu-green');
+      });
+      backupScrollSpy.mockRestore();
+    });
+
     it('opens Drying from search results on its canonical tab', async () => {
       render(<SettingsPage />);
 
