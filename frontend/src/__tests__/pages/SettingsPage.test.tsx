@@ -171,11 +171,27 @@ describe('SettingsPage', () => {
       });
     });
 
-    it('shows default printer setting', async () => {
+    it('keeps General focused on UI preferences and excludes orders or operations cards', async () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Default Printer')).toBeInTheDocument();
+        const generalCard = document.getElementById('card-general');
+        const appearanceCard = document.getElementById('card-appearance');
+        const sidebarCard = document.getElementById('card-sidebar-links');
+        const uiPreferencesCard = document.getElementById('card-ui-preferences');
+
+        expect(generalCard).not.toBeNull();
+        expect(appearanceCard).not.toBeNull();
+        expect(sidebarCard).not.toBeNull();
+        expect(uiPreferencesCard).not.toBeNull();
+        expect(within(generalCard as HTMLElement).getByText('Language')).toBeInTheDocument();
+        expect(within(generalCard as HTMLElement).getByText('Default View')).toBeInTheDocument();
+        expect(within(generalCard as HTMLElement).getByText('Date Format')).toBeInTheDocument();
+        expect(within(generalCard as HTMLElement).getByText('Time Format')).toBeInTheDocument();
+        expect(within(uiPreferencesCard as HTMLElement).getAllByText('Reset UI Preferences').length).toBeGreaterThan(0);
+        expect(screen.queryByText('Cost Tracking')).not.toBeInTheDocument();
+        expect(screen.queryByText('Updates')).not.toBeInTheDocument();
+        expect(screen.queryByText('Default Printer')).not.toBeInTheDocument();
       });
     });
 
@@ -239,6 +255,97 @@ describe('SettingsPage', () => {
         expect(screen.getByText('Date Format')).toBeInTheDocument();
         expect(document.getElementById('card-filemanager')).toBeNull();
         expect(document.getElementById('card-cost')).toBeNull();
+      });
+    });
+
+    it('shows Archive Settings, Default Print Options, Virtual Printer, and Default Printer in Printers & Production', async () => {
+      const user = userEvent.setup();
+      render(<SettingsPage />);
+
+      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
+
+      await waitFor(() => {
+        const defaultPrinterCard = document.getElementById('card-default-printer');
+        const virtualPrinterCard = document.getElementById('card-vp');
+        const printOptionsCard = document.getElementById('card-print-options');
+        const archiveCard = document.getElementById('card-archive');
+
+        expect(defaultPrinterCard).not.toBeNull();
+        expect(virtualPrinterCard).not.toBeNull();
+        expect(printOptionsCard).not.toBeNull();
+        expect(archiveCard).not.toBeNull();
+        expect(within(defaultPrinterCard as HTMLElement).getAllByText('Default Printer').length).toBeGreaterThan(0);
+        expect(within(archiveCard as HTMLElement).getByText('Archive Settings')).toBeInTheDocument();
+        expect(within(printOptionsCard as HTMLElement).getByText('Default Print Options')).toBeInTheDocument();
+        expect(within(virtualPrinterCard as HTMLElement).getByText('Setup Required')).toBeInTheDocument();
+      });
+    });
+
+    it('shows Filament Checks and SpoolBuddy in Warehouse & Material', async () => {
+      const user = userEvent.setup();
+      render(<SettingsPage />);
+
+      await user.click(await screen.findByRole('button', { name: 'Warehouse & Material' }));
+
+      await waitFor(() => {
+        const filamentChecksCard = document.getElementById('card-filamentchecks');
+        const spoolBuddyCard = document.getElementById('card-spoolbuddy');
+
+        expect(filamentChecksCard).not.toBeNull();
+        expect(spoolBuddyCard).not.toBeNull();
+        expect(within(filamentChecksCard as HTMLElement).getByText('Filament checks')).toBeInTheDocument();
+        expect(screen.getByText('SpoolBuddy devices')).toBeInTheDocument();
+      });
+    });
+
+    it('shows Data Management, Backup, and Updates in Operations', async () => {
+      const user = userEvent.setup();
+      render(<SettingsPage />);
+
+      await user.click(await screen.findByRole('button', { name: 'Operations' }));
+
+      await waitFor(() => {
+        const dataCard = document.getElementById('card-data');
+        const backupCard = document.getElementById('card-backup');
+        const updatesCard = document.getElementById('card-updates');
+
+        expect(dataCard).not.toBeNull();
+        expect(backupCard).not.toBeNull();
+        expect(updatesCard).not.toBeNull();
+        expect(within(dataCard as HTMLElement).getByText('Data Management')).toBeInTheDocument();
+        expect(within(dataCard as HTMLElement).getByText('Backup & Restore')).toBeInTheDocument();
+        expect(within(updatesCard as HTMLElement).getByText('Updates')).toBeInTheDocument();
+      });
+    });
+
+    it('loads storage usage only on the Operations tab', async () => {
+      let storageRequests = 0;
+      server.use(
+        http.get('/api/v1/system/storage-usage', () => {
+          storageRequests += 1;
+          return HttpResponse.json({
+            total_bytes: 1024,
+            total_formatted: '1 KB',
+            scan_errors: 0,
+            categories: [],
+            other_breakdown: [],
+          });
+        }),
+      );
+
+      const user = userEvent.setup();
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Date Format')).toBeInTheDocument();
+      });
+      expect(storageRequests).toBe(0);
+
+      await user.click(await screen.findByRole('button', { name: 'Operations' }));
+
+      await waitFor(() => {
+        expect(storageRequests).toBe(1);
+        expect(screen.getByText('Storage Usage')).toBeInTheDocument();
       });
     });
 

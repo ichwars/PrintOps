@@ -63,14 +63,16 @@ import {
 // Cross-tab search registrations for cards rendered inline in this file.
 // Adding a new settings card? Register it here (or, if the card lives in its
 // own component file, call registerSettingsSearch at that file's module scope).
-registerSettingsSearch({ labelKey: 'settings.general', tab: 'general', keywords: 'language date time format printer model printers cards', anchor: 'card-general' });
+registerSettingsSearch({ labelKey: 'settings.general', tab: 'general', keywords: 'language default view date time format locale preferences', anchor: 'card-general' });
 registerSettingsSearch({ labelKey: 'settings.appearance', tab: 'general', keywords: 'theme dark light mode colors', anchor: 'card-appearance' });
+registerSettingsSearch({ labelKey: 'settings.resetUiPreferences', labelFallback: 'Reset UI Preferences', tab: 'general', keywords: 'ui preferences reset local storage sidebar layout defaults', anchor: 'card-ui-preferences' });
 registerSettingsSearch({ labelKey: 'settings.archiveSettings', tab: 'printers-production', keywords: 'archive auto save thumbnails captures', anchor: 'card-archive' });
 registerSettingsSearch({ labelKey: 'settings.camera', tab: 'printers-production', keywords: 'camera external video stream', anchor: 'card-camera' });
+registerSettingsSearch({ labelKey: 'settings.defaultPrinter', labelFallback: 'Default Printer', tab: 'printers-production', keywords: 'default printer preferred printer fallback printer selection', anchor: 'card-default-printer' });
 registerSettingsSearch({ labelKey: 'settings.costTracking', tab: 'orders-calculation', keywords: 'currency filament cost energy kwh price', anchor: 'card-cost' });
 registerSettingsSearch({ labelKey: 'settings.fileManager', tab: 'projects-files', keywords: 'file manager archive mode disk warning storage', anchor: 'card-filemanager' });
 registerSettingsSearch({ labelKey: 'settings.updates', tab: 'operations', keywords: 'updates version firmware beta check', anchor: 'card-updates' });
-registerSettingsSearch({ labelKey: 'settings.dataManagement', tab: 'operations', keywords: 'data reset clear logs notifications preferences', anchor: 'card-data' });
+registerSettingsSearch({ labelKey: 'settings.dataManagement', tab: 'operations', keywords: 'data clear logs notifications storage backup restore', anchor: 'card-data' });
 registerSettingsSearch({ labelKey: 'settings.smartPlugs', tab: 'integrations', keywords: 'smart plug energy power automation tapo kasa tplink shelly', anchor: 'card-plugs' });
 registerSettingsSearch({ labelKey: 'settings.providers', tab: 'integrations', keywords: 'telegram discord email notification providers webhook', anchor: 'card-providers' });
 registerSettingsSearch({ labelKey: 'settings.messageTemplates', tab: 'integrations', keywords: 'message templates notification text edit', anchor: 'card-templates' });
@@ -169,7 +171,9 @@ const settingsSearchTabFallbackLabels = Object.fromEntries(
 const legacySearchTabByAnchor: Record<string, string> = {
   'card-general': 'general',
   'card-appearance': 'general',
+  'card-ui-preferences': 'general',
   'card-sidebar-links': 'general',
+  'card-default-printer': 'printers-production',
   'card-archive': 'printers-production',
   'card-camera': 'printers-production',
   'card-cost': 'orders-calculation',
@@ -398,7 +402,7 @@ export function SettingsPage() {
   } = useQuery<StorageUsageResponse>({
     queryKey: ['storage-usage'],
     queryFn: () => api.getStorageUsage(),
-    enabled: activeTab === 'general',
+    enabled: activeTab === 'operations',
     staleTime: Infinity,
     refetchInterval: false,
     refetchOnWindowFocus: false,
@@ -1872,6 +1876,68 @@ export function SettingsPage() {
     </Card>
   ) : null;
 
+  const defaultPrinterCard = localSettings ? (
+    <Card id="card-default-printer">
+      <CardHeader>
+        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <Printer className="w-5 h-5 text-bambu-green" />
+          {t('settings.defaultPrinter')}
+        </h2>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div>
+          <label className="block text-sm text-bambu-gray mb-1">
+            {t('settings.defaultPrinter')}
+          </label>
+          <div className="relative">
+            <select
+              value={localSettings.default_printer_id ?? ''}
+              onChange={(e) => updateSetting('default_printer_id', e.target.value ? Number(e.target.value) : null)}
+              className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
+            >
+              <option value="">{t('settings.noDefaultPrinter')}</option>
+              {printers?.map((printer) => (
+                <option key={printer.id} value={printer.id}>
+                  {printer.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+          </div>
+          <p className="text-xs text-bambu-gray mt-1">
+            {t('settings.defaultPrinterDescription')}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  ) : null;
+
+  const uiPreferencesCard = (
+    <Card id="card-ui-preferences">
+      <CardHeader>
+        <h2 className="text-lg font-semibold text-white">{t('settings.resetUiPreferences')}</h2>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-white">{t('settings.resetUiPreferences')}</p>
+            <p className="text-sm text-bambu-gray">
+              {t('settings.resetUiPreferencesDescription')}
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowClearStorageConfirm(true)}
+          >
+            <Trash2 className="w-4 h-4" />
+            {t('settings.reset')}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   const dataManagementCard = localSettings ? (
     <Card id="card-data">
       <CardHeader>
@@ -1892,22 +1958,6 @@ export function SettingsPage() {
           >
             <Trash2 className="w-4 h-4" />
             {t('common.clear')}
-          </Button>
-        </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-white">{t('settings.resetUiPreferences')}</p>
-            <p className="text-sm text-bambu-gray">
-              {t('settings.resetUiPreferencesDescription')}
-            </p>
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setShowClearStorageConfirm(true)}
-          >
-            <Trash2 className="w-4 h-4" />
-            {t('settings.reset')}
           </Button>
         </div>
         <div className="pt-4 border-t border-bambu-dark-tertiary">
@@ -3029,29 +3079,6 @@ export function SettingsPage() {
                   </div>
                 </div>
               </div>
-              <div>
-                <label className="block text-sm text-bambu-gray mb-1">
-                  {t('settings.defaultPrinter')}
-                </label>
-                <div className="relative">
-                  <select
-                    value={localSettings.default_printer_id ?? ''}
-                    onChange={(e) => updateSetting('default_printer_id', e.target.value ? Number(e.target.value) : null)}
-                    className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
-                  >
-                    <option value="">{t('settings.noDefaultPrinter')}</option>
-                    {printers?.map((printer) => (
-                      <option key={printer.id} value={printer.id}>
-                        {printer.name}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
-                </div>
-                <p className="text-xs text-bambu-gray mt-1">
-                  {t('settings.defaultPrinterDescription')}
-                </p>
-              </div>
             </CardContent>
           </Card>
 
@@ -3194,6 +3221,7 @@ export function SettingsPage() {
 
         {/* Second Column - Camera, Cost, AMS & Spoolman */}
         <div className="space-y-3 flex-1 lg:max-w-md">
+          {uiPreferencesCard}
         </div>
 
         {/* Third Column - Sidebar Links */}
@@ -4492,6 +4520,7 @@ export function SettingsPage() {
 
       {activeTab === 'printers-production' && (
         <div className="space-y-3 mb-4">
+          {defaultPrinterCard}
           {archiveSettingsCard}
           {cameraSettingsCard}
         </div>
