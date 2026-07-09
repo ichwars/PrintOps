@@ -37,6 +37,19 @@ const mockSettings = {
   bed_cooled_threshold: 35,
 };
 
+async function clickSettingsSearchResult(query: string) {
+  const user = userEvent.setup();
+  const search = await screen.findByPlaceholderText('Search settings…');
+  const searchContainer = search.closest('.relative');
+  if (!searchContainer) {
+    throw new Error('Expected settings search container');
+  }
+  await user.clear(search);
+  await user.type(search, query);
+  const [result] = await within(searchContainer).findAllByRole('button', { name: new RegExp(query, 'i') });
+  await user.click(result);
+}
+
 describe('SettingsPage', () => {
   beforeEach(() => {
     // BrowserRouter shares window.location across tests; reset it so a tab
@@ -49,6 +62,7 @@ describe('SettingsPage', () => {
     vi.mocked(localStorage.clear).mockReset();
     localStorage.clear();
     setAuthToken(null);
+    Element.prototype.scrollIntoView = vi.fn();
 
     server.use(
       http.get('/api/v1/settings/', () => {
@@ -245,6 +259,69 @@ describe('SettingsPage', () => {
 
       expect((await screen.findAllByText('Virtual Printer')).length).toBeGreaterThan(0);
       expect(screen.getByText('Printers & Production')).toBeInTheDocument();
+    });
+
+    it('opens the rendered SpoolBuddy pane from search results', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('SpoolBuddy');
+
+      expect(await screen.findByText('SpoolBuddy devices')).toBeInTheDocument();
+      expect(document.getElementById('card-spoolbuddy')).not.toBeNull();
+    });
+
+    it('opens the rendered Virtual Printer pane from search results', async () => {
+      server.use(
+        http.get('/api/v1/virtual-printers', () =>
+          HttpResponse.json({ printers: [], models: {} }),
+        ),
+        http.get('/api/v1/virtual-printers/ca-certificate', () =>
+          HttpResponse.json({
+            pem: '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----',
+            fingerprint_sha256: 'aa:bb',
+            not_valid_after: '2030-01-01T00:00:00Z',
+          }),
+        ),
+      );
+
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Virtual Printer');
+
+      expect(await screen.findByText('Setup Required')).toBeInTheDocument();
+      expect(document.getElementById('card-vp')).not.toBeNull();
+    });
+
+    it('opens the rendered Backup pane from search results', async () => {
+      server.use(
+        http.get('/api/v1/github-backup/config', () => HttpResponse.json(null)),
+        http.get('/api/v1/github-backup/logs', () => HttpResponse.json([])),
+        http.get('/api/v1/local-backup/status', () =>
+          HttpResponse.json({
+            enabled: false,
+            schedule: 'daily',
+            time: '03:00',
+            retention: 5,
+            path: '',
+            default_path: '/backups',
+            is_running: false,
+            last_backup_at: null,
+            last_status: null,
+            last_message: null,
+            next_run: null,
+            timezone: 'UTC',
+          }),
+        ),
+        http.get('/api/v1/local-backup/backups', () => HttpResponse.json([])),
+      );
+
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Backup');
+
+      expect(await screen.findByText('Git Backup')).toBeInTheDocument();
+      expect(await screen.findByText('Scheduled Backups')).toBeInTheDocument();
+      expect(document.getElementById('card-backup')).not.toBeNull();
     });
 
     it('shows a previously hidden PrintOps sidebar page from Sidebar', async () => {

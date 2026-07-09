@@ -48,8 +48,9 @@ import { useTheme, type ThemeStyle, type DarkBackground, type LightBackground, t
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Palette } from 'lucide-react';
 import { registerSettingsSearch, getSettingsSearchEntries } from '../lib/settingsSearch';
+import type { SettingsSearchEntry } from '../lib/settingsSearch';
 import type { UsersSubTab } from '../lib/settingsSearch';
-import { settingsTabLabelKey } from '../lib/settingsNavigation';
+import { SETTINGS_NAV_ITEMS, settingsTabLabelKey } from '../lib/settingsNavigation';
 
 const validTabs = ['general', 'plugs', 'notifications', 'queue', 'filament', 'network', 'apikeys', 'virtual-printer', 'spoolbuddy', 'failure-detection', 'users', 'backup'] as const;
 type TabType = typeof validTabs[number];
@@ -156,16 +157,81 @@ const STORAGE_FALLBACK_COLORS = [
 const getStorageColor = (key: string, index: number) =>
   STORAGE_CATEGORY_COLORS[key] || STORAGE_FALLBACK_COLORS[index % STORAGE_FALLBACK_COLORS.length];
 
-const settingsSearchTabFallbackLabels = {
-  general: 'General',
-  'users-security': 'Users & Security',
-  'printers-production': 'Printers & Production',
-  'projects-files': 'Projects & Files',
-  'warehouse-material': 'Warehouse & Material',
-  'orders-calculation': 'Orders & Calculation',
-  integrations: 'Integrations',
-  operations: 'Operations',
-} as const;
+const settingsSearchTabFallbackLabels = Object.fromEntries(
+  SETTINGS_NAV_ITEMS.map((item) => [item.id, item.fallback]),
+) as Record<string, string>;
+
+const legacySearchTabByAnchor: Record<string, TabType> = {
+  'card-general': 'general',
+  'card-appearance': 'general',
+  'card-sidebar-links': 'general',
+  'card-archive': 'general',
+  'card-camera': 'general',
+  'card-cost': 'general',
+  'card-filemanager': 'general',
+  'card-updates': 'general',
+  'card-data': 'general',
+  'card-plugs': 'plugs',
+  'card-providers': 'notifications',
+  'card-templates': 'notifications',
+  'card-print-options': 'queue',
+  'card-temp-fan-presets': 'queue',
+  'card-staggered': 'queue',
+  'card-plate': 'queue',
+  'card-gcode': 'queue',
+  'card-slicer': 'queue',
+  'card-drying': 'queue',
+  'card-preheat': 'queue',
+  'card-pipelines': 'queue',
+  'card-filamentchecks': 'filament',
+  'card-printmodal': 'filament',
+  'card-amsthresholds': 'filament',
+  'card-spoolman': 'filament',
+  'card-spool-catalog': 'filament',
+  'card-color-catalog': 'filament',
+  'card-externalurl': 'network',
+  'card-ftpretry': 'network',
+  'card-ha': 'network',
+  'card-mqtt': 'network',
+  'card-prometheus': 'network',
+  'card-createapi': 'apikeys',
+  'card-webhooks': 'apikeys',
+  'card-apibrowser': 'apikeys',
+  'card-camera-tokens': 'apikeys',
+  'card-vp': 'virtual-printer',
+  'card-spoolbuddy': 'spoolbuddy',
+  'card-fd-ml': 'failure-detection',
+  'card-fd-perprinter': 'failure-detection',
+  'card-fd-status': 'failure-detection',
+  'card-fd-history': 'failure-detection',
+  'card-failure-detection': 'failure-detection',
+  'card-currentuser': 'users',
+  'card-users': 'users',
+  'card-groups': 'users',
+  'card-session-policy': 'users',
+  'card-smtp': 'users',
+  'card-smtp-config': 'users',
+  'card-email-advanced-auth': 'users',
+  'card-email-test': 'users',
+  'card-ldap': 'users',
+  'card-ldap-server': 'users',
+  'card-ldap-toggle': 'users',
+  'card-2fa-totp': 'users',
+  'card-2fa-emailotp': 'users',
+  'card-2fa-linked': 'users',
+  'card-oidc': 'users',
+  'card-oidc-empty': 'users',
+  'card-mfa-encryption': 'users',
+  'card-backup': 'backup',
+  'card-backup-github': 'backup',
+  'card-backup-history': 'backup',
+  'card-backup-local': 'backup',
+  'card-backup-scheduled': 'backup',
+};
+
+function resolveLegacySearchTab(entry: SettingsSearchEntry): TabType {
+  return legacySearchTabByAnchor[entry.anchor] ?? 'general';
+}
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -1278,7 +1344,7 @@ export function SettingsPage() {
     : [];
 
   const jumpToSetting = (entry: typeof searchIndex[number]) => {
-    handleTabChange(entry.tab as TabType);
+    handleTabChange(resolveLegacySearchTab(entry));
     if (entry.subTab) {
       setUsersSubTab(entry.subTab as UsersSubTab);
     }
