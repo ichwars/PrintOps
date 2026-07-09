@@ -202,6 +202,36 @@ describe('SettingsPage', () => {
       });
     });
 
+    it('shows File Manager on Projects & Files', async () => {
+      const user = userEvent.setup();
+      render(<SettingsPage />);
+
+      await user.click(await screen.findByRole('button', { name: 'Projects & Files' }));
+
+      await waitFor(() => {
+        const card = document.getElementById('card-filemanager');
+        expect(screen.getByRole('button', { name: 'Projects & Files' })).toHaveClass('text-bambu-green');
+        expect(screen.getByText('File Manager')).toBeInTheDocument();
+        expect(card).not.toBeNull();
+        expect(within(card as HTMLElement).getByText('Low Disk Space Warning')).toBeInTheDocument();
+      });
+    });
+
+    it('shows Cost Tracking on Orders & Calculation', async () => {
+      const user = userEvent.setup();
+      render(<SettingsPage />);
+
+      await user.click(await screen.findByRole('button', { name: 'Orders & Calculation' }));
+
+      await waitFor(() => {
+        const card = document.getElementById('card-cost');
+        expect(screen.getByRole('button', { name: 'Orders & Calculation' })).toHaveClass('text-bambu-green');
+        expect(screen.getByText('Cost Tracking')).toBeInTheDocument();
+        expect(card).not.toBeNull();
+        expect(within(card as HTMLElement).getByText('Currency')).toBeInTheDocument();
+      });
+    });
+
     it('shows appearance section', async () => {
       render(<SettingsPage />);
 
@@ -344,6 +374,50 @@ describe('SettingsPage', () => {
       expect(await screen.findByText('Git Backup')).toBeInTheDocument();
       expect(await screen.findByText('Scheduled Backups')).toBeInTheDocument();
       expect(document.getElementById('card-backup')).not.toBeNull();
+    });
+
+    it('opens the rendered FTP Retry pane from search results', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('FTP Retry');
+
+      const card = document.getElementById('card-ftpretry');
+      expect(await screen.findByRole('button', { name: 'Printers & Production' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('FTP Retry')).toBeInTheDocument();
+      expect(card).not.toBeNull();
+    });
+
+    it('opens the rendered Prometheus pane from search results', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Prometheus');
+
+      const card = document.getElementById('card-prometheus');
+      expect(await screen.findByRole('button', { name: 'Operations' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('Prometheus Metrics')).toBeInTheDocument();
+      expect(card).not.toBeNull();
+    });
+
+    it('opens the rendered Webhook pane from search results', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Webhook');
+
+      expect(await screen.findByRole('button', { name: 'Integrations' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('Webhook Endpoints')).toBeInTheDocument();
+      expect(await screen.findByText('/api/v1/webhook/status')).toBeInTheDocument();
+      expect(document.getElementById('card-webhooks')).not.toBeNull();
+    });
+
+    it('opens the rendered API Browser pane from search results', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('API Browser');
+
+      const card = document.getElementById('card-apibrowser');
+      expect(await screen.findByRole('button', { name: 'Integrations' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('API Browser')).toBeInTheDocument();
+      expect(card).not.toBeNull();
     });
 
     it('shows a previously hidden PrintOps sidebar page from Sidebar', async () => {

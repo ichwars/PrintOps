@@ -172,8 +172,8 @@ const legacySearchTabByAnchor: Record<string, string> = {
   'card-sidebar-links': 'general',
   'card-archive': 'general',
   'card-camera': 'general',
-  'card-cost': 'general',
-  'card-filemanager': 'general',
+  'card-cost': 'orders-calculation',
+  'card-filemanager': 'projects-files',
   'card-updates': 'general',
   'card-data': 'general',
   'card-plugs': 'plugs',
@@ -195,13 +195,13 @@ const legacySearchTabByAnchor: Record<string, string> = {
   'card-spool-catalog': 'filament',
   'card-color-catalog': 'filament',
   'card-externalurl': 'network',
-  'card-ftpretry': 'network',
+  'card-ftpretry': 'printers-production',
   'card-ha': 'network',
   'card-mqtt': 'network',
-  'card-prometheus': 'network',
+  'card-prometheus': 'operations',
   'card-createapi': 'apikeys',
-  'card-webhooks': 'apikeys',
-  'card-apibrowser': 'apikeys',
+  'card-webhooks': 'integrations',
+  'card-apibrowser': 'integrations',
   'card-camera-tokens': 'apikeys',
   'card-vp': 'virtual-printer',
   'card-spoolbuddy': 'spoolbuddy',
@@ -1372,6 +1372,431 @@ export function SettingsPage() {
     }, 50);
   };
 
+  const costTrackingCard = localSettings ? (
+    <Card id="card-cost">
+      <CardHeader>
+        <h2 className="text-lg font-semibold text-white">{t('settings.costTracking')}</h2>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div>
+          <label className="block text-sm text-bambu-gray mb-1">{t('settings.currency')}</label>
+          <select
+            value={localSettings.currency}
+            onChange={(e) => updateSetting('currency', e.target.value)}
+            className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+          >
+            {SUPPORTED_CURRENCIES.map((c) => (
+              <option key={c.code} value={c.code}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm text-bambu-gray mb-1">
+            {t('settings.defaultFilamentCost')}
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-bambu-gray text-sm pointer-events-none">
+              {getCurrencySymbol(localSettings.currency)}
+            </span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={localSettings.default_filament_cost}
+              onChange={(e) =>
+                updateSetting('default_filament_cost', parseFloat(e.target.value) || 0)
+              }
+              style={{ paddingLeft: `${Math.max(2, getCurrencySymbol(localSettings.currency).length * 0.6 + 1)}rem` }}
+              className="w-full pr-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm text-bambu-gray mb-1">
+            {t('settings.electricityCost')}
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-bambu-gray text-sm pointer-events-none">
+              {getCurrencySymbol(localSettings.currency)}
+            </span>
+            <input
+              type="number"
+              step="0.001"
+              min="0"
+              value={localSettings.energy_cost_per_kwh}
+              onChange={(e) =>
+                updateSetting('energy_cost_per_kwh', parseFloat(e.target.value) || 0)
+              }
+              style={{ paddingLeft: `${Math.max(2, getCurrencySymbol(localSettings.currency).length * 0.6 + 1)}rem` }}
+              className="w-full pr-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm text-bambu-gray mb-1">
+            {t('settings.energyDisplayMode')}
+          </label>
+          <select
+            value={localSettings.energy_tracking_mode || 'total'}
+            onChange={(e) => updateSetting('energy_tracking_mode', e.target.value as 'print' | 'total')}
+            className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+          >
+            <option value="print">{t('settings.printsOnly')}</option>
+            <option value="total">{t('settings.totalConsumption')}</option>
+          </select>
+          <p className="text-xs text-bambu-gray mt-1">
+            {localSettings.energy_tracking_mode === 'print'
+              ? t('settings.energyModePrintDescription')
+              : t('settings.energyModeTotalDescription')}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  ) : null;
+
+  const fileManagerCard = localSettings ? (
+    <Card id="card-filemanager">
+      <CardHeader>
+        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <FileText className="w-5 h-5 text-bambu-green" />
+          {t('settings.fileManager')}
+        </h2>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div>
+          <label className="block text-sm text-bambu-gray mb-1">
+            {t('settings.createArchiveEntry')}
+          </label>
+          <select
+            value={localSettings.library_archive_mode ?? 'ask'}
+            onChange={(e) => updateSetting('library_archive_mode', e.target.value as 'always' | 'never' | 'ask')}
+            className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+          >
+            <option value="always">{t('settings.archiveMode.always')}</option>
+            <option value="never">{t('settings.archiveMode.never')}</option>
+            <option value="ask">{t('settings.archiveMode.ask')}</option>
+          </select>
+          <p className="text-xs text-bambu-gray mt-1">
+            {t('settings.createArchiveEntryDescription')}
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm text-bambu-gray mb-1">
+            {t('settings.lowDiskSpaceWarning')}
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0.5"
+              max="100"
+              step="0.5"
+              value={localSettings.library_disk_warning_gb ?? 5}
+              onChange={(e) => updateSetting('library_disk_warning_gb', parseFloat(e.target.value) || 5)}
+              className="w-24 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+            />
+            <span className="text-bambu-gray">GB</span>
+          </div>
+          <p className="text-xs text-bambu-gray mt-1">
+            {t('settings.lowDiskSpaceDescription')}
+          </p>
+        </div>
+
+        {canPurge && trashSettings && (
+          <div className="border-t border-bambu-dark-tertiary pt-3 mt-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white">{t('libraryAutoPurge.enableLabel')}</p>
+                <p className="text-sm text-bambu-gray">{t('libraryAutoPurge.enableDescription')}</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={trashSettings.auto_purge_enabled}
+                  onChange={(e) => saveTrashSettings({ auto_purge_enabled: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
+              </label>
+            </div>
+
+            <div>
+              <label className="block text-sm text-bambu-gray mb-1">
+                {t('libraryAutoPurge.ageLabel')}
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={7}
+                  max={3650}
+                  disabled={!trashSettings.auto_purge_enabled}
+                  value={trashSettings.auto_purge_days}
+                  onChange={(e) =>
+                    saveTrashSettings({
+                      auto_purge_days: Math.max(7, Math.min(3650, parseInt(e.target.value || '0', 10) || 0)),
+                    })
+                  }
+                  className="w-24 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none disabled:opacity-50"
+                />
+                <span className="text-bambu-gray">{t('libraryAutoPurge.days')}</span>
+              </div>
+              <p className="text-xs text-bambu-gray mt-1">
+                {t('libraryAutoPurge.ageDescription')}
+              </p>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-white cursor-pointer">
+              <input
+                type="checkbox"
+                disabled={!trashSettings.auto_purge_enabled}
+                checked={trashSettings.auto_purge_include_never_printed}
+                onChange={(e) => saveTrashSettings({ auto_purge_include_never_printed: e.target.checked })}
+                className="rounded border-gray-300 disabled:opacity-50"
+              />
+              {t('libraryAutoPurge.includeNeverPrinted')}
+            </label>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  ) : null;
+
+  const ftpRetryCard = localSettings ? (
+    <Card id="card-ftpretry">
+      <CardHeader>
+        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <RefreshCw className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          {t('settings.ftpRetry')}
+        </h2>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-bambu-gray">
+          {t('settings.ftpRetryDescription')}
+        </p>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white">{t('settings.enableRetry')}</p>
+            <p className="text-sm text-bambu-gray">
+              {t('settings.autoRetryDescription')}
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={localSettings.ftp_retry_enabled ?? true}
+              onChange={(e) => updateSetting('ftp_retry_enabled', e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
+          </label>
+        </div>
+
+        {localSettings.ftp_retry_enabled && (
+          <div className="space-y-3 pt-2 border-t border-bambu-dark-tertiary">
+            <div>
+              <label className="block text-sm text-bambu-gray mb-1">
+                {t('settings.retryAttempts')}
+              </label>
+              <div className="relative w-44">
+                <select
+                  value={localSettings.ftp_retry_count ?? 3}
+                  onChange={(e) => updateSetting('ftp_retry_count', parseInt(e.target.value))}
+                  className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
+                >
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                    <option key={n} value={n}>{t('settings.time', { count: n })}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-bambu-gray mb-1">
+                {t('settings.retryDelay')}
+              </label>
+              <div className="relative w-44">
+                <select
+                  value={localSettings.ftp_retry_delay ?? 2}
+                  onChange={(e) => updateSetting('ftp_retry_delay', parseInt(e.target.value))}
+                  className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
+                >
+                  {[1, 2, 3, 5, 10, 15, 20, 30].map(n => (
+                    <option key={n} value={n}>{t('settings.second', { count: n })}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm text-bambu-gray mb-1">
+                {t('settings.connectionTimeout')}
+              </label>
+              <div className="relative w-44">
+                <select
+                  value={localSettings.ftp_timeout ?? 30}
+                  onChange={(e) => updateSetting('ftp_timeout', parseInt(e.target.value))}
+                  className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
+                >
+                  {[10, 15, 20, 30, 45, 60, 90, 120, 180, 300].map(n => (
+                    <option key={n} value={n}>{t('settings.nSeconds', { count: n })}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+              </div>
+              <p className="text-xs text-bambu-gray mt-1">
+                {t('settings.increaseForWeakWifi')}
+              </p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  ) : null;
+
+  const prometheusCard = localSettings ? (
+    <Card id="card-prometheus">
+      <CardHeader>
+        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+          {t('settings.prometheusMetrics')}
+        </h2>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-bambu-gray">
+          {t('settings.prometheusEndpointDescription')}
+        </p>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white">{t('settings.enableMetricsEndpoint')}</p>
+            <p className="text-xs text-bambu-gray">{t('settings.prometheusDescription')}</p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={localSettings.prometheus_enabled ?? false}
+              onChange={(e) => updateSetting('prometheus_enabled', e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
+          </label>
+        </div>
+
+        {localSettings.prometheus_enabled && (
+          <div className="space-y-3 pt-2 border-t border-bambu-dark-tertiary">
+            <div>
+              <label className="block text-sm text-bambu-gray mb-1">
+                {t('settings.bearerTokenOptional')}
+              </label>
+              <input
+                type="password"
+                value={localSettings.prometheus_token ?? ''}
+                onChange={(e) => updateSetting('prometheus_token', e.target.value)}
+                placeholder={t('settings.leaveEmptyForNoAuth')}
+                className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+              />
+              <p className="text-xs text-bambu-gray mt-1">
+                {t('settings.bearerTokenHint')}
+              </p>
+            </div>
+
+            <div className="pt-2 border-t border-bambu-dark-tertiary">
+              <p className="text-sm text-white mb-2">{t('settings.availableMetrics')}</p>
+              <div className="text-xs text-bambu-gray space-y-1">
+                <p><code className="text-orange-700 dark:text-orange-400">printops_printer_connected</code> - {t('settings.metricsConnectionStatus')}</p>
+                <p><code className="text-orange-700 dark:text-orange-400">printops_printer_state</code> - {t('settings.metricsPrinterState')}</p>
+                <p><code className="text-orange-700 dark:text-orange-400">printops_print_progress</code> - {t('settings.metricsPrintProgress')}</p>
+                <p><code className="text-orange-700 dark:text-orange-400">printops_bed_temp_celsius</code> - {t('settings.metricsBedTemp')}</p>
+                <p><code className="text-orange-700 dark:text-orange-400">printops_nozzle_temp_celsius</code> - {t('settings.metricsNozzleTemp')}</p>
+                <p><code className="text-orange-700 dark:text-orange-400">printops_prints_total</code> - {t('settings.metricsPrintsTotal')}</p>
+                <p className="text-bambu-gray/70 italic">{t('settings.metricsMore')}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  ) : null;
+
+  const webhookDocumentationCard = hasPermission('api_keys:read') ? (
+    <Card>
+      <CardHeader>
+        <h3 className="text-base font-semibold text-white" id="card-webhooks">{t('settings.webhookEndpoints')}</h3>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <p className="text-bambu-gray">
+          {t('settings.webhookApiKeyHint')}
+        </p>
+        <div className="space-y-2 font-mono text-xs">
+          <div className="p-2 bg-bambu-dark rounded">
+            <span className="text-blue-700 dark:text-blue-400">GET</span>{' '}
+            <span className="text-white">/api/v1/webhook/status</span>
+            <span className="text-bambu-gray"> - {t('settings.webhook.getAllStatus')}</span>
+          </div>
+          <div className="p-2 bg-bambu-dark rounded">
+            <span className="text-blue-700 dark:text-blue-400">GET</span>{' '}
+            <span className="text-white">/api/v1/webhook/status/:id</span>
+            <span className="text-bambu-gray"> - {t('settings.webhook.getSpecificStatus')}</span>
+          </div>
+          <div className="p-2 bg-bambu-dark rounded">
+            <span className="text-green-700 dark:text-green-400">POST</span>{' '}
+            <span className="text-white">/api/v1/webhook/queue</span>
+            <span className="text-bambu-gray"> - {t('settings.webhook.addToQueue')}</span>
+          </div>
+          <div className="p-2 bg-bambu-dark rounded">
+            <span className="text-orange-700 dark:text-orange-400">POST</span>{' '}
+            <span className="text-white">/api/v1/webhook/printer/:id/pause</span>
+            <span className="text-bambu-gray"> - {t('settings.webhook.pausePrint')}</span>
+          </div>
+          <div className="p-2 bg-bambu-dark rounded">
+            <span className="text-orange-700 dark:text-orange-400">POST</span>{' '}
+            <span className="text-white">/api/v1/webhook/printer/:id/resume</span>
+            <span className="text-bambu-gray"> - {t('settings.webhook.resumePrint')}</span>
+          </div>
+          <div className="p-2 bg-bambu-dark rounded">
+            <span className="text-red-700 dark:text-red-400">POST</span>{' '}
+            <span className="text-white">/api/v1/webhook/printer/:id/stop</span>
+            <span className="text-bambu-gray"> - {t('settings.webhook.stopPrint')}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  ) : null;
+
+  const apiBrowserCard = hasPermission('api_keys:read') ? (
+    <div>
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold text-white flex items-center gap-2" id="card-apibrowser">
+          <Globe className="w-5 h-5 text-bambu-green" />
+          {t('settings.apiBrowser')}
+        </h2>
+        <p className="text-sm text-bambu-gray mt-1">
+          {t('settings.apiBrowserDescription')}
+        </p>
+      </div>
+
+      <Card className="mb-4">
+        <CardContent className="py-3">
+          <label className="block text-sm text-bambu-gray mb-2">{t('settings.apiKeyForTesting')}</label>
+          <input
+            type="text"
+            value={testApiKey}
+            onChange={(e) => setTestApiKey(e.target.value)}
+            placeholder={t('settings.apiKeyPlaceholder')}
+            className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white font-mono text-sm focus:border-bambu-green focus:outline-none"
+          />
+          <p className="text-xs text-bambu-gray mt-2">
+            {t('settings.apiKeyHint')}
+          </p>
+        </CardContent>
+      </Card>
+
+      <APIBrowser apiKey={testApiKey} />
+    </div>
+  ) : null;
+
   const settingsNavIcons = {
     settings: SettingsIcon,
     shield: Shield,
@@ -2060,197 +2485,8 @@ export function SettingsPage() {
             </CardContent>
           </Card>
 
-
-          <Card id="card-cost">
-            <CardHeader>
-              <h2 className="text-lg font-semibold text-white">{t('settings.costTracking')}</h2>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <label className="block text-sm text-bambu-gray mb-1">{t('settings.currency')}</label>
-                <select
-                  value={localSettings.currency}
-                  onChange={(e) => updateSetting('currency', e.target.value)}
-                  className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                >
-                  {SUPPORTED_CURRENCIES.map((c) => (
-                    <option key={c.code} value={c.code}>{c.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-bambu-gray mb-1">
-                  {t('settings.defaultFilamentCost')}
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-bambu-gray text-sm pointer-events-none">
-                    {getCurrencySymbol(localSettings.currency)}
-                  </span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={localSettings.default_filament_cost}
-                    onChange={(e) =>
-                      updateSetting('default_filament_cost', parseFloat(e.target.value) || 0)
-                    }
-                    style={{ paddingLeft: `${Math.max(2, getCurrencySymbol(localSettings.currency).length * 0.6 + 1)}rem` }}
-                    className="w-full pr-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-bambu-gray mb-1">
-                  {t('settings.electricityCost')}
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-bambu-gray text-sm pointer-events-none">
-                    {getCurrencySymbol(localSettings.currency)}
-                  </span>
-                  <input
-                    type="number"
-                    step="0.001"
-                    min="0"
-                    value={localSettings.energy_cost_per_kwh}
-                    onChange={(e) =>
-                      updateSetting('energy_cost_per_kwh', parseFloat(e.target.value) || 0)
-                    }
-                    style={{ paddingLeft: `${Math.max(2, getCurrencySymbol(localSettings.currency).length * 0.6 + 1)}rem` }}
-                    className="w-full pr-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-bambu-gray mb-1">
-                  {t('settings.energyDisplayMode')}
-                </label>
-                <select
-                  value={localSettings.energy_tracking_mode || 'total'}
-                  onChange={(e) => updateSetting('energy_tracking_mode', e.target.value as 'print' | 'total')}
-                  className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                >
-                  <option value="print">{t('settings.printsOnly')}</option>
-                  <option value="total">{t('settings.totalConsumption')}</option>
-                </select>
-                <p className="text-xs text-bambu-gray mt-1">
-                  {localSettings.energy_tracking_mode === 'print'
-                    ? t('settings.energyModePrintDescription')
-                    : t('settings.energyModeTotalDescription')}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* File Manager Settings */}
-          <Card id="card-filemanager">
-            <CardHeader>
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <FileText className="w-5 h-5 text-bambu-green" />
-                {t('settings.fileManager')}
-              </h2>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {/* Archive Mode */}
-              <div>
-                <label className="block text-sm text-bambu-gray mb-1">
-                  {t('settings.createArchiveEntry')}
-                </label>
-                <select
-                  value={localSettings.library_archive_mode ?? 'ask'}
-                  onChange={(e) => updateSetting('library_archive_mode', e.target.value as 'always' | 'never' | 'ask')}
-                  className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                >
-                  <option value="always">{t('settings.archiveMode.always')}</option>
-                  <option value="never">{t('settings.archiveMode.never')}</option>
-                  <option value="ask">{t('settings.archiveMode.ask')}</option>
-                </select>
-                <p className="text-xs text-bambu-gray mt-1">
-                  {t('settings.createArchiveEntryDescription')}
-                </p>
-              </div>
-
-              {/* Disk Space Warning Threshold */}
-              <div>
-                <label className="block text-sm text-bambu-gray mb-1">
-                  {t('settings.lowDiskSpaceWarning')}
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="0.5"
-                    max="100"
-                    step="0.5"
-                    value={localSettings.library_disk_warning_gb ?? 5}
-                    onChange={(e) => updateSetting('library_disk_warning_gb', parseFloat(e.target.value) || 5)}
-                    className="w-24 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                  />
-                  <span className="text-bambu-gray">GB</span>
-                </div>
-                <p className="text-xs text-bambu-gray mt-1">
-                  {t('settings.lowDiskSpaceDescription')}
-                </p>
-              </div>
-
-              {/* Auto-purge (#1008). Admin-only — users without library:purge
-                  don't see this section since they can't trigger a bulk purge
-                  even manually. */}
-              {canPurge && trashSettings && (
-                <div className="border-t border-bambu-dark-tertiary pt-3 mt-3 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-white">{t('libraryAutoPurge.enableLabel')}</p>
-                      <p className="text-sm text-bambu-gray">{t('libraryAutoPurge.enableDescription')}</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={trashSettings.auto_purge_enabled}
-                        onChange={(e) => saveTrashSettings({ auto_purge_enabled: e.target.checked })}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                    </label>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-bambu-gray mb-1">
-                      {t('libraryAutoPurge.ageLabel')}
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={7}
-                        max={3650}
-                        disabled={!trashSettings.auto_purge_enabled}
-                        value={trashSettings.auto_purge_days}
-                        onChange={(e) =>
-                          saveTrashSettings({
-                            auto_purge_days: Math.max(7, Math.min(3650, parseInt(e.target.value || '0', 10) || 0)),
-                          })
-                        }
-                        className="w-24 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none disabled:opacity-50"
-                      />
-                      <span className="text-bambu-gray">{t('libraryAutoPurge.days')}</span>
-                    </div>
-                    <p className="text-xs text-bambu-gray mt-1">
-                      {t('libraryAutoPurge.ageDescription')}
-                    </p>
-                  </div>
-
-                  <label className="flex items-center gap-2 text-sm text-white cursor-pointer">
-                    <input
-                      type="checkbox"
-                      disabled={!trashSettings.auto_purge_enabled}
-                      checked={trashSettings.auto_purge_include_never_printed}
-                      onChange={(e) => saveTrashSettings({ auto_purge_include_never_printed: e.target.checked })}
-                      className="rounded border-gray-300 disabled:opacity-50"
-                    />
-                    {t('libraryAutoPurge.includeNeverPrinted')}
-                  </label>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {costTrackingCard}
+          {fileManagerCard}
 
           {/* Data Management */}
           <Card id="card-data">
@@ -2615,6 +2851,18 @@ export function SettingsPage() {
       </>
       )}
 
+      {activeTab === 'projects-files' && localSettings && (
+        <div className="max-w-3xl space-y-3">
+          {fileManagerCard}
+        </div>
+      )}
+
+      {activeTab === 'orders-calculation' && localSettings && (
+        <div className="max-w-3xl space-y-3">
+          {costTrackingCard}
+        </div>
+      )}
+
       {/* Network Tab */}
       {activeTab === 'integrations' && localSettings && (
       <div className="flex flex-col lg:flex-row gap-6">
@@ -2647,98 +2895,6 @@ export function SettingsPage() {
                   {t('settings.externalUrlHint')}
                 </p>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card id="card-ftpretry">
-            <CardHeader>
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <RefreshCw className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                {t('settings.ftpRetry')}
-              </h2>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-bambu-gray">
-                {t('settings.ftpRetryDescription')}
-              </p>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white">{t('settings.enableRetry')}</p>
-                  <p className="text-sm text-bambu-gray">
-                    {t('settings.autoRetryDescription')}
-                  </p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={localSettings.ftp_retry_enabled ?? true}
-                    onChange={(e) => updateSetting('ftp_retry_enabled', e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
-              </div>
-
-              {localSettings.ftp_retry_enabled && (
-                <div className="space-y-3 pt-2 border-t border-bambu-dark-tertiary">
-                  <div>
-                    <label className="block text-sm text-bambu-gray mb-1">
-                      {t('settings.retryAttempts')}
-                    </label>
-                    <div className="relative w-44">
-                      <select
-                        value={localSettings.ftp_retry_count ?? 3}
-                        onChange={(e) => updateSetting('ftp_retry_count', parseInt(e.target.value))}
-                        className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
-                      >
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
-                          <option key={n} value={n}>{t('settings.time', { count: n })}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-bambu-gray mb-1">
-                      {t('settings.retryDelay')}
-                    </label>
-                    <div className="relative w-44">
-                      <select
-                        value={localSettings.ftp_retry_delay ?? 2}
-                        onChange={(e) => updateSetting('ftp_retry_delay', parseInt(e.target.value))}
-                        className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
-                      >
-                        {[1, 2, 3, 5, 10, 15, 20, 30].map(n => (
-                          <option key={n} value={n}>{t('settings.second', { count: n })}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-bambu-gray mb-1">
-                      {t('settings.connectionTimeout')}
-                    </label>
-                    <div className="relative w-44">
-                      <select
-                        value={localSettings.ftp_timeout ?? 30}
-                        onChange={(e) => updateSetting('ftp_timeout', parseInt(e.target.value))}
-                        className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
-                      >
-                        {[10, 15, 20, 30, 45, 60, 90, 120, 180, 300].map(n => (
-                          <option key={n} value={n}>{t('settings.nSeconds', { count: n })}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
-                    </div>
-                    <p className="text-xs text-bambu-gray mt-1">
-                      {t('settings.increaseForWeakWifi')}
-                    </p>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
 
@@ -3051,71 +3207,13 @@ export function SettingsPage() {
         </div>
 
         {/* Third Column - Prometheus Metrics */}
-        <div className="flex-1 lg:max-w-md space-y-3">
-          <Card id="card-prometheus">
-            <CardHeader>
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                {t('settings.prometheusMetrics')}
-              </h2>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-bambu-gray">
-                {t('settings.prometheusEndpointDescription')}
-              </p>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white">{t('settings.enableMetricsEndpoint')}</p>
-                  <p className="text-xs text-bambu-gray">{t('settings.prometheusDescription')}</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={localSettings.prometheus_enabled ?? false}
-                    onChange={(e) => updateSetting('prometheus_enabled', e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
-              </div>
-
-              {localSettings.prometheus_enabled && (
-                <div className="space-y-3 pt-2 border-t border-bambu-dark-tertiary">
-                  <div>
-                    <label className="block text-sm text-bambu-gray mb-1">
-                      {t('settings.bearerTokenOptional')}
-                    </label>
-                    <input
-                      type="password"
-                      value={localSettings.prometheus_token ?? ''}
-                      onChange={(e) => updateSetting('prometheus_token', e.target.value)}
-                      placeholder={t('settings.leaveEmptyForNoAuth')}
-                      className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                    />
-                    <p className="text-xs text-bambu-gray mt-1">
-                      {t('settings.bearerTokenHint')}
-                    </p>
-                  </div>
-
-                  <div className="pt-2 border-t border-bambu-dark-tertiary">
-                    <p className="text-sm text-white mb-2">{t('settings.availableMetrics')}</p>
-                    <div className="text-xs text-bambu-gray space-y-1">
-                      <p><code className="text-orange-700 dark:text-orange-400">printops_printer_connected</code> - {t('settings.metricsConnectionStatus')}</p>
-                      <p><code className="text-orange-700 dark:text-orange-400">printops_printer_state</code> - {t('settings.metricsPrinterState')}</p>
-                      <p><code className="text-orange-700 dark:text-orange-400">printops_print_progress</code> - {t('settings.metricsPrintProgress')}</p>
-                      <p><code className="text-orange-700 dark:text-orange-400">printops_bed_temp_celsius</code> - {t('settings.metricsBedTemp')}</p>
-                      <p><code className="text-orange-700 dark:text-orange-400">printops_nozzle_temp_celsius</code> - {t('settings.metricsNozzleTemp')}</p>
-                      <p><code className="text-orange-700 dark:text-orange-400">printops_prints_total</code> - {t('settings.metricsPrintsTotal')}</p>
-                      <p className="text-bambu-gray/70 italic">{t('settings.metricsMore')}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
       </div>
+      )}
+
+      {activeTab === 'printers-production' && ftpRetryCard && (
+        <div className="space-y-3 mt-4">
+          {ftpRetryCard}
+        </div>
       )}
 
       {/* Home Assistant Test Connection Modal */}
@@ -3636,6 +3734,17 @@ export function SettingsPage() {
               </Card>
             )}
           </div>
+      </div>
+      )}
+
+      {activeTab === 'integrations' && hasPermission('api_keys:read') && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4">
+          <div>
+            {webhookDocumentationCard}
+          </div>
+          <div>
+            {apiBrowserCard}
+          </div>
         </div>
       )}
 
@@ -4009,49 +4118,6 @@ export function SettingsPage() {
               </Card>
             )}
 
-            {/* Webhook Documentation */}
-            <Card className="mt-6">
-              <CardHeader>
-                <h3 className="text-base font-semibold text-white" id="card-webhooks">{t('settings.webhookEndpoints')}</h3>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <p className="text-bambu-gray">
-                  {t('settings.webhookApiKeyHint')}
-                </p>
-                <div className="space-y-2 font-mono text-xs">
-                  <div className="p-2 bg-bambu-dark rounded">
-                    <span className="text-blue-700 dark:text-blue-400">GET</span>{' '}
-                    <span className="text-white">/api/v1/webhook/status</span>
-                    <span className="text-bambu-gray"> - {t('settings.webhook.getAllStatus')}</span>
-                  </div>
-                  <div className="p-2 bg-bambu-dark rounded">
-                    <span className="text-blue-700 dark:text-blue-400">GET</span>{' '}
-                    <span className="text-white">/api/v1/webhook/status/:id</span>
-                    <span className="text-bambu-gray"> - {t('settings.webhook.getSpecificStatus')}</span>
-                  </div>
-                  <div className="p-2 bg-bambu-dark rounded">
-                    <span className="text-green-700 dark:text-green-400">POST</span>{' '}
-                    <span className="text-white">/api/v1/webhook/queue</span>
-                    <span className="text-bambu-gray"> - {t('settings.webhook.addToQueue')}</span>
-                  </div>
-                  <div className="p-2 bg-bambu-dark rounded">
-                    <span className="text-orange-700 dark:text-orange-400">POST</span>{' '}
-                    <span className="text-white">/api/v1/webhook/printer/:id/pause</span>
-                    <span className="text-bambu-gray"> - {t('settings.webhook.pausePrint')}</span>
-                  </div>
-                  <div className="p-2 bg-bambu-dark rounded">
-                    <span className="text-orange-700 dark:text-orange-400">POST</span>{' '}
-                    <span className="text-white">/api/v1/webhook/printer/:id/resume</span>
-                    <span className="text-bambu-gray"> - {t('settings.webhook.resumePrint')}</span>
-                  </div>
-                  <div className="p-2 bg-bambu-dark rounded">
-                    <span className="text-red-700 dark:text-red-400">POST</span>{' '}
-                    <span className="text-white">/api/v1/webhook/printer/:id/stop</span>
-                    <span className="text-bambu-gray"> - {t('settings.webhook.stopPrint')}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
             </>}
 
             {/* Long-lived camera-stream tokens (#1108) */}
@@ -4067,41 +4133,6 @@ export function SettingsPage() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Right Column - API Browser. Hidden from users without
-              api_keys:read since the API Browser is the testing surface
-              for those keys; non-admins land in this tab only for the
-              Camera Tokens panel and don't need the browser. */}
-          {hasPermission('api_keys:read') && <div>
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2" id="card-apibrowser">
-                <Globe className="w-5 h-5 text-bambu-green" />
-                {t('settings.apiBrowser')}
-              </h2>
-              <p className="text-sm text-bambu-gray mt-1">
-                {t('settings.apiBrowserDescription')}
-              </p>
-            </div>
-
-            {/* API Key Input for Testing */}
-            <Card className="mb-4">
-              <CardContent className="py-3">
-                <label className="block text-sm text-bambu-gray mb-2">{t('settings.apiKeyForTesting')}</label>
-                <input
-                  type="text"
-                  value={testApiKey}
-                  onChange={(e) => setTestApiKey(e.target.value)}
-                  placeholder={t('settings.apiKeyPlaceholder')}
-                  className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white font-mono text-sm focus:border-bambu-green focus:outline-none"
-                />
-                <p className="text-xs text-bambu-gray mt-2">
-                  {t('settings.apiKeyHint')}
-                </p>
-              </CardContent>
-            </Card>
-
-            <APIBrowser apiKey={testApiKey} />
-          </div>}
         </div>
       )}
 
@@ -6460,12 +6491,15 @@ export function SettingsPage() {
       )}
 
       {activeTab === 'operations' && (
-        <div id="card-backup">
-          <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 rounded-lg flex items-start gap-2">
-            <Shield className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" size={16} />
-            <p className="text-sm text-amber-700 dark:text-amber-400">{t('backup.includesEncryptionKey')}</p>
+        <div className="space-y-4">
+          {prometheusCard}
+          <div id="card-backup">
+            <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 rounded-lg flex items-start gap-2">
+              <Shield className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" size={16} />
+              <p className="text-sm text-amber-700 dark:text-amber-400">{t('backup.includesEncryptionKey')}</p>
+            </div>
+            <GitHubBackupSettings />
           </div>
-          <GitHubBackupSettings />
         </div>
       )}
 
