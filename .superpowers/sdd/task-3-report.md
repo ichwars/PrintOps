@@ -120,3 +120,41 @@ npm.cmd run check:i18n
 Results:
 - `vitest`: 3 files passed, 88 tests passed
 - `check:i18n`: all locales in parity with `en`
+
+---
+
+## Task 3 Fix Follow-up: Search Alignment Review Finding
+
+### Outcome
+
+Completed the remaining Task 3 search alignment review finding on branch `codex/settings-information-architecture`.
+
+### What changed
+
+#### `frontend/src/pages/SettingsPage.tsx`
+- Re-pointed the five reviewed legacy search anchors to their canonical tabs:
+  - `card-archive` -> `printers-production`
+  - `card-camera` -> `printers-production`
+  - `card-updates` -> `operations`
+  - `card-data` -> `operations`
+  - `card-drying` -> `warehouse-material`
+- Rendered those five cards on the canonical tabs advertised by search, using narrow local card helpers instead of broad reorganization.
+- Removed the duplicate visible `Updates` compatibility copy from `General`.
+- Restored the deployment-specific update CTA branches inside the extracted `Updates` card so the canonical `Operations` rendering preserves the existing Home Assistant, Docker, and Windows installer behaviors.
+
+#### `frontend/src/__tests__/pages/SettingsPage.test.tsx`
+- Added the five required search click-through regressions for `Archive Settings`, `Camera`, `Updates`, `Data Management`, and `Drying`, asserting both the active canonical tab and the expected card content.
+- Updated affected settings tests to open the canonical tab before asserting moved card content.
+
+### Verification
+
+Ran from `frontend`:
+
+```powershell
+npm.cmd run test -- SettingsPage.test.tsx settingsNavigation.test.ts --run
+npm.cmd run check:i18n
+```
+
+Results:
+- `vitest`: 3 files passed, 93 tests passed
+- `check:i18n`: all locales in parity with `en`

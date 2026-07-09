@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Cylinder, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Scale, Settings as SettingsIcon, ScanEye, Cog, QrCode, Heart, Workflow } from 'lucide-react';
+import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Cylinder, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Scale, Settings as SettingsIcon, ScanEye, Cog, QrCode, Heart, Workflow, Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
@@ -170,12 +170,12 @@ const legacySearchTabByAnchor: Record<string, string> = {
   'card-general': 'general',
   'card-appearance': 'general',
   'card-sidebar-links': 'general',
-  'card-archive': 'general',
-  'card-camera': 'general',
+  'card-archive': 'printers-production',
+  'card-camera': 'printers-production',
   'card-cost': 'orders-calculation',
   'card-filemanager': 'projects-files',
-  'card-updates': 'general',
-  'card-data': 'general',
+  'card-updates': 'operations',
+  'card-data': 'operations',
   'card-plugs': 'plugs',
   'card-providers': 'notifications',
   'card-templates': 'notifications',
@@ -185,7 +185,7 @@ const legacySearchTabByAnchor: Record<string, string> = {
   'card-plate': 'queue',
   'card-gcode': 'queue',
   'card-slicer': 'queue',
-  'card-drying': 'queue',
+  'card-drying': 'warehouse-material',
   'card-preheat': 'queue',
   'card-pipelines': 'queue',
   'card-filamentchecks': 'filament',
@@ -554,6 +554,7 @@ export function SettingsPage() {
     queryKey: ['version'],
     queryFn: api.getVersion,
   });
+  const appVersion = versionInfo?.version || '...';
 
   // Library trash settings (#1008). Separate endpoint from the generic
   // /settings — persists retention window + auto-purge config. Admin-only.
@@ -1567,6 +1568,984 @@ export function SettingsPage() {
     </Card>
   ) : null;
 
+  const archiveSettingsCard = localSettings ? (
+    <Card id="card-archive">
+      <CardHeader>
+        <h2 className="text-lg font-semibold text-white">{t('settings.archiveSettings')}</h2>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white">{t('settings.autoArchivePrints')}</p>
+            <p className="text-sm text-bambu-gray">
+              {t('settings.autoArchiveDescription')}
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={localSettings.auto_archive}
+              onChange={(e) => updateSetting('auto_archive', e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
+          </label>
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white">{t('settings.saveThumbnails')}</p>
+            <p className="text-sm text-bambu-gray">
+              {t('settings.saveThumbnailsDescription')}
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={localSettings.save_thumbnails}
+              onChange={(e) => updateSetting('save_thumbnails', e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
+          </label>
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white">{t('settings.captureFinishPhoto')}</p>
+            <p className="text-sm text-bambu-gray">
+              {t('settings.captureFinishPhotoDescription')}
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={localSettings.capture_finish_photo}
+              onChange={(e) => updateSetting('capture_finish_photo', e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
+          </label>
+        </div>
+        {localSettings.capture_finish_photo && ffmpegStatus && !ffmpegStatus.installed && (
+          <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+            <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="text-yellow-500 font-medium">{t('settings.ffmpegNotInstalled')}</p>
+              <p className="text-bambu-gray mt-1">
+                {t('settings.ffmpegRequired')}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Archive auto-purge (#1008 follow-up). Admin-only — gated on
+            archives:delete_all. Hard-deletes archives older than the
+            configured age threshold once per 24h. */}
+        {canPurgeArchives && archivePurgeSettings && (
+          <div className="border-t border-bambu-dark-tertiary pt-3 mt-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white">{t('archiveAutoPurge.enableLabel')}</p>
+                <p className="text-sm text-bambu-gray">{t('archiveAutoPurge.enableDescription')}</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={archivePurgeSettings.enabled}
+                  onChange={(e) => saveArchivePurgeSettings({ enabled: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
+              </label>
+            </div>
+
+            <div>
+              <label className="block text-sm text-bambu-gray mb-1">
+                {t('archiveAutoPurge.ageLabel')}
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={7}
+                  max={3650}
+                  disabled={!archivePurgeSettings.enabled}
+                  value={archivePurgeSettings.days}
+                  onChange={(e) =>
+                    saveArchivePurgeSettings({
+                      days: Math.max(7, Math.min(3650, parseInt(e.target.value || '0', 10) || 0)),
+                    })
+                  }
+                  className="w-24 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none disabled:opacity-50"
+                />
+                <span className="text-bambu-gray">{t('archiveAutoPurge.days')}</span>
+              </div>
+              <p className="text-xs text-bambu-gray mt-1">
+                {t('archiveAutoPurge.ageDescription')}
+              </p>
+            </div>
+
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                disabled={!archivePurgeSettings.enabled}
+                checked={archivePurgeSettings.purge_stats}
+                onChange={(e) => saveArchivePurgeSettings({ purge_stats: e.target.checked })}
+                className="mt-0.5 shrink-0 disabled:opacity-50"
+              />
+              <span className="text-sm">
+                <span className="text-white block">{t('archiveAutoPurge.purgeStatsLabel')}</span>
+                <span className="text-xs text-bambu-gray block mt-0.5">
+                  {t('archiveAutoPurge.purgeStatsDescription')}
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  ) : null;
+
+  const cameraSettingsCard = localSettings ? (
+    <Card id="card-camera">
+      <CardHeader>
+        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <Video className="w-5 h-5 text-bambu-green" />
+          {t('settings.camera')}
+        </h2>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div>
+          <label className="block text-sm text-bambu-gray mb-1">
+            {t('settings.cameraViewMode')}
+          </label>
+          <select
+            value={localSettings.camera_view_mode ?? 'window'}
+            onChange={(e) => updateSetting('camera_view_mode', e.target.value as 'window' | 'embedded')}
+            className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+          >
+            <option value="window">{t('settings.newWindow')}</option>
+            <option value="embedded">{t('settings.embeddedOverlay')}</option>
+          </select>
+          <p className="text-xs text-bambu-gray mt-1">
+            {localSettings.camera_view_mode === 'embedded'
+              ? t('settings.cameraOverlayDescription')
+              : t('settings.cameraWindowDescription')}
+          </p>
+        </div>
+
+        {/* External Cameras Section */}
+        <div className="border-t border-bambu-dark-tertiary pt-4 mt-4">
+          <h3 className="text-sm font-medium text-white mb-2">{t('settings.externalCameras')}</h3>
+          <p className="text-xs text-bambu-gray mb-3">
+            {t('settings.externalCamerasDescription')}
+          </p>
+
+          {printers && printers.length > 0 ? (
+            <div className="space-y-3">
+              {printers.map(printer => (
+                <div key={printer.id} className="p-3 bg-bambu-dark rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-white font-medium text-sm">{printer.name}</span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={printer.external_camera_enabled}
+                        onChange={(e) => handleUpdatePrinterCamera(printer.id, { enabled: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-bambu-green"></div>
+                    </label>
+                  </div>
+
+                  {printer.external_camera_enabled && (
+                    <div className="space-y-2 mt-2">
+                      <input
+                        type="text"
+                        placeholder={printer.external_camera_type === 'usb' ? t('settings.cameraPlaceholderUsb') : t('settings.cameraPlaceholderUrl')}
+                        value={localCameraUrls[printer.id] ?? printer.external_camera_url ?? ''}
+                        onChange={(e) => handleCameraUrlChange(printer.id, e.target.value)}
+                        className="w-full px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                      />
+                      <div className="flex gap-2">
+                        <select
+                          value={printer.external_camera_type || 'mjpeg'}
+                          onChange={(e) => handleUpdatePrinterCamera(printer.id, { type: e.target.value })}
+                          className="flex-1 px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                        >
+                          <option value="mjpeg">{t('settings.cameraTypeMjpeg')}</option>
+                          <option value="rtsp">{t('settings.cameraTypeRtsp')}</option>
+                          <option value="snapshot">{t('settings.cameraTypeSnapshot')}</option>
+                          <option value="usb">{t('settings.cameraTypeUsb')}</option>
+                        </select>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => handleTestExternalCamera(printer.id, localCameraUrls[printer.id] ?? printer.external_camera_url ?? '', printer.external_camera_type || 'mjpeg')}
+                          disabled={extCameraTestLoading[printer.id] || !(localCameraUrls[printer.id] ?? printer.external_camera_url)}
+                        >
+                          {extCameraTestLoading[printer.id] ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            t('settings.test')
+                          )}
+                        </Button>
+                      </div>
+                      {extCameraTestResults[printer.id] && (
+                        <div className={`text-xs flex items-center gap-1 ${extCameraTestResults[printer.id]?.success ? 'text-green-500' : 'text-red-500'}`}>
+                          {extCameraTestResults[printer.id]?.success ? (
+                            <>
+                              <CheckCircle className="w-3 h-3" />
+                              {t('settings.connected')}{extCameraTestResults[printer.id]?.resolution && ` (${extCameraTestResults[printer.id]?.resolution})`}
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="w-3 h-3" />
+                              {extCameraTestResults[printer.id]?.error || t('settings.toast.connectionFailed')}
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {(printer.external_camera_type === 'mjpeg' || printer.external_camera_type === 'rtsp' || printer.external_camera_type === 'usb') && (
+                        <div className="space-y-1">
+                          <label className="text-xs text-bambu-gray">{t('settings.cameraSnapshotUrl', 'Snapshot URL (optional)')}</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              placeholder={t('settings.cameraSnapshotUrlPlaceholder', 'http://192.168.1.61:1984/api/frame.jpeg?src=printer')}
+                              value={localSnapshotUrls[printer.id] ?? printer.external_camera_snapshot_url ?? ''}
+                              onChange={(e) => handleSnapshotUrlChange(printer.id, e.target.value)}
+                              className="flex-1 px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                            />
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleTestExternalCamera(printer.id, localSnapshotUrls[printer.id] ?? printer.external_camera_snapshot_url ?? '', 'snapshot')}
+                              disabled={extCameraTestLoading[printer.id] || !(localSnapshotUrls[printer.id] ?? printer.external_camera_snapshot_url)}
+                            >
+                              {extCameraTestLoading[printer.id] ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                t('settings.test')
+                              )}
+                            </Button>
+                          </div>
+                          <p className="text-xs text-bambu-gray opacity-75">
+                            {t('settings.cameraSnapshotUrlHelp', 'Single-frame URL used for notification thumbnails, finish photos, timelapse and plate detection. Leave blank to capture from the live stream above. Useful for go2rtc (/api/frame.jpeg) and IP cameras with a dedicated snapshot endpoint.')}
+                          </p>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-bambu-gray">{t('settings.cameraRotation')}</label>
+                        <select
+                          value={printer.camera_rotation || 0}
+                          onChange={(e) => handleUpdatePrinterCamera(printer.id, { rotation: parseInt(e.target.value) })}
+                          className="px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-xs focus:border-bambu-green focus:outline-none"
+                        >
+                          <option value={0}>0°</option>
+                          <option value={90}>90°</option>
+                          <option value={180}>180°</option>
+                          <option value={270}>270°</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-bambu-gray italic">{t('settings.noPrintersConfigured')}</p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  ) : null;
+
+  const dataManagementCard = localSettings ? (
+    <Card id="card-data">
+      <CardHeader>
+        <h2 className="text-lg font-semibold text-white">{t('settings.dataManagement')}</h2>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white">{t('settings.clearNotificationLogs')}</p>
+            <p className="text-sm text-bambu-gray">
+              {t('settings.clearNotificationLogsDescription')}
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowClearLogsConfirm(true)}
+          >
+            <Trash2 className="w-4 h-4" />
+            {t('common.clear')}
+          </Button>
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white">{t('settings.resetUiPreferences')}</p>
+            <p className="text-sm text-bambu-gray">
+              {t('settings.resetUiPreferencesDescription')}
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowClearStorageConfirm(true)}
+          >
+            <Trash2 className="w-4 h-4" />
+            {t('settings.reset')}
+          </Button>
+        </div>
+        <div className="pt-4 border-t border-bambu-dark-tertiary">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-white">{t('settings.storageUsage', 'Storage Usage')}</p>
+              <p className="text-sm text-bambu-gray">
+                {t('settings.storageUsageDescription', 'Breakdown of data usage by category')}
+              </p>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleStorageUsageRefresh}
+              disabled={storageUsageFetching || storageUsageRefreshing}
+            >
+              <RefreshCw
+                className={`w-4 h-4 ${storageUsageFetching || storageUsageRefreshing ? 'animate-spin' : ''}`}
+              />
+              {t('common.refresh', 'Refresh')}
+            </Button>
+          </div>
+          <div className="mt-3">
+            {storageUsageLoading ? (
+              <div className="flex items-center gap-2 text-sm text-bambu-gray">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {t('common.loading', 'Loading')}
+              </div>
+            ) : storageUsage ? (
+              <>
+                <div className="w-full h-3 bg-bambu-dark rounded-full overflow-hidden flex">
+                  {storageUsage.categories
+                    .filter((category) => category.bytes > 0)
+                    .map((category, index) => (
+                      <div
+                        key={category.key}
+                        className={`${getStorageColor(category.key, index)} h-full`}
+                        style={{ width: `${category.percent_of_total}%` }}
+                        title={`${category.label}: ${category.formatted}`}
+                      />
+                    ))}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-3">
+                  {storageUsage.categories
+                    .filter((category) => category.bytes > 0)
+                    .map((category, index) => (
+                      <div key={category.key} className="flex items-center gap-2 text-xs">
+                        <span
+                          className={`w-3 h-3 rounded-full ${getStorageColor(category.key, index)}`}
+                        />
+                        <span className="text-bambu-gray">{category.label}</span>
+                        <span className="text-white">{category.formatted}</span>
+                        <span className="text-bambu-gray">({category.percent_of_total.toFixed(1)}%)</span>
+                      </div>
+                    ))}
+                </div>
+                <div className="mt-2 text-xs text-bambu-gray">
+                  {t('settings.storageUsageTotal', 'Total')}: <span className="text-white">{storageUsage.total_formatted}</span>
+                  {storageUsage.scan_errors > 0 && (
+                    <span className="ml-2 text-amber-700 dark:text-amber-400">
+                      {t('settings.storageUsageErrors', 'Scan errors')}: {storageUsage.scan_errors}
+                    </span>
+                  )}
+                </div>
+                {storageUsage.other_breakdown?.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-xs text-bambu-gray mb-2">
+                      {t('settings.storageUsageOtherBreakdown', 'Other breakdown')}
+                    </p>
+                    <div className="space-y-2">
+                      {storageUsage.other_breakdown.map((item) => (
+                        <div key={`${item.bucket}-${item.kind}`} className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="text-white">{item.label}</span>
+                            <span
+                              className={`px-2 py-0.5 rounded-full border ${
+                                item.kind === 'system'
+                                  ? 'border-slate-500 text-slate-300'
+                                  : 'border-bambu-green text-bambu-green'
+                              }`}
+                            >
+                              {item.kind === 'system'
+                                ? t('settings.storageUsageSystem', 'System')
+                                : t('settings.storageUsageData', 'Data')}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-bambu-gray">
+                            <span className="text-white">{item.formatted}</span>
+                            <span>({item.percent_of_total.toFixed(1)}%)</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-bambu-gray">
+                {t('settings.storageUsageUnavailable', 'Storage usage data is unavailable')}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center justify-between pt-4 border-t border-bambu-dark-tertiary">
+          <div>
+            <p className="text-white">{t('settings.backupRestore')}</p>
+            <p className="text-sm text-bambu-gray">
+              {t('settings.backupRestoreDescription')}
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => handleTabChange('operations')}
+          >
+            <Database className="w-4 h-4" />
+            {t('settings.goToBackup')}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  ) : null;
+
+  const updatesCard = localSettings ? (
+    <Card id="card-updates">
+      <CardHeader>
+        <h2 className="text-lg font-semibold text-white">{t('settings.updates')}</h2>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs font-medium text-bambu-gray uppercase tracking-wider">{t('settings.printerFirmware')}</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white">{t('settings.checkPrinterFirmware')}</p>
+            <p className="text-sm text-bambu-gray">
+              {t('settings.checkFirmwareDescription')}
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={localSettings.check_printer_firmware ?? true}
+              onChange={(e) => updateSetting('check_printer_firmware', e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
+          </label>
+        </div>
+        <div className="border-t border-bambu-dark-tertiary pt-4">
+          <p className="text-xs font-medium text-bambu-gray uppercase tracking-wider mb-4">{t('settings.printopsSoftware')}</p>
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white">{t('settings.checkForUpdatesLabel')}</p>
+            <p className="text-sm text-bambu-gray">
+              {t('settings.autoCheckDescription')}
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={localSettings.check_updates}
+              onChange={(e) => updateSetting('check_updates', e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
+          </label>
+        </div>
+        <div className={`flex items-center justify-between ${!localSettings.check_updates ? 'opacity-50' : ''}`}>
+          <div>
+            <p className="text-white">{t('settings.includeBetaUpdates')}</p>
+            <p className="text-sm text-bambu-gray">
+              {t('settings.includeBetaUpdatesDesc')}
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={localSettings.include_beta_updates ?? false}
+              onChange={(e) => updateSetting('include_beta_updates', e.target.checked)}
+              disabled={!localSettings.check_updates}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-disabled:opacity-50 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
+          </label>
+        </div>
+        {localSettings.check_updates && (
+          <div className="border-t border-bambu-dark-tertiary pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white">
+                  {t('settings.currentVersion')}: <span className="font-mono text-sm">{appVersion}</span>
+                </p>
+                {updateCheck?.latest_version && updateCheck.latest_version !== appVersion ? (
+                  <p className="text-sm text-green-600 dark:text-green-400">
+                    {t('settings.newVersionAvailable')}: {updateCheck.latest_version}
+                  </p>
+                ) : (
+                  <p className="text-sm text-bambu-gray">{t('settings.upToDate')}</p>
+                )}
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => refetchUpdateCheck()}
+                disabled={isCheckingUpdate}
+              >
+                {isCheckingUpdate ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                {t('settings.checkNow')}
+              </Button>
+            </div>
+
+            {updateCheck?.latest_version && updateCheck.latest_version !== appVersion && (
+              <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <Info className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-green-600 dark:text-green-400 font-medium">
+                      {updateCheck.release_name || `Version ${updateCheck.latest_version}`}
+                    </p>
+                    {updateCheck.published_at && (
+                      <p className="text-xs text-bambu-gray mt-0.5">
+                        {t('settings.released')}: {new Date(updateCheck.published_at).toLocaleDateString()}
+                      </p>
+                    )}
+                    {updateCheck.release_notes && (
+                      <div className="mt-2 flex gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setShowReleaseNotes(true)}
+                        >
+                          {t('settings.viewReleaseNotes')}
+                        </Button>
+                        {updateCheck.release_url && (
+                          <a
+                            href={updateCheck.release_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex"
+                          >
+                            <Button variant="secondary" size="sm">
+                              <ExternalLink className="w-4 h-4" />
+                              GitHub
+                            </Button>
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {updateStatus && updateStatus.status !== 'idle' && (
+              <div className={`p-3 rounded-lg border ${
+                updateStatus.status === 'completed'
+                  ? 'bg-green-500/10 border-green-500/30'
+                  : updateStatus.status === 'failed'
+                    ? 'bg-red-500/10 border-red-500/30'
+                    : 'bg-blue-500/10 border-blue-500/30'
+              }`}>
+                <div className="flex items-start gap-2">
+                  {updateStatus.status === 'completed' ? (
+                    <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                  ) : updateStatus.status === 'failed' ? (
+                    <XCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <Loader2 className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5 animate-spin" />
+                  )}
+                  <div className="flex-1">
+                    <p className={`font-medium ${
+                      updateStatus.status === 'completed'
+                        ? 'text-green-600 dark:text-green-400'
+                        : updateStatus.status === 'failed'
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-blue-600 dark:text-blue-400'
+                    }`}>
+                      {t(`settings.updateStatus.${updateStatus.status}`)}
+                    </p>
+                    {updateStatus.message && (
+                      <p className="text-sm text-bambu-gray mt-1">{updateStatus.message}</p>
+                    )}
+                    {updateStatus.progress !== undefined && updateStatus.progress > 0 && updateStatus.progress < 100 && (
+                      <div className="mt-2">
+                        <div className="w-full bg-bambu-dark-tertiary rounded-full h-2">
+                          <div
+                            className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${updateStatus.progress}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-bambu-gray mt-1">{updateStatus.progress}%</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {updateCheck?.latest_version && updateCheck.latest_version !== appVersion && (
+              <div className="space-y-3">
+                {updateCheck.is_ha_addon ? (
+                  <div className="p-3 bg-bambu-dark-tertiary rounded-lg">
+                    <p className="text-sm text-bambu-gray">
+                      {t('settings.updateViaHomeAssistant')}
+                    </p>
+                  </div>
+                ) : updateCheck.is_docker ? (
+                  <div className="p-3 bg-bambu-dark-tertiary rounded-lg">
+                    <p className="text-sm text-bambu-gray mb-2">
+                      {t('settings.updateViaDocker')}
+                    </p>
+                    <code className="block text-xs bg-bambu-dark p-2 rounded text-bambu-green font-mono">
+                      docker compose pull && docker compose up -d
+                    </code>
+                  </div>
+                ) : updateCheck.update_method === 'windows_installer' ? (
+                  <div className="p-3 bg-bambu-dark-tertiary rounded-lg">
+                    <p className="text-sm text-bambu-gray mb-3">
+                      {t('settings.updateViaWindowsInstaller')}
+                    </p>
+                    <a
+                      href={updateCheck.installer_download_url || updateCheck.release_url || `https://github.com/ichwars/PrintOps/releases/tag/v${updateCheck.latest_version}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-bambu-dark disabled:opacity-50 bg-bambu-green hover:bg-bambu-green-light text-white focus:ring-bambu-green px-4 py-2 text-sm gap-2 min-h-[44px] md:min-h-0"
+                    >
+                      <Download className="w-4 h-4" />
+                      {t('settings.downloadWindowsInstaller', { version: updateCheck.latest_version })}
+                    </a>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => applyUpdateMutation.mutate()}
+                      disabled={
+                        applyUpdateMutation.isPending ||
+                        updateStatus?.status === 'downloading' ||
+                        updateStatus?.status === 'installing'
+                      }
+                      className="flex-1"
+                    >
+                      {(applyUpdateMutation.isPending ||
+                        updateStatus?.status === 'downloading' ||
+                        updateStatus?.status === 'installing') ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          {t('settings.updating')}
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4" />
+                          {t('settings.installUpdate')}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  ) : null;
+
+  const queueDryingCard = localSettings ? (
+    <Card>
+      <CardHeader>
+        <h3 className="text-base font-semibold text-white flex items-center gap-2" id="card-drying">
+          <Flame className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+          {t('settings.queueDrying')}
+        </h3>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-bambu-gray">
+          {t('settings.queueDryingDescription')}
+        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-sm text-white">
+              {t('settings.queueDryingEnabled')}
+            </label>
+            <p className="text-xs text-bambu-gray mt-0.5">
+              {t('settings.queueDryingEnabledDescription')}
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={localSettings.queue_drying_enabled ?? false}
+              onChange={(e) => updateSetting('queue_drying_enabled', e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
+          </label>
+        </div>
+        {localSettings.queue_drying_enabled && (
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="block text-sm text-white">
+                {t('settings.queueDryingBlock')}
+              </label>
+              <p className="text-xs text-bambu-gray mt-0.5">
+                {t('settings.queueDryingBlockDescription')}
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={localSettings.queue_drying_block ?? false}
+                onChange={(e) => updateSetting('queue_drying_block', e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+            </label>
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-sm text-white">
+              {t('settings.ambientDryingEnabled')}
+            </label>
+            <p className="text-xs text-bambu-gray mt-0.5">
+              {t('settings.ambientDryingEnabledDescription')}
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={localSettings.ambient_drying_enabled ?? false}
+              onChange={(e) => updateSetting('ambient_drying_enabled', e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
+          </label>
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-sm text-white">
+              {t('settings.printDryingEnabled')}
+            </label>
+            <p className="text-xs text-bambu-gray mt-0.5">
+              {t('settings.printDryingEnabledDescription')}
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={localSettings.print_drying_enabled ?? false}
+              onChange={(e) => updateSetting('print_drying_enabled', e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
+          </label>
+        </div>
+        {/* Drying Presets Table */}
+        <div className="space-y-2">
+          <p className="text-sm text-white font-medium">{t('settings.dryingPresets')}</p>
+          <p className="text-xs text-bambu-gray">{t('settings.dryingPresetsDescription')}</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-bambu-gray border-b border-bambu-dark-tertiary">
+                  <th className="text-left py-1.5">{t('settings.dryingFilament')}</th>
+                  <th className="text-center py-1.5" colSpan={2}>AMS 2 Pro</th>
+                  <th className="text-center py-1.5" colSpan={2}>AMS-HT</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  const defaults: Record<string, { n3f: number; n3s: number; n3f_hours: number; n3s_hours: number }> = {
+                    PLA: { n3f: 45, n3s: 45, n3f_hours: 12, n3s_hours: 12 },
+                    PETG: { n3f: 65, n3s: 65, n3f_hours: 12, n3s_hours: 12 },
+                    TPU: { n3f: 65, n3s: 75, n3f_hours: 12, n3s_hours: 18 },
+                    ABS: { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
+                    ASA: { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
+                    PA: { n3f: 65, n3s: 85, n3f_hours: 12, n3s_hours: 12 },
+                    PC: { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
+                    PVA: { n3f: 65, n3s: 85, n3f_hours: 12, n3s_hours: 18 },
+                  };
+                  let presets = { ...defaults };
+                  try {
+                    if (localSettings.drying_presets) {
+                      const parsed = JSON.parse(localSettings.drying_presets);
+                      if (typeof parsed === 'object' && parsed !== null) {
+                        presets = { ...defaults, ...parsed };
+                      }
+                    }
+                  } catch { /* use defaults */ }
+
+                  const updatePreset = (fil: string, key: string, value: number) => {
+                    const updated = { ...presets, [fil]: { ...presets[fil], [key]: value } };
+                    updateSetting('drying_presets', JSON.stringify(updated));
+                  };
+
+                  return Object.entries(presets).map(([fil, preset]) => (
+                    <tr key={fil} className="border-b border-bambu-dark-tertiary/50">
+                      <td className="py-1.5 pr-2 text-white font-medium">{fil}</td>
+                      <td className="py-1 px-1">
+                        <div className="flex items-center justify-end gap-1">
+                          <input type="number" min={30} max={65} value={preset.n3f}
+                            onChange={e => updatePreset(fil, 'n3f', Math.max(1, parseInt(e.target.value) || 0))}
+                            className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                          <span className="text-bambu-gray">°C</span>
+                        </div>
+                      </td>
+                      <td className="py-1 px-1">
+                        <div className="flex items-center gap-1">
+                          <input type="number" min={1} max={24} value={preset.n3f_hours}
+                            onChange={e => updatePreset(fil, 'n3f_hours', Math.max(1, parseInt(e.target.value) || 0))}
+                            className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                          <span className="text-bambu-gray">h</span>
+                        </div>
+                      </td>
+                      <td className="py-1 px-1">
+                        <div className="flex items-center justify-end gap-1">
+                          <input type="number" min={30} max={85} value={preset.n3s}
+                            onChange={e => updatePreset(fil, 'n3s', Math.max(1, parseInt(e.target.value) || 0))}
+                            className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                          <span className="text-bambu-gray">°C</span>
+                        </div>
+                      </td>
+                      <td className="py-1 px-1">
+                        <div className="flex items-center gap-1">
+                          <input type="number" min={1} max={24} value={preset.n3s_hours}
+                            onChange={e => updatePreset(fil, 'n3s_hours', Math.max(1, parseInt(e.target.value) || 0))}
+                            className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                          <span className="text-bambu-gray">h</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ));
+                })()}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {/* Per-Filament Humidity Thresholds (#1605) */}
+        <div className="space-y-2">
+          <p className="text-sm text-white font-medium">{t('settings.humidityThresholds')}</p>
+          <p className="text-xs text-bambu-gray">{t('settings.humidityThresholdsDescription')}</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-bambu-gray border-b border-bambu-dark-tertiary">
+                  <th className="text-left py-1.5">{t('settings.dryingFilament')}</th>
+                  <th className="text-right py-1.5 pr-2">{t('settings.humidityThresholdCol')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  const defaultFair = localSettings.ams_humidity_fair ?? 60;
+                  const filamentTypes = ['PLA', 'PETG', 'TPU', 'ABS', 'ASA', 'PA', 'PC', 'PVA'];
+                  let thresholds: Record<string, number> = {};
+                  try {
+                    if (localSettings.ams_humidity_thresholds) {
+                      const parsed = JSON.parse(localSettings.ams_humidity_thresholds);
+                      if (typeof parsed === 'object' && parsed !== null) {
+                        thresholds = parsed;
+                      }
+                    }
+                  } catch { /* invalid → empty */ }
+
+                  const rows: Array<{ key: string; label: string; value: number; isDefault: boolean }> = [
+                    {
+                      key: 'default',
+                      label: t('settings.humidityThresholdDefault'),
+                      value: Number(thresholds.default ?? defaultFair),
+                      isDefault: true,
+                    },
+                    ...filamentTypes.map((fil) => ({
+                      key: fil,
+                      label: fil,
+                      value: Number(thresholds[fil] ?? thresholds.default ?? defaultFair),
+                      isDefault: false,
+                    })),
+                  ];
+
+                  const commitThreshold = (key: string, raw: string) => {
+                    // Empty / blank → drop the override, falling back to
+                    // the default (or to ams_humidity_fair for the
+                    // default row itself).
+                    if (raw.trim() === '') {
+                      const next = { ...thresholds };
+                      delete next[key];
+                      updateSetting('ams_humidity_thresholds', JSON.stringify(next));
+                      return;
+                    }
+                    const parsed = parseInt(raw, 10);
+                    if (Number.isNaN(parsed)) {
+                      return;
+                    }
+                    const clamped = Math.max(5, Math.min(95, parsed));
+                    const next = { ...thresholds, [key]: clamped };
+                    updateSetting('ams_humidity_thresholds', JSON.stringify(next));
+                  };
+
+                  return rows.map((row) => {
+                    // Show the draft string if the user is mid-edit;
+                    // otherwise fall through to the resolved row value.
+                    const draft = humidityDrafts[row.key];
+                    const displayValue = draft !== undefined ? draft : String(row.value);
+                    return (
+                      <tr key={row.key} className="border-b border-bambu-dark-tertiary/50">
+                        <td className={`py-1.5 pr-2 font-medium ${row.isDefault ? 'text-bambu-gray italic' : 'text-white'}`}>{row.label}</td>
+                        <td className="py-1 pr-2">
+                          <div className="flex items-center justify-end gap-1">
+                            <input
+                              type="number"
+                              min={5}
+                              max={95}
+                              value={displayValue}
+                              onChange={(e) => setHumidityDrafts((prev) => ({ ...prev, [row.key]: e.target.value }))}
+                              onBlur={(e) => {
+                                commitThreshold(row.key, e.target.value);
+                                setHumidityDrafts((prev) => {
+                                  const next = { ...prev };
+                                  delete next[row.key];
+                                  return next;
+                                });
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  (e.currentTarget as HTMLInputElement).blur();
+                                }
+                              }}
+                              className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <span className="text-bambu-gray">%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  ) : null;
+
   const ftpRetryCard = localSettings ? (
     <Card id="card-ftpretry">
       <CardHeader>
@@ -2198,658 +3177,16 @@ export function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card id="card-archive">
-            <CardHeader>
-              <h2 className="text-lg font-semibold text-white">{t('settings.archiveSettings')}</h2>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white">{t('settings.autoArchivePrints')}</p>
-                  <p className="text-sm text-bambu-gray">
-                    {t('settings.autoArchiveDescription')}
-                  </p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={localSettings.auto_archive}
-                    onChange={(e) => updateSetting('auto_archive', e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white">{t('settings.saveThumbnails')}</p>
-                  <p className="text-sm text-bambu-gray">
-                    {t('settings.saveThumbnailsDescription')}
-                  </p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={localSettings.save_thumbnails}
-                    onChange={(e) => updateSetting('save_thumbnails', e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white">{t('settings.captureFinishPhoto')}</p>
-                  <p className="text-sm text-bambu-gray">
-                    {t('settings.captureFinishPhotoDescription')}
-                  </p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={localSettings.capture_finish_photo}
-                    onChange={(e) => updateSetting('capture_finish_photo', e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
-              </div>
-              {localSettings.capture_finish_photo && ffmpegStatus && !ffmpegStatus.installed && (
-                <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                  <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm">
-                    <p className="text-yellow-500 font-medium">{t('settings.ffmpegNotInstalled')}</p>
-                    <p className="text-bambu-gray mt-1">
-                      {t('settings.ffmpegRequired')}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Archive auto-purge (#1008 follow-up). Admin-only — gated on
-                  archives:delete_all. Hard-deletes archives older than the
-                  configured age threshold once per 24h. */}
-              {canPurgeArchives && archivePurgeSettings && (
-                <div className="border-t border-bambu-dark-tertiary pt-3 mt-3 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-white">{t('archiveAutoPurge.enableLabel')}</p>
-                      <p className="text-sm text-bambu-gray">{t('archiveAutoPurge.enableDescription')}</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={archivePurgeSettings.enabled}
-                        onChange={(e) => saveArchivePurgeSettings({ enabled: e.target.checked })}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                    </label>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-bambu-gray mb-1">
-                      {t('archiveAutoPurge.ageLabel')}
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={7}
-                        max={3650}
-                        disabled={!archivePurgeSettings.enabled}
-                        value={archivePurgeSettings.days}
-                        onChange={(e) =>
-                          saveArchivePurgeSettings({
-                            days: Math.max(7, Math.min(3650, parseInt(e.target.value || '0', 10) || 0)),
-                          })
-                        }
-                        className="w-24 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none disabled:opacity-50"
-                      />
-                      <span className="text-bambu-gray">{t('archiveAutoPurge.days')}</span>
-                    </div>
-                    <p className="text-xs text-bambu-gray mt-1">
-                      {t('archiveAutoPurge.ageDescription')}
-                    </p>
-                  </div>
-
-                  <label className="flex items-start gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      disabled={!archivePurgeSettings.enabled}
-                      checked={archivePurgeSettings.purge_stats}
-                      onChange={(e) => saveArchivePurgeSettings({ purge_stats: e.target.checked })}
-                      className="mt-0.5 shrink-0 disabled:opacity-50"
-                    />
-                    <span className="text-sm">
-                      <span className="text-white block">{t('archiveAutoPurge.purgeStatsLabel')}</span>
-                      <span className="text-xs text-bambu-gray block mt-0.5">
-                        {t('archiveAutoPurge.purgeStatsDescription')}
-                      </span>
-                    </span>
-                  </label>
-
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
         </div>
 
         {/* Second Column - Camera, Cost, AMS & Spoolman */}
         <div className="space-y-3 flex-1 lg:max-w-md">
-          {/* Camera Settings */}
-          <Card id="card-camera">
-            <CardHeader>
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <Video className="w-5 h-5 text-bambu-green" />
-                {t('settings.camera')}
-              </h2>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <label className="block text-sm text-bambu-gray mb-1">
-                  {t('settings.cameraViewMode')}
-                </label>
-                <select
-                  value={localSettings.camera_view_mode ?? 'window'}
-                  onChange={(e) => updateSetting('camera_view_mode', e.target.value as 'window' | 'embedded')}
-                  className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                >
-                  <option value="window">{t('settings.newWindow')}</option>
-                  <option value="embedded">{t('settings.embeddedOverlay')}</option>
-                </select>
-                <p className="text-xs text-bambu-gray mt-1">
-                  {localSettings.camera_view_mode === 'embedded'
-                    ? t('settings.cameraOverlayDescription')
-                    : t('settings.cameraWindowDescription')}
-                </p>
-              </div>
-
-              {/* External Cameras Section */}
-              <div className="border-t border-bambu-dark-tertiary pt-4 mt-4">
-                <h3 className="text-sm font-medium text-white mb-2">{t('settings.externalCameras')}</h3>
-                <p className="text-xs text-bambu-gray mb-3">
-                  {t('settings.externalCamerasDescription')}
-                </p>
-
-                {printers && printers.length > 0 ? (
-                  <div className="space-y-3">
-                    {printers.map(printer => (
-                      <div key={printer.id} className="p-3 bg-bambu-dark rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-white font-medium text-sm">{printer.name}</span>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={printer.external_camera_enabled}
-                              onChange={(e) => handleUpdatePrinterCamera(printer.id, { enabled: e.target.checked })}
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-bambu-green"></div>
-                          </label>
-                        </div>
-
-                        {printer.external_camera_enabled && (
-                          <div className="space-y-2 mt-2">
-                            <input
-                              type="text"
-                              placeholder={printer.external_camera_type === 'usb' ? t('settings.cameraPlaceholderUsb') : t('settings.cameraPlaceholderUrl')}
-                              value={localCameraUrls[printer.id] ?? printer.external_camera_url ?? ''}
-                              onChange={(e) => handleCameraUrlChange(printer.id, e.target.value)}
-                              className="w-full px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
-                            />
-                            <div className="flex gap-2">
-                              <select
-                                value={printer.external_camera_type || 'mjpeg'}
-                                onChange={(e) => handleUpdatePrinterCamera(printer.id, { type: e.target.value })}
-                                className="flex-1 px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
-                              >
-                                <option value="mjpeg">{t('settings.cameraTypeMjpeg')}</option>
-                                <option value="rtsp">{t('settings.cameraTypeRtsp')}</option>
-                                <option value="snapshot">{t('settings.cameraTypeSnapshot')}</option>
-                                <option value="usb">{t('settings.cameraTypeUsb')}</option>
-                              </select>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => handleTestExternalCamera(printer.id, localCameraUrls[printer.id] ?? printer.external_camera_url ?? '', printer.external_camera_type || 'mjpeg')}
-                                disabled={extCameraTestLoading[printer.id] || !(localCameraUrls[printer.id] ?? printer.external_camera_url)}
-                              >
-                                {extCameraTestLoading[printer.id] ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  t('settings.test')
-                                )}
-                              </Button>
-                            </div>
-                            {extCameraTestResults[printer.id] && (
-                              <div className={`text-xs flex items-center gap-1 ${extCameraTestResults[printer.id]?.success ? 'text-green-500' : 'text-red-500'}`}>
-                                {extCameraTestResults[printer.id]?.success ? (
-                                  <>
-                                    <CheckCircle className="w-3 h-3" />
-                                    {t('settings.connected')}{extCameraTestResults[printer.id]?.resolution && ` (${extCameraTestResults[printer.id]?.resolution})`}
-                                  </>
-                                ) : (
-                                  <>
-                                    <XCircle className="w-3 h-3" />
-                                    {extCameraTestResults[printer.id]?.error || t('settings.toast.connectionFailed')}
-                                  </>
-                                )}
-                              </div>
-                            )}
-                            {(printer.external_camera_type === 'mjpeg' || printer.external_camera_type === 'rtsp' || printer.external_camera_type === 'usb') && (
-                              <div className="space-y-1">
-                                <label className="text-xs text-bambu-gray">{t('settings.cameraSnapshotUrl', 'Snapshot URL (optional)')}</label>
-                                <div className="flex gap-2">
-                                  <input
-                                    type="text"
-                                    placeholder={t('settings.cameraSnapshotUrlPlaceholder', 'http://192.168.1.61:1984/api/frame.jpeg?src=printer')}
-                                    value={localSnapshotUrls[printer.id] ?? printer.external_camera_snapshot_url ?? ''}
-                                    onChange={(e) => handleSnapshotUrlChange(printer.id, e.target.value)}
-                                    className="flex-1 px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
-                                  />
-                                  <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={() => handleTestExternalCamera(printer.id, localSnapshotUrls[printer.id] ?? printer.external_camera_snapshot_url ?? '', 'snapshot')}
-                                    disabled={extCameraTestLoading[printer.id] || !(localSnapshotUrls[printer.id] ?? printer.external_camera_snapshot_url)}
-                                  >
-                                    {extCameraTestLoading[printer.id] ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      t('settings.test')
-                                    )}
-                                  </Button>
-                                </div>
-                                <p className="text-xs text-bambu-gray opacity-75">
-                                  {t('settings.cameraSnapshotUrlHelp', 'Single-frame URL used for notification thumbnails, finish photos, timelapse and plate detection. Leave blank to capture from the live stream above. Useful for go2rtc (/api/frame.jpeg) and IP cameras with a dedicated snapshot endpoint.')}
-                                </p>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-2">
-                              <label className="text-xs text-bambu-gray">{t('settings.cameraRotation')}</label>
-                              <select
-                                value={printer.camera_rotation || 0}
-                                onChange={(e) => handleUpdatePrinterCamera(printer.id, { rotation: parseInt(e.target.value) })}
-                                className="px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-xs focus:border-bambu-green focus:outline-none"
-                              >
-                                <option value={0}>0°</option>
-                                <option value={90}>90°</option>
-                                <option value={180}>180°</option>
-                                <option value={270}>270°</option>
-                              </select>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-bambu-gray italic">{t('settings.noPrintersConfigured')}</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
           {costTrackingCard}
           {fileManagerCard}
-
-          {/* Data Management */}
-          <Card id="card-data">
-            <CardHeader>
-              <h2 className="text-lg font-semibold text-white">{t('settings.dataManagement')}</h2>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white">{t('settings.clearNotificationLogs')}</p>
-                  <p className="text-sm text-bambu-gray">
-                    {t('settings.clearNotificationLogsDescription')}
-                  </p>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowClearLogsConfirm(true)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                  {t('common.clear')}
-                </Button>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white">{t('settings.resetUiPreferences')}</p>
-                  <p className="text-sm text-bambu-gray">
-                    {t('settings.resetUiPreferencesDescription')}
-                  </p>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowClearStorageConfirm(true)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                  {t('settings.reset')}
-                </Button>
-              </div>
-              <div className="pt-4 border-t border-bambu-dark-tertiary">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white">{t('settings.storageUsage', 'Storage Usage')}</p>
-                    <p className="text-sm text-bambu-gray">
-                      {t('settings.storageUsageDescription', 'Breakdown of data usage by category')}
-                    </p>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={handleStorageUsageRefresh}
-                    disabled={storageUsageFetching || storageUsageRefreshing}
-                  >
-                    <RefreshCw
-                      className={`w-4 h-4 ${storageUsageFetching || storageUsageRefreshing ? 'animate-spin' : ''}`}
-                    />
-                    {t('common.refresh', 'Refresh')}
-                  </Button>
-                </div>
-                <div className="mt-3">
-                  {storageUsageLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-bambu-gray">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      {t('common.loading', 'Loading')}
-                    </div>
-                  ) : storageUsage ? (
-                    <>
-                      <div className="w-full h-3 bg-bambu-dark rounded-full overflow-hidden flex">
-                        {storageUsage.categories
-                          .filter((category) => category.bytes > 0)
-                          .map((category, index) => (
-                            <div
-                              key={category.key}
-                              className={`${getStorageColor(category.key, index)} h-full`}
-                              style={{ width: `${category.percent_of_total}%` }}
-                              title={`${category.label}: ${category.formatted}`}
-                            />
-                          ))}
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-3">
-                        {storageUsage.categories
-                          .filter((category) => category.bytes > 0)
-                          .map((category, index) => (
-                            <div key={category.key} className="flex items-center gap-2 text-xs">
-                              <span
-                                className={`w-3 h-3 rounded-full ${getStorageColor(category.key, index)}`}
-                              />
-                              <span className="text-bambu-gray">{category.label}</span>
-                              <span className="text-white">{category.formatted}</span>
-                              <span className="text-bambu-gray">({category.percent_of_total.toFixed(1)}%)</span>
-                            </div>
-                          ))}
-                      </div>
-                      <div className="mt-2 text-xs text-bambu-gray">
-                        {t('settings.storageUsageTotal', 'Total')}: <span className="text-white">{storageUsage.total_formatted}</span>
-                        {storageUsage.scan_errors > 0 && (
-                          <span className="ml-2 text-amber-700 dark:text-amber-400">
-                            {t('settings.storageUsageErrors', 'Scan errors')}: {storageUsage.scan_errors}
-                          </span>
-                        )}
-                      </div>
-                      {storageUsage.other_breakdown?.length > 0 && (
-                        <div className="mt-4">
-                          <p className="text-xs text-bambu-gray mb-2">
-                            {t('settings.storageUsageOtherBreakdown', 'Other breakdown')}
-                          </p>
-                          <div className="space-y-2">
-                            {storageUsage.other_breakdown.map((item) => (
-                              <div key={`${item.bucket}-${item.kind}`} className="flex items-center justify-between text-xs">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-white">{item.label}</span>
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full border ${
-                                      item.kind === 'system'
-                                        ? 'border-slate-500 text-slate-300'
-                                        : 'border-bambu-green text-bambu-green'
-                                    }`}
-                                  >
-                                    {item.kind === 'system'
-                                      ? t('settings.storageUsageSystem', 'System')
-                                      : t('settings.storageUsageData', 'Data')}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2 text-bambu-gray">
-                                  <span className="text-white">{item.formatted}</span>
-                                  <span>({item.percent_of_total.toFixed(1)}%)</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-sm text-bambu-gray">
-                      {t('settings.storageUsageUnavailable', 'Storage usage data is unavailable')}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center justify-between pt-4 border-t border-bambu-dark-tertiary">
-                <div>
-                  <p className="text-white">{t('settings.backupRestore')}</p>
-                  <p className="text-sm text-bambu-gray">
-                    {t('settings.backupRestoreDescription')}
-                  </p>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleTabChange('operations')}
-                >
-                  <Database className="w-4 h-4" />
-                  {t('settings.goToBackup')}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
-        {/* Third Column - Updates & Sidebar Links */}
+        {/* Third Column - Sidebar Links */}
         <div className="space-y-3 flex-1 lg:max-w-sm">
-          <Card id="card-updates">
-            <CardHeader>
-              <h2 className="text-lg font-semibold text-white">{t('settings.updates')}</h2>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-xs font-medium text-bambu-gray uppercase tracking-wider">{t('settings.printerFirmware')}</p>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white">{t('settings.checkPrinterFirmware')}</p>
-                  <p className="text-sm text-bambu-gray">
-                    {t('settings.checkFirmwareDescription')}
-                  </p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={localSettings.check_printer_firmware ?? true}
-                    onChange={(e) => updateSetting('check_printer_firmware', e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
-              </div>
-              <div className="border-t border-bambu-dark-tertiary pt-4">
-                <p className="text-xs font-medium text-bambu-gray uppercase tracking-wider mb-4">{t('settings.printopsSoftware')}</p>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white">{t('settings.checkForUpdatesLabel')}</p>
-                  <p className="text-sm text-bambu-gray">
-                    {t('settings.autoCheckDescription')}
-                  </p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={localSettings.check_updates}
-                    onChange={(e) => updateSetting('check_updates', e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
-              </div>
-              <div className={`flex items-center justify-between ${!localSettings.check_updates ? 'opacity-50' : ''}`}>
-                <div>
-                  <p className="text-white">{t('settings.includeBetaUpdates')}</p>
-                  <p className="text-sm text-bambu-gray">
-                    {t('settings.includeBetaUpdatesDesc')}
-                  </p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={localSettings.include_beta_updates ?? false}
-                    onChange={(e) => updateSetting('include_beta_updates', e.target.checked)}
-                    disabled={!localSettings.check_updates}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <p className="text-white">{t('settings.currentVersion')}</p>
-                    <p className="text-sm text-bambu-gray">v{versionInfo?.version || '...'}</p>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => refetchUpdateCheck()}
-                    disabled={isCheckingUpdate}
-                  >
-                    {isCheckingUpdate ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-4 h-4" />
-                    )}
-                    {t('settings.checkNow')}
-                  </Button>
-                </div>
-
-                {updateCheck?.update_available ? (
-                  <div className="mt-4 p-3 bg-bambu-green/10 border border-bambu-green/30 rounded-lg">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="text-bambu-green font-medium">
-                          Update available: v{updateCheck.latest_version}
-                        </p>
-                        {updateCheck.release_name && updateCheck.release_name !== updateCheck.latest_version && (
-                          <p className="text-sm text-bambu-gray mt-1">{updateCheck.release_name}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {updateCheck.release_notes && (
-                          <button
-                            onClick={() => setShowReleaseNotes(true)}
-                            className="text-bambu-gray hover:text-white transition-colors text-sm underline"
-                          >
-                            {t('settings.releaseNotes')}
-                          </button>
-                        )}
-                        {updateCheck.release_url && (
-                          <a
-                            href={updateCheck.release_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-bambu-gray hover:text-white transition-colors"
-                            title={t('settings.viewReleaseOnGitHub')}
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    {updateStatus?.status === 'downloading' || updateStatus?.status === 'installing' ? (
-                      <div className="mt-3">
-                        <div className="flex items-center gap-2 text-sm text-bambu-gray">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>{updateStatus.message}</span>
-                        </div>
-                        <div className="mt-2 w-full bg-bambu-dark-tertiary rounded-full h-2">
-                          <div
-                            className="bg-bambu-green h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${updateStatus.progress}%` }}
-                          />
-                        </div>
-                      </div>
-                    ) : updateStatus?.status === 'complete' ? (
-                      <div className="mt-3 p-2 bg-bambu-green/20 rounded text-sm text-bambu-green">
-                        {updateStatus.message}
-                      </div>
-                    ) : updateStatus?.status === 'error' ? (
-                      <div className="mt-3 p-2 bg-red-100 dark:bg-red-500/20 rounded text-sm text-red-700 dark:text-red-400">
-                        {updateStatus.error || updateStatus.message}
-                      </div>
-                    ) : updateCheck?.is_ha_addon ? (
-                      <div className="mt-3 p-3 bg-bambu-dark-tertiary rounded-lg">
-                        <p className="text-sm text-bambu-gray">
-                          {t('settings.updateViaHomeAssistant')}
-                        </p>
-                      </div>
-                    ) : updateCheck?.is_docker ? (
-                      <div className="mt-3 p-3 bg-bambu-dark-tertiary rounded-lg">
-                        <p className="text-sm text-bambu-gray mb-2">
-                          {t('settings.updateViaDocker')}
-                        </p>
-                        <code className="block text-xs bg-bambu-dark p-2 rounded text-bambu-green font-mono">
-                          docker compose pull && docker compose up -d
-                        </code>
-                      </div>
-                    ) : updateCheck?.update_method === 'windows_installer' ? (
-                      <div className="mt-3 p-3 bg-bambu-dark-tertiary rounded-lg">
-                        <p className="text-sm text-bambu-gray mb-3">
-                          {t('settings.updateViaWindowsInstaller')}
-                        </p>
-                        <a
-                          href={updateCheck.installer_download_url || updateCheck.release_url || `https://github.com/ichwars/PrintOps/releases/tag/v${updateCheck.latest_version}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-bambu-dark disabled:opacity-50 bg-bambu-green hover:bg-bambu-green-light text-white focus:ring-bambu-green px-4 py-2 text-sm gap-2 min-h-[44px] md:min-h-0"
-                        >
-                          <Download className="w-4 h-4" />
-                          {t('settings.downloadWindowsInstaller', { version: updateCheck.latest_version })}
-                        </a>
-                      </div>
-                    ) : (
-                      <Button
-                        className="mt-3"
-                        onClick={() => applyUpdateMutation.mutate()}
-                        disabled={applyUpdateMutation.isPending}
-                      >
-                        {applyUpdateMutation.isPending ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Download className="w-4 h-4" />
-                        )}
-                        {t('settings.installUpdate')}
-                      </Button>
-                    )}
-                  </div>
-                ) : updateCheck?.error ? (
-                  <div className="mt-2 p-2 bg-red-50 dark:bg-red-500/10 border border-red-300 dark:border-red-500/30 rounded text-sm text-red-700 dark:text-red-400">
-                    {t('settings.failedToCheckUpdates', { error: updateCheck.error })}
-                  </div>
-                ) : updateCheck && !updateCheck.update_available ? (
-                  <p className="mt-2 text-sm text-bambu-gray">
-                    {t('settings.latestVersionRunning')}
-                  </p>
-                ) : null}
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Sidebar Links */}
           <ExternalLinksSettings />
         </div>
@@ -4142,6 +4479,13 @@ export function SettingsPage() {
         </div>
       )}
 
+      {activeTab === 'printers-production' && (
+        <div className="space-y-3 mb-4">
+          {archiveSettingsCard}
+          {cameraSettingsCard}
+        </div>
+      )}
+
       {/* Virtual Printer Tab */}
       {activeTab === 'printers-production' && (
         <div id="card-vp">
@@ -4771,286 +5115,6 @@ export function SettingsPage() {
               can't do anything. */}
           {(localSettings.use_slicer_api ?? false) && <SlicerBundlesPanel />}
 
-          {/* Auto-Drying */}
-          <Card>
-            <CardHeader>
-              <h3 className="text-base font-semibold text-white flex items-center gap-2" id="card-drying">
-                <Flame className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                {t('settings.queueDrying')}
-              </h3>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-xs text-bambu-gray">
-                {t('settings.queueDryingDescription')}
-              </p>
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="block text-sm text-white">
-                    {t('settings.queueDryingEnabled')}
-                  </label>
-                  <p className="text-xs text-bambu-gray mt-0.5">
-                    {t('settings.queueDryingEnabledDescription')}
-                  </p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={localSettings.queue_drying_enabled ?? false}
-                    onChange={(e) => updateSetting('queue_drying_enabled', e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
-              </div>
-              {localSettings.queue_drying_enabled && (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="block text-sm text-white">
-                      {t('settings.queueDryingBlock')}
-                    </label>
-                    <p className="text-xs text-bambu-gray mt-0.5">
-                      {t('settings.queueDryingBlockDescription')}
-                    </p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={localSettings.queue_drying_block ?? false}
-                      onChange={(e) => updateSetting('queue_drying_block', e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
-                  </label>
-                </div>
-              )}
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="block text-sm text-white">
-                    {t('settings.ambientDryingEnabled')}
-                  </label>
-                  <p className="text-xs text-bambu-gray mt-0.5">
-                    {t('settings.ambientDryingEnabledDescription')}
-                  </p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={localSettings.ambient_drying_enabled ?? false}
-                    onChange={(e) => updateSetting('ambient_drying_enabled', e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="block text-sm text-white">
-                    {t('settings.printDryingEnabled')}
-                  </label>
-                  <p className="text-xs text-bambu-gray mt-0.5">
-                    {t('settings.printDryingEnabledDescription')}
-                  </p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={localSettings.print_drying_enabled ?? false}
-                    onChange={(e) => updateSetting('print_drying_enabled', e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
-              </div>
-              {/* Drying Presets Table */}
-              <div className="space-y-2">
-                <p className="text-sm text-white font-medium">{t('settings.dryingPresets')}</p>
-                <p className="text-xs text-bambu-gray">{t('settings.dryingPresetsDescription')}</p>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="text-bambu-gray border-b border-bambu-dark-tertiary">
-                        <th className="text-left py-1.5">{t('settings.dryingFilament')}</th>
-                        <th className="text-center py-1.5" colSpan={2}>AMS 2 Pro</th>
-                        <th className="text-center py-1.5" colSpan={2}>AMS-HT</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        const defaults: Record<string, { n3f: number; n3s: number; n3f_hours: number; n3s_hours: number }> = {
-                          PLA: { n3f: 45, n3s: 45, n3f_hours: 12, n3s_hours: 12 },
-                          PETG: { n3f: 65, n3s: 65, n3f_hours: 12, n3s_hours: 12 },
-                          TPU: { n3f: 65, n3s: 75, n3f_hours: 12, n3s_hours: 18 },
-                          ABS: { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
-                          ASA: { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
-                          PA: { n3f: 65, n3s: 85, n3f_hours: 12, n3s_hours: 12 },
-                          PC: { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
-                          PVA: { n3f: 65, n3s: 85, n3f_hours: 12, n3s_hours: 18 },
-                        };
-                        let presets = { ...defaults };
-                        try {
-                          if (localSettings.drying_presets) {
-                            const parsed = JSON.parse(localSettings.drying_presets);
-                            if (typeof parsed === 'object' && parsed !== null) {
-                              presets = { ...defaults, ...parsed };
-                            }
-                          }
-                        } catch { /* use defaults */ }
-
-                        const updatePreset = (fil: string, key: string, value: number) => {
-                          const updated = { ...presets, [fil]: { ...presets[fil], [key]: value } };
-                          updateSetting('drying_presets', JSON.stringify(updated));
-                        };
-
-                        return Object.entries(presets).map(([fil, preset]) => (
-                          <tr key={fil} className="border-b border-bambu-dark-tertiary/50">
-                            <td className="py-1.5 pr-2 text-white font-medium">{fil}</td>
-                            <td className="py-1 px-1">
-                              <div className="flex items-center justify-end gap-1">
-                                <input type="number" min={30} max={65} value={preset.n3f}
-                                  onChange={e => updatePreset(fil, 'n3f', Math.max(1, parseInt(e.target.value) || 0))}
-                                  className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-                                <span className="text-bambu-gray">°C</span>
-                              </div>
-                            </td>
-                            <td className="py-1 px-1">
-                              <div className="flex items-center gap-1">
-                                <input type="number" min={1} max={24} value={preset.n3f_hours}
-                                  onChange={e => updatePreset(fil, 'n3f_hours', Math.max(1, parseInt(e.target.value) || 0))}
-                                  className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-                                <span className="text-bambu-gray">h</span>
-                              </div>
-                            </td>
-                            <td className="py-1 px-1">
-                              <div className="flex items-center justify-end gap-1">
-                                <input type="number" min={30} max={85} value={preset.n3s}
-                                  onChange={e => updatePreset(fil, 'n3s', Math.max(1, parseInt(e.target.value) || 0))}
-                                  className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-                                <span className="text-bambu-gray">°C</span>
-                              </div>
-                            </td>
-                            <td className="py-1 px-1">
-                              <div className="flex items-center gap-1">
-                                <input type="number" min={1} max={24} value={preset.n3s_hours}
-                                  onChange={e => updatePreset(fil, 'n3s_hours', Math.max(1, parseInt(e.target.value) || 0))}
-                                  className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-                                <span className="text-bambu-gray">h</span>
-                              </div>
-                            </td>
-                          </tr>
-                        ));
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              {/* Per-Filament Humidity Thresholds (#1605) */}
-              <div className="space-y-2">
-                <p className="text-sm text-white font-medium">{t('settings.humidityThresholds')}</p>
-                <p className="text-xs text-bambu-gray">{t('settings.humidityThresholdsDescription')}</p>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="text-bambu-gray border-b border-bambu-dark-tertiary">
-                        <th className="text-left py-1.5">{t('settings.dryingFilament')}</th>
-                        <th className="text-right py-1.5 pr-2">{t('settings.humidityThresholdCol')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        const defaultFair = localSettings.ams_humidity_fair ?? 60;
-                        const filamentTypes = ['PLA', 'PETG', 'TPU', 'ABS', 'ASA', 'PA', 'PC', 'PVA'];
-                        let thresholds: Record<string, number> = {};
-                        try {
-                          if (localSettings.ams_humidity_thresholds) {
-                            const parsed = JSON.parse(localSettings.ams_humidity_thresholds);
-                            if (typeof parsed === 'object' && parsed !== null) {
-                              thresholds = parsed;
-                            }
-                          }
-                        } catch { /* invalid → empty */ }
-
-                        const rows: Array<{ key: string; label: string; value: number; isDefault: boolean }> = [
-                          {
-                            key: 'default',
-                            label: t('settings.humidityThresholdDefault'),
-                            value: Number(thresholds.default ?? defaultFair),
-                            isDefault: true,
-                          },
-                          ...filamentTypes.map((fil) => ({
-                            key: fil,
-                            label: fil,
-                            value: Number(thresholds[fil] ?? thresholds.default ?? defaultFair),
-                            isDefault: false,
-                          })),
-                        ];
-
-                        const commitThreshold = (key: string, raw: string) => {
-                          // Empty / blank → drop the override, falling back to
-                          // the default (or to ams_humidity_fair for the
-                          // default row itself).
-                          if (raw.trim() === '') {
-                            const next = { ...thresholds };
-                            delete next[key];
-                            updateSetting('ams_humidity_thresholds', JSON.stringify(next));
-                            return;
-                          }
-                          const parsed = parseInt(raw, 10);
-                          if (Number.isNaN(parsed)) {
-                            return;
-                          }
-                          const clamped = Math.max(5, Math.min(95, parsed));
-                          const next = { ...thresholds, [key]: clamped };
-                          updateSetting('ams_humidity_thresholds', JSON.stringify(next));
-                        };
-
-                        return rows.map((row) => {
-                          // Show the draft string if the user is mid-edit;
-                          // otherwise fall through to the resolved row value.
-                          const draft = humidityDrafts[row.key];
-                          const displayValue = draft !== undefined ? draft : String(row.value);
-                          return (
-                            <tr key={row.key} className="border-b border-bambu-dark-tertiary/50">
-                              <td className={`py-1.5 pr-2 font-medium ${row.isDefault ? 'text-bambu-gray italic' : 'text-white'}`}>{row.label}</td>
-                              <td className="py-1 pr-2">
-                                <div className="flex items-center justify-end gap-1">
-                                  <input
-                                    type="number"
-                                    min={5}
-                                    max={95}
-                                    value={displayValue}
-                                    onChange={(e) => setHumidityDrafts((prev) => ({ ...prev, [row.key]: e.target.value }))}
-                                    onBlur={(e) => {
-                                      commitThreshold(row.key, e.target.value);
-                                      setHumidityDrafts((prev) => {
-                                        const next = { ...prev };
-                                        delete next[row.key];
-                                        return next;
-                                      });
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') {
-                                        (e.currentTarget as HTMLInputElement).blur();
-                                      }
-                                    }}
-                                    className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                  />
-                                  <span className="text-bambu-gray">%</span>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        });
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
           </div>
         </div>
           )}
@@ -5062,6 +5126,7 @@ export function SettingsPage() {
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
           {/* Left Column (1/3) - Mode Selector + AMS Thresholds */}
           <div className="lg:w-1/3 space-y-3">
+            {queueDryingCard}
             <SpoolmanSettings />
 
             <Card id="card-filamentchecks">
@@ -6498,6 +6563,8 @@ export function SettingsPage() {
 
       {activeTab === 'operations' && (
         <div className="space-y-4">
+          {updatesCard}
+          {dataManagementCard}
           {prometheusCard}
           <div id="card-backup">
             <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 rounded-lg flex items-start gap-2">

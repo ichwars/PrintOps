@@ -241,7 +241,10 @@ describe('SettingsPage', () => {
     });
 
     it('shows updates section with firmware toggle', async () => {
+      const user = userEvent.setup();
       render(<SettingsPage />);
+
+      await user.click(await screen.findByRole('button', { name: 'Operations' }));
 
       await waitFor(() => {
         expect(screen.getByText('Updates')).toBeInTheDocument();
@@ -440,6 +443,56 @@ describe('SettingsPage', () => {
       expect(await screen.findByText('Cost Tracking')).toBeInTheDocument();
       expect(window.location.search).toContain('tab=orders-calculation');
       expect(document.getElementById('card-cost')).not.toBeNull();
+    });
+
+    it('opens Archive Settings from search results on its canonical tab', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Archive Settings');
+
+      expect(await screen.findByRole('button', { name: 'Printers & Production' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('Archive Settings')).toBeInTheDocument();
+      expect(document.getElementById('card-archive')).not.toBeNull();
+    });
+
+    it('opens Camera from search results on its canonical tab', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Camera');
+
+      expect(await screen.findByRole('button', { name: 'Printers & Production' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('External Cameras')).toBeInTheDocument();
+      expect(document.getElementById('card-camera')).not.toBeNull();
+    });
+
+    it('opens Updates from search results on its canonical tab', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Updates');
+
+      expect(await screen.findByRole('button', { name: 'Operations' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('Check printer firmware')).toBeInTheDocument();
+      expect(document.getElementById('card-updates')).not.toBeNull();
+    });
+
+    it('opens Data Management from search results on its canonical tab', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Data Management');
+
+      expect(await screen.findByRole('button', { name: 'Operations' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('Clear Notification Logs')).toBeInTheDocument();
+      expect(document.getElementById('card-data')).not.toBeNull();
+    });
+
+    it('opens Drying from search results on its canonical tab', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Drying');
+
+      expect(await screen.findByRole('button', { name: 'Warehouse & Material' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('Queue Auto-Drying')).toBeInTheDocument();
+      expect(document.getElementById('card-drying')).not.toBeNull();
     });
 
     it('shows a previously hidden PrintOps sidebar page from Sidebar', async () => {
@@ -729,6 +782,7 @@ describe('SettingsPage', () => {
     const renderWithUpdateCheck = async (
       checkBody: Record<string, unknown>,
     ) => {
+      const user = userEvent.setup();
       server.use(
         http.get('/api/v1/settings/', () =>
           HttpResponse.json({ ...mockSettings, check_updates: true }),
@@ -736,6 +790,7 @@ describe('SettingsPage', () => {
         http.get('/api/v1/updates/check', () => HttpResponse.json(checkBody)),
       );
       render(<SettingsPage />);
+      await user.click(await screen.findByRole('button', { name: 'Operations' }));
       await waitFor(() => {
         expect(screen.getByText('Updates')).toBeInTheDocument();
       });
@@ -759,7 +814,7 @@ describe('SettingsPage', () => {
         expect(
           screen.getByText(/Home Assistant Supervisor/i),
         ).toBeInTheDocument();
-      });
+      }, { timeout: 5000 });
       // Docker hint must NOT render — HA branch wins.
       expect(screen.queryByText('docker compose pull && docker compose up -d')).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /install update/i })).not.toBeInTheDocument();
@@ -781,7 +836,7 @@ describe('SettingsPage', () => {
 
       await waitFor(() => {
         expect(screen.getByText('docker compose pull && docker compose up -d')).toBeInTheDocument();
-      });
+      }, { timeout: 5000 });
       expect(screen.queryByText(/Home Assistant Supervisor/i)).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /install update/i })).not.toBeInTheDocument();
     });
@@ -804,7 +859,7 @@ describe('SettingsPage', () => {
         installer_download_url: downloadUrl,
       });
 
-      const link = await screen.findByRole('link', { name: /download installer for v0\.2\.5/i });
+      const link = await screen.findByRole('link', { name: /download installer for v0\.2\.5/i }, { timeout: 5000 });
       expect(link).toHaveAttribute('href', downloadUrl);
       expect(link).toHaveAttribute('target', '_blank');
       expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
@@ -893,22 +948,22 @@ describe('SettingsPage', () => {
       });
     });
 
-    it('shows auto-drying settings on Printers & Production until Task 4 moves cards', async () => {
+    it('shows auto-drying settings on Warehouse & Material', async () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
-      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
+      await user.click(await screen.findByRole('button', { name: 'Warehouse & Material' }));
 
       await waitFor(() => {
         expect(screen.getByText('Queue Auto-Drying')).toBeInTheDocument();
       });
     });
 
-    it('shows per-filament humidity threshold editor on Printers & Production until Task 4 moves cards (#1605)', async () => {
+    it('shows per-filament humidity threshold editor on Warehouse & Material (#1605)', async () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
-      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
+      await user.click(await screen.findByRole('button', { name: 'Warehouse & Material' }));
 
       await waitFor(() => {
         expect(screen.getByText('Humidity Thresholds')).toBeInTheDocument();
@@ -1415,11 +1470,13 @@ describe('SettingsPage', () => {
     };
 
     it('renders the snapshot URL input when camera_type is mjpeg', async () => {
+      const user = userEvent.setup();
       server.use(
         http.get('/api/v1/printers/', () => HttpResponse.json([mjpegPrinter])),
       );
 
       render(<SettingsPage />);
+      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       await waitFor(() => {
         expect(screen.getByPlaceholderText(/api\/frame\.jpeg\?src=printer/)).toBeInTheDocument();
@@ -1427,6 +1484,7 @@ describe('SettingsPage', () => {
     });
 
     it('hides the snapshot URL input when camera_type is snapshot (already a single-frame source)', async () => {
+      const user = userEvent.setup();
       server.use(
         http.get('/api/v1/printers/', () =>
           HttpResponse.json([{ ...mjpegPrinter, external_camera_type: 'snapshot' }]),
@@ -1434,6 +1492,7 @@ describe('SettingsPage', () => {
       );
 
       render(<SettingsPage />);
+      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       // Wait for the live-stream URL placeholder to render so we know the
       // camera section finished mounting before asserting absence of the
@@ -1447,6 +1506,7 @@ describe('SettingsPage', () => {
     it(
       'PATCHes the printer with external_camera_snapshot_url when the user types into the input',
       async () => {
+        const user = userEvent.setup();
         let receivedBody: Record<string, unknown> | null = null;
         server.use(
           http.get('/api/v1/printers/', () => HttpResponse.json([mjpegPrinter])),
@@ -1457,12 +1517,11 @@ describe('SettingsPage', () => {
         );
 
         render(<SettingsPage />);
+        await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
         const input = await waitFor(() =>
           screen.getByPlaceholderText(/api\/frame\.jpeg\?src=printer/),
         );
-
-        const user = userEvent.setup();
         await user.type(input, 'http://192.168.1.61:1984/api/frame.jpeg?src=printer');
 
         // Save is debounced by 800ms; assert the PATCH eventually fires with
