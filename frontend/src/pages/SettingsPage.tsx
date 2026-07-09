@@ -3193,8 +3193,6 @@ export function SettingsPage() {
 
         {/* Second Column - Camera, Cost, AMS & Spoolman */}
         <div className="space-y-3 flex-1 lg:max-w-md">
-          {costTrackingCard}
-          {fileManagerCard}
         </div>
 
         {/* Third Column - Sidebar Links */}

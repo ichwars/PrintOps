@@ -232,6 +232,16 @@ describe('SettingsPage', () => {
       });
     });
 
+    it('does not show File Manager or Cost Tracking in General', async () => {
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Date Format')).toBeInTheDocument();
+        expect(document.getElementById('card-filemanager')).toBeNull();
+        expect(document.getElementById('card-cost')).toBeNull();
+      });
+    });
+
     it('shows appearance section', async () => {
       render(<SettingsPage />);
 
