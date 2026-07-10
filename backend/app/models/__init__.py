@@ -3,7 +3,21 @@ from backend.app.models.ams_label import AmsLabel
 from backend.app.models.api_key import APIKey
 from backend.app.models.archive import PrintArchive
 from backend.app.models.auth_ephemeral import AuthEphemeralToken, AuthRateLimitEvent
+from backend.app.models.business_profile import (
+    BusinessProfile,
+    BusinessProfileAddress,
+    BusinessProfileBankAccount,
+    BusinessProfileTaxIdentifier,
+)
 from backend.app.models.color_catalog import ColorCatalogEntry
+from backend.app.models.customer import (
+    Customer,
+    CustomerAccount,
+    CustomerAddress,
+    CustomerContact,
+    CustomerTag,
+    CustomerTaxIdentifier,
+)
 from backend.app.models.filament import Filament
 from backend.app.models.github_backup import GitHubBackupConfig, GitHubBackupLog
 from backend.app.models.group import Group, user_groups
@@ -15,6 +29,7 @@ from backend.app.models.long_lived_token import LongLivedToken
 from backend.app.models.maintenance import MaintenanceHistory, MaintenanceType, PrinterMaintenance
 from backend.app.models.notification import NotificationLog
 from backend.app.models.notification_template import NotificationTemplate
+from backend.app.models.number_sequence import NumberSequence
 from backend.app.models.oidc_provider import OIDCProvider, UserOIDCLink
 from backend.app.models.orca_base_cache import OrcaBaseProfile
 from backend.app.models.pending_upload import PendingUpload
@@ -88,4 +103,15 @@ __all__ = [
     "AuthEphemeralToken",
     "AuthRateLimitEvent",
     "LongLivedToken",
+    "BusinessProfile",
+    "BusinessProfileAddress",
+    "BusinessProfileBankAccount",
+    "BusinessProfileTaxIdentifier",
+    "Customer",
+    "CustomerAccount",
+    "CustomerAddress",
+    "CustomerContact",
+    "CustomerTag",
+    "CustomerTaxIdentifier",
+    "NumberSequence",
 ]
