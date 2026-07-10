@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Cylinder, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Scale, Settings as SettingsIcon, ScanEye, Cog, QrCode, Heart, Workflow, Info } from 'lucide-react';
+import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Settings as SettingsIcon, Cog, QrCode, Heart, Workflow, Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
@@ -9,7 +9,7 @@ import { getCurrencySymbol, SUPPORTED_CURRENCIES } from '../utils/currency';
 import { checkPasswordComplexity } from '../utils/password';
 import { PRESET_CATEGORIES, parsePresetTriple } from '../utils/temperatureFanPresets';
 import { PreheatFilamentTargetsEditor } from '../components/PreheatFilamentTargetsEditor';
-import type { APIKey, AppSettings, AppSettingsUpdate, SmartPlug, SmartPlugStatus, NotificationProvider, NotificationTemplate, UpdateStatus, GitHubBackupStatus, CloudAuthStatus, UserCreate, UserUpdate, UserResponse, StorageUsageResponse } from '../api/client';
+import type { APIKey, AppSettings, AppSettingsUpdate, SmartPlug, SmartPlugStatus, NotificationProvider, NotificationTemplate, UpdateStatus, UserCreate, UserUpdate, UserResponse, StorageUsageResponse } from '../api/client';
 import { Card, CardContent, CardDensityProvider, CardHeader } from '../components/Card';
 import { SlicerBundlesPanel } from '../components/SlicerBundlesPanel';
 import { SlicerPipelinesPanel } from '../components/SlicerPipelinesPanel';
@@ -40,7 +40,7 @@ import { TwoFactorSettings } from '../components/TwoFactorSettings';
 import { OIDCProviderSettings } from '../components/OIDCProviderSettings';
 import { SecurityStatusCard } from '../components/SecurityStatusCard';
 import { APIBrowser } from '../components/APIBrowser';
-import { virtualPrinterApi, spoolbuddyApi } from '../api/client';
+import { spoolbuddyApi } from '../api/client';
 import { defaultNavItems, getDefaultView, setDefaultView } from '../components/Layout';
 import { availableLanguages } from '../i18n';
 import { useToast } from '../contexts/ToastContext';
@@ -167,6 +167,15 @@ const getStorageColor = (key: string, index: number) =>
 const settingsSearchTabFallbackLabels = Object.fromEntries(
   SETTINGS_NAV_ITEMS.map((item) => [item.id, item.fallback]),
 ) as Record<string, string>;
+
+const UPDATE_STATUS_FALLBACK_LABELS: Record<UpdateStatus['status'], string> = {
+  idle: 'Idle',
+  checking: 'Checking',
+  downloading: 'Downloading',
+  installing: 'Installing',
+  complete: 'Complete',
+  error: 'Error',
+};
 
 const legacySearchTabByAnchor: Record<string, string> = {
   'card-general': 'general',
@@ -525,14 +534,6 @@ export function SettingsPage() {
     queryFn: api.getNotificationTemplates,
   });
 
-  // Virtual printer status for tab indicator
-  const { data: virtualPrinterSettings } = useQuery({
-    queryKey: ['virtual-printer-settings'],
-    queryFn: virtualPrinterApi.getSettings,
-    refetchInterval: 10000,
-  });
-  const virtualPrinterRunning = virtualPrinterSettings?.status?.running ?? false;
-
   // SpoolBuddy devices for tab indicator
   const { data: spoolbuddyDevices } = useQuery({
     queryKey: ['spoolbuddy-devices'],
@@ -541,14 +542,6 @@ export function SettingsPage() {
   });
   const spoolbuddyDeviceCount = spoolbuddyDevices?.length ?? 0;
   const spoolbuddyAnyOnline = spoolbuddyDevices?.some((d) => d.online) ?? false;
-
-  // Obico failure-detection service status for tab indicator
-  const { data: obicoStatus } = useQuery({
-    queryKey: ['obico-status'],
-    queryFn: api.getObicoStatus,
-    refetchInterval: 15000,
-  });
-  const obicoActive = !!(obicoStatus?.is_running && obicoStatus?.enabled);
 
   const { data: ffmpegStatus } = useQuery({
     queryKey: ['ffmpeg-status'],
@@ -657,18 +650,6 @@ export function SettingsPage() {
     queryKey: ['mqtt-status'],
     queryFn: api.getMQTTStatus,
     refetchInterval: activeTab === 'integrations' ? 5000 : false, // Poll every 5s when on integrations tab
-  });
-
-  // GitHub backup status for Backup tab indicator
-  const { data: githubBackupStatus } = useQuery<GitHubBackupStatus>({
-    queryKey: ['github-backup-status'],
-    queryFn: api.getGitHubBackupStatus,
-  });
-
-  // Cloud auth status for Backup tab indicator
-  const { data: cloudAuthStatus } = useQuery<CloudAuthStatus>({
-    queryKey: ['cloud-status'],
-    queryFn: api.getCloudStatus,
   });
 
   // Advanced auth status for user creation
@@ -2217,29 +2198,29 @@ export function SettingsPage() {
 
             {updateStatus && updateStatus.status !== 'idle' && (
               <div className={`p-3 rounded-lg border ${
-                updateStatus.status === 'completed'
+                updateStatus.status === 'complete'
                   ? 'bg-green-500/10 border-green-500/30'
-                  : updateStatus.status === 'failed'
+                  : updateStatus.status === 'error'
                     ? 'bg-red-500/10 border-red-500/30'
                     : 'bg-blue-500/10 border-blue-500/30'
               }`}>
                 <div className="flex items-start gap-2">
-                  {updateStatus.status === 'completed' ? (
+                  {updateStatus.status === 'complete' ? (
                     <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                  ) : updateStatus.status === 'failed' ? (
+                  ) : updateStatus.status === 'error' ? (
                     <XCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                   ) : (
                     <Loader2 className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5 animate-spin" />
                   )}
                   <div className="flex-1">
                     <p className={`font-medium ${
-                      updateStatus.status === 'completed'
+                      updateStatus.status === 'complete'
                         ? 'text-green-600 dark:text-green-400'
-                        : updateStatus.status === 'failed'
+                        : updateStatus.status === 'error'
                           ? 'text-red-600 dark:text-red-400'
                           : 'text-blue-600 dark:text-blue-400'
                     }`}>
-                      {t(`settings.updateStatus.${updateStatus.status}`)}
+                      {t(`settings.updateStatus.${updateStatus.status}`, UPDATE_STATUS_FALLBACK_LABELS[updateStatus.status])}
                     </p>
                     {updateStatus.message && (
                       <p className="text-sm text-bambu-gray mt-1">{updateStatus.message}</p>

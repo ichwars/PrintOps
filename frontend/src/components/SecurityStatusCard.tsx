@@ -11,7 +11,7 @@ import { registerSettingsSearch } from '../lib/settingsSearch';
 registerSettingsSearch({
   labelKey: 'settings.encryption.title',
   labelFallback: 'MFA Encryption Status',
-  tab: 'users',
+  tab: 'users-security',
   subTab: 'security',
   keywords: 'mfa encryption status security backup totp oidc fernet',
   anchor: 'card-mfa-encryption',
