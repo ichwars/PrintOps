@@ -1,9 +1,9 @@
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Calculator, ClipboardList, FileText, Receipt, Users } from 'lucide-react';
+import { Calculator, ClipboardList, FileText, Receipt } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../components/Card';
 
-type OrderSectionId = 'overview' | 'customers' | 'calculation' | 'offers' | 'invoices';
+type OrderSectionId = 'overview' | 'calculation' | 'offers' | 'invoices';
 
 const COPY = {
   en: {
@@ -16,11 +16,6 @@ const COPY = {
         title: 'Order overview',
         subtitle: 'Pipeline, deadlines, reservations, and open commercial work.',
         columns: ['Area', 'Status', 'Next step'],
-      },
-      customers: {
-        title: 'Customers',
-        subtitle: 'Customer master data, contacts, addresses, and terms.',
-        columns: ['Customer', 'Contact', 'Status'],
       },
       calculation: {
         title: 'Calculation',
@@ -50,11 +45,6 @@ const COPY = {
         subtitle: 'Pipeline, Termine, Reservierungen und offene kaufmännische Arbeit.',
         columns: ['Bereich', 'Status', 'Nächster Schritt'],
       },
-      customers: {
-        title: 'Kunden',
-        subtitle: 'Kundenstammdaten, Kontakte, Adressen und Konditionen.',
-        columns: ['Kunde', 'Kontakt', 'Status'],
-      },
       calculation: {
         title: 'Kalkulation',
         subtitle: 'Material, Maschinenzeit, Marge und projektbezogene Preise.',
@@ -75,7 +65,6 @@ const COPY = {
 } as const;
 
 function getSection(pathname: string): OrderSectionId {
-  if (pathname.endsWith('/customers')) return 'customers';
   if (pathname.endsWith('/calculation')) return 'calculation';
   if (pathname.endsWith('/offers')) return 'offers';
   if (pathname.endsWith('/invoices')) return 'invoices';
@@ -92,7 +81,6 @@ export function OrdersPage() {
     overview: ClipboardList,
     offers: FileText,
     calculation: Calculator,
-    customers: Users,
     invoices: Receipt,
   } satisfies Record<OrderSectionId, typeof ClipboardList>;
   const ActiveIcon = activeIcons[activeSection];

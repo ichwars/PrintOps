@@ -42,7 +42,13 @@ export default {
       invoice: '송장',
     },
   },
-
+  orders: {
+    default: 'Default',
+    businessProfile: { title: 'Business Profile', loading: 'Loading business profiles...', error: 'Unable to load business profiles.', empty: 'No business profiles yet.' },
+    customers: { title: 'Customers', subtitle: 'Customer master data for the selected business profile.', businessProfile: 'Business profile', loading: 'Loading customers...', error: 'Unable to load customers.', noBusinessProfile: 'No active business profile is available.', empty: 'No customers yet.', customer: 'Customer', discount: 'Discount' },
+    customerEditor: { title: 'Customer editor', company: 'Company', person: 'Person' },
+    status: { active: 'Active', inactive: 'Inactive', blocked: 'Blocked' },
+  },
   common: {
     save: '저장',
     saving: '저장 중...',
@@ -1552,6 +1558,7 @@ export default {
       warehouseFilament: '필라멘트',
       warehouseCatalogs: '카탈로그',
       orderManagementCalculation: '계산',
+      orderManagementBusinessProfile: 'Business Profile',
       filament: '필라멘트',
       network: '네트워크',
       apiKeys: 'API 키',
@@ -1581,6 +1588,7 @@ export default {
       spoolbuddy: 'SpoolBuddy 키오스크, NFC 리더, 저울, 보정, 장치 등록을 관리합니다.',
     },
     orderManagementSubTabDescriptions: {
+      businessProfile: 'Manage the company details used to issue commercial documents.',
       calculation: '상업용 흐름을 위한 통화, 비용 추적, 계산 기본값을 설정합니다.',
     },
     spoolbuddy: {

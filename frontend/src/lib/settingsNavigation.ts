@@ -32,7 +32,7 @@ export type ProjectManagementSubTab = 'files';
 
 export type WarehouseMaterialSubTab = 'filament' | 'catalogs' | 'spoolbuddy';
 
-export type OrderManagementSubTab = 'calculation';
+export type OrderManagementSubTab = 'business-profile' | 'calculation';
 
 export type IntegrationSubTab = 'notifications' | 'webhooks' | 'smart-home' | 'smart-plugs' | 'api-metrics';
 
@@ -164,6 +164,10 @@ export function canonicalTabToUrlParam(tab: CanonicalSettingsTab): string | null
 
 export function settingsTabLabelKey(tab: CanonicalSettingsTab): string {
   return SETTINGS_NAV_ITEMS.find((item) => item.id === tab)?.labelKey ?? 'settings.tabs.general';
+}
+
+export function resolveOrderManagementSubTab(value: string | null): OrderManagementSubTab | null {
+  return value === 'business-profile' || value === 'calculation' ? value : null;
 }
 
 export function legacySettingsTabDefaultSubTab(tabParam: string | null): {

@@ -45,6 +45,13 @@ export default {
     },
   },
 
+  orders: {
+    default: 'Default',
+    businessProfile: { title: 'Business Profile', loading: 'Loading business profiles...', error: 'Unable to load business profiles.', empty: 'No business profiles yet.' },
+    customers: { title: 'Customers', subtitle: 'Customer master data for the selected business profile.', businessProfile: 'Business profile', loading: 'Loading customers...', error: 'Unable to load customers.', noBusinessProfile: 'No active business profile is available.', empty: 'No customers yet.', customer: 'Customer', discount: 'Discount' },
+    customerEditor: { title: 'Customer editor', company: 'Company', person: 'Person' },
+    status: { active: 'Active', inactive: 'Inactive', blocked: 'Blocked' },
+  },
   // Common
   common: {
     save: '儲存',
@@ -1638,6 +1645,7 @@ export default {
       warehouseFilament: '耗材',
       warehouseCatalogs: '目錄',
       orderManagementCalculation: '計算',
+      orderManagementBusinessProfile: 'Business Profile',
       filament: '耗材',
       network: '網路',
       apiKeys: 'API 金鑰',
@@ -1667,6 +1675,7 @@ export default {
       spoolbuddy: '管理 SpoolBuddy kiosk、NFC 讀卡機、電子秤、校正與裝置註冊。',
     },
     orderManagementSubTabDescriptions: {
+      businessProfile: 'Manage the company details used to issue commercial documents.',
       calculation: '設定商務流程的貨幣、成本追蹤與計算預設值。',
     },
     spoolbuddy: {

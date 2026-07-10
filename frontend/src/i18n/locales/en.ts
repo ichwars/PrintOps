@@ -45,6 +45,33 @@ export default {
     },
   },
 
+  orders: {
+    default: 'Default',
+    businessProfile: {
+      title: 'Business Profile',
+      loading: 'Loading business profiles...',
+      error: 'Unable to load business profiles.',
+      empty: 'No business profiles yet.',
+    },
+    customers: {
+      title: 'Customers',
+      subtitle: 'Customer master data for the selected business profile.',
+      businessProfile: 'Business profile',
+      loading: 'Loading customers...',
+      error: 'Unable to load customers.',
+      noBusinessProfile: 'No active business profile is available.',
+      empty: 'No customers yet.',
+      customer: 'Customer',
+      discount: 'Discount',
+    },
+    customerEditor: {
+      title: 'Customer editor',
+      company: 'Company',
+      person: 'Person',
+    },
+    status: { active: 'Active', inactive: 'Inactive', blocked: 'Blocked' },
+  },
+
   // Common
   common: {
     save: 'Save',
@@ -1655,6 +1682,7 @@ export default {
       warehouseFilament: 'Filament',
       warehouseCatalogs: 'Catalogs',
       orderManagementCalculation: 'Calculation',
+      orderManagementBusinessProfile: 'Business Profile',
       filament: 'Filament',
       network: 'Network',
       apiKeys: 'API Keys',
@@ -1684,6 +1712,7 @@ export default {
       spoolbuddy: 'Manage SpoolBuddy kiosks, NFC readers, scales, calibration, and device registration.',
     },
     orderManagementSubTabDescriptions: {
+      businessProfile: 'Manage the company details used to issue commercial documents.',
       calculation: 'Configure currency, cost tracking, and calculation defaults for commercial workflows.',
     },
     spoolbuddy: {

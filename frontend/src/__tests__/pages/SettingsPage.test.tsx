@@ -157,6 +157,57 @@ describe('SettingsPage', () => {
   });
 
   describe('rendering', () => {
+    it('defaults canonical order settings to the business profile subtab and loads real profiles', async () => {
+      let requestCount = 0;
+      server.use(
+        http.get('/api/v1/business-profiles/', () => {
+          requestCount += 1;
+          return HttpResponse.json([
+            {
+              id: 7,
+              name: 'Berlin Print Works',
+              legal_name: 'Berlin Print Works GmbH',
+              trading_name: null,
+              country_code: 'DE',
+              default_currency: 'EUR',
+              timezone: 'Europe/Berlin',
+              default_locale: 'de',
+              billing_mode: 'hybrid',
+              is_active: true,
+              is_default: true,
+              version: 1,
+              created_at: '2026-07-01T10:00:00Z',
+              updated_at: '2026-07-01T10:00:00Z',
+              addresses: [],
+              tax_identifiers: [],
+              bank_accounts: [],
+            },
+          ]);
+        }),
+      );
+      setSettingsTabUrl('orders-calculation');
+
+      render(<SettingsPage />);
+
+      expect(await screen.findByRole('button', { name: 'Business Profile' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('Berlin Print Works')).toBeInTheDocument();
+      expect(screen.getByText('Default')).toBeInTheDocument();
+      expect(requestCount).toBe(1);
+    });
+
+    it('opens the explicit business-profile settings URL', async () => {
+      server.use(
+        http.get('/api/v1/business-profiles/', () => HttpResponse.json([])),
+      );
+      setSettingsTabUrl('orders-calculation', '&sub=business-profile');
+
+      render(<SettingsPage />);
+
+      expect(await screen.findByRole('button', { name: 'Business Profile' })).toHaveClass('text-bambu-green');
+      expect(document.getElementById('card-business-profile')).not.toBeNull();
+      expect(window.location.search).toContain('sub=business-profile');
+    });
+
     it('renders the page title', async () => {
       render(<SettingsPage />);
 
@@ -366,15 +417,17 @@ describe('SettingsPage', () => {
       });
     });
 
-    it('shows Cost Tracking on Orders & Calculation', async () => {
-      setSettingsTabUrl('orders-calculation');
+    it('opens the explicit legacy calculation settings URL', async () => {
+      setSettingsTabUrl('orders-calculation', '&sub=calculation');
       render(<SettingsPage />);
 
       await waitFor(() => {
         const card = document.getElementById('card-cost');
+        expect(screen.getByRole('button', { name: 'Calculation' })).toHaveClass('text-bambu-green');
         expect(screen.getByText('Cost Tracking')).toBeInTheDocument();
         expect(card).not.toBeNull();
         expect(within(card as HTMLElement).getByText('Currency')).toBeInTheDocument();
+        expect(window.location.search).toContain('sub=calculation');
       });
     });
 

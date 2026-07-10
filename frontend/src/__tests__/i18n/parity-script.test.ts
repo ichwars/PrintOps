@@ -87,6 +87,31 @@ describe('compareLocales (parity-script self-test)', () => {
     ).toBe(true);
   });
 
+  it('allows Task 6 English fallbacks only on their exact translation keys', () => {
+    const result = compareLocales({
+      en: toMap({
+        'orders.customers.title': 'Customers',
+        'unrelated.title': 'Customers',
+      }),
+      es: toMap({
+        'orders.customers.title': 'Customers',
+        'unrelated.title': 'Customers',
+      }),
+    });
+
+    expect(hasReport(result.reports, 'es: leaves identical to en', 'unrelated.title')).toBe(true);
+    expect(hasReport(result.reports, 'es: leaves identical to en', 'orders.customers.title')).toBe(false);
+  });
+
+  it('does not allow Task 6 English fallbacks in the native German locale', () => {
+    const result = compareLocales({
+      en: toMap({ 'orders.customers.title': 'Customers' }),
+      de: toMap({ 'orders.customers.title': 'Customers' }),
+    });
+
+    expect(hasReport(result.reports, 'de: leaves identical to en', 'orders.customers.title')).toBe(true);
+  });
+
   it('throws when the en locale is absent', () => {
     expect(() =>
       compareLocales({ 'zh-CN': toMap({ a: 'x' }) } as Record<string, LocaleMap>),

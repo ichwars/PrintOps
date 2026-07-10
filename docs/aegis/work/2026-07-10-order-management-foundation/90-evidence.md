@@ -132,3 +132,34 @@ baseline and classified before completion claims.
   findings.
 - Residual risk: no live PostgreSQL or true Asyncpg concurrency environment was
   available; PostgreSQL DDL, lock ordering, and direct metadata probes pass.
+
+## Task 6: Frontend Contracts, Navigation, And Settings Routing
+
+- TDD started with focused Layout, settings-navigation, and SettingsPage tests
+  before the production wiring existed.
+- Added exact request/response contracts and API methods for issuing profiles
+  and customers, including optional server-defaulted request fields, required
+  response fields, string decimal discounts, safe profile options, and stable
+  query parameter serialization that preserves `offset=0`.
+- Added the dedicated `/orders/customers` route, removed the customer
+  placeholder from OrdersPage, applied the approved any-of parent and exact
+  child permission gates, and added an App-level route regression test.
+- Added canonical business-profile/calculation settings subtabs with shared URL
+  resolution, explicit legacy calculation behavior, Building2 navigation, and
+  locale-key parity across all eleven locales.
+- Added compact real-data foundations for business profiles and customers with
+  distinct loading, error, no-profile, empty, and list states; no synthetic
+  business data or Task 7/8 editor behavior was introduced.
+- Specification review initially found overly strict request optionality and
+  missing route-level coverage. Both were repaired and the re-review passed.
+- Quality review found disabled-query spinner leakage, a value-global i18n
+  exception, and duplicate settings subtab resolution. Repairs introduced an
+  ordered customer-page state machine, exact key-and-locale i18n exceptions
+  with checker self-tests, one shared resolver, and rendered direct-URL tests.
+- Final focused result: seven Vitest files and 154 tests passed. All eleven
+  locale files report 5,635 leaves in parity. ESLint, `git diff --check`, and
+  `tsc -b && vite build` passed.
+- Final specification review: compliant. Final code-quality review: approved
+  with no findings.
+- Residual risk: the existing Vite bundle-size advisory remains; generated
+  `static` assets were removed from the task diff after verification.

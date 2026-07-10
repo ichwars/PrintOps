@@ -107,6 +107,42 @@ function loadLocale(filePath) {
 
 const placeholderRe = /\{\{[^{}]+\}\}/g;
 
+// Task 6 deliberately ships English fallbacks outside German. Scope that
+// temporary exception to the exact locale/key pairs so the same values still
+// fail when copied into unrelated leaves.
+const ORDER_MANAGEMENT_ENGLISH_FALLBACK_LOCALES = new Set([
+  'es', 'fr', 'it', 'ja', 'ko', 'pt-BR', 'tr', 'zh-CN', 'zh-TW',
+]);
+const ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS = new Set([
+  'orders.default',
+  'orders.businessProfile.title',
+  'orders.businessProfile.loading',
+  'orders.businessProfile.error',
+  'orders.businessProfile.empty',
+  'orders.customers.title',
+  'orders.customers.subtitle',
+  'orders.customers.businessProfile',
+  'orders.customers.loading',
+  'orders.customers.error',
+  'orders.customers.noBusinessProfile',
+  'orders.customers.empty',
+  'orders.customers.customer',
+  'orders.customers.discount',
+  'orders.customerEditor.title',
+  'orders.customerEditor.company',
+  'orders.customerEditor.person',
+  'orders.status.active',
+  'orders.status.inactive',
+  'orders.status.blocked',
+  'settings.tabs.orderManagementBusinessProfile',
+  'settings.orderManagementSubTabDescriptions.businessProfile',
+]);
+
+function isAllowedOrderManagementEnglishFallback(locale, key) {
+  return ORDER_MANAGEMENT_ENGLISH_FALLBACK_LOCALES.has(locale)
+    && ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.has(key);
+}
+
 // Heuristic: values that are ALWAYS allowed to match en, regardless of locale.
 // Brand names, technical tokens, pure punctuation, very short strings, version
 // numbers, hex codes, and ALL-CAPS acronyms. Cognates that happen to be the
@@ -461,6 +497,7 @@ export function compareLocales(locales) {
       if (localeValue === undefined) continue;
       if (localeValue !== enValue) continue;
       if (isAlwaysAllowedIdentical(enValue)) continue;
+      if (isAllowedOrderManagementEnglishFallback(code, key)) continue;
       if (allowed.has(enValue)) continue;
       const preview = enValue.length > 60 ? `${enValue.slice(0, 57)}...` : enValue;
       leaks.push(`${key}: "${preview}"`);

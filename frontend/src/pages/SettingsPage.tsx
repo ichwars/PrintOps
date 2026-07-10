@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Settings as SettingsIcon, Cog, QrCode, Heart, Workflow, Info } from 'lucide-react';
+import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Settings as SettingsIcon, Cog, QrCode, Heart, Workflow, Info, Building2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
@@ -32,6 +32,7 @@ import { ColorCatalogSettings } from '../components/ColorCatalogSettings';
 import { ExternalLinksSettings } from '../components/ExternalLinksSettings';
 import { VirtualPrinterList } from '../components/VirtualPrinterList';
 import { SpoolBuddySettings } from '../components/SpoolBuddySettings';
+import { BusinessProfileSettings } from '../components/settings/BusinessProfileSettings';
 import { GitHubBackupSettings } from '../components/GitHubBackupSettings';
 import { FailureDetectionSettings } from '../components/FailureDetectionSettings';
 import { EmailSettings } from '../components/EmailSettings';
@@ -53,6 +54,7 @@ import {
   canonicalTabToUrlParam,
   legacySettingsTabDefaultAnchor,
   legacySettingsTabDefaultSubTab,
+  resolveOrderManagementSubTab,
   resolveSettingsTab,
   settingsTabLabelKey,
   type CanonicalSettingsTab,
@@ -75,6 +77,7 @@ registerSettingsSearch({ labelKey: 'settings.archiveSettings', tab: 'printers-pr
 registerSettingsSearch({ labelKey: 'settings.camera', tab: 'printers-production', printerProductionSubTab: 'devices', keywords: 'camera external video stream', anchor: 'card-camera' });
 registerSettingsSearch({ labelKey: 'settings.defaultPrinter', labelFallback: 'Default Printer', tab: 'printers-production', printerProductionSubTab: 'devices', keywords: 'default printer preferred printer fallback printer selection', anchor: 'card-default-printer' });
 registerSettingsSearch({ labelKey: 'settings.costTracking', tab: 'orders-calculation', orderManagementSubTab: 'calculation', keywords: 'currency filament cost energy kwh price', anchor: 'card-cost' });
+registerSettingsSearch({ labelKey: 'orders.businessProfile.title', tab: 'orders-calculation', orderManagementSubTab: 'business-profile', keywords: 'business company seller issuer tax bank country currency', anchor: 'card-business-profile' });
 registerSettingsSearch({ labelKey: 'settings.fileManager', tab: 'projects-files', projectManagementSubTab: 'files', keywords: 'file manager archive mode disk warning storage', anchor: 'card-filemanager' });
 registerSettingsSearch({ labelKey: 'settings.updates', tab: 'operations', operationSubTab: 'updates', keywords: 'updates version firmware beta check', anchor: 'card-updates' });
 registerSettingsSearch({ labelKey: 'settings.dataManagement', tab: 'operations', operationSubTab: 'data-management', keywords: 'data clear logs notifications storage backup restore', anchor: 'card-data' });
@@ -401,6 +404,15 @@ const WAREHOUSE_MATERIAL_SUB_TAB_ITEMS: Array<{ id: WarehouseMaterialSubTab; met
 ];
 
 const ORDER_MANAGEMENT_SUB_TABS: Record<OrderManagementSubTab, SettingsHeaderMeta> = {
+  'business-profile': {
+    labelKey: 'settings.tabs.orderManagementBusinessProfile',
+    fallback: 'Business Profile',
+    fallbackDe: 'Unternehmensprofil',
+    descriptionKey: 'settings.orderManagementSubTabDescriptions.businessProfile',
+    descriptionFallback: 'Manage the company details used to issue commercial documents.',
+    descriptionFallbackDe: 'Unternehmensdaten für die Ausstellung kaufmännischer Dokumente verwalten.',
+    icon: Building2,
+  },
   calculation: {
     labelKey: 'settings.tabs.orderManagementCalculation',
     fallback: 'Calculation',
@@ -413,6 +425,7 @@ const ORDER_MANAGEMENT_SUB_TABS: Record<OrderManagementSubTab, SettingsHeaderMet
 };
 
 const ORDER_MANAGEMENT_SUB_TAB_ITEMS: Array<{ id: OrderManagementSubTab; meta: SettingsHeaderMeta }> = [
+  { id: 'business-profile', meta: ORDER_MANAGEMENT_SUB_TABS['business-profile'] },
   { id: 'calculation', meta: ORDER_MANAGEMENT_SUB_TABS.calculation },
 ];
 
@@ -607,10 +620,6 @@ const PROJECT_MANAGEMENT_SUB_TAB_IDS = new Set<ProjectManagementSubTab>(
 const WAREHOUSE_MATERIAL_SUB_TAB_IDS = new Set<WarehouseMaterialSubTab>(
   WAREHOUSE_MATERIAL_SUB_TAB_ITEMS.map((item) => item.id),
 );
-const ORDER_MANAGEMENT_SUB_TAB_IDS = new Set<OrderManagementSubTab>(
-  ORDER_MANAGEMENT_SUB_TAB_ITEMS.map((item) => item.id),
-);
-
 function resolveIntegrationSubTab(value: string | null): IntegrationSubTab | null {
   return INTEGRATION_SUB_TAB_IDS.has(value as IntegrationSubTab) ? value as IntegrationSubTab : null;
 }
@@ -657,14 +666,8 @@ function warehouseMaterialSubTabUrlParam(subTab: WarehouseMaterialSubTab): strin
   return subTab === 'filament' ? null : subTab;
 }
 
-function resolveOrderManagementSubTab(value: string | null): OrderManagementSubTab | null {
-  return ORDER_MANAGEMENT_SUB_TAB_IDS.has(value as OrderManagementSubTab)
-    ? value as OrderManagementSubTab
-    : null;
-}
-
 function orderManagementSubTabUrlParam(subTab: OrderManagementSubTab): string | null {
-  return subTab === 'calculation' ? null : subTab;
+  return subTab === 'business-profile' ? null : subTab;
 }
 
 export function SettingsPage() {
@@ -726,8 +729,8 @@ export function SettingsPage() {
     useState<WarehouseMaterialSubTab>(initialWarehouseMaterialSub);
   const initialOrderManagementSub: OrderManagementSubTab =
     initialTab === 'orders-calculation'
-      ? resolveOrderManagementSubTab(subTabParam) ?? legacySubTabs.orderManagementSubTab ?? 'calculation'
-      : 'calculation';
+      ? resolveOrderManagementSubTab(subTabParam) ?? legacySubTabs.orderManagementSubTab ?? 'business-profile'
+      : 'business-profile';
   const [orderManagementSubTab, setOrderManagementSubTab] =
     useState<OrderManagementSubTab>(initialOrderManagementSub);
   const initialIntegrationSub: IntegrationSubTab =
@@ -788,10 +791,10 @@ export function SettingsPage() {
       setOrderManagementSubTab(
         resolveOrderManagementSubTab(subTabParam) ??
           nextLegacySubTabs.orderManagementSubTab ??
-          'calculation',
+          'business-profile',
       );
     } else {
-      setOrderManagementSubTab('calculation');
+      setOrderManagementSubTab('business-profile');
     }
 
     if (nextTab === 'integrations') {
@@ -832,7 +835,7 @@ export function SettingsPage() {
       setWarehouseMaterialSubTab('filament');
     }
     if (tab !== 'orders-calculation') {
-      setOrderManagementSubTab('calculation');
+      setOrderManagementSubTab('business-profile');
     }
     if (tab !== 'integrations') {
       setIntegrationSubTab('notifications');
@@ -4141,6 +4144,12 @@ export function SettingsPage() {
       {activeTab === 'projects-files' && projectManagementSubTab === 'files' && localSettings && (
         <div className="max-w-3xl space-y-3">
           {fileManagerCard}
+        </div>
+      )}
+
+      {activeTab === 'orders-calculation' && orderManagementSubTab === 'business-profile' && (
+        <div className="max-w-3xl space-y-3">
+          <BusinessProfileSettings />
         </div>
       )}
 

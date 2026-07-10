@@ -45,6 +45,33 @@ export default {
     },
   },
 
+  orders: {
+    default: 'Standard',
+    businessProfile: {
+      title: 'Unternehmensprofil',
+      loading: 'Unternehmensprofile werden geladen...',
+      error: 'Unternehmensprofile konnten nicht geladen werden.',
+      empty: 'Noch keine Unternehmensprofile vorhanden.',
+    },
+    customers: {
+      title: 'Kunden',
+      subtitle: 'Kundenstammdaten für das ausgewählte Unternehmensprofil.',
+      businessProfile: 'Unternehmensprofil',
+      loading: 'Kunden werden geladen...',
+      error: 'Kunden konnten nicht geladen werden.',
+      noBusinessProfile: 'Kein aktives Unternehmensprofil verfügbar.',
+      empty: 'Noch keine Kunden vorhanden.',
+      customer: 'Kunde',
+      discount: 'Rabatt',
+    },
+    customerEditor: {
+      title: 'Kundenbearbeitung',
+      company: 'Unternehmen',
+      person: 'Privatperson',
+    },
+    status: { active: 'Aktiv', inactive: 'Inaktiv', blocked: 'Gesperrt' },
+  },
+
   // Common
   common: {
     save: 'Speichern',
@@ -1638,6 +1665,7 @@ export default {
       warehouseFilament: 'Filament',
       warehouseCatalogs: 'Kataloge',
       orderManagementCalculation: 'Kalkulation',
+      orderManagementBusinessProfile: 'Unternehmensprofil',
       filament: 'Filament',
       network: 'Netzwerk',
       apiKeys: 'API-Schlüssel',
@@ -1667,6 +1695,7 @@ export default {
       spoolbuddy: 'SpoolBuddy-Kioske, NFC-Leser, Waagen, Kalibrierung und Geräteregistrierung verwalten.',
     },
     orderManagementSubTabDescriptions: {
+      businessProfile: 'Unternehmensdaten für die Ausstellung kaufmännischer Dokumente verwalten.',
       calculation: 'Währung, Kostenverfolgung und Kalkulationsstandards für kaufmännische Abläufe konfigurieren.',
     },
     spoolbuddy: {
