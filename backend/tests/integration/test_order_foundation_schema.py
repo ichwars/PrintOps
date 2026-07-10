@@ -5,7 +5,7 @@ from sqlalchemy import Numeric, String, inspect, select
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import configure_mappers, selectinload
-from sqlalchemy.schema import CreateIndex
+from sqlalchemy.schema import CreateIndex, CreateTable
 
 from backend.app.models.business_profile import (
     BusinessProfile,
@@ -97,20 +97,37 @@ async def test_order_foundation_schema_contract(test_engine):
             for constraint in inspector.get_unique_constraints(table_name)
         }
         foreign_keys = [
-            foreign_key
+            (table_name, foreign_key)
             for table_name in EXPECTED_ORDER_FOUNDATION_TABLES
             for foreign_key in inspector.get_foreign_keys(table_name)
         ]
-        return table_names, check_names, unique_names, foreign_keys
+        index_names = {
+            index["name"]
+            for table_name in EXPECTED_ORDER_FOUNDATION_TABLES
+            for index in inspector.get_indexes(table_name)
+        }
+        return table_names, check_names, unique_names, foreign_keys, index_names
 
     async with test_engine.connect() as connection:
-        table_names, check_names, unique_names, foreign_keys = await connection.run_sync(inspect_schema)
+        table_names, check_names, unique_names, foreign_keys, index_names = await connection.run_sync(inspect_schema)
 
     assert table_names >= EXPECTED_ORDER_FOUNDATION_TABLES
     assert check_names >= EXPECTED_CHECK_CONSTRAINTS
     assert unique_names >= EXPECTED_UNIQUE_CONSTRAINTS
+    assert "uq_business_profiles_single_default" in index_names
     assert len(foreign_keys) == 11
-    assert all(foreign_key["options"].get("ondelete") == "CASCADE" for foreign_key in foreign_keys)
+    foreign_key_actions = {
+        (table_name, tuple(foreign_key["constrained_columns"])): foreign_key["options"].get("ondelete")
+        for table_name, foreign_key in foreign_keys
+    }
+    issuer_profile_key = ("customer_accounts", ("business_profile_id",))
+    assert foreign_key_actions[issuer_profile_key] == "RESTRICT"
+    assert sum(action == "CASCADE" for action in foreign_key_actions.values()) == 10
+    assert all(
+        action == "CASCADE"
+        for key, action in foreign_key_actions.items()
+        if key != issuer_profile_key
+    )
 
     discount_type = CustomerAccount.__table__.c.discount_percent.type
     currency_type = CustomerAccount.__table__.c.preferred_currency.type
@@ -129,6 +146,44 @@ async def test_order_foundation_schema_contract(test_engine):
         compiled_index = str(CreateIndex(case_insensitive_index).compile(dialect=dialect)).lower()
         assert "unique index" in compiled_index
         assert "lower(name)" in compiled_index
+
+    single_default_indexes = [
+        index
+        for index in BusinessProfile.__table__.indexes
+        if index.name == "uq_business_profiles_single_default"
+    ]
+    assert len(single_default_indexes) == 1
+    single_default_index = single_default_indexes[0]
+    assert single_default_index.unique
+    for dialect in (sqlite.dialect(), postgresql.dialect()):
+        compiled_index = str(CreateIndex(single_default_index).compile(dialect=dialect)).lower()
+        assert "unique index uq_business_profiles_single_default" in compiled_index
+        assert "where is_default" in compiled_index
+
+
+def test_customer_account_profile_fk_compiles_as_restrict_for_postgresql():
+    profile_foreign_keys = CustomerAccount.__table__.c.business_profile_id.foreign_keys
+    assert len(profile_foreign_keys) == 1
+    assert next(iter(profile_foreign_keys)).ondelete == "RESTRICT"
+
+    postgresql_ddl = str(CreateTable(CustomerAccount.__table__).compile(dialect=postgresql.dialect())).lower()
+    assert "on delete restrict" in postgresql_ddl
+
+
+async def test_business_profiles_reject_a_second_default(db_session):
+    db_session.add_all(
+        [
+            _business_profile("First default"),
+            _business_profile("Second default"),
+        ]
+    )
+    for profile in db_session.new:
+        if isinstance(profile, BusinessProfile):
+            profile.is_default = True
+
+    with pytest.raises(IntegrityError):
+        await db_session.commit()
+    await db_session.rollback()
 
 
 async def test_order_foundation_aggregate_can_be_committed(db_session):

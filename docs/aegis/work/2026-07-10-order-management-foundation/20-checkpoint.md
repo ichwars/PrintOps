@@ -2,31 +2,32 @@
 
 ## TodoCheckpointDraft
 
-- Active: Task 4, business-profile schemas, service, and API.
-- Pending: Tasks 5 through 9 from the implementation plan.
+- Active: Task 5, customer schemas, service, and API.
+- Pending: Tasks 6 through 9 from the implementation plan.
+- Completed: Task 4, business-profile schemas, service, and API.
 - Completed: Task 3, concurrency-safe number sequences.
 - Completed: Task 2, order-management permissions and safe role backfill.
 - Completed: Task 1, relational profile, sequence, and customer models.
 - Completed: approved design and executable plan.
-- Next: dispatch the Task 4 TDD implementer, then run specification and
+- Next: dispatch the Task 5 TDD implementer, then run specification and
   code-quality reviews.
 
 ## Slice Card
 
-- Goal: expose secure, versioned business-profile configuration through
-  schemas, service invariants, and API routes.
-- Parent plan: `docs/superpowers/plans/2026-07-10-order-management-foundation.md`, Task 4.
-- Files: business-profile schemas/service/routes, main router registration,
-  and focused integration tests.
-- Boundary: issuer profiles only; no customer API, calculation logic,
+- Goal: expose relational customer master data with per-profile accounts,
+  normalized nested data, optimistic updates, and secure CRUD routes.
+- Parent plan: `docs/superpowers/plans/2026-07-10-order-management-foundation.md`, Task 5.
+- Files: customer schemas/service/routes, main router registration, and
+  focused integration tests.
+- Boundary: customer master data only; no calculations, orders, documents,
   accounting adapter, or frontend UI.
-- Verification: focused profile API/permission tests plus Ruff.
+- Verification: focused customer/profile API tests plus Ruff.
 - Stop: focused tests and both review gates pass, or a plan conflict is found.
 
 ## ResumeStateHint
 
 Resume on `codex/order-management`, confirm a clean or checkpoint-consistent
-worktree, read Task 4 and the latest review evidence, then continue at the next
+worktree, read Task 5 and the latest review evidence, then continue at the next
 open review or implementation step. `origin` is the only allowed push remote.
 
 ## DriftCheckDraft
@@ -41,4 +42,6 @@ open review or implementation step. `origin` is the only allowed push remote.
   permission/group/auth tests, and Ruff.
 - Evidence: Task 3 passed specification review, code-quality review, 29
   sequence behavior tests, and Ruff.
+- Evidence: Task 4 passed specification review, code-quality review, 65
+  schema/profile/permission tests, and Ruff.
 - Decision: continue.

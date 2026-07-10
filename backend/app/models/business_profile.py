@@ -3,7 +3,19 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.core.database import Base
@@ -20,6 +32,13 @@ class BusinessProfile(Base):
         CheckConstraint(
             "billing_mode IN ('internal', 'external', 'hybrid')",
             name="ck_business_profiles_billing_mode",
+        ),
+        Index(
+            "uq_business_profiles_single_default",
+            "is_default",
+            unique=True,
+            sqlite_where=text("is_default = 1"),
+            postgresql_where=text("is_default = true"),
         ),
     )
 
@@ -45,14 +64,17 @@ class BusinessProfile(Base):
     addresses: Mapped[list[BusinessProfileAddress]] = relationship(
         cascade="all, delete-orphan",
         lazy="selectin",
+        order_by="BusinessProfileAddress.id",
     )
     tax_identifiers: Mapped[list[BusinessProfileTaxIdentifier]] = relationship(
         cascade="all, delete-orphan",
         lazy="selectin",
+        order_by="BusinessProfileTaxIdentifier.id",
     )
     bank_accounts: Mapped[list[BusinessProfileBankAccount]] = relationship(
         cascade="all, delete-orphan",
         lazy="selectin",
+        order_by="BusinessProfileBankAccount.id",
     )
     number_sequences: Mapped[list[NumberSequence]] = relationship(
         back_populates="business_profile",

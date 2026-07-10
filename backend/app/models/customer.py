@@ -98,7 +98,7 @@ class CustomerAccount(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"), index=True)
     business_profile_id: Mapped[int] = mapped_column(
-        ForeignKey("business_profiles.id", ondelete="CASCADE"),
+        ForeignKey("business_profiles.id", ondelete="RESTRICT"),
         index=True,
     )
     number: Mapped[str] = mapped_column(String(50))

@@ -80,3 +80,30 @@ baseline and classified before completion claims.
   findings.
 - Residual risk: true simultaneous PostgreSQL/file-backed SQLite writers remain
   deliberately deferred to the document-numbering increment.
+
+## Task 4: Issuing Business Profile API
+
+- TDD red state: 21 profile API tests collected and the first POST returned
+  405 before router registration.
+- Added normalized nested Pydantic contracts, aggregate service, safe options
+  projection, permissioned CRUD routes, stable problem details, and initial
+  customer sequence creation.
+- Specification review found missing `from_attributes` on the safe option type
+  plus validation and authorization evidence gaps; repair expanded the suite.
+- Quality review found non-atomic profile versions, race-prone defaults,
+  profile-delete cascade risk, broad integrity classification, weak ISO
+  validation, and unstable child ordering.
+- Repairs added atomic version CAS, versioned default clearing, a portable
+  one-default partial index, `RESTRICT` customer-account FK plus row lock,
+  constraint-aware error mapping, `pycountry` ISO validation, normalized tax
+  identifiers, optional-blank normalization, and deterministic relationships.
+- Final review found and closed direct Asyncpg constraint metadata handling and
+  a race between dedicated default switching and PUT; set-default now uses its
+  own active/version CAS and rollback-safe transition.
+- Final focused result: 65 passed. Ruff and diff-check were clean.
+- Specification review: compliant. Quality re-review: ready with no remaining
+  findings.
+- Residual risk: no live PostgreSQL test server was available; SQLite foreign
+  keys remain globally disabled, so a true concurrent customer-account insert
+  during profile deletion remains a bounded platform risk despite the settled
+  reference check. PostgreSQL is protected by row locking and `RESTRICT`.
