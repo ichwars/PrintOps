@@ -167,7 +167,7 @@ export function LoginPage() {
   // `autologin_provider_id`, redirect unauthenticated visitors directly to
   // that provider's authorize URL on mount — unless the URL carries
   // `?fallback=local` (the documented recovery path that pairs with the
-  // server-side BAMBUDDY_LOCAL_LOGIN env-var bypass). The authorize-URL
+  // server-side PRINTOPS_LOCAL_LOGIN env-var bypass). The authorize-URL
   // fetch is raced against a 5-second timeout; on timeout or fetch error
   // we skip the redirect and render the normal page, surfacing a banner
   // so the user understands why autologin didn't kick in.

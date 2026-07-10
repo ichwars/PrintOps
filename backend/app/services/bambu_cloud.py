@@ -15,12 +15,12 @@ BAMBU_API_BASE = "https://api.bambulab.com"
 BAMBU_API_BASE_CN = "https://api.bambulab.cn"
 
 # Client identity sent to Bambu Lab's cloud services. We identify honestly as
-# Bambuddy — the URL in parens makes the source unambiguous so Bambu can
+# PrintOps — the URL in parens makes the source unambiguous so Bambu can
 # distinguish our traffic from impersonators. This is the opposite of what the
 # OrcaSlicer fork was called out for in the May 2026 Bambu Lab blog post
 # ("Setting the record straight on cloud access and community"): we do not
 # introduce ourselves as official Bambu Studio.
-_USER_AGENT = "Bambuddy/1.0 (+https://github.com/maziggy/bambuddy)"
+_USER_AGENT = "PrintOps/1.0 (+https://github.com/ichwars/PrintOps)"
 
 # Cloudflare protection on Bambu Lab's edge intermittently returns interstitials /
 # challenges instead of the JSON the API normally produces (issue #1575). The
@@ -28,7 +28,7 @@ _USER_AGENT = "Bambuddy/1.0 (+https://github.com/maziggy/bambuddy)"
 # we can surface an actionable message instead of "Invalid response from Bambu Cloud".
 _CF_INTERSTITIAL_USER_MESSAGE = (
     "Bambu Cloud is temporarily blocking automated requests from your network. "
-    "This is a Cloudflare protection on Bambu Lab's side, not a Bambuddy issue. "
+    "This is a Cloudflare protection on Bambu Lab's side, not a PrintOps issue. "
     "Please wait a few minutes and try again. If it persists, signing in to "
     "bambulab.com once from a browser on the same network usually clears the "
     "challenge."
@@ -70,7 +70,7 @@ def _detect_cloudflare_challenge(response) -> str | None:
 # for the list, the singular GET/DELETE for a specific preset by setting_id, and
 # the POST for create — requires a `version` query parameter in the XX.YY.ZZ.WW
 # format Bambu Studio releases use. Without it the API returns HTTP 400
-# "field 'version' is not set"; non-matching formats like "bambuddy-1.0" return
+# "field 'version' is not set"; non-matching formats like "printops-1.0" return
 # HTTP 422 "Invalid input parameters". However, Bambu's server accepts ANY value
 # within that format — it doesn't validate against a release manifest. We
 # therefore use a neutral "1.0.0.0" placeholder that does not impersonate any
@@ -255,7 +255,7 @@ class BambuCloudService:
             # We previously sent a Chrome User-Agent plus Origin/Referer headers
             # under the assumption Cloudflare would block bot-identified
             # requests. Verified 2026-05-12 via curl that the endpoint accepts
-            # honest "Bambuddy/X.Y.Z" identification cleanly (HTTP 400 with the
+            # honest "PrintOps/X.Y.Z" identification cleanly (HTTP 400 with the
             # expected application-level "Login failed" JSON, no Cloudflare
             # interstitial). Browser-impersonation removed to stay clearly on
             # the right side of Bambu Lab's "no falsified client identity" line.

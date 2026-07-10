@@ -87,7 +87,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = Query(def
     # explicit attribute (rather than a side dict) means a future
     # ``broadcast_to_principal()`` helper can filter on it without
     # touching every call site.
-    websocket.state.bambuddy_principal = principal
+    websocket.state.printops_principal = principal
     # Resolve principal username → User.id once at connect so
     # ``ws_manager.broadcast_to_user()`` can filter without re-querying
     # per message. Auth-disabled path keeps None (broadcast_to_user fans
@@ -101,7 +101,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = Query(def
                 principal_user_id = row.scalar_one_or_none()
         except Exception:  # SEC-AUTH-EXC: resolution failure is non-fatal — degrades to no per-user routing
             logger.warning("WebSocket principal resolve failed for %s", principal, exc_info=True)
-    websocket.state.bambuddy_principal_user_id = principal_user_id
+    websocket.state.printops_principal_user_id = principal_user_id
     logger.info("WebSocket client connected")
 
     try:

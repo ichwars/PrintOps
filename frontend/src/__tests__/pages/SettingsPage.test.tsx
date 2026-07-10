@@ -37,6 +37,17 @@ const mockSettings = {
   bed_cooled_threshold: 35,
 };
 
+const settingsSidebarChildIds = [
+  'settings-general',
+  'settings-users-security',
+  'settings-printers-production',
+  'settings-projects-files',
+  'settings-warehouse-material',
+  'settings-orders-calculation',
+  'settings-integrations',
+  'settings-operations',
+];
+
 async function clickSettingsSearchResult(query: string) {
   const user = userEvent.setup();
   const search = await screen.findByPlaceholderText('Search settings…');
@@ -57,10 +68,20 @@ type LegacyAliasLandingExpectation = {
   subTabLabel?: string;
 };
 
+function setSettingsTabUrl(tab: string, extraSearch = '') {
+  const search = tab === 'general' ? extraSearch : `?tab=${tab}${extraSearch}`;
+  window.history.replaceState({}, '', `/settings${search}`);
+}
+
+function navigateSettingsTab(tab: string, extraSearch = '') {
+  const search = tab === 'general' ? extraSearch : `?tab=${tab}${extraSearch}`;
+  window.history.pushState({}, '', `/settings${search}`);
+  window.dispatchEvent(new Event('popstate'));
+}
+
 async function expectLegacyAliasLanding({
   alias,
   anchorId,
-  tabLabel,
   subTabLabel,
 }: LegacyAliasLandingExpectation) {
   const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView');
@@ -78,8 +99,6 @@ async function expectLegacyAliasLanding({
     expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
     expect(anchor).toHaveClass('ring-2', 'ring-bambu-green');
   });
-
-  expect(await screen.findByRole('button', { name: tabLabel })).toHaveClass('text-bambu-green');
 
   if (subTabLabel) {
     expect(await screen.findByRole('button', { name: subTabLabel })).toHaveClass('text-bambu-green');
@@ -143,64 +162,133 @@ describe('SettingsPage', () => {
 
       await waitFor(() => {
         // Use role-based query to avoid conflicts with dropdown options
-        expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'General', level: 1 })).toBeInTheDocument();
+        expect(screen.getByText('Manage language, appearance, default views, and personal UI preferences.')).toBeInTheDocument();
       });
     });
 
-    it('shows canonical settings tabs', async () => {
+    it('uses the active users/security subpage as the page title', async () => {
+      const user = userEvent.setup();
+      setSettingsTabUrl('users-security');
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getAllByText('General').length).toBeGreaterThan(0);
-        expect(screen.getByText('Users & Security')).toBeInTheDocument();
-        expect(screen.getByText('Printers & Production')).toBeInTheDocument();
-        expect(screen.getByText('Projects & Files')).toBeInTheDocument();
-        expect(screen.getByText('Warehouse & Material')).toBeInTheDocument();
-        expect(screen.getByText('Orders & Calculation')).toBeInTheDocument();
-        expect(screen.getByText('Integrations')).toBeInTheDocument();
-        expect(screen.getByText('Operations')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Authentication', level: 1 })).toBeInTheDocument();
+        expect(screen.getByText('Manage local users, groups, roles, sessions, and authentication state.')).toBeInTheDocument();
       });
+
+      await user.click(await screen.findByRole('button', { name: 'Email Authentication' }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Email Authentication', level: 1 })).toBeInTheDocument();
+        expect(screen.getByText('Configure SMTP delivery and email-based authentication workflows.')).toBeInTheDocument();
+      });
+    });
+
+    it('uses the active printer/production subpage as the page title', async () => {
+      setSettingsTabUrl('printers-production');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Devices', level: 1 })).toBeInTheDocument();
+        expect(screen.getByText('Manage default printers, cameras, FTP retry behavior, and virtual printer endpoints.')).toBeInTheDocument();
+      });
+
+      navigateSettingsTab('printers-production', '&sub=pipelines');
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Pipelines', level: 1 })).toBeInTheDocument();
+        expect(screen.getByText('Manage slicer pipelines, presets, and automated preparation flows.')).toBeInTheDocument();
+      });
+    });
+
+    it('uses the project management subpage as the page title', async () => {
+      setSettingsTabUrl('projects-files');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'File Management', level: 1 })).toBeInTheDocument();
+        expect(screen.getByText('Manage file handling, archive modes, disk warnings, and project storage rules.')).toBeInTheDocument();
+      });
+    });
+
+    it('uses the active integration subpage as the page title', async () => {
+      setSettingsTabUrl('integrations');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Notifications', level: 1 })).toBeInTheDocument();
+      });
+      expect(screen.queryByRole('heading', { name: 'Settings' })).not.toBeInTheDocument();
+    });
+
+    it('uses API & Metrics title and description for the active integration subpage', async () => {
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'API & Metrics', level: 1 })).toBeInTheDocument();
+        expect(screen.getByText('Manage API keys, camera tokens, Prometheus metrics, and the API browser.')).toBeInTheDocument();
+      });
+    });
+
+    it('keeps canonical settings domains out of the page-level tab row', async () => {
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'General', level: 1 })).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole('button', { name: 'Users & Security' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Printers & Production' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Projects & Files' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Warehouse & Material' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Orders & Calculation' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Integrations' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Operations' })).not.toBeInTheDocument();
     });
 
     it('opens Printers & Production from legacy queue tab URL', async () => {
       window.history.replaceState({}, '', '/settings?tab=queue');
       render(<SettingsPage />);
 
-      expect(await screen.findByText('Printers & Production')).toHaveClass('text-bambu-green');
+      expect(await screen.findByRole('button', { name: 'Print Process' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('Default Print Options')).toBeInTheDocument();
     });
 
     it('opens Warehouse & Material from legacy filament tab URL', async () => {
       window.history.replaceState({}, '', '/settings?tab=filament');
       render(<SettingsPage />);
 
-      expect(await screen.findByText('Warehouse & Material')).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('Filament checks')).toBeInTheDocument();
     });
 
     it('opens Operations from legacy backup tab URL', async () => {
       window.history.replaceState({}, '', '/settings?tab=backup');
       render(<SettingsPage />);
 
-      expect(await screen.findByText('Operations')).toHaveClass('text-bambu-green');
+      expect(await screen.findByRole('button', { name: 'Backups' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('Git Backup')).toBeInTheDocument();
     });
 
     it('opens Users & Security email settings from legacy email tab URL', async () => {
       window.history.replaceState({}, '', '/settings?tab=email');
       render(<SettingsPage />);
 
-      expect(await screen.findByText('Users & Security')).toHaveClass('text-bambu-green');
-      expect(await screen.findByText('Email Authentication')).toHaveClass('text-bambu-green');
+      expect(await screen.findByRole('button', { name: 'Email Authentication' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('SMTP Configuration')).toBeInTheDocument();
     });
 
     it.each([
       { alias: 'users', anchorId: 'card-users', tabLabel: 'Users & Security', subTabLabel: 'Authentication' },
       { alias: 'email', anchorId: 'card-smtp', tabLabel: 'Users & Security', subTabLabel: 'Email Authentication' },
-      { alias: 'apikeys', anchorId: 'card-createapi', tabLabel: 'Users & Security' },
-      { alias: 'queue', anchorId: 'card-print-options', tabLabel: 'Printers & Production', subTabLabel: 'Queue & Dispatch' },
-      { alias: 'virtual-printer', anchorId: 'card-vp', tabLabel: 'Printers & Production' },
-      { alias: 'failure-detection', anchorId: 'card-fd-ml', tabLabel: 'Printers & Production' },
-      { alias: 'filament', anchorId: 'card-filamentchecks', tabLabel: 'Warehouse & Material' },
-      { alias: 'spoolbuddy', anchorId: 'card-spoolbuddy', tabLabel: 'Warehouse & Material' },
-      { alias: 'backup', anchorId: 'card-backup', tabLabel: 'Operations' },
+      { alias: 'apikeys', anchorId: 'card-createapi', tabLabel: 'Integrations', subTabLabel: 'API & Metrics' },
+      { alias: 'queue', anchorId: 'card-print-options', tabLabel: 'Printers & Production', subTabLabel: 'Print Process' },
+      { alias: 'virtual-printer', anchorId: 'card-vp', tabLabel: 'Printers & Production', subTabLabel: 'Devices' },
+      { alias: 'failure-detection', anchorId: 'card-fd-ml', tabLabel: 'Printers & Production', subTabLabel: 'Failure Detection' },
+      { alias: 'filament', anchorId: 'card-filamentchecks', tabLabel: 'Warehouse & Material', subTabLabel: 'Filament' },
+      { alias: 'spoolbuddy', anchorId: 'card-spoolbuddy', tabLabel: 'Warehouse & Material', subTabLabel: 'SpoolBuddy' },
+      { alias: 'backup', anchorId: 'card-backup', tabLabel: 'Operations', subTabLabel: 'Backups' },
     ])('scrolls legacy %s URLs to their documented landing cards', async ({ alias, anchorId, tabLabel, subTabLabel }) => {
       await expectLegacyAliasLanding({ alias, anchorId, tabLabel, subTabLabel });
     });
@@ -248,10 +336,8 @@ describe('SettingsPage', () => {
     });
 
     it('shows preferred slicer setting on Printers & Production', async () => {
-      const user = userEvent.setup();
+      setSettingsTabUrl('printers-production', '&sub=print-process');
       render(<SettingsPage />);
-
-      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       await waitFor(() => {
         expect(screen.getByText('Preferred Slicer')).toBeInTheDocument();
@@ -259,10 +345,8 @@ describe('SettingsPage', () => {
     });
 
     it('shows slicer dropdown with both options on Printers & Production', async () => {
-      const user = userEvent.setup();
+      setSettingsTabUrl('printers-production', '&sub=print-process');
       render(<SettingsPage />);
-
-      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       await waitFor(() => {
         const slicerSelect = screen.getAllByDisplayValue('Bambu Studio');
@@ -271,14 +355,11 @@ describe('SettingsPage', () => {
     });
 
     it('shows File Manager on Projects & Files', async () => {
-      const user = userEvent.setup();
+      setSettingsTabUrl('projects-files');
       render(<SettingsPage />);
-
-      await user.click(await screen.findByRole('button', { name: 'Projects & Files' }));
 
       await waitFor(() => {
         const card = document.getElementById('card-filemanager');
-        expect(screen.getByRole('button', { name: 'Projects & Files' })).toHaveClass('text-bambu-green');
         expect(screen.getByText('File Manager')).toBeInTheDocument();
         expect(card).not.toBeNull();
         expect(within(card as HTMLElement).getByText('Low Disk Space Warning')).toBeInTheDocument();
@@ -286,14 +367,11 @@ describe('SettingsPage', () => {
     });
 
     it('shows Cost Tracking on Orders & Calculation', async () => {
-      const user = userEvent.setup();
+      setSettingsTabUrl('orders-calculation');
       render(<SettingsPage />);
-
-      await user.click(await screen.findByRole('button', { name: 'Orders & Calculation' }));
 
       await waitFor(() => {
         const card = document.getElementById('card-cost');
-        expect(screen.getByRole('button', { name: 'Orders & Calculation' })).toHaveClass('text-bambu-green');
         expect(screen.getByText('Cost Tracking')).toBeInTheDocument();
         expect(card).not.toBeNull();
         expect(within(card as HTMLElement).getByText('Currency')).toBeInTheDocument();
@@ -310,84 +388,106 @@ describe('SettingsPage', () => {
       });
     });
 
-    it('shows Archive Settings, Default Print Options, Virtual Printer, and Default Printer in Printers & Production', async () => {
-      const user = userEvent.setup();
+    it('shows device settings in Printers & Production by default', async () => {
+      setSettingsTabUrl('printers-production');
       render(<SettingsPage />);
-
-      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       await waitFor(() => {
         const defaultPrinterCard = document.getElementById('card-default-printer');
         const virtualPrinterCard = document.getElementById('card-vp');
-        const printOptionsCard = document.getElementById('card-print-options');
-        const archiveCard = document.getElementById('card-archive');
 
         expect(defaultPrinterCard).not.toBeNull();
         expect(virtualPrinterCard).not.toBeNull();
-        expect(printOptionsCard).not.toBeNull();
-        expect(archiveCard).not.toBeNull();
+        expect(document.getElementById('card-print-options')).toBeNull();
+        expect(document.getElementById('card-archive')).toBeNull();
         expect(within(defaultPrinterCard as HTMLElement).getAllByText('Default Printer').length).toBeGreaterThan(0);
-        expect(within(archiveCard as HTMLElement).getByText('Archive Settings')).toBeInTheDocument();
-        expect(within(printOptionsCard as HTMLElement).getByText('Default Print Options')).toBeInTheDocument();
         expect(within(virtualPrinterCard as HTMLElement).getByText('Setup Required')).toBeInTheDocument();
       });
     });
 
-    it('shows Filament Checks and SpoolBuddy in Warehouse & Material', async () => {
-      const user = userEvent.setup();
+    it('shows print-process settings in Printers & Production', async () => {
+      setSettingsTabUrl('printers-production', '&sub=print-process');
       render(<SettingsPage />);
 
-      await user.click(await screen.findByRole('button', { name: 'Warehouse & Material' }));
+      await waitFor(() => {
+        const printOptionsCard = document.getElementById('card-print-options');
+        const archiveCard = document.getElementById('card-archive');
+
+        expect(printOptionsCard).not.toBeNull();
+        expect(archiveCard).not.toBeNull();
+        expect(document.getElementById('card-default-printer')).toBeNull();
+        expect(within(archiveCard as HTMLElement).getByText('Archive Settings')).toBeInTheDocument();
+        expect(within(printOptionsCard as HTMLElement).getByText('Default Print Options')).toBeInTheDocument();
+      });
+    });
+
+    it('shows Filament Checks in Warehouse & Material by default', async () => {
+      setSettingsTabUrl('warehouse-material');
+      render(<SettingsPage />);
 
       await waitFor(() => {
         const filamentChecksCard = document.getElementById('card-filamentchecks');
-        const spoolBuddyCard = document.getElementById('card-spoolbuddy');
 
         expect(filamentChecksCard).not.toBeNull();
-        expect(spoolBuddyCard).not.toBeNull();
+        expect(document.getElementById('card-spoolbuddy')).toBeNull();
         expect(within(filamentChecksCard as HTMLElement).getByText('Filament checks')).toBeInTheDocument();
+      });
+    });
+
+    it('shows SpoolBuddy under its Warehouse & Material subpage', async () => {
+      setSettingsTabUrl('warehouse-material', '&sub=spoolbuddy');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        const spoolBuddyCard = document.getElementById('card-spoolbuddy');
+
+        expect(spoolBuddyCard).not.toBeNull();
         expect(screen.getByText('SpoolBuddy devices')).toBeInTheDocument();
       });
     });
 
-    it('shows Data Management, Backup, and Updates in Operations', async () => {
+    it('shows Operations subpages and defaults to Updates', async () => {
       const user = userEvent.setup();
+      setSettingsTabUrl('operations');
       render(<SettingsPage />);
 
-      await user.click(await screen.findByRole('button', { name: 'Operations' }));
-
       await waitFor(() => {
-        const dataCard = document.getElementById('card-data');
-        const backupCard = document.getElementById('card-backup');
         const updatesCard = document.getElementById('card-updates');
 
-        expect(dataCard).not.toBeNull();
-        expect(backupCard).not.toBeNull();
         expect(updatesCard).not.toBeNull();
-        expect(within(dataCard as HTMLElement).getByText('Data Management')).toBeInTheDocument();
-        expect(within(dataCard as HTMLElement).getByText('Backup & Restore')).toBeInTheDocument();
         expect(within(updatesCard as HTMLElement).getByText('Updates')).toBeInTheDocument();
+        expect(document.getElementById('card-data')).toBeNull();
+        expect(document.getElementById('card-backup')).toBeNull();
       });
+
+      await user.click(screen.getByRole('button', { name: 'Data Management' }));
+      expect(await screen.findByText('Backup & Restore')).toBeInTheDocument();
+      expect(window.location.search).toContain('sub=data-management');
+
+      await user.click(screen.getByRole('button', { name: 'Backups' }));
+      expect(await screen.findByText('Git Backup')).toBeInTheDocument();
+      expect(window.location.search).toContain('sub=backups');
     });
 
     it('shows Bed Cooled Threshold under Printers & Production instead of Integrations', async () => {
-      const user = userEvent.setup();
+      setSettingsTabUrl('integrations');
       render(<SettingsPage />);
 
-      await user.click(await screen.findByRole('button', { name: 'Integrations' }));
       await waitFor(() => {
         expect(document.getElementById('card-providers')).not.toBeNull();
       });
       expect(screen.queryByText('Bed Cooled Threshold')).not.toBeInTheDocument();
 
-      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
-      const completionRulesCard = await waitFor(() => document.getElementById('card-completion-rules'));
-
-      expect(completionRulesCard).not.toBeNull();
+      navigateSettingsTab('printers-production', '&sub=print-process');
+      const completionRulesCard = await waitFor(() => {
+        const card = document.getElementById('card-completion-rules');
+        expect(card).not.toBeNull();
+        return card as HTMLElement;
+      });
       expect(within(completionRulesCard as HTMLElement).getByText('Bed Cooled Threshold')).toBeInTheDocument();
     });
 
-    it('loads storage usage only on the Operations tab', async () => {
+    it('loads storage usage only on the Operations data management subpage', async () => {
       let storageRequests = 0;
       server.use(
         http.get('/api/v1/system/storage-usage', () => {
@@ -402,7 +502,6 @@ describe('SettingsPage', () => {
         }),
       );
 
-      const user = userEvent.setup();
       render(<SettingsPage />);
 
       await waitFor(() => {
@@ -410,7 +509,14 @@ describe('SettingsPage', () => {
       });
       expect(storageRequests).toBe(0);
 
-      await user.click(await screen.findByRole('button', { name: 'Operations' }));
+      navigateSettingsTab('operations');
+
+      await waitFor(() => {
+        expect(screen.getByText('Check printer firmware')).toBeInTheDocument();
+      });
+      expect(storageRequests).toBe(0);
+
+      await userEvent.click(screen.getByRole('button', { name: 'Data Management' }));
 
       await waitFor(() => {
         expect(storageRequests).toBe(1);
@@ -427,13 +533,11 @@ describe('SettingsPage', () => {
     });
 
     it('shows updates section with firmware toggle', async () => {
-      const user = userEvent.setup();
+      setSettingsTabUrl('operations');
       render(<SettingsPage />);
 
-      await user.click(await screen.findByRole('button', { name: 'Operations' }));
-
       await waitFor(() => {
-        expect(screen.getByText('Updates')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Updates', level: 1 })).toBeInTheDocument();
         expect(screen.getByText('Check for updates')).toBeInTheDocument();
         expect(screen.getByText('Check printer firmware')).toBeInTheDocument();
       });
@@ -562,6 +666,7 @@ describe('SettingsPage', () => {
 
       expect(await screen.findByText('Git Backup')).toBeInTheDocument();
       expect(await screen.findByText('Scheduled Backups')).toBeInTheDocument();
+      expect(window.location.search).toContain('sub=backups');
       expect(document.getElementById('card-backup')).not.toBeNull();
     });
 
@@ -571,8 +676,9 @@ describe('SettingsPage', () => {
       await clickSettingsSearchResult('FTP Retry');
 
       const card = document.getElementById('card-ftpretry');
-      expect(await screen.findByRole('button', { name: 'Printers & Production' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByRole('button', { name: 'Devices' })).toHaveClass('text-bambu-green');
       expect(await screen.findByText('FTP Retry')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=printers-production');
       expect(card).not.toBeNull();
     });
 
@@ -582,8 +688,9 @@ describe('SettingsPage', () => {
       await clickSettingsSearchResult('Prometheus');
 
       const card = document.getElementById('card-prometheus');
-      expect(await screen.findByRole('button', { name: 'Operations' })).toHaveClass('text-bambu-green');
       expect(await screen.findByText('Prometheus Metrics')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=integrations');
+      expect(window.location.search).toContain('sub=api-metrics');
       expect(card).not.toBeNull();
     });
 
@@ -592,9 +699,10 @@ describe('SettingsPage', () => {
 
       await clickSettingsSearchResult('Webhook');
 
-      expect(await screen.findByRole('button', { name: 'Integrations' })).toHaveClass('text-bambu-green');
       expect(await screen.findByText('Webhook Endpoints')).toBeInTheDocument();
       expect(await screen.findByText('/api/v1/webhook/status')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=integrations');
+      expect(window.location.search).toContain('sub=webhooks');
       expect(document.getElementById('card-webhooks')).not.toBeNull();
     });
 
@@ -604,8 +712,9 @@ describe('SettingsPage', () => {
       await clickSettingsSearchResult('API Browser');
 
       const card = document.getElementById('card-apibrowser');
-      expect(await screen.findByRole('button', { name: 'Integrations' })).toHaveClass('text-bambu-green');
       expect(await screen.findByText('API Browser')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=integrations');
+      expect(window.location.search).toContain('sub=api-metrics');
       expect(card).not.toBeNull();
     });
 
@@ -614,7 +723,6 @@ describe('SettingsPage', () => {
 
       await clickSettingsSearchResult('File Manager');
 
-      expect(await screen.findByRole('button', { name: 'Projects & Files' })).toHaveClass('text-bambu-green');
       expect(await screen.findByText('File Manager')).toBeInTheDocument();
       expect(window.location.search).toContain('tab=projects-files');
       expect(document.getElementById('card-filemanager')).not.toBeNull();
@@ -625,7 +733,6 @@ describe('SettingsPage', () => {
 
       await clickSettingsSearchResult('Cost Tracking');
 
-      expect(await screen.findByRole('button', { name: 'Orders & Calculation' })).toHaveClass('text-bambu-green');
       expect(await screen.findByText('Cost Tracking')).toBeInTheDocument();
       expect(window.location.search).toContain('tab=orders-calculation');
       expect(document.getElementById('card-cost')).not.toBeNull();
@@ -636,8 +743,9 @@ describe('SettingsPage', () => {
 
       await clickSettingsSearchResult('Archive Settings');
 
-      expect(await screen.findByRole('button', { name: 'Printers & Production' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByRole('button', { name: 'Print Process' })).toHaveClass('text-bambu-green');
       expect(await screen.findByText('Archive Settings')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=printers-production');
       expect(document.getElementById('card-archive')).not.toBeNull();
     });
 
@@ -646,8 +754,9 @@ describe('SettingsPage', () => {
 
       await clickSettingsSearchResult('Camera');
 
-      expect(await screen.findByRole('button', { name: 'Printers & Production' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByRole('button', { name: 'Devices' })).toHaveClass('text-bambu-green');
       expect(await screen.findByText('External Cameras')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=printers-production');
       expect(document.getElementById('card-camera')).not.toBeNull();
     });
 
@@ -656,8 +765,8 @@ describe('SettingsPage', () => {
 
       await clickSettingsSearchResult('Updates');
 
-      expect(await screen.findByRole('button', { name: 'Operations' })).toHaveClass('text-bambu-green');
       expect(await screen.findByText('Check printer firmware')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=operations');
       expect(document.getElementById('card-updates')).not.toBeNull();
     });
 
@@ -666,29 +775,34 @@ describe('SettingsPage', () => {
 
       await clickSettingsSearchResult('Data Management');
 
-      expect(await screen.findByRole('button', { name: 'Operations' })).toHaveClass('text-bambu-green');
       expect(await screen.findByText('Clear Notification Logs')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=operations');
+      expect(window.location.search).toContain('sub=data-management');
       expect(document.getElementById('card-data')).not.toBeNull();
     });
 
     it('scrolls to backup when Go to Backup is clicked from Data Management', async () => {
       const user = userEvent.setup();
+      setSettingsTabUrl('operations', '&sub=data-management');
       render(<SettingsPage />);
 
-      await user.click(await screen.findByRole('button', { name: 'Operations' }));
       const goToBackupButton = await screen.findByRole('button', { name: /go to backup/i });
-      const backupCard = await waitFor(() => document.getElementById('card-backup'));
-      expect(backupCard).not.toBeNull();
-      const backupScrollSpy = vi.spyOn(backupCard as HTMLElement, 'scrollIntoView').mockImplementation(() => {});
+      expect(document.getElementById('card-backup')).toBeNull();
+      const scrollIntoViewSpy = vi
+        .spyOn(HTMLElement.prototype, 'scrollIntoView')
+        .mockImplementation(() => {});
 
       await user.click(goToBackupButton);
 
       await waitFor(() => {
-        expect(backupScrollSpy).toHaveBeenCalled();
-        expect(backupScrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+        const backupCard = document.getElementById('card-backup');
+        expect(backupCard).not.toBeNull();
+        expect(scrollIntoViewSpy).toHaveBeenCalled();
+        expect(scrollIntoViewSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
         expect(backupCard).toHaveClass('ring-2', 'ring-bambu-green');
+        expect(window.location.search).toContain('sub=backups');
       });
-      backupScrollSpy.mockRestore();
+      scrollIntoViewSpy.mockRestore();
     });
 
     it('opens Drying from search results on its canonical tab', async () => {
@@ -696,8 +810,8 @@ describe('SettingsPage', () => {
 
       await clickSettingsSearchResult('Drying');
 
-      expect(await screen.findByRole('button', { name: 'Warehouse & Material' })).toHaveClass('text-bambu-green');
       expect(await screen.findByText('Queue Auto-Drying')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=warehouse-material');
       expect(document.getElementById('card-drying')).not.toBeNull();
     });
 
@@ -828,6 +942,7 @@ describe('SettingsPage', () => {
           'orders-invoice',
           'notifications',
           'settings',
+          ...settingsSidebarChildIds,
         ]),
       );
     });
@@ -891,6 +1006,7 @@ describe('SettingsPage', () => {
           'orders-invoice',
           'notifications',
           'settings',
+          ...settingsSidebarChildIds,
           'ext-7',
         ]),
       );
@@ -973,6 +1089,7 @@ describe('SettingsPage', () => {
           'orders-invoice',
           'notifications',
           'settings',
+          ...settingsSidebarChildIds,
         ],
         hiddenSystemItemIds: ['dashboard'],
       });
@@ -988,17 +1105,16 @@ describe('SettingsPage', () => {
     const renderWithUpdateCheck = async (
       checkBody: Record<string, unknown>,
     ) => {
-      const user = userEvent.setup();
       server.use(
         http.get('/api/v1/settings/', () =>
           HttpResponse.json({ ...mockSettings, check_updates: true }),
         ),
         http.get('/api/v1/updates/check', () => HttpResponse.json(checkBody)),
       );
+      setSettingsTabUrl('operations');
       render(<SettingsPage />);
-      await user.click(await screen.findByRole('button', { name: 'Operations' }));
       await waitFor(() => {
-        expect(screen.getByText('Updates')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Updates', level: 1 })).toBeInTheDocument();
       });
     };
 
@@ -1078,50 +1194,63 @@ describe('SettingsPage', () => {
   });
 
   describe('tabs navigation', () => {
-    it('can switch to Integrations for network settings', async () => {
-      const user = userEvent.setup();
+    it('opens Integrations on Notifications by default', async () => {
+      setSettingsTabUrl('integrations');
       render(<SettingsPage />);
 
-      // Wait for settings to load first
       await waitFor(() => {
-        expect(screen.getByText('Date Format')).toBeInTheDocument();
-      });
-
-      await user.click(await screen.findByRole('button', { name: 'Integrations' }));
-
-      await waitFor(() => {
-        // Integrations contains MQTT Publishing.
-        expect(screen.getByText('MQTT Publishing')).toBeInTheDocument();
-      });
-    });
-
-    it('can switch to Integrations for smart plugs', async () => {
-      const user = userEvent.setup();
-      render(<SettingsPage />);
-
-      await user.click(await screen.findByRole('button', { name: 'Integrations' }));
-
-      await waitFor(() => {
-        expect(screen.getByText('Add Smart Plug')).toBeInTheDocument();
-      });
-    });
-
-    it('can switch to Integrations for notifications', async () => {
-      const user = userEvent.setup();
-      render(<SettingsPage />);
-
-      await user.click(await screen.findByRole('button', { name: 'Integrations' }));
-
-      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Notifications' })).toHaveClass('text-bambu-green');
         expect(screen.getByText('Add Provider')).toBeInTheDocument();
       });
     });
 
-    it('can switch to Warehouse & Material', async () => {
-      const user = userEvent.setup();
+    it('can switch to Smart Home under Integrations', async () => {
+      setSettingsTabUrl('integrations', '&sub=smart-home');
       render(<SettingsPage />);
 
-      await user.click(await screen.findByRole('button', { name: 'Warehouse & Material' }));
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Smart Home' })).toHaveClass('text-bambu-green');
+        expect(screen.getByText('MQTT Publishing')).toBeInTheDocument();
+        expect(screen.getByText('Home Assistant')).toBeInTheDocument();
+      });
+    });
+
+    it('can switch to Webhooks under Integrations', async () => {
+      setSettingsTabUrl('integrations', '&sub=webhooks');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Webhooks' })).toHaveClass('text-bambu-green');
+        expect(screen.getByText('Webhook Endpoints')).toBeInTheDocument();
+      });
+    });
+
+    it('can switch to Smart Plugs under Integrations', async () => {
+      setSettingsTabUrl('integrations', '&sub=smart-plugs');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Smart Plugs' })).toHaveClass('text-bambu-green');
+        expect(screen.getByText('Add Smart Plug')).toBeInTheDocument();
+      });
+    });
+
+    it('can switch to API & Metrics under Integrations', async () => {
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'API & Metrics' })).toHaveClass('text-bambu-green');
+        expect(screen.getByText('API Keys')).toBeInTheDocument();
+        expect(screen.getByText('Camera API Tokens')).toBeInTheDocument();
+        expect(screen.getByText('Prometheus Metrics')).toBeInTheDocument();
+        expect(screen.getByText('API Browser')).toBeInTheDocument();
+      });
+    });
+
+    it('can switch to Warehouse & Material', async () => {
+      setSettingsTabUrl('warehouse-material');
+      render(<SettingsPage />);
 
       await waitFor(() => {
         expect(screen.getByText('AMS Display Thresholds')).toBeInTheDocument();
@@ -1131,21 +1260,18 @@ describe('SettingsPage', () => {
 
   describe('Printers & Production tab', () => {
     it('can switch to Printers & Production', async () => {
-      const user = userEvent.setup();
+      setSettingsTabUrl('printers-production');
       render(<SettingsPage />);
 
-      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
-
       await waitFor(() => {
-        expect(screen.getByText('Staggered Start')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Devices' })).toHaveClass('text-bambu-green');
+        expect(screen.getAllByText('Default Printer').length).toBeGreaterThan(0);
       });
     });
 
     it('shows stagger settings on Printers & Production', async () => {
-      const user = userEvent.setup();
+      setSettingsTabUrl('printers-production', '&sub=print-process');
       render(<SettingsPage />);
-
-      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       await waitFor(() => {
         expect(screen.getByText('Staggered Start')).toBeInTheDocument();
@@ -1155,10 +1281,8 @@ describe('SettingsPage', () => {
     });
 
     it('shows auto-drying settings on Warehouse & Material', async () => {
-      const user = userEvent.setup();
+      setSettingsTabUrl('warehouse-material');
       render(<SettingsPage />);
-
-      await user.click(await screen.findByRole('button', { name: 'Warehouse & Material' }));
 
       await waitFor(() => {
         expect(screen.getByText('Queue Auto-Drying')).toBeInTheDocument();
@@ -1166,10 +1290,8 @@ describe('SettingsPage', () => {
     });
 
     it('shows per-filament humidity threshold editor on Warehouse & Material (#1605)', async () => {
-      const user = userEvent.setup();
+      setSettingsTabUrl('warehouse-material');
       render(<SettingsPage />);
-
-      await user.click(await screen.findByRole('button', { name: 'Warehouse & Material' }));
 
       await waitFor(() => {
         expect(screen.getByText('Humidity Thresholds')).toBeInTheDocument();
@@ -1185,10 +1307,8 @@ describe('SettingsPage', () => {
     });
 
     it('shows default print options on Printers & Production', async () => {
-      const user = userEvent.setup();
+      setSettingsTabUrl('printers-production', '&sub=print-process');
       render(<SettingsPage />);
-
-      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       await waitFor(() => {
         expect(screen.getByText('Default Print Options')).toBeInTheDocument();
@@ -1201,10 +1321,8 @@ describe('SettingsPage', () => {
     });
 
     it('shows default print options description', async () => {
-      const user = userEvent.setup();
+      setSettingsTabUrl('printers-production', '&sub=print-process');
       render(<SettingsPage />);
-
-      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       await waitFor(() => {
         expect(screen.getByText(/overridden per print in the print dialog/)).toBeInTheDocument();
@@ -1214,10 +1332,8 @@ describe('SettingsPage', () => {
 
   describe('Users & Security tab', () => {
     it('can switch to Users & Security for API keys', async () => {
-      const user = userEvent.setup();
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
       render(<SettingsPage />);
-
-      await user.click(await screen.findByRole('button', { name: 'Users & Security' }));
 
       await waitFor(() => {
         // Button text is "Create Key"
@@ -1257,7 +1373,7 @@ describe('SettingsPage', () => {
       updated_at: '2024-01-01T00:00:00Z',
     };
 
-    it('shows device count and green bullet when at least one device is online', async () => {
+    it('opens SpoolBuddy settings from Warehouse & Material without the removed domain tab', async () => {
       server.use(
         http.get('/api/v1/spoolbuddy/devices', () => {
           return HttpResponse.json([
@@ -1266,63 +1382,12 @@ describe('SettingsPage', () => {
           ]);
         })
       );
+      setSettingsTabUrl('warehouse-material', '&sub=spoolbuddy');
       render(<SettingsPage />);
 
-      // Find the canonical rail button that now carries the SpoolBuddy device status.
-      const tabButton = await waitFor(() => {
-        const buttons = screen.getAllByRole('button').filter((b) => b.textContent?.includes('Warehouse & Material'));
-        expect(buttons.length).toBeGreaterThan(0);
-        return buttons[0];
-      });
-
-      // Count pill rendered
       await waitFor(() => {
-        expect(tabButton.textContent).toContain('2');
-      });
-
-      // Green status bullet (at least one device online)
-      await waitFor(() => {
-        expect(tabButton.querySelector('.bg-green-400')).not.toBeNull();
-      });
-    });
-
-    it('shows gray bullet when all devices are offline', async () => {
-      server.use(
-        http.get('/api/v1/spoolbuddy/devices', () => {
-          return HttpResponse.json([{ ...baseDevice, online: false }]);
-        })
-      );
-      render(<SettingsPage />);
-
-      const tabButton = await waitFor(() => {
-        const buttons = screen.getAllByRole('button').filter((b) => b.textContent?.includes('Warehouse & Material'));
-        expect(buttons.length).toBeGreaterThan(0);
-        return buttons[0];
-      });
-
-      await waitFor(() => {
-        expect(tabButton.querySelector('.bg-gray-500')).not.toBeNull();
-        expect(tabButton.querySelector('.bg-green-400')).toBeNull();
-      });
-    });
-
-    it('hides the count pill when no devices are registered', async () => {
-      server.use(
-        http.get('/api/v1/spoolbuddy/devices', () => HttpResponse.json([]))
-      );
-      render(<SettingsPage />);
-
-      const tabButton = await waitFor(() => {
-        const buttons = screen.getAllByRole('button').filter((b) => b.textContent?.includes('Warehouse & Material'));
-        expect(buttons.length).toBeGreaterThan(0);
-        return buttons[0];
-      });
-
-      // The only numeric content should NOT be present — tab label only
-      await waitFor(() => {
-        expect(tabButton.textContent).toContain('Warehouse & Material');
-        expect(tabButton.textContent).not.toContain('1');
-        expect(tabButton.textContent).not.toContain('2');
+        expect(screen.getByText('SpoolBuddy devices')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Warehouse & Material' })).not.toBeInTheDocument();
       });
     });
   });
@@ -1359,16 +1424,8 @@ describe('SettingsPage', () => {
       );
 
       const user = userEvent.setup();
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
       render(<SettingsPage />);
-
-      // Switch to Users & Security. Both desktop tab + mobile dropdown render
-      // the label, so just grab the button form.
-      await waitFor(() => {
-        expect(screen.getAllByText('Users & Security').length).toBeGreaterThan(0);
-      });
-      const tabButton = screen.getAllByText('Users & Security').find((el) => el.tagName === 'BUTTON');
-      expect(tabButton).toBeDefined();
-      await user.click(tabButton!);
 
       // Key is listed
       await waitFor(() => {
@@ -1437,14 +1494,8 @@ describe('SettingsPage', () => {
 
       server.use(http.get('/api/v1/api-keys/', () => HttpResponse.json(keys)));
 
-      const user = userEvent.setup();
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
       render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getAllByText('Users & Security').length).toBeGreaterThan(0);
-      });
-      const tabButton = screen.getAllByText('Users & Security').find((el) => el.tagName === 'BUTTON');
-      await user.click(tabButton!);
 
       await waitFor(() => {
         expect(screen.getByText('cloud-reader')).toBeInTheDocument();
@@ -1493,13 +1544,8 @@ describe('SettingsPage', () => {
       );
 
       const user = userEvent.setup();
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
       render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getAllByText('Users & Security').length).toBeGreaterThan(0);
-      });
-      const tabButton = screen.getAllByText('Users & Security').find((el) => el.tagName === 'BUTTON');
-      await user.click(tabButton!);
 
       // Open the create form. With an empty key list the empty-state card
       // shows "Create Your First Key" — click that to open the form.
@@ -1570,14 +1616,8 @@ describe('SettingsPage', () => {
 
       server.use(http.get('/api/v1/api-keys/', () => HttpResponse.json(keys)));
 
-      const user = userEvent.setup();
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
       render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getAllByText('Users & Security').length).toBeGreaterThan(0);
-      });
-      const tabButton = screen.getAllByText('Users & Security').find((el) => el.tagName === 'BUTTON');
-      await user.click(tabButton!);
 
       await waitFor(() => {
         expect(screen.getByText('tariff-pusher')).toBeInTheDocument();
@@ -1616,13 +1656,8 @@ describe('SettingsPage', () => {
       );
 
       const user = userEvent.setup();
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
       render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getAllByText('Users & Security').length).toBeGreaterThan(0);
-      });
-      const tabButton = screen.getAllByText('Users & Security').find((el) => el.tagName === 'BUTTON');
-      await user.click(tabButton!);
 
       const openButton = await screen.findByRole('button', { name: /Create Your First Key/i });
       await user.click(openButton);
@@ -1676,13 +1711,12 @@ describe('SettingsPage', () => {
     };
 
     it('renders the snapshot URL input when camera_type is mjpeg', async () => {
-      const user = userEvent.setup();
       server.use(
         http.get('/api/v1/printers/', () => HttpResponse.json([mjpegPrinter])),
       );
 
+      setSettingsTabUrl('printers-production');
       render(<SettingsPage />);
-      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       await waitFor(() => {
         expect(screen.getByPlaceholderText(/api\/frame\.jpeg\?src=printer/)).toBeInTheDocument();
@@ -1690,15 +1724,14 @@ describe('SettingsPage', () => {
     });
 
     it('hides the snapshot URL input when camera_type is snapshot (already a single-frame source)', async () => {
-      const user = userEvent.setup();
       server.use(
         http.get('/api/v1/printers/', () =>
           HttpResponse.json([{ ...mjpegPrinter, external_camera_type: 'snapshot' }]),
         ),
       );
 
+      setSettingsTabUrl('printers-production');
       render(<SettingsPage />);
-      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
       // Wait for the live-stream URL placeholder to render so we know the
       // camera section finished mounting before asserting absence of the
@@ -1722,8 +1755,8 @@ describe('SettingsPage', () => {
           }),
         );
 
+        setSettingsTabUrl('printers-production');
         render(<SettingsPage />);
-        await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
 
         const input = await waitFor(() =>
           screen.getByPlaceholderText(/api\/frame\.jpeg\?src=printer/),
@@ -1832,13 +1865,14 @@ describe('SettingsPage', () => {
       );
     });
 
-    it('renders Queue & Dispatch + Pipelines sub-tabs under Printers & Production', async () => {
+    it('renders device-management sub-tabs under Printers & Production', async () => {
+      setSettingsTabUrl('printers-production');
       render(<SettingsPage />);
-      const user = userEvent.setup();
-      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Queue & Dispatch/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /^Devices$/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Print Process/i })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /^Pipelines$/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Failure Detection/i })).toBeInTheDocument();
       });
     });
 
@@ -1857,10 +1891,10 @@ describe('SettingsPage', () => {
     });
 
     it('clicking Pipelines sub-tab shows the empty-state hint and updates the URL', async () => {
+      setSettingsTabUrl('printers-production');
       render(<SettingsPage />);
       const user = userEvent.setup();
-      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
-      await user.click(screen.getByRole('button', { name: /^Pipelines$/i }));
+      await user.click(await screen.findByRole('button', { name: /^Pipelines$/i }));
 
       await waitFor(() => {
         expect(screen.getByText(/No pipelines yet/i)).toBeInTheDocument();

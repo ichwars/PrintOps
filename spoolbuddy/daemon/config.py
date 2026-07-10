@@ -4,8 +4,8 @@ All configuration is via environment variables. The systemd service file
 or a shell wrapper sets these before launching the daemon.
 
 Required:
-    SPOOLBUDDY_BACKEND_URL  — Bambuddy server URL (e.g. http://192.168.1.100:5000)
-    SPOOLBUDDY_API_KEY      — API key created in Bambuddy Settings → API Keys
+    SPOOLBUDDY_BACKEND_URL  — PrintOps server URL (e.g. http://192.168.1.100:5000)
+    SPOOLBUDDY_API_KEY      — API key created in PrintOps Settings → API Keys
 
 Optional:
     SPOOLBUDDY_DEVICE_ID    — Unique device identifier (default: derived from MAC)
@@ -47,7 +47,7 @@ class Config:
         if not cfg.backend_url:
             raise RuntimeError("SPOOLBUDDY_BACKEND_URL is required (e.g. http://192.168.1.100:5000)")
         if not cfg.api_key:
-            raise RuntimeError("SPOOLBUDDY_API_KEY is required (create one in Bambuddy Settings → API Keys)")
+            raise RuntimeError("SPOOLBUDDY_API_KEY is required (create one in PrintOps Settings → API Keys)")
 
         # Default device_id from MAC address
         if not cfg.device_id:

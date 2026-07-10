@@ -158,3 +158,88 @@ npm.cmd run check:i18n
 Results:
 - `vitest`: 3 files passed, 93 tests passed
 - `check:i18n`: all locales in parity with `en`
+
+## Task 3 Fix Brief: Backup CTA Focus Fix
+
+### Outcome
+
+Applied the final Task 3 review fix on branch `codex/settings-information-architecture` for the remaining `Go to Backup` CTA behavior in `Data Management`.
+
+### What changed
+
+#### `frontend/src/pages/SettingsPage.tsx`
+- Added a focused `scrollToSettingsCard` helper that performs the same `scrollIntoView` + green ring highlight pattern used by search jump behavior.
+- Updated `Data Management`’s `Go to Backup` button to select `Operations` only when needed, then call the helper for `card-backup`.
+- Reused the same helper from `jumpToSetting` so search-result jumping and the CTA now share identical scroll/highlight semantics.
+
+#### `frontend/src/__tests__/pages/SettingsPage.test.tsx`
+- Added a focused regression test that opens `Operations`, clicks `Go to Backup` in `Data Management`, and asserts `card-backup.scrollIntoView` is called with smooth start scroll behavior (plus ring highlight class assertion).
+
+### Verification
+
+Ran from `frontend`:
+
+```powershell
+npm.cmd run test -- SettingsPage.test.tsx settingsNavigation.test.ts --run
+npm.cmd run check:i18n
+```
+
+Results:
+- `vitest`: 3 files passed, 94 tests passed
+- `check:i18n`: all locales in parity with `en`
+
+## Task 3 Fix Brief: Remove Duplicate General Settings Cards
+
+### Outcome
+
+Applied the remaining duplicate-card finding on branch `codex/settings-information-architecture`: remove `File Manager` and `Cost Tracking` from the `General` tab rendering only.
+
+### What changed
+
+#### `frontend/src/pages/SettingsPage.tsx`
+- Removed `fileManagerCard` and `costTrackingCard` from the `General` tab layout.
+- Kept `fileManagerCard` in `Projects & Files` and `costTrackingCard` in `Orders & Calculation`.
+
+#### `frontend/src/__tests__/pages/SettingsPage.test.tsx`
+- Added a regression test for initial `General` rendering that asserts `card-filemanager` and `card-cost` are not present.
+- Kept search canonical-tab assertions for `File Manager` and `Cost Tracking` on their canonical tabs.
+
+### Verification
+
+Ran from `frontend`:
+
+```powershell
+npm.cmd run test -- SettingsPage.test.tsx settingsNavigation.test.ts --run
+npm.cmd run check:i18n
+```
+
+Results:
+- `vitest`: 3 files passed, 95 tests passed
+- `check:i18n`: all locales in parity with `en`
+
+## Task 3 Fix Brief: Canonicalize Legacy Pipeline URL
+
+### Outcome
+
+Applied the legacy pipeline URL canonicalization fix on branch `codex/settings-information-architecture` for the remaining reviewer finding.
+
+### What changed
+
+#### `frontend/src/pages/SettingsPage.tsx`
+- Updated `handleQueueSubTabChange` so queue/production sub-tab updates always set `tab=printers-production` in `searchParams` before writing `sub`, then preserve existing behavior by removing `sub` when switching back to `dispatch`.
+
+#### `frontend/src/__tests__/pages/SettingsPage.test.tsx`
+- Added a regression test that starts at `/settings?tab=queue`, clicks `Pipelines`, and asserts URL search contains `tab=printers-production` and `sub=pipelines`, and does not contain `tab=queue`.
+
+### Verification
+
+Ran from `frontend`:
+
+```powershell
+npm.cmd run test -- SettingsPage.test.tsx settingsNavigation.test.ts --run
+npm.cmd run check:i18n
+```
+
+Results:
+- `vitest`: 3 files passed, 96 tests passed
+- `check:i18n`: all locales in parity with `en`

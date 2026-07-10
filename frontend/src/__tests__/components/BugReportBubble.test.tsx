@@ -155,7 +155,7 @@ describe('BugReportBubble', () => {
         return HttpResponse.json({
           success: true,
           message: 'Bug report submitted successfully!',
-          issue_url: 'https://github.com/maziggy/bambuddy/issues/42',
+          issue_url: 'https://github.com/ichwars/PrintOps/issues/42',
           issue_number: 42,
         });
       })

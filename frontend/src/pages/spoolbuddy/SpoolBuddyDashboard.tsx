@@ -157,7 +157,7 @@ export function SpoolBuddyDashboard() {
 
   // Kiosk caveat: the SpoolBuddy display is a long-running browser window with
   // no focus/remount events, so a staleTime alone leaves this cache effectively
-  // permanent. When slot assignments change from another client (Bambuddy main
+  // permanent. When slot assignments change from another client (PrintOps main
   // UI, direct Spoolman edit, AssignToAmsModal on a separate browser), the
   // kiosk keeps showing the spool as still-assigned forever and isSpoolAssigned
   // reports stale, disabling the Assign button. Polling every 3 s is cheap
@@ -693,12 +693,12 @@ export function SpoolBuddyDashboard() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <p className="text-sm text-amber-200/80">
-                {t('spoolbuddy.modal.quickAddHint', 'For best results, add the spool in the Bambuddy web interface first (with material, color, brand), then use "Assign Spool" here to assign the NFC tag.')}
+                {t('spoolbuddy.modal.quickAddHint', 'For best results, add the spool in the PrintOps web interface first (with material, color, brand), then use "Assign Spool" here to assign the NFC tag.')}
               </p>
             </div>
 
             <p className="text-sm text-zinc-400 mb-1">
-              {t('spoolbuddy.modal.quickAddDesc', 'This will create a basic PLA spool entry with this NFC tag. You can edit the details later in Bambuddy.')}
+              {t('spoolbuddy.modal.quickAddDesc', 'This will create a basic PLA spool entry with this NFC tag. You can edit the details later in PrintOps.')}
             </p>
             <p className="text-xs text-zinc-500 font-mono mb-5">{displayedTagId}</p>
 

@@ -725,7 +725,7 @@ class VirtualPrinterInstance:
                         return bool(slicer_opts[field_mqtt])
                     return settings_default
 
-                # Note the MQTT field names differ from Bambuddy's column
+                # Note the MQTT field names differ from PrintOps's column
                 # names: MQTT uses `bed_leveling` (single L) while the
                 # column / settings key use `bed_levelling` (double L).
                 bed_levelling = _slicer_or(
@@ -759,7 +759,7 @@ class VirtualPrinterInstance:
                     if raw is not None:
                         # BambuStudio's NetworkAgent embeds this as parsed
                         # JSON in the project_file body (matching the
-                        # ams_mapping shape Bambuddy already consumes as
+                        # ams_mapping shape PrintOps already consumes as
                         # list[int]). Accept a JSON-encoded string defensively
                         # in case any path arrives stringified.
                         if isinstance(raw, str):
@@ -1106,7 +1106,7 @@ class VirtualPrinterInstance:
             #   chamber-image (A1/P1P/P1S)  → 6000
             #
             # `get_camera_port()` is the same source of truth used by
-            # `routes/camera.py`, so slicer and Bambuddy UI agree.
+            # `routes/camera.py`, so slicer and PrintOps UI agree.
             target_client = self._printer_manager.get_client(self.target_printer_id)
             target_ip = getattr(target_client, "ip_address", None) if target_client else None
             target_model = getattr(target_client, "model", None) if target_client else None
@@ -1605,7 +1605,7 @@ class VirtualPrinterManager:
             "enabled": False,
             "running": False,
             "mode": VP_MODE_ARCHIVE,
-            "name": "Bambuddy",
+            "name": "PrintOps",
             "serial": "",
             "model": DEFAULT_VIRTUAL_PRINTER_MODEL,
             "model_name": VIRTUAL_PRINTER_MODELS[DEFAULT_VIRTUAL_PRINTER_MODEL],

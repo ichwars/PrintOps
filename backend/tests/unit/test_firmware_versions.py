@@ -165,13 +165,13 @@ async def test_get_available_versions_sorts_newest_first():
 async def test_client_headers_identify_honestly_and_send_browser_accept():
     """
     The httpx client (used for the Bambu wiki and other non-CF-gated paths)
-    must identify as Bambuddy at the HTTP layer and must send Accept +
+    must identify as PrintOps at the HTTP layer and must send Accept +
     Accept-Language so Cloudflare on bambulab.com doesn't 403 us for
     looking like a bare scraper (#1350).
     """
     svc = FirmwareCheckService()
     headers = svc._client.headers
-    assert headers["User-Agent"].startswith("Bambuddy/")
+    assert headers["User-Agent"].startswith("PrintOps/")
     assert "Chrome" not in headers["User-Agent"]
     assert "Accept" in headers
     assert "Accept-Language" in headers
@@ -182,7 +182,7 @@ async def test_bambulab_curl_cffi_session_keeps_honest_user_agent():
     """
     The curl_cffi session impersonates Chrome at the TLS layer (required to
     pass Cloudflare's JA3 challenge on bambulab.com per #1666), but the
-    HTTP-layer User-Agent MUST stay 'Bambuddy/...'. A future refactor that
+    HTTP-layer User-Agent MUST stay 'PrintOps/...'. A future refactor that
     drops the headers= override would silently revert to curl_cffi's
     Chrome-default UA and break our compliance commitment to identify
     honestly at the application layer.
@@ -205,7 +205,7 @@ async def test_bambulab_curl_cffi_session_keeps_honest_user_agent():
     # the rename rather than silently passing.
     session_headers = client.headers  # type: ignore[attr-defined]
     ua = session_headers.get("User-Agent", "")
-    assert ua.startswith("Bambuddy/"), f"curl_cffi session UA leaked Chrome default: {ua!r}"
+    assert ua.startswith("PrintOps/"), f"curl_cffi session UA leaked Chrome default: {ua!r}"
     assert "Chrome" not in ua
     assert "Mozilla" not in ua
 

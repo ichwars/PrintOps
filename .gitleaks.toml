@@ -1,4 +1,4 @@
-title = "Bambuddy gitleaks config"
+title = "PrintOps gitleaks config"
 
 # Extend the built-in ruleset instead of replacing it.
 [extend]

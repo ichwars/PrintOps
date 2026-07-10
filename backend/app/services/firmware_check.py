@@ -24,9 +24,9 @@ logger = logging.getLogger(__name__)
 # JA3/TLS-fingerprint challenge (cf-mitigated=challenge) that plain Python
 # TLS can't pass (#1666). curl_cffi replays Chrome's actual ClientHello
 # bytes so the handshake clears CF; we override the HTTP User-Agent back to
-# the honest Bambuddy/1.0 string so the application-layer identity stays
+# the honest PrintOps/1.0 string so the application-layer identity stays
 # truthful (TLS fingerprint matches Chrome because Python's TLS is the
-# signal CF gates on; everything above TLS is still Bambuddy).
+# signal CF gates on; everything above TLS is still PrintOps).
 #
 # Soft dependency — if curl_cffi isn't importable on the running platform,
 # firmware_check degrades to httpx (which will likely 403) and wiki-based
@@ -50,7 +50,7 @@ BAMBU_WIKI_BASE = "https://wiki.bambulab.com"
 # Cache TTL in seconds (1 hour)
 CACHE_TTL = 3600
 
-# Map Bambuddy model names to Bambu Lab API keys
+# Map PrintOps model names to Bambu Lab API keys
 MODEL_TO_API_KEY = {
     "X1": "x1",
     "X1C": "x1",
@@ -153,7 +153,7 @@ class FirmwareCheckService:
         self._client = httpx.AsyncClient(
             timeout=30.0,
             headers={
-                "User-Agent": "Bambuddy/1.0 (+https://github.com/maziggy/bambuddy)",
+                "User-Agent": "PrintOps/1.0 (+https://github.com/ichwars/PrintOps)",
                 "Accept": "text/html,application/json,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9",
             },
@@ -174,7 +174,7 @@ class FirmwareCheckService:
 
         Chrome TLS impersonation is required to pass Cloudflare's JA3
         challenge. The HTTP `User-Agent` is overridden back to the honest
-        Bambuddy string so application-layer identity stays truthful.
+        PrintOps string so application-layer identity stays truthful.
         Returns None when curl_cffi is unavailable.
         """
         if not _CURL_CFFI_AVAILABLE:
@@ -184,7 +184,7 @@ class FirmwareCheckService:
             self._bambulab_client = _CurlCffiAsyncSession(
                 impersonate="chrome",
                 headers={
-                    "User-Agent": "Bambuddy/1.0 (+https://github.com/maziggy/bambuddy)",
+                    "User-Agent": "PrintOps/1.0 (+https://github.com/ichwars/PrintOps)",
                     "Accept": "text/html,application/json,*/*;q=0.8",
                     "Accept-Language": "en-US,en;q=0.9",
                 },
@@ -462,7 +462,7 @@ class FirmwareCheckService:
         Get the latest firmware version for a printer model.
 
         Args:
-            model: Bambuddy printer model name (e.g., "X1C", "P1S", "H2D")
+            model: PrintOps printer model name (e.g., "X1C", "P1S", "H2D")
 
         Returns:
             FirmwareVersion if found, None otherwise

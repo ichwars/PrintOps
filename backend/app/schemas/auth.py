@@ -100,7 +100,7 @@ class LDAPSearchResultResponse(BaseModel):
     email: str | None = None
     display_name: str | None = None
     dn: str
-    already_provisioned: bool = False  # True if this username already exists as a BamBuddy user
+    already_provisioned: bool = False  # True if this username already exists as a PrintOps user
 
 
 class LDAPProvisionRequest(BaseModel):
@@ -172,7 +172,7 @@ class SMTPSettings(BaseModel):
     smtp_security: str = "starttls"  # 'starttls', 'ssl', 'none'
     smtp_auth_enabled: bool = True
     smtp_from_email: str
-    smtp_from_name: str = "BamBuddy"
+    smtp_from_name: str = "PrintOps"
     # Deprecated field for backward compatibility
     smtp_use_tls: bool | None = None
 

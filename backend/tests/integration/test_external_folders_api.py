@@ -13,14 +13,14 @@ def _enable_external_roots(monkeypatch, tmp_path):
     """Permit pytest's ``tmp_path`` tree as a valid external root.
 
     After the GHSA-r2qv I1 fix, external folders are opt-in via the
-    ``BAMBUDDY_EXTERNAL_ROOTS`` env var (empty by default → feature
+    ``PRINTOPS_EXTERNAL_ROOTS`` env var (empty by default → feature
     disabled). The test suite's external dirs live under pytest's
     per-session ``tmp_path`` root, which is a subtree of the OS tmp
     dir, so allowlisting the parent of ``tmp_path`` lets every test
     folder fixture pass the new validator. Autouse so individual tests
     don't have to know the env var exists.
     """
-    monkeypatch.setenv("BAMBUDDY_EXTERNAL_ROOTS", str(tmp_path.parent))
+    monkeypatch.setenv("PRINTOPS_EXTERNAL_ROOTS", str(tmp_path.parent))
 
 
 class TestExternalFolderCreation:
@@ -72,7 +72,7 @@ class TestExternalFolderCreation:
         """Verify 400 for non-existent path within an allowed root.
 
         After GHSA-r2qv I1 the allowlist check runs before the existence
-        check, so the test path must be inside ``BAMBUDDY_EXTERNAL_ROOTS``
+        check, so the test path must be inside ``PRINTOPS_EXTERNAL_ROOTS``
         (= ``tmp_path.parent`` per ``_enable_external_roots``) to actually
         exercise the existence branch rather than the allowlist branch.
         """
@@ -88,7 +88,7 @@ class TestExternalFolderCreation:
     @pytest.mark.asyncio
     @pytest.mark.integration
     async def test_create_external_folder_outside_allowlist_blocked(self, async_client: AsyncClient, db_session):
-        """Paths outside ``BAMBUDDY_EXTERNAL_ROOTS`` are rejected (GHSA-r2qv I1).
+        """Paths outside ``PRINTOPS_EXTERNAL_ROOTS`` are rejected (GHSA-r2qv I1).
 
         Prior behaviour was a denylist (``/proc``, ``/sys``, ``/dev``, etc);
         anything not enumerated passed, including ``/data`` containing
@@ -759,8 +759,8 @@ class TestCrossBoundaryMove:
 
     Pre-fix symptom (reported by @Carter3DP after testing 0.2.4b1): a file
     moved from a managed folder to a NAS-backed external folder showed up
-    in Bambuddy's UI under the external folder but was never written to
-    the NAS — so the SMB mount and Bambuddy disagreed about what was
+    in PrintOps's UI under the external folder but was never written to
+    the NAS — so the SMB mount and PrintOps disagreed about what was
     actually there.
     """
 

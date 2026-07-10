@@ -1,6 +1,6 @@
 /**
  * Regression test for #1738 — SpoolBuddy's inventory search must match by
- * numeric spool ID, just like Bambuddy's main InventoryPage. Both pages now
+ * numeric spool ID, just like PrintOps's main InventoryPage. Both pages now
  * share `filterSpoolsByQuery` so behaviour stays in lockstep; this test fails
  * loudly if SpoolBuddyInventoryPage ever re-inlines its filter and drops
  * fields.

@@ -1,4 +1,12 @@
-import type { CanonicalSettingsTab } from './settingsNavigation';
+import type {
+  CanonicalSettingsTab,
+  IntegrationSubTab,
+  OperationSubTab,
+  OrderManagementSubTab,
+  PrinterProductionSubTab,
+  ProjectManagementSubTab,
+  WarehouseMaterialSubTab,
+} from './settingsNavigation';
 
 // Settings search registry.
 //
@@ -23,6 +31,12 @@ export interface SettingsSearchEntry {
   labelFallback?: string;
   tab: SettingsSearchTab;
   subTab?: SettingsSearchSubTab;
+  printerProductionSubTab?: PrinterProductionSubTab;
+  projectManagementSubTab?: ProjectManagementSubTab;
+  warehouseMaterialSubTab?: WarehouseMaterialSubTab;
+  orderManagementSubTab?: OrderManagementSubTab;
+  integrationSubTab?: IntegrationSubTab;
+  operationSubTab?: OperationSubTab;
   /** Space-separated extra search terms (lowercase). */
   keywords: string;
   /** DOM id attached to the target card — used for scrollIntoView. */

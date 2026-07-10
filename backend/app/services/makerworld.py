@@ -1,14 +1,14 @@
 """MakerWorld API service.
 
 Thin async client for MakerWorld's ``/api/v1/design-service/*`` endpoints.
-Lets Bambuddy resolve a MakerWorld URL, enumerate plate/profile metadata, and
+Lets PrintOps resolve a MakerWorld URL, enumerate plate/profile metadata, and
 download the 3MF bundle so users can import and print MakerWorld models
 without leaving the app.
 
 The endpoints and header set were reverse-engineered from the
 `kloshi-io/makerworld-api-reverse` TypeScript project (Apache-2.0) and
 cross-validated against live MakerWorld traffic. Authenticated calls reuse
-Bambuddy's existing Bambu Cloud bearer token (same SSO backend — no separate
+PrintOps's existing Bambu Cloud bearer token (same SSO backend — no separate
 OAuth flow needed).
 
 Only interoperability — not affiliated with or endorsed by MakerWorld or
@@ -44,7 +44,7 @@ MAKERWORLD_CDN_HOSTS = ("makerworld.bblmw.com", "public-cdn.bblmw.com")
 _ALLOWED_DOWNLOAD_SUFFIXES = (".amazonaws.com",)
 
 # Client identity sent to MakerWorld / api.bambulab.com. We identify honestly
-# as Bambuddy with a source URL so Bambu can distinguish our traffic from
+# as PrintOps with a source URL so Bambu can distinguish our traffic from
 # impersonators — the opposite of what the OrcaSlicer fork was called out for
 # in the May 2026 Bambu Lab blog post on cloud access. Verified 2026-05-12 via
 # curl that MakerWorld treats this UA identically to a Firefox UA at the
@@ -52,7 +52,7 @@ _ALLOWED_DOWNLOAD_SUFFIXES = (".amazonaws.com",)
 # The Referer is kept because MakerWorld's CSRF / origin-check middleware uses
 # it on some endpoints — that's distinct from client impersonation.
 _CLIENT_HEADERS = {
-    "User-Agent": "Bambuddy/1.0 (+https://github.com/maziggy/bambuddy)",
+    "User-Agent": "PrintOps/1.0 (+https://github.com/ichwars/PrintOps)",
     "Accept": "text/html,application/json,*/*",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": "https://makerworld.com/",

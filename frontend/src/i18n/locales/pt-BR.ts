@@ -1632,6 +1632,12 @@ export default {
       queue: 'Fluxo',
       queueDispatch: 'Fila e Dispatch',
       queuePipelines: 'Pipelines',
+      deviceManagementDevices: 'Dispositivos',
+      deviceManagementPrintProcess: 'Processo de Impressão',
+      projectManagementFiles: 'Gerenciamento de Arquivos',
+      warehouseFilament: 'Filamento',
+      warehouseCatalogs: 'Catálogos',
+      orderManagementCalculation: 'Cálculo',
       filament: 'Filamento',
       network: 'Rede',
       apiKeys: 'Chaves API',
@@ -1645,6 +1651,23 @@ export default {
       oidc: 'SSO / OIDC',
       security: 'Segurança',
       spoolbuddy: 'SpoolBuddy',
+    },
+    printerProductionSubTabDescriptions: {
+      devices: 'Gerencie impressoras padrão, câmeras, retentativas FTP e endpoints de impressoras virtuais.',
+      printProcess: 'Configure padrões de impressão, arquivamento, fila, G-code, slicer e regras de conclusão.',
+      pipelines: 'Gerencie pipelines do slicer, presets e fluxos de preparação automatizados.',
+      failureDetection: 'Configure monitoramento de falhas por IA, ajustes por impressora, status e histórico.',
+    },
+    projectManagementSubTabDescriptions: {
+      files: 'Gerencie arquivos, modos de arquivo, alertas de disco e regras de armazenamento de projetos.',
+    },
+    warehouseMaterialSubTabDescriptions: {
+      filament: 'Gerencie secagem, rastreamento Spoolman, verificações, mapeamento e limites AMS.',
+      catalogs: 'Gerencie catálogos de carretéis e cores usados no inventário e em etiquetas.',
+      spoolbuddy: 'Gerencie kiosks SpoolBuddy, leitores NFC, balanças, calibração e registro.',
+    },
+    orderManagementSubTabDescriptions: {
+      calculation: 'Configure moeda, rastreamento de custos e padrões de cálculo para fluxos comerciais.',
     },
     ldap: {
       title: 'Autenticação LDAP',

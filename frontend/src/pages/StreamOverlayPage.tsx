@@ -149,7 +149,7 @@ export function StreamOverlayPage() {
 
     // GHSA-r2qv follow-up: mint a ws-token before connecting. Uses
     // api.getWebSocketToken so the JWT Authorization header rides along
-    // (raw fetch+credentials:'include' would miss it — Bambuddy uses
+    // (raw fetch+credentials:'include' would miss it — PrintOps uses
     // Bearer tokens, not cookies, for JWT auth). Auth-disabled deployments
     // succeed even without a token.
     (async () => {

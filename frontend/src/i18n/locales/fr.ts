@@ -1632,6 +1632,12 @@ export default {
       queue: 'Flux de travail',
       queueDispatch: 'File & Distribution',
       queuePipelines: 'Pipelines',
+      deviceManagementDevices: 'Appareils',
+      deviceManagementPrintProcess: 'Processus d\'impression',
+      projectManagementFiles: 'Gestion des fichiers',
+      warehouseFilament: 'Filament',
+      warehouseCatalogs: 'Catalogues',
+      orderManagementCalculation: 'Calcul',
       filament: 'Filament',
       network: 'Réseau',
       apiKeys: 'Clés API',
@@ -1645,6 +1651,23 @@ export default {
       oidc: 'SSO / OIDC',
       security: 'Sécurité',
       spoolbuddy: 'SpoolBuddy',
+    },
+    printerProductionSubTabDescriptions: {
+      devices: 'Gérez les imprimantes par défaut, caméras, reprises FTP et endpoints d\'imprimante virtuelle.',
+      printProcess: 'Configurez les valeurs d\'impression, l\'archivage, la file, le G-code, le slicer et les règles de fin.',
+      pipelines: 'Gérez les pipelines de slicer, profils et flux de préparation automatisés.',
+      failureDetection: 'Configurez la surveillance IA des échecs, les réglages par imprimante, l\'état et l\'historique.',
+    },
+    projectManagementSubTabDescriptions: {
+      files: 'Gérez les fichiers, modes d\'archive, alertes disque et règles de stockage des projets.',
+    },
+    warehouseMaterialSubTabDescriptions: {
+      filament: 'Gérez le séchage, le suivi Spoolman, les contrôles filament, le mapping et les seuils AMS.',
+      catalogs: 'Gérez les catalogues de bobines et couleurs utilisés pour le stock et les étiquettes.',
+      spoolbuddy: 'Gérez les kiosques SpoolBuddy, lecteurs NFC, balances, calibrage et enregistrement.',
+    },
+    orderManagementSubTabDescriptions: {
+      calculation: 'Configurez la devise, le suivi des coûts et les valeurs de calcul des flux commerciaux.',
     },
     ldap: {
       title: 'Authentification LDAP',

@@ -1,6 +1,6 @@
 """Scheduled local backup service.
 
-Creates ZIP snapshots of the full Bambuddy data (database + data directories)
+Creates ZIP snapshots of the full PrintOps data (database + data directories)
 on a configurable schedule with retention management.
 """
 
@@ -233,7 +233,7 @@ class LocalBackupService:
     def _prune_backups(self, backup_dir: Path, retention: int):
         """Delete oldest backups exceeding the retention count."""
         backups = sorted(
-            backup_dir.glob("bambuddy-backup-*.zip"),
+            backup_dir.glob("printops-backup-*.zip"),
             key=lambda p: p.stat().st_mtime,
             reverse=True,
         )
@@ -258,12 +258,12 @@ class LocalBackupService:
         """Resolve a backup filename to a full path, with safety checks."""
         if "/" in filename or "\\" in filename or ".." in filename:
             return None
-        if not filename.startswith("bambuddy-backup-") or not filename.endswith(".zip"):
+        if not filename.startswith("printops-backup-") or not filename.endswith(".zip"):
             return None
         backup_dir = self._resolve_backup_dir(path_setting)
         target = (
             backup_dir / filename
-        )  # SEC-PATH-OK: filename rejected above on /, \\, .., plus startswith "bambuddy-backup-" + endswith ".zip" gate
+        )  # SEC-PATH-OK: filename rejected above on /, \\, .., plus startswith "printops-backup-" + endswith ".zip" gate
         if not target.exists():
             return None
         return target
@@ -275,7 +275,7 @@ class LocalBackupService:
             return []
 
         backups = []
-        for f in sorted(backup_dir.glob("bambuddy-backup-*.zip"), key=lambda p: p.stat().st_mtime, reverse=True):
+        for f in sorted(backup_dir.glob("printops-backup-*.zip"), key=lambda p: p.stat().st_mtime, reverse=True):
             stat = f.stat()
             backups.append(
                 {
@@ -295,11 +295,11 @@ class LocalBackupService:
         backup_dir = self._resolve_backup_dir(path_setting)
         target = (
             backup_dir / filename
-        )  # SEC-PATH-OK: filename rejected above on /, \\, .., plus startswith "bambuddy-backup-" + endswith ".zip" gate below
+        )  # SEC-PATH-OK: filename rejected above on /, \\, .., plus startswith "printops-backup-" + endswith ".zip" gate below
 
         if not target.exists():
             return {"success": False, "message": "Backup not found"}
-        if not target.name.startswith("bambuddy-backup-") or not target.name.endswith(".zip"):
+        if not target.name.startswith("printops-backup-") or not target.name.endswith(".zip"):
             return {"success": False, "message": "Invalid backup file"}
 
         try:

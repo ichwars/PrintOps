@@ -1,7 +1,7 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Layout } from './components/Layout';
+import { Layout, getDefaultView } from './components/Layout';
 import { PrintersPage } from './pages/PrintersPage';
 import { ArchivesPage } from './pages/ArchivesPage';
 import { QueuePage } from './pages/QueuePage';
@@ -196,20 +196,26 @@ function App() {
 
                 {/* Main app with WebSocket for real-time updates */}
                 <Route element={<ProtectedRoute><WebSocketProvider><Layout /></WebSocketProvider></ProtectedRoute>}>
-                  <Route index element={<PrintersPage />} />
+                  <Route index element={<Navigate to={getDefaultView()} replace />} />
+                  <Route path="dashboard" element={<StatsPage />} />
+                  <Route path="printers" element={<PrintersPage />} />
                   <Route path="archives" element={<ArchivesPage />} />
                   <Route path="queue" element={<QueuePage />} />
                   {/* Slicer Pipelines (#1425) — Pipelines tab lives on the
                       Print Queue page (Queue + History + Timeline +
                       Pipelines). Old standalone URL redirects. */}
                   <Route path="pipelines/runs" element={<Navigate to="/queue?tab=pipelines" replace />} />
-                  <Route path="stats" element={<StatsPage />} />
+                  <Route path="stats" element={<Navigate to="/dashboard" replace />} />
                   <Route path="profiles" element={<ProfilesPage />} />
                   <Route path="maintenance" element={<MaintenancePage />} />
                   <Route path="projects" element={<ProjectsPage />} />
                   <Route path="projects/:id" element={<ProjectDetailPage />} />
                   <Route path="warehouse" element={<WarehousePage />} />
                   <Route path="warehouse/filament" element={<InventoryPage />} />
+                  <Route path="warehouse/parts" element={<WarehousePage />} />
+                  <Route path="warehouse/stock" element={<WarehousePage />} />
+                  <Route path="warehouse/material" element={<Navigate to="/warehouse/parts" replace />} />
+                  <Route path="warehouse/goods" element={<Navigate to="/warehouse/stock" replace />} />
                   <Route path="inventory" element={<Navigate to="/warehouse/filament" replace />} />
                   <Route path="orders" element={<OrdersPage />} />
                   <Route path="orders/customers" element={<OrdersPage />} />

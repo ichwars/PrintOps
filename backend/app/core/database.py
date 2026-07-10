@@ -1820,7 +1820,7 @@ async def run_migrations(conn):
                                  NULL, :remote_iface, '391800001', 0)
                         """),
                         {
-                            "name": "Bambuddy",
+                            "name": "PrintOps",
                             "enabled": old_enabled,
                             "mode": old_mode or "archive",
                             "model": old_model,
@@ -2266,8 +2266,8 @@ async def run_migrations(conn):
         "CREATE INDEX IF NOT EXISTS ix_print_archives_deleted_at ON print_archives (deleted_at)",
     )
 
-    # Migration: Add bambuddy_forced_timelapse to print_archives (#1397)
-    # Tracks prints where Bambuddy forced the firmware to record a timelapse
+    # Migration: Add printops_forced_timelapse to print_archives (#1397)
+    # Tracks prints where PrintOps forced the firmware to record a timelapse
     # so the finish-photo extractor could pull the post-park-pre-drop frame.
     # The cleanup path uses this to delete the timelapse both locally and on
     # the printer's SD after extraction — the user didn't opt in to a
@@ -2276,7 +2276,7 @@ async def run_migrations(conn):
     _bool_false_literal = "0" if is_sqlite() else "FALSE"
     await _safe_execute(
         conn,
-        f"ALTER TABLE print_archives ADD COLUMN bambuddy_forced_timelapse BOOLEAN DEFAULT {_bool_false_literal}",
+        f"ALTER TABLE print_archives ADD COLUMN printops_forced_timelapse BOOLEAN DEFAULT {_bool_false_literal}",
     )
 
     # Migration: Create smart_plug_energy_snapshots table (#941)
@@ -3437,7 +3437,7 @@ async def seed_default_groups():
     # `_own` — that closes the IDOR (operators with a custom `archives:read`
     # row can no longer read cross-user data) and the UI gates degrade to
     # disabled-button state until the frontend is migrated to also accept
-    # `_own` (separate change). See maziggy/bambuddy-security #2.
+    # `_own` (separate change). See maziggy/printops-security #2.
     PERMISSION_MIGRATION_ALL = {
         "queue:update": "queue:update_all",
         "queue:delete": "queue:delete_all",

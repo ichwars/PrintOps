@@ -19,7 +19,7 @@ class TestBugReportService:
         mock_response.json.return_value = {
             "success": True,
             "message": "Created",
-            "issue_url": "https://github.com/maziggy/bambuddy/issues/99",
+            "issue_url": "https://github.com/ichwars/PrintOps/issues/99",
             "issue_number": 99,
         }
 
@@ -51,7 +51,7 @@ class TestBugReportService:
 
         assert result["success"] is True
         assert result["issue_number"] == 99
-        assert result["issue_url"] == "https://github.com/maziggy/bambuddy/issues/99"
+        assert result["issue_url"] == "https://github.com/ichwars/PrintOps/issues/99"
         mock_db.add.assert_called_once()
 
     @pytest.mark.asyncio
@@ -370,7 +370,7 @@ class TestSubmitBugReportRoute:
             mock_submit.return_value = {
                 "success": True,
                 "message": "Created",
-                "issue_url": "https://github.com/maziggy/bambuddy/issues/1",
+                "issue_url": "https://github.com/ichwars/PrintOps/issues/1",
                 "issue_number": 1,
             }
 

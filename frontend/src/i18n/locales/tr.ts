@@ -1634,6 +1634,12 @@ export default {
       queue: 'İş Akışı',
       queueDispatch: 'Kuyruk ve Sevkıyat',
       queuePipelines: 'Pipeline\'lar',
+      deviceManagementDevices: 'Cihazlar',
+      deviceManagementPrintProcess: 'Yazdırma Süreci',
+      projectManagementFiles: 'Dosya Yönetimi',
+      warehouseFilament: 'Filamentler',
+      warehouseCatalogs: 'Kataloglar',
+      orderManagementCalculation: 'Hesaplama',
       filament: 'Filament',
       network: 'Ağ',
       apiKeys: 'API Anahtarları',
@@ -1647,6 +1653,23 @@ export default {
       twoFa: 'İki Faktörlü Kimlik Doğrulama',
       oidc: 'SSO / OIDC',
       security: 'Güvenlik',
+    },
+    printerProductionSubTabDescriptions: {
+      devices: 'Varsayılan yazıcıları, kameraları, FTP yeniden denemelerini ve sanal yazıcı uç noktalarını yönetin.',
+      printProcess: 'Yazdırma varsayılanlarını, arşivlemeyi, kuyruk davranışını, G-code, slicer ve bitiş kurallarını ayarlayın.',
+      pipelines: 'Slicer pipeline\'larını, presetleri ve otomatik hazırlık akışlarını yönetin.',
+      failureDetection: 'AI hata izleme, yazıcı bazlı algılama davranışı, durum ve geçmişi ayarlayın.',
+    },
+    projectManagementSubTabDescriptions: {
+      files: 'Dosya işleme, arşiv modları, disk uyarıları ve proje depolama kurallarını yönetin.',
+    },
+    warehouseMaterialSubTabDescriptions: {
+      filament: 'Kurutma presetlerini, Spoolman takibini, filament kontrollerini, eşlemeyi ve AMS eşiklerini yönetin.',
+      catalogs: 'Envanter ve etiket akışlarında kullanılan spool ve renk kataloglarını yönetin.',
+      spoolbuddy: 'SpoolBuddy kiosklarını, NFC okuyucuları, terazileri, kalibrasyonu ve cihaz kaydını yönetin.',
+    },
+    orderManagementSubTabDescriptions: {
+      calculation: 'Ticari akışlar için para birimi, maliyet takibi ve hesaplama varsayılanlarını ayarlayın.',
     },
     spoolbuddy: {
       infoTitle: 'SpoolBuddy cihazları',

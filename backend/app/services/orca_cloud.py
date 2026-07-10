@@ -4,10 +4,10 @@ Orca Cloud API Service
 Handles authentication and profile sync with the Orca Cloud (Supabase-backed).
 
 Auth shape: PKCE flow against ``auth.orcaslicer.com`` with the in-source public
-publishable key. Bambuddy generates the verifier/challenge/state, redirects the
+publishable key. PrintOps generates the verifier/challenge/state, redirects the
 user's browser to Supabase's ``/auth/v1/authorize`` endpoint with
 ``redirect_to=http://localhost:41172/callback``, and the user pastes the
-callback URL back into Bambuddy (the loopback URL is the only ``redirect_to``
+callback URL back into PrintOps (the loopback URL is the only ``redirect_to``
 Orca's Supabase project actually honors as of v2.4.0-alpha — see
 OrcaSlicer/OrcaSlicer#14028 for the open feature request asking SoftFever to
 broaden this).
@@ -18,7 +18,7 @@ is responsible for atomically swapping the stored pair on each refresh, or a
 mid-refresh crash strands the user.
 
 Cloudflare protects ``api.orcaslicer.com`` with a User-Agent gate; sending an
-honest ``Bambuddy/<version>`` UA clears it. No TLS-fingerprint matching needed.
+honest ``PrintOps/<version>`` UA clears it. No TLS-fingerprint matching needed.
 """
 
 from __future__ import annotations
@@ -48,11 +48,11 @@ ORCA_ANON_KEY = "sb_publishable_lvVe_whOi80SU9BPSxM1kA_tbt9AbR_"
 # silently falls through to the project Site URL after the OAuth dance.
 ORCA_REDIRECT_URI = "http://localhost:41172/callback"
 
-# Honest client identity. Same posture as Bambu Cloud: identifies Bambuddy
+# Honest client identity. Same posture as Bambu Cloud: identifies PrintOps
 # without impersonating Orca's desktop client (which would be CWE-style
 # falsified-identity and was the exact thing called out in Bambu Lab's May 2026
 # blog post about cloud-access etiquette).
-_USER_AGENT = "Bambuddy/1.0 (+https://github.com/maziggy/bambuddy)"
+_USER_AGENT = "PrintOps/1.0 (+https://github.com/ichwars/PrintOps)"
 
 # Refresh access tokens when they have less than this much life left, on the
 # theory that a slow downstream API call shouldn't expire the token mid-flight.
@@ -101,7 +101,7 @@ def _b64url(data: bytes) -> str:
 
 def generate_pkce() -> tuple[str, str, str]:
     """Generate a fresh ``(verifier, challenge, state)`` triple for one PKCE
-    handshake. The verifier is the secret kept by Bambuddy until the code
+    handshake. The verifier is the secret kept by PrintOps until the code
     exchange; the challenge is sent to Supabase as ``code_challenge``; the
     state is the CSRF nonce we'll verify against the callback.
 
@@ -264,7 +264,7 @@ class OrcaCloudService:
         desktop client refuses ``{username, password}`` payloads with
         ``"Username/password login is disabled. Use the Orca cloud PKCE
         flow."`` (the SDK enforces PKCE regardless of what the backend
-        allows). The actual server behaviour is what matters for Bambuddy
+        allows). The actual server behaviour is what matters for PrintOps
         — we POST the credentials and surface whatever response we get;
         an ``OrcaCloudAuthError`` with the verbatim Supabase error message
         is the right signal for callers to fall back to an OAuth provider.
@@ -393,7 +393,7 @@ class OrcaCloudService:
     async def get_user_info(self) -> dict[str, Any]:
         """Return Supabase's user record for the current token (id, email,
         metadata, ...). Used after token exchange to record the user's email
-        for display in Bambuddy's UI."""
+        for display in PrintOps's UI."""
         url = f"{ORCA_AUTH_BASE}/auth/v1/user"
         try:
             resp = await self._client.get(url, headers=self._auth_headers())

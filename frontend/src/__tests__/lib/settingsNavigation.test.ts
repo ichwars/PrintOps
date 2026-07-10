@@ -33,15 +33,21 @@ describe('settingsNavigation', () => {
     expect(resolveSettingsTab('plugs')).toBe('integrations');
     expect(resolveSettingsTab('notifications')).toBe('integrations');
     expect(resolveSettingsTab('network')).toBe('integrations');
-    expect(resolveSettingsTab('apikeys')).toBe('users-security');
+    expect(resolveSettingsTab('apikeys')).toBe('integrations');
     expect(resolveSettingsTab('users')).toBe('users-security');
     expect(resolveSettingsTab('backup')).toBe('operations');
   });
 
-  it('keeps legacy email and queue sub-tab intent', () => {
+  it('keeps legacy sub-tab intent after the settings IA consolidation', () => {
     expect(legacySettingsTabDefaultSubTab('users')).toEqual({ usersSubTab: 'users' });
     expect(legacySettingsTabDefaultSubTab('email')).toEqual({ usersSubTab: 'email' });
-    expect(legacySettingsTabDefaultSubTab('queue')).toEqual({ queueSubTab: 'dispatch' });
+    expect(legacySettingsTabDefaultSubTab('queue')).toEqual({ printerProductionSubTab: 'print-process' });
+    expect(legacySettingsTabDefaultSubTab('virtual-printer')).toEqual({ printerProductionSubTab: 'devices' });
+    expect(legacySettingsTabDefaultSubTab('failure-detection')).toEqual({ printerProductionSubTab: 'failure-detection' });
+    expect(legacySettingsTabDefaultSubTab('filament')).toEqual({ warehouseMaterialSubTab: 'filament' });
+    expect(legacySettingsTabDefaultSubTab('spoolbuddy')).toEqual({ warehouseMaterialSubTab: 'spoolbuddy' });
+    expect(legacySettingsTabDefaultSubTab('apikeys')).toEqual({ integrationSubTab: 'api-metrics' });
+    expect(legacySettingsTabDefaultSubTab('backup')).toEqual({ operationSubTab: 'backups' });
   });
 
   it('maps legacy tab ids to their documented default landing anchors', () => {

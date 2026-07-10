@@ -1,4 +1,4 @@
-"""Migration tests for maziggy/bambuddy-security #2 — read permission OWN/ALL backfill.
+"""Migration tests for maziggy/printops-security #2 — read permission OWN/ALL backfill.
 
 Pre-fix, ARCHIVES_READ / LIBRARY_READ / QUEUE_READ were flat "read all" flags.
 Post-fix they split into OWN/ALL. The migration in seed_default_groups must:

@@ -8,7 +8,7 @@ type ToastType = 'success' | 'error' | 'warning' | 'info' | 'loading';
 // Dispatch-toast types — ported verbatim from
 // 0b43ac0d:frontend/src/contexts/ToastContext.tsx. The visual rendering
 // block below is the legacy code 1:1; the only swap is the event ingestion
-// (now sourced from `bambuddy:dispatch-toast` window events that
+// (now sourced from `printops:dispatch-toast` window events that
 // useWebSocket forwards from the four backend WS event types added in
 // the #1625 follow-up). Same shape, same DOM, same styling, same i18n
 // surface — guarantees the modal looks identical to the pre-scheduler
@@ -290,8 +290,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       });
     };
 
-    window.addEventListener('bambuddy:dispatch-toast', onDispatchEvent);
-    return () => window.removeEventListener('bambuddy:dispatch-toast', onDispatchEvent);
+    window.addEventListener('printops:dispatch-toast', onDispatchEvent);
+    return () => window.removeEventListener('printops:dispatch-toast', onDispatchEvent);
   }, [t]);
 
   // Auto-dismiss the wrapper once every job has reached a terminal state.

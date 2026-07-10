@@ -1,13 +1,13 @@
 """Regression for #1807: false-positive "Print Stopped" notification on the
 expected-archive reprint path.
 
-Bambuddy mints a fresh subtask_id per dispatch (``bambu_mqtt.py:3647``). On a
+PrintOps mints a fresh subtask_id per dispatch (``bambu_mqtt.py:3647``). On a
 reprint, the archive row is reused — so the stored ``archive.subtask_id`` is
 still the value from the FIRST run. The earlier ``not archive.subtask_id``
 guard at ``on_print_start`` skipped the rewrite, so the row kept the stale id.
 
 Then, if MQTT reconnects mid-print (which it routinely does — network blips,
-printer reboots, Bambuddy restarts), ``reconcile_stale_active_prints`` (#1542)
+printer reboots, PrintOps restarts), ``reconcile_stale_active_prints`` (#1542)
 compares the printer's live subtask_id against the stored one, sees a
 mismatch, and synthesises a "missed PRINT COMPLETE" → bogus Print Stopped
 notification while the print keeps running.

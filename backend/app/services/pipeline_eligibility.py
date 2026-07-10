@@ -3,7 +3,7 @@
 Given a pipeline + the user's pinned target printer, this returns a structured
 report of issues the operator should resolve before running. The frontend
 displays the report; the user can ``Run anyway`` to proceed (lenient policy —
-the print may still fail at the printer, but Bambuddy isn't going to refuse
+the print may still fail at the printer, but PrintOps isn't going to refuse
 the click).
 
 Issue kinds (pinned for tests + i18n keys):

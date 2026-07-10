@@ -1632,6 +1632,12 @@ export default {
       queue: '工作流',
       queueDispatch: '队列与调度',
       queuePipelines: '流水线',
+      deviceManagementDevices: '设备',
+      deviceManagementPrintProcess: '打印流程',
+      projectManagementFiles: '文件管理',
+      warehouseFilament: '耗材',
+      warehouseCatalogs: '目录',
+      orderManagementCalculation: '计算',
       filament: '耗材',
       network: '网络',
       apiKeys: 'API 密钥',
@@ -1645,6 +1651,23 @@ export default {
       twoFa: '双因素认证',
       oidc: 'SSO / OIDC',
       security: '安全',
+    },
+    printerProductionSubTabDescriptions: {
+      devices: '管理默认打印机、摄像头、FTP 重试行为和虚拟打印机端点。',
+      printProcess: '配置打印默认值、归档、队列行为、G-code、切片器和完成规则。',
+      pipelines: '管理切片器流水线、预设和自动化准备流程。',
+      failureDetection: '配置 AI 故障监控、按打印机的检测行为、状态和历史记录。',
+    },
+    projectManagementSubTabDescriptions: {
+      files: '管理文件处理、归档模式、磁盘警告和项目存储规则。',
+    },
+    warehouseMaterialSubTabDescriptions: {
+      filament: '管理烘干预设、Spoolman 跟踪、耗材检查、映射和 AMS 显示阈值。',
+      catalogs: '管理用于库存和标签流程的料盘与颜色目录。',
+      spoolbuddy: '管理 SpoolBuddy kiosk、NFC 读卡器、电子秤、校准和设备注册。',
+    },
+    orderManagementSubTabDescriptions: {
+      calculation: '配置商业流程的货币、成本跟踪和计算默认值。',
     },
     spoolbuddy: {
       infoTitle: 'SpoolBuddy 设备',

@@ -50,7 +50,7 @@ const createMockSettings = (overrides = {}) => ({
     enabled: false,
     running: false,
     mode: 'archive',
-    name: 'Bambuddy',
+    name: 'PrintOps',
     serial: '00M00A391800001',
     model: 'BL-P001',
     model_name: 'X1C',
@@ -156,7 +156,7 @@ describe('VirtualPrinterSettings', () => {
             enabled: true,
             running: true,
             mode: 'archive',
-            name: 'Bambuddy',
+            name: 'PrintOps',
             serial: '00M00A391800001',
             model: 'BL-P001',
             model_name: 'X1C',
@@ -169,7 +169,7 @@ describe('VirtualPrinterSettings', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Status Details')).toBeInTheDocument();
-        expect(screen.getByText('Bambuddy')).toBeInTheDocument();
+        expect(screen.getByText('PrintOps')).toBeInTheDocument();
         expect(screen.getByText('00M00A391800001')).toBeInTheDocument();
       });
     });
@@ -527,7 +527,7 @@ describe('VirtualPrinterSettings', () => {
             enabled: true,
             running: true,
             mode: 'proxy',
-            name: 'Bambuddy (Proxy)',
+            name: 'PrintOps (Proxy)',
             serial: '00M00A391800001',
             model: 'BL-P001',
             model_name: 'X1C',

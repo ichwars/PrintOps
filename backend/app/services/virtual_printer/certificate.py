@@ -90,7 +90,7 @@ class CertificateService:
         is broken even though both files exist on disk. ``ensure_certificates``
         uses this to decide whether to regenerate.
 
-        Uses real signature verification — Bambuddy's auto-generated CAs all
+        Uses real signature verification — PrintOps's auto-generated CAs all
         share the same Subject DN ("Virtual Printer CA"), so a DN-only compare
         would incorrectly return True even after rotation.
         """
@@ -257,7 +257,7 @@ class CertificateService:
         """Build Subject Alternative Name entries for the printer certificate."""
         entries: list[x509.GeneralName] = [
             x509.DNSName("localhost"),
-            x509.DNSName("bambuddy"),
+            x509.DNSName("printops"),
             x509.DNSName(self.serial),
             x509.IPAddress(IPv4Address(local_ip)),
             x509.IPAddress(IPv4Address("127.0.0.1")),

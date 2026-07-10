@@ -1857,7 +1857,7 @@ class TestResolvePlateId:
 
     Regression coverage for #1166: P1S firmware 01.10.00.00 only puts the .3mf
     filename in print.gcode_file, so parse_plate_id() returns None and the
-    printer card falls back to plate 1. When Bambuddy dispatches the print
+    printer card falls back to plate 1. When PrintOps dispatches the print
     itself we know the right plate; resolve_plate_id() prefers that record over
     the gcode_file regex when subtask_name matches.
     """
@@ -1871,7 +1871,7 @@ class TestResolvePlateId:
         return state
 
     def test_dispatched_plate_wins_when_subtask_matches(self):
-        # User dispatches plate 4 via Bambuddy. Printer reflects subtask_name
+        # User dispatches plate 4 via PrintOps. Printer reflects subtask_name
         # but firmware drops the plate path from gcode_file. Without the dispatch
         # record we'd default to plate 1.
         from backend.app.services.printer_manager import resolve_plate_id
@@ -1885,7 +1885,7 @@ class TestResolvePlateId:
         assert resolve_plate_id(state) == 4
 
     def test_dispatched_ignored_when_subtask_differs(self):
-        # Bambuddy's dispatch record is for a previous print; the printer is
+        # PrintOps's dispatch record is for a previous print; the printer is
         # now running a different subtask (Studio-direct dispatch). The stale
         # record must not be used — fall back to gcode_file regex.
         from backend.app.services.printer_manager import resolve_plate_id
@@ -1899,7 +1899,7 @@ class TestResolvePlateId:
         assert resolve_plate_id(state) == 2
 
     def test_falls_back_to_gcode_regex_without_dispatch(self):
-        # Studio-direct dispatch — no Bambuddy dispatch record. Existing logic
+        # Studio-direct dispatch — no PrintOps dispatch record. Existing logic
         # (parse_plate_id on gcode_file) must still work.
         from backend.app.services.printer_manager import resolve_plate_id
 

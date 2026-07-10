@@ -86,7 +86,7 @@ def _detect_docker_network_mode() -> str:
 
 
 def _get_host_ip() -> str | None:
-    """Best-effort IPv4 address the Bambuddy host routes from."""
+    """Best-effort IPv4 address the PrintOps host routes from."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
@@ -197,7 +197,7 @@ async def run_connection_diagnostic(
     # this check will pass even when the user is missing step 4. That gap
     # is covered separately by the "no_3mf_available" archive-fallback
     # banner. An FTP upload-and-verify probe was tried and rejected — the
-    # /cache directory is always writable from Bambuddy regardless of
+    # /cache directory is always writable from PrintOps regardless of
     # either toggle, so the probe always passes and detects nothing.
     #
     # Skip entirely on models with no external-storage slot at all (A1

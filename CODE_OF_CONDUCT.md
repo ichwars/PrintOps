@@ -2,7 +2,7 @@
 
 ## Our Commitment
 
-The Bambuddy community is dedicated to providing a welcoming and supportive environment for everyone. We value respectful collaboration and constructive dialogue.
+The PrintOps community is dedicated to providing a welcoming and supportive environment for everyone. We value respectful collaboration and constructive dialogue.
 
 ## Expected Behavior
 
@@ -39,8 +39,8 @@ Maintainers may take any action they deem appropriate, including:
 
 ## Scope
 
-This code of conduct applies to all Bambuddy community spaces, including GitHub issues, pull requests, discussions, and any other communication channels.
+This code of conduct applies to all PrintOps community spaces, including GitHub issues, pull requests, discussions, and any other communication channels.
 
 ---
 
-Thank you for helping make Bambuddy a welcoming community!
+Thank you for helping make PrintOps a welcoming community!

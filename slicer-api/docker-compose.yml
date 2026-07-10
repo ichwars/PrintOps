@@ -1,16 +1,16 @@
-# Optional slicer-API sidecar stack for Bambuddy.
+# Optional slicer-API sidecar stack for PrintOps.
 #
 # Both services are HTTP wrappers around a slicer CLI: the same Node code
-# (`maziggy/orca-slicer-api`, `bambuddy/profile-resolver` branch) bundled
-# with a different binary in each image. Bambuddy talks to them via the
+# (`maziggy/orca-slicer-api`, `printops/profile-resolver` branch) bundled
+# with a different binary in each image. PrintOps talks to them via the
 # URLs configured in Settings -> Slicer.
 #
 #   bambu-studio-api  → host port 3001 (BambuStudio CLI)
 #   orca-slicer-api   → host port 3003 (OrcaSlicer CLI)
 #
-# Bambuddy's virtual-printer feature reserves host ports 3000 and 3002,
+# PrintOps's virtual-printer feature reserves host ports 3000 and 3002,
 # which is why the OrcaSlicer sidecar sits on 3003. Override either port
-# in `.env` (see `.env.example`) if you don't run Bambuddy on this host.
+# in `.env` (see `.env.example`) if you don't run PrintOps on this host.
 #
 # Usage:
 #   cd slicer-api/

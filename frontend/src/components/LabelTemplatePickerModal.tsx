@@ -78,7 +78,7 @@ function openBlobInNewTab(blob: Blob): void {
   // `if (!win)` popup-block fallback below fire on EVERY click — so the blob
   // tab opened (downloading a random-named PDF on systems without an inline
   // viewer) AND the `<a download>` fallback fired (downloading a second copy
-  // named bambuddy-labels.pdf). Two identical PDFs per click — issue #1628.
+  // named printops-labels.pdf). Two identical PDFs per click — issue #1628.
   // The blob is same-origin, the destination is a passive PDF tab with no
   // script context, and `noreferrer` is a no-op for blob URLs, so dropping
   // these flags has no security impact.
@@ -86,7 +86,7 @@ function openBlobInNewTab(blob: Blob): void {
   if (!win) {
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'bambuddy-labels.pdf';
+    a.download = 'printops-labels.pdf';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

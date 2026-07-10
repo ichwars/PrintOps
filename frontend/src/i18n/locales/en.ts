@@ -1649,6 +1649,12 @@ export default {
       queue: 'Workflow',
       queueDispatch: 'Queue & Dispatch',
       queuePipelines: 'Pipelines',
+      deviceManagementDevices: 'Devices',
+      deviceManagementPrintProcess: 'Print Process',
+      projectManagementFiles: 'File Management',
+      warehouseFilament: 'Filament',
+      warehouseCatalogs: 'Catalogs',
+      orderManagementCalculation: 'Calculation',
       filament: 'Filament',
       network: 'Network',
       apiKeys: 'API Keys',
@@ -1662,6 +1668,23 @@ export default {
       twoFa: 'Two-Factor Auth',
       oidc: 'SSO / OIDC',
       security: 'Security',
+    },
+    printerProductionSubTabDescriptions: {
+      devices: 'Manage default printers, cameras, FTP retry behavior, and virtual printer endpoints.',
+      printProcess: 'Configure print defaults, archiving, queue behavior, G-code, slicer, and completion rules.',
+      pipelines: 'Manage slicer pipelines, presets, and automated preparation flows.',
+      failureDetection: 'Configure AI failure monitoring, per-printer detection behavior, status, and history.',
+    },
+    projectManagementSubTabDescriptions: {
+      files: 'Manage file handling, archive modes, disk warnings, and project storage rules.',
+    },
+    warehouseMaterialSubTabDescriptions: {
+      filament: 'Manage drying presets, Spoolman tracking, filament checks, mapping, and AMS display thresholds.',
+      catalogs: 'Manage spool and color catalogs used for inventory and label workflows.',
+      spoolbuddy: 'Manage SpoolBuddy kiosks, NFC readers, scales, calibration, and device registration.',
+    },
+    orderManagementSubTabDescriptions: {
+      calculation: 'Configure currency, cost tracking, and calculation defaults for commercial workflows.',
     },
     spoolbuddy: {
       infoTitle: 'SpoolBuddy devices',

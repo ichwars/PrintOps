@@ -242,7 +242,7 @@ class TestMinimumDryingTime:
 
     Relative humidity reads low in heated air (the AMS sensor sees ~15-20% within
     minutes of the dryer starting even while the filament is still saturated), so a
-    humidity-based auto-stop would truncate every cycle — manual or Bambuddy-started —
+    humidity-based auto-stop would truncate every cycle — manual or PrintOps-started —
     to the old minimum-time floor. Drying is now left to run to its configured
     duration; the firmware stops it when the duration elapses.
     """

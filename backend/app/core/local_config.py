@@ -4,16 +4,16 @@ Small readers for appliance-set state files.
 Two distinct surfaces, same shape (defensive, silent on missing files,
 side-effect-free):
 
-- ``read_local_toml`` reads ``/etc/bambuddy/local.toml`` (the file the
+- ``read_local_toml`` reads ``/etc/printops/local.toml`` (the file the
   appliance setup wizard writes during firstboot with the user's hostname,
   timezone, and locale).
-- ``read_ntp_gate`` reads ``/run/bambuddy/time-synced`` (the appliance's
+- ``read_ntp_gate`` reads ``/run/printops/time-synced`` (the appliance's
   ntp-gate.sh signals time-sync state here once chrony reports sync, or
   when the 3-minute timeout elapses with a "warning" marker).
 
 Universal across install shapes:
 
-- On the Bambuddy Appliance: both files exist by the time bambuddy.service
+- On the PrintOps Appliance: both files exist by the time printops.service
   starts; we surface their values to the frontend.
 - On Docker / manual installs: both files are absent; we degrade silently.
 
@@ -33,8 +33,8 @@ import tomllib
 
 log = logging.getLogger(__name__)
 
-DEFAULT_PATH = Path("/etc/bambuddy/local.toml")
-DEFAULT_NTP_GATE_PATH = Path("/run/bambuddy/time-synced")
+DEFAULT_PATH = Path("/etc/printops/local.toml")
+DEFAULT_NTP_GATE_PATH = Path("/run/printops/time-synced")
 
 # Three states: synced ("ok"), gated-and-timed-out ("warning"), or unknown (None).
 TimeSyncState = Literal["ok", "warning"] | None
@@ -77,7 +77,7 @@ def read_local_toml(path: Path = DEFAULT_PATH) -> LocalConfig:
 def read_ntp_gate(path: Path = DEFAULT_NTP_GATE_PATH) -> TimeSyncState:
     """Read the appliance NTP gate file. Returns "ok", "warning", or None.
 
-    Wire contract with bambuddy-appliance/firstboot/ntp-gate.sh:
+    Wire contract with printops-appliance/firstboot/ntp-gate.sh:
       - File absent: gate hasn't been evaluated yet, or this isn't an appliance
         install. Caller should treat as "unknown / don't gate."
       - File content starts with "ok": chrony reported sync within 3 minutes.

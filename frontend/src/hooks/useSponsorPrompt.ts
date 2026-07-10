@@ -80,7 +80,7 @@ export function useSponsorPrompt(currencyCode = 'EUR') {
         showPersistentToast(TOAST_ID, message, 'info', {
           action: {
             label: t('sponsors.viewSupporters', 'View supporters'),
-            href: `https://bambuddy.cool/sponsors.html?from=app-toast-${result.milestone}`,
+            href: `https://github.com/ichwars/PrintOps?from=app-toast-${result.milestone}`,
           },
         });
         // Anchor the 14-day cooldown as soon as the toast is on screen, so an

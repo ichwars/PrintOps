@@ -1110,7 +1110,7 @@ export interface AppSettings {
   check_printer_firmware: boolean;
   include_beta_updates: boolean;
   // #1589: false hides the local username/password form on the login page;
-  // BAMBUDDY_LOCAL_LOGIN=true on the server flips the reported value back to
+  // PRINTOPS_LOCAL_LOGIN=true on the server flips the reported value back to
   // true so the env-var recovery path is visible to the SPA.
   local_login_enabled: boolean;
   language: string;
@@ -3407,7 +3407,7 @@ export interface AdvancedAuthStatus {
   advanced_auth_enabled: boolean;
   smtp_configured: boolean;
   // #1589: false hides the username/password form on the LoginPage; the env
-  // var BAMBUDDY_LOCAL_LOGIN=true on the server flips this back to true so
+  // var PRINTOPS_LOCAL_LOGIN=true on the server flips this back to true so
   // the recovery path remains visible.
   local_login_enabled: boolean;
   // #1589: when set, LoginPage redirects to this provider's authorize URL
@@ -4690,7 +4690,7 @@ export const api = {
 
     // Get filename from Content-Disposition header
     const contentDisposition = response.headers.get('Content-Disposition');
-    let filename = 'bambuddy-backup.zip';
+    let filename = 'printops-backup.zip';
     if (contentDisposition) {
       const match = contentDisposition.match(/filename=([^;]+)/);
       if (match) filename = match[1].trim().replace(/^"(.*)"$/, '$1');
@@ -5283,7 +5283,7 @@ export const api = {
       throw new Error(error.detail || `HTTP ${response.status}`);
     }
     const disposition = response.headers.get('Content-Disposition');
-    const filename = parseContentDispositionFilename(disposition) || 'bambuddy_inventory.csv';
+    const filename = parseContentDispositionFilename(disposition) || 'printops_inventory.csv';
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -6245,7 +6245,7 @@ export const api = {
     }>(`/library/files/${fileId}/filament-requirements${qs.toString() ? `?${qs}` : ''}`);
   },
 
-  /** Poll the sidecar's per-request progress snapshot via the Bambuddy
+  /** Poll the sidecar's per-request progress snapshot via the PrintOps
    * proxy. Used by the SliceModal's filament-discovery path so the inline
    * spinner + persistent toast can show "Generating G-code (45%)" while
    * the preview slice runs. Returns null on 404 (sidecar doesn't yet
@@ -7321,7 +7321,7 @@ export const supportApi = {
     }
     // Get filename from Content-Disposition header or use default
     const disposition = response.headers.get('Content-Disposition');
-    const filename = parseContentDispositionFilename(disposition) || 'bambuddy-support.zip';
+    const filename = parseContentDispositionFilename(disposition) || 'printops-support.zip';
 
     // Download the blob
     const blob = await response.blob();

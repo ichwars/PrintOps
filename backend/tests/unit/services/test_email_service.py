@@ -196,8 +196,8 @@ class TestRenderTemplate:
 
     def test_render_template_basic(self):
         """Placeholders are replaced correctly."""
-        result = render_template("Hello {name}, welcome to {app}!", {"name": "Alice", "app": "BamBuddy"})
-        assert result == "Hello Alice, welcome to BamBuddy!"
+        result = render_template("Hello {name}, welcome to {app}!", {"name": "Alice", "app": "PrintOps"})
+        assert result == "Hello Alice, welcome to PrintOps!"
 
     def test_render_template_removes_unreplaced(self):
         """Unreplaced placeholders are removed."""

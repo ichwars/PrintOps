@@ -1632,6 +1632,12 @@ export default {
       queue: 'Flusso',
       queueDispatch: 'Coda e Dispatch',
       queuePipelines: 'Pipeline',
+      deviceManagementDevices: 'Dispositivi',
+      deviceManagementPrintProcess: 'Processo di stampa',
+      projectManagementFiles: 'Gestione file',
+      warehouseFilament: 'Filamento',
+      warehouseCatalogs: 'Cataloghi',
+      orderManagementCalculation: 'Calcolo',
       filament: 'Filamento',
       network: 'Rete',
       apiKeys: 'Chiavi API',
@@ -1645,6 +1651,23 @@ export default {
       oidc: 'SSO / OIDC',
       security: 'Sicurezza',
       spoolbuddy: 'SpoolBuddy',
+    },
+    printerProductionSubTabDescriptions: {
+      devices: 'Gestisci stampanti predefinite, videocamere, retry FTP ed endpoint delle stampanti virtuali.',
+      printProcess: 'Configura valori di stampa, archiviazione, coda, G-code, slicer e regole di completamento.',
+      pipelines: 'Gestisci pipeline dello slicer, preset e flussi di preparazione automatizzati.',
+      failureDetection: 'Configura monitoraggio guasti IA, impostazioni per stampante, stato e cronologia.',
+    },
+    projectManagementSubTabDescriptions: {
+      files: 'Gestisci file, modalità archivio, avvisi disco e regole di archiviazione progetto.',
+    },
+    warehouseMaterialSubTabDescriptions: {
+      filament: 'Gestisci asciugatura, tracciamento Spoolman, controlli filamento, mapping e soglie AMS.',
+      catalogs: 'Gestisci cataloghi bobine e colori per inventario e flussi etichette.',
+      spoolbuddy: 'Gestisci kiosk SpoolBuddy, lettori NFC, bilance, calibrazione e registrazione.',
+    },
+    orderManagementSubTabDescriptions: {
+      calculation: 'Configura valuta, tracciamento costi e valori di calcolo per flussi commerciali.',
     },
     ldap: {
       title: 'Autenticazione LDAP',

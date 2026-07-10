@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Upstream Bambuddy documentation
-    url: https://wiki.bambuddy.cool/
-    about: Technical reference for inherited Bambuddy functionality while PrintOps documentation is being built.
+  - name: Upstream PrintOps documentation
+    url: https://github.com/ichwars/PrintOps/wiki/
+    about: Technical reference for inherited PrintOps functionality while PrintOps documentation is being built.

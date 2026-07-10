@@ -25,7 +25,7 @@ type SidebarLayoutItem =
   | { type: 'external'; id: string; link: ExternalLink };
 
 export function ExternalLinksSettings() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const { authEnabled, hasPermission } = useAuth();
   const { showToast } = useToast();
@@ -36,6 +36,7 @@ export function ExternalLinksSettings() {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [hiddenSystemItemIds, setHiddenSystemItemIds] = useState<string[]>(getHiddenSidebarSystemItemIds);
   const [sidebarOrder, setSidebarOrder] = useState<string[]>(() => getSidebarOrder(defaultNavItems.map(i => i.id)));
+  const navItemsMap = useMemo(() => new Map(defaultNavItems.map(item => [item.id, item])), []);
 
   const { data: links, isLoading } = useQuery({
     queryKey: ['external-links'],
@@ -73,34 +74,76 @@ export function ExternalLinksSettings() {
   });
 
   const layoutItems = useMemo<SidebarLayoutItem[]>(() => {
-    const navItemsMap = new Map(defaultNavItems.map(item => [item.id, item]));
     const externalLinksMap = new Map((links || []).map(link => [`ext-${link.id}`, link]));
+    const defaultSidebarOrder = defaultNavItems.map(item => item.id);
     const result: SidebarLayoutItem[] = [];
     const seen = new Set<string>();
 
-    const addItem = (id: string) => {
+    const addItem = (id: string, insertAt?: number) => {
       if (seen.has(id)) return;
 
       const navItem = navItemsMap.get(id);
       if (navItem) {
-        result.push({ type: 'system', id, navItem });
+        const item: SidebarLayoutItem = { type: 'system', id, navItem };
+        if (insertAt === undefined) {
+          result.push(item);
+        } else {
+          result.splice(insertAt, 0, item);
+        }
         seen.add(id);
         return;
       }
 
       const link = externalLinksMap.get(id);
       if (link) {
-        result.push({ type: 'external', id, link });
+        const item: SidebarLayoutItem = { type: 'external', id, link };
+        if (insertAt === undefined) {
+          result.push(item);
+        } else {
+          result.splice(insertAt, 0, item);
+        }
         seen.add(id);
       }
     };
 
     sidebarOrder.forEach(addItem);
-    defaultNavItems.forEach(item => addItem(item.id));
+
+    for (const item of defaultNavItems) {
+      if (seen.has(item.id)) continue;
+
+      const defaultIndex = defaultSidebarOrder.indexOf(item.id);
+      let insertAt = result.length;
+      for (let i = defaultIndex + 1; i < defaultSidebarOrder.length; i += 1) {
+        const nextIndex = result.findIndex(layoutItem => layoutItem.id === defaultSidebarOrder[i]);
+        if (nextIndex !== -1) {
+          insertAt = nextIndex;
+          break;
+        }
+      }
+      if (insertAt === result.length) {
+        for (let i = defaultIndex - 1; i >= 0; i -= 1) {
+          const previousIndex = result.findIndex(layoutItem => layoutItem.id === defaultSidebarOrder[i]);
+          if (previousIndex !== -1) {
+            insertAt = previousIndex + 1;
+            break;
+          }
+        }
+      }
+
+      addItem(item.id, insertAt);
+    }
+
     (links || []).forEach(link => addItem(`ext-${link.id}`));
 
     return result;
-  }, [links, sidebarOrder]);
+  }, [links, navItemsMap, sidebarOrder]);
+
+  const getNavItemLabel = (navItem: typeof defaultNavItems[number]) => {
+    const defaultValue = i18n.resolvedLanguage?.startsWith('de')
+      ? navItem.defaultLabelDe ?? navItem.defaultLabel
+      : navItem.defaultLabel;
+    return t(navItem.labelKey, { defaultValue });
+  };
 
   const persistSidebarOrder = (order: string[]) => {
     setSidebarOrder(order);
@@ -222,7 +265,7 @@ export function ExternalLinksSettings() {
               </Button>
               <Button size="sm" onClick={() => setShowAddModal(true)} className="whitespace-nowrap">
                 <Plus className="w-4 h-4" />
-                Add Link
+                {t('externalLinks.addLink')}
               </Button>
             </div>
           </div>
@@ -239,11 +282,35 @@ export function ExternalLinksSettings() {
           ) : (
             <div className="space-y-2">
               {layoutItems.map((item) => {
-                const isHidden = item.type === 'system' && hiddenSystemItemIds.includes(item.id);
+                const isDirectlyHidden = item.type === 'system' && hiddenSystemItemIds.includes(item.id);
                 const isSettings = item.id === 'settings';
 
                 if (item.type === 'system') {
                   const Icon = item.navItem.icon;
+                  const parentItem = item.navItem.parentId ? navItemsMap.get(item.navItem.parentId) : undefined;
+                  const parentLabel = parentItem ? getNavItemLabel(parentItem) : '';
+                  const isChildItem = Boolean(parentItem);
+                  const isHiddenByParent = Boolean(parentItem && hiddenSystemItemIds.includes(parentItem.id));
+                  const isEffectivelyHidden = isDirectlyHidden || isHiddenByParent;
+                  const canToggleVisibility = !isSettings && !isHiddenByParent;
+                  const statusLabel = isSettings
+                    ? t('externalLinks.requiredInSidebar')
+                    : isHiddenByParent
+                      ? t('externalLinks.hiddenByParent', { parent: parentLabel })
+                      : isDirectlyHidden
+                        ? t('externalLinks.hiddenFromSidebar')
+                        : t('externalLinks.visibleInSidebar');
+                  const contextLabel = isChildItem
+                    ? t('externalLinks.childPageOf', { parent: parentLabel })
+                    : t('externalLinks.mainPage');
+                  const visibilityTitle = isSettings
+                    ? t('externalLinks.settingsCannotBeHidden')
+                    : isHiddenByParent
+                      ? t('externalLinks.showParentFirst', { parent: parentLabel })
+                      : isDirectlyHidden
+                        ? t('externalLinks.showPage')
+                        : t('externalLinks.hidePage');
+
                   return (
                     <div
                       key={item.id}
@@ -254,7 +321,9 @@ export function ExternalLinksSettings() {
                       onDrop={(e) => handleDrop(e, item.id)}
                       onDragEnd={handleDragEnd}
                       className={`relative flex items-center gap-3 p-3 rounded-lg bg-bambu-dark border border-bambu-dark-tertiary transition-colors ${
-                        draggedId === item.id ? 'opacity-50' : isHidden ? 'opacity-60' : ''
+                        isChildItem ? 'ml-5 border-l-bambu-green/40' : ''
+                      } ${
+                        draggedId === item.id ? 'opacity-50' : isEffectivelyHidden ? 'opacity-60' : ''
                       } ${
                         dragOverId === item.id && draggedId !== item.id
                           ? 'before:absolute before:left-3 before:right-3 before:top-0 before:h-0.5 before:bg-bambu-green'
@@ -266,23 +335,19 @@ export function ExternalLinksSettings() {
                         <Icon className="w-4 h-4" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <span className="text-white font-medium truncate block">{t(item.navItem.labelKey)}</span>
+                        <span className="text-white font-medium truncate block">{getNavItemLabel(item.navItem)}</span>
                         <span className="text-sm text-bambu-gray truncate block">
-                          {isSettings
-                            ? t('externalLinks.requiredInSidebar')
-                            : isHidden
-                              ? t('externalLinks.hiddenFromSidebar')
-                              : t('externalLinks.visibleInSidebar')}
+                          {contextLabel} · {statusLabel}
                         </span>
                       </div>
                       <button
                         onClick={() => toggleSystemItemVisibility(item.id)}
-                        disabled={isSettings}
+                        disabled={!canToggleVisibility}
                         className="p-2 rounded-lg hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-bambu-gray"
-                        title={isSettings ? t('externalLinks.settingsCannotBeHidden') : isHidden ? t('externalLinks.showPage') : t('externalLinks.hidePage')}
-                        aria-label={isSettings ? t('externalLinks.settingsCannotBeHidden') : isHidden ? t('externalLinks.showPage') : t('externalLinks.hidePage')}
+                        title={visibilityTitle}
+                        aria-label={visibilityTitle}
                       >
-                        {isHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {isEffectivelyHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   );
@@ -363,10 +428,10 @@ export function ExternalLinksSettings() {
 
       {deletingLink && (
         <ConfirmModal
-          title="Delete Link"
-          message={`Are you sure you want to delete "${deletingLink.name}"? This action cannot be undone.`}
-          confirmText="Delete"
-          cancelText="Cancel"
+          title={t('externalLinks.deleteLink')}
+          message={t('externalLinks.deleteConfirm', { name: deletingLink.name })}
+          confirmText={t('common.delete')}
+          cancelText={t('common.cancel')}
           variant="danger"
           onConfirm={confirmDelete}
           onCancel={() => setDeletingLink(null)}

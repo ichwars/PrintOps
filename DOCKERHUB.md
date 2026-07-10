@@ -1,18 +1,18 @@
-# Bambuddy
+# PrintOps
 
 **Self-hosted print archive and management system for Bambu Lab 3D printers.**
 
 No cloud dependency. Complete privacy. Full control.
 
-[![GitHub](https://img.shields.io/github/stars/maziggy/bambuddy?style=flat-square&label=GitHub)](https://github.com/maziggy/bambuddy)
-[![License](https://img.shields.io/github/license/maziggy/bambuddy?style=flat-square)](https://github.com/maziggy/bambuddy/blob/main/LICENSE)
+[![GitHub](https://img.shields.io/github/stars/ichwars/PrintOps?style=flat-square&label=GitHub)](https://github.com/ichwars/PrintOps)
+[![License](https://img.shields.io/github/license/ichwars/PrintOps?style=flat-square)](https://github.com/ichwars/PrintOps/blob/main/LICENSE)
 [![Discord](https://img.shields.io/discord/1461241694715645994?style=flat-square&logo=discord&logoColor=white&label=Discord&color=5865F2)](https://discord.gg/aFS3ZfScHM)
 
 ## Quick Start
 
 ```bash
-mkdir bambuddy && cd bambuddy
-curl -O https://raw.githubusercontent.com/maziggy/bambuddy/main/docker-compose.yml
+mkdir printops && cd printops
+curl -O https://raw.githubusercontent.com/ichwars/PrintOps/main/docker-compose.yml
 docker compose up -d
 ```
 
@@ -62,22 +62,22 @@ Open **http://localhost:8000** and add your printer.
 
 ```yaml
 services:
-  bambuddy:
-    image: maziggy/bambuddy:latest
-    container_name: bambuddy
+  printops:
+    image: ichwars/PrintOps:latest
+    container_name: printops
     network_mode: host
     environment:
       - TZ=America/New_York
       - PUID=1000
       - PGID=1000
     volumes:
-      - bambuddy_data:/app/data
-      - bambuddy_logs:/app/logs
+      - printops_data:/app/data
+      - printops_logs:/app/logs
     restart: unless-stopped
 
 volumes:
-  bambuddy_data:
-  bambuddy_logs:
+  printops_data:
+  printops_logs:
 ```
 
 > **macOS/Windows:** Docker Desktop doesn't support `network_mode: host`. Replace it with `ports: ["8000:8000"]` and add printers manually by IP.
@@ -94,7 +94,7 @@ Beta builds with the latest fixes are pushed regularly to the same beta version 
 
 ```bash
 # Pull the current beta
-docker pull maziggy/bambuddy:0.2.2b1
+docker pull ichwars/PrintOps:0.2.2b1
 ```
 
 Use [Watchtower](https://containrrr.dev/watchtower/) to automatically update when new daily builds are pushed.
@@ -115,12 +115,12 @@ All printers require **Developer Mode** enabled for LAN access.
 
 ## Links
 
-- **Website:** [bambuddy.cool](https://bambuddy.cool)
-- **Documentation:** [wiki.bambuddy.cool](http://wiki.bambuddy.cool)
-- **GitHub:** [github.com/maziggy/bambuddy](https://github.com/maziggy/bambuddy)
+- **Website:** [github.com/ichwars/PrintOps](https://github.com/ichwars/PrintOps)
+- **Documentation:** [github.com/ichwars/PrintOps/wiki](http://github.com/ichwars/PrintOps/wiki)
+- **GitHub:** [github.com/ichwars/PrintOps](https://github.com/ichwars/PrintOps)
 - **Discord:** [discord.gg/aFS3ZfScHM](https://discord.gg/aFS3ZfScHM)
-- **Issues:** [GitHub Issues](https://github.com/maziggy/bambuddy/issues)
+- **Issues:** [GitHub Issues](https://github.com/ichwars/PrintOps/issues)
 
 ## License
 
-MIT License - see [LICENSE](https://github.com/maziggy/bambuddy/blob/main/LICENSE) for details.
+MIT License - see [LICENSE](https://github.com/ichwars/PrintOps/blob/main/LICENSE) for details.

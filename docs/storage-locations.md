@@ -26,7 +26,7 @@ Structured storage locations let you manage physical shelves, drawers, and drybo
 
 ## Spoolman mode
 
-Bambuddy keeps a local location catalog. When Spoolman integration is enabled:
+PrintOps keeps a local location catalog. When Spoolman integration is enabled:
 
 - Assigning a location writes the location **name** to Spoolman's `location` field
 - Listing locations syncs distinct names from Spoolman into the catalog
@@ -41,4 +41,4 @@ Existing free-text `storage_location` values are automatically imported into the
 1. `./test_frontend.sh` — i18n parity, lint, Vitest
 2. `./test_backend.sh` — Ruff, pytest (includes `test_locations_api.py`, `test_location_service.py`)
 3. Manual: assign a spool to a location → open **Locations** → spool count updates without reload
-4. Companion PR in [bambuddy-wiki](https://github.com/maziggy/bambuddy-wiki) (user-facing guide)
+4. Companion PR in [printops-wiki](https://github.com/ichwars/PrintOps-wiki) (user-facing guide)

@@ -961,7 +961,7 @@ class PrintScheduler:
             logger.info("[prefer-lowest] skipped (AMS Backup OFF on printer %s)", printer_id)
             prefer_lowest = False
 
-        # When the preference is on, surface Bambuddy's inventory-side
+        # When the preference is on, surface PrintOps's inventory-side
         # remaining for each slot that's bound to a tracked spool, so the
         # sort beats the MQTT-only blind spot (#1508). Skip the lookup
         # entirely when the preference is off — no behaviour change for
@@ -1136,7 +1136,7 @@ class PrintScheduler:
         self, db: AsyncSession, printer_id: int, loaded: list[dict]
     ) -> dict[int, float]:
         """Return ``{global_tray_id: remaining_grams}`` for AMS slots the user
-        has bound to an inventory spool — Bambuddy-side or Spoolman-side.
+        has bound to an inventory spool — PrintOps-side or Spoolman-side.
 
         The MQTT ``remain`` field on a tray is the printer firmware's
         RFID-decremented value, which has two limitations the "Prefer Lowest
@@ -1147,10 +1147,10 @@ class PrintScheduler:
           compare equal and the sort collapses to AMS-slot order — the user
           who's curating inventory weights gets the lower-slot pick instead
           of the lower-remaining pick;
-        - even when set, it's the *printer's* counter, not Bambuddy's
+        - even when set, it's the *printer's* counter, not PrintOps's
           ``label_weight - weight_used`` (internal mode) or Spoolman's
           ``remaining_weight`` (Spoolman mode) — the two diverge any time the
-          user re-spools, swaps cardboard, or runs a print outside Bambuddy.
+          user re-spools, swaps cardboard, or runs a print outside PrintOps.
 
         When the user has bound a spool to a slot, their own inventory
         tracking is authoritative; this helper surfaces that value so the
@@ -1844,7 +1844,7 @@ class PrintScheduler:
                 # reads ~15-20% within minutes of the dryer starting even while the
                 # filament is still saturated. A humidity-based early-stop therefore
                 # always fires at the minimum-time floor, truncating both user-started
-                # manual cycles and Bambuddy's own preset-duration dries to ~30 min.
+                # manual cycles and PrintOps's own preset-duration dries to ~30 min.
                 # The firmware stops when the configured duration elapses; scheduling
                 # stops (print takes priority, queue no longer needs drying) are
                 # handled separately via _stop_drying().
@@ -3053,7 +3053,7 @@ class PrintScheduler:
     ) -> None:
         """Revert a queue item if the printer never acknowledges the start command.
 
-        Bambuddy optimistically marks the queue item as "printing" right after the
+        PrintOps optimistically marks the queue item as "printing" right after the
         MQTT project_file publish succeeds locally. The watchdog runs in two phases:
 
         Phase A (up to ``timeout``): wait for either an active-state transition
@@ -3072,7 +3072,7 @@ class PrintScheduler:
         used to leave the queue item stuck in 'printing' forever because the
         old watchdog returned success as soon as subtask_id advanced. If Phase
         B times out, revert the queue item so the user can retry without
-        restarting Bambuddy. Skip ``force_reconnect`` here: the file landed and
+        restarting PrintOps. Skip ``force_reconnect`` here: the file landed and
         a forced reconnect mid-parse triggers 0500_4003 (#1150).
 
         Phase A timeout raised from 45 s → 90 s as belt-and-braces for slow

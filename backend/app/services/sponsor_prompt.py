@@ -1,6 +1,6 @@
 """Sponsor-prompt trigger evaluator and dismiss handler.
 
-Drives the in-app "support keeps Bambuddy independent" toast. Trigger families
+Drives the in-app "support keeps PrintOps independent" toast. Trigger families
 fire at milestones the user has earned (prints, archives, filament cost,
 anniversary) plus a soft version-update nudge after a major upgrade.
 

@@ -496,7 +496,7 @@ class TestImport:
     async def test_import_to_external_with_name_collision_returns_409(self, async_client, db_session, tmp_path):
         """A user-visible 409 fires when the filename already exists on the
         external mount, instead of silently overwriting a file the user put
-        there outside Bambuddy."""
+        there outside PrintOps."""
         ext_dir = tmp_path / "nas-collide"
         ext_dir.mkdir()
         (ext_dir / "benchy.3mf").write_bytes(b"pre-existing")

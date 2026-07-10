@@ -26,7 +26,17 @@ export type SettingsTab = CanonicalSettingsTab | LegacySettingsTab;
 
 export type UsersSubTab = 'users' | 'email' | 'ldap' | 'oidc' | 'twofa' | 'security';
 
-export type QueueSubTab = 'dispatch' | 'pipelines';
+export type PrinterProductionSubTab = 'devices' | 'print-process' | 'pipelines' | 'failure-detection';
+
+export type ProjectManagementSubTab = 'files';
+
+export type WarehouseMaterialSubTab = 'filament' | 'catalogs' | 'spoolbuddy';
+
+export type OrderManagementSubTab = 'calculation';
+
+export type IntegrationSubTab = 'notifications' | 'webhooks' | 'smart-home' | 'smart-plugs' | 'api-metrics';
+
+export type OperationSubTab = 'updates' | 'data-management' | 'backups';
 
 type SettingsNavIcon =
   | 'settings'
@@ -89,7 +99,7 @@ const LEGACY_TAB_ALIASES: Record<LegacySettingsTab, CanonicalSettingsTab> = {
   queue: 'printers-production',
   filament: 'warehouse-material',
   network: 'integrations',
-  apikeys: 'users-security',
+  apikeys: 'integrations',
   'virtual-printer': 'printers-production',
   spoolbuddy: 'warehouse-material',
   'failure-detection': 'printers-production',
@@ -100,11 +110,25 @@ const LEGACY_TAB_ALIASES: Record<LegacySettingsTab, CanonicalSettingsTab> = {
 
 const LEGACY_TAB_DEFAULT_SUBTABS: Partial<Record<LegacySettingsTab, {
   usersSubTab?: UsersSubTab;
-  queueSubTab?: QueueSubTab;
+  printerProductionSubTab?: PrinterProductionSubTab;
+  projectManagementSubTab?: ProjectManagementSubTab;
+  warehouseMaterialSubTab?: WarehouseMaterialSubTab;
+  orderManagementSubTab?: OrderManagementSubTab;
+  integrationSubTab?: IntegrationSubTab;
+  operationSubTab?: OperationSubTab;
 }>> = {
   users: { usersSubTab: 'users' },
   email: { usersSubTab: 'email' },
-  queue: { queueSubTab: 'dispatch' },
+  queue: { printerProductionSubTab: 'print-process' },
+  'virtual-printer': { printerProductionSubTab: 'devices' },
+  'failure-detection': { printerProductionSubTab: 'failure-detection' },
+  filament: { warehouseMaterialSubTab: 'filament' },
+  spoolbuddy: { warehouseMaterialSubTab: 'spoolbuddy' },
+  notifications: { integrationSubTab: 'notifications' },
+  network: { integrationSubTab: 'smart-home' },
+  plugs: { integrationSubTab: 'smart-plugs' },
+  apikeys: { integrationSubTab: 'api-metrics' },
+  backup: { operationSubTab: 'backups' },
 };
 
 const LEGACY_TAB_DEFAULT_ANCHORS: Partial<Record<LegacySettingsTab, string>> = {
@@ -144,7 +168,12 @@ export function settingsTabLabelKey(tab: CanonicalSettingsTab): string {
 
 export function legacySettingsTabDefaultSubTab(tabParam: string | null): {
   usersSubTab?: UsersSubTab;
-  queueSubTab?: QueueSubTab;
+  printerProductionSubTab?: PrinterProductionSubTab;
+  projectManagementSubTab?: ProjectManagementSubTab;
+  warehouseMaterialSubTab?: WarehouseMaterialSubTab;
+  orderManagementSubTab?: OrderManagementSubTab;
+  integrationSubTab?: IntegrationSubTab;
+  operationSubTab?: OperationSubTab;
 } {
   if (!tabParam) {
     return {};

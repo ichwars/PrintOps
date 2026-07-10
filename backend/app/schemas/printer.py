@@ -42,7 +42,7 @@ class PrinterBase(BaseModel):
 class PrinterCreate(PrinterBase):
     # access_code lives on the input shapes only — never on the default
     # PrinterResponse. Direct exposure on PRINTERS_READ would let a Viewer
-    # connect to the printer's MQTT and bypass Bambuddy's RBAC.
+    # connect to the printer's MQTT and bypass PrintOps's RBAC.
     access_code: str = Field(..., min_length=1, max_length=20)
 
 
@@ -142,7 +142,7 @@ class PrinterResponseWithSecret(PrinterResponse):
 
     Viewers and API keys never receive this shape — they get the bare
     PrinterResponse without access_code, since holding the access_code lets
-    the caller talk to the printer's MQTT directly and bypass Bambuddy's RBAC.
+    the caller talk to the printer's MQTT directly and bypass PrintOps's RBAC.
     """
 
     access_code: str

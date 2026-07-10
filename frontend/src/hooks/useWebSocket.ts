@@ -91,7 +91,7 @@ export function useWebSocket() {
     // minted by POST /api/v1/auth/ws-token. We use the shared ``api.request``
     // helper (via ``api.getWebSocketToken``) so the JWT Authorization header
     // is attached — a raw ``fetch()`` with ``credentials: 'include'`` would
-    // miss it (Bambuddy uses Bearer tokens, not cookies, for JWT auth).
+    // miss it (PrintOps uses Bearer tokens, not cookies, for JWT auth).
     // Auth-disabled deployments accept connections without a token.
     let token: string | undefined;
     try {
@@ -436,7 +436,7 @@ export function useWebSocket() {
       case 'queue_item_upload_progress':
       case 'queue_item_acked':
       case 'queue_item_failed':
-        window.dispatchEvent(new CustomEvent('bambuddy:dispatch-toast', { detail: message }));
+        window.dispatchEvent(new CustomEvent('printops:dispatch-toast', { detail: message }));
         break;
       // Slicer Pipeline runs (#1425 PR C). State transitions on the run
       // refresh both the dashboard list AND the per-pipeline "Last run"

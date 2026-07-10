@@ -10,7 +10,7 @@ import { render } from '../utils';
 
 function emit(detail: Record<string, unknown>) {
   act(() => {
-    window.dispatchEvent(new CustomEvent('bambuddy:dispatch-toast', { detail }));
+    window.dispatchEvent(new CustomEvent('printops:dispatch-toast', { detail }));
   });
 }
 

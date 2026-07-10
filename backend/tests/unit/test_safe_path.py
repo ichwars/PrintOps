@@ -114,7 +114,7 @@ class TestPocReproducer:
 
     def test_advisory_poc_target_dir_rejected(self, library: Path):
         # Verbatim shape from the advisory POC.
-        target_dir = "BAMBUDDY_BASE_DIR/bambuddy/venv/lib/python3.14/site-packages"
+        target_dir = "PRINTOPS_BASE_DIR/printops/venv/lib/python3.14/site-packages"
         # Leading slash → absolute → rejected up-front.
         with pytest.raises(HTTPException):
             safe_join_under(library, "/" + target_dir)

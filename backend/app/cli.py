@@ -1,4 +1,4 @@
-"""Bambuddy administrative CLI.
+"""PrintOps administrative CLI.
 
 Invoked via ``python -m backend.app.cli <subcommand>``.
 
@@ -86,7 +86,7 @@ async def kiosk_bootstrap(
 
         # Mark first-run setup as completed so the kiosk URL loads directly
         # instead of being force-redirected to /setup by AuthContext. Without
-        # this, a bundled SpoolBuddy/Bambuddy install boots into the Bambuddy
+        # this, a bundled SpoolBuddy/PrintOps install boots into the PrintOps
         # first-run wizard (touch-only Pi has no keyboard to complete it).
         # Users who want authentication enable it later from the admin UI; the
         # API key we just created is already valid so the kiosk keeps working.
@@ -99,7 +99,7 @@ async def kiosk_bootstrap(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m backend.app.cli",
-        description="Bambuddy administrative commands",
+        description="PrintOps administrative commands",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

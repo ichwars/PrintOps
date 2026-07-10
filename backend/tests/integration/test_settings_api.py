@@ -318,7 +318,7 @@ class TestSettingsAPI:
                 "mqtt_port": 1883,
                 "mqtt_username": "",
                 "mqtt_password": "",
-                "mqtt_topic_prefix": "bambuddy",
+                "mqtt_topic_prefix": "printops",
                 "mqtt_use_tls": False,
             },
         )
@@ -328,7 +328,7 @@ class TestSettingsAPI:
 
         assert result["mqtt_enabled"] is False
         assert result["mqtt_port"] == 1883
-        assert result["mqtt_topic_prefix"] == "bambuddy"
+        assert result["mqtt_topic_prefix"] == "printops"
         assert result["mqtt_use_tls"] is False
 
     # ========================================================================
@@ -886,7 +886,7 @@ class TestSimplifiedBackupRestore:
         import io
         import zipfile
 
-        # Create a ZIP without bambuddy.db
+        # Create a ZIP without printops.db
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.writestr("dummy.txt", "dummy content")
@@ -896,7 +896,7 @@ class TestSimplifiedBackupRestore:
         response = await async_client.post("/api/v1/settings/restore", files=files)
 
         assert response.status_code == 400
-        assert "missing bambuddy.db" in response.json()["detail"].lower()
+        assert "missing printops.db" in response.json()["detail"].lower()
 
     @pytest.mark.asyncio
     @pytest.mark.integration

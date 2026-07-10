@@ -24,7 +24,7 @@ def _configure_matplotlib_cache() -> None:
 
     Without this, matplotlib falls back to ``/tmp/matplotlib-XXXXXX`` whenever
     ``$HOME/.config/matplotlib`` isn't writable — which is the case under
-    Bambuddy's container / systemd-service deployments where ``$HOME`` is set
+    PrintOps's container / systemd-service deployments where ``$HOME`` is set
     to a non-writable path. The fallback emits a WARNING on every cold start
     AND loses the font cache on host reboot, so font_manager rebuilds it
     every time → another batch of INFO lines.

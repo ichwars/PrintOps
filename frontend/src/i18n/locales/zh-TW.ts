@@ -1632,6 +1632,12 @@ export default {
       queue: '工作流程',
       queueDispatch: '佇列與分派',
       queuePipelines: '管線',
+      deviceManagementDevices: '裝置',
+      deviceManagementPrintProcess: '列印流程',
+      projectManagementFiles: '檔案管理',
+      warehouseFilament: '耗材',
+      warehouseCatalogs: '目錄',
+      orderManagementCalculation: '計算',
       filament: '耗材',
       network: '網路',
       apiKeys: 'API 金鑰',
@@ -1645,6 +1651,23 @@ export default {
       twoFa: '雙因素認證',
       oidc: 'SSO / OIDC',
       security: '安全',
+    },
+    printerProductionSubTabDescriptions: {
+      devices: '管理預設印表機、攝影機、FTP 重試行為與虛擬印表機端點。',
+      printProcess: '設定列印預設值、封存、佇列行為、G-code、切片器與完成規則。',
+      pipelines: '管理切片器管線、預設與自動化準備流程。',
+      failureDetection: '設定 AI 故障監控、各印表機偵測行為、狀態與歷史記錄。',
+    },
+    projectManagementSubTabDescriptions: {
+      files: '管理檔案處理、封存模式、磁碟警告與專案儲存規則。',
+    },
+    warehouseMaterialSubTabDescriptions: {
+      filament: '管理乾燥預設、Spoolman 追蹤、耗材檢查、對應與 AMS 顯示閾值。',
+      catalogs: '管理用於庫存與標籤流程的料盤和顏色目錄。',
+      spoolbuddy: '管理 SpoolBuddy kiosk、NFC 讀卡機、電子秤、校正與裝置註冊。',
+    },
+    orderManagementSubTabDescriptions: {
+      calculation: '設定商務流程的貨幣、成本追蹤與計算預設值。',
     },
     spoolbuddy: {
       infoTitle: 'SpoolBuddy 裝置',

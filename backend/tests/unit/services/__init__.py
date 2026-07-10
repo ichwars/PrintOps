@@ -1,1 +1,1 @@
-"""Unit tests for BamBuddy backend services layer."""
+"""Unit tests for PrintOps backend services layer."""

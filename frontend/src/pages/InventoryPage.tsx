@@ -64,7 +64,7 @@ function spoolGroupKey(s: InventorySpool): string {
 }
 
 // Column definitions for the inventory table
-const COLUMN_CONFIG_KEY = 'bambuddy-inventory-columns';
+const COLUMN_CONFIG_KEY = 'printops-inventory-columns';
 
 const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'id', label: '#', visible: true },
@@ -441,7 +441,7 @@ const columnSortValues: Record<string, (spool: InventorySpool, assignmentMap: Re
   },
 };
 
-const SORT_STATE_KEY = 'bambuddy-inventory-sort';
+const SORT_STATE_KEY = 'printops-inventory-sort';
 
 function loadSortState(): SortState {
   try {
@@ -512,7 +512,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const [showColumnModal, setShowColumnModal] = useState(false);
   const [groupSimilar, setGroupSimilar] = useState(() => {
     try {
-      return localStorage.getItem('bambuddy-inventory-group') === 'true';
+      return localStorage.getItem('printops-inventory-group') === 'true';
     } catch { return false; }
   });
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -543,7 +543,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(() => {
     try {
-      const stored = localStorage.getItem('bambuddy-inventory-pageSize');
+      const stored = localStorage.getItem('printops-inventory-pageSize');
       if (stored) {
         const n = Number(stored);
         if ([15, 30, 50, 100, -1].includes(n)) return n;
@@ -1268,7 +1268,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     setGroupSimilar(next);
     setExpandedGroups(new Set());
     resetPage();
-    try { localStorage.setItem('bambuddy-inventory-group', String(next)); } catch { /* ignore */ }
+    try { localStorage.setItem('printops-inventory-group', String(next)); } catch { /* ignore */ }
   };
 
   const toggleGroupExpand = (key: string) => {
@@ -1283,7 +1283,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const handlePageSizeChange = (size: number) => {
     setPageSize(size);
     setPageIndex(0);
-    try { localStorage.setItem('bambuddy-inventory-pageSize', String(size)); } catch { /* ignore */ }
+    try { localStorage.setItem('printops-inventory-pageSize', String(size)); } catch { /* ignore */ }
   };
 
   const clearAllFilters = () => {
@@ -1314,7 +1314,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
           <p className="text-bambu-gray mt-1">{t('inventory.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
-          {/* CSV import/export (#1576). Operates on Bambuddy's local inventory.
+          {/* CSV import/export (#1576). Operates on PrintOps's local inventory.
               In Spoolman mode the buttons stay visible (feature parity) but are
               disabled with a hint pointing at Spoolman's own CSV export, since
               Spoolman owns the data store in that mode. */}

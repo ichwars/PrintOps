@@ -1546,6 +1546,12 @@ export default {
       queue: '워크플로우',
       queueDispatch: '큐 및 디스패치',
       queuePipelines: '파이프라인',
+      deviceManagementDevices: '장치',
+      deviceManagementPrintProcess: '인쇄 프로세스',
+      projectManagementFiles: '파일 관리',
+      warehouseFilament: '필라멘트',
+      warehouseCatalogs: '카탈로그',
+      orderManagementCalculation: '계산',
       filament: '필라멘트',
       network: '네트워크',
       apiKeys: 'API 키',
@@ -1559,6 +1565,23 @@ export default {
       twoFa: '이중 인증',
       oidc: 'SSO / OIDC',
       security: '보안'
+    },
+    printerProductionSubTabDescriptions: {
+      devices: '기본 프린터, 카메라, FTP 재시도 동작, 가상 프린터 엔드포인트를 관리합니다.',
+      printProcess: '인쇄 기본값, 보관, 큐 동작, G-code, 슬라이서, 완료 규칙을 설정합니다.',
+      pipelines: '슬라이서 파이프라인, 프리셋, 자동 준비 흐름을 관리합니다.',
+      failureDetection: 'AI 실패 모니터링, 프린터별 감지 동작, 상태와 기록을 설정합니다.',
+    },
+    projectManagementSubTabDescriptions: {
+      files: '파일 처리, 보관 모드, 디스크 경고, 프로젝트 저장 규칙을 관리합니다.',
+    },
+    warehouseMaterialSubTabDescriptions: {
+      filament: '건조 프리셋, Spoolman 추적, 필라멘트 확인, 매핑, AMS 표시 임계값을 관리합니다.',
+      catalogs: '재고 및 라벨 흐름에 사용하는 스풀과 색상 카탈로그를 관리합니다.',
+      spoolbuddy: 'SpoolBuddy 키오스크, NFC 리더, 저울, 보정, 장치 등록을 관리합니다.',
+    },
+    orderManagementSubTabDescriptions: {
+      calculation: '상업용 흐름을 위한 통화, 비용 추적, 계산 기본값을 설정합니다.',
     },
     spoolbuddy: {
       infoTitle: 'SpoolBuddy 기기',

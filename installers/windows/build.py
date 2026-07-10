@@ -1,8 +1,8 @@
-"""Build script for the Bambuddy Windows installer.
+"""Build script for the PrintOps Windows installer.
 
 Stages all artifacts under ``installers/windows/build/staging/`` for the
 Inno Setup compiler to package. Run this on Windows (or in a Windows CI
-runner) — it pip-installs Bambuddy's deps against the embedded Python it
+runner) — it pip-installs PrintOps's deps against the embedded Python it
 downloads, which requires the matching platform.
 
 Steps:
@@ -18,7 +18,7 @@ Steps:
 
 After this script succeeds, run::
 
-    "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe" bambuddy.iss
+    "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe" printops.iss
 
 to produce the final installer .exe under ``build/output/``.
 """
@@ -136,7 +136,7 @@ def stage_embedded_python() -> Path:
     # Install setuptools + wheel. The embedded distribution ships without
     # them, and get-pip.py installs only pip — but pip needs
     # ``setuptools.build_meta`` (PEP 517 backend) to build any source-only
-    # package. Bambuddy's requirements.txt hits this with pyftpdlib 2.2.0
+    # package. PrintOps's requirements.txt hits this with pyftpdlib 2.2.0
     # which is sdist-only on PyPI; other source-only packages would fail
     # the same way without this step.
     log("installing setuptools + wheel for PEP 517 builds")
@@ -185,7 +185,7 @@ def stage_vcruntime(python_dir: Path) -> None:
 
 
 def install_requirements(python_dir: Path) -> None:
-    """Install Bambuddy's requirements.txt into the embedded Python."""
+    """Install PrintOps's requirements.txt into the embedded Python."""
     py = python_dir / "python.exe"
     requirements = REPO_ROOT / "requirements.txt"
     log(f"installing requirements.txt into {python_dir}")
@@ -228,7 +228,7 @@ def build_frontend() -> Path:
 def stage_backend(frontend_dist: Path) -> None:
     """Copy backend source + frontend bundle into the staging tree.
 
-    The runtime layout under STAGING/app/ mirrors a Bambuddy checkout:
+    The runtime layout under STAGING/app/ mirrors a PrintOps checkout:
     ``backend/`` (source), ``static/`` (frontend bundle served by FastAPI).
     """
     app = STAGING / "app"
@@ -311,7 +311,7 @@ def stage_service_scripts() -> None:
 
 def _read_app_version() -> str:
     """Read APP_VERSION from backend/app/core/config.py (the canonical
-    source used by every other Bambuddy surface — FastAPI OpenAPI title,
+    source used by every other PrintOps surface — FastAPI OpenAPI title,
     /system info, support bundles, spoolbuddy update check).
     """
     config_py = REPO_ROOT / "backend" / "app" / "core" / "config.py"
@@ -339,8 +339,8 @@ def _resolve_installer_version() -> str:
          (no tag) and for local builds.
 
     Strips the leading ``v`` from tags so the installer filename is
-    ``bambuddy-0.2.5b1-daily.20260610-windows-x64-setup.exe``, not
-    ``bambuddy-v0.2.5b1-...``.
+    ``printops-0.2.5b1-daily.20260610-windows-x64-setup.exe``, not
+    ``printops-v0.2.5b1-...``.
     """
     ref = os.environ.get("GITHUB_REF", "")
     if ref.startswith("refs/tags/"):
@@ -359,7 +359,7 @@ def write_version_file() -> None:
     version = _resolve_installer_version()
     (STAGING / "VERSION").write_text(version)
 
-    # Inno Setup include — bambuddy.iss does `#include "build\staging\version.iss"`
+    # Inno Setup include — printops.iss does `#include "build\staging\version.iss"`
     iss_version = STAGING / "version.iss"
     iss_version.write_text(f'#define MyAppVersion "{version}"\n')
     log(f"staged VERSION = {version}")
@@ -391,7 +391,7 @@ def main() -> int:
         log("ERROR: this build script must run on Windows.")
         log("")
         log("It downloads a Windows embeddable Python distribution and")
-        log("pip-installs Bambuddy's requirements.txt against it — both")
+        log("pip-installs PrintOps's requirements.txt against it — both")
         log("require executing python.exe, which only runs on Windows.")
         log("")
         log("Supported build paths:")
@@ -434,7 +434,7 @@ def main() -> int:
     log(f"Staged tree: {STAGING}")
     log("")
     log("Next: compile the Inno Setup script:")
-    log('  "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe" bambuddy.iss')
+    log('  "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe" printops.iss')
     log("")
     log(f"Installer will be written to: {BUILD_DIR / 'output'}")
     log("=" * 60)

@@ -1,6 +1,6 @@
 """
 Tests for backend.app.core.local_config — the reader for
-/etc/bambuddy/local.toml that the appliance setup wizard writes.
+/etc/printops/local.toml that the appliance setup wizard writes.
 
 Defensive on bad input: every failure mode returns an empty dict
 (never raises), so a malformed file never blocks startup.
@@ -27,14 +27,14 @@ def test_empty_file_returns_empty(tmp_path: Path):
 
 def test_comment_only_file_returns_empty(tmp_path: Path):
     path = tmp_path / "local.toml"
-    path.write_text("# Written by bambuddy-wizard during firstboot.\n")
+    path.write_text("# Written by printops-wizard during firstboot.\n")
     assert read_local_toml(path) == {}
 
 
 def test_full_config_parses(tmp_path: Path):
     path = tmp_path / "local.toml"
     path.write_text(
-        "# Written by bambuddy-wizard during firstboot.\n"
+        "# Written by printops-wizard during firstboot.\n"
         'hostname = "workshop-pi"\n'
         'timezone = "Europe/Berlin"\n'
         'locale = "de"\n'

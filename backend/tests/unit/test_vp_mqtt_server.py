@@ -283,7 +283,7 @@ class TestHandleClientIdleConnection:
     Round 1 shipped the keepalive parser + 1.5× read timeout per MQTT spec
     §4.4. The reporter then confirmed that the same OrcaSlicer install which
     stays connected to a real Bambu P1S indefinitely was being disconnected
-    by Bambuddy at exactly ``keep_alive × 1.5`` — pcap showed Orca sends
+    by PrintOps at exactly ``keep_alive × 1.5`` — pcap showed Orca sends
     zero MQTT packets after the initial burst (no PINGREQ at all). Real
     Bambu firmware does not enforce §4.4; we now match that and rely on
     TCP keepalive (SO_KEEPALIVE) for dead-connection detection.
@@ -467,7 +467,7 @@ class TestHandleClientIdleConnection:
 class TestAuthRateLimit:
     """Per-IP rate-limiting of MQTT CONNECT auth attempts.
 
-    Bambuddy's VP exposes an 8-char access code via the slicer-facing MQTT
+    PrintOps's VP exposes an 8-char access code via the slicer-facing MQTT
     server. Without a rate-limit the code is brute-forceable by anyone who
     can reach the VP's bind IP (LAN or VPN). The limiter records each
     failed auth attempt per source IP and rejects further CONNECTs from

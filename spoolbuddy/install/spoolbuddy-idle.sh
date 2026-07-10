@@ -3,7 +3,7 @@
 #
 # Powers the HDMI output off via wlopm after the configured inactivity
 # timeout, driven by swayidle inside the labwc Wayland session. The timeout
-# value is fetched once from the Bambuddy backend on startup so it matches
+# value is fetched once from the PrintOps backend on startup so it matches
 # whatever the user picked in SpoolBuddy Settings → Display.
 #
 # Changes made in the UI are applied live: the daemon writes a
@@ -26,7 +26,7 @@ echo "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-<unset>}"
 echo "PATH=$PATH"
 
 DEFAULT_TIMEOUT=300
-ENV_FILE="${SPOOLBUDDY_ENV_FILE:-/opt/bambuddy/spoolbuddy/.env}"
+ENV_FILE="${SPOOLBUDDY_ENV_FILE:-/opt/printops/spoolbuddy/.env}"
 OUTPUT="${SPOOLBUDDY_DISPLAY_OUTPUT:-HDMI-A-1}"
 
 # Wait for labwc to actually bring up its Wayland socket. Autostart fires

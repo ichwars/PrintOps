@@ -1,14 +1,14 @@
-# Bambuddy Windows Installer
+# PrintOps Windows Installer
 
-Builds a self-contained Windows installer (`.exe`) for Bambuddy: embedded
+Builds a self-contained Windows installer (`.exe`) for PrintOps: embedded
 Python 3.13 distribution + pre-built frontend + NSSM-supervised Windows
 service. No Python or Node installation required on the target machine.
 
 ## Architecture
 
-- **Install target:** `C:\Program Files\Bambuddy\`
-- **Data target:** `C:\ProgramData\Bambuddy\data\` (preserved on uninstall by default)
-- **Logs target:** `C:\ProgramData\Bambuddy\logs\`
+- **Install target:** `C:\Program Files\PrintOps\`
+- **Data target:** `C:\ProgramData\PrintOps\data\` (preserved on uninstall by default)
+- **Logs target:** `C:\ProgramData\PrintOps\logs\`
 - **Service:** registered via NSSM, runs as `LocalSystem`, autostart on boot
 - **Service command:** `python.exe -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --loop asyncio` (`--loop asyncio` avoids a uvloop TLS bug that can truncate VP FTP uploads, #1896)
 - **Bundled binaries:** Python 3.13 embeddable, NSSM, ffmpeg static build
@@ -22,7 +22,7 @@ version: PowerShell install scripts can't survive environmental drift
 across the Windows host fleet, so we ship a self-contained bundle that
 depends on nothing on the host. Inno Setup + embedded Python is the
 lowest-maintenance path that delivers native-app UX. No Tauri/Electron
-launcher in v1 — browser-as-UI matches every other Bambuddy platform.
+launcher in v1 — browser-as-UI matches every other PrintOps platform.
 
 ## Build prerequisites
 
@@ -34,7 +34,7 @@ building from Linux is possible via Wine but not officially supported.
   in the installer is downloaded fresh by the build script)
 - Node.js 22 LTS + npm (for building the frontend bundle)
 - [Inno Setup 6](https://jrsoftware.org/isdl.php) (for compiling
-  `bambuddy.iss` → `.exe`)
+  `printops.iss` → `.exe`)
 
 The build script downloads everything else automatically (embedded Python,
 NSSM, ffmpeg).
@@ -45,12 +45,12 @@ NSSM, ffmpeg).
 :: From the repo root on a Windows machine
 cd installers\windows
 python build.py
-:: Then open bambuddy.iss in Inno Setup Compiler and click Build → Compile
+:: Then open printops.iss in Inno Setup Compiler and click Build → Compile
 :: (or invoke ISCC.exe directly:)
-"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" bambuddy.iss
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" printops.iss
 ```
 
-Output: `installers\windows\build\output\bambuddy-windows-setup.exe`
+Output: `installers\windows\build\output\printops-windows-setup.exe`
 
 ## Testing without signing
 
@@ -74,7 +74,7 @@ as a release asset.
   ports, but the user's Windows Firewall will prompt on first VP enable.
   Documenting this is TBD.
 - **Spoolman:** explicitly NOT bundled in v1. Users who want Spoolman
-  install it separately. Bambuddy internal-inventory mode is the default
+  install it separately. PrintOps internal-inventory mode is the default
   on Windows.
 - **Bundle size:** estimated 250–350MB installed (mostly opencv +
   ffmpeg + matplotlib). Acceptable for a v1; can investigate slimming

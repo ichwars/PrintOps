@@ -90,12 +90,12 @@ class TestMetricsAPI:
         content = response.text
 
         # Check for key metrics
-        assert "bambuddy_printers_connected" in content
-        assert "bambuddy_printers_total" in content
-        assert "bambuddy_prints_total" in content
-        assert "bambuddy_filament_used_grams" in content
-        assert "bambuddy_print_time_seconds" in content
-        assert "bambuddy_queue_pending" in content
+        assert "printops_printers_connected" in content
+        assert "printops_printers_total" in content
+        assert "printops_prints_total" in content
+        assert "printops_filament_used_grams" in content
+        assert "printops_print_time_seconds" in content
+        assert "printops_queue_pending" in content
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -110,8 +110,8 @@ class TestMetricsAPI:
         content = response.text
 
         # Should still have system metrics
-        assert "bambuddy_printers_total" in content
-        assert "bambuddy_printers_connected" in content
+        assert "printops_printers_total" in content
+        assert "printops_printers_connected" in content
 
     # ========================================================================
     # Settings persistence

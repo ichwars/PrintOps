@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 GHCR_URL = "https://github.com/{owner}/{pkg}/pkgs/container/{pkg}"
-USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) bambuddy-stats"
+USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) printops-stats"
 
 TOTAL_RE = re.compile(
     r'Total downloads</span>\s*<h3 title="(\d+)">([^<]+)</h3>',

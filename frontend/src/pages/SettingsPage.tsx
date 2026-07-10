@@ -40,7 +40,6 @@ import { TwoFactorSettings } from '../components/TwoFactorSettings';
 import { OIDCProviderSettings } from '../components/OIDCProviderSettings';
 import { SecurityStatusCard } from '../components/SecurityStatusCard';
 import { APIBrowser } from '../components/APIBrowser';
-import { spoolbuddyApi } from '../api/client';
 import { defaultNavItems, getDefaultView, setDefaultView } from '../components/Layout';
 import { availableLanguages } from '../i18n';
 import { useToast } from '../contexts/ToastContext';
@@ -57,7 +56,12 @@ import {
   resolveSettingsTab,
   settingsTabLabelKey,
   type CanonicalSettingsTab,
-  type QueueSubTab,
+  type IntegrationSubTab,
+  type OrderManagementSubTab,
+  type OperationSubTab,
+  type PrinterProductionSubTab,
+  type ProjectManagementSubTab,
+  type WarehouseMaterialSubTab,
   type UsersSubTab,
 } from '../lib/settingsNavigation';
 
@@ -67,55 +71,55 @@ import {
 registerSettingsSearch({ labelKey: 'settings.general', tab: 'general', keywords: 'language default view date time format locale preferences', anchor: 'card-general' });
 registerSettingsSearch({ labelKey: 'settings.appearance', tab: 'general', keywords: 'theme dark light mode colors', anchor: 'card-appearance' });
 registerSettingsSearch({ labelKey: 'settings.resetUiPreferences', labelFallback: 'Reset UI Preferences', tab: 'general', keywords: 'ui preferences reset local storage sidebar layout defaults', anchor: 'card-ui-preferences' });
-registerSettingsSearch({ labelKey: 'settings.archiveSettings', tab: 'printers-production', keywords: 'archive auto save thumbnails captures', anchor: 'card-archive' });
-registerSettingsSearch({ labelKey: 'settings.camera', tab: 'printers-production', keywords: 'camera external video stream', anchor: 'card-camera' });
-registerSettingsSearch({ labelKey: 'settings.defaultPrinter', labelFallback: 'Default Printer', tab: 'printers-production', keywords: 'default printer preferred printer fallback printer selection', anchor: 'card-default-printer' });
-registerSettingsSearch({ labelKey: 'settings.costTracking', tab: 'orders-calculation', keywords: 'currency filament cost energy kwh price', anchor: 'card-cost' });
-registerSettingsSearch({ labelKey: 'settings.fileManager', tab: 'projects-files', keywords: 'file manager archive mode disk warning storage', anchor: 'card-filemanager' });
-registerSettingsSearch({ labelKey: 'settings.updates', tab: 'operations', keywords: 'updates version firmware beta check', anchor: 'card-updates' });
-registerSettingsSearch({ labelKey: 'settings.dataManagement', tab: 'operations', keywords: 'data clear logs notifications storage backup restore', anchor: 'card-data' });
-registerSettingsSearch({ labelKey: 'settings.smartPlugs', tab: 'integrations', keywords: 'smart plug energy power automation tapo kasa tplink shelly', anchor: 'card-plugs' });
-registerSettingsSearch({ labelKey: 'settings.providers', tab: 'integrations', keywords: 'telegram discord email notification providers webhook', anchor: 'card-providers' });
-registerSettingsSearch({ labelKey: 'settings.messageTemplates', tab: 'integrations', keywords: 'message templates notification text edit', anchor: 'card-templates' });
-registerSettingsSearch({ labelKey: 'settings.defaultPrintOptions', labelFallback: 'Default Print Options', tab: 'printers-production', keywords: 'print bed leveling flow calibration vibration first layer timelapse', anchor: 'card-print-options' });
-registerSettingsSearch({ labelKey: 'settings.tempFanPresetsTitle', labelFallback: 'Temperature & Fan Presets', tab: 'printers-production', keywords: 'temperature fan presets nozzle bed chamber quick buttons popover', anchor: 'card-temp-fan-presets' });
-registerSettingsSearch({ labelKey: 'settings.staggeredStart', labelFallback: 'Staggered Start', tab: 'printers-production', keywords: 'staggered batch delay start queue group', anchor: 'card-staggered' });
-registerSettingsSearch({ labelKey: 'settings.plateClear', labelFallback: 'Plate-Clear Confirmation', tab: 'printers-production', keywords: 'plate clear confirm auto queue', anchor: 'card-plate' });
-registerSettingsSearch({ labelKey: 'settings.gcodeInjection', labelFallback: 'G-code Injection', tab: 'printers-production', keywords: 'gcode injection start end autoprint farmloop swapmod autoclear printflow', anchor: 'card-gcode' });
-registerSettingsSearch({ labelKey: 'settings.slicerCard', labelFallback: 'Slicer', tab: 'printers-production', keywords: 'slicer orcaslicer bambustudio orca bambu api sidecar url docker preferred', anchor: 'card-slicer' });
-registerSettingsSearch({ labelKey: 'settings.queueDrying', tab: 'warehouse-material', keywords: 'drying presets temperature time humidity ams', anchor: 'card-drying' });
-registerSettingsSearch({ labelKey: 'settings.filamentChecks', tab: 'warehouse-material', keywords: 'filament check warning runout remaining', anchor: 'card-filamentchecks' });
-registerSettingsSearch({ labelKey: 'settings.printModal', tab: 'warehouse-material', keywords: 'print modal custom mapping', anchor: 'card-printmodal' });
-registerSettingsSearch({ labelKey: 'settings.amsDisplayThresholds', tab: 'warehouse-material', keywords: 'ams humidity temperature threshold history retention', anchor: 'card-amsthresholds' });
-registerSettingsSearch({ labelKey: 'settings.externalUrl', tab: 'integrations', keywords: 'external url reverse proxy public notification link', anchor: 'card-externalurl' });
-registerSettingsSearch({ labelKey: 'settings.ftpRetry', tab: 'printers-production', keywords: 'ftp retry upload retries backoff', anchor: 'card-ftpretry' });
-registerSettingsSearch({ labelKey: 'settings.homeAssistant', tab: 'integrations', keywords: 'home assistant ha hass mqtt integration', anchor: 'card-ha' });
-registerSettingsSearch({ labelKey: 'settings.mqttPublishing', tab: 'integrations', keywords: 'mqtt publish broker topic', anchor: 'card-mqtt' });
-registerSettingsSearch({ labelKey: 'settings.prometheusMetrics', tab: 'operations', keywords: 'prometheus metrics grafana monitoring bearer token', anchor: 'card-prometheus' });
-registerSettingsSearch({ labelKey: 'settings.createNewApiKey', tab: 'users-security', keywords: 'api key create permission scope', anchor: 'card-createapi' });
-registerSettingsSearch({ labelKey: 'settings.webhookEndpoints', tab: 'integrations', keywords: 'webhook endpoint post http', anchor: 'card-webhooks' });
-registerSettingsSearch({ labelKey: 'settings.apiBrowser', tab: 'integrations', keywords: 'api browser endpoint documentation test', anchor: 'card-apibrowser' });
-registerSettingsSearch({ labelKey: 'cameraTokens.title', tab: 'users-security', keywords: 'camera token long-lived home assistant frigate kiosk stream', anchor: 'card-camera-tokens' });
-registerSettingsSearch({ labelKey: 'settings.tabs.virtualPrinter', tab: 'printers-production', keywords: 'virtual printer proxy archive slicer bambustudio orcaslicer ip bind', anchor: 'card-vp' });
-registerSettingsSearch({ labelKey: 'settings.tabs.spoolbuddy', tab: 'warehouse-material', keywords: 'spoolbuddy device scale nfc rfid kiosk unregister', anchor: 'card-spoolbuddy' });
+registerSettingsSearch({ labelKey: 'settings.archiveSettings', tab: 'printers-production', printerProductionSubTab: 'print-process', keywords: 'archive auto save thumbnails captures', anchor: 'card-archive' });
+registerSettingsSearch({ labelKey: 'settings.camera', tab: 'printers-production', printerProductionSubTab: 'devices', keywords: 'camera external video stream', anchor: 'card-camera' });
+registerSettingsSearch({ labelKey: 'settings.defaultPrinter', labelFallback: 'Default Printer', tab: 'printers-production', printerProductionSubTab: 'devices', keywords: 'default printer preferred printer fallback printer selection', anchor: 'card-default-printer' });
+registerSettingsSearch({ labelKey: 'settings.costTracking', tab: 'orders-calculation', orderManagementSubTab: 'calculation', keywords: 'currency filament cost energy kwh price', anchor: 'card-cost' });
+registerSettingsSearch({ labelKey: 'settings.fileManager', tab: 'projects-files', projectManagementSubTab: 'files', keywords: 'file manager archive mode disk warning storage', anchor: 'card-filemanager' });
+registerSettingsSearch({ labelKey: 'settings.updates', tab: 'operations', operationSubTab: 'updates', keywords: 'updates version firmware beta check', anchor: 'card-updates' });
+registerSettingsSearch({ labelKey: 'settings.dataManagement', tab: 'operations', operationSubTab: 'data-management', keywords: 'data clear logs notifications storage backup restore', anchor: 'card-data' });
+registerSettingsSearch({ labelKey: 'settings.smartPlugs', tab: 'integrations', integrationSubTab: 'smart-plugs', keywords: 'smart plug energy power automation tapo kasa tplink shelly', anchor: 'card-plugs' });
+registerSettingsSearch({ labelKey: 'settings.providers', tab: 'integrations', integrationSubTab: 'notifications', keywords: 'telegram discord email notification providers webhook', anchor: 'card-providers' });
+registerSettingsSearch({ labelKey: 'settings.messageTemplates', tab: 'integrations', integrationSubTab: 'notifications', keywords: 'message templates notification text edit', anchor: 'card-templates' });
+registerSettingsSearch({ labelKey: 'settings.defaultPrintOptions', labelFallback: 'Default Print Options', tab: 'printers-production', printerProductionSubTab: 'print-process', keywords: 'print bed leveling flow calibration vibration first layer timelapse', anchor: 'card-print-options' });
+registerSettingsSearch({ labelKey: 'settings.tempFanPresetsTitle', labelFallback: 'Temperature & Fan Presets', tab: 'printers-production', printerProductionSubTab: 'print-process', keywords: 'temperature fan presets nozzle bed chamber quick buttons popover', anchor: 'card-temp-fan-presets' });
+registerSettingsSearch({ labelKey: 'settings.staggeredStart', labelFallback: 'Staggered Start', tab: 'printers-production', printerProductionSubTab: 'print-process', keywords: 'staggered batch delay start queue group', anchor: 'card-staggered' });
+registerSettingsSearch({ labelKey: 'settings.plateClear', labelFallback: 'Plate-Clear Confirmation', tab: 'printers-production', printerProductionSubTab: 'print-process', keywords: 'plate clear confirm auto queue', anchor: 'card-plate' });
+registerSettingsSearch({ labelKey: 'settings.gcodeInjection', labelFallback: 'G-code Injection', tab: 'printers-production', printerProductionSubTab: 'print-process', keywords: 'gcode injection start end autoprint farmloop swapmod autoclear printflow', anchor: 'card-gcode' });
+registerSettingsSearch({ labelKey: 'settings.slicerCard', labelFallback: 'Slicer', tab: 'printers-production', printerProductionSubTab: 'print-process', keywords: 'slicer orcaslicer bambustudio orca bambu api sidecar url docker preferred', anchor: 'card-slicer' });
+registerSettingsSearch({ labelKey: 'settings.queueDrying', tab: 'warehouse-material', warehouseMaterialSubTab: 'filament', keywords: 'drying presets temperature time humidity ams', anchor: 'card-drying' });
+registerSettingsSearch({ labelKey: 'settings.filamentChecks', tab: 'warehouse-material', warehouseMaterialSubTab: 'filament', keywords: 'filament check warning runout remaining', anchor: 'card-filamentchecks' });
+registerSettingsSearch({ labelKey: 'settings.printModal', tab: 'warehouse-material', warehouseMaterialSubTab: 'filament', keywords: 'print modal custom mapping', anchor: 'card-printmodal' });
+registerSettingsSearch({ labelKey: 'settings.amsDisplayThresholds', tab: 'warehouse-material', warehouseMaterialSubTab: 'filament', keywords: 'ams humidity temperature threshold history retention', anchor: 'card-amsthresholds' });
+registerSettingsSearch({ labelKey: 'settings.externalUrl', tab: 'integrations', integrationSubTab: 'smart-home', keywords: 'external url reverse proxy public notification link', anchor: 'card-externalurl' });
+registerSettingsSearch({ labelKey: 'settings.ftpRetry', tab: 'printers-production', printerProductionSubTab: 'devices', keywords: 'ftp retry upload retries backoff', anchor: 'card-ftpretry' });
+registerSettingsSearch({ labelKey: 'settings.homeAssistant', tab: 'integrations', integrationSubTab: 'smart-home', keywords: 'home assistant ha hass mqtt integration', anchor: 'card-ha' });
+registerSettingsSearch({ labelKey: 'settings.mqttPublishing', tab: 'integrations', integrationSubTab: 'smart-home', keywords: 'mqtt publish broker topic', anchor: 'card-mqtt' });
+registerSettingsSearch({ labelKey: 'settings.prometheusMetrics', tab: 'integrations', integrationSubTab: 'api-metrics', keywords: 'prometheus metrics grafana monitoring bearer token', anchor: 'card-prometheus' });
+registerSettingsSearch({ labelKey: 'settings.createNewApiKey', tab: 'integrations', integrationSubTab: 'api-metrics', keywords: 'api key create permission scope', anchor: 'card-createapi' });
+registerSettingsSearch({ labelKey: 'settings.webhookEndpoints', tab: 'integrations', integrationSubTab: 'webhooks', keywords: 'webhook endpoint post http', anchor: 'card-webhooks' });
+registerSettingsSearch({ labelKey: 'settings.apiBrowser', tab: 'integrations', integrationSubTab: 'api-metrics', keywords: 'api browser endpoint documentation test', anchor: 'card-apibrowser' });
+registerSettingsSearch({ labelKey: 'cameraTokens.title', tab: 'integrations', integrationSubTab: 'api-metrics', keywords: 'camera token long-lived home assistant frigate kiosk stream', anchor: 'card-camera-tokens' });
+registerSettingsSearch({ labelKey: 'settings.tabs.virtualPrinter', tab: 'printers-production', printerProductionSubTab: 'devices', keywords: 'virtual printer proxy archive slicer bambustudio orcaslicer ip bind', anchor: 'card-vp' });
+registerSettingsSearch({ labelKey: 'settings.tabs.spoolbuddy', tab: 'warehouse-material', warehouseMaterialSubTab: 'spoolbuddy', keywords: 'spoolbuddy device scale nfc rfid kiosk unregister', anchor: 'card-spoolbuddy' });
 registerSettingsSearch({ labelKey: 'settings.currentUser', tab: 'users-security', subTab: 'users', keywords: 'current user profile password change', anchor: 'card-currentuser' });
 registerSettingsSearch({ labelKey: 'settings.users', tab: 'users-security', subTab: 'users', keywords: 'users accounts list', anchor: 'card-users' });
 registerSettingsSearch({ labelKey: 'settings.groups', tab: 'users-security', subTab: 'users', keywords: 'groups roles permissions administrators operators viewers', anchor: 'card-groups' });
 registerSettingsSearch({ labelKey: 'settings.sessionPolicy.title', labelFallback: 'Session Policy', tab: 'users-security', subTab: 'users', keywords: 'session timeout expiry logout remember me jwt token lifetime', anchor: 'card-session-policy' });
 registerSettingsSearch({ labelKey: 'settings.email.smtpSettings', labelFallback: 'SMTP Configuration', tab: 'users-security', subTab: 'email', keywords: 'smtp email send server port password auth starttls ssl', anchor: 'card-smtp' });
 registerSettingsSearch({ labelKey: 'settings.ldap.title', labelFallback: 'LDAP Authentication', tab: 'users-security', subTab: 'ldap', keywords: 'ldap active directory ad authentication bind dn search base group mapping', anchor: 'card-ldap' });
-registerSettingsSearch({ labelKey: 'settings.tabs.backup', tab: 'operations', keywords: 'backup github restore download cloud sync profiles archives', anchor: 'card-backup' });
+registerSettingsSearch({ labelKey: 'settings.tabs.backup', tab: 'operations', operationSubTab: 'backups', keywords: 'backup github restore download cloud sync profiles archives', anchor: 'card-backup' });
 // Sidebar (system pages and external links settings is rendered in the General tab)
 registerSettingsSearch({ labelKey: 'externalLinks.sidebarLayout', labelFallback: 'Sidebar', tab: 'general', keywords: 'sidebar layout links pages hide show external custom navigation url add', anchor: 'card-sidebar-links' });
 // Filament tab — integrations
-registerSettingsSearch({ labelKey: 'settings.filamentTracking', tab: 'warehouse-material', keywords: 'spoolman filament tracking inventory sync remote integration', anchor: 'card-spoolman' });
-registerSettingsSearch({ labelKey: 'settings.catalog.spoolCatalog', labelFallback: 'Spool Catalog', tab: 'warehouse-material', keywords: 'spool catalog entries brand material reset import export', anchor: 'card-spool-catalog' });
-registerSettingsSearch({ labelKey: 'settings.colorCatalog.title', labelFallback: 'Color Catalog', tab: 'warehouse-material', keywords: 'color catalog hex swatch palette sync reset', anchor: 'card-color-catalog' });
+registerSettingsSearch({ labelKey: 'settings.filamentTracking', tab: 'warehouse-material', warehouseMaterialSubTab: 'filament', keywords: 'spoolman filament tracking inventory sync remote integration', anchor: 'card-spoolman' });
+registerSettingsSearch({ labelKey: 'settings.catalog.spoolCatalog', labelFallback: 'Spool Catalog', tab: 'warehouse-material', warehouseMaterialSubTab: 'catalogs', keywords: 'spool catalog entries brand material reset import export', anchor: 'card-spool-catalog' });
+registerSettingsSearch({ labelKey: 'settings.colorCatalog.title', labelFallback: 'Color Catalog', tab: 'warehouse-material', warehouseMaterialSubTab: 'catalogs', keywords: 'color catalog hex swatch palette sync reset', anchor: 'card-color-catalog' });
 // Failure detection sub-cards
-registerSettingsSearch({ labelKey: 'settings.tabs.failureDetection', labelFallback: 'Failure Detection', tab: 'printers-production', keywords: 'failure detection ai ml obico spaghetti detect monitoring', anchor: 'card-fd-ml' });
-registerSettingsSearch({ labelKey: 'failureDetection.perPrinterTitle', labelFallback: 'Per-Printer Settings', tab: 'printers-production', keywords: 'failure detection per printer enable per-printer sensitivity', anchor: 'card-fd-perprinter' });
-registerSettingsSearch({ labelKey: 'failureDetection.statusTitle', labelFallback: 'Detection Status', tab: 'printers-production', keywords: 'failure detection status running connection', anchor: 'card-fd-status' });
-registerSettingsSearch({ labelKey: 'failureDetection.historyTitle', labelFallback: 'Detection History', tab: 'printers-production', keywords: 'failure detection history log events', anchor: 'card-fd-history' });
+registerSettingsSearch({ labelKey: 'settings.tabs.failureDetection', labelFallback: 'Failure Detection', tab: 'printers-production', printerProductionSubTab: 'failure-detection', keywords: 'failure detection ai ml obico spaghetti detect monitoring', anchor: 'card-fd-ml' });
+registerSettingsSearch({ labelKey: 'failureDetection.perPrinterTitle', labelFallback: 'Per-Printer Settings', tab: 'printers-production', printerProductionSubTab: 'failure-detection', keywords: 'failure detection per printer enable per-printer sensitivity', anchor: 'card-fd-perprinter' });
+registerSettingsSearch({ labelKey: 'failureDetection.statusTitle', labelFallback: 'Detection Status', tab: 'printers-production', printerProductionSubTab: 'failure-detection', keywords: 'failure detection status running connection', anchor: 'card-fd-status' });
+registerSettingsSearch({ labelKey: 'failureDetection.historyTitle', labelFallback: 'Detection History', tab: 'printers-production', printerProductionSubTab: 'failure-detection', keywords: 'failure detection history log events', anchor: 'card-fd-history' });
 // Email auth sub-cards (subTab=email)
 registerSettingsSearch({ labelKey: 'settings.email.advancedAuth', labelFallback: 'Advanced Email Authentication', tab: 'users-security', subTab: 'email', keywords: 'email authentication advanced password reset self-service forgot', anchor: 'card-email-advanced-auth' });
 registerSettingsSearch({ labelKey: 'settings.email.testConnection', labelFallback: 'Test SMTP Connection', tab: 'users-security', subTab: 'email', keywords: 'email smtp test connection send check', anchor: 'card-email-test' });
@@ -128,10 +132,10 @@ registerSettingsSearch({ labelKey: 'settings.oidc.title', labelFallback: 'Single
 // LDAP server config card (complements existing card-ldap)
 registerSettingsSearch({ labelKey: 'settings.ldap.serverConfig', labelFallback: 'LDAP Server Configuration', tab: 'users-security', subTab: 'ldap', keywords: 'ldap server url bind dn user search base group filter tls', anchor: 'card-ldap-server' });
 // Backup sub-cards
-registerSettingsSearch({ labelKey: 'backup.githubBackup', labelFallback: 'GitHub Backup', tab: 'operations', keywords: 'github backup cloud remote sync profiles token', anchor: 'card-backup-github' });
-registerSettingsSearch({ labelKey: 'backup.history', labelFallback: 'Backup History', tab: 'operations', keywords: 'backup history log runs github commits', anchor: 'card-backup-history' });
-registerSettingsSearch({ labelKey: 'backup.localBackup', labelFallback: 'Local Backup', tab: 'operations', keywords: 'local backup download zip manual export', anchor: 'card-backup-local' });
-registerSettingsSearch({ labelKey: 'backup.scheduledBackup', labelFallback: 'Scheduled Backups', tab: 'operations', keywords: 'scheduled backup automatic hourly daily weekly retention local path', anchor: 'card-backup-scheduled' });
+registerSettingsSearch({ labelKey: 'backup.githubBackup', labelFallback: 'GitHub Backup', tab: 'operations', operationSubTab: 'backups', keywords: 'github backup cloud remote sync profiles token', anchor: 'card-backup-github' });
+registerSettingsSearch({ labelKey: 'backup.history', labelFallback: 'Backup History', tab: 'operations', operationSubTab: 'backups', keywords: 'backup history log runs github commits', anchor: 'card-backup-history' });
+registerSettingsSearch({ labelKey: 'backup.localBackup', labelFallback: 'Local Backup', tab: 'operations', operationSubTab: 'backups', keywords: 'local backup download zip manual export', anchor: 'card-backup-local' });
+registerSettingsSearch({ labelKey: 'backup.scheduledBackup', labelFallback: 'Scheduled Backups', tab: 'operations', operationSubTab: 'backups', keywords: 'scheduled backup automatic hourly daily weekly retention local path', anchor: 'card-backup-scheduled' });
 
 const STORAGE_CATEGORY_COLORS: Record<string, string> = {
   database: 'bg-blue-600',
@@ -168,6 +172,249 @@ const getStorageColor = (key: string, index: number) =>
 const settingsSearchTabFallbackLabels = Object.fromEntries(
   SETTINGS_NAV_ITEMS.map((item) => [item.id, item.fallback]),
 ) as Record<string, string>;
+
+type SettingsHeaderMeta = {
+  labelKey: string;
+  fallback: string;
+  fallbackDe?: string;
+  descriptionKey: string;
+  descriptionFallback: string;
+  descriptionFallbackDe?: string;
+  icon: typeof Bell;
+};
+
+const SETTINGS_SECTION_HEADERS: Record<CanonicalSettingsTab, SettingsHeaderMeta> = {
+  general: {
+    labelKey: 'settings.tabs.general',
+    fallback: 'General',
+    descriptionKey: 'settings.sectionDescriptions.general',
+    descriptionFallback: 'Manage language, appearance, default views, and personal UI preferences.',
+    descriptionFallbackDe: 'Sprache, Darstellung, Standardansichten und persönliche UI-Einstellungen verwalten.',
+    icon: SettingsIcon,
+  },
+  'users-security': {
+    labelKey: 'settings.tabs.usersSecurity',
+    fallback: 'Users & Security',
+    descriptionKey: 'settings.sectionDescriptions.usersSecurity',
+    descriptionFallback: 'Manage users, authentication, identity providers, and security controls.',
+    descriptionFallbackDe: 'Benutzer, Authentifizierung, Identitätsanbieter und Sicherheitsfunktionen verwalten.',
+    icon: Shield,
+  },
+  'printers-production': {
+    labelKey: 'settings.tabs.printersProduction',
+    fallback: 'Printers & Production',
+    fallbackDe: 'Geräteverwaltung',
+    descriptionKey: 'settings.sectionDescriptions.printersProduction',
+    descriptionFallback: 'Configure print defaults, production flows, virtual printers, and printer support features.',
+    descriptionFallbackDe: 'Druckstandards, Produktionsabläufe, virtuelle Drucker und Druckerfunktionen konfigurieren.',
+    icon: Printer,
+  },
+  'projects-files': {
+    labelKey: 'settings.tabs.projectsFiles',
+    fallback: 'Projects & Files',
+    fallbackDe: 'Projektverwaltung',
+    descriptionKey: 'settings.sectionDescriptions.projectsFiles',
+    descriptionFallback: 'Manage file handling, external folders, project links, and storage rules.',
+    descriptionFallbackDe: 'Dateiverwaltung, externe Ordner, Projektverknüpfungen und Speicherregeln verwalten.',
+    icon: FileText,
+  },
+  'warehouse-material': {
+    labelKey: 'settings.tabs.warehouseMaterial',
+    fallback: 'Warehouse & Material',
+    fallbackDe: 'Lagerverwaltung',
+    descriptionKey: 'settings.sectionDescriptions.warehouseMaterial',
+    descriptionFallback: 'Manage filament checks, Spoolman, material catalogs, and warehouse-related defaults.',
+    descriptionFallbackDe: 'Filamentprüfungen, Spoolman, Materialkataloge und lagerbezogene Standards verwalten.',
+    icon: Database,
+  },
+  'orders-calculation': {
+    labelKey: 'settings.tabs.ordersCalculation',
+    fallback: 'Orders & Calculation',
+    fallbackDe: 'Auftragsverwaltung',
+    descriptionKey: 'settings.sectionDescriptions.ordersCalculation',
+    descriptionFallback: 'Configure currency, cost tracking, and calculation defaults for commercial workflows.',
+    descriptionFallbackDe: 'Währung, Kostenverfolgung und Kalkulationsstandards für kaufmännische Abläufe konfigurieren.',
+    icon: DollarSign,
+  },
+  integrations: {
+    labelKey: 'settings.tabs.integrations',
+    fallback: 'Integrations',
+    descriptionKey: 'settings.sectionDescriptions.integrations',
+    descriptionFallback: 'Connect PrintOps to notifications, automation, smart home, and API services.',
+    descriptionFallbackDe: 'PrintOps mit Benachrichtigungen, Automatisierung, Smart Home und API-Diensten verbinden.',
+    icon: Plug,
+  },
+  operations: {
+    labelKey: 'settings.tabs.operations',
+    fallback: 'Operations',
+    descriptionKey: 'settings.sectionDescriptions.operations',
+    descriptionFallback: 'Manage updates, data cleanup, backups, and operational maintenance tasks.',
+    descriptionFallbackDe: 'Updates, Datenbereinigung, Sicherungen und betriebliche Wartungsaufgaben verwalten.',
+    icon: Database,
+  },
+};
+
+const USER_SECURITY_SUB_TABS: Record<UsersSubTab, SettingsHeaderMeta> = {
+  users: {
+    labelKey: 'settings.tabs.users',
+    fallback: 'Authentication',
+    descriptionKey: 'settings.userSecuritySubTabDescriptions.users',
+    descriptionFallback: 'Manage local users, groups, roles, sessions, and authentication state.',
+    descriptionFallbackDe: 'Lokale Benutzer, Gruppen, Rollen, Sitzungen und Authentifizierungsstatus verwalten.',
+    icon: Users,
+  },
+  email: {
+    labelKey: 'settings.tabs.emailAuth',
+    fallback: 'Email Authentication',
+    descriptionKey: 'settings.userSecuritySubTabDescriptions.email',
+    descriptionFallback: 'Configure SMTP delivery and email-based authentication workflows.',
+    descriptionFallbackDe: 'SMTP-Versand und E-Mail-basierte Authentifizierungsabläufe konfigurieren.',
+    icon: Mail,
+  },
+  ldap: {
+    labelKey: 'settings.tabs.ldap',
+    fallback: 'LDAP',
+    descriptionKey: 'settings.userSecuritySubTabDescriptions.ldap',
+    descriptionFallback: 'Connect directory authentication and map LDAP groups to PrintOps roles.',
+    descriptionFallbackDe: 'Verzeichnisanmeldung anbinden und LDAP-Gruppen PrintOps-Rollen zuordnen.',
+    icon: Shield,
+  },
+  twofa: {
+    labelKey: 'settings.tabs.twoFa',
+    fallback: 'Two-Factor Auth',
+    descriptionKey: 'settings.userSecuritySubTabDescriptions.twofa',
+    descriptionFallback: 'Manage TOTP, email OTP, and linked two-factor methods.',
+    descriptionFallbackDe: 'TOTP, E-Mail-OTP und verknüpfte Zwei-Faktor-Methoden verwalten.',
+    icon: Shield,
+  },
+  oidc: {
+    labelKey: 'settings.tabs.oidc',
+    fallback: 'SSO / OIDC',
+    descriptionKey: 'settings.userSecuritySubTabDescriptions.oidc',
+    descriptionFallback: 'Configure SSO/OIDC identity providers and login behavior.',
+    descriptionFallbackDe: 'SSO/OIDC-Identitätsanbieter und Anmeldeverhalten konfigurieren.',
+    icon: Globe,
+  },
+  security: {
+    labelKey: 'settings.tabs.security',
+    fallback: 'Security',
+    descriptionKey: 'settings.userSecuritySubTabDescriptions.security',
+    descriptionFallback: 'Review security posture, session rules, and authentication safeguards.',
+    descriptionFallbackDe: 'Sicherheitsstatus, Sitzungsregeln und Authentifizierungsschutz prüfen.',
+    icon: Shield,
+  },
+};
+
+const PRINTER_PRODUCTION_SUB_TABS: Record<PrinterProductionSubTab, SettingsHeaderMeta> = {
+  devices: {
+    labelKey: 'settings.tabs.deviceManagementDevices',
+    fallback: 'Devices',
+    fallbackDe: 'Geräte',
+    descriptionKey: 'settings.printerProductionSubTabDescriptions.devices',
+    descriptionFallback: 'Manage default printers, cameras, FTP retry behavior, and virtual printer endpoints.',
+    descriptionFallbackDe: 'Standarddrucker, Kameras, FTP-Wiederholungen und virtuelle Drucker-Endpunkte verwalten.',
+    icon: Printer,
+  },
+  'print-process': {
+    labelKey: 'settings.tabs.deviceManagementPrintProcess',
+    fallback: 'Print Process',
+    fallbackDe: 'Druckprozess',
+    descriptionKey: 'settings.printerProductionSubTabDescriptions.printProcess',
+    descriptionFallback: 'Configure print defaults, archiving, queue behavior, G-code, slicer, and completion rules.',
+    descriptionFallbackDe: 'Druckstandards, Archivierung, Warteschlangenverhalten, G-Code, Slicer und Abschlussregeln konfigurieren.',
+    icon: ListOrdered,
+  },
+  pipelines: {
+    labelKey: 'settings.tabs.queuePipelines',
+    fallback: 'Pipelines',
+    descriptionKey: 'settings.printerProductionSubTabDescriptions.pipelines',
+    descriptionFallback: 'Manage slicer pipelines, presets, and automated preparation flows.',
+    descriptionFallbackDe: 'Slicer-Pipelines, Profile und automatische Vorbereitungsabläufe verwalten.',
+    icon: Workflow,
+  },
+  'failure-detection': {
+    labelKey: 'settings.tabs.failureDetection',
+    fallback: 'Failure Detection',
+    fallbackDe: 'Fehlererkennung',
+    descriptionKey: 'settings.printerProductionSubTabDescriptions.failureDetection',
+    descriptionFallback: 'Configure AI failure monitoring, per-printer detection behavior, status, and history.',
+    descriptionFallbackDe: 'KI-Fehlererkennung, druckerspezifisches Erkennungsverhalten, Status und Verlauf konfigurieren.',
+    icon: AlertTriangle,
+  },
+};
+
+const PRINTER_PRODUCTION_SUB_TAB_ITEMS: Array<{ id: PrinterProductionSubTab; meta: SettingsHeaderMeta }> = [
+  { id: 'devices', meta: PRINTER_PRODUCTION_SUB_TABS.devices },
+  { id: 'print-process', meta: PRINTER_PRODUCTION_SUB_TABS['print-process'] },
+  { id: 'pipelines', meta: PRINTER_PRODUCTION_SUB_TABS.pipelines },
+  { id: 'failure-detection', meta: PRINTER_PRODUCTION_SUB_TABS['failure-detection'] },
+];
+
+const PROJECT_MANAGEMENT_SUB_TABS: Record<ProjectManagementSubTab, SettingsHeaderMeta> = {
+  files: {
+    labelKey: 'settings.tabs.projectManagementFiles',
+    fallback: 'File Management',
+    fallbackDe: 'Dateiverwaltung',
+    descriptionKey: 'settings.projectManagementSubTabDescriptions.files',
+    descriptionFallback: 'Manage file handling, archive modes, disk warnings, and project storage rules.',
+    descriptionFallbackDe: 'Dateiverwaltung, Archivmodi, Speicherwarnungen und Projektspeicher-Regeln verwalten.',
+    icon: FileText,
+  },
+};
+
+const PROJECT_MANAGEMENT_SUB_TAB_ITEMS: Array<{ id: ProjectManagementSubTab; meta: SettingsHeaderMeta }> = [
+  { id: 'files', meta: PROJECT_MANAGEMENT_SUB_TABS.files },
+];
+
+const WAREHOUSE_MATERIAL_SUB_TABS: Record<WarehouseMaterialSubTab, SettingsHeaderMeta> = {
+  filament: {
+    labelKey: 'settings.tabs.warehouseFilament',
+    fallback: 'Filament',
+    descriptionKey: 'settings.warehouseMaterialSubTabDescriptions.filament',
+    descriptionFallback: 'Manage drying presets, Spoolman tracking, filament checks, mapping, and AMS display thresholds.',
+    descriptionFallbackDe: 'Trocknungsprofile, Spoolman-Verfolgung, Filamentprüfungen, Zuordnung und AMS-Anzeigeschwellen verwalten.',
+    icon: Droplets,
+  },
+  catalogs: {
+    labelKey: 'settings.tabs.warehouseCatalogs',
+    fallback: 'Catalogs',
+    fallbackDe: 'Kataloge',
+    descriptionKey: 'settings.warehouseMaterialSubTabDescriptions.catalogs',
+    descriptionFallback: 'Manage spool and color catalogs used for inventory and label workflows.',
+    descriptionFallbackDe: 'Spulen- und Farbkataloge für Lager- und Label-Abläufe verwalten.',
+    icon: Database,
+  },
+  spoolbuddy: {
+    labelKey: 'settings.tabs.spoolbuddy',
+    fallback: 'SpoolBuddy',
+    descriptionKey: 'settings.warehouseMaterialSubTabDescriptions.spoolbuddy',
+    descriptionFallback: 'Manage SpoolBuddy kiosks, NFC readers, scales, calibration, and device registration.',
+    descriptionFallbackDe: 'SpoolBuddy-Kioske, NFC-Leser, Waagen, Kalibrierung und Geräteregistrierung verwalten.',
+    icon: QrCode,
+  },
+};
+
+const WAREHOUSE_MATERIAL_SUB_TAB_ITEMS: Array<{ id: WarehouseMaterialSubTab; meta: SettingsHeaderMeta }> = [
+  { id: 'filament', meta: WAREHOUSE_MATERIAL_SUB_TABS.filament },
+  { id: 'catalogs', meta: WAREHOUSE_MATERIAL_SUB_TABS.catalogs },
+  { id: 'spoolbuddy', meta: WAREHOUSE_MATERIAL_SUB_TABS.spoolbuddy },
+];
+
+const ORDER_MANAGEMENT_SUB_TABS: Record<OrderManagementSubTab, SettingsHeaderMeta> = {
+  calculation: {
+    labelKey: 'settings.tabs.orderManagementCalculation',
+    fallback: 'Calculation',
+    fallbackDe: 'Kalkulation',
+    descriptionKey: 'settings.orderManagementSubTabDescriptions.calculation',
+    descriptionFallback: 'Configure currency, cost tracking, and calculation defaults for commercial workflows.',
+    descriptionFallbackDe: 'Währung, Kostenverfolgung und Kalkulationsstandards für kaufmännische Abläufe konfigurieren.',
+    icon: DollarSign,
+  },
+};
+
+const ORDER_MANAGEMENT_SUB_TAB_ITEMS: Array<{ id: OrderManagementSubTab; meta: SettingsHeaderMeta }> = [
+  { id: 'calculation', meta: ORDER_MANAGEMENT_SUB_TABS.calculation },
+];
 
 const UPDATE_STATUS_FALLBACK_LABELS: Record<UpdateStatus['status'], string> = {
   idle: 'Idle',
@@ -212,11 +459,11 @@ const legacySearchTabByAnchor: Record<string, string> = {
   'card-ftpretry': 'printers-production',
   'card-ha': 'network',
   'card-mqtt': 'network',
-  'card-prometheus': 'operations',
-  'card-createapi': 'apikeys',
+  'card-prometheus': 'integrations',
+  'card-createapi': 'integrations',
   'card-webhooks': 'integrations',
   'card-apibrowser': 'integrations',
-  'card-camera-tokens': 'apikeys',
+  'card-camera-tokens': 'integrations',
   'card-vp': 'virtual-printer',
   'card-spoolbuddy': 'spoolbuddy',
   'card-fd-ml': 'failure-detection',
@@ -252,6 +499,174 @@ function resolveLegacySearchTab(entry: SettingsSearchEntry): string {
   return legacySearchTabByAnchor[entry.anchor] ?? 'general';
 }
 
+const INTEGRATION_SUB_TABS: Array<{
+  id: IntegrationSubTab;
+  labelKey: string;
+  fallback: string;
+  fallbackDe?: string;
+  descriptionKey: string;
+  descriptionFallback: string;
+  descriptionFallbackDe?: string;
+  icon: typeof Bell;
+}> = [
+  {
+    id: 'notifications',
+    labelKey: 'settings.tabs.notifications',
+    fallback: 'Notifications',
+    descriptionKey: 'settings.integrationSubTabDescriptions.notifications',
+    descriptionFallback: 'Manage notification providers, templates, and delivery logs.',
+    descriptionFallbackDe: 'Benachrichtigungskanäle, Vorlagen und Versandprotokolle verwalten.',
+    icon: Bell,
+  },
+  {
+    id: 'webhooks',
+    labelKey: 'settings.tabs.webhooks',
+    fallback: 'Webhooks',
+    descriptionKey: 'settings.integrationSubTabDescriptions.webhooks',
+    descriptionFallback: 'Review webhook endpoints for external automation and API-driven workflows.',
+    descriptionFallbackDe: 'Webhook-Endpunkte für externe Automatisierungen und API-Abläufe prüfen.',
+    icon: Send,
+  },
+  {
+    id: 'smart-home',
+    labelKey: 'settings.tabs.smartHome',
+    fallback: 'Smart Home',
+    descriptionKey: 'settings.integrationSubTabDescriptions.smartHome',
+    descriptionFallback: 'Configure Home Assistant, MQTT publishing, and the external PrintOps URL.',
+    descriptionFallbackDe: 'Home Assistant, MQTT-Veröffentlichung und externe PrintOps-URL konfigurieren.',
+    icon: Home,
+  },
+  {
+    id: 'smart-plugs',
+    labelKey: 'settings.tabs.smartPlugs',
+    fallback: 'Smart Plugs',
+    descriptionKey: 'settings.integrationSubTabDescriptions.smartPlugs',
+    descriptionFallback: 'Manage smart plugs, switching, reachability, and energy readings.',
+    descriptionFallbackDe: 'Smart Plugs, Schaltzustände, Erreichbarkeit und Energieverbrauch verwalten.',
+    icon: Plug,
+  },
+  {
+    id: 'api-metrics',
+    labelKey: 'settings.tabs.apiMetrics',
+    fallback: 'API & Metrics',
+    fallbackDe: 'API & Metriken',
+    descriptionKey: 'settings.integrationSubTabDescriptions.apiMetrics',
+    descriptionFallback: 'Manage API keys, camera tokens, Prometheus metrics, and the API browser.',
+    descriptionFallbackDe: 'API-Schlüssel, Kamera-Tokens, Prometheus-Metriken und den API-Browser verwalten.',
+    icon: TrendingUp,
+  },
+];
+
+const OPERATION_SUB_TABS: Array<{
+  id: OperationSubTab;
+  labelKey: string;
+  fallback: string;
+  fallbackDe?: string;
+  descriptionKey: string;
+  descriptionFallback: string;
+  descriptionFallbackDe?: string;
+  icon: typeof Bell;
+}> = [
+  {
+    id: 'updates',
+    labelKey: 'settings.tabs.operationUpdates',
+    fallback: 'Updates',
+    descriptionKey: 'settings.operationSubTabDescriptions.updates',
+    descriptionFallback: 'Manage PrintOps update checks, beta channels, and printer firmware monitoring.',
+    descriptionFallbackDe: 'PrintOps-Updateprüfungen, Beta-Kanäle und Drucker-Firmware-Überwachung verwalten.',
+    icon: RefreshCw,
+  },
+  {
+    id: 'data-management',
+    labelKey: 'settings.tabs.operationDataManagement',
+    fallback: 'Data Management',
+    descriptionKey: 'settings.operationSubTabDescriptions.dataManagement',
+    descriptionFallback: 'Review storage usage, clear local records, and route backup or restore tasks.',
+    descriptionFallbackDe: 'Speichernutzung prüfen, lokale Daten bereinigen und Backup- oder Wiederherstellungsaufgaben steuern.',
+    icon: Database,
+  },
+  {
+    id: 'backups',
+    labelKey: 'settings.tabs.operationBackups',
+    fallback: 'Backups',
+    descriptionKey: 'settings.operationSubTabDescriptions.backups',
+    descriptionFallback: 'Manage local and GitHub backups, restore archives, schedules, and backup history.',
+    descriptionFallbackDe: 'Lokale und GitHub-Backups, Wiederherstellungsarchive, Zeitpläne und Backup-Verlauf verwalten.',
+    icon: Shield,
+  },
+];
+
+const INTEGRATION_SUB_TAB_IDS = new Set<IntegrationSubTab>(INTEGRATION_SUB_TABS.map((item) => item.id));
+const OPERATION_SUB_TAB_IDS = new Set<OperationSubTab>(OPERATION_SUB_TABS.map((item) => item.id));
+const PRINTER_PRODUCTION_SUB_TAB_IDS = new Set<PrinterProductionSubTab>(
+  PRINTER_PRODUCTION_SUB_TAB_ITEMS.map((item) => item.id),
+);
+const PROJECT_MANAGEMENT_SUB_TAB_IDS = new Set<ProjectManagementSubTab>(
+  PROJECT_MANAGEMENT_SUB_TAB_ITEMS.map((item) => item.id),
+);
+const WAREHOUSE_MATERIAL_SUB_TAB_IDS = new Set<WarehouseMaterialSubTab>(
+  WAREHOUSE_MATERIAL_SUB_TAB_ITEMS.map((item) => item.id),
+);
+const ORDER_MANAGEMENT_SUB_TAB_IDS = new Set<OrderManagementSubTab>(
+  ORDER_MANAGEMENT_SUB_TAB_ITEMS.map((item) => item.id),
+);
+
+function resolveIntegrationSubTab(value: string | null): IntegrationSubTab | null {
+  return INTEGRATION_SUB_TAB_IDS.has(value as IntegrationSubTab) ? value as IntegrationSubTab : null;
+}
+
+function integrationSubTabUrlParam(subTab: IntegrationSubTab): string | null {
+  return subTab === 'notifications' ? null : subTab;
+}
+
+function resolveOperationSubTab(value: string | null): OperationSubTab | null {
+  return OPERATION_SUB_TAB_IDS.has(value as OperationSubTab) ? value as OperationSubTab : null;
+}
+
+function operationSubTabUrlParam(subTab: OperationSubTab): string | null {
+  return subTab === 'updates' ? null : subTab;
+}
+
+function resolvePrinterProductionSubTab(value: string | null): PrinterProductionSubTab | null {
+  return PRINTER_PRODUCTION_SUB_TAB_IDS.has(value as PrinterProductionSubTab)
+    ? value as PrinterProductionSubTab
+    : null;
+}
+
+function printerProductionSubTabUrlParam(subTab: PrinterProductionSubTab): string | null {
+  return subTab === 'devices' ? null : subTab;
+}
+
+function resolveProjectManagementSubTab(value: string | null): ProjectManagementSubTab | null {
+  return PROJECT_MANAGEMENT_SUB_TAB_IDS.has(value as ProjectManagementSubTab)
+    ? value as ProjectManagementSubTab
+    : null;
+}
+
+function projectManagementSubTabUrlParam(subTab: ProjectManagementSubTab): string | null {
+  return subTab === 'files' ? null : subTab;
+}
+
+function resolveWarehouseMaterialSubTab(value: string | null): WarehouseMaterialSubTab | null {
+  return WAREHOUSE_MATERIAL_SUB_TAB_IDS.has(value as WarehouseMaterialSubTab)
+    ? value as WarehouseMaterialSubTab
+    : null;
+}
+
+function warehouseMaterialSubTabUrlParam(subTab: WarehouseMaterialSubTab): string | null {
+  return subTab === 'filament' ? null : subTab;
+}
+
+function resolveOrderManagementSubTab(value: string | null): OrderManagementSubTab | null {
+  return ORDER_MANAGEMENT_SUB_TAB_IDS.has(value as OrderManagementSubTab)
+    ? value as OrderManagementSubTab
+    : null;
+}
+
+function orderManagementSubTabUrlParam(subTab: OrderManagementSubTab): string | null {
+  return subTab === 'calculation' ? null : subTab;
+}
+
 export function SettingsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -285,50 +700,231 @@ export function SettingsPage() {
 
   // Initialize tab from URL params, resolving legacy aliases to canonical tabs.
   const tabParam = searchParams.get('tab');
+  const subTabParam = searchParams.get('sub');
   const initialTab = resolveSettingsTab(tabParam);
   const legacyDefaultAnchor = legacySettingsTabDefaultAnchor(tabParam);
   const legacySubTabs = legacySettingsTabDefaultSubTab(tabParam);
   const [activeTab, setActiveTab] = useState<CanonicalSettingsTab>(initialTab);
   const [usersSubTab, setUsersSubTab] = useState<UsersSubTab>(legacySubTabs.usersSubTab ?? 'users');
-  // Workflow tab sub-tabs (#1425): 'dispatch' = current Workflow content,
-  // 'pipelines' = Slicer Pipelines management. Canonical URL:
-  // ?tab=printers-production&sub=pipelines. Keep the legacy queue alias working too.
-  const initialQueueSub: QueueSubTab =
-    initialTab === 'printers-production' && searchParams.get('sub') === 'pipelines'
-      ? 'pipelines'
-      : legacySubTabs.queueSubTab ?? 'dispatch';
-  const [queueSubTab, setQueueSubTab] = useState<QueueSubTab>(initialQueueSub);
+  const initialPrinterProductionSub: PrinterProductionSubTab =
+    initialTab === 'printers-production'
+      ? resolvePrinterProductionSubTab(subTabParam) ?? legacySubTabs.printerProductionSubTab ?? 'devices'
+      : 'devices';
+  const [printerProductionSubTab, setPrinterProductionSubTab] =
+    useState<PrinterProductionSubTab>(initialPrinterProductionSub);
+  const initialProjectManagementSub: ProjectManagementSubTab =
+    initialTab === 'projects-files'
+      ? resolveProjectManagementSubTab(subTabParam) ?? legacySubTabs.projectManagementSubTab ?? 'files'
+      : 'files';
+  const [projectManagementSubTab, setProjectManagementSubTab] =
+    useState<ProjectManagementSubTab>(initialProjectManagementSub);
+  const initialWarehouseMaterialSub: WarehouseMaterialSubTab =
+    initialTab === 'warehouse-material'
+      ? resolveWarehouseMaterialSubTab(subTabParam) ?? legacySubTabs.warehouseMaterialSubTab ?? 'filament'
+      : 'filament';
+  const [warehouseMaterialSubTab, setWarehouseMaterialSubTab] =
+    useState<WarehouseMaterialSubTab>(initialWarehouseMaterialSub);
+  const initialOrderManagementSub: OrderManagementSubTab =
+    initialTab === 'orders-calculation'
+      ? resolveOrderManagementSubTab(subTabParam) ?? legacySubTabs.orderManagementSubTab ?? 'calculation'
+      : 'calculation';
+  const [orderManagementSubTab, setOrderManagementSubTab] =
+    useState<OrderManagementSubTab>(initialOrderManagementSub);
+  const initialIntegrationSub: IntegrationSubTab =
+    initialTab === 'integrations'
+      ? resolveIntegrationSubTab(subTabParam) ?? legacySubTabs.integrationSubTab ?? 'notifications'
+      : 'notifications';
+  const [integrationSubTab, setIntegrationSubTab] = useState<IntegrationSubTab>(initialIntegrationSub);
+  const initialOperationSub: OperationSubTab =
+    initialTab === 'operations'
+      ? resolveOperationSubTab(subTabParam) ?? legacySubTabs.operationSubTab ?? 'updates'
+      : 'updates';
+  const [operationSubTab, setOperationSubTab] = useState<OperationSubTab>(initialOperationSub);
   const hasScrolledLegacyAnchorRef = useRef(false);
+
+  useEffect(() => {
+    const nextTab = resolveSettingsTab(tabParam);
+    const nextLegacySubTabs = legacySettingsTabDefaultSubTab(tabParam);
+
+    setActiveTab(nextTab);
+
+    if (nextLegacySubTabs.usersSubTab) {
+      setUsersSubTab(nextLegacySubTabs.usersSubTab);
+    } else if (nextTab !== 'users-security') {
+      setUsersSubTab('users');
+    }
+
+    if (nextTab === 'printers-production') {
+      setPrinterProductionSubTab(
+        resolvePrinterProductionSubTab(subTabParam) ??
+          nextLegacySubTabs.printerProductionSubTab ??
+          'devices',
+      );
+    } else {
+      setPrinterProductionSubTab('devices');
+    }
+
+    if (nextTab === 'projects-files') {
+      setProjectManagementSubTab(
+        resolveProjectManagementSubTab(subTabParam) ??
+          nextLegacySubTabs.projectManagementSubTab ??
+          'files',
+      );
+    } else {
+      setProjectManagementSubTab('files');
+    }
+
+    if (nextTab === 'warehouse-material') {
+      setWarehouseMaterialSubTab(
+        resolveWarehouseMaterialSubTab(subTabParam) ??
+          nextLegacySubTabs.warehouseMaterialSubTab ??
+          'filament',
+      );
+    } else {
+      setWarehouseMaterialSubTab('filament');
+    }
+
+    if (nextTab === 'orders-calculation') {
+      setOrderManagementSubTab(
+        resolveOrderManagementSubTab(subTabParam) ??
+          nextLegacySubTabs.orderManagementSubTab ??
+          'calculation',
+      );
+    } else {
+      setOrderManagementSubTab('calculation');
+    }
+
+    if (nextTab === 'integrations') {
+      setIntegrationSubTab(
+        resolveIntegrationSubTab(subTabParam) ??
+          nextLegacySubTabs.integrationSubTab ??
+          'notifications',
+      );
+    } else {
+      setIntegrationSubTab('notifications');
+    }
+
+    if (nextTab === 'operations') {
+      setOperationSubTab(
+        resolveOperationSubTab(subTabParam) ??
+          nextLegacySubTabs.operationSubTab ??
+          'updates',
+      );
+    } else {
+      setOperationSubTab('updates');
+    }
+  }, [subTabParam, tabParam]);
 
   // Update URL when tab changes
   const handleTabChange = (tab: CanonicalSettingsTab) => {
     setActiveTab(tab);
+    const nextSearchParams = new URLSearchParams(searchParams);
     if (tab !== 'users-security') {
       setUsersSubTab('users');
     }
     if (tab !== 'printers-production') {
-      setQueueSubTab('dispatch');
-      searchParams.delete('sub');
+      setPrinterProductionSubTab('devices');
     }
+    if (tab !== 'projects-files') {
+      setProjectManagementSubTab('files');
+    }
+    if (tab !== 'warehouse-material') {
+      setWarehouseMaterialSubTab('filament');
+    }
+    if (tab !== 'orders-calculation') {
+      setOrderManagementSubTab('calculation');
+    }
+    if (tab !== 'integrations') {
+      setIntegrationSubTab('notifications');
+    }
+    if (tab !== 'operations') {
+      setOperationSubTab('updates');
+    }
+    nextSearchParams.delete('sub');
     const urlTab = canonicalTabToUrlParam(tab);
     if (urlTab) {
-      searchParams.set('tab', urlTab);
+      nextSearchParams.set('tab', urlTab);
     } else {
-      searchParams.delete('tab');
+      nextSearchParams.delete('tab');
     }
-    setSearchParams(searchParams, { replace: true });
+    setSearchParams(nextSearchParams, { replace: true });
   };
 
-  // Switch the Workflow tab's sub-tab and reflect it in the URL so deep-links work.
-  const handleQueueSubTabChange = (sub: QueueSubTab) => {
-    setQueueSubTab(sub);
-    searchParams.set('tab', 'printers-production');
-    if (sub === 'pipelines') {
-      searchParams.set('sub', 'pipelines');
+  const handlePrinterProductionSubTabChange = (sub: PrinterProductionSubTab) => {
+    setPrinterProductionSubTab(sub);
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.set('tab', 'printers-production');
+    const urlSub = printerProductionSubTabUrlParam(sub);
+    if (urlSub) {
+      nextSearchParams.set('sub', urlSub);
     } else {
-      searchParams.delete('sub');
+      nextSearchParams.delete('sub');
     }
-    setSearchParams(searchParams, { replace: true });
+    setSearchParams(nextSearchParams, { replace: true });
+  };
+
+  const handleProjectManagementSubTabChange = (sub: ProjectManagementSubTab) => {
+    setProjectManagementSubTab(sub);
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.set('tab', 'projects-files');
+    const urlSub = projectManagementSubTabUrlParam(sub);
+    if (urlSub) {
+      nextSearchParams.set('sub', urlSub);
+    } else {
+      nextSearchParams.delete('sub');
+    }
+    setSearchParams(nextSearchParams, { replace: true });
+  };
+
+  const handleWarehouseMaterialSubTabChange = (sub: WarehouseMaterialSubTab) => {
+    setWarehouseMaterialSubTab(sub);
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.set('tab', 'warehouse-material');
+    const urlSub = warehouseMaterialSubTabUrlParam(sub);
+    if (urlSub) {
+      nextSearchParams.set('sub', urlSub);
+    } else {
+      nextSearchParams.delete('sub');
+    }
+    setSearchParams(nextSearchParams, { replace: true });
+  };
+
+  const handleOrderManagementSubTabChange = (sub: OrderManagementSubTab) => {
+    setOrderManagementSubTab(sub);
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.set('tab', 'orders-calculation');
+    const urlSub = orderManagementSubTabUrlParam(sub);
+    if (urlSub) {
+      nextSearchParams.set('sub', urlSub);
+    } else {
+      nextSearchParams.delete('sub');
+    }
+    setSearchParams(nextSearchParams, { replace: true });
+  };
+
+  const handleIntegrationSubTabChange = (sub: IntegrationSubTab) => {
+    setIntegrationSubTab(sub);
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.set('tab', 'integrations');
+    const urlSub = integrationSubTabUrlParam(sub);
+    if (urlSub) {
+      nextSearchParams.set('sub', urlSub);
+    } else {
+      nextSearchParams.delete('sub');
+    }
+    setSearchParams(nextSearchParams, { replace: true });
+  };
+  const handleOperationSubTabChange = (sub: OperationSubTab) => {
+    setOperationSubTab(sub);
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.set('tab', 'operations');
+    const urlSub = operationSubTabUrlParam(sub);
+    if (urlSub) {
+      nextSearchParams.set('sub', urlSub);
+    } else {
+      nextSearchParams.delete('sub');
+    }
+    setSearchParams(nextSearchParams, { replace: true });
   };
   const [showCreateAPIKey, setShowCreateAPIKey] = useState(false);
   const [newAPIKeyName, setNewAPIKeyName] = useState('');
@@ -414,7 +1010,7 @@ export function SettingsPage() {
   } = useQuery<StorageUsageResponse>({
     queryKey: ['storage-usage'],
     queryFn: () => api.getStorageUsage(),
-    enabled: activeTab === 'operations',
+    enabled: activeTab === 'operations' && operationSubTab === 'data-management',
     staleTime: Infinity,
     refetchInterval: false,
     refetchOnWindowFocus: false,
@@ -485,8 +1081,8 @@ export function SettingsPage() {
         totalPlugs: smartPlugs.filter(p => p.enabled).length,
       };
     },
-    enabled: activeTab === 'integrations' && !!smartPlugs && smartPlugs.length > 0,
-    refetchInterval: activeTab === 'integrations' ? 10000 : false, // Refresh every 10s when on integrations tab
+    enabled: activeTab === 'integrations' && integrationSubTab === 'smart-plugs' && !!smartPlugs && smartPlugs.length > 0,
+    refetchInterval: activeTab === 'integrations' && integrationSubTab === 'smart-plugs' ? 10000 : false,
   });
 
   const { data: notificationProviders, isLoading: providersLoading } = useQuery({
@@ -536,15 +1132,6 @@ export function SettingsPage() {
     queryKey: ['notification-templates'],
     queryFn: api.getNotificationTemplates,
   });
-
-  // SpoolBuddy devices for tab indicator
-  const { data: spoolbuddyDevices } = useQuery({
-    queryKey: ['spoolbuddy-devices'],
-    queryFn: () => spoolbuddyApi.getDevices(),
-    refetchInterval: 15000,
-  });
-  const spoolbuddyDeviceCount = spoolbuddyDevices?.length ?? 0;
-  const spoolbuddyAnyOnline = spoolbuddyDevices?.some((d) => d.online) ?? false;
 
   const { data: ffmpegStatus } = useQuery({
     queryKey: ['ffmpeg-status'],
@@ -648,11 +1235,11 @@ export function SettingsPage() {
     },
   });
 
-  // MQTT status for integrations-related settings
+  // MQTT status for Smart Home integration settings
   const { data: mqttStatus } = useQuery({
     queryKey: ['mqtt-status'],
     queryFn: api.getMQTTStatus,
-    refetchInterval: activeTab === 'integrations' ? 5000 : false, // Poll every 5s when on integrations tab
+    refetchInterval: activeTab === 'integrations' && integrationSubTab === 'smart-home' ? 5000 : false,
   });
 
   // Advanced auth status for user creation
@@ -1340,7 +1927,27 @@ export function SettingsPage() {
       return;
     }
 
-    if (tabParam === 'queue' && queueSubTab !== 'dispatch') {
+    if (tabParam === 'queue' && printerProductionSubTab !== 'print-process') {
+      return;
+    }
+
+    if (tabParam === 'virtual-printer' && printerProductionSubTab !== 'devices') {
+      return;
+    }
+
+    if (tabParam === 'failure-detection' && printerProductionSubTab !== 'failure-detection') {
+      return;
+    }
+
+    if (tabParam === 'filament' && warehouseMaterialSubTab !== 'filament') {
+      return;
+    }
+
+    if (tabParam === 'spoolbuddy' && warehouseMaterialSubTab !== 'spoolbuddy') {
+      return;
+    }
+
+    if (tabParam === 'backup' && operationSubTab !== 'backups') {
       return;
     }
 
@@ -1349,7 +1956,17 @@ export function SettingsPage() {
     }
 
     hasScrolledLegacyAnchorRef.current = true;
-  }, [activeTab, isLoading, legacyDefaultAnchor, localSettings, queueSubTab, tabParam, usersSubTab]);
+  }, [
+    activeTab,
+    isLoading,
+    legacyDefaultAnchor,
+    localSettings,
+    operationSubTab,
+    printerProductionSubTab,
+    tabParam,
+    usersSubTab,
+    warehouseMaterialSubTab,
+  ]);
 
   if (isLoading || !localSettings) {
     return (
@@ -1379,11 +1996,82 @@ export function SettingsPage() {
     const legacyTargetTab = resolveLegacySearchTab(entry);
     const targetTab = resolveSettingsTab(legacyTargetTab);
     handleTabChange(targetTab);
-    if (targetTab === 'printers-production' && entry.anchor !== 'card-pipelines') {
-      setQueueSubTab('dispatch');
+    if (targetTab === 'printers-production') {
+      const nextSubTab = entry.printerProductionSubTab ?? 'devices';
+      setPrinterProductionSubTab(nextSubTab);
       const nextSearchParams = new URLSearchParams(searchParams);
       nextSearchParams.set('tab', 'printers-production');
-      nextSearchParams.delete('sub');
+      const urlSub = printerProductionSubTabUrlParam(nextSubTab);
+      if (urlSub) {
+        nextSearchParams.set('sub', urlSub);
+      } else {
+        nextSearchParams.delete('sub');
+      }
+      setSearchParams(nextSearchParams, { replace: true });
+    }
+    if (targetTab === 'projects-files') {
+      const nextSubTab = entry.projectManagementSubTab ?? 'files';
+      setProjectManagementSubTab(nextSubTab);
+      const nextSearchParams = new URLSearchParams(searchParams);
+      nextSearchParams.set('tab', 'projects-files');
+      const urlSub = projectManagementSubTabUrlParam(nextSubTab);
+      if (urlSub) {
+        nextSearchParams.set('sub', urlSub);
+      } else {
+        nextSearchParams.delete('sub');
+      }
+      setSearchParams(nextSearchParams, { replace: true });
+    }
+    if (targetTab === 'warehouse-material') {
+      const nextSubTab = entry.warehouseMaterialSubTab ?? 'filament';
+      setWarehouseMaterialSubTab(nextSubTab);
+      const nextSearchParams = new URLSearchParams(searchParams);
+      nextSearchParams.set('tab', 'warehouse-material');
+      const urlSub = warehouseMaterialSubTabUrlParam(nextSubTab);
+      if (urlSub) {
+        nextSearchParams.set('sub', urlSub);
+      } else {
+        nextSearchParams.delete('sub');
+      }
+      setSearchParams(nextSearchParams, { replace: true });
+    }
+    if (targetTab === 'orders-calculation') {
+      const nextSubTab = entry.orderManagementSubTab ?? 'calculation';
+      setOrderManagementSubTab(nextSubTab);
+      const nextSearchParams = new URLSearchParams(searchParams);
+      nextSearchParams.set('tab', 'orders-calculation');
+      const urlSub = orderManagementSubTabUrlParam(nextSubTab);
+      if (urlSub) {
+        nextSearchParams.set('sub', urlSub);
+      } else {
+        nextSearchParams.delete('sub');
+      }
+      setSearchParams(nextSearchParams, { replace: true });
+    }
+    if (targetTab === 'integrations') {
+      const nextSubTab = entry.integrationSubTab ?? 'notifications';
+      setIntegrationSubTab(nextSubTab);
+      const nextSearchParams = new URLSearchParams(searchParams);
+      nextSearchParams.set('tab', 'integrations');
+      const urlSub = integrationSubTabUrlParam(nextSubTab);
+      if (urlSub) {
+        nextSearchParams.set('sub', urlSub);
+      } else {
+        nextSearchParams.delete('sub');
+      }
+      setSearchParams(nextSearchParams, { replace: true });
+    }
+    if (targetTab === 'operations') {
+      const nextSubTab = entry.operationSubTab ?? 'updates';
+      setOperationSubTab(nextSubTab);
+      const nextSearchParams = new URLSearchParams(searchParams);
+      nextSearchParams.set('tab', 'operations');
+      const urlSub = operationSubTabUrlParam(nextSubTab);
+      if (urlSub) {
+        nextSearchParams.set('sub', urlSub);
+      } else {
+        nextSearchParams.delete('sub');
+      }
       setSearchParams(nextSearchParams, { replace: true });
     }
     if (entry.subTab) {
@@ -1397,9 +2085,7 @@ export function SettingsPage() {
   };
 
   const goToBackupFromDataManagement = () => {
-    if (activeTab !== 'operations') {
-      handleTabChange('operations');
-    }
+    handleOperationSubTabChange('backups');
     setTimeout(() => {
       scrollToSettingsCard('card-backup');
     }, 50);
@@ -2854,16 +3540,249 @@ export function SettingsPage() {
     </div>
   ) : null;
 
-  const settingsNavIcons = {
-    settings: SettingsIcon,
-    shield: Shield,
-    printer: Printer,
-    fileText: FileText,
-    warehouse: Home,
-    calculator: DollarSign,
-    plug: Plug,
-    database: Database,
-  } as const;
+  const subTabButtonClass = (active: boolean) =>
+    `h-full px-0 py-0 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 whitespace-nowrap ${
+      active
+        ? 'text-bambu-green border-bambu-green'
+        : 'text-bambu-gray hover:text-white border-transparent'
+    }`;
+
+  const localizedHeaderLabel = (item: SettingsHeaderMeta) => {
+    const fallback = i18n.resolvedLanguage?.startsWith('de')
+      ? item.fallbackDe ?? item.fallback
+      : item.fallback;
+    return t(item.labelKey, fallback);
+  };
+  const localizedHeaderDescription = (item: SettingsHeaderMeta) => {
+    const fallback = i18n.resolvedLanguage?.startsWith('de')
+      ? item.descriptionFallbackDe ?? item.descriptionFallback
+      : item.descriptionFallback;
+    return t(item.descriptionKey, fallback);
+  };
+  const integrationSubTabMeta = (subTab: IntegrationSubTab) =>
+    INTEGRATION_SUB_TABS.find((candidate) => candidate.id === subTab);
+  const integrationSubTabLabel = (subTab: IntegrationSubTab) => {
+    const item = integrationSubTabMeta(subTab);
+    if (!item) return subTab;
+    return localizedHeaderLabel(item);
+  };
+  const operationSubTabMeta = (subTab: OperationSubTab) =>
+    OPERATION_SUB_TABS.find((candidate) => candidate.id === subTab);
+  const operationSubTabLabel = (subTab: OperationSubTab) => {
+    const item = operationSubTabMeta(subTab);
+    if (!item) return subTab;
+    return localizedHeaderLabel(item);
+  };
+  const printerProductionSubTabLabel = (subTab: PrinterProductionSubTab) =>
+    localizedHeaderLabel(PRINTER_PRODUCTION_SUB_TABS[subTab]);
+  const projectManagementSubTabLabel = (subTab: ProjectManagementSubTab) =>
+    localizedHeaderLabel(PROJECT_MANAGEMENT_SUB_TABS[subTab]);
+  const warehouseMaterialSubTabLabel = (subTab: WarehouseMaterialSubTab) =>
+    localizedHeaderLabel(WAREHOUSE_MATERIAL_SUB_TABS[subTab]);
+  const orderManagementSubTabLabel = (subTab: OrderManagementSubTab) =>
+    localizedHeaderLabel(ORDER_MANAGEMENT_SUB_TABS[subTab]);
+  const activeSettingsHeaderMeta =
+    activeTab === 'users-security'
+      ? USER_SECURITY_SUB_TABS[usersSubTab]
+      : activeTab === 'printers-production'
+        ? PRINTER_PRODUCTION_SUB_TABS[printerProductionSubTab]
+        : activeTab === 'projects-files'
+          ? PROJECT_MANAGEMENT_SUB_TABS[projectManagementSubTab]
+        : activeTab === 'warehouse-material'
+          ? WAREHOUSE_MATERIAL_SUB_TABS[warehouseMaterialSubTab]
+        : activeTab === 'orders-calculation'
+          ? ORDER_MANAGEMENT_SUB_TABS[orderManagementSubTab]
+        : activeTab === 'integrations'
+          ? integrationSubTabMeta(integrationSubTab) ?? SETTINGS_SECTION_HEADERS.integrations
+          : activeTab === 'operations'
+            ? operationSubTabMeta(operationSubTab) ?? SETTINGS_SECTION_HEADERS.operations
+          : SETTINGS_SECTION_HEADERS[activeTab] ?? SETTINGS_SECTION_HEADERS.general;
+  const HeaderIcon = activeSettingsHeaderMeta.icon;
+  const settingsPageTitle = localizedHeaderLabel(activeSettingsHeaderMeta);
+  const settingsPageDescription = localizedHeaderDescription(activeSettingsHeaderMeta);
+
+  const settingsSectionSubnav =
+    activeTab === 'users-security' ? (
+      <nav
+        aria-label={t('settings.tabs.usersSecurity', 'Users & Security')}
+        className="mb-5 flex h-[48px] min-h-[48px] items-stretch gap-5 overflow-x-auto border-b border-bambu-dark-tertiary"
+      >
+        <button
+          onClick={() => setUsersSubTab('users')}
+          className={subTabButtonClass(usersSubTab === 'users')}
+        >
+          <Users className="w-4 h-4" />
+          {t('settings.tabs.users')}
+        </button>
+        <button
+          onClick={() => setUsersSubTab('email')}
+          className={subTabButtonClass(usersSubTab === 'email')}
+        >
+          <Mail className="w-4 h-4" />
+          {t('settings.tabs.emailAuth') || 'Email Authentication'}
+          {advancedAuthStatus?.advanced_auth_enabled && (
+            <span className="w-2 h-2 rounded-full bg-green-400" />
+          )}
+        </button>
+        <button
+          onClick={() => setUsersSubTab('ldap')}
+          className={subTabButtonClass(usersSubTab === 'ldap')}
+        >
+          <Shield className="w-4 h-4" />
+          {t('settings.tabs.ldap') || 'LDAP'}
+          {ldapStatus?.ldap_enabled && (
+            <span className="w-2 h-2 rounded-full bg-green-400" />
+          )}
+        </button>
+        <button
+          onClick={() => setUsersSubTab('twofa')}
+          className={subTabButtonClass(usersSubTab === 'twofa')}
+        >
+          <Shield className="w-4 h-4" />
+          {t('settings.tabs.twoFa')}
+          <span
+            className={`w-2 h-2 rounded-full ${
+              twoFAStatus?.totp_enabled || twoFAStatus?.email_otp_enabled
+                ? 'bg-green-400'
+                : 'bg-bambu-gray/40'
+            }`}
+          />
+        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setUsersSubTab('oidc')}
+            className={subTabButtonClass(usersSubTab === 'oidc')}
+          >
+            <Globe className="w-4 h-4" />
+            {t('settings.tabs.oidc')}
+            <span
+              className={`w-2 h-2 rounded-full ${
+                oidcProvidersAll.some((p) => p.is_enabled)
+                  ? 'bg-green-400'
+                  : 'bg-bambu-gray/40'
+              }`}
+            />
+          </button>
+        )}
+        {isAdmin && (
+          <button
+            onClick={() => setUsersSubTab('security')}
+            className={subTabButtonClass(usersSubTab === 'security')}
+          >
+            <Shield className="w-4 h-4" />
+            {t('settings.tabs.security')}
+          </button>
+        )}
+      </nav>
+    ) : activeTab === 'integrations' ? (
+      <nav
+        aria-label={t('settings.tabs.integrations', 'Integrations')}
+        className="mb-5 flex h-[48px] min-h-[48px] items-stretch gap-5 overflow-x-auto border-b border-bambu-dark-tertiary"
+      >
+        {INTEGRATION_SUB_TABS.map(({ id, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => handleIntegrationSubTabChange(id)}
+            className={subTabButtonClass(integrationSubTab === id)}
+          >
+            <Icon className="w-4 h-4" />
+            {integrationSubTabLabel(id)}
+          </button>
+        ))}
+      </nav>
+    ) : activeTab === 'operations' ? (
+      <nav
+        aria-label={t('settings.tabs.operations', 'Operations')}
+        className="mb-5 flex h-[48px] min-h-[48px] items-stretch gap-5 overflow-x-auto border-b border-bambu-dark-tertiary"
+      >
+        {OPERATION_SUB_TABS.map(({ id, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => handleOperationSubTabChange(id)}
+            className={subTabButtonClass(operationSubTab === id)}
+          >
+            <Icon className="w-4 h-4" />
+            {operationSubTabLabel(id)}
+          </button>
+        ))}
+      </nav>
+    ) : activeTab === 'printers-production' ? (
+      <nav
+        aria-label={t('settings.tabs.printersProduction', 'Device Management')}
+        className="mb-5 flex h-[48px] min-h-[48px] items-stretch gap-5 overflow-x-auto border-b border-bambu-dark-tertiary"
+      >
+        {PRINTER_PRODUCTION_SUB_TAB_ITEMS.map(({ id, meta }) => {
+          const Icon = meta.icon;
+          return (
+            <button
+              key={id}
+              onClick={() => handlePrinterProductionSubTabChange(id)}
+              className={subTabButtonClass(printerProductionSubTab === id)}
+            >
+              <Icon className="w-4 h-4" />
+              {printerProductionSubTabLabel(id)}
+            </button>
+          );
+        })}
+      </nav>
+    ) : activeTab === 'projects-files' ? (
+      <nav
+        aria-label={t('settings.tabs.projectsFiles', 'Project Management')}
+        className="mb-5 flex h-[48px] min-h-[48px] items-stretch gap-5 overflow-x-auto border-b border-bambu-dark-tertiary"
+      >
+        {PROJECT_MANAGEMENT_SUB_TAB_ITEMS.map(({ id, meta }) => {
+          const Icon = meta.icon;
+          return (
+            <button
+              key={id}
+              onClick={() => handleProjectManagementSubTabChange(id)}
+              className={subTabButtonClass(projectManagementSubTab === id)}
+            >
+              <Icon className="w-4 h-4" />
+              {projectManagementSubTabLabel(id)}
+            </button>
+          );
+        })}
+      </nav>
+    ) : activeTab === 'warehouse-material' ? (
+      <nav
+        aria-label={t('settings.tabs.warehouseMaterial', 'Warehouse Management')}
+        className="mb-5 flex h-[48px] min-h-[48px] items-stretch gap-5 overflow-x-auto border-b border-bambu-dark-tertiary"
+      >
+        {WAREHOUSE_MATERIAL_SUB_TAB_ITEMS.map(({ id, meta }) => {
+          const Icon = meta.icon;
+          return (
+            <button
+              key={id}
+              onClick={() => handleWarehouseMaterialSubTabChange(id)}
+              className={subTabButtonClass(warehouseMaterialSubTab === id)}
+            >
+              <Icon className="w-4 h-4" />
+              {warehouseMaterialSubTabLabel(id)}
+            </button>
+          );
+        })}
+      </nav>
+    ) : activeTab === 'orders-calculation' ? (
+      <nav
+        aria-label={t('settings.tabs.ordersCalculation', 'Order Management')}
+        className="mb-5 flex h-[48px] min-h-[48px] items-stretch gap-5 overflow-x-auto border-b border-bambu-dark-tertiary"
+      >
+        {ORDER_MANAGEMENT_SUB_TAB_ITEMS.map(({ id, meta }) => {
+          const Icon = meta.icon;
+          return (
+            <button
+              key={id}
+              onClick={() => handleOrderManagementSubTabChange(id)}
+              className={subTabButtonClass(orderManagementSubTab === id)}
+            >
+              <Icon className="w-4 h-4" />
+              {orderManagementSubTabLabel(id)}
+            </button>
+          );
+        })}
+      </nav>
+    ) : null;
 
   return (
     <CardDensityProvider density="dense">
@@ -2871,10 +3790,10 @@ export function SettingsPage() {
       <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-            <SettingsIcon className="w-7 h-7 text-bambu-green" />
-            {t('settings.title')}
+            <HeaderIcon className="w-7 h-7 text-bambu-green" />
+            {settingsPageTitle}
           </h1>
-          <p className="text-bambu-gray mt-1">{t('settings.configurePrintOps')}</p>
+          <p className="text-bambu-gray mt-1">{settingsPageDescription}</p>
         </div>
         {/* Cross-tab search */}
         <div className="relative sm:w-72">
@@ -2907,6 +3826,12 @@ export function SettingsPage() {
                   <p className="text-xs text-bambu-gray">
                     {t(settingsTabLabelKey(entry.tab), settingsSearchTabFallbackLabels[entry.tab])}
                     {entry.subTab ? ` › ${t(`settings.tabs.${entry.subTab}`, entry.subTab)}` : ''}
+                    {entry.printerProductionSubTab ? ` › ${printerProductionSubTabLabel(entry.printerProductionSubTab)}` : ''}
+                    {entry.projectManagementSubTab ? ` › ${projectManagementSubTabLabel(entry.projectManagementSubTab)}` : ''}
+                    {entry.warehouseMaterialSubTab ? ` › ${warehouseMaterialSubTabLabel(entry.warehouseMaterialSubTab)}` : ''}
+                    {entry.orderManagementSubTab ? ` › ${orderManagementSubTabLabel(entry.orderManagementSubTab)}` : ''}
+                    {entry.integrationSubTab ? ` › ${integrationSubTabLabel(entry.integrationSubTab)}` : ''}
+                    {entry.operationSubTab ? ` › ${operationSubTabLabel(entry.operationSubTab)}` : ''}
                   </p>
                 </button>
               ))}
@@ -2920,38 +3845,9 @@ export function SettingsPage() {
         </div>
       </div>
 
-      {/* Tab Navigation + content: horizontal tabs on mobile, vertical rail on lg+ */}
-      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-      <nav className="flex flex-wrap gap-1 border-b border-bambu-dark-tertiary lg:flex-col lg:flex-nowrap lg:gap-0 lg:border-b-0 lg:border-r lg:w-56 lg:flex-shrink-0 lg:self-start lg:sticky lg:top-4">
-        {SETTINGS_NAV_ITEMS.map((item) => {
-          const Icon = settingsNavIcons[item.icon];
-          return (
-            <button
-              key={item.id}
-              onClick={() => handleTabChange(item.id)}
-              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
-                activeTab === item.id
-                  ? 'text-bambu-green border-bambu-green'
-                  : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {t(item.labelKey, item.fallback)}
-              {item.id === 'warehouse-material' && spoolbuddyDeviceCount > 0 && (
-                <span className="text-xs bg-bambu-dark-tertiary px-1.5 py-0.5 rounded-full">
-                  {spoolbuddyDeviceCount}
-                </span>
-              )}
-              {item.id === 'warehouse-material' && (
-                <span
-                  className={`w-2 h-2 rounded-full ${spoolbuddyAnyOnline ? 'bg-green-400' : 'bg-gray-500'}`}
-                />
-              )}
-            </button>
-          );
-        })}
-      </nav>
-      <div className="flex-1 min-w-0">
+      {settingsSectionSubnav}
+
+      <div className="min-w-0">
       {activeTab === 'general' && (
       <>
       {/* Sponsor banner — prominent independence callout */}
@@ -3242,20 +4138,20 @@ export function SettingsPage() {
       </>
       )}
 
-      {activeTab === 'projects-files' && localSettings && (
+      {activeTab === 'projects-files' && projectManagementSubTab === 'files' && localSettings && (
         <div className="max-w-3xl space-y-3">
           {fileManagerCard}
         </div>
       )}
 
-      {activeTab === 'orders-calculation' && localSettings && (
+      {activeTab === 'orders-calculation' && orderManagementSubTab === 'calculation' && localSettings && (
         <div className="max-w-3xl space-y-3">
           {costTrackingCard}
         </div>
       )}
 
-      {/* Network Tab */}
-      {activeTab === 'integrations' && localSettings && (
+      {/* Smart Home integration settings */}
+      {activeTab === 'integrations' && integrationSubTab === 'smart-home' && localSettings && (
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Left Column - External URL & FTP Retry */}
         <div className="flex-1 lg:max-w-xl space-y-3">
@@ -3597,11 +4493,10 @@ export function SettingsPage() {
           </Card>
         </div>
 
-        {/* Third Column - Prometheus Metrics */}
       </div>
       )}
 
-      {activeTab === 'printers-production' && ftpRetryCard && (
+      {activeTab === 'printers-production' && printerProductionSubTab === 'devices' && ftpRetryCard && (
         <div className="space-y-3 mt-4">
           {ftpRetryCard}
         </div>
@@ -3639,19 +4534,10 @@ export function SettingsPage() {
       )}
 
       {/* Smart Plugs Tab */}
-      {activeTab === 'integrations' && (
+      {activeTab === 'integrations' && integrationSubTab === 'smart-plugs' && (
         <div id="card-plugs">
-          <div className="flex items-start justify-between mb-6">
-            <div>
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <Plug className="w-5 h-5 text-bambu-green" />
-                {t('settings.smartPlugs')}
-              </h2>
-              <p className="text-sm text-bambu-gray mt-1">
-                {t('settings.smartPlugsDescription')}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 pt-1 shrink-0">
+          <div className="mb-6 flex justify-end">
+            <div className="flex items-center gap-2 shrink-0">
               {smartPlugs && smartPlugs.filter(p => p.enabled).length > 1 && (
                 <>
                   <Button
@@ -3830,7 +4716,7 @@ export function SettingsPage() {
       )}
 
       {/* Notifications Tab */}
-      {activeTab === 'integrations' && (
+      {activeTab === 'integrations' && integrationSubTab === 'notifications' && localSettings && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Left Column: Providers */}
           <div>
@@ -4104,27 +4990,19 @@ export function SettingsPage() {
       </div>
       )}
 
-      {activeTab === 'integrations' && hasPermission('api_keys:read') && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4">
-          <div>
-            {webhookDocumentationCard}
-          </div>
-          <div>
-            {apiBrowserCard}
-          </div>
+      {activeTab === 'integrations' && integrationSubTab === 'webhooks' && hasPermission('api_keys:read') && (
+        <div className="max-w-4xl">
+          {webhookDocumentationCard}
         </div>
       )}
 
-      {/* API Keys Tab */}
-      {activeTab === 'users-security' && (
+      {activeTab === 'integrations' && integrationSubTab === 'api-metrics' && (
         <div className={hasPermission('api_keys:read')
-          ? 'grid grid-cols-1 xl:grid-cols-2 gap-4'
-          : 'grid grid-cols-1 gap-4'}>
-          {/* Left Column - API Keys Management. Admin-gated content
-              (webhook keys, webhook docs) is hidden from users without
-              api_keys:read; the Camera Tokens panel is always shown so
-              users with camera:view can self-manage their own tokens. */}
-          <div>
+          ? 'grid grid-cols-1 xl:grid-cols-2 gap-4 items-start'
+          : 'space-y-4'}>
+          <div className="space-y-4">
+            {/* API key management is admin-gated; camera tokens stay visible
+                to users who can self-manage stable camera stream URLs. */}
             {hasPermission('api_keys:read') && <>
             <div className="flex items-start justify-between gap-4 mb-6">
               <div className="flex-1">
@@ -4488,7 +5366,7 @@ export function SettingsPage() {
             </>}
 
             {/* Long-lived camera-stream tokens (#1108) */}
-            <Card className="mt-6">
+            <Card>
               <CardHeader>
                 <h3 className="text-base font-semibold text-white flex items-center gap-2" id="card-camera-tokens">
                   <Video className="w-4 h-4 text-bambu-green" />
@@ -4496,67 +5374,48 @@ export function SettingsPage() {
                 </h3>
               </CardHeader>
               <CardContent>
-                <CameraTokensSection />
-              </CardContent>
-            </Card>
+              <CameraTokensSection />
+            </CardContent>
+          </Card>
+            {prometheusCard}
           </div>
+
+          {hasPermission('api_keys:read') && (
+            <div className="space-y-4">
+              {apiBrowserCard}
+            </div>
+          )}
         </div>
       )}
 
-      {activeTab === 'printers-production' && (
+      {activeTab === 'printers-production' && printerProductionSubTab === 'devices' && (
         <div className="space-y-3 mb-4">
           {defaultPrinterCard}
-          {archiveSettingsCard}
           {cameraSettingsCard}
         </div>
       )}
 
       {/* Virtual Printer Tab */}
-      {activeTab === 'printers-production' && (
+      {activeTab === 'printers-production' && printerProductionSubTab === 'devices' && (
         <div id="card-vp">
           <VirtualPrinterList />
         </div>
       )}
 
       {/* SpoolBuddy Tab */}
-      {activeTab === 'warehouse-material' && (
+      {activeTab === 'warehouse-material' && warehouseMaterialSubTab === 'spoolbuddy' && (
         <div id="card-spoolbuddy">
           <SpoolBuddySettings />
         </div>
       )}
 
       {/* Filament Tab */}
-      {/* Queue Tab — sub-tabs: Queue & Dispatch (current content) / Pipelines (#1425) */}
       {activeTab === 'printers-production' && (
         <div className="space-y-3">
-          {/* Sub-tab nav, mirroring the Authentication tab pattern */}
-          <div className="flex gap-1 border-b border-bambu-dark-tertiary">
-            <button
-              onClick={() => handleQueueSubTabChange('dispatch')}
-              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 ${
-                queueSubTab === 'dispatch'
-                  ? 'text-bambu-green border-bambu-green'
-                  : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-              }`}
-            >
-              <ListOrdered className="w-4 h-4" />
-              {t('settings.tabs.queueDispatch', 'Queue & Dispatch')}
-            </button>
-            <button
-              onClick={() => handleQueueSubTabChange('pipelines')}
-              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 ${
-                queueSubTab === 'pipelines'
-                  ? 'text-bambu-green border-bambu-green'
-                  : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-              }`}
-            >
-              <Workflow className="w-4 h-4" />
-              {t('settings.tabs.queuePipelines', 'Pipelines')}
-            </button>
-          </div>
-
-          {queueSubTab === 'pipelines' && <SlicerPipelinesPanel />}
-          {queueSubTab === 'dispatch' && localSettings && (
+          {printerProductionSubTab === 'pipelines' && <SlicerPipelinesPanel />}
+          {printerProductionSubTab === 'print-process' && localSettings && (
+        <>
+        {archiveSettingsCard}
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
           {/* Left Column */}
           <div className="lg:w-1/2 space-y-3">
@@ -5171,11 +6030,12 @@ export function SettingsPage() {
 
           </div>
         </div>
+        </>
           )}
         </div>
       )}
 
-      {activeTab === 'warehouse-material' && localSettings && (
+      {activeTab === 'warehouse-material' && warehouseMaterialSubTab === 'filament' && localSettings && (
         <>
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
           {/* Left Column (1/3) - Mode Selector + AMS Thresholds */}
@@ -5389,13 +6249,15 @@ export function SettingsPage() {
             </Card>
           </div>
 
-          {/* Right Column (2/3) - Spool Catalog + Color Catalog */}
-          <div className="lg:w-2/3 space-y-3">
-            <SpoolCatalogSettings />
-            <ColorCatalogSettings />
-          </div>
         </div>
         </>
+      )}
+
+      {activeTab === 'warehouse-material' && warehouseMaterialSubTab === 'catalogs' && (
+        <div className="max-w-5xl space-y-3">
+          <SpoolCatalogSettings />
+          <ColorCatalogSettings />
+        </div>
       )}
 
       {/* Delete API Key Confirmation */}
@@ -5559,100 +6421,6 @@ export function SettingsPage() {
       {/* Users Tab */}
       {activeTab === 'users-security' && (
         <div className="space-y-3">
-          {/* Sub-tab Navigation */}
-          <div className="flex gap-1 border-b border-bambu-dark-tertiary">
-            <button
-              onClick={() => setUsersSubTab('users')}
-              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
-                usersSubTab === 'users'
-                  ? 'text-bambu-green border-bambu-green'
-                  : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              {t('settings.tabs.users')}
-            </button>
-            <button
-              onClick={() => setUsersSubTab('email')}
-              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
-                usersSubTab === 'email'
-                  ? 'text-bambu-green border-bambu-green'
-                  : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-              }`}
-            >
-              <Mail className="w-4 h-4" />
-              {t('settings.tabs.emailAuth') || 'Email Authentication'}
-              {advancedAuthStatus?.advanced_auth_enabled && (
-                <span className="w-2 h-2 rounded-full bg-green-400" />
-              )}
-            </button>
-            <button
-              onClick={() => setUsersSubTab('ldap')}
-              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
-                usersSubTab === 'ldap'
-                  ? 'text-bambu-green border-bambu-green'
-                  : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-              }`}
-            >
-              <Shield className="w-4 h-4" />
-              {t('settings.tabs.ldap') || 'LDAP'}
-              {ldapStatus?.ldap_enabled && (
-                <span className="w-2 h-2 rounded-full bg-green-400" />
-              )}
-            </button>
-            <button
-              onClick={() => setUsersSubTab('twofa')}
-              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 ${
-                usersSubTab === 'twofa'
-                  ? 'text-bambu-green border-bambu-green'
-                  : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-              }`}
-            >
-              <Shield className="w-4 h-4" />
-              {t('settings.tabs.twoFa')}
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  twoFAStatus?.totp_enabled || twoFAStatus?.email_otp_enabled
-                    ? 'bg-green-400'
-                    : 'bg-bambu-gray/40'
-                }`}
-              />
-            </button>
-            {isAdmin && (
-              <button
-                onClick={() => setUsersSubTab('oidc')}
-                className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 ${
-                  usersSubTab === 'oidc'
-                    ? 'text-bambu-green border-bambu-green'
-                    : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-                }`}
-              >
-                <Globe className="w-4 h-4" />
-                {t('settings.tabs.oidc')}
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    oidcProvidersAll.some((p) => p.is_enabled)
-                      ? 'bg-green-400'
-                      : 'bg-bambu-gray/40'
-                  }`}
-                />
-              </button>
-            )}
-            {isAdmin && (
-              <button
-                onClick={() => setUsersSubTab('security')}
-                className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 ${
-                  usersSubTab === 'security'
-                    ? 'text-bambu-green border-bambu-green'
-                    : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
-                }`}
-              >
-                <Shield className="w-4 h-4" />
-                {t('settings.tabs.security')}
-              </button>
-            )}
-          </div>
-
           {/* Users Sub-tab */}
           {usersSubTab === 'users' && (
           <div id="card-users" className="space-y-3">
@@ -6609,17 +7377,26 @@ export function SettingsPage() {
       )}
 
       {/* Backup Tab */}
-      {activeTab === 'printers-production' && (
+      {activeTab === 'printers-production' && printerProductionSubTab === 'failure-detection' && (
         <div id="card-failure-detection">
           <FailureDetectionSettings />
         </div>
       )}
 
-      {activeTab === 'operations' && (
+      {activeTab === 'operations' && operationSubTab === 'updates' && (
         <div className="space-y-4">
           {updatesCard}
+        </div>
+      )}
+
+      {activeTab === 'operations' && operationSubTab === 'data-management' && (
+        <div className="space-y-4">
           {dataManagementCard}
-          {prometheusCard}
+        </div>
+      )}
+
+      {activeTab === 'operations' && operationSubTab === 'backups' && (
+        <div className="space-y-4">
           <div id="card-backup">
             <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 rounded-lg flex items-start gap-2">
               <Shield className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" size={16} />
@@ -6788,7 +7565,6 @@ export function SettingsPage() {
           </Card>
         </div>
       )}
-      </div>
       </div>
     </div>
     </CardDensityProvider>

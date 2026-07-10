@@ -1633,6 +1633,12 @@ export default {
       queue: 'Flujo de trabajo',
       queueDispatch: 'Cola y Despacho',
       queuePipelines: 'Pipelines',
+      deviceManagementDevices: 'Dispositivos',
+      deviceManagementPrintProcess: 'Proceso de impresión',
+      projectManagementFiles: 'Gestión de archivos',
+      warehouseFilament: 'Filamento',
+      warehouseCatalogs: 'Catálogos',
+      orderManagementCalculation: 'Cálculo',
       filament: 'Filamento',
       network: 'Red',
       apiKeys: 'Claves API',
@@ -1646,6 +1652,23 @@ export default {
       twoFa: 'Autenticación de dos factores',
       oidc: 'SSO / OIDC',
       security: 'Seguridad',
+    },
+    printerProductionSubTabDescriptions: {
+      devices: 'Administre impresoras predeterminadas, cámaras, reintentos FTP y endpoints de impresoras virtuales.',
+      printProcess: 'Configure valores de impresión, archivado, cola, G-code, slicer y reglas de finalización.',
+      pipelines: 'Administre pipelines de slicer, perfiles y flujos de preparación automatizados.',
+      failureDetection: 'Configure la supervisión de fallos con IA, ajustes por impresora, estado e historial.',
+    },
+    projectManagementSubTabDescriptions: {
+      files: 'Administre archivos, modos de archivo, avisos de disco y reglas de almacenamiento de proyectos.',
+    },
+    warehouseMaterialSubTabDescriptions: {
+      filament: 'Administre secado, seguimiento de Spoolman, comprobaciones, mapeo y umbrales AMS.',
+      catalogs: 'Administre catálogos de bobinas y colores para inventario y etiquetas.',
+      spoolbuddy: 'Administre kioscos SpoolBuddy, lectores NFC, básculas, calibración y registro.',
+    },
+    orderManagementSubTabDescriptions: {
+      calculation: 'Configure moneda, seguimiento de costes y valores de cálculo para flujos comerciales.',
     },
     spoolbuddy: {
       infoTitle: 'Dispositivos SpoolBuddy',

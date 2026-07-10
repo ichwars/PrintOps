@@ -8,7 +8,7 @@ import { buildApiKeyQrPayload } from '../utils/apiKeyQr';
 interface ApiKeyQRCodeModalProps {
   /** Raw API key string (only available in-memory right after creation). */
   apiKey: string;
-  /** Base URL a client uses to reach Bambuddy. Defaults to the current origin. */
+  /** Base URL a client uses to reach PrintOps. Defaults to the current origin. */
   baseUrl?: string;
   onClose: () => void;
 }

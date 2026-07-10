@@ -171,7 +171,7 @@ class TestExchangeCode:
     async def test_sends_apikey_and_user_agent_headers(self, svc):
         """Two load-bearing headers: the publishable apikey (Supabase
         requires it) and a non-default User-Agent (Cloudflare 1010s
-        ``Python-urllib/X.Y`` so an honest ``Bambuddy/<v>`` UA is needed)."""
+        ``Python-urllib/X.Y`` so an honest ``PrintOps/<v>`` UA is needed)."""
         token_resp = _mock_response(json_data={"access_token": "A", "refresh_token": "R", "expires_in": 3600})
         svc._client.post = AsyncMock(return_value=token_resp)
 
@@ -180,7 +180,7 @@ class TestExchangeCode:
         _args, kwargs = svc._client.post.call_args
         headers = kwargs["headers"]
         assert headers["apikey"] == ORCA_ANON_KEY
-        assert headers["User-Agent"].startswith("Bambuddy/")
+        assert headers["User-Agent"].startswith("PrintOps/")
         assert headers["Content-Type"] == "application/json"
 
     @pytest.mark.asyncio
@@ -333,7 +333,7 @@ class TestApiHeaders:
         headers = svc._api_headers()
         assert headers["apikey"] == ORCA_ANON_KEY
         assert headers["Authorization"] == "Bearer ACCESS-123"
-        assert headers["User-Agent"].startswith("Bambuddy/")
+        assert headers["User-Agent"].startswith("PrintOps/")
 
     def test_api_headers_without_token_raises(self, svc):
         svc.access_token = None

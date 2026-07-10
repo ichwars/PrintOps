@@ -66,7 +66,7 @@ _APIKEY_SCOPE_BY_PERMISSION: dict[Permission, str] = {
     # Legacy flat permissions retained for back-compat with custom API keys —
     # the role bootstraps no longer use these, but custom keys may still
     # carry can_read_status scope mapping. New endpoints gate on the
-    # ARCHIVES_READ_OWN / _ALL split (maziggy/bambuddy-security #2).
+    # ARCHIVES_READ_OWN / _ALL split (maziggy/printops-security #2).
     Permission.ARCHIVES_READ: "can_read_status",
     Permission.ARCHIVES_READ_OWN: "can_read_status",
     Permission.ARCHIVES_READ_ALL: "can_read_status",
