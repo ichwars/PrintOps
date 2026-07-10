@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-INSTALL_DIR="${INSTALL_DIR:-/opt/bambuddy}"
-SERVICE_NAME="${SERVICE_NAME:-bambuddy}"
+INSTALL_DIR="${INSTALL_DIR:-/opt/printops}"
+SERVICE_NAME="${SERVICE_NAME:-printops}"
 BRANCH="${BRANCH:-}"
 VENV_PIP="${VENV_PIP:-$INSTALL_DIR/venv/bin/pip}"
 FRONTEND_DIR="${FRONTEND_DIR:-$INSTALL_DIR/frontend}"
 BACKUP_DIR="${BACKUP_DIR:-$INSTALL_DIR/backups}"
-BAMBUDDY_API_URL="${BAMBUDDY_API_URL:-http://127.0.0.1:8000/api/v1}"
-BAMBUDDY_API_KEY="${BAMBUDDY_API_KEY:-}"
+PRINTOPS_API_URL="${PRINTOPS_API_URL:-http://127.0.0.1:8000/api/v1}"
+PRINTOPS_API_KEY="${PRINTOPS_API_KEY:-}"
 BACKUP_MODE="${BACKUP_MODE:-auto}" # auto|require|skip
 BACKUP_KEEP_COUNT=5
 FORCE="${FORCE:-0}"
@@ -18,15 +18,15 @@ CODE_UPDATED=0
 old_commit=""
 
 log() {
-  printf '[bambuddy-update] %s\n' "$*"
+  printf '[printops-update] %s\n' "$*"
 }
 
 warn() {
-  printf '[bambuddy-update] WARNING: %s\n' "$*" >&2
+  printf '[printops-update] WARNING: %s\n' "$*" >&2
 }
 
 die() {
-  printf '[bambuddy-update] ERROR: %s\n' "$*" >&2
+  printf '[printops-update] ERROR: %s\n' "$*" >&2
   exit 1
 }
 
@@ -40,7 +40,7 @@ cleanup_old_backups() {
 
   [ "$max_count" -gt 0 ] || return 0
 
-  mapfile -t backup_files < <(ls -1t "$BACKUP_DIR"/bambuddy-backup-*.zip 2>/dev/null || true)
+  mapfile -t backup_files < <(ls -1t "$BACKUP_DIR"/printops-backup-*.zip 2>/dev/null || true)
   if [ "${#backup_files[@]}" -le "$max_count" ]; then
     return 0
   fi
@@ -88,15 +88,15 @@ create_backup() {
 
   mkdir -p "$BACKUP_DIR"
   ts="$(date +%Y%m%d-%H%M%S)"
-  backup_file="$BACKUP_DIR/bambuddy-backup-$ts.zip"
+  backup_file="$BACKUP_DIR/printops-backup-$ts.zip"
 
-  [ -n "$BAMBUDDY_API_KEY" ] && auth_args=(-H "X-API-Key: $BAMBUDDY_API_KEY")
+  [ -n "$PRINTOPS_API_KEY" ] && auth_args=(-H "X-API-Key: $PRINTOPS_API_KEY")
 
   log "Creating built-in backup via API: $backup_file"
   if curl --silent --show-error --fail --location \
     --connect-timeout 5 --max-time 900 \
     "${auth_args[@]}" \
-    "$BAMBUDDY_API_URL/settings/backup" \
+    "$PRINTOPS_API_URL/settings/backup" \
     --output "$backup_file"; then
     log "Backup created successfully"
     cleanup_old_backups "$BACKUP_KEEP_COUNT"
@@ -125,25 +125,25 @@ require_cmd curl
 cd "$INSTALL_DIR"
 if [ ! -d .git ]; then
   cat >&2 <<EOF
-[bambuddy-update] ERROR: No .git directory found in $INSTALL_DIR.
+[printops-update] ERROR: No .git directory found in $INSTALL_DIR.
 
 This update script requires a git-based install. If you installed by
 downloading a ZIP or tarball from GitHub, reinstall from scratch:
 
   1. Back up your data:
        sudo systemctl stop $SERVICE_NAME
-       sudo tar czf ~/bambuddy-backup.tgz -C $INSTALL_DIR \\
-         data bambuddy.db bambuddy.db-shm bambuddy.db-wal \\
+       sudo tar czf ~/printops-backup.tgz -C $INSTALL_DIR \\
+         data printops.db printops.db-shm printops.db-wal \\
          virtual_printer archive projects icons .env 2>/dev/null || true
 
   2. Remove the old install and reinstall via install.sh:
        sudo rm -rf $INSTALL_DIR
-       curl -fsSL https://raw.githubusercontent.com/maziggy/bambuddy/main/install/install.sh \\
+       curl -fsSL https://raw.githubusercontent.com/ichwars/PrintOps/main/install/install.sh \\
          -o /tmp/install.sh && sudo bash /tmp/install.sh --path $INSTALL_DIR
 
   3. Restore your data:
        sudo systemctl stop $SERVICE_NAME
-       sudo tar xzf ~/bambuddy-backup.tgz -C $INSTALL_DIR
+       sudo tar xzf ~/printops-backup.tgz -C $INSTALL_DIR
        sudo systemctl start $SERVICE_NAME
 EOF
   exit 1
@@ -169,14 +169,14 @@ log "Current commit: ${old_commit:-unknown}"
 log "Remote commit: ${remote_commit:-unknown}"
 
 if git diff --quiet HEAD "origin/$BRANCH"; then
-  log "You are already running the latest version of Bambuddy."
+  log "You are already running the latest version of PrintOps."
   read -r -p "Do you want to run the update process anyway? [y/N]: " run_anyway
   case "${run_anyway:-}" in
     y|Y|yes|YES) ;;
     *) exit 0 ;;
   esac
 else
-  read -r -p "An update for Bambuddy is available. Install now? [y/N]: " install_now
+  read -r -p "An update for PrintOps is available. Install now? [y/N]: " install_now
   case "${install_now:-}" in
     y|Y|yes|YES) ;;
     *) exit 0 ;;

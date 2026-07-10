@@ -132,7 +132,7 @@ class TestTOTPSetup:
         assert "secret" in data
         assert len(data["secret"]) > 0
         assert "qr_code_b64" in data
-        assert data["issuer"] == "Bambuddy"
+        assert data["issuer"] == "PrintOps"
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -737,7 +737,7 @@ class TestOIDCProviders:
             json={
                 "name": "PocketID",
                 "issuer_url": "https://auth.example.com",
-                "client_id": "bambuddy",
+                "client_id": "printops",
                 "client_secret": "supersecret",
                 "scopes": "openid email profile",
                 "is_enabled": True,
@@ -3172,7 +3172,7 @@ class TestOIDCExpiredTokenRejection:
 class TestOIDCIssuerUrlTrailingSlash:
     """Providers like Authentik use issuer URLs with a trailing slash.
 
-    BamBuddy must strip the slash before appending /.well-known/openid-configuration
+    PrintOps must strip the slash before appending /.well-known/openid-configuration
     to avoid a double-slash that results in a 404.
     """
 
@@ -3181,7 +3181,7 @@ class TestOIDCIssuerUrlTrailingSlash:
     async def test_trailing_slash_issuer_url_fetches_correct_discovery_url(self, async_client: AsyncClient):
         from unittest.mock import AsyncMock, MagicMock, patch
 
-        issuer_with_slash = "https://authentik.example.com/application/o/bambuddy/"
+        issuer_with_slash = "https://authentik.example.com/application/o/printops/"
 
         admin_token = await _setup_and_login(async_client, "oidcslashadm", "oidcslashadm1")
         create_resp = await async_client.post(
@@ -3189,7 +3189,7 @@ class TestOIDCIssuerUrlTrailingSlash:
             json={
                 "name": "Authentik-Slash",
                 "issuer_url": issuer_with_slash,
-                "client_id": "bambuddy",
+                "client_id": "printops",
                 "client_secret": "secret",
                 "scopes": "openid email profile",
                 "is_enabled": True,
@@ -3202,7 +3202,7 @@ class TestOIDCIssuerUrlTrailingSlash:
 
         fake_discovery = {
             "issuer": issuer_with_slash,
-            "authorization_endpoint": "https://authentik.example.com/application/o/bambuddy/authorize",
+            "authorization_endpoint": "https://authentik.example.com/application/o/printops/authorize",
         }
         disc_resp = AsyncMock()
         disc_resp.raise_for_status = MagicMock()
@@ -3239,9 +3239,9 @@ class TestOIDCIssuerUrlTrailingSlash:
         import jwt as pyjwt
 
         private_pem, jwks_data = _make_test_rsa_key()
-        issuer_no_slash = "https://authentik.example.com/application/o/bambuddy"
+        issuer_no_slash = "https://authentik.example.com/application/o/printops"
         issuer_with_slash = issuer_no_slash + "/"
-        client_id = "bambuddy-client"
+        client_id = "printops-client"
         nonce = secrets.token_urlsafe(16)
 
         now = int(time.time())

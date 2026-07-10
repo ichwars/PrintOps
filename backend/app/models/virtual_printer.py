@@ -40,7 +40,7 @@ class VirtualPrinter(Base):
     __tablename__ = "virtual_printers"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), default="Bambuddy")
+    name: Mapped[str] = mapped_column(String(100), default="PrintOps")
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     mode: Mapped[str] = mapped_column(String(20), default=VP_MODE_ARCHIVE)  # archive|review|queue|proxy
     auto_dispatch: Mapped[bool] = mapped_column(Boolean, server_default="true")  # queue mode: auto-start or manual

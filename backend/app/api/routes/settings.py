@@ -220,7 +220,7 @@ async def update_settings(
     #   2. The caller has no UserOIDCLink — they would lock themselves out
     #      even if other admins are linked.
     # Either case returns HTTP 400 instead of silently saving. The
-    # ``BAMBUDDY_LOCAL_LOGIN=true`` env-var bypass on /auth/login is a
+    # ``PRINTOPS_LOCAL_LOGIN=true`` env-var bypass on /auth/login is a
     # separate recovery path; the refusals here protect the *default*
     # configuration where the env var is absent.
     if update_data.get("local_login_enabled") is False:
@@ -279,7 +279,7 @@ async def update_settings(
                 "mqtt_port": int(await get_setting(db, "mqtt_port") or "1883"),
                 "mqtt_username": await get_setting(db, "mqtt_username") or "",
                 "mqtt_password": await get_setting(db, "mqtt_password") or "",
-                "mqtt_topic_prefix": await get_setting(db, "mqtt_topic_prefix") or "bambuddy",
+                "mqtt_topic_prefix": await get_setting(db, "mqtt_topic_prefix") or "printops",
                 "mqtt_use_tls": (await get_setting(db, "mqtt_use_tls") or "false") == "true",
             }
             await mqtt_relay.configure(mqtt_settings)
@@ -558,7 +558,7 @@ async def create_backup_zip(output_path: Path | None = None) -> tuple[Path, str]
     from backend.app.core.db_dialect import is_sqlite
 
     base_dir = app_settings.base_dir
-    filename = f"bambuddy-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"
+    filename = f"printops-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"
 
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
@@ -575,7 +575,7 @@ async def create_backup_zip(output_path: Path | None = None) -> tuple[Path, str]
                 await conn.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
 
             # Copy database file
-            shutil.copy2(db_path, temp_path / "bambuddy.db")
+            shutil.copy2(db_path, temp_path / "printops.db")
         else:
             # PostgreSQL: export to a portable SQLite file via SQLAlchemy.
             # This makes backups restorable on both SQLite and Postgres installs.
@@ -584,7 +584,7 @@ async def create_backup_zip(output_path: Path | None = None) -> tuple[Path, str]
 
             from backend.app.core.database import Base, engine
 
-            backup_db_path = temp_path / "bambuddy.db"
+            backup_db_path = temp_path / "printops.db"
             dst = sqlite3.connect(str(backup_db_path))
             metadata = Base.metadata
 
@@ -644,7 +644,7 @@ async def create_backup_zip(output_path: Path | None = None) -> tuple[Path, str]
                     logger.warning("Permission denied copying %s: %s", name, e)
 
         # Include the MFA encryption key as a ZIP top-level entry alongside
-        # bambuddy.db. Without it, encrypted client_secret / TOTP secret rows
+        # printops.db. Without it, encrypted client_secret / TOTP secret rows
         # would be unrecoverable after restore on a host without MFA_ENCRYPTION_KEY set.
         from backend.app.core.paths import resolve_data_dir
 
@@ -665,7 +665,7 @@ async def create_backup_zip(output_path: Path | None = None) -> tuple[Path, str]
         if output_path is not None:
             zip_file = (
                 output_path / filename
-            )  # SEC-PATH-OK: filename = f"bambuddy-backup-{datetime.now()...}.zip" generated in create_backup_zip itself
+            )  # SEC-PATH-OK: filename = f"printops-backup-{datetime.now()...}.zip" generated in create_backup_zip itself
         else:
             fd, tmp = tempfile.mkstemp(suffix=".zip")
             os.close(fd)
@@ -959,9 +959,9 @@ async def restore_backup(
             raise HTTPException(400, "Invalid backup file: not a valid ZIP")
 
         # 2. Validate backup
-        backup_db = temp_path / "bambuddy.db"
+        backup_db = temp_path / "printops.db"
         if not backup_db.exists():
-            raise HTTPException(400, "Invalid backup: missing bambuddy.db")
+            raise HTTPException(400, "Invalid backup: missing printops.db")
 
         try:
             import asyncio
@@ -1064,7 +1064,7 @@ async def restore_backup(
                 # to the live DB before this call that hasn't been
                 # checkpointed yet (seed_default_groups + init_db on first
                 # start, plus whatever background heartbeats wrote during
-                # the request window) sits in bambuddy.db-wal with valid
+                # the request window) sits in printops.db-wal with valid
                 # checksums. The route handler's own `db: Depends(get_db)`
                 # session also keeps a connection checked out across
                 # engine.dispose(), holding fds to the WAL inode. With
@@ -1153,7 +1153,7 @@ async def restore_backup(
             await init_db()
 
             logger.info("Restore complete - restart required")
-            message = "Backup restored successfully. Please restart Bambuddy for changes to take effect."
+            message = "Backup restored successfully. Please restart PrintOps for changes to take effect."
             if skipped_dirs:
                 message += f" Note: Some directories could not be restored ({', '.join(skipped_dirs)})."
             return {

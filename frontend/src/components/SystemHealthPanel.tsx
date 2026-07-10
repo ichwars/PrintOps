@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { XCircle, AlertTriangle, CheckCircle2, ExternalLink, Wrench, ServerCog, Bug } from 'lucide-react';
 import type { LogFinding, LogFindingCategory, SystemHealthResult } from '../api/client';
 
-const WIKI_TROUBLESHOOTING = 'https://wiki.bambuddy.cool/reference/troubleshooting/';
+const WIKI_TROUBLESHOOTING = 'https://github.com/ichwars/PrintOps/wiki/reference/troubleshooting/';
 
 const CATEGORY_META: Record<LogFindingCategory, { icon: ElementType; badgeClass: string }> = {
   layer8: { icon: Wrench, badgeClass: 'bg-bambu-green/15 text-bambu-green border-bambu-green/30' },

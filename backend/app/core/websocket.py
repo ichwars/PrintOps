@@ -51,7 +51,7 @@ class ConnectionManager:
         item's ``created_by_id`` nor the WS principal is set, and the
         existing fan-out semantics are exactly what the user wants.
 
-        Per-user routing reads ``websocket.state.bambuddy_principal_user_id``
+        Per-user routing reads ``websocket.state.printops_principal_user_id``
         stamped at connect time (``routes/websocket.py``). Connections
         without a stamped id are skipped on the targeted path so an
         anonymous reader never receives another user's dispatch toast.
@@ -67,7 +67,7 @@ class ConnectionManager:
         async with self._lock:
             disconnected = []
             for connection in self.active_connections:
-                conn_uid = getattr(connection.state, "bambuddy_principal_user_id", None)
+                conn_uid = getattr(connection.state, "printops_principal_user_id", None)
                 if conn_uid != user_id:
                     continue
                 try:

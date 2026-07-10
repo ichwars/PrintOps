@@ -1,7 +1,7 @@
 """AMS remain%-delta fallback for the no-3MF Spoolman path (#1820).
 
 When a Bambu print starts without leaving a retrievable .gcode.3mf on the
-printer (subtask_name='名称未設定'/'Untitled'), Bambuddy creates a
+printer (subtask_name='名称未設定'/'Untitled'), PrintOps creates a
 fallback archive with no 3MF on disk. Before this fix the Spoolman
 tracking row was never created, so the print silently didn't decrement
 the spool weight. This is the Spoolman mirror of usage_tracker's Path 2

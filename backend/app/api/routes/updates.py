@@ -141,8 +141,8 @@ def _find_windows_installer_asset(release_data: dict) -> str | None:
     """Pick the Windows installer .exe out of a GitHub release's assets list.
 
     Both filenames the workflow uploads end in ``windows-x64-setup.exe``
-    (versioned ``bambuddy-<version>-windows-x64-setup.exe`` and the
-    unversioned alias ``bambuddy-windows-x64-setup.exe`` on non-daily tags
+    (versioned ``printops-<version>-windows-x64-setup.exe`` and the
+    unversioned alias ``printops-windows-x64-setup.exe`` on non-daily tags
     only). Either works as a download URL; we prefer the versioned form
     because it's the one guaranteed to exist on every release including
     dailies.
@@ -157,7 +157,7 @@ def _find_windows_installer_asset(release_data: dict) -> str | None:
             continue
         if not name.endswith("windows-x64-setup.exe"):
             continue
-        if name == "bambuddy-windows-x64-setup.exe":
+        if name == "printops-windows-x64-setup.exe":
             unversioned = url
         else:
             versioned = url
@@ -227,7 +227,7 @@ def _parse_github_remote(url: str) -> tuple[str, str] | None:
 
 async def _origin_points_at_repo(git_path: str, git_config: list[str], app_dir, expected_repo: str) -> bool:
     """Return True iff the working tree's `origin` already resolves to
-    `<owner>/<repo>` matching `expected_repo` (e.g. "maziggy/bambuddy"),
+    `<owner>/<repo>` matching `expected_repo` (e.g. "ichwars/PrintOps"),
     regardless of whether it's the SSH or HTTPS form. Used to skip the
     `git remote set-url origin https://...` rewrite when the developer's
     SSH origin is already correct — see `_perform_update` for context.
@@ -614,8 +614,8 @@ async def _perform_update(target_ref: str):
         # On a standard install with DATA_DIR=INSTALL_PATH/data, git happens
         # to walk up from a subdirectory of the repo to find .git so cwd=base_dir
         # used to silently work — but only by accident. On a native install with
-        # DATA_DIR mounted at an unrelated path (e.g. /srv/bambuddy/data while
-        # the install is /opt/bambuddy — see #1715), git can't walk up and every
+        # DATA_DIR mounted at an unrelated path (e.g. /srv/printops/data while
+        # the install is /opt/printops — see #1715), git can't walk up and every
         # operation fails with "not a git repository". safe.directory has the
         # same requirement: it must equal the repo root git discovers, not the
         # data dir, or every call returns "fatal: detected dubious ownership."
@@ -649,7 +649,7 @@ async def _perform_update(target_ref: str):
         # origin to HTTPS unconditionally on the assumption that systemd
         # service users wouldn't have SSH keys configured — which is fine
         # for that case, but stomps on developer checkouts where origin is
-        # legitimately `git@github.com:maziggy/bambuddy.git` and the user
+        # legitimately `git@github.com:ichwars/PrintOps.git` and the user
         # auths via SSH keys. After the rewrite, `git push` prompts for
         # HTTPS credentials and fails.
         # New behaviour: read the current origin, parse out the
@@ -863,9 +863,9 @@ async def apply_update(
             "is_ha_addon": True,
             "is_docker": True,
             "message": (
-                "Bambuddy is running as a Home Assistant addon. "
+                "PrintOps is running as a Home Assistant addon. "
                 "Updates are managed by the Home Assistant Supervisor "
-                "(Settings → Add-ons → Bambuddy → Update)."
+                "(Settings → Add-ons → PrintOps → Update)."
             ),
         }
     if _is_docker_environment():
@@ -888,7 +888,7 @@ async def apply_update(
             "is_windows_installer": True,
             "message": (
                 "Windows installations are updated by re-running the installer. "
-                "Download the latest installer from the Bambuddy releases page."
+                "Download the latest installer from the PrintOps releases page."
             ),
         }
 

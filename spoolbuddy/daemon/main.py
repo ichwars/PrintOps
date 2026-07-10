@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SpoolBuddy daemon — reads NFC tags and scale, pushes events to Bambuddy backend."""
+"""SpoolBuddy daemon — reads NFC tags and scale, pushes events to PrintOps backend."""
 
 import asyncio
 import logging
@@ -66,14 +66,14 @@ def _get_ip() -> str:
         return "unknown"
 
 
-SSH_KEY_TAG = "bambuddy-spoolbuddy"
+SSH_KEY_TAG = "printops-spoolbuddy"
 
 
 def _deploy_ssh_key(public_key: str) -> None:
-    """Sync Bambuddy's SSH public key into authorized_keys.
+    """Sync PrintOps's SSH public key into authorized_keys.
 
-    Replaces any prior key tagged ``bambuddy-spoolbuddy`` so the file always
-    reflects Bambuddy's *current* keypair. Without this, every Bambuddy key
+    Replaces any prior key tagged ``printops-spoolbuddy`` so the file always
+    reflects PrintOps's *current* keypair. Without this, every PrintOps key
     rotation (data dir wipe, container recreate, etc.) leaves a stale entry
     behind and the file grows unbounded.
     """
@@ -92,7 +92,7 @@ def _deploy_ssh_key(public_key: str) -> None:
         kept = [line for line in existing_lines if SSH_KEY_TAG not in line]
         new_lines = kept + [target]
 
-        # Already in sync — current key present and no stale Bambuddy entries.
+        # Already in sync — current key present and no stale PrintOps entries.
         if existing_lines == new_lines:
             return
 
@@ -462,7 +462,7 @@ async def main():
         config.calibration_factor = reg.get("calibration_factor", config.calibration_factor)
         scale.update_calibration(config.tare_offset, config.calibration_factor)
 
-        # Auto-deploy Bambuddy's SSH public key for remote updates
+        # Auto-deploy PrintOps's SSH public key for remote updates
         ssh_key = reg.get("ssh_public_key")
         if ssh_key:
             _deploy_ssh_key(ssh_key)

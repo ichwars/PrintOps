@@ -1,10 +1,10 @@
-# Updating Bambuddy
+# Updating PrintOps
 
 > **0.2.3 note:** the in-app **Update** button is unreliable when upgrading from
 > older releases. Use the commands below instead — they cover every supported
 > install path and are safe to run repeatedly.
 
-Pick the section that matches how Bambuddy was installed.
+Pick the section that matches how PrintOps was installed.
 
 ---
 
@@ -13,8 +13,8 @@ Pick the section that matches how Bambuddy was installed.
 ```bash
 # 1. Make sure your compose file isn't pinned to an old version.
 #    The image line should read one of:
-#      image: ghcr.io/maziggy/bambuddy:latest
-#      image: ghcr.io/maziggy/bambuddy:0.2.3
+#      image: ghcr.io/ichwars/printops:latest
+#      image: ghcr.io/ichwars/printops:0.2.3
 #    If it pins an older tag (e.g. :0.2.2.2), edit it first.
 
 # 2. Pull and restart
@@ -27,7 +27,7 @@ repo — recent releases added `cap_add: NET_BIND_SERVICE`, extra virtual-printe
 ports for bridge mode, and an optional Postgres block:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/maziggy/bambuddy/main/docker-compose.yml \
+curl -fsSL https://raw.githubusercontent.com/ichwars/PrintOps/main/docker-compose.yml \
   -o docker-compose.yml.new
 # Diff against yours, merge by hand, then:
 docker compose up -d
@@ -41,7 +41,7 @@ Both paths produce a git working tree at the install directory, so the update
 is the same. Preferred:
 
 ```bash
-sudo /opt/bambuddy/install/update.sh
+sudo /opt/printops/install/update.sh
 ```
 
 `update.sh` stops the service, snapshots the database via the built-in backup
@@ -54,15 +54,15 @@ fails.
 If you'd rather run the steps yourself:
 
 ```bash
-cd /opt/bambuddy
-sudo systemctl stop bambuddy
-sudo -u bambuddy git fetch origin
-sudo -u bambuddy git reset --hard origin/main
-sudo -u bambuddy venv/bin/pip install -r requirements.txt
-sudo systemctl start bambuddy
+cd /opt/printops
+sudo systemctl stop printops
+sudo -u printops git fetch origin
+sudo -u printops git reset --hard origin/main
+sudo -u printops venv/bin/pip install -r requirements.txt
+sudo systemctl start printops
 ```
 
-Replace `/opt/bambuddy` with your install path if different. Database schema
+Replace `/opt/printops` with your install path if different. Database schema
 migrations run automatically on startup — no Alembic step is required.
 
 ---
@@ -74,20 +74,20 @@ These installs have no `.git` directory, so neither `update.sh` nor a plain
 
 ```bash
 # 1. Back up your stateful data
-sudo systemctl stop bambuddy
-sudo tar czf ~/bambuddy-backup.tgz -C /opt/bambuddy \
-  data bambuddy.db bambuddy.db-shm bambuddy.db-wal \
+sudo systemctl stop printops
+sudo tar czf ~/printops-backup.tgz -C /opt/printops \
+  data printops.db printops.db-shm printops.db-wal \
   virtual_printer archive projects icons .env 2>/dev/null || true
 
 # 2. Remove the old install and reinstall via install.sh
-sudo rm -rf /opt/bambuddy
-curl -fsSL https://raw.githubusercontent.com/maziggy/bambuddy/main/install/install.sh \
-  -o /tmp/install.sh && sudo bash /tmp/install.sh --path /opt/bambuddy
+sudo rm -rf /opt/printops
+curl -fsSL https://raw.githubusercontent.com/ichwars/PrintOps/main/install/install.sh \
+  -o /tmp/install.sh && sudo bash /tmp/install.sh --path /opt/printops
 
 # 3. Restore your data
-sudo systemctl stop bambuddy
-sudo tar xzf ~/bambuddy-backup.tgz -C /opt/bambuddy
-sudo systemctl start bambuddy
+sudo systemctl stop printops
+sudo tar xzf ~/printops-backup.tgz -C /opt/printops
+sudo systemctl start printops
 ```
 
 ---

@@ -15,7 +15,7 @@ Auth shape (see :mod:`backend.app.services.orca_cloud` for the deep dive):
         Connected/disconnected + email + user_id.
     POST /orca-cloud/logout
         Clear stored tokens (no Supabase-side revocation — token still
-        survives until its 1h expiry, but Bambuddy has no way to use it).
+        survives until its 1h expiry, but PrintOps has no way to use it).
     GET  /orca-cloud/profiles
         Paginated list of the user's Orca Cloud profiles. JIT-refreshes the
         access token if it's within the 5-min leeway of expiry.
@@ -467,7 +467,7 @@ async def auth_password(
     current_user: User | None = cloud_caller(Permission.ORCA_CLOUD_AUTH),
 ):
     """Direct email+password sign-in. No browser redirect, no paste flow —
-    Bambuddy POSTs the credentials to Supabase and stores the returned
+    PrintOps POSTs the credentials to Supabase and stores the returned
     tokens. Whether this succeeds depends on Orca's Supabase project
     accepting the password grant; if it rejects (the SDK refuses passwords
     by design, the backend may follow suit), the caller falls back to an
@@ -585,7 +585,7 @@ async def logout(
 ):
     """Clear stored Orca Cloud credentials. Does not call Supabase's
     ``/logout`` endpoint (the token would still survive its 1h expiry there
-    either way, and Bambuddy will no longer have it to use)."""
+    either way, and PrintOps will no longer have it to use)."""
     await _clear_credentials(db, current_user)
     return {"success": True}
 

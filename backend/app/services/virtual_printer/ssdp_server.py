@@ -3,7 +3,7 @@
 Responds to M-SEARCH requests from slicers and sends periodic NOTIFY
 announcements so the virtual printer appears as a discoverable Bambu printer.
 
-Also provides SSDP proxy functionality for proxy mode, where Bambuddy sits
+Also provides SSDP proxy functionality for proxy mode, where PrintOps sits
 between two networks and re-broadcasts printer SSDP from LAN A to LAN B.
 """
 
@@ -30,7 +30,7 @@ class VirtualPrinterSSDPServer:
 
     def __init__(
         self,
-        name: str = "Bambuddy",
+        name: str = "PrintOps",
         serial: str = "00M09A391800001",  # X1C serial format for compatibility
         model: str = "BL-P001",  # X1C model code for best compatibility
         advertise_ip: str = "",
@@ -363,9 +363,9 @@ class SSDPProxy:
 
     Listens for SSDP broadcasts from a real printer on the local interface (LAN A),
     then re-broadcasts them on the remote interface (LAN B) with the Location
-    header changed to point to Bambuddy's IP on LAN B.
+    header changed to point to PrintOps's IP on LAN B.
 
-    This allows Bambu Studio on LAN B to discover the printer via Bambuddy.
+    This allows Bambu Studio on LAN B to discover the printer via PrintOps.
     """
 
     def __init__(
@@ -409,7 +409,7 @@ class SSDPProxy:
     def _rewrite_ssdp(self, data: bytes) -> bytes:
         """Rewrite SSDP message for proxy re-broadcast.
 
-        - Location: changed to Bambuddy's remote interface IP
+        - Location: changed to PrintOps's remote interface IP
         - DevBind: forced to 'free' so the slicer treats the proxy as a
           LAN-only printer (avoids cloud auth requirement for sending prints)
         """
@@ -640,7 +640,7 @@ class SSDPProxy:
             return
 
         try:
-            # Rewrite Location to point to Bambuddy's remote interface
+            # Rewrite Location to point to PrintOps's remote interface
             rewritten = self._rewrite_ssdp(self._last_printer_ssdp)
 
             # Calculate broadcast address for remote network

@@ -74,16 +74,16 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Build Docker image
-        run: docker build -t bambuddy:security-scan .
+        run: docker build -t printops:security-scan .
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@v0.35.0
         with:
-          image-ref: 'bambuddy:security-scan'
+          image-ref: 'printops:security-scan'
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
-          version: 'v0.69.1'
+          version: 'v0.69.3'
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v4
@@ -100,7 +100,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-config-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
-          version: 'v0.69.1'
+          version: 'v0.69.3'
 
       - name: Upload Trivy config results
         uses: github/codeql-action/upload-sarif@v4
@@ -134,7 +134,7 @@ jobs:
         run: |
           # CVE-2025-45768 (PYSEC-2025-183 / GHSA-65pc-fj4g-8rjx): disputed by PyJWT maintainers.
           # Advisory says "key length is chosen by the application that uses the library" — no
-          # PyJWT fix exists or will exist. Bambuddy is safe: backend/app/core/auth.py:184 uses
+          # PyJWT fix exists or will exist. PrintOps is safe: backend/app/core/auth.py:184 uses
           # secrets.token_urlsafe(64) (~86 chars of entropy) for auto-generated secrets and
           # rejects file-loaded secrets shorter than 32 chars at :177. Keep ignored permanently.
           pip-audit --desc on --format json --output pip-audit-results.json \

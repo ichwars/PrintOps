@@ -1,3 +1,13 @@
+import type {
+  CanonicalSettingsTab,
+  IntegrationSubTab,
+  OperationSubTab,
+  OrderManagementSubTab,
+  PrinterProductionSubTab,
+  ProjectManagementSubTab,
+  WarehouseMaterialSubTab,
+} from './settingsNavigation';
+
 // Settings search registry.
 //
 // Each settings card/section registers itself at module-import time by calling
@@ -8,19 +18,7 @@
 // owns the `anchor` id. When you add a new settings card, add one call here
 // next to it — no central index to forget to update.
 
-export type SettingsSearchTab =
-  | 'general'
-  | 'plugs'
-  | 'notifications'
-  | 'queue'
-  | 'filament'
-  | 'network'
-  | 'apikeys'
-  | 'virtual-printer'
-  | 'spoolbuddy'
-  | 'users'
-  | 'backup'
-  | 'failure-detection';
+export type SettingsSearchTab = CanonicalSettingsTab;
 
 export type SettingsSearchSubTab = 'users' | 'email' | 'ldap' | 'oidc' | 'twofa' | 'security';
 
@@ -33,6 +31,12 @@ export interface SettingsSearchEntry {
   labelFallback?: string;
   tab: SettingsSearchTab;
   subTab?: SettingsSearchSubTab;
+  printerProductionSubTab?: PrinterProductionSubTab;
+  projectManagementSubTab?: ProjectManagementSubTab;
+  warehouseMaterialSubTab?: WarehouseMaterialSubTab;
+  orderManagementSubTab?: OrderManagementSubTab;
+  integrationSubTab?: IntegrationSubTab;
+  operationSubTab?: OperationSubTab;
   /** Space-separated extra search terms (lowercase). */
   keywords: string;
   /** DOM id attached to the target card — used for scrollIntoView. */

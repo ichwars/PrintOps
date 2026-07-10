@@ -1,4 +1,4 @@
-# Bambuddy Onboarding Tour - Detailed Plan
+# PrintOps Onboarding Tour - Detailed Plan
 
 **Status:** Draft for review
 **Owner:** Onboarding admin
@@ -11,8 +11,8 @@
 ## Goals
 
 1. Eliminate the most common cause of closed-as-`invalid` issues: add-printer setup confusion (access code / LAN mode / Developer mode / discovery).
-2. Walk a brand-new user from zero to "first print sent via Bambuddy" in under 10 minutes.
-3. Surface all major Bambuddy features at the right depth (overview, not full docs) so users discover what's available without reading the wiki cover-to-cover.
+2. Walk a brand-new user from zero to "first print sent via PrintOps" in under 10 minutes.
+3. Surface all major PrintOps features at the right depth (overview, not full docs) so users discover what's available without reading the wiki cover-to-cover.
 4. Hand off cleanly to existing self-service surfaces (Connection Diagnostic, Log Health Scanner, System page, wiki, Discord) — the tour points; the diagnostic surfaces do the work.
 
 ## Out of scope
@@ -30,8 +30,8 @@
 **Conditions to show:** `users.onboarding_status IS NULL`
 **Content:**
 - BB mascot, "Let's get started" pose (1)
-- Headline: "Hallo! Welcome to Bambuddy."
-- Body: "Bambuddy replaces the Bambu Lab cloud with a local-first dashboard. Your data, prints, spools, and timelapses stay on your hardware. Want a 5-minute tour?"
+- Headline: "Hallo! Welcome to PrintOps."
+- Body: "PrintOps replaces the Bambu Lab cloud with a local-first dashboard. Your data, prints, spools, and timelapses stay on your hardware. Want a 5-minute tour?"
 - Three buttons:
   - `Tour starten` (primary, green)
   - `Ich bin erfahren` (secondary, ghost)
@@ -41,13 +41,13 @@
 - Experienced → `PATCH /api/users/me/onboarding {status: "dismissed"}`, close
 - Snooze → write `onboarding_snoozed_until = now + 7d`, close
 
-### Step 0.2 - What Bambuddy is (and isn't)
+### Step 0.2 - What PrintOps is (and isn't)
 **Anchor:** modal, BB "Let me walk you through it" pose (2)
 **Content:**
 - Two-column comparison:
-  - **What Bambuddy does:** local cloud replacement, AMS + inventory + RFID, print queue, archives, slicer integration via Virtual Printer, multi-user, HomeAssistant, optional Tailscale.
-  - **What Bambuddy isn't (today):** not a slicer (uses BambuStudio/OrcaSlicer), not a cloud service, not a printer firmware tool, not a Klipper UI.
-- One-line privacy note: "No telemetry. No accounts. bambuddy.cool only serves the docs."
+  - **What PrintOps does:** local cloud replacement, AMS + inventory + RFID, print queue, archives, slicer integration via Virtual Printer, multi-user, HomeAssistant, optional Tailscale.
+  - **What PrintOps isn't (today):** not a slicer (uses BambuStudio/OrcaSlicer), not a cloud service, not a printer firmware tool, not a Klipper UI.
+- One-line privacy note: "No telemetry. No accounts. github.com/ichwars/PrintOps only serves the docs."
 **Links:** wiki home, GitHub repo, Discord, sponsor portal
 **Buttons:** `Weiter` / `Überspringen`
 
@@ -61,8 +61,8 @@
 **Content:**
 - BB "Thinking" expression
 - Headline: "Lock the front door first"
-- Body: "Bambuddy can run with or without authentication. If anyone else on your network (or your tailnet, or your reverse proxy) can reach this URL, turn auth on now — passwords, OIDC, SAML, and MFA are all built in."
-- Inline severity callout (yellow): "Bambuddy can also control your printers, manage files, and read your camera feeds. Treat the URL like an admin panel."
+- Body: "PrintOps can run with or without authentication. If anyone else on your network (or your tailnet, or your reverse proxy) can reach this URL, turn auth on now — passwords, OIDC, SAML, and MFA are all built in."
+- Inline severity callout (yellow): "PrintOps can also control your printers, manage files, and read your camera feeds. Treat the URL like an admin panel."
 **Buttons:**
 - `Enable auth now` → navigates to `/settings?tab=auth`, tour pauses, resumes on success
 - `Later (I'm on a private network)` → continue
@@ -101,7 +101,7 @@
 **Conditions to show:** at least one printer just added in this session
 **Content:**
 - BB "Focused" expression
-- Headline: "Let's make sure Bambuddy can talk to it"
+- Headline: "Let's make sure PrintOps can talk to it"
 - Live status pills animate as the connection establishes:
   - MQTT connect (port 8883)
   - Camera stream (RTSPS 322, X1 / H2 / P2S only)
@@ -117,7 +117,7 @@
 **Anchor:** printer card, sequential highlights of each region
 **Content — 5 sub-highlights:**
 1. **Status row** — printer state, ETA, current stage. "Your at-a-glance status."
-2. **AMS row** — slots, RFID auto-detection, drying button. "Bambuddy reads your AMS slot config live — colors and types come from RFID, the rest from your inventory."
+2. **AMS row** — slots, RFID auto-detection, drying button. "PrintOps reads your AMS slot config live — colors and types come from RFID, the rest from your inventory."
 3. **Camera tile** — live feed via RTSPS proxy. "Same stream BambuStudio uses, but local — no cloud round-trip."
 4. **Controls** — pause / resume / cancel, lights, fans. "Same controls as the printer LCD."
 5. **Customization** — "Right-click the card to rearrange tiles or hide what you don't need" (Printer Card Customization, see wiki/features/printer-card).
@@ -133,10 +133,10 @@
 **Content:**
 - BB "Need help?" pose (4)
 - Headline: "Track your filament"
-- Body: "Bambuddy can keep tabs on your spools. Pick a mode now — switching later loses data."
+- Body: "PrintOps can keep tabs on your spools. Pick a mode now — switching later loses data."
 - Three large radio cards:
   - **Internal (recommended)** — built-in inventory, mirrors AMS, reads RFID, auto-decrements weight as you print. Best for most users.
-  - **Spoolman** — point at an existing Spoolman instance, Bambuddy syncs from it. Best if you already run Spoolman.
+  - **Spoolman** — point at an existing Spoolman instance, PrintOps syncs from it. Best if you already run Spoolman.
   - **None** — skip filament tracking entirely. You can change this later, but historical data won't backfill.
 - Inline note (yellow): "#1556 footgun — switching modes later does not migrate data."
 **Execute on action:** `PATCH /api/settings/inventory_mode {mode: "internal" | "spoolman" | "none"}`
@@ -148,10 +148,10 @@
 **Conditions to show:** `inventory_mode === "internal"` AND `spools.count === 0`
 **Content:**
 - "Add a spool the way that suits you:"
-  - **RFID scan** (Bambu spools) — load it in the AMS, Bambuddy detects automatically. No manual entry needed.
+  - **RFID scan** (Bambu spools) — load it in the AMS, PrintOps detects automatically. No manual entry needed.
   - **SpoolBuddy kiosk** — if you have a SpoolBuddy box, scan RFID write tag for non-Bambu spools.
   - **Manual entry** — brand, material, color, weight.
-- One-line note: "Bambuddy ships with a color catalog covering the major brands — names autocomplete as you type."
+- One-line note: "PrintOps ships with a color catalog covering the major brands — names autocomplete as you type."
 **Buttons:** `Add manually` → opens Add Spool modal / `Use RFID` → goes to printer card highlighting AMS row / `Skip` → continue
 **Links:** wiki/features/inventory, wiki/features/spoolbuddy
 
@@ -159,9 +159,9 @@
 **Anchor:** Settings → Spoolman card (`#card-spoolman`)
 **Conditions to show:** `inventory_mode === "spoolman"`
 **Content:**
-- "Tell Bambuddy where Spoolman lives."
-- Inline form: Spoolman URL + sync direction (Spoolman → Bambuddy, or bi-directional).
-- "Bambuddy will pull your existing spool library and keep it in sync. RFID scans still work — they create new spools in Spoolman."
+- "Tell PrintOps where Spoolman lives."
+- Inline form: Spoolman URL + sync direction (Spoolman → PrintOps, or bi-directional).
+- "PrintOps will pull your existing spool library and keep it in sync. RFID scans still work — they create new spools in Spoolman."
 **Execute on action:** `POST /api/settings/spoolman/test` → green = continue, red = stay on step with error.
 
 ### Step 2.3 - Profile management (Bambu cloud sync)
@@ -169,9 +169,9 @@
 **Content:**
 - BB "Helpful" pose
 - Headline: "Sync your filament + print profiles from Bambu Lab"
-- Body: "If you've created custom filament or print profiles in BambuStudio + the Bambu cloud, Bambuddy can pull them down so they're available everywhere — assigned via the web UI, sent via Virtual Printer, used by the queue."
+- Body: "If you've created custom filament or print profiles in BambuStudio + the Bambu cloud, PrintOps can pull them down so they're available everywhere — assigned via the web UI, sent via Virtual Printer, used by the queue."
 - Inline form: Bambu Lab account email + password (or "Sign in later")
-- One-line warning: "Bambuddy stores credentials encrypted at rest and only uses them against the official Bambu API. Source is open."
+- One-line warning: "PrintOps stores credentials encrypted at rest and only uses them against the official Bambu API. Source is open."
 **Buttons:** `Sign in to Bambu` / `Skip (use built-in defaults)`
 **Links:** wiki/features/profiles, wiki/security/credential-storage
 
@@ -181,7 +181,7 @@
 - "Queue prints across all your printers."
 - Three things the queue can do, with a one-line example each:
   1. **Manual queue** — drag-and-drop files, pick which printer runs them.
-  2. **Auto-dispatch** — Bambuddy assigns queued jobs to idle printers automatically based on AMS / build-plate / capacity.
+  2. **Auto-dispatch** — PrintOps assigns queued jobs to idle printers automatically based on AMS / build-plate / capacity.
   3. **Auto-drying** — queued PETG / PA jobs trigger AMS pre-drying so the spool is ready when dispatch fires (Queue Auto-Drying, see wiki/features/queue-drying).
 - "Power features for later: dependencies (`require_previous_success`), scheduled prints, batch jobs."
 **Buttons:** `Weiter` / `Show me how to add my first job` → opens Add to Queue modal
@@ -202,7 +202,7 @@
 **Anchor:** Maintenance page (`/maintenance`), `[data-tour="add-maintenance-task"]`
 **Content:**
 - BB "Helpful" pose
-- "Bambuddy tracks consumables and maintenance per printer."
+- "PrintOps tracks consumables and maintenance per printer."
 - Examples: nozzle wear (by print hours), belt tension (by month), hotend swap (by filament weight), grease (by print count).
 - "Built-in tasks cover the standard intervals — add your own for custom maintenance."
 - Notifications fire via the same channel as print events (see Step 3.8).
@@ -229,12 +229,12 @@ Each Phase 3 step starts with an "Interested?" gate — if the user clicks `Skip
 ### Step 3.1 - Virtual Printer (intro only)
 **Anchor:** Settings → Virtual Printer card
 **Content:**
-- "Want BambuStudio / OrcaSlicer to send prints to Bambuddy instead of the cloud?"
+- "Want BambuStudio / OrcaSlicer to send prints to PrintOps instead of the cloud?"
 - Four-mode decision tree (one sentence each):
-  - **Bridge** — drop-in cloud replacement; slicer sends, Bambuddy forwards to the real printer.
-  - **Queue** — slicer sends to a virtual collector; Bambuddy queues for dispatch.
-  - **Proxy** — slicer points at Bambuddy, Bambuddy passes through with full MQTT/FTP/RTSP rewrite (best for multi-slicer setups).
-  - **Archive / Review** — slicer sends, Bambuddy stores but doesn't print. Audit / approval workflows.
+  - **Bridge** — drop-in cloud replacement; slicer sends, PrintOps forwards to the real printer.
+  - **Queue** — slicer sends to a virtual collector; PrintOps queues for dispatch.
+  - **Proxy** — slicer points at PrintOps, PrintOps passes through with full MQTT/FTP/RTSP rewrite (best for multi-slicer setups).
+  - **Archive / Review** — slicer sends, PrintOps stores but doesn't print. Audit / approval workflows.
 - "VP picks a free IP on your bind interface so it looks like a real printer to the slicer."
 - One-line warning: "Docker bridge mode needs port exposure — see the Docker wiki page for the FTP passive port slicing (#1646)."
 **Buttons:** `Set up a Virtual Printer` → opens VP wizard / `Show me later`
@@ -245,8 +245,8 @@ Each Phase 3 step starts with an "Interested?" gate — if the user clicks `Skip
 **Anchor:** Settings → Slicer API card
 **Conditions to show:** sidecar URL not configured
 **Content:**
-- "Slice directly inside Bambuddy from MakerWorld URLs or your library — no BambuStudio needed."
-- "Requires the orca-slicer-api sidecar container (separate docker-compose, link below). Bambuddy talks to it over HTTP."
+- "Slice directly inside PrintOps from MakerWorld URLs or your library — no BambuStudio needed."
+- "Requires the orca-slicer-api sidecar container (separate docker-compose, link below). PrintOps talks to it over HTTP."
 - One-line note: "Status: still maturing upstream (segfault on multi-filament 3MF being patched). Solid for single-filament / single-plate jobs today."
 **Buttons:** `Configure sidecar` → opens slicer URL field / `Skip`
 **Links:** github.com/maziggy/orca-slicer-api, wiki/features/slicer-api
@@ -254,8 +254,8 @@ Each Phase 3 step starts with an "Interested?" gate — if the user clicks `Skip
 ### Step 3.3 - External library folders
 **Anchor:** Settings → Library / external roots
 **Content:**
-- "Mount a NAS share, an external SSD, or a project drive — Bambuddy reads files in-place."
-- "Set `BAMBUDDY_EXTERNAL_ROOTS` in `docker-compose.yml`, bind-mount the host path. Bambuddy auto-shows folders in the File Manager."
+- "Mount a NAS share, an external SSD, or a project drive — PrintOps reads files in-place."
+- "Set `PRINTOPS_EXTERNAL_ROOTS` in `docker-compose.yml`, bind-mount the host path. PrintOps auto-shows folders in the File Manager."
 - One-line warning (red): "Use `:ro` (read-only) unless you specifically want users uploading back to the share."
 **Buttons:** `Weiter`
 **Links:** wiki/getting-started/docker, wiki/features/library-external
@@ -264,7 +264,7 @@ Each Phase 3 step starts with an "Interested?" gate — if the user clicks `Skip
 **Anchor:** MakerWorld page (`/makerworld`)
 **Conditions to show:** `permissions.has("makerworld:view")`
 **Content:**
-- "Paste any MakerWorld URL — Bambuddy downloads the 3MF, adds it to your library."
+- "Paste any MakerWorld URL — PrintOps downloads the 3MF, adds it to your library."
 - One-line note: "Direct search inside the UI was cut for this release — paste the URL from the MakerWorld site."
 - "Imports respect your external-folder layout — pick where the file lands."
 **Buttons:** `Try it now` → opens MakerWorld page / `Skip`
@@ -274,7 +274,7 @@ Each Phase 3 step starts with an "Interested?" gate — if the user clicks `Skip
 **Anchor:** printer card → settings → Obico section
 **Content:**
 - "Self-hosted ML print-failure detection — no Obico cloud account, no telemetry."
-- "Bambuddy talks directly to your self-hosted Obico ML server. Opt-in per printer; off by default."
+- "PrintOps talks directly to your self-hosted Obico ML server. Opt-in per printer; off by default."
 - One-line note: "Smoothing / dead-zone tuning lives on the printer's Obico panel."
 **Buttons:** `Weiter`
 **Links:** wiki/features/obico, github.com/TheSpaghettiDetective/obico-server
@@ -282,7 +282,7 @@ Each Phase 3 step starts with an "Interested?" gate — if the user clicks `Skip
 ### Step 3.6 - HomeAssistant + webhooks
 **Anchor:** Settings → Integrations (`#card-integrations`)
 **Content:**
-- "Bambuddy ships first-class HomeAssistant integration — sensors for every printer (state, temp, ETA, AMS slots), services to start / pause / cancel."
+- "PrintOps ships first-class HomeAssistant integration — sensors for every printer (state, temp, ETA, AMS slots), services to start / pause / cancel."
 - "Webhooks fire on print events, queue events, archive events — useful for Discord bots, NodeRED, custom dashboards."
 - One-line note: "Webhook signing secret in Settings → Integrations."
 **Buttons:** `Weiter`
@@ -292,9 +292,9 @@ Each Phase 3 step starts with an "Interested?" gate — if the user clicks `Skip
 **Anchor:** Settings → Tailscale card
 **Conditions to show:** `/var/run/tailscale/tailscaled.sock` mounted OR `tailscale` binary detected on host
 **Content:**
-- "Access Bambuddy from anywhere via your tailnet — no port forwarding, no public exposure."
-- "MagicDNS HTTPS via Let's Encrypt (Bambuddy requests certs via `tailscale cert`)."
-- One-line note: "Read the Tailscale blog post about Bambuddy at [link] for the full setup walkthrough."
+- "Access PrintOps from anywhere via your tailnet — no port forwarding, no public exposure."
+- "MagicDNS HTTPS via Let's Encrypt (PrintOps requests certs via `tailscale cert`)."
+- One-line note: "Read the Tailscale blog post about PrintOps at [link] for the full setup walkthrough."
 **Buttons:** `Open Tailscale settings` / `Skip`
 **Links:** wiki/features/tailscale, tailscale blog post
 
@@ -323,7 +323,7 @@ Each Phase 3 step starts with an "Interested?" gate — if the user clicks `Skip
 ### Step 4.2 - Groups & permissions
 **Anchor:** Settings → Users tab → Groups section
 **Content:**
-- "Group users by role. Bambuddy ships with default groups: Admin, Operator, Viewer."
+- "Group users by role. PrintOps ships with default groups: Admin, Operator, Viewer."
 - Quick permission matrix: who can add printers / send prints / view archives / change settings.
 - "Build your own groups for custom roles (read-only kid account, full-access partner, etc.)."
 **Buttons:** `Weiter`
@@ -333,7 +333,7 @@ Each Phase 3 step starts with an "Interested?" gate — if the user clicks `Skip
 **Anchor:** Settings → Auth tab
 **Conditions to show:** more than 3 users OR admin opens this section explicitly
 **Content:**
-- "Bambuddy supports OIDC (Authentik, Authelia, Keycloak, Google, GitHub) and SAML 2.0 for org SSO."
+- "PrintOps supports OIDC (Authentik, Authelia, Keycloak, Google, GitHub) and SAML 2.0 for org SSO."
 - "Per-user MFA (TOTP). Encryption key auto-generates on first start (see #1219), override via env var for secret-manager workflows."
 **Buttons:** `Configure OIDC` / `Configure SAML` / `Enable MFA on my account` / `Skip`
 **Links:** wiki/security/authentication, wiki/security/oidc, wiki/security/saml, wiki/security/mfa
@@ -350,7 +350,7 @@ Each Phase 3 step starts with an "Interested?" gate — if the user clicks `Skip
   - **System page** (`/system`) — version, logs, debug bundle, support export.
   - **Connection Diagnostic** — printer won't connect / camera black / FTP fails — open from the printer card menu.
   - **Log Health Scanner** — recurring runtime issues with known-fix suggestions (shipped 2026-05-22).
-  - **Wiki** — wiki.bambuddy.cool, full feature docs.
+  - **Wiki** — github.com/ichwars/PrintOps/wiki, full feature docs.
   - **Discord** — community help, faster than GitHub for usage questions.
   - **GitHub Issues** — actual bugs and feature requests.
 **Buttons:** `Done`
@@ -455,7 +455,7 @@ GitHub `invalid`-tagged issues this tour explicitly addresses:
 | VP mode confusion | 3.1 | #1652, #1604, #1594, #1612, #1527 |
 | Inventory mode switch destructive | 2.1 | #1556 |
 | Inventory not reflecting reality | 2.1 + 2.2 | #1644, #1517, #1607, #1456 |
-| Slicer-side mistaken as Bambuddy | 5.1 → "is this Bambuddy?" | #1597, #1525, #1582, #1579, #1578 |
+| Slicer-side mistaken as PrintOps | 5.1 → "is this PrintOps?" | #1597, #1525, #1582, #1579, #1578 |
 | Docker volume / data-loss | 1.2 inline warning | #1524, #1517, #1409 |
 
 ---

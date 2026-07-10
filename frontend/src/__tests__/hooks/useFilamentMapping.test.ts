@@ -1053,7 +1053,7 @@ describe('computeAmsMapping preferLowest', () => {
 // #1766: the user reported that "Prefer lowest remaining filament" picked the
 // wrong spool when two identical-material/color spools differed only in the
 // inventory-tracked grams (not the printer's `remain%`). The pre-fix sort
-// looked at `remain%` only and ignored Bambuddy's bound inventory entirely;
+// looked at `remain%` only and ignored PrintOps's bound inventory entirely;
 // now we pass a globalTrayId -> grams map and the sort lifts inventory-bound
 // spools to tier 0 (matching backend _prefer_lowest_sort_key).
 describe('computeAmsMapping preferLowest with inventory map (#1766)', () => {

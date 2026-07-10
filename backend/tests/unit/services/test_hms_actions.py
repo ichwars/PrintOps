@@ -136,7 +136,7 @@ class TestExecuteHmsActionDispatch:
         # (DeviceManager.cpp:1450) — `command: "ignore"`, not `resume` and
         # not `idle_ignore`. The firmware handles both "skip this check on the
         # next attempt" and "resume the paused print" in one operation.
-        # The previous Bambuddy code redirected to plain resume, which caused
+        # The previous PrintOps code redirected to plain resume, which caused
         # wrong-plate to re-pause 1-2 s after the user clicked Ignore (#1869).
         # `err` is the DECIMAL int representation of the hex error code.
         client.state.state = "PAUSE"
@@ -155,7 +155,7 @@ class TestExecuteHmsActionDispatch:
     def test_ignore_resume_state_independent(self, client):
         # BambuStudio's DeviceErrorDialog dispatches IGNORE_RESUME via
         # `command_hms_ignore` unconditionally — there's no PAUSE-vs-RUNNING
-        # branch. Bambuddy's previous code special-cased PAUSE to a plain
+        # branch. PrintOps's previous code special-cased PAUSE to a plain
         # resume; the BambuStudio shape works in both states.
         client.state.state = "RUNNING"
         client.execute_hms_action("05008051", HMSAction.IGNORE_RESUME)

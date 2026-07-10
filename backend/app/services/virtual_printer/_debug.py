@@ -1,6 +1,6 @@
 """Env-flagged wire-payload dump for VP MQTT debug (gated; off by default).
 
-Set ``BAMBUDDY_VP_DUMP_WIRE=1`` to enable two complementary capture modes:
+Set ``PRINTOPS_VP_DUMP_WIRE=1`` to enable two complementary capture modes:
 
 1. ``dump_wire``: most recent inbound (bridge cache input) and outbound
    (slicer-facing 1Hz push) MQTT payloads, one file per VP per direction,
@@ -43,7 +43,7 @@ from backend.app.core.config import settings as app_settings
 
 logger = logging.getLogger(__name__)
 
-_ENV_FLAG = "BAMBUDDY_VP_DUMP_WIRE"
+_ENV_FLAG = "PRINTOPS_VP_DUMP_WIRE"
 _NAME_SAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
 

@@ -4,7 +4,7 @@ The Bambu printer SD card is FAT32/exFAT. Names containing the Windows /
 DOS-reserved set (``< > : " / \\ | ? *``), ASCII control characters
 (0x00-0x1F), or trailing dots / spaces cannot be created on it — FTP fails
 with ``553 Could not create file`` (#1540). Bambu Studio refuses to save
-such names client-side; Bambuddy now does the same at the rename, upload,
+such names client-side; PrintOps now does the same at the rename, upload,
 and dispatch boundaries so the failure surfaces with a clear message
 instead of an obscure FTP error after the user has already hit Print.
 """

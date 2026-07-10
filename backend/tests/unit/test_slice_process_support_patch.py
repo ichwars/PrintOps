@@ -2,7 +2,7 @@
 
 BambuStudio's shipped process presets ("0.20mm Standard @BBL H2D" etc.)
 define `enable_support: 0` because supports are a per-print decision, not
-a per-quality one. Bambuddy passes the picked process preset via
+a per-quality one. PrintOps passes the picked process preset via
 `--load-settings`, which is authoritative — every field in the loaded
 JSON overrides the source 3MF's embedded `project_settings.config`. So
 without patching, a user who exported a source 3MF with supports

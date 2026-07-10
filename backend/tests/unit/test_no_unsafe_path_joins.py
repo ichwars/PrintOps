@@ -33,7 +33,7 @@ SCAN_DIRS = [
 ]
 
 # Identifier substrings that suggest the LHS is a filesystem directory. Heuristic
-# but tuned to Bambuddy's conventions — every actual directory variable in the
+# but tuned to PrintOps's conventions — every actual directory variable in the
 # routes hits one of these.
 _DIR_NAME_HINTS = (
     "_dir",
@@ -58,7 +58,7 @@ _DIR_NAME_HINTS = (
 )
 
 # Function calls whose return value is a Path under our control. Hits to these
-# don't need scrutiny — they're constructed by Bambuddy code, not by the request.
+# don't need scrutiny — they're constructed by PrintOps code, not by the request.
 _KNOWN_PATH_FACTORIES = (
     "Path",
     "get_library_dir",

@@ -16,9 +16,9 @@ jobs:
       - name: run-ghrs
         uses: jgehrcke/github-repo-stats@v1.4.2
         with:
-          repository: maziggy/bambuddy
+          repository: ichwars/PrintOps
           ghtoken: ${{ secrets.GHRS_GITHUB_API_TOKEN }}
-          ghpagesprefix: https://maziggy.github.io/bambuddy
+          ghpagesprefix: https://ichwars.github.io/PrintOps
 
       # Inject ghcr.io container-download stats (cumulative + 30-day
       # sparkline merged into a sidecar CSV so the chart grows beyond
@@ -48,10 +48,10 @@ jobs:
       - name: inject-ghcr-pulls
         run: |
           python3 source/.github/scripts/ghcr_inject.py \
-            --report data/maziggy/bambuddy/latest-report/report.html \
-            --csv    data/maziggy/bambuddy/ghcr-pulls.csv \
-            --owner  maziggy \
-            --pkg    bambuddy
+            --report data/ichwars/PrintOps/latest-report/report.html \
+            --csv    data/ichwars/PrintOps/ghcr-pulls.csv \
+            --owner  ichwars \
+            --pkg    printops
 
       - name: commit-and-push
         working-directory: data
@@ -60,7 +60,7 @@ jobs:
             echo "no changes — skipping commit"
             exit 0
           fi
-          git add maziggy/bambuddy/latest-report/report.html \
-                  maziggy/bambuddy/ghcr-pulls.csv
+          git add ichwars/PrintOps/latest-report/report.html \
+                  ichwars/PrintOps/ghcr-pulls.csv
           git commit -m "ghcr-pulls: refresh container downloads chart"
           git push

@@ -155,7 +155,7 @@ async def engine_with_legacy_null_name_key_location():
         await conn.run_sync(Base.metadata.create_all)
         # Drop the model-shaped locations table (which has NOT NULL on
         # name_key) and recreate it in its pre-migration shape: no name_key
-        # column at all, mirroring a real upgrade from a Bambuddy version
+        # column at all, mirroring a real upgrade from a PrintOps version
         # that predates this feature. The migration's idempotent ALTER TABLE
         # is what adds the column without a NOT NULL constraint, so the
         # legacy row can legally have NULL until the new backfill UPDATE

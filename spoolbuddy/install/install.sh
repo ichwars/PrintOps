@@ -3,22 +3,22 @@
 # SpoolBuddy Installation Script for Raspberry Pi
 #
 # Supports two scenarios:
-#   1) SpoolBuddy only — NFC/scale companion connecting to a remote Bambuddy instance
-#   2) SpoolBuddy + Bambuddy — both running natively on this Raspberry Pi
+#   1) SpoolBuddy only — NFC/scale companion connecting to a remote PrintOps instance
+#   2) SpoolBuddy + PrintOps — both running natively on this Raspberry Pi
 #
 # Usage:
-#   Interactive:  curl -fsSL https://raw.githubusercontent.com/maziggy/bambuddy/main/spoolbuddy/install.sh -o install.sh && chmod +x install.sh && sudo ./install.sh
-#   Unattended:   sudo ./install.sh --mode spoolbuddy --bambuddy-url http://192.168.1.100:8000 --api-key bb_xxx --yes
+#   Interactive:  curl -fsSL https://raw.githubusercontent.com/ichwars/PrintOps/main/spoolbuddy/install.sh -o install.sh && chmod +x install.sh && sudo ./install.sh
+#   Unattended:   sudo ./install.sh --mode spoolbuddy --printops-url http://192.168.1.100:8000 --api-key bb_xxx --yes
 #
 # Options:
 #   --mode MODE          Installation mode: "spoolbuddy" (companion only) or "full" (both)
 #   --repo URL           Git repository URL to install from (default: upstream repo)
 #   --ref REF            Git ref to install (branch/tag/commit, default: main)
-#   --bambuddy-url URL   Bambuddy server URL (required for spoolbuddy mode)
-#   --api-key KEY        Bambuddy API key (required for spoolbuddy mode)
-#   --path PATH          Installation directory (default: /opt/spoolbuddy or /opt/bambuddy)
-#   --port PORT          Bambuddy port (full mode only, default: 8000)
-#   --ssh-pubkey KEY     Bambuddy SSH public key for remote updates
+#   --printops-url URL   PrintOps server URL (required for spoolbuddy mode)
+#   --api-key KEY        PrintOps API key (required for spoolbuddy mode)
+#   --path PATH          Installation directory (default: /opt/spoolbuddy or /opt/printops)
+#   --port PORT          PrintOps port (full mode only, default: 8000)
+#   --ssh-pubkey KEY     PrintOps SSH public key for remote updates
 #   --yes, -y            Non-interactive mode, accept defaults
 #   --help, -h           Show this help message
 #
@@ -36,9 +36,9 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-GITHUB_REPO="https://github.com/maziggy/bambuddy.git"
+GITHUB_REPO="https://github.com/ichwars/PrintOps.git"
 SPOOLBUDDY_SERVICE_USER="spoolbuddy"
-BAMBUDDY_SERVICE_USER="bambuddy"
+PRINTOPS_SERVICE_USER="printops"
 
 # Packages needed for SpoolBuddy hardware (NFC reader + scale)
 SYSTEM_PACKAGES="python3 python3-pip python3-venv python3-dev python3-spidev python3-libgpiod gpiod libgpiod-dev i2c-tools git plymouth-themes"
@@ -56,14 +56,14 @@ INSTALL_REPO=""
 INSTALL_REF=""
 DETECTED_INSTALLER_REPO=""
 DETECTED_INSTALLER_REF=""
-BAMBUDDY_URL=""
+PRINTOPS_URL=""
 API_KEY=""
-BAMBUDDY_PORT="8000"
+PRINTOPS_PORT="8000"
 NON_INTERACTIVE="false"
 REBOOT_NEEDED="false"
 KIOSK_USER=""            # auto-detected from $SUDO_USER
-KIOSK_URL=""             # derived from $BAMBUDDY_URL/spoolbuddy?token=$API_KEY
-SSH_PUBKEY=""            # Bambuddy's SSH public key for remote updates
+KIOSK_URL=""             # derived from $PRINTOPS_URL/spoolbuddy?token=$API_KEY
+SSH_PUBKEY=""            # PrintOps's SSH public key for remote updates
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -193,14 +193,14 @@ show_help() {
     echo "Usage: sudo $0 [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  --mode MODE          \"spoolbuddy\" (companion only) or \"full\" (Bambuddy + SpoolBuddy)"
+    echo "  --mode MODE          \"spoolbuddy\" (companion only) or \"full\" (PrintOps + SpoolBuddy)"
     echo "  --repo URL           Git repository URL to install from"
     echo "  --ref REF            Git ref to install (branch/tag/commit)"
-    echo "  --bambuddy-url URL   Bambuddy server URL (required for spoolbuddy mode)"
-    echo "  --api-key KEY        Bambuddy API key (required for spoolbuddy mode)"
-    echo "  --path PATH          Installation directory (default: /opt/spoolbuddy or /opt/bambuddy)"
-    echo "  --port PORT          Bambuddy port (full mode only, default: 8000)"
-    echo "  --ssh-pubkey KEY     Bambuddy SSH public key for remote updates"
+    echo "  --printops-url URL   PrintOps server URL (required for spoolbuddy mode)"
+    echo "  --api-key KEY        PrintOps API key (required for spoolbuddy mode)"
+    echo "  --path PATH          Installation directory (default: /opt/spoolbuddy or /opt/printops)"
+    echo "  --port PORT          PrintOps port (full mode only, default: 8000)"
+    echo "  --ssh-pubkey KEY     PrintOps SSH public key for remote updates"
     echo "  --yes, -y            Non-interactive mode, accept defaults"
     echo "  --help, -h           Show this help message"
     echo ""
@@ -209,7 +209,7 @@ show_help() {
     echo "    sudo ./install.sh"
     echo ""
     echo "  SpoolBuddy companion (unattended):"
-    echo "    sudo ./install.sh --mode spoolbuddy --bambuddy-url http://192.168.1.100:8000 --api-key bb_xxx -y"
+    echo "    sudo ./install.sh --mode spoolbuddy --printops-url http://192.168.1.100:8000 --api-key bb_xxx -y"
     echo ""
     echo "  Full install (unattended):"
     echo "    sudo ./install.sh --mode full --port 8000 -y"
@@ -513,7 +513,7 @@ create_spoolbuddy_user() {
     done
     success "User added to gpio, spi, i2c, video groups"
 
-    # Allow passwordless restart of daemon + kiosk (needed for SSH-based updates from Bambuddy)
+    # Allow passwordless restart of daemon + kiosk (needed for SSH-based updates from PrintOps)
     cat > /etc/sudoers.d/spoolbuddy << 'SUDOERS'
 spoolbuddy ALL=(root) NOPASSWD: /usr/bin/systemctl restart spoolbuddy.service
 spoolbuddy ALL=(root) NOPASSWD: /usr/bin/systemctl restart getty@tty1.service
@@ -570,10 +570,10 @@ create_spoolbuddy_env() {
 # SpoolBuddy Configuration
 # Generated by install.sh on $(date)
 
-# Bambuddy backend URL
-SPOOLBUDDY_BACKEND_URL=$BAMBUDDY_URL
+# PrintOps backend URL
+SPOOLBUDDY_BACKEND_URL=$PRINTOPS_URL
 
-# API key (create one in Bambuddy Settings -> API Keys)
+# API key (create one in PrintOps Settings -> API Keys)
 SPOOLBUDDY_API_KEY=$API_KEY
 
 # NAU7802 scale bus (RPi GPIO2/GPIO3)
@@ -616,7 +616,7 @@ ensure_kiosk_env_access() {
 }
 
 setup_ssh_key() {
-    info "Setting up SSH access for Bambuddy remote updates..."
+    info "Setting up SSH access for PrintOps remote updates..."
 
     local ssh_dir="$INSTALL_PATH/.ssh"
     local auth_keys="$ssh_dir/authorized_keys"
@@ -634,7 +634,7 @@ setup_ssh_key() {
         fi
     else
         # No manual key — the daemon will auto-deploy it on first registration
-        info "SSH key will be deployed automatically when the daemon connects to Bambuddy"
+        info "SSH key will be deployed automatically when the daemon connects to PrintOps"
         touch "$auth_keys"
     fi
 
@@ -647,13 +647,13 @@ create_spoolbuddy_service() {
 
     local after_line="After=network-online.target"
     if [[ "$INSTALL_MODE" == "full" ]]; then
-        after_line="After=network-online.target bambuddy.service"
+        after_line="After=network-online.target printops.service"
     fi
 
     cat > /etc/systemd/system/spoolbuddy.service << EOF
 [Unit]
 Description=SpoolBuddy - NFC Spool Management Daemon
-Documentation=https://github.com/maziggy/bambuddy
+Documentation=https://github.com/ichwars/PrintOps
 $after_line
 Wants=network-online.target
 
@@ -678,28 +678,28 @@ EOF
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Bambuddy Installation (full mode only)
+# PrintOps Installation (full mode only)
 # ─────────────────────────────────────────────────────────────────────────────
 
-create_bambuddy_user() {
-    if id "$BAMBUDDY_SERVICE_USER" &>/dev/null; then
-        info "User '$BAMBUDDY_SERVICE_USER' already exists"
+create_printops_user() {
+    if id "$PRINTOPS_SERVICE_USER" &>/dev/null; then
+        info "User '$PRINTOPS_SERVICE_USER' already exists"
         return
     fi
 
-    info "Creating service user '$BAMBUDDY_SERVICE_USER'..."
-    useradd --system --shell /usr/sbin/nologin --home-dir "$INSTALL_PATH" "$BAMBUDDY_SERVICE_USER"
+    info "Creating service user '$PRINTOPS_SERVICE_USER'..."
+    useradd --system --shell /usr/sbin/nologin --home-dir "$INSTALL_PATH" "$PRINTOPS_SERVICE_USER"
     success "Service user created"
 }
 
-setup_bambuddy_venv() {
+setup_printops_venv() {
     cd "$INSTALL_PATH"
 
-    run_with_progress "Creating Bambuddy venv" $PYTHON_CMD -m venv venv
+    run_with_progress "Creating PrintOps venv" $PYTHON_CMD -m venv venv
     run_with_progress "Upgrading pip" "$INSTALL_PATH/venv/bin/pip" install --upgrade pip
-    run_with_progress "Installing Bambuddy dependencies" "$INSTALL_PATH/venv/bin/pip" install -r requirements.txt
+    run_with_progress "Installing PrintOps dependencies" "$INSTALL_PATH/venv/bin/pip" install -r requirements.txt
 
-    chown -R "$BAMBUDDY_SERVICE_USER:$BAMBUDDY_SERVICE_USER" "$INSTALL_PATH/venv"
+    chown -R "$PRINTOPS_SERVICE_USER:$PRINTOPS_SERVICE_USER" "$INSTALL_PATH/venv"
 }
 
 install_nodejs() {
@@ -728,13 +728,13 @@ build_frontend() {
     run_with_progress "Building frontend" npm run build
 }
 
-create_bambuddy_env() {
-    info "Creating Bambuddy configuration..."
+create_printops_env() {
+    info "Creating PrintOps configuration..."
 
     local env_file="$INSTALL_PATH/.env"
 
     cat > "$env_file" << EOF
-# Bambuddy Configuration
+# PrintOps Configuration
 # Generated by install.sh on $(date)
 
 DEBUG=false
@@ -742,36 +742,36 @@ LOG_LEVEL=INFO
 LOG_TO_FILE=true
 EOF
 
-    chown "$BAMBUDDY_SERVICE_USER:$BAMBUDDY_SERVICE_USER" "$env_file"
+    chown "$PRINTOPS_SERVICE_USER:$PRINTOPS_SERVICE_USER" "$env_file"
     chmod 600 "$env_file"
     success "Configuration saved to $env_file"
 }
 
-create_bambuddy_directories() {
+create_printops_directories() {
     mkdir -p "$INSTALL_PATH/data" "$INSTALL_PATH/logs"
-    chown -R "$BAMBUDDY_SERVICE_USER:$BAMBUDDY_SERVICE_USER" "$INSTALL_PATH/data" "$INSTALL_PATH/logs"
+    chown -R "$PRINTOPS_SERVICE_USER:$PRINTOPS_SERVICE_USER" "$INSTALL_PATH/data" "$INSTALL_PATH/logs"
     success "Data directories created"
 }
 
-create_bambuddy_service() {
-    info "Creating Bambuddy systemd service..."
+create_printops_service() {
+    info "Creating PrintOps systemd service..."
 
-    cat > /etc/systemd/system/bambuddy.service << EOF
+    cat > /etc/systemd/system/printops.service << EOF
 [Unit]
-Description=Bambuddy - Bambu Lab Print Management
-Documentation=https://github.com/maziggy/bambuddy
+Description=PrintOps - Bambu Lab Print Management
+Documentation=https://github.com/ichwars/PrintOps
 After=network.target
 
 [Service]
 Type=simple
-User=$BAMBUDDY_SERVICE_USER
-Group=$BAMBUDDY_SERVICE_USER
+User=$PRINTOPS_SERVICE_USER
+Group=$PRINTOPS_SERVICE_USER
 WorkingDirectory=$INSTALL_PATH
 EnvironmentFile=$INSTALL_PATH/.env
 Environment="DATA_DIR=$INSTALL_PATH/data"
 Environment="LOG_DIR=$INSTALL_PATH/logs"
 # --loop asyncio required: uvloop can truncate VP FTP uploads (#1896)
-ExecStart=$INSTALL_PATH/venv/bin/uvicorn backend.app.main:app --host 0.0.0.0 --port $BAMBUDDY_PORT --loop asyncio
+ExecStart=$INSTALL_PATH/venv/bin/uvicorn backend.app.main:app --host 0.0.0.0 --port $PRINTOPS_PORT --loop asyncio
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -788,14 +788,14 @@ WantedBy=multi-user.target
 EOF
 
     systemctl daemon-reload
-    systemctl enable bambuddy.service
-    success "Bambuddy service created and enabled"
+    systemctl enable printops.service
+    success "PrintOps service created and enabled"
 }
 
 bootstrap_spoolbuddy_kiosk_key() {
     # Provision an API key for the local SpoolBuddy kiosk and write it into
-    # spoolbuddy/.env. Runs against the Bambuddy DB directly (via the CLI),
-    # so the bambuddy service does not need to be running yet.
+    # spoolbuddy/.env. Runs against the PrintOps DB directly (via the CLI),
+    # so the printops service does not need to be running yet.
     info "Provisioning SpoolBuddy kiosk API key..."
 
     local env_file="$INSTALL_PATH/spoolbuddy/.env"
@@ -807,7 +807,7 @@ bootstrap_spoolbuddy_kiosk_key() {
     # CWD must be $INSTALL_PATH so `python -m backend.app.cli` finds the backend
     # package on sys.path (matches the systemd unit's WorkingDirectory).
     local kiosk_key
-    if ! kiosk_key="$(cd "$INSTALL_PATH" && sudo -u "$BAMBUDDY_SERVICE_USER" \
+    if ! kiosk_key="$(cd "$INSTALL_PATH" && sudo -u "$PRINTOPS_SERVICE_USER" \
             env DATA_DIR="$INSTALL_PATH/data" LOG_DIR="$INSTALL_PATH/logs" \
             "$INSTALL_PATH/venv/bin/python" -m backend.app.cli kiosk-bootstrap --force)"; then
         error "Failed to bootstrap SpoolBuddy kiosk API key"
@@ -969,7 +969,7 @@ setup_kiosk() {
 
     # Detect kiosk user (the human user who ran sudo)
     KIOSK_USER="${SUDO_USER:-$(logname 2>/dev/null || echo pi)}"
-    KIOSK_URL="${BAMBUDDY_URL}/spoolbuddy?token=${API_KEY}"
+    KIOSK_URL="${PRINTOPS_URL}/spoolbuddy?token=${API_KEY}"
     local KIOSK_HOME
     KIOSK_HOME=$(eval echo "~$KIOSK_USER")
 
@@ -1207,7 +1207,7 @@ else
     kiosk_url="\$FALLBACK_URL"
 fi
 
-# Wait for the Bambuddy backend to be reachable before launching Chromium.
+# Wait for the PrintOps backend to be reachable before launching Chromium.
 # Without this the browser opens before uvicorn has bound to the port on a
 # cold boot and the user sees an ERR_CONNECTION_REFUSED splash until they
 # manually reload. Probe /health (no auth, no body) with a short timeout.
@@ -1322,8 +1322,8 @@ parse_args() {
                 INSTALL_REF="$2"
                 shift 2
                 ;;
-            --bambuddy-url)
-                BAMBUDDY_URL="$2"
+            --printops-url)
+                PRINTOPS_URL="$2"
                 shift 2
                 ;;
             --api-key)
@@ -1335,7 +1335,7 @@ parse_args() {
                 shift 2
                 ;;
             --port)
-                BAMBUDDY_PORT="$2"
+                PRINTOPS_PORT="$2"
                 shift 2
                 ;;
             --ssh-pubkey)
@@ -1365,9 +1365,9 @@ ask_install_mode() {
     echo -e "${BOLD}How would you like to set up SpoolBuddy?${NC}"
     echo ""
     echo -e "  ${CYAN}1)${NC} SpoolBuddy only"
-    echo "     NFC reader + scale on this RPi, Bambuddy runs on another device"
+    echo "     NFC reader + scale on this RPi, PrintOps runs on another device"
     echo ""
-    echo -e "  ${CYAN}2)${NC} SpoolBuddy + Bambuddy"
+    echo -e "  ${CYAN}2)${NC} SpoolBuddy + PrintOps"
     echo "     Both running natively on this Raspberry Pi"
     echo ""
 
@@ -1391,9 +1391,9 @@ gather_config() {
     # Set default install path based on mode
     if [[ -z "$INSTALL_PATH" ]]; then
         if [[ "$INSTALL_MODE" == "full" ]]; then
-            INSTALL_PATH="/opt/bambuddy"
+            INSTALL_PATH="/opt/printops"
         else
-            INSTALL_PATH="/opt/bambuddy"
+            INSTALL_PATH="/opt/printops"
         fi
     fi
     prompt "Installation directory" "$INSTALL_PATH" INSTALL_PATH
@@ -1440,32 +1440,32 @@ gather_config() {
     fi
 
     if [[ "$INSTALL_MODE" == "spoolbuddy" ]]; then
-        # Need remote Bambuddy URL and API key
+        # Need remote PrintOps URL and API key
         echo ""
-        info "SpoolBuddy needs to connect to your Bambuddy server."
-        info "You can find/create an API key in Bambuddy under Settings -> API Keys."
+        info "SpoolBuddy needs to connect to your PrintOps server."
+        info "You can find/create an API key in PrintOps under Settings -> API Keys."
         echo ""
 
-        while [[ -z "$BAMBUDDY_URL" ]]; do
-            prompt "Bambuddy server URL (e.g. http://192.168.1.100:8000)" "" BAMBUDDY_URL
-            if [[ -z "$BAMBUDDY_URL" ]]; then
-                warn "Bambuddy URL is required"
+        while [[ -z "$PRINTOPS_URL" ]]; do
+            prompt "PrintOps server URL (e.g. http://192.168.1.100:8000)" "" PRINTOPS_URL
+            if [[ -z "$PRINTOPS_URL" ]]; then
+                warn "PrintOps URL is required"
             fi
         done
 
         while [[ -z "$API_KEY" ]]; do
-            prompt "Bambuddy API key" "" API_KEY
+            prompt "PrintOps API key" "" API_KEY
             if [[ -z "$API_KEY" ]]; then
                 warn "API key is required"
             fi
         done
     else
-        # Full mode — Bambuddy runs locally
-        prompt "Bambuddy port" "$BAMBUDDY_PORT" BAMBUDDY_PORT
-        BAMBUDDY_URL="http://localhost:$BAMBUDDY_PORT"
+        # Full mode — PrintOps runs locally
+        prompt "PrintOps port" "$PRINTOPS_PORT" PRINTOPS_PORT
+        PRINTOPS_URL="http://localhost:$PRINTOPS_PORT"
 
         echo ""
-        info "After installation, create an API key in Bambuddy (Settings -> API Keys)"
+        info "After installation, create an API key in PrintOps (Settings -> API Keys)"
         info "and update it in: $INSTALL_PATH/spoolbuddy/.env"
         API_KEY="CHANGE_ME_AFTER_SETUP"
     fi
@@ -1474,15 +1474,15 @@ gather_config() {
     echo ""
     echo -e "${BOLD}Installation Summary${NC}"
     echo -e "${CYAN}─────────────────────────────────────────${NC}"
-    echo -e "  Mode:           ${GREEN}$([ "$INSTALL_MODE" == "full" ] && echo "Bambuddy + SpoolBuddy" || echo "SpoolBuddy only")${NC}"
+    echo -e "  Mode:           ${GREEN}$([ "$INSTALL_MODE" == "full" ] && echo "PrintOps + SpoolBuddy" || echo "SpoolBuddy only")${NC}"
     echo -e "  Install path:   ${GREEN}$INSTALL_PATH${NC}"
     echo -e "  Git repo:       ${GREEN}$INSTALL_REPO${NC}"
     echo -e "  Git ref:        ${GREEN}$INSTALL_REF${NC}"
     if [[ "$INSTALL_MODE" == "full" ]]; then
-        echo -e "  Bambuddy port:  ${GREEN}$BAMBUDDY_PORT${NC}"
-        echo -e "  Bambuddy URL:   ${GREEN}$BAMBUDDY_URL${NC}"
+        echo -e "  PrintOps port:  ${GREEN}$PRINTOPS_PORT${NC}"
+        echo -e "  PrintOps URL:   ${GREEN}$PRINTOPS_URL${NC}"
     else
-        echo -e "  Bambuddy URL:   ${GREEN}$BAMBUDDY_URL${NC}"
+        echo -e "  PrintOps URL:   ${GREEN}$PRINTOPS_URL${NC}"
     fi
     echo ""
 
@@ -1510,7 +1510,7 @@ main() {
     echo -e "${CYAN}║  |____/| .__/ \\___/ \\___/|_|____/ \\__,_|\\__,_|\\__,_|\\__, |║${NC}"
     echo -e "${CYAN}║        |_|                                          |___/ ║${NC}"
     echo -e "${CYAN}║                                                          ║${NC}"
-    echo -e "${CYAN}║          NFC Spool Management for Bambuddy               ║${NC}"
+    echo -e "${CYAN}║          NFC Spool Management for PrintOps               ║${NC}"
     echo -e "${CYAN}║                                                          ║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
     echo ""
@@ -1583,16 +1583,16 @@ main() {
     create_spoolbuddy_service
     echo ""
 
-    # ── Step 5: Bambuddy setup (full mode only) ───────────────────────────
+    # ── Step 5: PrintOps setup (full mode only) ───────────────────────────
     if [[ "$INSTALL_MODE" == "full" ]]; then
-        info "Setting up Bambuddy..."
-        create_bambuddy_user
-        setup_bambuddy_venv
+        info "Setting up PrintOps..."
+        create_printops_user
+        setup_printops_venv
         install_nodejs
         build_frontend
-        create_bambuddy_directories
-        create_bambuddy_env
-        create_bambuddy_service
+        create_printops_directories
+        create_printops_env
+        create_printops_service
         bootstrap_spoolbuddy_kiosk_key
         echo ""
     fi
@@ -1610,9 +1610,9 @@ main() {
     ip_addr=$(hostname -I 2>/dev/null | awk '{print $1}') || ip_addr="<your-ip>"
 
     if [[ "$INSTALL_MODE" == "full" ]]; then
-        echo -e "  ${BOLD}Bambuddy:${NC}         ${CYAN}http://$ip_addr:$BAMBUDDY_PORT${NC}"
+        echo -e "  ${BOLD}PrintOps:${NC}         ${CYAN}http://$ip_addr:$PRINTOPS_PORT${NC}"
     else
-        echo -e "  ${BOLD}SpoolBuddy:${NC}       Connecting to ${CYAN}$BAMBUDDY_URL${NC}"
+        echo -e "  ${BOLD}SpoolBuddy:${NC}       Connecting to ${CYAN}$PRINTOPS_URL${NC}"
     fi
     echo -e "  ${BOLD}Kiosk URL:${NC}        ${CYAN}$KIOSK_URL${NC}"
     echo -e "  ${BOLD}Kiosk user:${NC}       ${CYAN}$KIOSK_USER${NC}"
@@ -1622,7 +1622,7 @@ main() {
         echo -e "  ${BOLD}Next steps:${NC}"
         echo -e "    1. Reboot (required for kiosk, Plymouth splash, and hardware changes)"
         echo -e "    2. The touchscreen kiosk will start automatically after reboot"
-        echo -e "    3. On another device, open ${CYAN}http://$ip_addr:$BAMBUDDY_PORT${NC} to complete first-run admin setup"
+        echo -e "    3. On another device, open ${CYAN}http://$ip_addr:$PRINTOPS_PORT${NC} to complete first-run admin setup"
     fi
 
     echo ""
@@ -1630,8 +1630,8 @@ main() {
     echo -e "    SpoolBuddy status:   ${CYAN}sudo systemctl status spoolbuddy${NC}"
     echo -e "    SpoolBuddy logs:     ${CYAN}sudo journalctl -u spoolbuddy -f${NC}"
     if [[ "$INSTALL_MODE" == "full" ]]; then
-        echo -e "    Bambuddy status:     ${CYAN}sudo systemctl status bambuddy${NC}"
-        echo -e "    Bambuddy logs:       ${CYAN}sudo journalctl -u bambuddy -f${NC}"
+        echo -e "    PrintOps status:     ${CYAN}sudo systemctl status printops${NC}"
+        echo -e "    PrintOps logs:       ${CYAN}sudo journalctl -u printops -f${NC}"
     fi
 
     echo ""

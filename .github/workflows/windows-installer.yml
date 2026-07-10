@@ -54,7 +54,7 @@ jobs:
       - name: Compile installer (ISCC)
         working-directory: installers/windows
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" bambuddy.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" printops.iss
         shell: pwsh
 
       # Stable + beta tag releases (e.g. v0.2.5b1, v0.3.0) get an unversioned
@@ -62,7 +62,7 @@ jobs:
       # wiki, newsletters) can link to a stable URL that survives version
       # bumps:
       #
-      #   https://github.com/maziggy/bambuddy/releases/latest/download/bambuddy-windows-x64-setup.exe
+      #   https://github.com/ichwars/PrintOps/releases/latest/download/printops-windows-x64-setup.exe
       #
       # GitHub's `latest` redirect excludes prereleases, so this URL always
       # points at whatever was released as a full release. Daily prereleases
@@ -75,15 +75,15 @@ jobs:
         shell: pwsh
         working-directory: installers/windows/build/output
         run: |
-          $versioned = Get-ChildItem -Filter "bambuddy-*-windows-x64-setup.exe" | Select-Object -First 1
+          $versioned = Get-ChildItem -Filter "printops-*-windows-x64-setup.exe" | Select-Object -First 1
           if (-not $versioned) { throw "no versioned installer .exe found" }
-          Copy-Item $versioned.FullName "bambuddy-windows-x64-setup.exe"
-          Write-Host "alias: bambuddy-windows-x64-setup.exe -> $($versioned.Name)"
+          Copy-Item $versioned.FullName "printops-windows-x64-setup.exe"
+          Write-Host "alias: printops-windows-x64-setup.exe -> $($versioned.Name)"
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bambuddy-windows-installer
+          name: printops-windows-installer
           path: installers/windows/build/output/*.exe
           if-no-files-found: error
 

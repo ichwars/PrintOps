@@ -1,10 +1,10 @@
 """GHSA-gc24-px2r-5qmf backstop: no hardcoded fallback secrets in source.
 
 The first half of GHSA-gc24-px2r-5qmf (CVSS 9.8) was a literal
-``bambuddy-secret-key-change-in-production`` string used as the JWT
+``printops-secret-key-change-in-production`` string used as the JWT
 signing key when ``JWT_SECRET_KEY`` was unset. Production Docker images
 shipped with that exact string — meaning anyone who pulled the image
-could forge admin tokens for any Bambuddy instance running unmodified.
+could forge admin tokens for any PrintOps instance running unmodified.
 
 This test walks every source file in ``backend/app/`` at parse time and
 flags string literals that look like credential fallbacks. It is
@@ -41,7 +41,7 @@ FORBIDDEN_PATTERNS: tuple[str, ...] = (
     "replace-this-secret",
     # The exact leaked value from GHSA-gc24 — keep as a regression marker
     # so any reintroduction is caught loudly with the CVE number attached.
-    "bambuddy-secret-key-change-in-production",
+    "printops-secret-key-change-in-production",
 )
 
 # Production-source files where these patterns are TOLERATED because they

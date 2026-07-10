@@ -1,4 +1,4 @@
-"""HTTP client for communicating with Bambuddy backend."""
+"""HTTP client for communicating with PrintOps backend."""
 
 import asyncio
 import logging

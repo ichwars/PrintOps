@@ -1339,7 +1339,7 @@ class TestEncryptLegacyMigration:
 
         # init_db() uses the module-level `engine`, which was bound at import
         # time to settings.database_url — that resolves to the real shared
-        # bambuddy.db at the project root (or, when DATABASE_URL is set, the
+        # printops.db at the project root (or, when DATABASE_URL is set, the
         # configured Postgres). The autouse DATA_DIR fixture runs too late to
         # influence either. Letting this test write to that real DB makes it
         # (a) non-hermetic and (b) flake under `-n 30` with "database is
@@ -1980,7 +1980,7 @@ class TestBackupKeyFiles:
         # Build a minimal ZIP with a stub DB and the key file.
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as zf:
-            zf.writestr("bambuddy.db", b"SQLite format 3")
+            zf.writestr("printops.db", b"SQLite format 3")
             zf.writestr(".mfa_encryption_key", "test-restored-key")
         buf.seek(0)
 
@@ -2020,7 +2020,7 @@ class TestBackupKeyFiles:
 
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as zf:
-            zf.writestr("bambuddy.db", b"SQLite format 3")
+            zf.writestr("printops.db", b"SQLite format 3")
             # Intentionally no .mfa_encryption_key entry.
         buf.seek(0)
 
@@ -2061,7 +2061,7 @@ class TestBackupKeyFiles:
         # Build ZIP with a key file that we will fail to write to DATA_DIR.
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as zf:
-            zf.writestr("bambuddy.db", b"SQLite format 3 backup data")
+            zf.writestr("printops.db", b"SQLite format 3 backup data")
             zf.writestr(".mfa_encryption_key", "backup-key-content")
         buf.seek(0)
 
@@ -2141,7 +2141,7 @@ class TestBackupKeyFiles:
         assert new_key != old_key
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as zf:
-            zf.writestr("bambuddy.db", b"SQLite format 3 backup data")
+            zf.writestr("printops.db", b"SQLite format 3 backup data")
             zf.writestr(".mfa_encryption_key", new_key)
         buf.seek(0)
 
@@ -2188,7 +2188,7 @@ class TestBackupKeyFiles:
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as zf:
             zf.writestr("../etc/passwd", "root:x:0:0")
-            zf.writestr("bambuddy.db", b"SQLite format 3")
+            zf.writestr("printops.db", b"SQLite format 3")
         buf.seek(0)
 
         resp = await async_client.post(
@@ -2229,7 +2229,7 @@ class TestBackupKeyFiles:
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as zf:
             zf.writestr(evil_name, "pwned")
-            zf.writestr("bambuddy.db", b"SQLite format 3\x00")
+            zf.writestr("printops.db", b"SQLite format 3\x00")
         buf.seek(0)
 
         resp = await async_client.post(
@@ -2256,7 +2256,7 @@ class TestBackupKeyFiles:
             # Absolute path in the archive — extracts outside temp_path on
             # systems where (temp_path / "/etc/passwd") resolves to /etc/passwd.
             zf.writestr("/etc/passwd", "root:x:0:0")
-            zf.writestr("bambuddy.db", b"SQLite format 3")
+            zf.writestr("printops.db", b"SQLite format 3")
         buf.seek(0)
 
         resp = await async_client.post(

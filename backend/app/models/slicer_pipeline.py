@@ -35,7 +35,7 @@ class SlicerPipeline(Base):
     process_preset_source: Mapped[str] = mapped_column(String(20))
     process_preset_id: Mapped[str] = mapped_column(String(200))
     # JSON array of {"source": ..., "id": ...} entries — one per AMS slot the
-    # source plate is expected to use. Stored as JSON text per Bambuddy's
+    # source plate is expected to use. Stored as JSON text per PrintOps's
     # convention (see LocalPreset.compatible_printers).
     filament_presets_json: Mapped[str] = mapped_column(Text)
 

@@ -126,7 +126,7 @@ class OIDCProvider(Base):
     # carry this flag at a time; setting it on a new provider clears it on the
     # previous one. The frontend always falls back to the local form if the
     # authorize-URL fetch fails or times out, and ``/login?fallback=local``
-    # plus ``BAMBUDDY_LOCAL_LOGIN=true`` provide a documented recovery path.
+    # plus ``PRINTOPS_LOCAL_LOGIN=true`` provide a documented recovery path.
     is_autologin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
     @property
@@ -151,7 +151,7 @@ class OIDCProvider(Base):
 
 
 class UserOIDCLink(Base):
-    """Links a local Bambuddy user account to an identity at an OIDC provider."""
+    """Links a local PrintOps user account to an identity at an OIDC provider."""
 
     __tablename__ = "user_oidc_links"
     __table_args__ = (

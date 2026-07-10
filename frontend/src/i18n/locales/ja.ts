@@ -28,7 +28,21 @@ export default {
     smartSwitches: 'スマートスイッチ',
     logout: 'ログアウト',
     installApp: 'アプリをインストール',
-    installAppSuccess: 'Bambuddyをインストールしました',
+    installAppSuccess: 'PrintOpsをインストールしました',
+  },
+
+  printops: {
+    nav: {
+      dashboard: 'ダッシュボード',
+      warehouse: '倉庫',
+      parts: '小物部品',
+      stock: '在庫状況',
+      orders: '注文',
+      offers: '見積',
+      calculation: '計算',
+      customers: '顧客',
+      invoice: '請求書',
+    },
   },
 
   // Common
@@ -277,7 +291,7 @@ export default {
       confirmMidPrintTitle: '印刷中にメンテナンスモードに入りますか？',
       confirmMidPrintMessage: '{{name}} は現在印刷中です。メンテナンスモードに入るとMQTTが切断され、このジョブの進行状況の追跡と完了通知が停止します。続行しますか？',
       editFieldLabel: 'メンテナンスモード',
-      editFieldHelp: '有効にすると、このプリンターはMQTT、キューディスパッチ、通知から一時停止されます — 修理、並列のBambuddyインストール、または一時的な停止に役立ちます。',
+      editFieldHelp: '有効にすると、このプリンターはMQTT、キューディスパッチ、通知から一時停止されます — 修理、並列のPrintOpsインストール、または一時的な停止に役立ちます。',
     },
     // Chamber light
     chamberLightOn: 'チャンバーライトをオンにしました',
@@ -713,7 +727,7 @@ export default {
     title: '印刷アーカイブ',
     no3mfBanner: {
       title: '最近の一部の印刷でサムネイル付きのアーカイブができませんでした',
-      body: 'スライサーがプリンターのSDカードに.gcode.3mfファイルを残さなかったため、Bambuddyはサムネイルもスライサーメタデータも取得できませんでした。これは通常、スライサー (Bambu Studio / OrcaSlicer のデバイスタブ) で「送信ファイルを外部ストレージに保存」がオフになっていることが原因です。',
+      body: 'スライサーがプリンターのSDカードに.gcode.3mfファイルを残さなかったため、PrintOpsはサムネイルもスライサーメタデータも取得できませんでした。これは通常、スライサー (Bambu Studio / OrcaSlicer のデバイスタブ) で「送信ファイルを外部ストレージに保存」がオフになっていることが原因です。',
       docsLink: 'インストール手順4を参照',
       dismissLabel: 'この通知を閉じる',
     },
@@ -1605,11 +1619,24 @@ export default {
     // Tab names
     tabs: {
       general: '一般',
+      usersSecurity: 'ユーザーとセキュリティ',
+      printersProduction: 'プリンターと生産',
+      projectsFiles: 'プロジェクトとファイル',
+      warehouseMaterial: '倉庫と材料',
+      ordersCalculation: '注文と計算',
+      integrations: '連携',
+      operations: '運用',
       smartPlugs: 'スマートプラグ',
       notifications: '通知',
       queue: 'ワークフロー',
       queueDispatch: 'キューとディスパッチ',
       queuePipelines: 'パイプライン',
+      deviceManagementDevices: 'デバイス',
+      deviceManagementPrintProcess: '印刷プロセス',
+      projectManagementFiles: 'ファイル管理',
+      warehouseFilament: 'フィラメント',
+      warehouseCatalogs: 'カタログ',
+      orderManagementCalculation: '計算',
       filament: 'フィラメント',
       network: 'ネットワーク',
       apiKeys: 'APIキー',
@@ -1623,6 +1650,23 @@ export default {
       twoFa: '二段階認証',
       oidc: 'SSO / OIDC',
       security: 'セキュリティ',
+    },
+    printerProductionSubTabDescriptions: {
+      devices: '既定プリンター、カメラ、FTP再試行、仮想プリンターのエンドポイントを管理します。',
+      printProcess: '印刷既定値、アーカイブ、キュー動作、G-code、スライサー、完了ルールを設定します。',
+      pipelines: 'スライサーのパイプライン、プリセット、自動準備フローを管理します。',
+      failureDetection: 'AI障害監視、プリンター別の検出設定、状態、履歴を設定します。',
+    },
+    projectManagementSubTabDescriptions: {
+      files: 'ファイル処理、アーカイブモード、ディスク警告、プロジェクト保存ルールを管理します。',
+    },
+    warehouseMaterialSubTabDescriptions: {
+      filament: '乾燥プリセット、Spoolman追跡、フィラメント確認、マッピング、AMS表示しきい値を管理します。',
+      catalogs: '在庫とラベル作業で使うスプールと色のカタログを管理します。',
+      spoolbuddy: 'SpoolBuddyキオスク、NFCリーダー、スケール、校正、デバイス登録を管理します。',
+    },
+    orderManagementSubTabDescriptions: {
+      calculation: '商用ワークフロー向けの通貨、コスト追跡、計算既定値を設定します。',
     },
     spoolbuddy: {
       infoTitle: 'SpoolBuddy デバイス',
@@ -1677,7 +1721,7 @@ export default {
       disabled: 'LDAP認証を無効にしました',
       feature1: 'LDAP資格情報でログインできます',
       feature2: 'ローカル管理者アカウントはフォールバックとして残ります',
-      feature3: 'ログイン時にLDAPグループがBamBuddyグループにマッピングされます',
+      feature3: 'ログイン時にLDAPグループがPrintOpsグループにマッピングされます',
       serverConfig: 'LDAPサーバー設定',
       serverUrl: 'サーバーURL',
       serverUrlHint: '標準はldap://、SSL接続はldaps://を使用',
@@ -1690,12 +1734,12 @@ export default {
       userFilterHint: '{username}はログインユーザー名に置き換えられます。OpenLDAPの場合は(uid={username})を使用。',
       advanced: '詳細設定',
       autoProvision: 'ユーザー自動作成',
-      autoProvisionHint: '初回LDAPログイン時にBamBuddyアカウントを自動作成',
+      autoProvisionHint: '初回LDAPログイン時にPrintOpsアカウントを自動作成',
       defaultGroup: 'デフォルトグループ',
       defaultGroupNone: '— なし（フォールバックなし）—',
       defaultGroupHint: 'LDAPユーザーが認証されたがマッピングされたLDAPグループに属していない場合に割り当てられるフォールバックグループ。空欄の場合、マッピングされていないユーザーは権限なしのままになります。',
       groupMapping: 'グループマッピング（JSON）',
-      groupMappingHint: 'LDAPグループDNをBamBuddyグループにマッピング。利用可能なグループ: ',
+      groupMappingHint: 'LDAPグループDNをPrintOpsグループにマッピング。利用可能なグループ: ',
       testConnection: '接続テスト',
       settingsSaved: 'LDAP設定を保存しました',
       errors: {
@@ -1909,7 +1953,7 @@ export default {
     includeBetaUpdatesDesc: 'アップデート確認時にベータ版およびプレリリース版を通知する',
     localLogin: {
       disable: 'ローカルのユーザー名／パスワードログインを無効化',
-      disableHint: '有効にすると、SSOプロバイダーのみでサインインできます。LDAPには影響しません。復旧用のパスを残すには、サーバーで BAMBUDDY_LOCAL_LOGIN=true を設定してください。',
+      disableHint: '有効にすると、SSOプロバイダーのみでサインインできます。LDAPには影響しません。復旧用のパスを残すには、サーバーで PRINTOPS_LOCAL_LOGIN=true を設定してください。',
     },
     // Queue
     enableRetry: 'リトライを有効化',
@@ -2071,7 +2115,7 @@ export default {
     preheatEnabled: 'プレヒート & ソークを有効化',
     preheatEnabledDesc: 'オフにすると、キュー内の印刷は即時開始されます。各キュー項目で印刷ごとに上書き可能です。',
     preheatFilamentTargetsLabel: 'フィラメント別チャンバー目標 (°C)',
-    preheatFilamentTargetsHint: 'Bambuddyはロード済みのAMSスロット中で最も高い目標値を選びます。PLAのみの印刷は0となり、チャンバー段階は自動でスキップされます。',
+    preheatFilamentTargetsHint: 'PrintOpsはロード済みのAMSスロット中で最も高い目標値を選びます。PLAのみの印刷は0となり、チャンバー段階は自動でスキップされます。',
     preheatFilamentTargetsReset: 'デフォルトにリセット',
     preheatFilamentTargetsDefaultRow: 'その他 / 未登録',
     preheatMaxWait: '最大待機時間（秒）',
@@ -2122,8 +2166,8 @@ export default {
     // User management
     authentication: '認証',
     authEnabledDescription: 'ユーザー認証でインスタンスが保護されています',
-    authDisabledDescription: '認証を有効にして、ユーザーアカウントの作成、権限の管理、Bambuddyインスタンスのセキュリティを確保しましょう。',
-    authDisabledMessage: '認証を有効にして、ユーザーアカウントの作成、権限の管理、Bambuddyインスタンスのセキュリティを確保しましょう。',
+    authDisabledDescription: '認証を有効にして、ユーザーアカウントの作成、権限の管理、PrintOpsインスタンスのセキュリティを確保しましょう。',
+    authDisabledMessage: '認証を有効にして、ユーザーアカウントの作成、権限の管理、PrintOpsインスタンスのセキュリティを確保しましょう。',
     enableAuthentication: '認証を有効にする',
     currentUser: '現在のユーザー',
     changePassword: 'パスワードを変更',
@@ -2162,10 +2206,10 @@ export default {
     deleteGroup: 'グループを削除',
     // Modal: Disable auth
     disableAuthenticationTitle: '認証を無効化',
-    disableAuthenticationMessage: '認証を無効にしますか？Bambuddyインスタンスにログインなしでアクセスできるようになります。ユーザーはデータベースに残りますが、認証は無効になります。',
+    disableAuthenticationMessage: '認証を無効にしますか？PrintOpsインスタンスにログインなしでアクセスできるようになります。ユーザーはデータベースに残りますが、認証は無効になります。',
     disableAuthentication: '認証を無効化',
     // Additional settings
-    configureBambuddy: 'Bambuddyを設定',
+    configurePrintOps: 'PrintOpsを設定',
     systemDefault: 'システムデフォルト',
     archiveSettings: 'アーカイブ設定',
     newWindow: '新しいウィンドウ',
@@ -2392,7 +2436,7 @@ export default {
     autoArchivePrints: '印刷を自動アーカイブ',
     autoArchiveDescription: '印刷完了時に3MFファイルを自動保存',
     saveThumbnailsDescription: '3MFファイルからプレビュー画像を抽出して保存',
-    captureFinishPhotoDescription: '印刷完了時にプリンターカメラから写真を撮影します。Bambuddy は印刷中に短いタイムラプスを記録し、ベッドが下がる前の瞬間から写真を取得できるようにします。この印刷でタイムラプスを有効にしていた場合はタイムラプスファイルが保存され、それ以外の場合は写真の取得後に自動的に削除されます。',
+    captureFinishPhotoDescription: '印刷完了時にプリンターカメラから写真を撮影します。PrintOps は印刷中に短いタイムラプスを記録し、ベッドが下がる前の瞬間から写真を取得できるようにします。この印刷でタイムラプスを有効にしていた場合はタイムラプスファイルが保存され、それ以外の場合は写真の取得後に自動的に削除されます。',
     ffmpegNotInstalled: 'ffmpegがインストールされていません',
     ffmpegRequired: 'カメラ撮影にはffmpegが必要です。<brew>brew install ffmpeg</brew>（macOS）または<apt>apt install ffmpeg</apt>（Linux）でインストールしてください。',
     // Camera
@@ -2430,13 +2474,13 @@ export default {
     // Updates
     printerFirmware: 'プリンターファームウェア',
     checkFirmwareDescription: 'Bambu Labのプリンターファームウェア更新を確認',
-    bambuddySoftware: 'Bambuddyソフトウェア',
+    printopsSoftware: 'PrintOpsソフトウェア',
     autoCheckDescription: '起動時に自動的に新しいバージョンを確認',
     checkNow: '今すぐ確認',
     updateAvailableVersion: 'アップデート利用可能: v{{version}}',
     releaseNotes: 'リリースノート',
     updateViaDocker: 'Docker Composeでアップデート:',
-    updateViaHomeAssistant: 'アップデートはHome Assistant Supervisorによって管理されます。Home Assistantの設定→アドオン→Bambuddyを開いて新しいバージョンをインストールしてください。',
+    updateViaHomeAssistant: 'アップデートはHome Assistant Supervisorによって管理されます。Home Assistantの設定→アドオン→PrintOpsを開いて新しいバージョンをインストールしてください。',
     updateViaWindowsInstaller: 'Windowsインストールはインストーラーを再実行して更新します。下のリンクから新しいバージョンをダウンロードしてください — データ、設定、プリンターは保持されます。',
     downloadWindowsInstaller: 'v{{version}} のインストーラーをダウンロード',
     installUpdate: 'アップデートをインストール',
@@ -2448,8 +2492,8 @@ export default {
     goToBackup: 'バックアップへ',
     // Network tab
     externalUrl: '外部URL',
-    externalUrlDescription: 'Bambuddyがアクセス可能な外部URL。通知画像や外部連携に使用されます。',
-    bambuddyUrl: 'BambuddyのURL',
+    externalUrlDescription: 'PrintOpsがアクセス可能な外部URL。通知画像や外部連携に使用されます。',
+    printopsUrl: 'PrintOpsのURL',
     externalUrlHint: 'プロトコルとポートを含めてください（例: http://192.168.1.100:8000）',
     ftpRetry: 'FTPリトライ',
     ftpRetryDescription: 'プリンターのWi-Fiが不安定な場合にFTP操作をリトライ。3MFダウンロード、印刷アップロード、タイムラプスダウンロード、ファームウェア更新に適用。',
@@ -2475,7 +2519,7 @@ export default {
     haConnectionFailed: 'Home Assistantへの接続に失敗しました。',
     // MQTT
     mqttPublishing: 'MQTTパブリッシュ',
-    mqttDescription: 'Node-RED、Home Assistant、その他の自動化システムとの統合のため、外部MQTTブローカーにBamBuddyイベントをパブリッシュ。',
+    mqttDescription: 'Node-RED、Home Assistant、その他の自動化システムとの統合のため、外部MQTTブローカーにPrintOpsイベントをパブリッシュ。',
     mqttEnableDescription: '外部MQTTブローカーにイベントをパブリッシュ',
     brokerHostname: 'ブローカーホスト名',
     port: 'ポート',
@@ -2621,7 +2665,7 @@ export default {
       enabledFromFile: '保存時の暗号化が有効（データディレクトリから読み込んだキー）',
       enabledGenerated: '保存時の暗号化が自動生成キーで有効',
       notConfigured: '保存時の暗号化が設定されていません',
-      notConfiguredDesc: 'TOTPシークレットとOIDCのclient_secretsは平文で保存されています。MFA_ENCRYPTION_KEYを設定するか、書き込み可能なデータディレクトリでBambuddyを再起動して自動生成してください。',
+      notConfiguredDesc: 'TOTPシークレットとOIDCのclient_secretsは平文で保存されています。MFA_ENCRYPTION_KEYを設定するか、書き込み可能なデータディレクトリでPrintOpsを再起動して自動生成してください。',
       allEncrypted: 'すべてのMFAシークレットは保存時に暗号化されています。',
       legacyRowsLabel: 'レガシー平文行',
       encryptedRowsLabel: '暗号化された行',
@@ -2629,7 +2673,7 @@ export default {
       backupHint: '自動生成キーは DATA_DIR/.mfa_encryption_key に保存され、ローカルバックアップZIPに含まれます。バックアップを安全に保管するか、MFA_ENCRYPTION_KEYを明示的に設定してください。',
       decryptionBrokenTitle: '暗号化キーが見つかりません',
       decryptionBrokenError: '{{count}}件の暗号化レコードを復号できません。暗号化キーが見つかりません。以前のMFA_ENCRYPTION_KEYまたはDATA_DIR/.mfa_encryption_keyを復元してください。',
-      migrationErrorWarning: '{{count}} 件のレガシー行を起動時に再暗号化できませんでした。サーバーログを確認し、Bambuddy を再起動して再試行してください。',
+      migrationErrorWarning: '{{count}} 件のレガシー行を起動時に再暗号化できませんでした。サーバーログを確認し、PrintOps を再起動して再試行してください。',
     },
 
 
@@ -2875,7 +2919,7 @@ export default {
 
   // Login page
   login: {
-    title: 'Bambuddy ログイン',
+    title: 'PrintOps ログイン',
     subtitle: 'アカウントにサインイン',
     username: 'ユーザー名',
     usernamePlaceholder: 'ユーザー名を入力',
@@ -2923,7 +2967,7 @@ export default {
     sending: '送信中...',
     sendResetEmail: 'リセットメールを送信',
     howToReset: 'パスワードのリセット方法：',
-    resetStep1: 'Bambuddy管理者に連絡',
+    resetStep1: 'PrintOps管理者に連絡',
     resetStep2: 'ユーザー管理でパスワードリセットを依頼',
     resetStep3: '管理者が新しい仮パスワードを設定',
     resetStep4: '新しいパスワードでログインし、設定で変更',
@@ -2934,7 +2978,7 @@ export default {
       methodAuthenticator: '認証アプリ',
       methodEmail: 'メール認証',
       methodBackup: 'バックアップコード',
-      instructionsTotp: '認証アプリを開いて、Bambuddy用の6桁のコードを入力してください。',
+      instructionsTotp: '認証アプリを開いて、PrintOps用の6桁のコードを入力してください。',
       instructionsEmail: '6桁の確認コードをメールアドレスに送信しました。有効期限は10分です。',
       instructionsEmailNotSent: '下のボタンをクリックして、メールで確認コードを受け取ってください。',
       instructionsBackup: '8文字のバックアップコードをいずれか1つ入力してください。各コードは1回のみ使用可能です。',
@@ -2973,8 +3017,8 @@ export default {
 
   // Setup page
   setup: {
-    title: 'Bambuddy セットアップ',
-    subtitle: 'Bambuddyインスタンスの認証を設定',
+    title: 'PrintOps セットアップ',
+    subtitle: 'PrintOpsインスタンスの認証を設定',
     enableAuth: '認証を有効化',
     adminAccount: '管理者アカウント',
     adminAccountDesc: '既に管理者ユーザーが存在する場合、既存の管理者アカウントを使用して認証が有効化されます。既存の管理者を使用する場合は下のフィールドを空のままにするか、新しい認証情報を入力して新しい管理者ユーザーを作成してください。',
@@ -3131,7 +3175,7 @@ export default {
   // Users management
   users: {
     title: 'ユーザー管理',
-    subtitle: 'ユーザーとBambuddyインスタンスへのアクセスを管理',
+    subtitle: 'ユーザーとPrintOpsインスタンスへのアクセスを管理',
     backToSettings: '設定に戻る',
     createUser: 'ユーザーを作成',
     noPermission: 'このページにアクセスする権限がありません。',
@@ -3247,7 +3291,7 @@ export default {
       back: '別のサインイン方法を使用',
       connect: {
         title: 'Orca Cloudに接続',
-        description: 'Orca Cloudアカウントにサインインして、スライサープロファイルをBambuddyに同期します。',
+        description: 'Orca Cloudアカウントにサインインして、スライサープロファイルをPrintOpsに同期します。',
       },
       providers: {
         google: 'Googleでサインイン',
@@ -3340,7 +3384,7 @@ export default {
       loggedOut: 'ログアウトしました',
     },
     login: {
-      title: 'Bambuddy ログイン',
+      title: 'PrintOps ログイン',
       subtitle: 'アカウントにサインイン',
       email: 'メールアドレス',
       password: 'パスワード',
@@ -3929,13 +3973,13 @@ export default {
   // Sponsor surface (System page)
   sponsors: {
     sectionTitle: '独立・コミュニティ運営',
-    tagline: 'Bambuddyは無料で、これからも無料です。支援してくださる方々のおかげで、VCもクラウドロックインもありません。',
+    tagline: 'PrintOpsは無料で、これからも無料です。支援してくださる方々のおかげで、VCもクラウドロックインもありません。',
     viewSupporters: 'サポーター一覧',
-    toastPrints: 'Bambuddyで{{count}}件の印刷を完了しました。Bambuddyは支援者のおかげで無料で提供されています。',
-    toastCost: 'Bambuddyで{{total}}分のフィラメントを記録しました。プロジェクトを支えてくれている方々をご覧ください。',
-    toastArchives: '{{count}}件の印刷をBambuddyでアーカイブしました。独立を支えてくれている方々をご覧ください。',
-    toastAnniversary: 'Bambuddyとの1周年です！プロジェクトを支えてくれている方々をご覧ください。',
-    toastVersionUpdate: 'v{{version}}にアップデートされました。Bambuddyは支援者のおかげで無料で提供されています。',
+    toastPrints: 'PrintOpsで{{count}}件の印刷を完了しました。PrintOpsは支援者のおかげで無料で提供されています。',
+    toastCost: 'PrintOpsで{{total}}分のフィラメントを記録しました。プロジェクトを支えてくれている方々をご覧ください。',
+    toastArchives: '{{count}}件の印刷をPrintOpsでアーカイブしました。独立を支えてくれている方々をご覧ください。',
+    toastAnniversary: 'PrintOpsとの1周年です！プロジェクトを支えてくれている方々をご覧ください。',
+    toastVersionUpdate: 'v{{version}}にアップデートされました。PrintOpsは支援者のおかげで無料で提供されています。',
   },
 
   // Library (K Profiles)
@@ -4183,8 +4227,8 @@ export default {
       invalidHex: '16進数 6 文字（RRGGBB）または 8 文字（RRGGBBAA）を入力してください。それ以外の場合この項目は適用されません。',
     },
     spoolmanMixedContentTitle: 'Spoolman を HTTPS で読み込めません — ブラウザが混在コンテンツをブロックしています',
-    spoolmanMixedContentBody: 'Bambuddy はリバースプロキシ経由で HTTPS 配信されていますが、Spoolman の URL は HTTP のままです。ブラウザはセキュリティ上の理由で混在コンテンツをブロックするため、埋め込みの Spoolman UI を表示できません。Spoolman も HTTPS でアクセスできる必要があります。',
-    spoolmanMixedContentFixReverseProxy: 'Spoolman を Bambuddy と同じリバースプロキシ（Traefik / Nginx / Caddy）の後ろに HTTPS で配置し、設定で Spoolman URL を新しい HTTPS アドレスに更新してください。',
+    spoolmanMixedContentBody: 'PrintOps はリバースプロキシ経由で HTTPS 配信されていますが、Spoolman の URL は HTTP のままです。ブラウザはセキュリティ上の理由で混在コンテンツをブロックするため、埋め込みの Spoolman UI を表示できません。Spoolman も HTTPS でアクセスできる必要があります。',
+    spoolmanMixedContentFixReverseProxy: 'Spoolman を PrintOps と同じリバースプロキシ（Traefik / Nginx / Caddy）の後ろに HTTPS で配置し、設定で Spoolman URL を新しい HTTPS アドレスに更新してください。',
     spoolmanMixedContentFixOpenNewTab: '回避策として Spoolman を新しいタブで HTTP として開くことができます — 混在コンテンツのルールは埋め込みフレームのみに適用され、独立したタブは問題なく動作します。',
     spoolmanOpenInNewTab: 'Spoolman を新しいタブで開く',
     labels: {
@@ -4629,8 +4673,8 @@ export default {
     cloudLoginRequiredShort: 'Cloudログインが必要',
     githubDescription: 'プロファイルをプライベートGitHubリポジトリに自動的に同期し、バックアップとバージョン履歴を保持します。',
     repoIsPrivate: 'リポジトリはプライベートです — バックアップしても安全です。',
-    repoIsPublicWarning: 'リポジトリが公開（PUBLIC）です。Bambuddyのバックアップには MQTT 認証情報、Home Assistant トークン、Prometheus トークン、Bambu Cloud のメールアドレス、K-プロファイル経由のプリンタアクセスコードが含まれます。プロバイダー側でリポジトリをプライベートに変更するまで保存はブロックされます。',
-    repoVisibilityUnknown: 'リポジトリの公開設定を確認できませんでした。Bambuddy はプライベートと確認できないリポジトリへのバックアップを拒否します。保存はブロックされます。',
+    repoIsPublicWarning: 'リポジトリが公開（PUBLIC）です。PrintOpsのバックアップには MQTT 認証情報、Home Assistant トークン、Prometheus トークン、Bambu Cloud のメールアドレス、K-プロファイル経由のプリンタアクセスコードが含まれます。プロバイダー側でリポジトリをプライベートに変更するまで保存はブロックされます。',
+    repoVisibilityUnknown: 'リポジトリの公開設定を確認できませんでした。PrintOps はプライベートと確認できないリポジトリへのバックアップを拒否します。保存はブロックされます。',
     repositoryUrl: 'リポジトリURL',
     repoUrlPlaceholderGitHub: 'https://github.com/username/repo-name',
 	repoUrlPlaceholderGitea: 'https://gitea.example.com/username/repo-name',
@@ -4660,7 +4704,7 @@ export default {
     cloudProfiles: 'クラウドプロファイル',
     cloudProfilesDescription: 'Bambu Cloudからのフィラメント、プリンター、プロセスプリセット',
     appSettings: 'アプリ設定',
-    appSettingsDescription: 'Bambuddy設定（データベース全体）',
+    appSettingsDescription: 'PrintOps設定（データベース全体）',
     spoolInventory: 'スプール在庫',
     spoolInventoryDescription: 'フィラメントスプール、使用履歴、コスト追跡',
     printArchives: '印刷アーカイブ',
@@ -4695,7 +4739,7 @@ export default {
 
     // Local Backup
     localBackup: 'ローカルバックアップ',
-    localBackupDescription: 'データベース、アーカイブ、アップロード、すべてのファイルを含むBambuddyデータの完全なバックアップを作成します。',
+    localBackupDescription: 'データベース、アーカイブ、アップロード、すべてのファイルを含むPrintOpsデータの完全なバックアップを作成します。',
     downloadBackupLabel: 'バックアップをダウンロード',
     completeBackupZip: '完全バックアップ: データベース + 全ファイル (ZIP)',
     download: 'ダウンロード',
@@ -4711,7 +4755,7 @@ export default {
     restoreConfirmMessage: '"{{filename}}"から復元してもよろしいですか？現在のデータベースとすべてのファイルが完全に置き換えられます。復元後にアプリケーションの再起動が必要です。',
     restoreConfirmButton: 'バックアップを復元',
     uploadingFile: 'バックアップファイルをアップロードしています...',
-    backupRestoredRestart: 'バックアップが復元されました。Bambuddyを再起動してください。',
+    backupRestoredRestart: 'バックアップが復元されました。PrintOpsを再起動してください。',
     failedToRestore: 'バックアップの復元に失敗しました。ファイル形式を確認してください。',
     reloadNow: '今すぐリロード',
     creatingBackup: 'バックアップを作成中',
@@ -4943,7 +4987,7 @@ export default {
       right: '右',
       notes: 'メモ（ローカル保存）',
       notesPlaceholder: 'このプロファイルのメモを追加...',
-      notesHelp: 'メモはBambuddyに保存され、プリンターには保存されません',
+      notesHelp: 'メモはPrintOpsに保存され、プリンターには保存されません',
       syncing: 'プリンターと同期中...',
       savingExtruder: 'エクストルーダーに保存中 {{current}}/{{total}}...',
       pleaseWait: 'お待ちください',
@@ -4998,7 +5042,7 @@ export default {
     },
     enable: {
       title: '仮想プリンターを有効化',
-      visibleInSlicer: 'スライサーの検出リストに「Bambuddy」として表示',
+      visibleInSlicer: 'スライサーの検出リストに「PrintOps」として表示',
       proxyingTo: '{{name}}にプロキシ中',
       notActive: '非アクティブ',
     },
@@ -5033,7 +5077,7 @@ export default {
       configured: 'インターフェース上書き有効',
       optional: 'オプション — 自動検出IPが間違っている場合に使用（複数NIC、Docker、VPNなど）',
       placeholder: '自動検出（デフォルト）...',
-      hint: 'SSDPで広告され、TLS証明書に使用されるIPアドレスを上書きします。Bambuddyに複数のネットワークインターフェースがある場合に便利です。',
+      hint: 'SSDPで広告され、TLS証明書に使用されるIPアドレスを上書きします。PrintOpsに複数のネットワークインターフェースがある場合に便利です。',
     },
     mode: {
       title: 'モード',
@@ -5070,7 +5114,7 @@ export default {
     howItWorks: {
       title: '仕組み',
       step1: '同じLAN上では、仮想プリンターはスライサー（Bambu Studio / OrcaSlicer）に自動的に表示されます。他のネットワークからは、IPアドレスとアクセスコードで手動で追加してください。',
-      step2: 'アーカイブ、レビュー、キューモードでは、スライサーの「送信」ボタンを使用して3MFファイルをBambuddyにアップロードします。スライサーは「印刷成功」と表示しますが、ファイルは保存され、印刷はされません。',
+      step2: 'アーカイブ、レビュー、キューモードでは、スライサーの「送信」ボタンを使用して3MFファイルをPrintOpsにアップロードします。スライサーは「印刷成功」と表示しますが、ファイルは保存され、印刷はされません。',
       step3: 'プロキシモードでは、仮想プリンターはすべてのトラフィックを実際のプリンターに転送します。直接接続されているかのように印刷がすぐに開始されます。',
     },
     status: {
@@ -5133,7 +5177,7 @@ export default {
     },
     caCert: {
       title: 'スライサー証明書',
-      description: '仮想プリンターは Bambuddy CA が署名した TLS 証明書を使用します。この CA 証明書をスライサーの信頼ストアに一度インポートすると接続が受け入れられます — コマンドラインからコピーする必要はありません。',
+      description: '仮想プリンターは PrintOps CA が署名した TLS 証明書を使用します。この CA 証明書をスライサーの信頼ストアに一度インポートすると接続が受け入れられます — コマンドラインからコピーする必要はありません。',
       copy: 'コピー',
       copied: 'コピーしました',
       download: 'ダウンロード',
@@ -5627,16 +5671,22 @@ export default {
     title: 'サイドバーリンク',
     sidebarLayout: 'サイドバー',
     sidebarLayoutDescription: '組み込みページの表示/非表示を切り替え、外部リンクを追加し、項目をドラッグしてサイドバーナビゲーションを並べ替えます。',
-    systemPages: 'Bambuddyページ',
+    systemPages: 'PrintOpsページ',
     externalLinks: '外部リンク',
+    addLink: 'リンクを追加',
     visibleInSidebar: 'サイドバーに表示',
     hiddenFromSidebar: 'サイドバーで非表示',
     requiredInSidebar: 'サイドバーで必須',
+    mainPage: 'メインページ',
+    childPageOf: '{{parent}} の子ページ',
+    hiddenByParent: '{{parent}} によって非表示',
+    showParentFirst: '最初に {{parent}} を表示',
     hidePage: 'ページを非表示',
     showPage: 'ページを表示',
     settingsCannotBeHidden: '設定は非表示にできません',
     noLinksConfigured: '外部リンクが設定されていません',
     deleteLink: 'リンクを削除',
+    deleteConfirm: '本当に "{{name}}" を削除しますか？ この操作は元に戻せません。',
     removeCustomIcon: 'カスタムアイコンを削除',
     openInNewTab: '新しいタブで開く',
     placeholders: {
@@ -5842,7 +5892,7 @@ export default {
   // Email Settings
   emailSettings: {
     placeholders: {
-      fromName: 'Bambuddy',
+      fromName: 'PrintOps',
     },
   },
 
@@ -6138,7 +6188,7 @@ export default {
       upToDate: '最新です',
       includeBeta: 'ベータ版を含む',
       systemConfig: 'バックエンドと認証',
-      backendUrl: 'BambuddyバックエンドURL',
+      backendUrl: 'PrintOpsバックエンドURL',
       apiToken: 'APIトークン',
       apiTokenPlaceholder: 'APIトークンを入力',
       saveConfig: '設定を保存',
@@ -6245,13 +6295,13 @@ export default {
       network_mode: {
         title: 'Dockerネットワークモード',
         pass: 'ホストネットワークモードで実行中です。',
-        warn: 'BambuddyはDockerブリッジネットワークで実行されています。プリンター検出と仮想プリンターにはホストネットワークモードが必要です — "network_mode: host" でコンテナを再作成してください。',
+        warn: 'PrintOpsはDockerブリッジネットワークで実行されています。プリンター検出と仮想プリンターにはホストネットワークモードが必要です — "network_mode: host" でコンテナを再作成してください。',
         skip: 'Dockerで実行されていません — 該当しません。',
       },
       subnet: {
         title: 'ネットワークサブネット',
-        pass: 'プリンターとBambuddyは同じサブネットにあります。',
-        warn: 'プリンター ({{printer_ip}}) とBambuddy ({{host_ip}}) は異なるサブネットにあります。サブネット間のルーティングが設定されていない限り、互いに到達できない可能性があります。',
+        pass: 'プリンターとPrintOpsは同じサブネットにあります。',
+        warn: 'プリンター ({{printer_ip}}) とPrintOps ({{host_ip}}) は異なるサブネットにあります。サブネット間のルーティングが設定されていない限り、互いに到達できない可能性があります。',
         skip: 'サブネットを判定できませんでした — スキップしました。',
       },
       mqtt_auth: {
@@ -6293,12 +6343,12 @@ export default {
       'ftp-auth-rejected': {
         name: 'プリンターがアクセスコードを拒否しました',
         cause: 'プリンターがファイル転送のログインを拒否しました。アクセスコードが間違っているか、開発者モードの切り替え後に変更されています。',
-        fix: 'プリンター画面（LAN設定）からアクセスコードをコピーし直し、Bambuddy のプリンター設定で更新してください。',
+        fix: 'プリンター画面（LAN設定）からアクセスコードをコピーし直し、PrintOps のプリンター設定で更新してください。',
       },
       'ftp-connection-timeout': {
         name: 'ファイル転送の接続がタイムアウトしました',
-        cause: 'Bambuddy がプリンターのファイル転送ポート（FTPS 990）に到達できませんでした。ポートがブロックされているか、プリンターの電源が切れているか、別のサブネットにあります。',
-        fix: 'Bambuddy とプリンターの間でポート 990 がブロックされていないこと、両者が同じネットワークにあることを確認してください。',
+        cause: 'PrintOps がプリンターのファイル転送ポート（FTPS 990）に到達できませんでした。ポートがブロックされているか、プリンターの電源が切れているか、別のサブネットにあります。',
+        fix: 'PrintOps とプリンターの間でポート 990 がブロックされていないこと、両者が同じネットワークにあることを確認してください。',
       },
       'ftp-ssl-error': {
         name: 'セキュアなファイル転送のハンドシェイクに失敗しました',
@@ -6318,7 +6368,7 @@ export default {
       'database-locked': {
         name: 'データベースの書き込み競合',
         cause: '負荷時に SQLite データベースで "database is locked" エラーが発生しています。複数のプリンターを同時に使用する場合によく起こります。',
-        fix: 'Bambuddy を外部の PostgreSQL データベースに切り替えてください。ドキュメントの PostgreSQL ガイドを参照してください。',
+        fix: 'PrintOps を外部の PostgreSQL データベースに切り替えてください。ドキュメントの PostgreSQL ガイドを参照してください。',
       },
     },
   },
@@ -6341,7 +6391,7 @@ export default {
       },
       running: {
         title: 'サービスが稼働中',
-        fail: '仮想プリンターは有効ですが、サービスが稼働していません。Bambuddy のログを確認してください — 通常はバインド IP の競合または権限エラーが原因で停止します。',
+        fail: '仮想プリンターは有効ですが、サービスが稼働していません。PrintOps のログを確認してください — 通常はバインド IP の競合または権限エラーが原因で停止します。',
       },
       bind_interface: {
         title: 'バインドネットワークインターフェース',
@@ -6370,8 +6420,8 @@ export default {
       },
       certificate: {
         title: 'TLS 証明書',
-        pass: '証明書の準備ができています。Bambuddy CA 証明書（上記）がスライサーの信頼ストアにインポートされていることを確認してください。',
-        fail: 'この仮想プリンターの TLS 証明書がありません。Bambuddy のデータディレクトリが書き込み可能か確認してください。',
+        pass: '証明書の準備ができています。PrintOps CA 証明書（上記）がスライサーの信頼ストアにインポートされていることを確認してください。',
+        fail: 'この仮想プリンターの TLS 証明書がありません。PrintOps のデータディレクトリが書き込み可能か確認してください。',
       },
     },
   },
@@ -6436,7 +6486,7 @@ export default {
     pollInterval: 'ポーリング間隔(秒)',
     pollIntervalHint: '印刷中に各プリンターをチェックする頻度。最小 5 秒、最大 120 秒。',
     externalUrlMissing: '外部URLが設定されていません。',
-    externalUrlHint: 'ML APIはURLでカメラスナップショットを取得します。MLAPIコンテナがBambuddyに到達できるよう、一般設定で外部URLを設定してください。',
+    externalUrlHint: 'ML APIはURLでカメラスナップショットを取得します。MLAPIコンテナがPrintOpsに到達できるよう、一般設定で外部URLを設定してください。',
     perPrinterTitle: '監視対象プリンター',
     perPrinterHint: '検出サービスが監視するプリンターを選択します。',
     monitorAll: '接続されているすべてのプリンターを監視',
@@ -6450,7 +6500,7 @@ export default {
   },
   makerworld: {
     title: 'MakerWorld',
-    description: 'MakerWorld モデルの URL を貼り付けると、Bambu Handy アプリを開かなくても Bambuddy から直接インポート・印刷できます。',
+    description: 'MakerWorld モデルの URL を貼り付けると、Bambu Handy アプリを開かなくても PrintOps から直接インポート・印刷できます。',
     pasteUrlHeader: 'MakerWorld からインポート',
     pasteUrlPlaceholder: 'https://makerworld.com/en/models/… または任意の MakerWorld リンク',
     resolveButton: '読み込む',
@@ -6473,7 +6523,7 @@ export default {
     alsoCompatible: '互換性ありとも記録: {{printers}}',
     importToLibrary: '保存',
     sliceIn: '保存して {{slicer}} でスライス',
-    disclaimer: 'MakerWorld 連携はコミュニティで文書化された API エンドポイントを使用しています。Bambuddy は MakerWorld または Bambu Lab との提携・承認関係はありません。',
+    disclaimer: 'MakerWorld 連携はコミュニティで文書化された API エンドポイントを使用しています。PrintOps は MakerWorld または Bambu Lab との提携・承認関係はありません。',
     lastImportSuccess: 'ライブラリにインポートしました',
     lastImportAlreadyInLibrary: '既にライブラリに存在します',
     viewInLibrary: 'ファイルマネージャーで表示',
@@ -6569,7 +6619,7 @@ export default {
     effect1: '一致するファイルはゴミ箱に移動されます。ディスクからはまだ削除されません。',
     effect2: '保持期間が過ぎるまで、いつでもゴミ箱から復元できます。',
     effect3: '保持期間が過ぎると、ゴミ箱クリーナーがディスクから完全に削除します。',
-    effect4: '外部（リンク済み）フォルダー内のファイルはスキップされます — Bambuddyは所有していないバイトを削除しません。',    previewLoading: '対象ファイル数を確認中…',
+    effect4: '外部（リンク済み）フォルダー内のファイルはスキップされます — PrintOpsは所有していないバイトを削除しません。',    previewLoading: '対象ファイル数を確認中…',
     previewFailed: 'プレビューを取得できませんでした。',
     previewSummary: '{{count}} 件 · {{size}} がゴミ箱に移動されます',
     andMore: '…ほか {{count}} 件',

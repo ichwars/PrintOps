@@ -3,20 +3,38 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { waitFor } from '@testing-library/react';
+import { fireEvent, waitFor } from '@testing-library/react';
 import { render } from '../utils';
 import { Layout } from '../../components/Layout';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
 import { SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY, SIDEBAR_ORDER_KEY } from '../../utils/sidebarLayout';
+import { setAuthToken } from '../../api/client';
+
+const sidebarLink = (href: string) =>
+  document.querySelector(`aside a[href="${href}"]`);
+
+const sidebarMenuButton = (id: string) =>
+  document.querySelector(`aside button[aria-controls="sidebar-submenu-${id}"]`) as HTMLButtonElement | null;
+
+function expandSidebarMenu(id: string) {
+  const button = sidebarMenuButton(id);
+  expect(button).toBeInTheDocument();
+  if (button?.getAttribute('aria-expanded') === 'false') {
+    fireEvent.click(button);
+  }
+  return button;
+}
 
 describe('Layout', () => {
   beforeEach(() => {
+    window.history.replaceState({}, '', '/');
     vi.mocked(localStorage.getItem).mockReset();
     vi.mocked(localStorage.setItem).mockReset();
     vi.mocked(localStorage.removeItem).mockReset();
     vi.mocked(localStorage.clear).mockReset();
     localStorage.clear();
+    setAuthToken(null);
     server.use(
       http.get('/api/v1/printers/', () => {
         return HttpResponse.json([
@@ -120,10 +138,13 @@ describe('Layout', () => {
       await waitFor(() => {
         const sidebar = document.querySelector('aside');
         expect(sidebar).toBeInTheDocument();
-        expect(sidebar?.querySelector('a[href="/warehouse"]')).toBeInTheDocument();
+        expect(sidebarMenuButton('inventory')).toBeInTheDocument();
       });
 
-      expect(document.querySelector('aside a[href="/"]')).toBeNull();
+      expandSidebarMenu('inventory');
+      expect(sidebarLink('/warehouse')).toBeInTheDocument();
+      expect(sidebarLink('/printers')).toBeNull();
+      expect(sidebarMenuButton('printers')).toBeNull();
     });
 
     it('applies admin default sidebar hidden state with the default order', async () => {
@@ -148,13 +169,79 @@ describe('Layout', () => {
       await waitFor(() => {
         const sidebar = document.querySelector('aside');
         expect(sidebar).toBeInTheDocument();
-        expect(sidebar?.querySelector('a[href="/warehouse"]')).toBeInTheDocument();
+        expect(sidebarMenuButton('inventory')).toBeInTheDocument();
       });
 
+      expandSidebarMenu('inventory');
+      expect(sidebarLink('/warehouse')).toBeInTheDocument();
+
       await waitFor(() => {
-        expect(document.querySelector('aside a[href="/"]')).toBeNull();
+        expect(sidebarLink('/printers')).toBeNull();
+        expect(sidebarMenuButton('printers')).toBeNull();
         expect(localStorage.setItem).toHaveBeenCalledWith(SIDEBAR_ORDER_KEY, JSON.stringify(['inventory', 'printers', 'settings']));
         expect(localStorage.setItem).toHaveBeenCalledWith(SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY, JSON.stringify(['printers']));
+      });
+    });
+
+    it('keeps grouped nav submenus collapsed until their main item is clicked', async () => {
+      render(<Layout />);
+
+      await waitFor(() => {
+        expect(sidebarMenuButton('printers')).toBeInTheDocument();
+        expect(sidebarMenuButton('printers')).toHaveAttribute('aria-expanded', 'false');
+        expect(sidebarMenuButton('projects')).toHaveAttribute('aria-expanded', 'false');
+      });
+
+      expect(sidebarLink('/queue')).toBeNull();
+
+      fireEvent.click(sidebarMenuButton('printers')!);
+
+      await waitFor(() => {
+        expect(sidebarMenuButton('printers')).toHaveAttribute('aria-expanded', 'true');
+        expect(sidebarLink('/queue')).toBeInTheDocument();
+      });
+
+      fireEvent.click(sidebarMenuButton('projects')!);
+
+      await waitFor(() => {
+        expect(sidebarMenuButton('printers')).toHaveAttribute('aria-expanded', 'false');
+        expect(sidebarMenuButton('projects')).toHaveAttribute('aria-expanded', 'true');
+        expect(sidebarLink('/queue')).toBeNull();
+        expect(sidebarLink('/files')).toBeInTheDocument();
+      });
+
+      fireEvent.click(sidebarMenuButton('printers')!);
+
+      await waitFor(() => {
+        expect(sidebarMenuButton('printers')).toHaveAttribute('aria-expanded', 'true');
+        expect(sidebarMenuButton('projects')).toHaveAttribute('aria-expanded', 'false');
+        expect(sidebarLink('/queue')).toBeInTheDocument();
+        expect(sidebarLink('/files')).toBeNull();
+      });
+
+      fireEvent.click(sidebarMenuButton('printers')!);
+
+      await waitFor(() => {
+        expect(sidebarMenuButton('printers')).toHaveAttribute('aria-expanded', 'false');
+        expect(sidebarLink('/queue')).toBeNull();
+      });
+    });
+
+    it('shows settings domains as Settings submenu links', async () => {
+      window.history.replaceState({}, '', '/settings?tab=integrations');
+      render(<Layout />);
+
+      await waitFor(() => {
+        expect(sidebarMenuButton('settings')).toHaveAttribute('aria-expanded', 'true');
+        expect(sidebarLink('/settings')).toBeInTheDocument();
+        expect(sidebarLink('/settings')).not.toHaveClass('bg-bambu-green');
+        expect(sidebarLink('/settings?tab=users-security')).toBeInTheDocument();
+        expect(sidebarLink('/settings?tab=printers-production')).toBeInTheDocument();
+        expect(sidebarLink('/settings?tab=projects-files')).toBeInTheDocument();
+        expect(sidebarLink('/settings?tab=warehouse-material')).toBeInTheDocument();
+        expect(sidebarLink('/settings?tab=orders-calculation')).toBeInTheDocument();
+        expect(sidebarLink('/settings?tab=integrations')).toHaveClass('bg-bambu-green');
+        expect(sidebarLink('/settings?tab=operations')).toBeInTheDocument();
       });
     });
   });
@@ -429,9 +516,9 @@ describe('Layout', () => {
           }),
         ),
       );
-      // AuthProvider needs a token in localStorage to fetch /auth/me; the
-      // value isn't validated by the mocked server.
-      window.localStorage.setItem('auth_token', 'test-token');
+      // AuthProvider needs a token to fetch /auth/me; the value isn't
+      // validated by the mocked server.
+      setAuthToken('test-token');
     };
 
     const findMakerWorldNavLink = () => {
@@ -442,26 +529,29 @@ describe('Layout', () => {
     };
 
     it('hides the MakerWorld nav entry when the user lacks makerworld:view', async () => {
-      // Standard user without the MakerWorld permission. Every other
-      // permission they hold (library:read, etc.) is irrelevant here — the
-      // gate is per-entry and the MakerWorld entry must not render.
-      enableAuthWithUser(['library:read', 'archives:read', 'queue:read']);
+      // Standard user without the MakerWorld permission. Projects is granted
+      // only so the grouped Projects menu can be expanded; the gate remains
+      // per-entry and MakerWorld must not render.
+      enableAuthWithUser(['projects:read', 'library:read', 'archives:read', 'queue:read']);
 
       render(<Layout />);
 
       await waitFor(() => {
         // Wait for the auth resolution + sidebar render. Some other nav
-        // entry (Files / Archives) confirms the sidebar finished mounting.
+        // entry confirms the sidebar finished mounting.
         const sidebar = document.querySelector('aside');
         expect(sidebar).toBeInTheDocument();
-        expect(sidebar?.querySelector('a[href="/files"]')).toBeInTheDocument();
+        expect(sidebarMenuButton('projects')).toBeInTheDocument();
       });
 
+      expandSidebarMenu('projects');
+      expect(sidebarLink('/files')).toBeInTheDocument();
       expect(findMakerWorldNavLink()).toBeNull();
     });
 
     it('shows the MakerWorld nav entry when the user has makerworld:view', async () => {
       enableAuthWithUser([
+        'projects:read',
         'library:read',
         'archives:read',
         'queue:read',
@@ -469,6 +559,12 @@ describe('Layout', () => {
       ]);
 
       render(<Layout />);
+
+      await waitFor(() => {
+        expect(sidebarMenuButton('projects')).toBeInTheDocument();
+      });
+
+      expandSidebarMenu('projects');
 
       await waitFor(() => {
         expect(findMakerWorldNavLink()).toBeInTheDocument();
@@ -501,27 +597,36 @@ describe('Layout', () => {
           }),
         ),
       );
-      window.localStorage.setItem('auth_token', 'test-token');
+      setAuthToken('test-token');
     };
 
-    const sidebarLink = (href: string) =>
-      document.querySelector(`aside a[href="${href}"]`);
-
     it('shows Files in the sidebar when the user only has library:read_own', async () => {
-      enableAuthWithUser(['library:read_own']);
+      enableAuthWithUser(['projects:read', 'library:read_own']);
 
       render(<Layout />);
 
       await waitFor(() => {
         expect(document.querySelector('aside')).toBeInTheDocument();
+        expect(sidebarMenuButton('projects')).toBeInTheDocument();
+      });
+
+      expandSidebarMenu('projects');
+
+      await waitFor(() => {
         expect(sidebarLink('/files')).toBeInTheDocument();
       });
     });
 
     it('shows Files in the sidebar when the user only has library:read_all', async () => {
-      enableAuthWithUser(['library:read_all']);
+      enableAuthWithUser(['projects:read', 'library:read_all']);
 
       render(<Layout />);
+
+      await waitFor(() => {
+        expect(sidebarMenuButton('projects')).toBeInTheDocument();
+      });
+
+      expandSidebarMenu('projects');
 
       await waitFor(() => {
         expect(sidebarLink('/files')).toBeInTheDocument();
@@ -534,6 +639,12 @@ describe('Layout', () => {
       render(<Layout />);
 
       await waitFor(() => {
+        expect(sidebarMenuButton('printers')).toBeInTheDocument();
+      });
+
+      expandSidebarMenu('printers');
+
+      await waitFor(() => {
         expect(sidebarLink('/archives')).toBeInTheDocument();
       });
     });
@@ -542,6 +653,12 @@ describe('Layout', () => {
       enableAuthWithUser(['queue:read_own']);
 
       render(<Layout />);
+
+      await waitFor(() => {
+        expect(sidebarMenuButton('printers')).toBeInTheDocument();
+      });
+
+      expandSidebarMenu('printers');
 
       await waitFor(() => {
         expect(sidebarLink('/queue')).toBeInTheDocument();

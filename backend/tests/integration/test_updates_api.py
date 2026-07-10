@@ -204,7 +204,7 @@ class TestUpdatesAPI:
         """#1420: once GitHub returns 403 with X-RateLimit-Remaining=0, the
         next call must short-circuit on the backoff window instead of hitting
         api.github.com again. Otherwise the user's logs flood with rate-limit
-        errors and Bambuddy keeps adding to whatever throttle GitHub applies."""
+        errors and PrintOps keeps adding to whatever throttle GitHub applies."""
         import time
 
         import httpx as _httpx
@@ -277,34 +277,34 @@ class TestUpdatesAPI:
         it as 'reset to expected URL'."""
         from backend.app.api.routes.updates import _parse_github_remote
 
-        assert _parse_github_remote("git@github.com:maziggy/bambuddy.git") == (
-            "maziggy",
-            "bambuddy",
+        assert _parse_github_remote("git@github.com:ichwars/PrintOps.git") == (
+            "ichwars",
+            "PrintOps",
         )
-        assert _parse_github_remote("git@github.com:maziggy/bambuddy") == (
-            "maziggy",
-            "bambuddy",
+        assert _parse_github_remote("git@github.com:ichwars/PrintOps") == (
+            "ichwars",
+            "PrintOps",
         )
-        assert _parse_github_remote("https://github.com/maziggy/bambuddy.git") == (
-            "maziggy",
-            "bambuddy",
+        assert _parse_github_remote("https://github.com/ichwars/PrintOps.git") == (
+            "ichwars",
+            "PrintOps",
         )
-        assert _parse_github_remote("https://github.com/maziggy/bambuddy") == (
-            "maziggy",
-            "bambuddy",
+        assert _parse_github_remote("https://github.com/ichwars/PrintOps") == (
+            "ichwars",
+            "PrintOps",
         )
         # Non-GitHub host → None (we don't claim ownership over arbitrary
         # forge URLs).
-        assert _parse_github_remote("git@gitlab.com:maziggy/bambuddy.git") is None
+        assert _parse_github_remote("git@gitlab.com:ichwars/PrintOps.git") is None
         # Empty / malformed → None.
         assert _parse_github_remote("") is None
         assert _parse_github_remote("not-a-url") is None
-        assert _parse_github_remote("https://github.com/maziggy") is None  # no /repo
+        assert _parse_github_remote("https://github.com/ichwars") is None  # no /repo
 
     @pytest.mark.asyncio
     async def test_perform_update_preserves_ssh_origin_when_pointing_at_correct_repo(self, tmp_path):
         """Regression for the developer-checkout footgun: if origin already
-        points at github.com/maziggy/bambuddy via SSH, the updater must
+        points at github.com/ichwars/PrintOps via SSH, the updater must
         leave it alone instead of clobbering it with HTTPS. Pre-fix, every
         Apply Update click rewrote `git@github.com:...` to `https://...`,
         breaking subsequent `git push` for any developer testing the
@@ -326,7 +326,7 @@ class TestUpdatesAPI:
             # SSH URL. Every other subprocess returns successfully with no
             # output.
             if "get-url" in args and "origin" in args:
-                proc.communicate = AsyncMock(return_value=(b"git@github.com:maziggy/bambuddy.git\n", b""))
+                proc.communicate = AsyncMock(return_value=(b"git@github.com:ichwars/PrintOps.git\n", b""))
             else:
                 proc.communicate = AsyncMock(return_value=(b"", b""))
             proc.returncode = 0
@@ -375,7 +375,7 @@ class TestUpdatesAPI:
             proc = MagicMock()
             # origin is set to a fork — must be rewritten.
             if "get-url" in args and "origin" in args:
-                proc.communicate = AsyncMock(return_value=(b"git@github.com:somefork/bambuddy.git\n", b""))
+                proc.communicate = AsyncMock(return_value=(b"git@github.com:somefork/printops.git\n", b""))
             else:
                 proc.communicate = AsyncMock(return_value=(b"", b""))
             proc.returncode = 0
@@ -425,7 +425,7 @@ class TestUpdatesAPI:
             calls.append({"args": args, "cwd": kwargs.get("cwd")})
             proc = MagicMock()
             if "get-url" in args and "origin" in args:
-                proc.communicate = AsyncMock(return_value=(b"git@github.com:maziggy/bambuddy.git\n", b""))
+                proc.communicate = AsyncMock(return_value=(b"git@github.com:ichwars/PrintOps.git\n", b""))
             else:
                 proc.communicate = AsyncMock(return_value=(b"", b""))
             proc.returncode = 0
@@ -544,7 +544,7 @@ class TestUpdatesAPI:
         from backend.app.api.routes import updates as updates_module
 
         # Set up fake install layout: app_dir has requirements.txt, data_dir is
-        # a sibling (mirroring `INSTALL_PATH=/opt/bambuddy`, `DATA_DIR=/opt/bambuddy/data`).
+        # a sibling (mirroring `INSTALL_PATH=/opt/printops`, `DATA_DIR=/opt/printops/data`).
         app_dir = tmp_path / "app"
         data_dir = tmp_path / "app" / "data"
         app_dir.mkdir()
@@ -591,7 +591,7 @@ class TestUpdatesAPI:
     @pytest.mark.asyncio
     async def test_perform_update_runs_git_in_app_dir_when_data_dir_on_separate_mount(self, tmp_path):
         """Regression for #1715: when DATA_DIR is on a path separate from the
-        install (e.g. WorkingDirectory=/opt/bambuddy + DATA_DIR=/srv/bambuddy/data),
+        install (e.g. WorkingDirectory=/opt/printops + DATA_DIR=/srv/printops/data),
         ``base_dir`` and the repo working tree are on different mounts. Pre-fix,
         every git subprocess (`remote get-url`, `remote set-url`, `fetch`,
         `reset --hard`) used ``cwd=base_dir`` — and git could no longer walk up
@@ -605,8 +605,8 @@ class TestUpdatesAPI:
 
         # Separate-mount layout: app_dir and data_dir are SIBLINGS, not parent/
         # child. base_dir is not under app_dir, so git cannot walk up.
-        app_dir = tmp_path / "opt" / "bambuddy"
-        data_dir = tmp_path / "srv" / "bambuddy" / "data"
+        app_dir = tmp_path / "opt" / "printops"
+        data_dir = tmp_path / "srv" / "printops" / "data"
         app_dir.mkdir(parents=True)
         data_dir.mkdir(parents=True)
         (app_dir / "requirements.txt").write_text("fastapi\n")
@@ -617,7 +617,7 @@ class TestUpdatesAPI:
             calls.append({"args": args, "cwd": kwargs.get("cwd")})
             proc = MagicMock()
             if "get-url" in args and "origin" in args:
-                proc.communicate = AsyncMock(return_value=(b"git@github.com:maziggy/bambuddy.git\n", b""))
+                proc.communicate = AsyncMock(return_value=(b"git@github.com:ichwars/PrintOps.git\n", b""))
             else:
                 proc.communicate = AsyncMock(return_value=(b"", b""))
             proc.returncode = 0
@@ -696,8 +696,8 @@ class TestUpdatesAPI:
 
         release = {
             "assets": [
-                {"name": "bambuddy-0.2.5b1-windows-x64-setup.exe", "browser_download_url": "https://x/v.exe"},
-                {"name": "bambuddy-windows-x64-setup.exe", "browser_download_url": "https://x/alias.exe"},
+                {"name": "printops-0.2.5b1-windows-x64-setup.exe", "browser_download_url": "https://x/v.exe"},
+                {"name": "printops-windows-x64-setup.exe", "browser_download_url": "https://x/alias.exe"},
                 {"name": "checksums.txt", "browser_download_url": "https://x/c.txt"},
             ],
         }
@@ -708,7 +708,7 @@ class TestUpdatesAPI:
 
         release = {
             "assets": [
-                {"name": "bambuddy-windows-x64-setup.exe", "browser_download_url": "https://x/alias.exe"},
+                {"name": "printops-windows-x64-setup.exe", "browser_download_url": "https://x/alias.exe"},
             ],
         }
         assert _find_windows_installer_asset(release) == "https://x/alias.exe"
@@ -752,12 +752,12 @@ class TestUpdatesAPI:
             "tag_name": "v999.9.9",
             "name": "v999.9.9",
             "body": "",
-            "html_url": "https://github.com/maziggy/bambuddy/releases/tag/v999.9.9",
+            "html_url": "https://github.com/ichwars/PrintOps/releases/tag/v999.9.9",
             "published_at": "2099-01-01T00:00:00Z",
             "assets": [
                 {
-                    "name": "bambuddy-999.9.9-windows-x64-setup.exe",
-                    "browser_download_url": "https://github.com/maziggy/bambuddy/releases/download/v999.9.9/bambuddy-999.9.9-windows-x64-setup.exe",
+                    "name": "printops-999.9.9-windows-x64-setup.exe",
+                    "browser_download_url": "https://github.com/ichwars/PrintOps/releases/download/v999.9.9/printops-999.9.9-windows-x64-setup.exe",
                 },
             ],
         }
@@ -795,4 +795,4 @@ class TestUpdatesAPI:
         assert "update_method" in body, f"unexpected response shape: {body}"
         assert body["update_method"] == "windows_installer"
         assert body["is_windows_installer"] is True
-        assert body["installer_download_url"].endswith("bambuddy-999.9.9-windows-x64-setup.exe")
+        assert body["installer_download_url"].endswith("printops-999.9.9-windows-x64-setup.exe")

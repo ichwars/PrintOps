@@ -4155,7 +4155,7 @@ def _resolve_source_3mf_path(archive: PrintArchive, source_filename: str) -> Pat
 
     Normal archives nest the source under ``<archive_file_dir>/source/``.
     "Fallback" archives (created in main.py when MQTT reports a print start
-    but Bambuddy never saw the source 3MF — cloud / Handy / pre-existing
+    but PrintOps never saw the source 3MF — cloud / Handy / pre-existing
     SD-card prints) carry ``file_path=""``. Joining that with ``base_dir``
     via the ``/`` operator silently yields ``base_dir`` itself, whose parent
     is ``base_dir.parent`` — which sent the upload to ``/app/source/`` and

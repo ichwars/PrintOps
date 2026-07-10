@@ -3233,7 +3233,7 @@ class TestPrinterAccessCodeVisibility:
 
     Holding ``access_code`` lets the caller talk to the printer's MQTT
     directly with serial+code, bypassing every PRINTERS_CONTROL /
-    PRINTERS_FILES / PRINTERS_AMS_RFID check Bambuddy enforces.
+    PRINTERS_FILES / PRINTERS_AMS_RFID check PrintOps enforces.
 
     Trust matrix encoded here:
       - Auth disabled                  → access_code visible (single-trust mode)

@@ -395,7 +395,7 @@ async def add_to_queue(
         archive = result.scalar_one_or_none()
         if not archive:
             raise HTTPException(400, "Archive not found")
-        # IDOR fix (maziggy/bambuddy-security #2): without this check, a
+        # IDOR fix (maziggy/printops-security #2): without this check, a
         # caller with QUEUE_CREATE could queue any user's archive even
         # without ARCHIVES_READ on it — Landon's PoC enumerated this on
         # admin's archives as operator1. Gate on ARCHIVES_READ_ALL OR

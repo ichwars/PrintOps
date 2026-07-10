@@ -83,7 +83,7 @@ _PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", "/api/v1/library/files/{file_id}/dl/{token}/{filename}"),
         # Obico cached frame — one-time nonce embedded in <img> tags.
         ("GET", "/api/v1/obico/cached-frame/{nonce}"),
-        # MakerWorld thumbnail proxy — fetches external URL; no Bambuddy data exposed.
+        # MakerWorld thumbnail proxy — fetches external URL; no PrintOps data exposed.
         ("GET", "/api/v1/makerworld/thumbnail"),
         # ---- HTTP API: operational + UI-bootstrap (no sensitive data) ----
         # Operational liveness probe — minimal payload, used by container orchestrators.
@@ -99,7 +99,7 @@ _PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", "/api/v1/system/appliance"),
         # Slicer printer-models — static catalog, no user data.
         ("GET", "/api/v1/slicer/printer-models"),
-        # Current Bambuddy version — public info (already visible in HTTP response headers + Docker tags).
+        # Current PrintOps version — public info (already visible in HTTP response headers + Docker tags).
         ("GET", "/api/v1/updates/version"),
         # Webhook routes — auth lives inside the handler via get_api_key() + check_permission(), not as a Depends.
         # Once they all migrate to standard auth deps these entries come out; for now exempting the file.

@@ -128,10 +128,10 @@ scan_codeql_python() {
         return 2
     fi
     echo "Creating database..."
-    gh codeql database create --overwrite --language=python --threads=0 /tmp/bambuddy-codeql-python &>/dev/null
+    gh codeql database create --overwrite --language=python --threads=0 /tmp/printops-codeql-python &>/dev/null
     echo "Analyzing..."
-    gh codeql database analyze /tmp/bambuddy-codeql-python \
-        "$PROJECT_ROOT/.codeql/python-bambuddy.qls" \
+    gh codeql database analyze /tmp/printops-codeql-python \
+        "$PROJECT_ROOT/.codeql/python-printops.qls" \
         --threads=0 --format=sarifv2.1.0 --output="$sarif" &>/dev/null
     echo ""
     parse_sarif "$sarif"
@@ -144,10 +144,10 @@ scan_codeql_js() {
         return 2
     fi
     echo "Creating database..."
-    gh codeql database create --overwrite --language=javascript --source-root=frontend --threads=0 /tmp/bambuddy-codeql-javascript &>/dev/null
+    gh codeql database create --overwrite --language=javascript --source-root=frontend --threads=0 /tmp/printops-codeql-javascript &>/dev/null
     echo "Analyzing..."
-    gh codeql database analyze /tmp/bambuddy-codeql-javascript \
-        "$PROJECT_ROOT/.codeql/javascript-bambuddy.qls" \
+    gh codeql database analyze /tmp/printops-codeql-javascript \
+        "$PROJECT_ROOT/.codeql/javascript-printops.qls" \
         --threads=0 --format=sarifv2.1.0 --output="$sarif" &>/dev/null
     echo ""
     parse_sarif "$sarif"
@@ -160,9 +160,9 @@ scan_codeql_actions() {
         return 2
     fi
     echo "Creating database..."
-    gh codeql database create --overwrite --language=actions --threads=0 /tmp/bambuddy-codeql-actions &>/dev/null
+    gh codeql database create --overwrite --language=actions --threads=0 /tmp/printops-codeql-actions &>/dev/null
     echo "Analyzing..."
-    gh codeql database analyze /tmp/bambuddy-codeql-actions \
+    gh codeql database analyze /tmp/printops-codeql-actions \
         codeql/actions-queries \
         --threads=0 --format=sarifv2.1.0 --output="$sarif" &>/dev/null
     echo ""
@@ -179,9 +179,9 @@ scan_trivy_image() {
         return 2
     fi
     echo "Building Docker image..."
-    docker build -t bambuddy:security-scan . 2>&1
+    docker build -t printops:security-scan . 2>&1
     echo ""
-    trivy image --severity CRITICAL,HIGH,MEDIUM bambuddy:security-scan 2>&1
+    trivy image --severity CRITICAL,HIGH,MEDIUM printops:security-scan 2>&1
 }
 
 scan_trivy_config() {
@@ -354,7 +354,7 @@ if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
     exit 0
 fi
 
-echo -e "${BOLD}Bambuddy Security Scanner${NC}"
+echo -e "${BOLD}PrintOps Security Scanner${NC}"
 echo -e "${DIM}$(date '+%Y-%m-%d %H:%M:%S')  •  $(nproc) CPU cores available${NC}"
 echo ""
 

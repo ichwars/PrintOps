@@ -1,6 +1,6 @@
 // PrintOps Service Worker
-const CACHE_NAME = 'printops-v1';
-const STATIC_CACHE = 'printops-static-v1';
+const CACHE_NAME = 'printops-v2';
+const STATIC_CACHE = 'printops-static-v2';
 
 // Static assets to cache on install
 const STATIC_ASSETS = [
@@ -33,7 +33,7 @@ self.addEventListener('install', (event) => {
 // `controllerchange` listener, gated on whether the page already had a SW
 // controller at load time. That gate distinguishes first-install (where a
 // reload would race the in-flight React mount — observed on every fresh
-// *.demo.bambuddy.cool subdomain, and in Firefox the activate's waitUntil
+// *.demo.github.com/ichwars/PrintOps subdomain, and in Firefox the activate's waitUntil
 // hung on `client.navigate` until the document load was aborted with a
 // Corrupted-Content error) from upgrade-on-existing-client (where the reload
 // is wanted).
@@ -187,8 +187,8 @@ self.addEventListener('push', (event) => {
   const data = event.data.json();
   const options = {
     body: data.body || 'New notification from PrintOps',
-    icon: '/img/android-chrome-192x192.png',
-    badge: '/img/favicon-32x32.png',
+    icon: '/img/printops_icon.svg',
+    badge: '/img/printops_icon.svg',
     vibrate: [100, 50, 100],
     data: {
       url: data.url || '/',

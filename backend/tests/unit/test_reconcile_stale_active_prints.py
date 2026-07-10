@@ -4,7 +4,7 @@ PRINT COMPLETE events (#1542 follow-up).
 Background: the PRINT COMPLETE MQTT callback is purely reactive to a single
 state transition (RUNNING → IDLE / FINISH / FAILED). When the printer
 finishes during an MQTT disconnect window — typical on the A1 line with
-unstable MQTT keepalives — Bambuddy never observes the transition. If a
+unstable MQTT keepalives — PrintOps never observes the transition. If a
 smart plug then cuts power between completion and the next reconnect, the
 firmware auto-replays whatever's still on the SD card and produces a ghost
 print on next power-up. Reporter (#1542 second case) saw this hit 4 out of

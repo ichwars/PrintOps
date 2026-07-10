@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# BamBuddy Native Installation Script
+# PrintOps Native Installation Script
 # Supports: Debian/Ubuntu, RHEL/Fedora/CentOS, Arch Linux, macOS
 #
 # Usage:
-#   Interactive:  curl -fsSL https://raw.githubusercontent.com/maziggy/bambuddy/main/install/install.sh -o install.sh && chmod +x install.sh && ./install.sh
-#   Unattended:   ./install.sh --path /opt/bambuddy --port 8000 --yes
+#   Interactive:  curl -fsSL https://raw.githubusercontent.com/ichwars/PrintOps/main/install/install.sh -o install.sh && chmod +x install.sh && ./install.sh
+#   Unattended:   ./install.sh --path /opt/printops --port 8000 --yes
 #
 # Options:
-#   --path PATH        Installation directory (default: /opt/bambuddy)
+#   --path PATH        Installation directory (default: /opt/printops)
 #   --port PORT        Port to listen on (default: 8000)
 #   --bind ADDRESS     Bind address: 0.0.0.0 (network) or 127.0.0.1 (local only)
 #   --tz TIMEZONE      Timezone (default: system timezone or UTC)
@@ -35,7 +35,7 @@ NC='\033[0m' # No Color
 BOLD='\033[1m'
 
 # Default values
-DEFAULT_INSTALL_PATH="/opt/bambuddy"
+DEFAULT_INSTALL_PATH="/opt/printops"
 DEFAULT_PORT="8000"
 DEFAULT_BIND_ADDRESS="0.0.0.0"
 DEFAULT_LOG_LEVEL="INFO"
@@ -57,7 +57,7 @@ OS_TYPE=""
 PKG_MANAGER=""
 PYTHON_CMD=""
 BRANCH=""
-SERVICE_USER="bambuddy"
+SERVICE_USER="printops"
 
 # -----------------------------------------------------------------------------
 # Helper Functions
@@ -145,12 +145,12 @@ prompt_yes_no() {
 }
 
 show_help() {
-    echo "BamBuddy Native Installation Script"
+    echo "PrintOps Native Installation Script"
     echo ""
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  --path PATH        Installation directory (default: /opt/bambuddy)"
+    echo "  --path PATH        Installation directory (default: /opt/printops)"
     echo "  --port PORT        Port to listen on (default: 8000)"
     echo "  --bind ADDRESS     Bind address: 0.0.0.0 (network) or 127.0.0.1 (local only)"
     echo "  --tz TIMEZONE      Timezone (default: system timezone or UTC)"
@@ -169,7 +169,7 @@ show_help() {
     echo "    ./install.sh"
     echo ""
     echo "  Unattended installation with custom settings:"
-    echo "    ./install.sh --path /srv/bambuddy --port 3000 --tz America/New_York --yes"
+    echo "    ./install.sh --path /srv/printops --port 3000 --tz America/New_York --yes"
     echo ""
     echo "  Minimal unattended installation:"
     echo "    ./install.sh -y"
@@ -352,14 +352,14 @@ ensure_user_owned_dir() {
     sudo chown "$(id -un):$(id -gn)" "$dir"
 }
 
-download_bambuddy() {
-    log_info "Downloading BamBuddy..."
+download_printops() {
+    log_info "Downloading PrintOps..."
 
     # Validate branch exists on remote before proceeding
-    if ! git ls-remote --exit-code --heads https://github.com/maziggy/bambuddy.git "$BRANCH" &>/dev/null; then
-        log_error "Branch '$BRANCH' not found in the BamBuddy repository."
+    if ! git ls-remote --exit-code --heads https://github.com/ichwars/PrintOps.git "$BRANCH" &>/dev/null; then
+        log_error "Branch '$BRANCH' not found in the PrintOps repository."
         log_info "Available branches:"
-        git ls-remote --heads https://github.com/maziggy/bambuddy.git | sed 's|.*refs/heads/|  - |'
+        git ls-remote --heads https://github.com/ichwars/PrintOps.git | sed 's|.*refs/heads/|  - |'
         exit 1
     fi
 
@@ -377,7 +377,7 @@ download_bambuddy() {
             git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH"
             git reset --hard "origin/$BRANCH"
         else
-            git clone --branch "$BRANCH" https://github.com/maziggy/bambuddy.git "$INSTALL_PATH"
+            git clone --branch "$BRANCH" https://github.com/ichwars/PrintOps.git "$INSTALL_PATH"
         fi
     elif [[ -d "$INSTALL_PATH/.git" ]]; then
         log_info "Existing installation found, updating..."
@@ -393,13 +393,13 @@ download_bambuddy() {
         # Clone as root so we have write access regardless of the installing user,
         # then hand ownership to the service user. Previously we chown'd the empty
         # dir to the service user before the clone, which left the install-running
-        # user (not root, not bambuddy) unable to write .git into it.
+        # user (not root, not printops) unable to write .git into it.
         sudo mkdir -p "$INSTALL_PATH"
-        sudo git clone --branch "$BRANCH" https://github.com/maziggy/bambuddy.git "$INSTALL_PATH"
+        sudo git clone --branch "$BRANCH" https://github.com/ichwars/PrintOps.git "$INSTALL_PATH"
         sudo chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_PATH" 2>/dev/null || true
     fi
 
-    log_success "BamBuddy downloaded to $INSTALL_PATH (branch: $BRANCH)"
+    log_success "PrintOps downloaded to $INSTALL_PATH (branch: $BRANCH)"
 }
 
 setup_virtualenv() {
@@ -527,8 +527,8 @@ create_env_file() {
 
     # Note: Only include settings recognized by the app's pydantic Settings class
     # Other settings (PORT, BIND_ADDRESS, DATA_DIR, LOG_DIR, TZ) are set in systemd service
-    cat > /tmp/bambuddy.env << EOF
-# BamBuddy Configuration
+    cat > /tmp/printops.env << EOF
+# PrintOps Configuration
 # Generated by install.sh on $(date)
 
 # Debug mode (true = verbose logging)
@@ -544,10 +544,10 @@ EOF
 
     if [[ "$OS_TYPE" == "macos" ]]; then
         # Rootless: install path is user-owned, so write it directly.
-        mv /tmp/bambuddy.env "$env_file"
+        mv /tmp/printops.env "$env_file"
         chmod 600 "$env_file"
     else
-        sudo mv /tmp/bambuddy.env "$env_file"
+        sudo mv /tmp/printops.env "$env_file"
         sudo chown "$SERVICE_USER:$SERVICE_USER" "$env_file"
         sudo chmod 600 "$env_file"
     fi
@@ -571,10 +571,10 @@ create_systemd_service() {
         protect_home="read-only"
     fi
 
-    cat > /tmp/bambuddy.service << EOF
+    cat > /tmp/printops.service << EOF
 [Unit]
-Description=BamBuddy - Bambu Lab Print Management
-Documentation=https://github.com/maziggy/bambuddy
+Description=PrintOps - Bambu Lab Print Management
+Documentation=https://github.com/ichwars/PrintOps
 After=network.target
 
 [Service]
@@ -612,23 +612,23 @@ ReadWritePaths=$DATA_DIR $LOG_DIR $INSTALL_PATH
 WantedBy=multi-user.target
 EOF
 
-    sudo mv /tmp/bambuddy.service /etc/systemd/system/bambuddy.service
+    sudo mv /tmp/printops.service /etc/systemd/system/printops.service
     sudo systemctl daemon-reload
 
     log_success "Systemd service created"
 
-    if prompt_yes_no "Enable BamBuddy to start on boot?" "y"; then
-        sudo systemctl enable bambuddy
+    if prompt_yes_no "Enable PrintOps to start on boot?" "y"; then
+        sudo systemctl enable printops
         log_success "Service enabled"
     fi
 
-    if prompt_yes_no "Start BamBuddy now?" "y"; then
-        sudo systemctl start bambuddy
+    if prompt_yes_no "Start PrintOps now?" "y"; then
+        sudo systemctl start printops
         sleep 2
-        if sudo systemctl is-active --quiet bambuddy; then
-            log_success "BamBuddy is running"
+        if sudo systemctl is-active --quiet printops; then
+            log_success "PrintOps is running"
         else
-            log_warn "Service may have failed to start. Check: sudo journalctl -u bambuddy -f"
+            log_warn "Service may have failed to start. Check: sudo journalctl -u printops -f"
         fi
     fi
 }
@@ -640,7 +640,7 @@ create_launchd_service() {
 
     log_info "Creating launchd service..."
 
-    local plist_path="$HOME/Library/LaunchAgents/com.bambuddy.app.plist"
+    local plist_path="$HOME/Library/LaunchAgents/com.printops.app.plist"
 
     cat > "$plist_path" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -648,7 +648,7 @@ create_launchd_service() {
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.bambuddy.app</string>
+    <string>com.printops.app</string>
     <key>ProgramArguments</key>
     <array>
         <string>$INSTALL_PATH/venv/bin/uvicorn</string>
@@ -681,22 +681,22 @@ create_launchd_service() {
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>$LOG_DIR/bambuddy.log</string>
+    <string>$LOG_DIR/printops.log</string>
     <key>StandardErrorPath</key>
-    <string>$LOG_DIR/bambuddy.error.log</string>
+    <string>$LOG_DIR/printops.error.log</string>
 </dict>
 </plist>
 EOF
 
     log_success "Launchd plist created at $plist_path"
 
-    if prompt_yes_no "Load BamBuddy service now?" "y"; then
+    if prompt_yes_no "Load PrintOps service now?" "y"; then
         launchctl load "$plist_path"
         sleep 2
-        if launchctl list | grep -q "com.bambuddy.app"; then
-            log_success "BamBuddy is running"
+        if launchctl list | grep -q "com.printops.app"; then
+            log_success "PrintOps is running"
         else
-            log_warn "Service may have failed to start. Check: cat $LOG_DIR/bambuddy.error.log"
+            log_warn "Service may have failed to start. Check: cat $LOG_DIR/printops.error.log"
         fi
     fi
 }
@@ -904,8 +904,8 @@ main() {
         fi
         # /opt requires sudo to create and would leave a root-owned tree; default
         # macOS installs to a user-owned location so the whole flow stays rootless.
-        if [[ "$DEFAULT_INSTALL_PATH" == "/opt/bambuddy" ]]; then
-            DEFAULT_INSTALL_PATH="$HOME/bambuddy"
+        if [[ "$DEFAULT_INSTALL_PATH" == "/opt/printops" ]]; then
+            DEFAULT_INSTALL_PATH="$HOME/printops"
         fi
     fi
 
@@ -943,7 +943,7 @@ main() {
         SERVICE_USER="$USER"
     fi
 
-    download_bambuddy
+    download_printops
     setup_virtualenv
     build_frontend
     create_directories
@@ -967,33 +967,33 @@ main() {
     if [[ "$BIND_ADDRESS" == "0.0.0.0" ]]; then
         local ip_addr
         ip_addr=$(hostname -I 2>/dev/null | awk '{print $1}') || ip_addr="<your-ip>"
-        echo -e "  ${BOLD}Access BamBuddy:${NC}  ${CYAN}http://localhost:$PORT${NC}"
+        echo -e "  ${BOLD}Access PrintOps:${NC}  ${CYAN}http://localhost:$PORT${NC}"
         echo -e "                    ${CYAN}http://$ip_addr:$PORT${NC} (from other devices)"
     else
-        echo -e "  ${BOLD}Access BamBuddy:${NC}  ${CYAN}http://localhost:$PORT${NC}"
+        echo -e "  ${BOLD}Access PrintOps:${NC}  ${CYAN}http://localhost:$PORT${NC}"
     fi
     echo ""
     if [[ "$OS_TYPE" == "macos" ]]; then
         echo -e "  ${BOLD}Manage service:${NC}"
-        echo -e "    Start:   launchctl load ~/Library/LaunchAgents/com.bambuddy.app.plist"
-        echo -e "    Stop:    launchctl unload ~/Library/LaunchAgents/com.bambuddy.app.plist"
-        echo -e "    Logs:    tail -f $LOG_DIR/bambuddy.log"
+        echo -e "    Start:   launchctl load ~/Library/LaunchAgents/com.printops.app.plist"
+        echo -e "    Stop:    launchctl unload ~/Library/LaunchAgents/com.printops.app.plist"
+        echo -e "    Logs:    tail -f $LOG_DIR/printops.log"
     else
         echo -e "  ${BOLD}Manage service:${NC}"
-        echo -e "    Status:  sudo systemctl status bambuddy"
-        echo -e "    Start:   sudo systemctl start bambuddy"
-        echo -e "    Stop:    sudo systemctl stop bambuddy"
-        echo -e "    Logs:    sudo journalctl -u bambuddy -f"
+        echo -e "    Status:  sudo systemctl status printops"
+        echo -e "    Start:   sudo systemctl start printops"
+        echo -e "    Stop:    sudo systemctl stop printops"
+        echo -e "    Logs:    sudo journalctl -u printops -f"
     fi
     echo ""
-    echo -e "  ${BOLD}Update BamBuddy:${NC}"
+    echo -e "  ${BOLD}Update PrintOps:${NC}"
     echo -e "    cd $INSTALL_PATH && git pull && source venv/bin/activate"
     echo -e "    pip install -r requirements.txt && cd frontend && npm ci && npm run build"
     if [[ "$OS_TYPE" != "macos" ]]; then
-        echo -e "    sudo systemctl restart bambuddy"
+        echo -e "    sudo systemctl restart printops"
     fi
     echo ""
-    echo -e "  ${BOLD}Documentation:${NC}  ${CYAN}https://wiki.bambuddy.cool${NC}"
+    echo -e "  ${BOLD}Documentation:${NC}  ${CYAN}https://github.com/ichwars/PrintOps/wiki${NC}"
     echo ""
 }
 

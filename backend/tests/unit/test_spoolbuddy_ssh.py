@@ -76,7 +76,7 @@ async def test_get_or_create_keypair_generates_new(tmp_path):
         # Public key is a valid OpenSSH ed25519 key with our comment
         pub_text = pub.read_text()
         assert pub_text.startswith("ssh-ed25519 ")
-        assert pub_text.rstrip().endswith("bambuddy-spoolbuddy")
+        assert pub_text.rstrip().endswith("printops-spoolbuddy")
 
         # Private key is a valid OpenSSH-format ed25519 key we can load back
         loaded = serialization.load_ssh_private_key(priv.read_bytes(), password=None)
@@ -103,12 +103,12 @@ async def test_get_public_key(tmp_path):
     ssh_dir = tmp_path / "spoolbuddy" / "ssh"
     ssh_dir.mkdir(parents=True)
     (ssh_dir / "id_ed25519").write_text("PRIVATE")
-    (ssh_dir / "id_ed25519.pub").write_text("ssh-ed25519 AAAA bambuddy-spoolbuddy\n")
+    (ssh_dir / "id_ed25519.pub").write_text("ssh-ed25519 AAAA printops-spoolbuddy\n")
 
     with patch("backend.app.services.spoolbuddy_ssh.settings") as mock_settings:
         mock_settings.base_dir = tmp_path
         key = await get_public_key()
-        assert key == "ssh-ed25519 AAAA bambuddy-spoolbuddy"
+        assert key == "ssh-ed25519 AAAA printops-spoolbuddy"
 
 
 # -- detect_current_branch ----------------------------------------------------

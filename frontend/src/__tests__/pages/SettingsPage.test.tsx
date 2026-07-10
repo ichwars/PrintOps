@@ -37,10 +37,80 @@ const mockSettings = {
   bed_cooled_threshold: 35,
 };
 
+const settingsSidebarChildIds = [
+  'settings-general',
+  'settings-users-security',
+  'settings-printers-production',
+  'settings-projects-files',
+  'settings-warehouse-material',
+  'settings-orders-calculation',
+  'settings-integrations',
+  'settings-operations',
+];
+
+async function clickSettingsSearchResult(query: string) {
+  const user = userEvent.setup();
+  const search = await screen.findByPlaceholderText('Search settings…');
+  const searchContainer = search.closest('.relative');
+  if (!searchContainer) {
+    throw new Error('Expected settings search container');
+  }
+  await user.clear(search);
+  await user.type(search, query);
+  const [result] = await within(searchContainer).findAllByRole('button', { name: new RegExp(query, 'i') });
+  await user.click(result);
+}
+
+type LegacyAliasLandingExpectation = {
+  alias: string;
+  anchorId: string;
+  tabLabel: string;
+  subTabLabel?: string;
+};
+
+function setSettingsTabUrl(tab: string, extraSearch = '') {
+  const search = tab === 'general' ? extraSearch : `?tab=${tab}${extraSearch}`;
+  window.history.replaceState({}, '', `/settings${search}`);
+}
+
+function navigateSettingsTab(tab: string, extraSearch = '') {
+  const search = tab === 'general' ? extraSearch : `?tab=${tab}${extraSearch}`;
+  window.history.pushState({}, '', `/settings${search}`);
+  window.dispatchEvent(new Event('popstate'));
+}
+
+async function expectLegacyAliasLanding({
+  alias,
+  anchorId,
+  subTabLabel,
+}: LegacyAliasLandingExpectation) {
+  const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView');
+  window.history.replaceState({}, '', `/settings?tab=${alias}`);
+
+  render(<SettingsPage />);
+
+  const anchor = await waitFor(() => {
+    const element = document.getElementById(anchorId);
+    expect(element).not.toBeNull();
+    return element as HTMLElement;
+  });
+
+  await waitFor(() => {
+    expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    expect(anchor).toHaveClass('ring-2', 'ring-bambu-green');
+  });
+
+  if (subTabLabel) {
+    expect(await screen.findByRole('button', { name: subTabLabel })).toHaveClass('text-bambu-green');
+  }
+
+  scrollSpy.mockRestore();
+}
+
 describe('SettingsPage', () => {
   beforeEach(() => {
     // BrowserRouter shares window.location across tests; reset it so a tab
-    // switch in one test (e.g. clicking "Workflow") doesn't carry into
+    // switch in one test (e.g. clicking "Printers & Production") doesn't carry into
     // sibling tests that expect to land on the default General tab.
     window.history.replaceState({}, '', '/');
     vi.mocked(localStorage.getItem).mockReset();
@@ -49,6 +119,7 @@ describe('SettingsPage', () => {
     vi.mocked(localStorage.clear).mockReset();
     localStorage.clear();
     setAuthToken(null);
+    Element.prototype.scrollIntoView = vi.fn();
 
     server.use(
       http.get('/api/v1/settings/', () => {
@@ -91,22 +162,135 @@ describe('SettingsPage', () => {
 
       await waitFor(() => {
         // Use role-based query to avoid conflicts with dropdown options
-        expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'General', level: 1 })).toBeInTheDocument();
+        expect(screen.getByText('Manage language, appearance, default views, and personal UI preferences.')).toBeInTheDocument();
       });
     });
 
-    it('shows settings tabs', async () => {
+    it('uses the active users/security subpage as the page title', async () => {
+      const user = userEvent.setup();
+      setSettingsTabUrl('users-security');
       render(<SettingsPage />);
 
       await waitFor(() => {
-        // Use getAllByText since "General" appears both as tab and section heading
-        expect(screen.getAllByText('General').length).toBeGreaterThan(0);
-        expect(screen.getByText('Smart Plugs')).toBeInTheDocument();
-        expect(screen.getAllByText('Notifications').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('Filament').length).toBeGreaterThan(0);
-        expect(screen.getByText('Network')).toBeInTheDocument();
-        expect(screen.getByText('API Keys')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Authentication', level: 1 })).toBeInTheDocument();
+        expect(screen.getByText('Manage local users, groups, roles, sessions, and authentication state.')).toBeInTheDocument();
       });
+
+      await user.click(await screen.findByRole('button', { name: 'Email Authentication' }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Email Authentication', level: 1 })).toBeInTheDocument();
+        expect(screen.getByText('Configure SMTP delivery and email-based authentication workflows.')).toBeInTheDocument();
+      });
+    });
+
+    it('uses the active printer/production subpage as the page title', async () => {
+      setSettingsTabUrl('printers-production');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Devices', level: 1 })).toBeInTheDocument();
+        expect(screen.getByText('Manage default printers, cameras, FTP retry behavior, and virtual printer endpoints.')).toBeInTheDocument();
+      });
+
+      navigateSettingsTab('printers-production', '&sub=pipelines');
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Pipelines', level: 1 })).toBeInTheDocument();
+        expect(screen.getByText('Manage slicer pipelines, presets, and automated preparation flows.')).toBeInTheDocument();
+      });
+    });
+
+    it('uses the project management subpage as the page title', async () => {
+      setSettingsTabUrl('projects-files');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'File Management', level: 1 })).toBeInTheDocument();
+        expect(screen.getByText('Manage file handling, archive modes, disk warnings, and project storage rules.')).toBeInTheDocument();
+      });
+    });
+
+    it('uses the active integration subpage as the page title', async () => {
+      setSettingsTabUrl('integrations');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Notifications', level: 1 })).toBeInTheDocument();
+      });
+      expect(screen.queryByRole('heading', { name: 'Settings' })).not.toBeInTheDocument();
+    });
+
+    it('uses API & Metrics title and description for the active integration subpage', async () => {
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'API & Metrics', level: 1 })).toBeInTheDocument();
+        expect(screen.getByText('Manage API keys, camera tokens, Prometheus metrics, and the API browser.')).toBeInTheDocument();
+      });
+    });
+
+    it('keeps canonical settings domains out of the page-level tab row', async () => {
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'General', level: 1 })).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole('button', { name: 'Users & Security' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Printers & Production' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Projects & Files' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Warehouse & Material' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Orders & Calculation' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Integrations' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Operations' })).not.toBeInTheDocument();
+    });
+
+    it('opens Printers & Production from legacy queue tab URL', async () => {
+      window.history.replaceState({}, '', '/settings?tab=queue');
+      render(<SettingsPage />);
+
+      expect(await screen.findByRole('button', { name: 'Print Process' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('Default Print Options')).toBeInTheDocument();
+    });
+
+    it('opens Warehouse & Material from legacy filament tab URL', async () => {
+      window.history.replaceState({}, '', '/settings?tab=filament');
+      render(<SettingsPage />);
+
+      expect(await screen.findByText('Filament checks')).toBeInTheDocument();
+    });
+
+    it('opens Operations from legacy backup tab URL', async () => {
+      window.history.replaceState({}, '', '/settings?tab=backup');
+      render(<SettingsPage />);
+
+      expect(await screen.findByRole('button', { name: 'Backups' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('Git Backup')).toBeInTheDocument();
+    });
+
+    it('opens Users & Security email settings from legacy email tab URL', async () => {
+      window.history.replaceState({}, '', '/settings?tab=email');
+      render(<SettingsPage />);
+
+      expect(await screen.findByRole('button', { name: 'Email Authentication' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('SMTP Configuration')).toBeInTheDocument();
+    });
+
+    it.each([
+      { alias: 'users', anchorId: 'card-users', tabLabel: 'Users & Security', subTabLabel: 'Authentication' },
+      { alias: 'email', anchorId: 'card-smtp', tabLabel: 'Users & Security', subTabLabel: 'Email Authentication' },
+      { alias: 'apikeys', anchorId: 'card-createapi', tabLabel: 'Integrations', subTabLabel: 'API & Metrics' },
+      { alias: 'queue', anchorId: 'card-print-options', tabLabel: 'Printers & Production', subTabLabel: 'Print Process' },
+      { alias: 'virtual-printer', anchorId: 'card-vp', tabLabel: 'Printers & Production', subTabLabel: 'Devices' },
+      { alias: 'failure-detection', anchorId: 'card-fd-ml', tabLabel: 'Printers & Production', subTabLabel: 'Failure Detection' },
+      { alias: 'filament', anchorId: 'card-filamentchecks', tabLabel: 'Warehouse & Material', subTabLabel: 'Filament' },
+      { alias: 'spoolbuddy', anchorId: 'card-spoolbuddy', tabLabel: 'Warehouse & Material', subTabLabel: 'SpoolBuddy' },
+      { alias: 'backup', anchorId: 'card-backup', tabLabel: 'Operations', subTabLabel: 'Backups' },
+    ])('scrolls legacy %s URLs to their documented landing cards', async ({ alias, anchorId, tabLabel, subTabLabel }) => {
+      await expectLegacyAliasLanding({ alias, anchorId, tabLabel, subTabLabel });
     });
   });
 
@@ -127,42 +311,216 @@ describe('SettingsPage', () => {
       });
     });
 
-    it('shows default printer setting', async () => {
+    it('keeps General focused on UI preferences and excludes orders or operations cards', async () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Default Printer')).toBeInTheDocument();
+        const generalCard = document.getElementById('card-general');
+        const appearanceCard = document.getElementById('card-appearance');
+        const sidebarCard = document.getElementById('card-sidebar-links');
+        const uiPreferencesCard = document.getElementById('card-ui-preferences');
+
+        expect(generalCard).not.toBeNull();
+        expect(appearanceCard).not.toBeNull();
+        expect(sidebarCard).not.toBeNull();
+        expect(uiPreferencesCard).not.toBeNull();
+        expect(within(generalCard as HTMLElement).getByText('Language')).toBeInTheDocument();
+        expect(within(generalCard as HTMLElement).getByText('Default View')).toBeInTheDocument();
+        expect(within(generalCard as HTMLElement).getByText('Date Format')).toBeInTheDocument();
+        expect(within(generalCard as HTMLElement).getByText('Time Format')).toBeInTheDocument();
+        expect(within(uiPreferencesCard as HTMLElement).getAllByText('Reset UI Preferences').length).toBeGreaterThan(0);
+        expect(screen.queryByText('Cost Tracking')).not.toBeInTheDocument();
+        expect(screen.queryByText('Updates')).not.toBeInTheDocument();
+        expect(screen.queryByText('Default Printer')).not.toBeInTheDocument();
       });
     });
 
-    it('shows preferred slicer setting on Workflow tab', async () => {
-      const user = userEvent.setup();
+    it('shows preferred slicer setting on Printers & Production', async () => {
+      setSettingsTabUrl('printers-production', '&sub=print-process');
       render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Workflow')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Workflow'));
 
       await waitFor(() => {
         expect(screen.getByText('Preferred Slicer')).toBeInTheDocument();
       });
     });
 
-    it('shows slicer dropdown with both options on Workflow tab', async () => {
-      const user = userEvent.setup();
+    it('shows slicer dropdown with both options on Printers & Production', async () => {
+      setSettingsTabUrl('printers-production', '&sub=print-process');
       render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Workflow')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Workflow'));
 
       await waitFor(() => {
         const slicerSelect = screen.getAllByDisplayValue('Bambu Studio');
         expect(slicerSelect.length).toBeGreaterThan(0);
+      });
+    });
+
+    it('shows File Manager on Projects & Files', async () => {
+      setSettingsTabUrl('projects-files');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        const card = document.getElementById('card-filemanager');
+        expect(screen.getByText('File Manager')).toBeInTheDocument();
+        expect(card).not.toBeNull();
+        expect(within(card as HTMLElement).getByText('Low Disk Space Warning')).toBeInTheDocument();
+      });
+    });
+
+    it('shows Cost Tracking on Orders & Calculation', async () => {
+      setSettingsTabUrl('orders-calculation');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        const card = document.getElementById('card-cost');
+        expect(screen.getByText('Cost Tracking')).toBeInTheDocument();
+        expect(card).not.toBeNull();
+        expect(within(card as HTMLElement).getByText('Currency')).toBeInTheDocument();
+      });
+    });
+
+    it('does not show File Manager or Cost Tracking in General', async () => {
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Date Format')).toBeInTheDocument();
+        expect(document.getElementById('card-filemanager')).toBeNull();
+        expect(document.getElementById('card-cost')).toBeNull();
+      });
+    });
+
+    it('shows device settings in Printers & Production by default', async () => {
+      setSettingsTabUrl('printers-production');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        const defaultPrinterCard = document.getElementById('card-default-printer');
+        const virtualPrinterCard = document.getElementById('card-vp');
+
+        expect(defaultPrinterCard).not.toBeNull();
+        expect(virtualPrinterCard).not.toBeNull();
+        expect(document.getElementById('card-print-options')).toBeNull();
+        expect(document.getElementById('card-archive')).toBeNull();
+        expect(within(defaultPrinterCard as HTMLElement).getAllByText('Default Printer').length).toBeGreaterThan(0);
+        expect(within(virtualPrinterCard as HTMLElement).getByText('Setup Required')).toBeInTheDocument();
+      });
+    });
+
+    it('shows print-process settings in Printers & Production', async () => {
+      setSettingsTabUrl('printers-production', '&sub=print-process');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        const printOptionsCard = document.getElementById('card-print-options');
+        const archiveCard = document.getElementById('card-archive');
+
+        expect(printOptionsCard).not.toBeNull();
+        expect(archiveCard).not.toBeNull();
+        expect(document.getElementById('card-default-printer')).toBeNull();
+        expect(within(archiveCard as HTMLElement).getByText('Archive Settings')).toBeInTheDocument();
+        expect(within(printOptionsCard as HTMLElement).getByText('Default Print Options')).toBeInTheDocument();
+      });
+    });
+
+    it('shows Filament Checks in Warehouse & Material by default', async () => {
+      setSettingsTabUrl('warehouse-material');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        const filamentChecksCard = document.getElementById('card-filamentchecks');
+
+        expect(filamentChecksCard).not.toBeNull();
+        expect(document.getElementById('card-spoolbuddy')).toBeNull();
+        expect(within(filamentChecksCard as HTMLElement).getByText('Filament checks')).toBeInTheDocument();
+      });
+    });
+
+    it('shows SpoolBuddy under its Warehouse & Material subpage', async () => {
+      setSettingsTabUrl('warehouse-material', '&sub=spoolbuddy');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        const spoolBuddyCard = document.getElementById('card-spoolbuddy');
+
+        expect(spoolBuddyCard).not.toBeNull();
+        expect(screen.getByText('SpoolBuddy devices')).toBeInTheDocument();
+      });
+    });
+
+    it('shows Operations subpages and defaults to Updates', async () => {
+      const user = userEvent.setup();
+      setSettingsTabUrl('operations');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        const updatesCard = document.getElementById('card-updates');
+
+        expect(updatesCard).not.toBeNull();
+        expect(within(updatesCard as HTMLElement).getByText('Updates')).toBeInTheDocument();
+        expect(document.getElementById('card-data')).toBeNull();
+        expect(document.getElementById('card-backup')).toBeNull();
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Data Management' }));
+      expect(await screen.findByText('Backup & Restore')).toBeInTheDocument();
+      expect(window.location.search).toContain('sub=data-management');
+
+      await user.click(screen.getByRole('button', { name: 'Backups' }));
+      expect(await screen.findByText('Git Backup')).toBeInTheDocument();
+      expect(window.location.search).toContain('sub=backups');
+    });
+
+    it('shows Bed Cooled Threshold under Printers & Production instead of Integrations', async () => {
+      setSettingsTabUrl('integrations');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(document.getElementById('card-providers')).not.toBeNull();
+      });
+      expect(screen.queryByText('Bed Cooled Threshold')).not.toBeInTheDocument();
+
+      navigateSettingsTab('printers-production', '&sub=print-process');
+      const completionRulesCard = await waitFor(() => {
+        const card = document.getElementById('card-completion-rules');
+        expect(card).not.toBeNull();
+        return card as HTMLElement;
+      });
+      expect(within(completionRulesCard as HTMLElement).getByText('Bed Cooled Threshold')).toBeInTheDocument();
+    });
+
+    it('loads storage usage only on the Operations data management subpage', async () => {
+      let storageRequests = 0;
+      server.use(
+        http.get('/api/v1/system/storage-usage', () => {
+          storageRequests += 1;
+          return HttpResponse.json({
+            total_bytes: 1024,
+            total_formatted: '1 KB',
+            scan_errors: 0,
+            categories: [],
+            other_breakdown: [],
+          });
+        }),
+      );
+
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Date Format')).toBeInTheDocument();
+      });
+      expect(storageRequests).toBe(0);
+
+      navigateSettingsTab('operations');
+
+      await waitFor(() => {
+        expect(screen.getByText('Check printer firmware')).toBeInTheDocument();
+      });
+      expect(storageRequests).toBe(0);
+
+      await userEvent.click(screen.getByRole('button', { name: 'Data Management' }));
+
+      await waitFor(() => {
+        expect(storageRequests).toBe(1);
+        expect(screen.getByText('Storage Usage')).toBeInTheDocument();
       });
     });
 
@@ -175,30 +533,289 @@ describe('SettingsPage', () => {
     });
 
     it('shows updates section with firmware toggle', async () => {
+      setSettingsTabUrl('operations');
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Updates')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Updates', level: 1 })).toBeInTheDocument();
         expect(screen.getByText('Check for updates')).toBeInTheDocument();
         expect(screen.getByText('Check printer firmware')).toBeInTheDocument();
       });
     });
 
-    it('hides a Bambuddy sidebar page from Sidebar', async () => {
+    it('hides a PrintOps sidebar page from Sidebar', async () => {
       const user = userEvent.setup();
       render(<SettingsPage />);
 
       await screen.findByRole('heading', { name: 'Sidebar' });
-      await screen.findAllByText('Visible in sidebar');
+      await screen.findAllByText(/Visible in sidebar/);
 
       vi.mocked(localStorage.setItem).mockClear();
       await user.click((await screen.findAllByLabelText('Hide page'))[0]);
 
-      expect(localStorage.setItem).toHaveBeenCalledWith(SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY, JSON.stringify(['printers']));
-      expect(screen.getByText('Hidden from sidebar')).toBeInTheDocument();
+      expect(localStorage.setItem).toHaveBeenCalledWith(SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY, JSON.stringify(['dashboard']));
+      expect(screen.getByText(/Hidden from sidebar/)).toBeInTheDocument();
     });
 
-    it('shows a previously hidden Bambuddy sidebar page from Sidebar', async () => {
+    it('renders PrintOps Sidebar labels and child context instead of translation keys', async () => {
+      render(<SettingsPage />);
+
+      const heading = await screen.findByRole('heading', { name: 'Sidebar' });
+      const card = heading.closest('#card-sidebar-links') as HTMLElement;
+      expect(card).not.toBeNull();
+      await within(card).findAllByText(/Visible in sidebar/);
+
+      expect(within(card).getByText('Dashboard')).toBeInTheDocument();
+      expect(within(card).getByText('Warehouse')).toBeInTheDocument();
+      expect(within(card).getByText('Orders')).toBeInTheDocument();
+      expect(within(card).queryByText('printops.nav.dashboard')).not.toBeInTheDocument();
+      expect(within(card).queryByText('printops.nav.warehouse')).not.toBeInTheDocument();
+      expect(within(card).getAllByText('Child page of Printers · Visible in sidebar').length).toBeGreaterThan(0);
+    });
+
+    it('searches Sidebar in Allgemein after canonical IA changes', async () => {
+      const user = userEvent.setup();
+      render(<SettingsPage />);
+
+      const search = await screen.findByPlaceholderText('Search settings…');
+      await user.type(search, 'Sidebar');
+
+      expect((await screen.findAllByText('Sidebar')).length).toBeGreaterThan(0);
+      expect(screen.getAllByText('General').length).toBeGreaterThan(0);
+    });
+
+    it('searches SpoolBuddy in Warehouse & Material', async () => {
+      const user = userEvent.setup();
+      render(<SettingsPage />);
+
+      const search = await screen.findByPlaceholderText('Search settings…');
+      await user.type(search, 'SpoolBuddy');
+
+      expect((await screen.findAllByText('SpoolBuddy')).length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Warehouse & Material').length).toBeGreaterThan(0);
+    });
+
+    it('searches Virtual Printer in Printers & Production', async () => {
+      const user = userEvent.setup();
+      render(<SettingsPage />);
+
+      const search = await screen.findByPlaceholderText('Search settings…');
+      await user.type(search, 'Virtual Printer');
+
+      expect((await screen.findAllByText('Virtual Printer')).length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Printers & Production').length).toBeGreaterThan(0);
+    });
+
+    it('opens the rendered SpoolBuddy pane from search results', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('SpoolBuddy');
+
+      expect(await screen.findByText('SpoolBuddy devices')).toBeInTheDocument();
+      expect(document.getElementById('card-spoolbuddy')).not.toBeNull();
+    });
+
+    it('opens the rendered Virtual Printer pane from search results', async () => {
+      server.use(
+        http.get('/api/v1/virtual-printers', () =>
+          HttpResponse.json({ printers: [], models: {} }),
+        ),
+        http.get('/api/v1/virtual-printers/ca-certificate', () =>
+          HttpResponse.json({
+            pem: '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----',
+            fingerprint_sha256: 'aa:bb',
+            not_valid_after: '2030-01-01T00:00:00Z',
+          }),
+        ),
+      );
+
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Virtual Printer');
+
+      expect(await screen.findByText('Setup Required')).toBeInTheDocument();
+      expect(document.getElementById('card-vp')).not.toBeNull();
+    });
+
+    it('opens the rendered Backup pane from search results', async () => {
+      server.use(
+        http.get('/api/v1/github-backup/config', () => HttpResponse.json(null)),
+        http.get('/api/v1/github-backup/logs', () => HttpResponse.json([])),
+        http.get('/api/v1/local-backup/status', () =>
+          HttpResponse.json({
+            enabled: false,
+            schedule: 'daily',
+            time: '03:00',
+            retention: 5,
+            path: '',
+            default_path: '/backups',
+            is_running: false,
+            last_backup_at: null,
+            last_status: null,
+            last_message: null,
+            next_run: null,
+            timezone: 'UTC',
+          }),
+        ),
+        http.get('/api/v1/local-backup/backups', () => HttpResponse.json([])),
+      );
+
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Backup');
+
+      expect(await screen.findByText('Git Backup')).toBeInTheDocument();
+      expect(await screen.findByText('Scheduled Backups')).toBeInTheDocument();
+      expect(window.location.search).toContain('sub=backups');
+      expect(document.getElementById('card-backup')).not.toBeNull();
+    });
+
+    it('opens the rendered FTP Retry pane from search results', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('FTP Retry');
+
+      const card = document.getElementById('card-ftpretry');
+      expect(await screen.findByRole('button', { name: 'Devices' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('FTP Retry')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=printers-production');
+      expect(card).not.toBeNull();
+    });
+
+    it('opens the rendered Prometheus pane from search results', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Prometheus');
+
+      const card = document.getElementById('card-prometheus');
+      expect(await screen.findByText('Prometheus Metrics')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=integrations');
+      expect(window.location.search).toContain('sub=api-metrics');
+      expect(card).not.toBeNull();
+    });
+
+    it('opens the rendered Webhook pane from search results', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Webhook');
+
+      expect(await screen.findByText('Webhook Endpoints')).toBeInTheDocument();
+      expect(await screen.findByText('/api/v1/webhook/status')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=integrations');
+      expect(window.location.search).toContain('sub=webhooks');
+      expect(document.getElementById('card-webhooks')).not.toBeNull();
+    });
+
+    it('opens the rendered API Browser pane from search results', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('API Browser');
+
+      const card = document.getElementById('card-apibrowser');
+      expect(await screen.findByText('API Browser')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=integrations');
+      expect(window.location.search).toContain('sub=api-metrics');
+      expect(card).not.toBeNull();
+    });
+
+    it('opens File Manager from search results on its canonical tab', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('File Manager');
+
+      expect(await screen.findByText('File Manager')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=projects-files');
+      expect(document.getElementById('card-filemanager')).not.toBeNull();
+    });
+
+    it('opens Cost Tracking from search results on its canonical tab', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Cost Tracking');
+
+      expect(await screen.findByText('Cost Tracking')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=orders-calculation');
+      expect(document.getElementById('card-cost')).not.toBeNull();
+    });
+
+    it('opens Archive Settings from search results on its canonical tab', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Archive Settings');
+
+      expect(await screen.findByRole('button', { name: 'Print Process' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('Archive Settings')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=printers-production');
+      expect(document.getElementById('card-archive')).not.toBeNull();
+    });
+
+    it('opens Camera from search results on its canonical tab', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Camera');
+
+      expect(await screen.findByRole('button', { name: 'Devices' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByText('External Cameras')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=printers-production');
+      expect(document.getElementById('card-camera')).not.toBeNull();
+    });
+
+    it('opens Updates from search results on its canonical tab', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Updates');
+
+      expect(await screen.findByText('Check printer firmware')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=operations');
+      expect(document.getElementById('card-updates')).not.toBeNull();
+    });
+
+    it('opens Data Management from search results on its canonical tab', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Data Management');
+
+      expect(await screen.findByText('Clear Notification Logs')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=operations');
+      expect(window.location.search).toContain('sub=data-management');
+      expect(document.getElementById('card-data')).not.toBeNull();
+    });
+
+    it('scrolls to backup when Go to Backup is clicked from Data Management', async () => {
+      const user = userEvent.setup();
+      setSettingsTabUrl('operations', '&sub=data-management');
+      render(<SettingsPage />);
+
+      const goToBackupButton = await screen.findByRole('button', { name: /go to backup/i });
+      expect(document.getElementById('card-backup')).toBeNull();
+      const scrollIntoViewSpy = vi
+        .spyOn(HTMLElement.prototype, 'scrollIntoView')
+        .mockImplementation(() => {});
+
+      await user.click(goToBackupButton);
+
+      await waitFor(() => {
+        const backupCard = document.getElementById('card-backup');
+        expect(backupCard).not.toBeNull();
+        expect(scrollIntoViewSpy).toHaveBeenCalled();
+        expect(scrollIntoViewSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+        expect(backupCard).toHaveClass('ring-2', 'ring-bambu-green');
+        expect(window.location.search).toContain('sub=backups');
+      });
+      scrollIntoViewSpy.mockRestore();
+    });
+
+    it('opens Drying from search results on its canonical tab', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Drying');
+
+      expect(await screen.findByText('Queue Auto-Drying')).toBeInTheDocument();
+      expect(window.location.search).toContain('tab=warehouse-material');
+      expect(document.getElementById('card-drying')).not.toBeNull();
+    });
+
+    it('shows a previously hidden PrintOps sidebar page from Sidebar', async () => {
       vi.mocked(localStorage.getItem).mockImplementation((key) => {
         if (key === SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY) return JSON.stringify(['printers']);
         return null;
@@ -208,27 +825,27 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       await screen.findByRole('heading', { name: 'Sidebar' });
-      await screen.findByText('Hidden from sidebar');
+      await screen.findByText(/Hidden from sidebar/);
 
       vi.mocked(localStorage.setItem).mockClear();
       await user.click(await screen.findByLabelText('Show page'));
 
       expect(localStorage.setItem).toHaveBeenCalledWith(SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY, JSON.stringify([]));
-      expect(screen.getAllByText('Visible in sidebar').length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Visible in sidebar/).length).toBeGreaterThan(0);
     });
 
     it('does not allow Settings to be hidden from Sidebar', async () => {
       render(<SettingsPage />);
 
       await screen.findByRole('heading', { name: 'Sidebar' });
-      await screen.findByText('Required in sidebar');
+      await screen.findByText(/Required in sidebar/);
 
       const settingsVisibilityButton = await screen.findByLabelText('Settings cannot be hidden');
       expect(settingsVisibilityButton).toBeDisabled();
-      expect(screen.getByText('Required in sidebar')).toBeInTheDocument();
+      expect(screen.getByText(/Required in sidebar/)).toBeInTheDocument();
     });
 
-    it('presents external links and Bambuddy pages in saved sidebar order', async () => {
+    it('presents external links and PrintOps pages in saved sidebar order', async () => {
       vi.mocked(localStorage.getItem).mockImplementation((key) => {
         if (key === SIDEBAR_ORDER_KEY) return JSON.stringify(['ext-7', 'printers', 'settings']);
         return null;
@@ -303,13 +920,36 @@ describe('SettingsPage', () => {
 
       expect(localStorage.setItem).toHaveBeenCalledWith(
         SIDEBAR_ORDER_KEY,
-        JSON.stringify(['ext-7', 'printers', 'inventory', 'archives', 'queue', 'projects', 'files', 'makerworld', 'profiles', 'maintenance', 'stats', 'notifications', 'settings']),
+        JSON.stringify([
+          'dashboard',
+          'ext-7',
+          'printers',
+          'archives',
+          'queue',
+          'profiles',
+          'maintenance',
+          'projects',
+          'files',
+          'makerworld',
+          'inventory',
+          'warehouse-filament',
+          'warehouse-parts',
+          'warehouse-stock',
+          'orders',
+          'orders-offers',
+          'orders-calculation',
+          'orders-customers',
+          'orders-invoice',
+          'notifications',
+          'settings',
+          ...settingsSidebarChildIds,
+        ]),
       );
     });
 
     it('resets Sidebar to all pages first and configured links at the bottom', async () => {
       vi.mocked(localStorage.getItem).mockImplementation((key) => {
-        if (key === SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY) return JSON.stringify(['printers', 'stats']);
+        if (key === SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY) return JSON.stringify(['printers', 'dashboard']);
         if (key === SIDEBAR_ORDER_KEY) return JSON.stringify(['ext-7', 'settings', 'printers']);
         return null;
       });
@@ -345,7 +985,30 @@ describe('SettingsPage', () => {
       expect(localStorage.setItem).toHaveBeenCalledWith(SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY, JSON.stringify([]));
       expect(localStorage.setItem).toHaveBeenCalledWith(
         SIDEBAR_ORDER_KEY,
-        JSON.stringify(['printers', 'inventory', 'archives', 'queue', 'projects', 'files', 'makerworld', 'profiles', 'maintenance', 'stats', 'notifications', 'settings', 'ext-7']),
+        JSON.stringify([
+          'dashboard',
+          'printers',
+          'archives',
+          'queue',
+          'profiles',
+          'maintenance',
+          'projects',
+          'files',
+          'makerworld',
+          'inventory',
+          'warehouse-filament',
+          'warehouse-parts',
+          'warehouse-stock',
+          'orders',
+          'orders-offers',
+          'orders-calculation',
+          'orders-customers',
+          'orders-invoice',
+          'notifications',
+          'settings',
+          ...settingsSidebarChildIds,
+          'ext-7',
+        ]),
       );
 
       const settingsRow = screen.getAllByText('Settings')
@@ -355,13 +1018,13 @@ describe('SettingsPage', () => {
       expect(settingsRow).not.toBeNull();
       expect(docsRow).not.toBeNull();
       expect(settingsRow!.compareDocumentPosition(docsRow!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(screen.queryByText('Hidden from sidebar')).not.toBeInTheDocument();
+      expect(screen.queryByText(/Hidden from sidebar/)).not.toBeInTheDocument();
     });
 
     it('sets the current Sidebar order as the backend default for settings admins', async () => {
       let defaultSidebarOrderPayload: string | null = null;
       vi.mocked(localStorage.getItem).mockImplementation((key) => {
-        if (key === SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY) return JSON.stringify(['stats']);
+        if (key === SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY) return JSON.stringify(['dashboard']);
         return null;
       });
 
@@ -406,20 +1069,29 @@ describe('SettingsPage', () => {
       });
       expect(JSON.parse(defaultSidebarOrderPayload!)).toEqual({
         order: [
+          'dashboard',
           'printers',
-          'inventory',
           'archives',
           'queue',
+          'profiles',
+          'maintenance',
           'projects',
           'files',
           'makerworld',
-          'profiles',
-          'maintenance',
-          'stats',
+          'inventory',
+          'warehouse-filament',
+          'warehouse-parts',
+          'warehouse-stock',
+          'orders',
+          'orders-offers',
+          'orders-calculation',
+          'orders-customers',
+          'orders-invoice',
           'notifications',
           'settings',
+          ...settingsSidebarChildIds,
         ],
-        hiddenSystemItemIds: ['stats'],
+        hiddenSystemItemIds: ['dashboard'],
       });
     });
   });
@@ -439,9 +1111,10 @@ describe('SettingsPage', () => {
         ),
         http.get('/api/v1/updates/check', () => HttpResponse.json(checkBody)),
       );
+      setSettingsTabUrl('operations');
       render(<SettingsPage />);
       await waitFor(() => {
-        expect(screen.getByText('Updates')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Updates', level: 1 })).toBeInTheDocument();
       });
     };
 
@@ -463,7 +1136,7 @@ describe('SettingsPage', () => {
         expect(
           screen.getByText(/Home Assistant Supervisor/i),
         ).toBeInTheDocument();
-      });
+      }, { timeout: 5000 });
       // Docker hint must NOT render — HA branch wins.
       expect(screen.queryByText('docker compose pull && docker compose up -d')).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /install update/i })).not.toBeInTheDocument();
@@ -485,21 +1158,21 @@ describe('SettingsPage', () => {
 
       await waitFor(() => {
         expect(screen.getByText('docker compose pull && docker compose up -d')).toBeInTheDocument();
-      });
+      }, { timeout: 5000 });
       expect(screen.queryByText(/Home Assistant Supervisor/i)).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /install update/i })).not.toBeInTheDocument();
     });
 
     it('shows the installer-download link for Windows installer installs', async () => {
       const downloadUrl =
-        'https://github.com/maziggy/bambuddy/releases/download/v0.2.5/bambuddy-0.2.5-windows-x64-setup.exe';
+        'https://github.com/ichwars/PrintOps/releases/download/v0.2.5/printops-0.2.5-windows-x64-setup.exe';
       await renderWithUpdateCheck({
         update_available: true,
         current_version: '0.2.4',
         latest_version: '0.2.5',
         release_name: '0.2.5',
         release_notes: '',
-        release_url: 'https://github.com/maziggy/bambuddy/releases/tag/v0.2.5',
+        release_url: 'https://github.com/ichwars/PrintOps/releases/tag/v0.2.5',
         published_at: '2099-01-01T00:00:00Z',
         is_docker: false,
         is_ha_addon: false,
@@ -508,7 +1181,7 @@ describe('SettingsPage', () => {
         installer_download_url: downloadUrl,
       });
 
-      const link = await screen.findByRole('link', { name: /download installer for v0\.2\.5/i });
+      const link = await screen.findByRole('link', { name: /download installer for v0\.2\.5/i }, { timeout: 5000 });
       expect(link).toHaveAttribute('href', downloadUrl);
       expect(link).toHaveAttribute('target', '_blank');
       expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
@@ -521,65 +1194,63 @@ describe('SettingsPage', () => {
   });
 
   describe('tabs navigation', () => {
-    it('can switch to Network tab', async () => {
-      const user = userEvent.setup();
-      render(<SettingsPage />);
-
-      // Wait for settings to load first
-      await waitFor(() => {
-        expect(screen.getByText('Date Format')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Network'));
-
-      await waitFor(() => {
-        // Network tab contains MQTT Publishing section
-        expect(screen.getByText('MQTT Publishing')).toBeInTheDocument();
-      });
-    });
-
-    it('can switch to Smart Plugs tab', async () => {
-      const user = userEvent.setup();
+    it('opens Integrations on Notifications by default', async () => {
+      setSettingsTabUrl('integrations');
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Smart Plugs')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Smart Plugs'));
-
-      await waitFor(() => {
-        expect(screen.getByText('Add Smart Plug')).toBeInTheDocument();
-      });
-    });
-
-    it('can switch to Notifications tab', async () => {
-      const user = userEvent.setup();
-      render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getAllByText('Notifications').length).toBeGreaterThan(0);
-      });
-
-      // Click the tab button (not the mobile dropdown option)
-      const notificationButtons = screen.getAllByText('Notifications');
-      const tabButton = notificationButtons.find(el => el.tagName === 'BUTTON') || notificationButtons[0];
-      await user.click(tabButton);
-
-      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Notifications' })).toHaveClass('text-bambu-green');
         expect(screen.getByText('Add Provider')).toBeInTheDocument();
       });
     });
 
-    it('can switch to Filament tab', async () => {
-      const user = userEvent.setup();
+    it('can switch to Smart Home under Integrations', async () => {
+      setSettingsTabUrl('integrations', '&sub=smart-home');
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getAllByText('Filament').length).toBeGreaterThan(0);
+        expect(screen.getByRole('button', { name: 'Smart Home' })).toHaveClass('text-bambu-green');
+        expect(screen.getByText('MQTT Publishing')).toBeInTheDocument();
+        expect(screen.getByText('Home Assistant')).toBeInTheDocument();
       });
+    });
 
-      await user.click(screen.getAllByText('Filament')[0]);
+    it('can switch to Webhooks under Integrations', async () => {
+      setSettingsTabUrl('integrations', '&sub=webhooks');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Webhooks' })).toHaveClass('text-bambu-green');
+        expect(screen.getByText('Webhook Endpoints')).toBeInTheDocument();
+      });
+    });
+
+    it('can switch to Smart Plugs under Integrations', async () => {
+      setSettingsTabUrl('integrations', '&sub=smart-plugs');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Smart Plugs' })).toHaveClass('text-bambu-green');
+        expect(screen.getByText('Add Smart Plug')).toBeInTheDocument();
+      });
+    });
+
+    it('can switch to API & Metrics under Integrations', async () => {
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'API & Metrics' })).toHaveClass('text-bambu-green');
+        expect(screen.getByText('API Keys')).toBeInTheDocument();
+        expect(screen.getByText('Camera API Tokens')).toBeInTheDocument();
+        expect(screen.getByText('Prometheus Metrics')).toBeInTheDocument();
+        expect(screen.getByText('API Browser')).toBeInTheDocument();
+      });
+    });
+
+    it('can switch to Warehouse & Material', async () => {
+      setSettingsTabUrl('warehouse-material');
+      render(<SettingsPage />);
 
       await waitFor(() => {
         expect(screen.getByText('AMS Display Thresholds')).toBeInTheDocument();
@@ -587,31 +1258,20 @@ describe('SettingsPage', () => {
     });
   });
 
-  describe('Workflow tab', () => {
-    it('can switch to Workflow tab', async () => {
-      const user = userEvent.setup();
+  describe('Printers & Production tab', () => {
+    it('can switch to Printers & Production', async () => {
+      setSettingsTabUrl('printers-production');
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Workflow')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Workflow'));
-
-      await waitFor(() => {
-        expect(screen.getByText('Staggered Start')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Devices' })).toHaveClass('text-bambu-green');
+        expect(screen.getAllByText('Default Printer').length).toBeGreaterThan(0);
       });
     });
 
-    it('shows stagger settings on Workflow tab', async () => {
-      const user = userEvent.setup();
+    it('shows stagger settings on Printers & Production', async () => {
+      setSettingsTabUrl('printers-production', '&sub=print-process');
       render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Workflow')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Workflow'));
 
       await waitFor(() => {
         expect(screen.getByText('Staggered Start')).toBeInTheDocument();
@@ -620,30 +1280,18 @@ describe('SettingsPage', () => {
       });
     });
 
-    it('shows auto-drying settings on Workflow tab', async () => {
-      const user = userEvent.setup();
+    it('shows auto-drying settings on Warehouse & Material', async () => {
+      setSettingsTabUrl('warehouse-material');
       render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Workflow')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Workflow'));
 
       await waitFor(() => {
         expect(screen.getByText('Queue Auto-Drying')).toBeInTheDocument();
       });
     });
 
-    it('shows per-filament humidity threshold editor on Workflow tab (#1605)', async () => {
-      const user = userEvent.setup();
+    it('shows per-filament humidity threshold editor on Warehouse & Material (#1605)', async () => {
+      setSettingsTabUrl('warehouse-material');
       render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Workflow')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Workflow'));
 
       await waitFor(() => {
         expect(screen.getByText('Humidity Thresholds')).toBeInTheDocument();
@@ -658,15 +1306,9 @@ describe('SettingsPage', () => {
       });
     });
 
-    it('shows default print options on Workflow tab', async () => {
-      const user = userEvent.setup();
+    it('shows default print options on Printers & Production', async () => {
+      setSettingsTabUrl('printers-production', '&sub=print-process');
       render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Workflow')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Workflow'));
 
       await waitFor(() => {
         expect(screen.getByText('Default Print Options')).toBeInTheDocument();
@@ -679,14 +1321,8 @@ describe('SettingsPage', () => {
     });
 
     it('shows default print options description', async () => {
-      const user = userEvent.setup();
+      setSettingsTabUrl('printers-production', '&sub=print-process');
       render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Workflow')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Workflow'));
 
       await waitFor(() => {
         expect(screen.getByText(/overridden per print in the print dialog/)).toBeInTheDocument();
@@ -694,16 +1330,10 @@ describe('SettingsPage', () => {
     });
   });
 
-  describe('API Keys tab', () => {
-    it('can switch to API Keys tab', async () => {
-      const user = userEvent.setup();
+  describe('Users & Security tab', () => {
+    it('can switch to Users & Security for API keys', async () => {
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
       render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('API Keys')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('API Keys'));
 
       await waitFor(() => {
         // Button text is "Create Key"
@@ -743,7 +1373,7 @@ describe('SettingsPage', () => {
       updated_at: '2024-01-01T00:00:00Z',
     };
 
-    it('shows device count and green bullet when at least one device is online', async () => {
+    it('opens SpoolBuddy settings from Warehouse & Material without the removed domain tab', async () => {
       server.use(
         http.get('/api/v1/spoolbuddy/devices', () => {
           return HttpResponse.json([
@@ -752,61 +1382,12 @@ describe('SettingsPage', () => {
           ]);
         })
       );
+      setSettingsTabUrl('warehouse-material', '&sub=spoolbuddy');
       render(<SettingsPage />);
 
-      // Find the tab button (not the header) — it's the <button> containing the SpoolBuddy text
-      const tabButton = await waitFor(() => {
-        const buttons = screen.getAllByRole('button').filter((b) => b.textContent?.includes('SpoolBuddy'));
-        expect(buttons.length).toBeGreaterThan(0);
-        return buttons[0];
-      });
-
-      // Count pill rendered
       await waitFor(() => {
-        expect(tabButton.textContent).toContain('2');
-      });
-
-      // Green status bullet (at least one device online)
-      await waitFor(() => {
-        expect(tabButton.querySelector('.bg-green-400')).not.toBeNull();
-      });
-    });
-
-    it('shows gray bullet when all devices are offline', async () => {
-      server.use(
-        http.get('/api/v1/spoolbuddy/devices', () => {
-          return HttpResponse.json([{ ...baseDevice, online: false }]);
-        })
-      );
-      render(<SettingsPage />);
-
-      const tabButton = await waitFor(() => {
-        const buttons = screen.getAllByRole('button').filter((b) => b.textContent?.includes('SpoolBuddy'));
-        expect(buttons.length).toBeGreaterThan(0);
-        return buttons[0];
-      });
-
-      await waitFor(() => {
-        expect(tabButton.querySelector('.bg-gray-500')).not.toBeNull();
-        expect(tabButton.querySelector('.bg-green-400')).toBeNull();
-      });
-    });
-
-    it('hides the count pill when no devices are registered', async () => {
-      server.use(
-        http.get('/api/v1/spoolbuddy/devices', () => HttpResponse.json([]))
-      );
-      render(<SettingsPage />);
-
-      const tabButton = await waitFor(() => {
-        const buttons = screen.getAllByRole('button').filter((b) => b.textContent?.includes('SpoolBuddy'));
-        expect(buttons.length).toBeGreaterThan(0);
-        return buttons[0];
-      });
-
-      // The only numeric content should NOT be present — tab label only
-      await waitFor(() => {
-        expect(tabButton.textContent).toBe('SpoolBuddy');
+        expect(screen.getByText('SpoolBuddy devices')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Warehouse & Material' })).not.toBeInTheDocument();
       });
     });
   });
@@ -843,16 +1424,8 @@ describe('SettingsPage', () => {
       );
 
       const user = userEvent.setup();
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
       render(<SettingsPage />);
-
-      // Switch to API Keys tab. Both desktop tab + mobile dropdown render
-      // the label, so just grab the button form.
-      await waitFor(() => {
-        expect(screen.getAllByText('API Keys').length).toBeGreaterThan(0);
-      });
-      const tabButton = screen.getAllByText('API Keys').find((el) => el.tagName === 'BUTTON');
-      expect(tabButton).toBeDefined();
-      await user.click(tabButton!);
 
       // Key is listed
       await waitFor(() => {
@@ -921,14 +1494,8 @@ describe('SettingsPage', () => {
 
       server.use(http.get('/api/v1/api-keys/', () => HttpResponse.json(keys)));
 
-      const user = userEvent.setup();
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
       render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getAllByText('API Keys').length).toBeGreaterThan(0);
-      });
-      const tabButton = screen.getAllByText('API Keys').find((el) => el.tagName === 'BUTTON');
-      await user.click(tabButton!);
 
       await waitFor(() => {
         expect(screen.getByText('cloud-reader')).toBeInTheDocument();
@@ -977,13 +1544,8 @@ describe('SettingsPage', () => {
       );
 
       const user = userEvent.setup();
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
       render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getAllByText('API Keys').length).toBeGreaterThan(0);
-      });
-      const tabButton = screen.getAllByText('API Keys').find((el) => el.tagName === 'BUTTON');
-      await user.click(tabButton!);
 
       // Open the create form. With an empty key list the empty-state card
       // shows "Create Your First Key" — click that to open the form.
@@ -1054,14 +1616,8 @@ describe('SettingsPage', () => {
 
       server.use(http.get('/api/v1/api-keys/', () => HttpResponse.json(keys)));
 
-      const user = userEvent.setup();
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
       render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getAllByText('API Keys').length).toBeGreaterThan(0);
-      });
-      const tabButton = screen.getAllByText('API Keys').find((el) => el.tagName === 'BUTTON');
-      await user.click(tabButton!);
 
       await waitFor(() => {
         expect(screen.getByText('tariff-pusher')).toBeInTheDocument();
@@ -1100,13 +1656,8 @@ describe('SettingsPage', () => {
       );
 
       const user = userEvent.setup();
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
       render(<SettingsPage />);
-
-      await waitFor(() => {
-        expect(screen.getAllByText('API Keys').length).toBeGreaterThan(0);
-      });
-      const tabButton = screen.getAllByText('API Keys').find((el) => el.tagName === 'BUTTON');
-      await user.click(tabButton!);
 
       const openButton = await screen.findByRole('button', { name: /Create Your First Key/i });
       await user.click(openButton);
@@ -1164,6 +1715,7 @@ describe('SettingsPage', () => {
         http.get('/api/v1/printers/', () => HttpResponse.json([mjpegPrinter])),
       );
 
+      setSettingsTabUrl('printers-production');
       render(<SettingsPage />);
 
       await waitFor(() => {
@@ -1178,6 +1730,7 @@ describe('SettingsPage', () => {
         ),
       );
 
+      setSettingsTabUrl('printers-production');
       render(<SettingsPage />);
 
       // Wait for the live-stream URL placeholder to render so we know the
@@ -1192,6 +1745,7 @@ describe('SettingsPage', () => {
     it(
       'PATCHes the printer with external_camera_snapshot_url when the user types into the input',
       async () => {
+        const user = userEvent.setup();
         let receivedBody: Record<string, unknown> | null = null;
         server.use(
           http.get('/api/v1/printers/', () => HttpResponse.json([mjpegPrinter])),
@@ -1201,13 +1755,12 @@ describe('SettingsPage', () => {
           }),
         );
 
+        setSettingsTabUrl('printers-production');
         render(<SettingsPage />);
 
         const input = await waitFor(() =>
           screen.getByPlaceholderText(/api\/frame\.jpeg\?src=printer/),
         );
-
-        const user = userEvent.setup();
         await user.type(input, 'http://192.168.1.61:1984/api/frame.jpeg?src=printer');
 
         // Save is debounced by 800ms; assert the PATCH eventually fires with
@@ -1292,7 +1845,7 @@ describe('SettingsPage', () => {
   });
 
   // --------------------------------------------------------------------
-  // Slicer Pipelines (#1425) — Workflow tab sub-tabs
+  // Slicer Pipelines (#1425) — Printers & Production sub-tabs
   // --------------------------------------------------------------------
   describe('workflow sub-tabs (#1425)', () => {
     beforeEach(() => {
@@ -1312,33 +1865,67 @@ describe('SettingsPage', () => {
       );
     });
 
-    it('renders Queue & Dispatch + Pipelines sub-tabs under Workflow', async () => {
+    it('renders device-management sub-tabs under Printers & Production', async () => {
+      setSettingsTabUrl('printers-production');
       render(<SettingsPage />);
-      const user = userEvent.setup();
       await waitFor(() => {
-        // Workflow tab in the sidebar — exact match to avoid colliding with
-        // "Print Queue" or "Queue Settings" labels elsewhere on the page.
-        expect(screen.getByRole('button', { name: 'Workflow' })).toBeInTheDocument();
-      });
-      await user.click(screen.getByRole('button', { name: 'Workflow' }));
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Queue & Dispatch/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /^Devices$/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Print Process/i })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /^Pipelines$/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Failure Detection/i })).toBeInTheDocument();
+      });
+    });
+
+    it('normalizes legacy queue Pipelines URLs to printers-production', async () => {
+      const user = userEvent.setup();
+      window.history.replaceState({}, '', '/settings?tab=queue');
+      render(<SettingsPage />);
+
+      await user.click(await screen.findByRole('button', { name: /^Pipelines$/i }));
+      await waitFor(() => {
+        expect(screen.getByText(/No pipelines yet/i)).toBeInTheDocument();
+        expect(window.location.search).toContain('tab=printers-production');
+        expect(window.location.search).toContain('sub=pipelines');
+        expect(window.location.search).not.toContain('tab=queue');
       });
     });
 
     it('clicking Pipelines sub-tab shows the empty-state hint and updates the URL', async () => {
+      setSettingsTabUrl('printers-production');
       render(<SettingsPage />);
       const user = userEvent.setup();
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Workflow' })).toBeInTheDocument());
-      await user.click(screen.getByRole('button', { name: 'Workflow' }));
-      await user.click(screen.getByRole('button', { name: /^Pipelines$/i }));
+      await user.click(await screen.findByRole('button', { name: /^Pipelines$/i }));
 
       await waitFor(() => {
         expect(screen.getByText(/No pipelines yet/i)).toBeInTheDocument();
-        // Deep-link URL carries both ?tab=queue and ?sub=pipelines
-        expect(window.location.search).toContain('tab=queue');
+        // New clicks write the canonical tab id while preserving the queue sub-tab.
+        expect(window.location.search).toContain('tab=printers-production');
         expect(window.location.search).toContain('sub=pipelines');
+      });
+    });
+
+    it('loads Pipelines from the canonical printers-production URL', async () => {
+      window.history.replaceState({}, '', '/settings?tab=printers-production&sub=pipelines');
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/No pipelines yet/i)).toBeInTheDocument();
+        expect(window.location.search).toContain('tab=printers-production');
+        expect(window.location.search).toContain('sub=pipelines');
+      });
+    });
+
+    it('clears stale pipelines substate when search jumps back to dispatch content', async () => {
+      window.history.replaceState({}, '', '/settings?tab=printers-production&sub=pipelines');
+      render(<SettingsPage />);
+
+      await screen.findByText(/No pipelines yet/i);
+      await clickSettingsSearchResult('FTP Retry');
+
+      await waitFor(() => {
+        expect(screen.getByText('FTP Retry')).toBeInTheDocument();
+        expect(window.location.search).toContain('tab=printers-production');
+        expect(window.location.search).not.toContain('sub=pipelines');
       });
     });
   });

@@ -1,6 +1,6 @@
 """Spoolman inventory proxy endpoints.
 
-Translates between Spoolman's data model and Bambuddy's internal
+Translates between Spoolman's data model and PrintOps's internal
 InventorySpool format so the frontend can use a single unified inventory UI
 regardless of whether data comes from the local database or Spoolman.
 """
@@ -803,7 +803,7 @@ async def update_spool(
     remaining = max(0.0, label_weight - weight_used)
 
     # Tag removal: clear only the "tag" key so other custom Spoolman extra fields
-    # set outside Bambuddy are preserved.
+    # set outside PrintOps are preserved.
     tag_nulled = (
         ("tag_uid" in data.model_fields_set or "tray_uuid" in data.model_fields_set)
         and _tag_cleared(data.tag_uid)
@@ -937,7 +937,7 @@ async def reset_spool_consumed_counter(
 
     Spoolman doesn't have a native "baseline" field, so the implementation
     reaches for the closest equivalent: PATCH `used_weight=0` upstream.
-    The read mapping in ``_map_spoolman_spool`` then derives Bambuddy's
+    The read mapping in ``_map_spoolman_spool`` then derives PrintOps's
     `weight_used = label - remaining_weight` and `baseline = weight_used -
     real_used_weight`, so the Inventory page's `weight_used - baseline`
     display lands at 0 while remaining (= label - weight_used) is preserved

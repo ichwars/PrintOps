@@ -1,7 +1,7 @@
 """MQTT bridge for non-proxy virtual printers.
 
 Mirrors the target printer's state to slicers connected to a virtual printer
-without opening a second MQTT session on the printer (reuses Bambuddy's
+without opening a second MQTT session on the printer (reuses PrintOps's
 existing subscription — firmware inflight budget unaffected, see PR #1164).
 
 Architecture (cached-as-base, not a separate fan-out stream):
@@ -25,7 +25,7 @@ Identity rewriting at cache time:
     serial) → VP serial
   - `net.info[*].ip` little-endian uint32 → VP bind IP. BambuStudio reads
     this as the FTP destination IP. Without this the slicer FTPs straight
-    to the real printer and bypasses Bambuddy.
+    to the real printer and bypasses PrintOps.
   - `ipcam.rtsp_url` is left unchanged: BambuStudio overrides the URL host
     with the device IP it bound to (the VP), so the slicer hits the VP's
     own RTSPS proxy on port 322.
@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 REFRESH_INTERVAL_SECONDS = 30.0
 
-# Bambuddy's internal printer state in bambu_mqtt.py (around line 2686+) is
+# PrintOps's internal printer state in bambu_mqtt.py (around line 2686+) is
 # updated per-field — each `if "X" in data: self.state.X = ...` block leaves
 # every other field untouched, so the state accumulates everything the
 # printer has ever sent. The bridge cache below mirrors that pattern: when
@@ -113,7 +113,7 @@ def _resolve_host_interface_for_target(target_ip: str) -> str | None:
     Used when `mqtt_server.bind_address` is empty or 0.0.0.0 — the listener
     accepts on every interface but we still need ONE concrete IPv4 to write
     into the rewritten `net.info[].ip` field so the slicer's FTP target
-    resolves to Bambuddy rather than the real printer. Returns the IPv4 of
+    resolves to PrintOps rather than the real printer. Returns the IPv4 of
     the host interface that shares a subnet with the printer (best fit
     because the slicer is typically on the same LAN as the printer), or
     None if no interface matches — in which case the bridge leaves
@@ -144,7 +144,7 @@ def _merge_ams_dict(prev_ams: dict, new_ams: dict) -> dict:
        — every unit + every tray populated.
 
     2. Status-only incremental: ``{ams_status: 1}`` or ``{humidity: 30}`` —
-       no ``ams`` array at all. Bambuddy logs these as "AMS partial update
+       no ``ams`` array at all. PrintOps logs these as "AMS partial update
        (no tray data)" (#784 vintage).
 
     3. Tray-targeted incremental during a print: ``{ams: [{id: 0, tray:
@@ -368,7 +368,7 @@ class MQTTBridge:
         )
 
         # Trigger a fresh get_version + pushall against the printer so the bridge
-        # cache populates immediately. Bambuddy itself queries these on connect,
+        # cache populates immediately. PrintOps itself queries these on connect,
         # but that fires before the bridge attaches as a raw-message consumer,
         # so without this nudge the cache stays empty until the next periodic
         # query (which can be minutes away).
@@ -521,7 +521,7 @@ class MQTTBridge:
         Strategy: rewrite ALL entries with a non-zero `ip`, not only those
         matching `_target_ip_uint32_le`. Real printers (X1C, H2D Pro) can
         report multiple active interfaces (WiFi + Ethernet) with different
-        IPs — only one matches the IP Bambuddy tracks, but the slicer may
+        IPs — only one matches the IP PrintOps tracks, but the slicer may
         read any of them. Leaving non-matching entries pointing at real
         printer interfaces leaks an FTP fallback path that bypasses the VP
         (the #1429 / #1302 symptom). Entries with `ip == 0` are placeholders
@@ -653,7 +653,7 @@ class MQTTBridge:
                         merged.update(new_value)
                         new_state[key] = merged
             # Apply empty-slot cleanup on the merged AMS so the slicer-facing
-            # cache mirrors what Bambuddy's AMS card shows internally. Without
+            # cache mirrors what PrintOps's AMS card shows internally. Without
             # this the cached units carry stale per-tray filament fields for
             # slots whose `tray_exist_bits` bit is 0, and BambuStudio's Sync
             # paints those empty slots as phantom loaded filaments (#1726).
@@ -692,7 +692,7 @@ class MQTTBridge:
 
         # Everything else (extrusion_cali_get response, AMS write acks, xcam
         # responses, …): fan out to the slicer. These are responses to commands
-        # the slicer (or Bambuddy) issued; the slicer matches by sequence_id and
+        # the slicer (or PrintOps) issued; the slicer matches by sequence_id and
         # ignores responses to commands it didn't send. Without this, slicer-
         # initiated queries like extrusion_cali_get hang forever and BambuStudio
         # blocks Send waiting for the response.

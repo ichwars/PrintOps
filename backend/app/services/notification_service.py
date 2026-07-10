@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 # inventory). Previously this client leaked python-httpx/<version>, which
 # was both inconsistent with the rest of the project and a more obvious
 # bot signature for upstream WAFs.
-_USER_AGENT = "Bambuddy/1.0 (+https://github.com/maziggy/bambuddy)"
+_USER_AGENT = "PrintOps/1.0 (+https://github.com/ichwars/PrintOps)"
 
 
 def _looks_like_cloudflare_challenge(response: httpx.Response) -> bool:
@@ -185,7 +185,7 @@ class NotificationService:
         """Build notification title and body from template."""
         # Add common variables
         variables["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-        variables["app_name"] = "Bambuddy"
+        variables["app_name"] = "PrintOps"
 
         template = await self._get_template(db, event_type)
         if not template:
@@ -205,7 +205,7 @@ class NotificationService:
         if db:
             title, message = await self._build_message_from_template(db, "test", {})
         else:
-            title = "Bambuddy Test"
+            title = "PrintOps Test"
             message = "This is a test notification. If you see this, notifications are working!"
 
         try:
@@ -313,7 +313,7 @@ class NotificationService:
         if _looks_like_cloudflare_challenge(response):
             return False, (
                 f"HTTP {response.status_code} — ntfy server is behind a Cloudflare "
-                "challenge. Bambuddy was served the JS challenge page instead of "
+                "challenge. PrintOps was served the JS challenge page instead of "
                 "reaching ntfy. Cloudflare cannot be solved from a backend; add a "
                 "Cloudflare security-skip rule for this hostname, disable Bot "
                 "Fight Mode, or front the server with Cloudflare Access using a "
@@ -426,7 +426,7 @@ class NotificationService:
         ``body`` contains the substituted ``{finish_photo_url}`` value AND the
         finish-photo bytes are present, the message is built as
         ``multipart/related`` wrapping a ``multipart/alternative`` (plain + HTML)
-        plus an inline ``MIMEImage`` with ``Content-ID: <bambuddy-finish-photo>``.
+        plus an inline ``MIMEImage`` with ``Content-ID: <printops-finish-photo>``.
         The HTML part replaces the URL with ``<img src="cid:...">``; the plain-
         text part keeps the URL as a clickable link. When the template doesn't
         reference ``{finish_photo_url}`` (or image bytes aren't available), the
@@ -461,7 +461,7 @@ class NotificationService:
                 msg = MIMEMultipart("related")
                 msg["From"] = from_email
                 msg["To"] = to_email
-                msg["Subject"] = f"[Bambuddy] {subject}"
+                msg["Subject"] = f"[PrintOps] {subject}"
 
                 alt = MIMEMultipart("alternative")
                 alt.attach(MIMEText(body, "plain"))
@@ -472,7 +472,7 @@ class NotificationService:
                 escaped_body = html.escape(body).replace("\n", "<br>\n")
                 escaped_url = html.escape(finish_photo_url)
                 img_tag = (
-                    '<img src="cid:bambuddy-finish-photo" '
+                    '<img src="cid:printops-finish-photo" '
                     'alt="Printer camera snapshot" '
                     'style="max-width:100%;height:auto;border:1px solid #ddd;border-radius:4px;">'
                 )
@@ -482,15 +482,15 @@ class NotificationService:
 
                 img = MIMEImage(image_data, _subtype="jpeg")
                 # Angle-bracketed Content-ID per RFC 2392, referenced from HTML
-                # without the brackets via ``cid:bambuddy-finish-photo``.
-                img.add_header("Content-ID", "<bambuddy-finish-photo>")
+                # without the brackets via ``cid:printops-finish-photo``.
+                img.add_header("Content-ID", "<printops-finish-photo>")
                 img.add_header("Content-Disposition", "inline", filename="finish-photo.jpg")
                 msg.attach(img)
             else:
                 msg = MIMEMultipart()
                 msg["From"] = from_email
                 msg["To"] = to_email
-                msg["Subject"] = f"[Bambuddy] {subject}"
+                msg["Subject"] = f"[PrintOps] {subject}"
                 msg.attach(MIMEText(body, "plain"))
 
             if security == "ssl":
@@ -593,7 +593,7 @@ class NotificationService:
                 custom_field_title: title,
                 custom_field_message: message,
                 "timestamp": datetime.now().isoformat(),
-                "source": "Bambuddy",
+                "source": "PrintOps",
             }
 
         # For generic format, include structured event data for automation tools

@@ -17,7 +17,7 @@ import { OrcaCloudProfilesView } from './OrcaCloudProfilesView';
  * Auth uses a paste-based PKCE handshake: backend generates the verifier and
  * authorize URL, the user opens it in a new tab and signs in, the browser
  * redirects to ``http://localhost:41172/callback`` (which fails to load since
- * Bambuddy isn't on the user's localhost), and the user copies the URL from
+ * PrintOps isn't on the user's localhost), and the user copies the URL from
  * their address bar back into the paste textarea below. The backend extracts
  * the code, validates state for CSRF, and exchanges for tokens.
  *
@@ -66,7 +66,7 @@ export function OrcaCloudView() {
     staleTime: 1000 * 60 * 5,
   });
 
-  // Configured Bambuddy printers — fed into the profile-view's printer
+  // Configured PrintOps printers — fed into the profile-view's printer
   // filter dropdown so the user can narrow profiles to a specific printer
   // model. Same usage as the Bambu Cloud tab.
   const { data: printers = [] } = useQuery({
@@ -87,7 +87,7 @@ export function OrcaCloudView() {
       setPastedUrl('');
       setPasteError(null);
       setMode('paste');
-      // Open in a new tab so the user can keep Bambuddy open in their
+      // Open in a new tab so the user can keep PrintOps open in their
       // current tab while they sign in.
       window.open(data.auth_url, '_blank', 'noopener,noreferrer');
     },
@@ -380,7 +380,7 @@ function PasteCard({
         {/* Numbered-step list with prominent visual treatment. Step 2 carries
             the critical "the page failing is expected" message inside an
             amber callout so users don't read the connection-refused page
-            as a Bambuddy error. */}
+            as a PrintOps error. */}
         <ol className="space-y-3 mb-6">
           <li className="flex gap-3">
             <span className="flex-shrink-0 w-7 h-7 rounded-full bg-bambu-dark-tertiary text-white text-sm font-bold flex items-center justify-center">1</span>

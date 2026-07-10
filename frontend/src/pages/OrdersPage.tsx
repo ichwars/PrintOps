@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Calculator, ClipboardList, FileText, Receipt, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../components/Card';
@@ -11,13 +11,6 @@ const COPY = {
     subtitle: 'Customer work, calculations, offers, and invoices in one workflow.',
     empty: 'No records yet',
     foundation: 'Foundation',
-    sections: {
-      overview: 'Overview',
-      customers: 'Customers',
-      calculation: 'Calculation',
-      offers: 'Offers',
-      invoices: 'Invoices',
-    },
     page: {
       overview: {
         title: 'Order overview',
@@ -51,13 +44,6 @@ const COPY = {
     subtitle: 'Kundenarbeit, Kalkulationen, Angebote und Rechnungen in einem Ablauf.',
     empty: 'Noch keine Datensätze',
     foundation: 'Basis',
-    sections: {
-      overview: 'Übersicht',
-      customers: 'Kunden',
-      calculation: 'Kalkulation',
-      offers: 'Angebote',
-      invoices: 'Rechnungen',
-    },
     page: {
       overview: {
         title: 'Auftragsübersicht',
@@ -102,17 +88,14 @@ export function OrdersPage() {
   const activeSection = getSection(location.pathname);
   const copy = i18n.resolvedLanguage?.startsWith('de') ? COPY.de : COPY.en;
   const columns = copy.page[activeSection].columns;
-
-  const sections = [
-    { id: 'overview' as const, to: '/orders', icon: ClipboardList },
-    { id: 'customers' as const, to: '/orders/customers', icon: Users },
-    { id: 'calculation' as const, to: '/orders/calculation', icon: Calculator },
-    { id: 'offers' as const, to: '/orders/offers', icon: FileText },
-    { id: 'invoices' as const, to: '/orders/invoices', icon: Receipt },
-  ];
-
-  const active = sections.find((section) => section.id === activeSection) ?? sections[0];
-  const ActiveIcon = active.icon;
+  const activeIcons = {
+    overview: ClipboardList,
+    offers: FileText,
+    calculation: Calculator,
+    customers: Users,
+    invoices: Receipt,
+  } satisfies Record<OrderSectionId, typeof ClipboardList>;
+  const ActiveIcon = activeIcons[activeSection];
 
   return (
     <div className="p-4 md:p-8 space-y-6">
@@ -122,23 +105,6 @@ export function OrdersPage() {
           {copy.title}
         </h1>
         <p className="text-bambu-gray mt-1">{copy.subtitle}</p>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {sections.map(({ id, to, icon: Icon }) => (
-          <Link
-            key={id}
-            to={to}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeSection === id
-                ? 'bg-bambu-green text-white'
-                : 'bg-bambu-dark-secondary text-bambu-gray-light hover:bg-bambu-dark-tertiary hover:text-white'
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            {copy.sections[id]}
-          </Link>
-        ))}
       </div>
 
       <Card>

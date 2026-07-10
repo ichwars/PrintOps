@@ -53,6 +53,8 @@ firmware/
 # Local agent/session artifacts
 /outputs/
 /work/
+/.codex-audit/
+/SESSION_SUMMARY_LOCAL.md
 
 # Logs
 *.log

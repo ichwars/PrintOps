@@ -321,7 +321,7 @@ class TestInventoryCsvReviewFollowups:
 
         assert response.status_code == 200, response.text
         disposition = response.headers.get("content-disposition", "")
-        assert "bambuddy_inventory_" in disposition
+        assert "printops_inventory_" in disposition
         assert disposition.rstrip('"').endswith(".csv")
 
 

@@ -184,32 +184,32 @@ class TestPruneBackups:
         service = LocalBackupService()
         # Create 5 backup files
         for i in range(5):
-            f = tmp_path / f"bambuddy-backup-20260412-{i:06d}.zip"
+            f = tmp_path / f"printops-backup-20260412-{i:06d}.zip"
             f.write_text(f"backup{i}")
         service._prune_backups(tmp_path, retention=3)
-        remaining = list(tmp_path.glob("bambuddy-backup-*.zip"))
+        remaining = list(tmp_path.glob("printops-backup-*.zip"))
         assert len(remaining) == 3
 
     def test_prune_noop_when_under_retention(self, tmp_path):
         service = LocalBackupService()
         for i in range(2):
-            f = tmp_path / f"bambuddy-backup-20260412-{i:06d}.zip"
+            f = tmp_path / f"printops-backup-20260412-{i:06d}.zip"
             f.write_text(f"backup{i}")
         service._prune_backups(tmp_path, retention=5)
-        remaining = list(tmp_path.glob("bambuddy-backup-*.zip"))
+        remaining = list(tmp_path.glob("printops-backup-*.zip"))
         assert len(remaining) == 2
 
     def test_prune_only_touches_matching_files(self, tmp_path):
         service = LocalBackupService()
         # Create backup files and a non-backup file
         for i in range(3):
-            f = tmp_path / f"bambuddy-backup-20260412-{i:06d}.zip"
+            f = tmp_path / f"printops-backup-20260412-{i:06d}.zip"
             f.write_text(f"backup{i}")
         other = tmp_path / "other_file.txt"
         other.write_text("keep me")
         service._prune_backups(tmp_path, retention=1)
         assert other.exists()
-        remaining = list(tmp_path.glob("bambuddy-backup-*.zip"))
+        remaining = list(tmp_path.glob("printops-backup-*.zip"))
         assert len(remaining) == 1
 
 
@@ -218,9 +218,9 @@ class TestResolveBackupFile:
 
     def test_valid_filename(self, tmp_path):
         service = LocalBackupService()
-        f = tmp_path / "bambuddy-backup-20260412-120000.zip"
+        f = tmp_path / "printops-backup-20260412-120000.zip"
         f.write_text("data")
-        result = service.resolve_backup_file(str(tmp_path), "bambuddy-backup-20260412-120000.zip")
+        result = service.resolve_backup_file(str(tmp_path), "printops-backup-20260412-120000.zip")
         assert result == f
 
     def test_path_traversal_blocked(self, tmp_path):
@@ -235,7 +235,7 @@ class TestResolveBackupFile:
 
     def test_dotdot_blocked(self, tmp_path):
         service = LocalBackupService()
-        result = service.resolve_backup_file(str(tmp_path), "..bambuddy-backup.zip")
+        result = service.resolve_backup_file(str(tmp_path), "..printops-backup.zip")
         assert result is None
 
     def test_wrong_prefix_blocked(self, tmp_path):
@@ -247,7 +247,7 @@ class TestResolveBackupFile:
 
     def test_nonexistent_file(self, tmp_path):
         service = LocalBackupService()
-        result = service.resolve_backup_file(str(tmp_path), "bambuddy-backup-20260412-120000.zip")
+        result = service.resolve_backup_file(str(tmp_path), "printops-backup-20260412-120000.zip")
         assert result is None
 
 
@@ -256,15 +256,15 @@ class TestDeleteBackup:
 
     def test_delete_valid_backup(self, tmp_path):
         service = LocalBackupService()
-        f = tmp_path / "bambuddy-backup-20260412-120000.zip"
+        f = tmp_path / "printops-backup-20260412-120000.zip"
         f.write_text("data")
-        result = service.delete_backup(str(tmp_path), "bambuddy-backup-20260412-120000.zip")
+        result = service.delete_backup(str(tmp_path), "printops-backup-20260412-120000.zip")
         assert result["success"] is True
         assert not f.exists()
 
     def test_delete_nonexistent_backup(self, tmp_path):
         service = LocalBackupService()
-        result = service.delete_backup(str(tmp_path), "bambuddy-backup-20260412-120000.zip")
+        result = service.delete_backup(str(tmp_path), "printops-backup-20260412-120000.zip")
         assert result["success"] is False
 
     def test_delete_path_traversal_blocked(self, tmp_path):
@@ -288,28 +288,28 @@ class TestListBackups:
 
     def test_list_only_matching_files(self, tmp_path):
         service = LocalBackupService()
-        (tmp_path / "bambuddy-backup-20260412-120000.zip").write_text("a")
-        (tmp_path / "bambuddy-backup-20260412-130000.zip").write_text("bb")
+        (tmp_path / "printops-backup-20260412-120000.zip").write_text("a")
+        (tmp_path / "printops-backup-20260412-130000.zip").write_text("bb")
         (tmp_path / "other-file.txt").write_text("ccc")
         result = service.list_backups(str(tmp_path))
         assert len(result) == 2
-        assert all(r["filename"].startswith("bambuddy-backup-") for r in result)
+        assert all(r["filename"].startswith("printops-backup-") for r in result)
 
     def test_list_sorted_newest_first(self, tmp_path):
         import time
 
         service = LocalBackupService()
-        f1 = tmp_path / "bambuddy-backup-20260412-120000.zip"
+        f1 = tmp_path / "printops-backup-20260412-120000.zip"
         f1.write_text("a")
         time.sleep(0.05)
-        f2 = tmp_path / "bambuddy-backup-20260412-130000.zip"
+        f2 = tmp_path / "printops-backup-20260412-130000.zip"
         f2.write_text("b")
         result = service.list_backups(str(tmp_path))
-        assert result[0]["filename"] == "bambuddy-backup-20260412-130000.zip"
+        assert result[0]["filename"] == "printops-backup-20260412-130000.zip"
 
     def test_list_includes_size(self, tmp_path):
         service = LocalBackupService()
-        (tmp_path / "bambuddy-backup-20260412-120000.zip").write_bytes(b"x" * 1024)
+        (tmp_path / "printops-backup-20260412-120000.zip").write_bytes(b"x" * 1024)
         result = service.list_backups(str(tmp_path))
         assert result[0]["size"] == 1024
 

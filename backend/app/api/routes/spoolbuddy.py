@@ -349,7 +349,7 @@ async def device_heartbeat(
         logger.info("SpoolBuddy device back online: %s", device.device_id)
 
     # Include current SSH public key so the daemon can re-deploy it whenever
-    # Bambuddy's keypair rotates (data dir wiped, container recreated, etc.) —
+    # PrintOps's keypair rotates (data dir wiped, container recreated, etc.) —
     # otherwise SSH updates fail until the daemon restarts.
     ssh_public_key: str | None = None
     try:
@@ -382,14 +382,14 @@ async def nfc_tag_scanned(
 ):
     """RPi reports NFC tag detected — lookup spool and broadcast.
 
-    Routes the lookup to the inventory backend Bambuddy is configured for:
+    Routes the lookup to the inventory backend PrintOps is configured for:
     Spoolman exclusively when ``spoolman_enabled`` is true, local DB
     exclusively otherwise. The previous implementation always tried local
     first and only consulted Spoolman as a fallback on local-DB miss, which
     meant a stale local copy of a tag would silently win over the
     authoritative Spoolman row, and deleting the local copy was the only way
     to surface the Spoolman match. Operators expect the SpoolBuddy lookup to
-    follow the inventory mode they selected in Bambuddy settings.
+    follow the inventory mode they selected in PrintOps settings.
     """
     from backend.app.api.routes._spoolman_helpers import _map_spoolman_spool
 
@@ -869,7 +869,7 @@ async def update_spool_weight(
 ):
     """Update spool's used weight from scale reading.
 
-    Routes the update to whichever inventory backend Bambuddy is configured
+    Routes the update to whichever inventory backend PrintOps is configured
     for: Spoolman exclusively when ``spoolman_enabled`` is true, local DB
     exclusively otherwise. The previous implementation tried local first and
     only consulted Spoolman on a local-DB miss, which meant a stale local row
@@ -1107,7 +1107,7 @@ async def queue_system_config_update(
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise HTTPException(
             status_code=400,
-            detail="backend_url must be a full URL with scheme, e.g. http://192.168.1.100:5000 or http://bambuddy.local",
+            detail="backend_url must be a full URL with scheme, e.g. http://192.168.1.100:5000 or http://printops.local",
         )
 
     payload = {
@@ -1305,7 +1305,7 @@ async def check_daemon_update(
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
-    """Check if the SpoolBuddy daemon needs updating to match the Bambuddy backend version."""
+    """Check if the SpoolBuddy daemon needs updating to match the PrintOps backend version."""
     from backend.app.api.routes.updates import is_newer_version
     from backend.app.core.config import APP_VERSION
 
@@ -1339,7 +1339,7 @@ async def trigger_daemon_update(
 ):
     """Trigger a SpoolBuddy update over SSH.
 
-    Bambuddy SSHes into the device, pulls the matching branch, installs deps,
+    PrintOps SSHes into the device, pulls the matching branch, installs deps,
     and restarts the daemon. Progress is broadcast via WebSocket.
     """
     from backend.app.services.spoolbuddy_ssh import perform_ssh_update

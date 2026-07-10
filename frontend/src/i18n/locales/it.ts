@@ -28,7 +28,21 @@ export default {
     smartSwitches: 'Interruttori Smart',
     logout: 'Esci',
     installApp: 'Installa app',
-    installAppSuccess: 'Bambuddy è stato installato',
+    installAppSuccess: 'PrintOps è stato installato',
+  },
+
+  printops: {
+    nav: {
+      dashboard: 'Cruscotto',
+      warehouse: 'Magazzino',
+      parts: 'Piccoli componenti',
+      stock: 'Posizione stock',
+      orders: 'Ordini',
+      offers: 'Offerte',
+      calculation: 'Calcolo',
+      customers: 'Clienti',
+      invoice: 'Fattura',
+    },
   },
 
   // Common
@@ -278,7 +292,7 @@ export default {
       confirmMidPrintTitle: 'Entrare in modalità manutenzione durante la stampa?',
       confirmMidPrintMessage: '{{name}} sta attualmente stampando. Entrare in modalità manutenzione disconnetterà MQTT e fermerà il tracciamento del progresso e le notifiche di completamento per questo lavoro. Continuare?',
       editFieldLabel: 'Modalità manutenzione',
-      editFieldHelp: 'Quando attivata, questa stampante è in pausa da MQTT, dispatch della coda e notifiche — utile per riparazioni, installazioni Bambuddy parallele o sospensione temporanea.',
+      editFieldHelp: 'Quando attivata, questa stampante è in pausa da MQTT, dispatch della coda e notifiche — utile per riparazioni, installazioni PrintOps parallele o sospensione temporanea.',
     },
     // Chamber light
     chamberLightOn: 'Accendi luce camera',
@@ -714,7 +728,7 @@ export default {
     title: 'Archivi di stampa',
     no3mfBanner: {
       title: 'Alcune stampe recenti non sono state archiviate con la miniatura',
-      body: 'Lo slicer non ha lasciato il file .gcode.3mf sulla scheda SD della stampante, quindi Bambuddy non ha potuto recuperare né la miniatura né i metadati dello slicer. Solitamente accade perché "Memorizza file inviati su archiviazione esterna" è disattivato nello slicer (scheda Dispositivo di Bambu Studio / OrcaSlicer).',
+      body: 'Lo slicer non ha lasciato il file .gcode.3mf sulla scheda SD della stampante, quindi PrintOps non ha potuto recuperare né la miniatura né i metadati dello slicer. Solitamente accade perché "Memorizza file inviati su archiviazione esterna" è disattivato nello slicer (scheda Dispositivo di Bambu Studio / OrcaSlicer).',
       docsLink: 'Vedi passo 4 dell\'installazione',
       dismissLabel: 'Chiudi questo avviso',
     },
@@ -1606,11 +1620,24 @@ export default {
     // Tab names
     tabs: {
       general: 'Generale',
+      usersSecurity: 'Utenti e sicurezza',
+      printersProduction: 'Stampanti e produzione',
+      projectsFiles: 'Progetti e file',
+      warehouseMaterial: 'Magazzino e materiali',
+      ordersCalculation: 'Ordini e calcolo',
+      integrations: 'Integrazioni',
+      operations: 'Operazioni',
       smartPlugs: 'Prese smart',
       notifications: 'Notifiche',
       queue: 'Flusso',
       queueDispatch: 'Coda e Dispatch',
       queuePipelines: 'Pipeline',
+      deviceManagementDevices: 'Dispositivi',
+      deviceManagementPrintProcess: 'Processo di stampa',
+      projectManagementFiles: 'Gestione file',
+      warehouseFilament: 'Filamento',
+      warehouseCatalogs: 'Cataloghi',
+      orderManagementCalculation: 'Calcolo',
       filament: 'Filamento',
       network: 'Rete',
       apiKeys: 'Chiavi API',
@@ -1625,6 +1652,23 @@ export default {
       security: 'Sicurezza',
       spoolbuddy: 'SpoolBuddy',
     },
+    printerProductionSubTabDescriptions: {
+      devices: 'Gestisci stampanti predefinite, videocamere, retry FTP ed endpoint delle stampanti virtuali.',
+      printProcess: 'Configura valori di stampa, archiviazione, coda, G-code, slicer e regole di completamento.',
+      pipelines: 'Gestisci pipeline dello slicer, preset e flussi di preparazione automatizzati.',
+      failureDetection: 'Configura monitoraggio guasti IA, impostazioni per stampante, stato e cronologia.',
+    },
+    projectManagementSubTabDescriptions: {
+      files: 'Gestisci file, modalità archivio, avvisi disco e regole di archiviazione progetto.',
+    },
+    warehouseMaterialSubTabDescriptions: {
+      filament: 'Gestisci asciugatura, tracciamento Spoolman, controlli filamento, mapping e soglie AMS.',
+      catalogs: 'Gestisci cataloghi bobine e colori per inventario e flussi etichette.',
+      spoolbuddy: 'Gestisci kiosk SpoolBuddy, lettori NFC, bilance, calibrazione e registrazione.',
+    },
+    orderManagementSubTabDescriptions: {
+      calculation: 'Configura valuta, tracciamento costi e valori di calcolo per flussi commerciali.',
+    },
     ldap: {
       title: 'Autenticazione LDAP',
       enabledDesc: "L'autenticazione LDAP è attiva",
@@ -1634,7 +1678,7 @@ export default {
       disabled: 'Autenticazione LDAP disattivata',
       feature1: 'Gli utenti possono accedere con le credenziali LDAP',
       feature2: "L'account amministratore locale rimane come fallback",
-      feature3: 'I gruppi LDAP vengono mappati ai gruppi BamBuddy al login',
+      feature3: 'I gruppi LDAP vengono mappati ai gruppi PrintOps al login',
       serverConfig: 'Configurazione server LDAP',
       serverUrl: 'URL del server',
       serverUrlHint: 'Usa ldap:// per standard o ldaps:// per connessioni SSL',
@@ -1647,12 +1691,12 @@ export default {
       userFilterHint: '{username} viene sostituito con il nome utente. Usa (uid={username}) per OpenLDAP.',
       advanced: 'Avanzate',
       autoProvision: 'Provisioning automatico utenti',
-      autoProvisionHint: 'Crea automaticamente un account BamBuddy al primo accesso LDAP',
+      autoProvisionHint: 'Crea automaticamente un account PrintOps al primo accesso LDAP',
       defaultGroup: 'Gruppo predefinito',
       defaultGroupNone: '— Nessuno (nessun fallback) —',
       defaultGroupHint: 'Gruppo di fallback assegnato quando un utente LDAP si autentica ma non è presente in nessun gruppo LDAP mappato. Lascia vuoto per lasciare gli utenti non mappati senza autorizzazioni.',
       groupMapping: 'Mappatura gruppi (JSON)',
-      groupMappingHint: 'Mappa i DN dei gruppi LDAP ai gruppi BamBuddy. Gruppi disponibili: ',
+      groupMappingHint: 'Mappa i DN dei gruppi LDAP ai gruppi PrintOps. Gruppi disponibili: ',
       testConnection: 'Test connessione',
       settingsSaved: 'Impostazioni LDAP salvate',
       errors: {
@@ -1866,7 +1910,7 @@ export default {
     includeBetaUpdatesDesc: 'Notifica versioni beta e prerelease durante il controllo aggiornamenti',
     localLogin: {
       disable: 'Disabilita l\'accesso locale con nome utente/password',
-      disableHint: 'Quando attivato, solo i provider SSO possono accedere. LDAP non è interessato. Imposta BAMBUDDY_LOCAL_LOGIN=true sul server per mantenere un percorso di ripristino.',
+      disableHint: 'Quando attivato, solo i provider SSO possono accedere. LDAP non è interessato. Imposta PRINTOPS_LOCAL_LOGIN=true sul server per mantenere un percorso di ripristino.',
     },
     // Queue
     enableRetry: 'Abilita retry',
@@ -2028,7 +2072,7 @@ export default {
     preheatEnabled: 'Abilita preriscaldo & soak',
     preheatEnabledDesc: 'Se disattivato, le stampe in coda partono subito. Ogni elemento può sovrascrivere per singola stampa.',
     preheatFilamentTargetsLabel: 'Target camera per filamento (°C)',
-    preheatFilamentTargetsHint: 'Bambuddy sceglie il target più alto tra gli slot AMS caricati; le stampe solo PLA derivano 0 e saltano la fase camera automaticamente.',
+    preheatFilamentTargetsHint: 'PrintOps sceglie il target più alto tra gli slot AMS caricati; le stampe solo PLA derivano 0 e saltano la fase camera automaticamente.',
     preheatFilamentTargetsReset: 'Ripristina valori predefiniti',
     preheatFilamentTargetsDefaultRow: 'Altro / non mappato',
     preheatMaxWait: 'Attesa max (secondi)',
@@ -2080,7 +2124,7 @@ export default {
     authentication: 'Autenticazione',
     authEnabledDescription: 'La tua istanza è protetta con autenticazione',
     authDisabledDescription: 'Abilita per richiedere accesso e gestire utenti',
-    authDisabledMessage: 'Abilita autenticazione per creare account, gestire permessi e proteggere la tua istanza Bambuddy.',
+    authDisabledMessage: 'Abilita autenticazione per creare account, gestire permessi e proteggere la tua istanza PrintOps.',
     enableAuthentication: 'Abilita autenticazione',
     currentUser: 'Utente corrente',
     changePassword: 'Cambia password',
@@ -2119,10 +2163,10 @@ export default {
     deleteGroup: 'Elimina gruppo',
     // Modal: Disable auth
     disableAuthenticationTitle: 'Disabilita autenticazione',
-    disableAuthenticationMessage: 'Sei sicuro di voler disabilitare l\'autenticazione? Questo renderà la tua istanza Bambuddy accessibile senza login. Tutti gli utenti resteranno nel database ma l\'autenticazione sarà disabilitata.',
+    disableAuthenticationMessage: 'Sei sicuro di voler disabilitare l\'autenticazione? Questo renderà la tua istanza PrintOps accessibile senza login. Tutti gli utenti resteranno nel database ma l\'autenticazione sarà disabilitata.',
     disableAuthentication: 'Disabilita autenticazione',
     // Additional settings
-    configureBambuddy: 'Configura Bambuddy',
+    configurePrintOps: 'Configura PrintOps',
     systemDefault: 'Predefinito di sistema',
     archiveSettings: 'Impostazioni archivio',
     newWindow: 'Nuova finestra',
@@ -2346,7 +2390,7 @@ export default {
     autoArchivePrints: 'Archiviazione automatica stampe',
     autoArchiveDescription: 'Salva automaticamente i file 3MF al completamento delle stampe',
     saveThumbnailsDescription: 'Estrai e salva le immagini di anteprima dai file 3MF',
-    captureFinishPhotoDescription: 'Scatta una foto dalla fotocamera della stampante al completamento della stampa. Bambuddy registra un breve timelapse durante la stampa in modo che la foto possa essere ricavata dal momento precedente all\'abbassamento del piatto; il file del timelapse viene mantenuto se hai abilitato il timelapse per questa stampa, altrimenti viene eliminato automaticamente dopo l\'acquisizione della foto.',
+    captureFinishPhotoDescription: 'Scatta una foto dalla fotocamera della stampante al completamento della stampa. PrintOps registra un breve timelapse durante la stampa in modo che la foto possa essere ricavata dal momento precedente all\'abbassamento del piatto; il file del timelapse viene mantenuto se hai abilitato il timelapse per questa stampa, altrimenti viene eliminato automaticamente dopo l\'acquisizione della foto.',
     ffmpegNotInstalled: 'ffmpeg non installato',
     ffmpegRequired: 'L\'acquisizione dalla fotocamera richiede ffmpeg. Installalo tramite <brew>brew install ffmpeg</brew> (macOS) o <apt>apt install ffmpeg</apt> (Linux).',
     camera: 'Fotocamera',
@@ -2380,13 +2424,13 @@ export default {
     lowDiskSpaceDescription: 'Mostra avviso quando lo spazio disco scende sotto questa soglia',
     printerFirmware: 'Firmware stampante',
     checkFirmwareDescription: 'Controlla aggiornamenti firmware da Bambu Lab',
-    bambuddySoftware: 'Software Bambuddy',
+    printopsSoftware: 'Software PrintOps',
     autoCheckDescription: 'Controlla automaticamente nuove versioni all\'avvio',
     checkNow: 'Controlla ora',
     updateAvailableVersion: 'Aggiornamento disponibile: v{{version}}',
     releaseNotes: 'Note di rilascio',
     updateViaDocker: 'Aggiorna tramite Docker Compose:',
-    updateViaHomeAssistant: 'Gli aggiornamenti sono gestiti dal Supervisor di Home Assistant. Apri Impostazioni → Add-on → Bambuddy in Home Assistant per installare la nuova versione.',
+    updateViaHomeAssistant: 'Gli aggiornamenti sono gestiti dal Supervisor di Home Assistant. Apri Impostazioni → Add-on → PrintOps in Home Assistant per installare la nuova versione.',
     updateViaWindowsInstaller: 'Le installazioni Windows si aggiornano rieseguendo l\'installer. Scarica la nuova versione qui sotto — i tuoi dati, le impostazioni e le stampanti vengono mantenuti.',
     downloadWindowsInstaller: 'Scarica installer per v{{version}}',
     installUpdate: 'Installa aggiornamento',
@@ -2396,8 +2440,8 @@ export default {
     backupRestoreDescription: 'Esporta/importa impostazioni e configura backup GitHub',
     goToBackup: 'Vai al backup',
     externalUrl: 'URL esterno',
-    externalUrlDescription: 'L\'URL esterno dove Bambuddy è accessibile. Usato per immagini di notifica e integrazioni esterne.',
-    bambuddyUrl: 'URL Bambuddy',
+    externalUrlDescription: 'L\'URL esterno dove PrintOps è accessibile. Usato per immagini di notifica e integrazioni esterne.',
+    printopsUrl: 'URL PrintOps',
     externalUrlHint: 'Includi protocollo e porta (es. http://192.168.1.100:8000)',
     ftpRetry: 'Riprova FTP',
     ftpRetryDescription: 'Riprova le operazioni FTP quando il WiFi della stampante è instabile. Si applica a download 3MF, upload stampe, download timelapse e aggiornamenti firmware.',
@@ -2421,7 +2465,7 @@ export default {
     haConnectionSuccess: 'Connesso con successo a Home Assistant.',
     haConnectionFailed: 'Connessione a Home Assistant fallita.',
     mqttPublishing: 'Pubblicazione MQTT',
-    mqttDescription: 'Pubblica eventi BamBuddy su un broker MQTT esterno per l\'integrazione con Node-RED, Home Assistant e altri sistemi di automazione.',
+    mqttDescription: 'Pubblica eventi PrintOps su un broker MQTT esterno per l\'integrazione con Node-RED, Home Assistant e altri sistemi di automazione.',
     mqttEnableDescription: 'Pubblica eventi su broker MQTT esterno',
     brokerHostname: 'Hostname broker',
     port: 'Porta',
@@ -2564,7 +2608,7 @@ export default {
       enabledFromFile: 'Crittografia a riposo abilitata (chiave caricata dalla directory dei dati)',
       enabledGenerated: 'Crittografia a riposo abilitata con chiave auto-generata',
       notConfigured: 'Crittografia a riposo non configurata',
-      notConfiguredDesc: 'I segreti TOTP e i client_secrets OIDC sono memorizzati in chiaro. Imposta MFA_ENCRYPTION_KEY o riavvia Bambuddy con una directory dati scrivibile per generarne uno automaticamente.',
+      notConfiguredDesc: 'I segreti TOTP e i client_secrets OIDC sono memorizzati in chiaro. Imposta MFA_ENCRYPTION_KEY o riavvia PrintOps con una directory dati scrivibile per generarne uno automaticamente.',
       allEncrypted: 'Tutti i segreti MFA sono crittografati a riposo.',
       legacyRowsLabel: 'Righe legacy in chiaro',
       encryptedRowsLabel: 'Righe crittografate',
@@ -2572,7 +2616,7 @@ export default {
       backupHint: 'La chiave generata automaticamente è memorizzata in DATA_DIR/.mfa_encryption_key ed è inclusa nei backup locali ZIP. Mantieni sicuri i tuoi backup o imposta MFA_ENCRYPTION_KEY esplicitamente.',
       decryptionBrokenTitle: 'Chiave di crittografia mancante',
       decryptionBrokenError: '{{count}} record crittografati non possono essere decifrati perché la chiave di crittografia non è più disponibile. Ripristina il precedente MFA_ENCRYPTION_KEY o DATA_DIR/.mfa_encryption_key per recuperare.',
-      migrationErrorWarning: "{{count}} riga/righe legacy non sono state ricifrate all'avvio. Controlla i log del server e riavvia Bambuddy per riprovare.",
+      migrationErrorWarning: "{{count}} riga/righe legacy non sono state ricifrate all'avvio. Controlla i log del server e riavvia PrintOps per riprovare.",
     },
 
 
@@ -2863,7 +2907,7 @@ export default {
 
   // Login page
   login: {
-    title: 'Login Bambuddy',
+    title: 'Login PrintOps',
     subtitle: 'Accedi al tuo account',
     username: 'Nome utente',
     usernamePlaceholder: 'Inserisci il nome utente',
@@ -2911,7 +2955,7 @@ export default {
     sending: 'Invio...',
     sendResetEmail: 'Invia email di reimpostazione',
     howToReset: 'Come reimpostare la password:',
-    resetStep1: 'Contatta il tuo amministratore Bambuddy',
+    resetStep1: 'Contatta il tuo amministratore PrintOps',
     resetStep2: 'Chiedi di reimpostare la password in Gestione utenti',
     resetStep3: 'Possono impostare una nuova password temporanea',
     resetStep4: 'Accedi con la nuova password e cambiala in Impostazioni',
@@ -2922,7 +2966,7 @@ export default {
       methodAuthenticator: 'App di autenticazione',
       methodEmail: 'Codice via e-mail',
       methodBackup: 'Codice di recupero',
-      instructionsTotp: "Apri la tua app di autenticazione e inserisci il codice a 6 cifre per Bambuddy.",
+      instructionsTotp: "Apri la tua app di autenticazione e inserisci il codice a 6 cifre per PrintOps.",
       instructionsEmail: "Un codice a 6 cifre è stato inviato al tuo indirizzo e-mail. È valido per 10 minuti.",
       instructionsEmailNotSent: 'Clicca il pulsante qui sotto per ricevere un codice di verifica via e-mail.',
       instructionsBackup: 'Inserisci uno dei tuoi codici di recupero a 8 caratteri. Ogni codice può essere utilizzato una sola volta.',
@@ -2961,8 +3005,8 @@ export default {
 
   // Setup page
   setup: {
-    title: 'Configurazione Bambuddy',
-    subtitle: 'Configura autenticazione per la tua istanza Bambuddy',
+    title: 'Configurazione PrintOps',
+    subtitle: 'Configura autenticazione per la tua istanza PrintOps',
     enableAuth: 'Abilita autenticazione',
     adminAccount: 'Account admin',
     adminAccountDesc: 'Se esistono già admin, l\'autenticazione verrà abilitata usando gli account esistenti. Lascia i campi sotto vuoti per usare gli admin esistenti, oppure inserisci nuove credenziali per creare un nuovo utente admin.',
@@ -3119,7 +3163,7 @@ export default {
   // Users management
   users: {
     title: 'Gestione utenti',
-    subtitle: 'Gestisci utenti e accesso alla tua istanza Bambuddy',
+    subtitle: 'Gestisci utenti e accesso alla tua istanza PrintOps',
     backToSettings: 'Torna a Impostazioni',
     createUser: 'Crea utente',
     noPermission: 'Non hai il permesso di accedere a questa pagina.',
@@ -3235,7 +3279,7 @@ export default {
       back: 'Usa un altro metodo di accesso',
       connect: {
         title: 'Connetti a Orca Cloud',
-        description: 'Accedi al tuo account Orca Cloud per sincronizzare i profili dello slicer in Bambuddy.',
+        description: 'Accedi al tuo account Orca Cloud per sincronizzare i profili dello slicer in PrintOps.',
       },
       providers: {
         google: 'Accedi con Google',
@@ -3917,13 +3961,13 @@ export default {
   // Sponsor surface (System page)
   sponsors: {
     sectionTitle: 'Indipendente e finanziato dalla community',
-    tagline: 'Bambuddy è gratuito e resta tale perché qualcuno sceglie di sostenerlo. Niente VC, niente lock-in cloud.',
+    tagline: 'PrintOps è gratuito e resta tale perché qualcuno sceglie di sostenerlo. Niente VC, niente lock-in cloud.',
     viewSupporters: 'Vedi i sostenitori',
-    toastPrints: 'Hai completato {{count}} stampe con Bambuddy. Bambuddy resta gratuito grazie a chi lo sostiene.',
-    toastCost: 'Hai monitorato {{total}} di filamento con Bambuddy. Scopri chi mantiene il progetto indipendente.',
-    toastArchives: '{{count}} stampe archiviate con Bambuddy. Scopri chi lo mantiene indipendente.',
-    toastAnniversary: 'Un anno con Bambuddy! Scopri chi mantiene il progetto indipendente.',
-    toastVersionUpdate: 'Aggiornato a v{{version}}. Bambuddy resta gratuito grazie a chi lo sostiene.',
+    toastPrints: 'Hai completato {{count}} stampe con PrintOps. PrintOps resta gratuito grazie a chi lo sostiene.',
+    toastCost: 'Hai monitorato {{total}} di filamento con PrintOps. Scopri chi mantiene il progetto indipendente.',
+    toastArchives: '{{count}} stampe archiviate con PrintOps. Scopri chi lo mantiene indipendente.',
+    toastAnniversary: 'Un anno con PrintOps! Scopri chi mantiene il progetto indipendente.',
+    toastVersionUpdate: 'Aggiornato a v{{version}}. PrintOps resta gratuito grazie a chi lo sostiene.',
   },
 
   // Library (K Profiles)
@@ -4171,8 +4215,8 @@ export default {
       invalidHex: 'Inserisci 6 caratteri esadecimali (RRGGBB) o 8 (RRGGBBAA). Altrimenti il campo non verrà applicato.',
     },
     spoolmanMixedContentTitle: 'Spoolman non può essere caricato tramite HTTPS — contenuto misto bloccato dal browser',
-    spoolmanMixedContentBody: 'Bambuddy viene servito tramite HTTPS (dietro il tuo reverse proxy), ma l\'URL di Spoolman è ancora HTTP. I browser bloccano il contenuto misto per motivi di sicurezza, quindi l\'interfaccia Spoolman incorporata non può essere visualizzata. Anche Spoolman deve essere raggiungibile via HTTPS.',
-    spoolmanMixedContentFixReverseProxy: 'Metti Spoolman dietro lo stesso reverse proxy di Bambuddy (Traefik / Nginx / Caddy) in HTTPS, poi aggiorna l\'URL di Spoolman nelle Impostazioni con il nuovo indirizzo HTTPS.',
+    spoolmanMixedContentBody: 'PrintOps viene servito tramite HTTPS (dietro il tuo reverse proxy), ma l\'URL di Spoolman è ancora HTTP. I browser bloccano il contenuto misto per motivi di sicurezza, quindi l\'interfaccia Spoolman incorporata non può essere visualizzata. Anche Spoolman deve essere raggiungibile via HTTPS.',
+    spoolmanMixedContentFixReverseProxy: 'Metti Spoolman dietro lo stesso reverse proxy di PrintOps (Traefik / Nginx / Caddy) in HTTPS, poi aggiorna l\'URL di Spoolman nelle Impostazioni con il nuovo indirizzo HTTPS.',
     spoolmanMixedContentFixOpenNewTab: 'Come alternativa, apri Spoolman in una nuova scheda via HTTP — le regole sul contenuto misto si applicano solo ai frame incorporati, una scheda autonoma funziona.',
     spoolmanOpenInNewTab: 'Apri Spoolman in una nuova scheda',
     labels: {
@@ -4617,8 +4661,8 @@ export default {
     cloudLoginRequiredShort: 'Accesso Cloud richiesto',
     githubDescription: 'Sincronizza automaticamente i tuoi profili con un repository GitHub privato per backup e cronologia delle versioni.',
     repoIsPrivate: 'Il repository è privato — è sicuro effettuare il backup.',
-    repoIsPublicWarning: 'Il repository è PUBBLICO. I backup di Bambuddy includono credenziali MQTT, token di Home Assistant, token di Prometheus, la tua e-mail Bambu Cloud e i codici di accesso alle stampanti tramite K-profile. Il salvataggio è bloccato finché non rendi privato il repository nelle impostazioni del tuo provider.',
-    repoVisibilityUnknown: 'Impossibile determinare la visibilità del repository. Bambuddy rifiuta di eseguire backup su qualsiasi target non confermato come privato; il salvataggio sarà bloccato.',
+    repoIsPublicWarning: 'Il repository è PUBBLICO. I backup di PrintOps includono credenziali MQTT, token di Home Assistant, token di Prometheus, la tua e-mail Bambu Cloud e i codici di accesso alle stampanti tramite K-profile. Il salvataggio è bloccato finché non rendi privato il repository nelle impostazioni del tuo provider.',
+    repoVisibilityUnknown: 'Impossibile determinare la visibilità del repository. PrintOps rifiuta di eseguire backup su qualsiasi target non confermato come privato; il salvataggio sarà bloccato.',
     repositoryUrl: 'URL del repository',
     repoUrlPlaceholderGitHub: 'https://github.com/username/repo-name',
 	repoUrlPlaceholderGitea: 'https://gitea.example.com/username/repo-name',
@@ -4648,7 +4692,7 @@ export default {
     cloudProfiles: 'Profili Cloud',
     cloudProfilesDescription: 'Preset di filamento, stampante e processo da Bambu Cloud',
     appSettings: 'Impostazioni App',
-    appSettingsDescription: 'Configurazione Bambuddy (database completo)',
+    appSettingsDescription: 'Configurazione PrintOps (database completo)',
     spoolInventory: 'Inventario bobine',
     spoolInventoryDescription: 'Bobine di filamento, cronologia utilizzo e tracciamento costi',
     printArchives: 'Archivi di stampa',
@@ -4683,7 +4727,7 @@ export default {
 
     // Local Backup
     localBackup: 'Backup locale',
-    localBackupDescription: 'Crea un backup completo dei tuoi dati Bambuddy includendo database, archivi, upload e tutti i file.',
+    localBackupDescription: 'Crea un backup completo dei tuoi dati PrintOps includendo database, archivi, upload e tutti i file.',
     downloadBackupLabel: 'Scarica backup',
     completeBackupZip: 'Backup completo: database + tutti i file (ZIP)',
     download: 'Scarica',
@@ -4699,7 +4743,7 @@ export default {
     restoreConfirmMessage: 'Sei sicuro di voler ripristinare da "{{filename}}"? Questo sostituirà completamente il tuo database e tutti i file. L\'applicazione dovrà essere riavviata dopo il ripristino.',
     restoreConfirmButton: 'Ripristina backup',
     uploadingFile: 'Caricamento del file di backup...',
-    backupRestoredRestart: 'Backup ripristinato. Riavvia Bambuddy.',
+    backupRestoredRestart: 'Backup ripristinato. Riavvia PrintOps.',
     failedToRestore: 'Ripristino del backup fallito. Controlla il formato del file.',
     reloadNow: 'Ricarica ora',
     creatingBackup: 'Creazione del backup',
@@ -4931,7 +4975,7 @@ export default {
       right: 'Destra',
       notes: 'Note (salvate localmente)',
       notesPlaceholder: 'Aggiungi note su questo profilo...',
-      notesHelp: 'Le note sono salvate in Bambuddy, non sulla stampante',
+      notesHelp: 'Le note sono salvate in PrintOps, non sulla stampante',
       syncing: 'Sincronizzazione con stampante...',
       savingExtruder: 'Salvataggio su estrusore {{current}}/{{total}}...',
       pleaseWait: 'Attendere',
@@ -4986,7 +5030,7 @@ export default {
     },
     enable: {
       title: 'Abilita stampante virtuale',
-      visibleInSlicer: 'Visibile come "Bambuddy" nella ricerca slicer',
+      visibleInSlicer: 'Visibile come "PrintOps" nella ricerca slicer',
       proxyingTo: 'In proxy verso {{name}}',
       notActive: 'Non attivo',
     },
@@ -5021,7 +5065,7 @@ export default {
       configured: 'Sovrascrittura interfaccia attiva',
       optional: 'Opzionale - usare se l\'IP rilevato automaticamente e sbagliato (es. piu NIC, Docker, VPN)',
       placeholder: 'Rilevamento automatico (predefinito)...',
-      hint: 'Sovrascrive l\'indirizzo IP pubblicizzato via SSDP e usato nel certificato TLS. Utile quando Bambuddy ha piu interfacce di rete.',
+      hint: 'Sovrascrive l\'indirizzo IP pubblicizzato via SSDP e usato nel certificato TLS. Utile quando PrintOps ha piu interfacce di rete.',
     },
     mode: {
       title: 'Modalita',
@@ -5058,7 +5102,7 @@ export default {
     howItWorks: {
       title: 'Come funziona',
       step1: 'Sulla stessa LAN, le stampanti virtuali appaiono automaticamente nel tuo slicer (Bambu Studio / OrcaSlicer). Da altre reti, aggiungile manualmente tramite indirizzo IP e codice di accesso.',
-      step2: 'In modalità Archivio, Revisione e Coda, usa il pulsante "Invia" nel tuo slicer per caricare file 3MF su Bambuddy. Lo slicer mostrerà "Stampa riuscita" — il file viene salvato, non stampato.',
+      step2: 'In modalità Archivio, Revisione e Coda, usa il pulsante "Invia" nel tuo slicer per caricare file 3MF su PrintOps. Lo slicer mostrerà "Stampa riuscita" — il file viene salvato, non stampato.',
       step3: 'In modalità Proxy, la stampante virtuale inoltra tutto il traffico a una stampante reale — le stampe partono immediatamente come con una connessione diretta.',
     },
     status: {
@@ -5121,7 +5165,7 @@ export default {
     },
     caCert: {
       title: 'Certificato dello slicer',
-      description: 'Le stampanti virtuali usano un certificato TLS firmato dalla CA di Bambuddy. Importa questo certificato CA nell\'archivio attendibile del tuo slicer una sola volta affinché accetti la connessione — senza doverlo copiare dalla riga di comando.',
+      description: 'Le stampanti virtuali usano un certificato TLS firmato dalla CA di PrintOps. Importa questo certificato CA nell\'archivio attendibile del tuo slicer una sola volta affinché accetti la connessione — senza doverlo copiare dalla riga di comando.',
       copy: 'Copia',
       copied: 'Copiato',
       download: 'Scarica',
@@ -5615,16 +5659,22 @@ export default {
     title: 'Link della barra laterale',
     sidebarLayout: 'Barra laterale',
     sidebarLayoutDescription: 'Mostra o nascondi le pagine integrate, aggiungi link esterni e trascina gli elementi per riordinare la navigazione laterale.',
-    systemPages: 'Pagine Bambuddy',
+    systemPages: 'Pagine PrintOps',
     externalLinks: 'Link esterni',
+    addLink: 'Aggiungi link',
     visibleInSidebar: 'Visibile nella barra laterale',
     hiddenFromSidebar: 'Nascosto nella barra laterale',
     requiredInSidebar: 'Obbligatorio nella barra laterale',
+    mainPage: 'Pagina principale',
+    childPageOf: 'Sottopagina di {{parent}}',
+    hiddenByParent: 'Nascosto tramite {{parent}}',
+    showParentFirst: 'Mostra prima {{parent}}',
     hidePage: 'Nascondi pagina',
     showPage: 'Mostra pagina',
     settingsCannotBeHidden: 'Le impostazioni non possono essere nascoste',
     noLinksConfigured: 'Nessun link esterno configurato',
     deleteLink: 'Elimina link',
+    deleteConfirm: 'Sei sicuro di voler eliminare "{{name}}"? Questa azione non puo essere annullata.',
     removeCustomIcon: 'Rimuovi icona personalizzata',
     openInNewTab: 'Apri in nuova scheda',
     placeholders: {
@@ -5830,7 +5880,7 @@ export default {
   // Email Settings
   emailSettings: {
     placeholders: {
-      fromName: 'Bambuddy',
+      fromName: 'PrintOps',
     },
   },
 
@@ -6126,7 +6176,7 @@ export default {
       upToDate: 'Aggiornato',
       includeBeta: 'Includi versioni beta',
       systemConfig: 'Backend & autenticazione',
-      backendUrl: 'URL backend Bambuddy',
+      backendUrl: 'URL backend PrintOps',
       apiToken: 'Token API',
       apiTokenPlaceholder: 'Inserisci token API',
       saveConfig: 'Salva configurazione',
@@ -6233,13 +6283,13 @@ export default {
       network_mode: {
         title: 'Modalità di rete Docker',
         pass: 'In esecuzione in modalità di rete host.',
-        warn: 'Bambuddy è in esecuzione con la rete Docker bridge. Il rilevamento delle stampanti e la stampante virtuale richiedono la modalità di rete host — ricrea il container con "network_mode: host".',
+        warn: 'PrintOps è in esecuzione con la rete Docker bridge. Il rilevamento delle stampanti e la stampante virtuale richiedono la modalità di rete host — ricrea il container con "network_mode: host".',
         skip: 'Non in esecuzione in Docker — non applicabile.',
       },
       subnet: {
         title: 'Sottorete',
-        pass: 'La stampante e Bambuddy sono nella stessa sottorete.',
-        warn: 'La stampante ({{printer_ip}}) e Bambuddy ({{host_ip}}) sono in sottoreti diverse. Potrebbero non raggiungersi a meno che non sia configurato il routing tra le sottoreti.',
+        pass: 'La stampante e PrintOps sono nella stessa sottorete.',
+        warn: 'La stampante ({{printer_ip}}) e PrintOps ({{host_ip}}) sono in sottoreti diverse. Potrebbero non raggiungersi a meno che non sia configurato il routing tra le sottoreti.',
         skip: 'Impossibile determinare la sottorete — ignorato.',
       },
       mqtt_auth: {
@@ -6281,12 +6331,12 @@ export default {
       'ftp-auth-rejected': {
         name: 'La stampante ha rifiutato il codice di accesso',
         cause: 'La stampante ha rifiutato l\'accesso per il trasferimento file. Il codice di accesso è errato oppure è cambiato dopo aver attivato la Modalità Sviluppatore.',
-        fix: 'Ricopia il codice di accesso dallo schermo della stampante (impostazioni LAN) e aggiornalo nelle impostazioni della stampante in Bambuddy.',
+        fix: 'Ricopia il codice di accesso dallo schermo della stampante (impostazioni LAN) e aggiornalo nelle impostazioni della stampante in PrintOps.',
       },
       'ftp-connection-timeout': {
         name: 'Timeout della connessione di trasferimento file',
-        cause: 'Bambuddy non è riuscito a raggiungere la porta di trasferimento file della stampante (FTPS 990). La porta è bloccata, oppure la stampante è spenta o in un\'altra sottorete.',
-        fix: 'Assicurati che nulla blocchi la porta 990 tra Bambuddy e la stampante e che entrambi siano sulla stessa rete.',
+        cause: 'PrintOps non è riuscito a raggiungere la porta di trasferimento file della stampante (FTPS 990). La porta è bloccata, oppure la stampante è spenta o in un\'altra sottorete.',
+        fix: 'Assicurati che nulla blocchi la porta 990 tra PrintOps e la stampante e che entrambi siano sulla stessa rete.',
       },
       'ftp-ssl-error': {
         name: 'Handshake sicuro del trasferimento file non riuscito',
@@ -6306,7 +6356,7 @@ export default {
       'database-locked': {
         name: 'Conflitti di scrittura nel database',
         cause: 'Il database SQLite presenta errori "database is locked" sotto carico, comune quando si usano più stampanti contemporaneamente.',
-        fix: 'Passa Bambuddy a un database PostgreSQL esterno. Consulta la guida PostgreSQL nella documentazione.',
+        fix: 'Passa PrintOps a un database PostgreSQL esterno. Consulta la guida PostgreSQL nella documentazione.',
       },
     },
   },
@@ -6329,7 +6379,7 @@ export default {
       },
       running: {
         title: 'Servizi in esecuzione',
-        fail: 'La stampante virtuale è abilitata ma i suoi servizi non sono in esecuzione. Controlla il log di Bambuddy — di solito li ferma un conflitto di IP di binding o un errore di permessi.',
+        fail: 'La stampante virtuale è abilitata ma i suoi servizi non sono in esecuzione. Controlla il log di PrintOps — di solito li ferma un conflitto di IP di binding o un errore di permessi.',
       },
       bind_interface: {
         title: 'Interfaccia di rete di binding',
@@ -6358,8 +6408,8 @@ export default {
       },
       certificate: {
         title: 'Certificato TLS',
-        pass: 'Certificato pronto. Assicurati che il certificato CA di Bambuddy (sopra) sia importato nell\'archivio attendibile del tuo slicer.',
-        fail: 'Il certificato TLS per questa stampante virtuale è mancante. Verifica che la directory dei dati di Bambuddy sia scrivibile.',
+        pass: 'Certificato pronto. Assicurati che il certificato CA di PrintOps (sopra) sia importato nell\'archivio attendibile del tuo slicer.',
+        fail: 'Il certificato TLS per questa stampante virtuale è mancante. Verifica che la directory dei dati di PrintOps sia scrivibile.',
       },
     },
   },
@@ -6424,7 +6474,7 @@ export default {
     pollInterval: 'Intervallo di controllo (secondi)',
     pollIntervalHint: 'Frequenza di controllo di ogni stampante durante la stampa. Minimo 5s, massimo 120s.',
     externalUrlMissing: 'URL esterno non impostato.',
-    externalUrlHint: 'L\'API ML recupera l\'istantanea della telecamera tramite URL. Imposta l\'URL esterno nelle impostazioni generali in modo che il container API ML possa raggiungere Bambuddy.',
+    externalUrlHint: 'L\'API ML recupera l\'istantanea della telecamera tramite URL. Imposta l\'URL esterno nelle impostazioni generali in modo che il container API ML possa raggiungere PrintOps.',
     perPrinterTitle: 'Stampanti monitorate',
     perPrinterHint: 'Scegli quali stampanti il servizio di rilevamento deve monitorare.',
     monitorAll: 'Monitora tutte le stampanti connesse',
@@ -6438,7 +6488,7 @@ export default {
   },
   makerworld: {
     title: 'MakerWorld',
-    description: 'Incolla un URL di un modello MakerWorld per importarlo e stamparlo direttamente da Bambuddy — senza passare dall\'app Bambu Handy.',
+    description: 'Incolla un URL di un modello MakerWorld per importarlo e stamparlo direttamente da PrintOps — senza passare dall\'app Bambu Handy.',
     pasteUrlHeader: 'Importa da MakerWorld',
     pasteUrlPlaceholder: 'https://makerworld.com/en/models/… o incolla qualsiasi link MakerWorld',
     resolveButton: 'Risolvi',
@@ -6461,7 +6511,7 @@ export default {
     alsoCompatible: 'Anche contrassegnato come compatibile: {{printers}}',
     importToLibrary: 'Salva',
     sliceIn: 'Salva e affetta in {{slicer}}',
-    disclaimer: 'L\'integrazione MakerWorld utilizza endpoint API documentati dalla community. Bambuddy non è affiliato né approvato da MakerWorld o Bambu Lab.',
+    disclaimer: 'L\'integrazione MakerWorld utilizza endpoint API documentati dalla community. PrintOps non è affiliato né approvato da MakerWorld o Bambu Lab.',
     lastImportSuccess: 'Importato nella tua libreria',
     lastImportAlreadyInLibrary: 'Già nella tua libreria',
     viewInLibrary: 'Visualizza in Gestione file',
@@ -6557,7 +6607,7 @@ export default {
     effect1: 'I file corrispondenti vengono spostati nel cestino — non sono ancora eliminati dal disco.',
     effect2: 'Puoi ripristinarli dal cestino in qualsiasi momento fino alla scadenza del periodo di conservazione.',
     effect3: 'Dopo il periodo di conservazione, lo spazzino del cestino li rimuove definitivamente.',
-    effect4: 'I file in cartelle esterne (collegate) vengono saltati — Bambuddy non elimina mai dati che non possiede.',    previewLoading: 'Verifica quanti file corrispondono…',
+    effect4: 'I file in cartelle esterne (collegate) vengono saltati — PrintOps non elimina mai dati che non possiede.',    previewLoading: 'Verifica quanti file corrispondono…',
     previewFailed: 'Impossibile mostrare l\'anteprima.',
     previewSummary: '{{count}} file · {{size}} verrebbero spostati nel cestino',
     andMore: '…e altri {{count}}',

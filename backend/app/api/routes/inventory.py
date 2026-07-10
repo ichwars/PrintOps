@@ -980,12 +980,12 @@ async def sync_from_filamentcolors(
         total_available = 0
 
         try:
-            # Identify honestly as Bambuddy rather than leaking httpx's
+            # Identify honestly as PrintOps rather than leaking httpx's
             # default "python-httpx/x.y" UA — consistent with every other
             # outbound client (bambu_cloud, makerworld, firmware_check).
             async with httpx.AsyncClient(
                 timeout=120.0,
-                headers={"User-Agent": "Bambuddy/1.0 (+https://github.com/maziggy/bambuddy)"},
+                headers={"User-Agent": "PrintOps/1.0 (+https://github.com/ichwars/PrintOps)"},
             ) as client:
                 page = 1
                 while True:
@@ -1114,7 +1114,7 @@ async def export_spools_csv(
     content = serialize(spools)
     # Date-stamp the filename so repeat exports don't overwrite each other in
     # the browser's default download folder.
-    filename = f"bambuddy_inventory_{datetime.now(timezone.utc).strftime('%Y%m%d')}.csv"
+    filename = f"printops_inventory_{datetime.now(timezone.utc).strftime('%Y%m%d')}.csv"
     return Response(
         content=content,
         media_type="text/csv",

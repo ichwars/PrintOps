@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Inter, self-hosted (#1460).  Bambuddy is a local-first, offline-capable PWA;
+/* Inter, self-hosted (#1460).  PrintOps is a local-first, offline-capable PWA;
    pulling the font from fonts.googleapis.com at runtime broke the install on
    Android (CSP-blocked cross-origin fetch) and meant the UI couldn't render
    offline.  These are the variable woff2 files Google Fonts serves — one file

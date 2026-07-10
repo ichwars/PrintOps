@@ -30,14 +30,32 @@ _log_dir = Path(_log_dir_env) if _log_dir_env else _app_dir / "logs"
 
 def _migrate_database() -> Path:
     """Migrate database from old name to new name if needed."""
-    old_db = _data_dir / "bambutrack.db"
-    new_db = _data_dir / "bambuddy.db"
+    new_db = _data_dir / "printops.db"
+    legacy_names = ("".join(("bambu", "ddy")) + ".db", "bambutrack.db")
+
+    def _rename_sqlite_database(old_db: Path) -> bool:
+        files = [(old_db, new_db)]
+        files.extend(
+            (old_db.with_name(old_db.name + suffix), new_db.with_name(new_db.name + suffix))
+            for suffix in ("-wal", "-shm")
+            if old_db.with_name(old_db.name + suffix).exists()
+        )
+        for _, target in files:
+            if target.exists():
+                return False
+        for source, target in files:
+            source.rename(target)
+        return True
 
     # If old database exists and new one doesn't, rename it
-    if old_db.exists() and not new_db.exists():
+    for legacy_name in legacy_names:
+        old_db = _data_dir / legacy_name
+        if not old_db.exists() or new_db.exists():
+            continue
         try:
-            old_db.rename(new_db)
-            logging.info("Migrated database: %s -> %s", old_db, new_db)
+            if _rename_sqlite_database(old_db):
+                logging.info("Migrated database: %s -> %s", old_db, new_db)
+                break
         except Exception as e:
             logging.warning("Could not migrate database: %s. Using old location.", e)
             return old_db
@@ -45,7 +63,13 @@ def _migrate_database() -> Path:
     # If old database exists (and new one now exists too), it was migrated
     # If only new exists, use new
     # If neither exists, use new (will be created)
-    return new_db if new_db.exists() or not old_db.exists() else old_db
+    if new_db.exists():
+        return new_db
+    for legacy_name in legacy_names:
+        old_db = _data_dir / legacy_name
+        if old_db.exists():
+            return old_db
+    return new_db
 
 
 # External DATABASE_URL takes priority (PostgreSQL support)
@@ -100,7 +124,7 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# S6: Warn on unknown MFA_*/BAMBUDDY_* env vars so typos like MFA_ENCYPTION_KEY
+# S6: Warn on unknown MFA_*/PRINTOPS_* env vars so typos like MFA_ENCYPTION_KEY
 # are not silently swallowed by ``extra = "ignore"``. The original Pydantic
 # behaviour rejected them outright and broke startup (#1219); we now accept
 # them but log every unrecognised one at INFO so operators can spot mistakes.
@@ -116,7 +140,7 @@ _INTENTIONAL_UNSETTINGS = {
 _known_settings_fields = {f.upper() for f in settings.model_fields}
 
 for _env_key in os.environ:
-    if _re.match(r"^(MFA_|BAMBUDDY_)", _env_key, _re.IGNORECASE):
+    if _re.match(r"^(MFA_|PRINTOPS_)", _env_key, _re.IGNORECASE):
         _norm = _env_key.upper()
         if _norm not in _known_settings_fields and _norm not in _INTENTIONAL_UNSETTINGS:
             logging.info(

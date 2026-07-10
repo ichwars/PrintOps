@@ -2483,7 +2483,7 @@ function PrinterCard({
       // the not-homed modal. The flag is the same one "Move anyway" sets; after a successful
       // auto-home request the printer is (or will shortly be) in a known-homed state, so
       // prompting again in the same session is noise — #1052 follow-up.
-      try { sessionStorage.setItem(`bambuddy.bedJog.warned.${printer.id}`, '1'); } catch { /* ignore */ }
+      try { sessionStorage.setItem(`printops.bedJog.warned.${printer.id}`, '1'); } catch { /* ignore */ }
       showToast(t('printers.bedJog.homingStarted'));
     },
     onError: (error: Error) =>
@@ -4100,7 +4100,7 @@ function PrinterCard({
                         const jogButtonClass = 'flex h-8 w-8 items-center justify-center rounded bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 transition-colors hover:bg-indigo-200 dark:hover:bg-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-50';
                         const requestZJog = (direction: 1 | -1) => {
                           const signed = direction * bedJogStep * (bambuIsPlateBelow ? 1 : -1);
-                          const warnedKey = `bambuddy.bedJog.warned.${printer.id}`;
+                          const warnedKey = `printops.bedJog.warned.${printer.id}`;
                           const warned = (() => {
                             try { return sessionStorage.getItem(warnedKey) === '1'; }
                             catch { return false; }
@@ -6143,7 +6143,7 @@ function PrinterCard({
               <button
                 onClick={() => {
                   const d = showNotHomedModal.distance;
-                  try { sessionStorage.setItem(`bambuddy.bedJog.warned.${printer.id}`, '1'); } catch { /* ignore */ }
+                  try { sessionStorage.setItem(`printops.bedJog.warned.${printer.id}`, '1'); } catch { /* ignore */ }
                   bedJogMutation.mutate({ distance: d, force: true });
                   setShowNotHomedModal(null);
                 }}
@@ -6496,7 +6496,7 @@ export function AddPrinterModal({
   const [detectedSubnets, setDetectedSubnets] = useState<string[]>([]);
   const [subnet, setSubnet] = useState('');
   // Custom subnet — `__custom__` sentinel in the dropdown reveals a CIDR
-  // text input so users can scan a subnet Bambuddy isn't directly on
+  // text input so users can scan a subnet PrintOps isn't directly on
   // (printer behind a router on a different L3 segment — SSDP multicast
   // won't cross that boundary, only an active unicast scan will). #1564
   const [customSubnet, setCustomSubnet] = useState('');
@@ -6525,7 +6525,7 @@ export function AddPrinterModal({
       // Ignore errors, assume not Docker
     });
     try {
-      const saved = localStorage.getItem('bambuddy.discovery.customSubnet');
+      const saved = localStorage.getItem('printops.discovery.customSubnet');
       if (saved) setCustomSubnet(saved);
     } catch {
       // localStorage unavailable (private mode, quota); recall is opportunistic
@@ -6571,7 +6571,7 @@ export function AddPrinterModal({
 
     if (wantsSubnetScan && useCustomSubnet) {
       try {
-        localStorage.setItem('bambuddy.discovery.customSubnet', scanCidr);
+        localStorage.setItem('printops.discovery.customSubnet', scanCidr);
       } catch {
         // localStorage write best-effort; user just retypes next time
       }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Printer, Archive, ListOrdered, BarChart3, Cloud, Settings, Sun, Moon, Monitor, ChevronLeft, ChevronRight, Keyboard, Github, ArrowUpCircle, Wrench, FolderKanban, FolderOpen, X, Menu, Info, Plug, Bug, LogOut, Key, Loader2, ShieldAlert, Globe, Bell, Warehouse, ClipboardList, type LucideIcon } from 'lucide-react';
+import { Printer, Archive, ListOrdered, BarChart3, Cloud, Settings, Sun, Moon, Monitor, ChevronLeft, ChevronRight, ChevronDown, Keyboard, Github, ArrowUpCircle, Wrench, FolderKanban, FolderOpen, X, Menu, Info, Plug, Bug, LogOut, Key, Loader2, ShieldAlert, Globe, Bell, Warehouse, ClipboardList, Package, Boxes, PackageCheck, FileText, Calculator, Users, Receipt, Database, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
@@ -37,31 +37,90 @@ interface NavItem {
   labelKey: string; // Translation key
   defaultLabel?: string;
   defaultLabelDe?: string;
+  parentId?: string;
 }
 
 export const defaultNavItems: NavItem[] = [
-  { id: 'printers', to: '/', icon: Printer, labelKey: 'nav.printers' },
+  { id: 'dashboard', to: '/dashboard', icon: BarChart3, labelKey: 'printops.nav.dashboard', defaultLabel: 'Dashboard', defaultLabelDe: 'Dashboard' },
+  { id: 'printers', to: '/printers', icon: Printer, labelKey: 'nav.printers' },
+  { id: 'archives', to: '/archives', icon: Archive, labelKey: 'nav.archives', parentId: 'printers' },
+  { id: 'queue', to: '/queue', icon: ListOrdered, labelKey: 'nav.queue', parentId: 'printers' },
+  { id: 'profiles', to: '/profiles', icon: Cloud, labelKey: 'nav.profiles', parentId: 'printers' },
+  { id: 'maintenance', to: '/maintenance', icon: Wrench, labelKey: 'nav.maintenance', parentId: 'printers' },
   { id: 'projects', to: '/projects', icon: FolderKanban, labelKey: 'nav.projects' },
+  { id: 'files', to: '/files', icon: FolderOpen, labelKey: 'nav.files', parentId: 'projects' },
+  { id: 'makerworld', to: '/makerworld', icon: Globe, labelKey: 'nav.makerworld', parentId: 'projects' },
   { id: 'inventory', to: '/warehouse', icon: Warehouse, labelKey: 'printops.nav.warehouse', defaultLabel: 'Warehouse', defaultLabelDe: 'Lager' },
+  { id: 'warehouse-filament', to: '/warehouse/filament', icon: Package, labelKey: 'nav.inventory', parentId: 'inventory' },
+  { id: 'warehouse-parts', to: '/warehouse/parts', icon: Boxes, labelKey: 'printops.nav.parts', defaultLabel: 'Small parts', defaultLabelDe: 'Kleinteile', parentId: 'inventory' },
+  { id: 'warehouse-stock', to: '/warehouse/stock', icon: PackageCheck, labelKey: 'printops.nav.stock', defaultLabel: 'Stock position', defaultLabelDe: 'Warenlage', parentId: 'inventory' },
   { id: 'orders', to: '/orders', icon: ClipboardList, labelKey: 'printops.nav.orders', defaultLabel: 'Orders', defaultLabelDe: 'Aufträge' },
-  { id: 'queue', to: '/queue', icon: ListOrdered, labelKey: 'nav.queue' },
-  { id: 'archives', to: '/archives', icon: Archive, labelKey: 'nav.archives' },
-  { id: 'files', to: '/files', icon: FolderOpen, labelKey: 'nav.files' },
-  { id: 'makerworld', to: '/makerworld', icon: Globe, labelKey: 'nav.makerworld' },
-  { id: 'stats', to: '/stats', icon: BarChart3, labelKey: 'nav.stats' },
-  { id: 'profiles', to: '/profiles', icon: Cloud, labelKey: 'nav.profiles' },
-  { id: 'maintenance', to: '/maintenance', icon: Wrench, labelKey: 'nav.maintenance' },
+  { id: 'orders-offers', to: '/orders/offers', icon: FileText, labelKey: 'printops.nav.offers', defaultLabel: 'Offers', defaultLabelDe: 'Angebote', parentId: 'orders' },
+  { id: 'orders-calculation', to: '/orders/calculation', icon: Calculator, labelKey: 'printops.nav.calculation', defaultLabel: 'Calculation', defaultLabelDe: 'Kalkulation', parentId: 'orders' },
+  { id: 'orders-customers', to: '/orders/customers', icon: Users, labelKey: 'printops.nav.customers', defaultLabel: 'Customers', defaultLabelDe: 'Kunden', parentId: 'orders' },
+  { id: 'orders-invoice', to: '/orders/invoices', icon: Receipt, labelKey: 'printops.nav.invoice', defaultLabel: 'Invoice', defaultLabelDe: 'Rechnung', parentId: 'orders' },
   // User-account feature: gated in isHidden() on advanced auth + user_notifications
   // + the notifications:user_email permission. Kept adjacent to Settings
   // intentionally. Do not drop this entry — without it the /notifications page
   // is orphaned (route + page still exist but no nav link) (#1901).
   { id: 'notifications', to: '/notifications', icon: Bell, labelKey: 'nav.notifications' },
   { id: 'settings', to: '/settings', icon: Settings, labelKey: 'nav.settings' },
+  { id: 'settings-general', to: '/settings', icon: Settings, labelKey: 'settings.tabs.general', parentId: 'settings' },
+  { id: 'settings-users-security', to: '/settings?tab=users-security', icon: ShieldAlert, labelKey: 'settings.tabs.usersSecurity', parentId: 'settings' },
+  { id: 'settings-printers-production', to: '/settings?tab=printers-production', icon: Printer, labelKey: 'settings.tabs.printersProduction', parentId: 'settings' },
+  { id: 'settings-projects-files', to: '/settings?tab=projects-files', icon: FileText, labelKey: 'settings.tabs.projectsFiles', parentId: 'settings' },
+  { id: 'settings-warehouse-material', to: '/settings?tab=warehouse-material', icon: Warehouse, labelKey: 'settings.tabs.warehouseMaterial', parentId: 'settings' },
+  { id: 'settings-orders-calculation', to: '/settings?tab=orders-calculation', icon: Calculator, labelKey: 'settings.tabs.ordersCalculation', parentId: 'settings' },
+  { id: 'settings-integrations', to: '/settings?tab=integrations', icon: Plug, labelKey: 'settings.tabs.integrations', parentId: 'settings' },
+  { id: 'settings-operations', to: '/settings?tab=operations', icon: Database, labelKey: 'settings.tabs.operations', parentId: 'settings' },
 ];
+
+function splitRoute(route: string) {
+  const [path, query = ''] = route.split('?');
+  return { path, query };
+}
+
+function routeQueryMatches(search: string, routeQuery: string) {
+  const currentParams = new URLSearchParams(search);
+  const routeParams = new URLSearchParams(routeQuery);
+  for (const [key, value] of routeParams) {
+    if (currentParams.get(key) !== value) return false;
+  }
+  return true;
+}
+
+function routePathMatches(pathname: string, route: string) {
+  const { path } = splitRoute(route);
+  return pathname === path || pathname.startsWith(`${path}/`);
+}
+
+function routeMatches(pathname: string, search: string, route: string) {
+  const { path, query } = splitRoute(route);
+  if (query) {
+    return pathname === path && routeQueryMatches(search, query);
+  }
+  if (path === '/settings') {
+    return pathname === path && !new URLSearchParams(search).has('tab');
+  }
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
+
+function getActiveParentNavItemId(pathname: string, search: string) {
+  const activeChild = defaultNavItems.find((item) => item.parentId && routeMatches(pathname, search, item.to));
+  if (activeChild) return activeChild.parentId;
+
+  return defaultNavItems.find((item) => {
+    if (item.parentId) return false;
+    const hasChildren = defaultNavItems.some((child) => child.parentId === item.id);
+    return hasChildren && routePathMatches(pathname, item.to);
+  })?.id;
+}
 
 // Get default view from localStorage
 export function getDefaultView(): string {
-  return localStorage.getItem('defaultView') || '/';
+  const stored = localStorage.getItem('defaultView');
+  if (!stored || stored === '/' || stored === '/stats') return '/dashboard';
+  return stored;
 }
 
 // Save default view to localStorage
@@ -97,6 +156,10 @@ export function Layout() {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showSwitchbar, setShowSwitchbar] = useState(false);
+  const [expandedNavMenuIds, setExpandedNavMenuIds] = useState<string[]>(() => {
+    const activeParentId = getActiveParentNavItemId(location.pathname, location.search);
+    return activeParentId ? [activeParentId] : [];
+  });
   const defaultSidebarOrder = useMemo(() => defaultNavItems.map(i => i.id), []);
   const [sidebarOrder, setSidebarOrder] = useState<string[]>(() => getSidebarOrder(defaultNavItems.map(i => i.id)));
   const [hiddenSystemItemIds, setHiddenSystemItemIds] = useState<string[]>(getHiddenSidebarSystemItemIds);
@@ -201,6 +264,16 @@ export function Layout() {
 
   const hasSwitchbarPlugs = smartPlugs?.some(p => p.show_in_switchbar) ?? false;
 
+  const expandedNavMenuIdSet = useMemo(() => new Set(expandedNavMenuIds), [expandedNavMenuIds]);
+
+  const toggleNavMenu = useCallback((id: string) => {
+    setExpandedNavMenuIds((current) =>
+      current.includes(id)
+        ? []
+        : [id],
+    );
+  }, []);
+
   const getNavItemLabel = useCallback((item: NavItem) => {
     const defaultValue = i18n.resolvedLanguage?.startsWith('de')
       ? item.defaultLabelDe ?? item.defaultLabel
@@ -301,16 +374,27 @@ export function Layout() {
     // every non-admin user even though the underlying API accepts their
     // request (#1755).
     const navPermissions: Record<string, Permission | Permission[]> = {
+      dashboard: 'stats:read',
       archives: ['archives:read', 'archives:read_own', 'archives:read_all'],
       queue: ['queue:read', 'queue:read_own', 'queue:read_all'],
-      stats: 'stats:read',
       profiles: 'kprofiles:read',
       maintenance: 'maintenance:read',
       projects: 'projects:read',
       inventory: 'inventory:read',
+      'warehouse-filament': 'inventory:read',
+      'warehouse-parts': 'inventory:read',
+      'warehouse-stock': 'inventory:read',
       files: ['library:read', 'library:read_own', 'library:read_all'],
       makerworld: 'makerworld:view',
       settings: 'settings:read',
+      'settings-general': 'settings:read',
+      'settings-users-security': 'settings:read',
+      'settings-printers-production': 'settings:read',
+      'settings-projects-files': 'settings:read',
+      'settings-warehouse-material': 'settings:read',
+      'settings-orders-calculation': 'settings:read',
+      'settings-integrations': 'settings:read',
+      'settings-operations': 'settings:read',
       // The user-email-preferences API requires notifications:user_email, so
       // gate the nav item on the same permission (both default groups —
       // Administrators and Operators — hold it). The advanced-auth /
@@ -321,6 +405,8 @@ export function Layout() {
     const isHidden = (id: string) => {
       // User-toggled hide (#1673) wins first — cheapest check, explicit intent.
       if (hiddenSystemItemIds.includes(id)) return true;
+      const item = navItemsMap.get(id);
+      if (item?.parentId && hiddenSystemItemIds.includes(item.parentId)) return true;
       // Permission gate accepts Permission | Permission[] so resources with
       // granular `*:read_own` / `*:read_all` tiers (default Operators group)
       // don't get hidden from users who only hold the granular variant (#1755).
@@ -349,7 +435,25 @@ export function Layout() {
     for (const item of defaultNavItems) {
       if (isHidden(item.id)) continue;
       if (!seen.has(item.id)) {
-        result.push(item.id);
+        const defaultIndex = defaultSidebarOrder.indexOf(item.id);
+        let insertAt = result.length;
+        for (let i = defaultIndex + 1; i < defaultSidebarOrder.length; i += 1) {
+          const nextIndex = result.indexOf(defaultSidebarOrder[i]);
+          if (nextIndex !== -1) {
+            insertAt = nextIndex;
+            break;
+          }
+        }
+        if (insertAt === result.length) {
+          for (let i = defaultIndex - 1; i >= 0; i -= 1) {
+            const previousIndex = result.indexOf(defaultSidebarOrder[i]);
+            if (previousIndex !== -1) {
+              insertAt = previousIndex + 1;
+              break;
+            }
+          }
+        }
+        result.splice(insertAt, 0, item.id);
         seen.add(item.id);
       }
     }
@@ -392,6 +496,12 @@ export function Layout() {
       }
     }
   }, [location.pathname, navigate]);
+
+  useEffect(() => {
+    const activeParentId = getActiveParentNavItemId(location.pathname, location.search);
+    if (!activeParentId) return;
+    setExpandedNavMenuIds([activeParentId]);
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     localStorage.setItem('sidebarExpanded', String(sidebarExpanded));
@@ -464,7 +574,12 @@ export function Layout() {
           // Internal nav item
           const navItem = navItemsMap.get(id);
           if (navItem) {
-            navigate(navItem.to);
+            const hasChildren = orderedSidebarIds.some((childId) => navItemsMap.get(childId)?.parentId === id);
+            if (hasChildren) {
+              toggleNavMenu(id);
+            } else {
+              navigate(navItem.to);
+            }
           }
         }
         return;
@@ -480,12 +595,36 @@ export function Layout() {
           break;
       }
     }
-  }, [navigate, orderedSidebarIds, navItemsMap, extLinksMap]);
+  }, [navigate, orderedSidebarIds, navItemsMap, extLinksMap, toggleNavMenu]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
+
+  const renderNavIcon = (itemId: string, Icon: LucideIcon, isSmall = false) => {
+    const showQueueBadge = itemId === 'queue' && pendingQueueCount > 0;
+    const showArchiveBadge = itemId === 'archives' && pendingUploadsCount > 0;
+    const badgeCount = showQueueBadge ? pendingQueueCount : showArchiveBadge ? pendingUploadsCount : 0;
+    const showBadge = showQueueBadge || showArchiveBadge;
+    const showClearPlateDot = itemId === 'printers' && needsClearPlate;
+
+    return (
+      <div className="relative">
+        <Icon className={`${isSmall ? 'w-4 h-4' : 'w-5 h-5'} flex-shrink-0`} />
+        {showClearPlateDot && (
+          <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-yellow-500 rounded-full border-2 border-bambu-dark-secondary" />
+        )}
+        {showBadge && (
+          <span className={`absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold rounded-full ${
+            showArchiveBadge ? 'bg-blue-500 text-white' : 'bg-yellow-500 text-black'
+          }`}>
+            {badgeCount > 99 ? '99+' : badgeCount}
+          </span>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="flex min-h-screen">
@@ -535,7 +674,10 @@ export function Layout() {
         {/* Navigation */}
         <nav className="flex-1 p-2 overflow-y-auto">
           <ul className="space-y-2">
-            {orderedSidebarIds.map((id) => {
+            {orderedSidebarIds.filter((id) => {
+              const navItem = navItemsMap.get(id);
+              return !navItem?.parentId || !orderedSidebarIds.includes(navItem.parentId);
+            }).map((id) => {
               const isExternal = isExternalSidebarItemId(id);
 
               if (isExternal) {
@@ -597,18 +739,98 @@ export function Layout() {
                 if (!navItem) return null;
 
                 const { to, icon: Icon } = navItem;
-                const showQueueBadge = id === 'queue' && pendingQueueCount > 0;
-                const showArchiveBadge = id === 'archives' && pendingUploadsCount > 0;
-                const badgeCount = showQueueBadge ? pendingQueueCount : showArchiveBadge ? pendingUploadsCount : 0;
-                const showBadge = showQueueBadge || showArchiveBadge;
-                const showClearPlateDot = id === 'printers' && needsClearPlate;
+                const isChildItem = Boolean(navItem.parentId && orderedSidebarIds.includes(navItem.parentId));
+                const isExpanded = isSidebarCompact || sidebarExpanded;
+                const childIds = orderedSidebarIds.filter((childId) => navItemsMap.get(childId)?.parentId === id);
+                const hasChildren = childIds.length > 0;
+                const isMenuOpen = expandedNavMenuIdSet.has(id);
+                const hasActiveChild = childIds.some((childId) => {
+                  const childItem = navItemsMap.get(childId);
+                  return childItem ? routeMatches(location.pathname, location.search, childItem.to) : false;
+                });
+                const isParentLinkActive = routeMatches(location.pathname, location.search, to) && !hasActiveChild;
+                const submenuId = `sidebar-submenu-${id}`;
+
+                if (hasChildren) {
+                  return (
+                    <li key={id}>
+                      <div className={`flex items-center ${isExpanded ? 'gap-1' : 'justify-center gap-0.5'}`}>
+                        <NavLink
+                          to={to}
+                          end
+                          onClick={() => {
+                            setExpandedNavMenuIds((current) => (current.includes(id) ? current : [id]));
+                          }}
+                          className={() =>
+                            `min-w-0 flex items-center ${isExpanded ? 'flex-1 gap-3 px-4' : 'justify-center px-2'} py-3 rounded-lg transition-colors group ${
+                              isParentLinkActive
+                                ? 'bg-bambu-green text-white'
+                                : 'text-bambu-gray-light hover:bg-bambu-dark-tertiary hover:text-white'
+                            }`
+                          }
+                          title={!isSidebarCompact && !sidebarExpanded ? getNavItemLabel(navItem) : undefined}
+                        >
+                          {renderNavIcon(id, Icon)}
+                          {isExpanded && <span className="truncate">{getNavItemLabel(navItem)}</span>}
+                        </NavLink>
+                        <button
+                          type="button"
+                          aria-expanded={isMenuOpen}
+                          aria-controls={submenuId}
+                          onClick={() => toggleNavMenu(id)}
+                          className={`flex items-center justify-center ${isExpanded ? 'px-2' : 'px-1'} py-3 rounded-lg transition-colors ${
+                            isMenuOpen
+                              ? 'bg-bambu-dark-tertiary text-white'
+                              : 'text-bambu-gray-light hover:bg-bambu-dark-tertiary hover:text-white'
+                          }`}
+                          title={getNavItemLabel(navItem)}
+                        >
+                          {isMenuOpen ? (
+                            <ChevronDown className="w-4 h-4 flex-shrink-0" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 flex-shrink-0" />
+                          )}
+                        </button>
+                      </div>
+                      {isMenuOpen && (
+                        <ul id={submenuId} className="mt-1 space-y-1">
+                          {childIds.map((childId) => {
+                            const childItem = navItemsMap.get(childId);
+                            if (!childItem) return null;
+                            const ChildIcon = childItem.icon;
+                            const childActive = routeMatches(location.pathname, location.search, childItem.to);
+
+                            return (
+                              <li key={childId}>
+                                <NavLink
+                                  to={childItem.to}
+                                  className={() =>
+                                    `flex items-center ${isExpanded ? 'ml-5 gap-2 px-3 text-sm' : 'justify-center px-2'} py-2 rounded-lg transition-colors group ${
+                                      childActive
+                                        ? 'bg-bambu-green text-white'
+                                        : 'text-bambu-gray-light hover:bg-bambu-dark-tertiary hover:text-white'
+                                    }`
+                                  }
+                                  title={!isSidebarCompact && !sidebarExpanded ? getNavItemLabel(childItem) : undefined}
+                                >
+                                  {renderNavIcon(childId, ChildIcon, true)}
+                                  {isExpanded && <span>{getNavItemLabel(childItem)}</span>}
+                                </NavLink>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                }
 
                 return (
                   <li key={id}>
                     <NavLink
                       to={to}
                       className={({ isActive }) =>
-                        `flex items-center ${isSidebarCompact || sidebarExpanded ? 'gap-3 px-4' : 'justify-center px-2'} py-3 rounded-lg transition-colors group ${
+                        `flex items-center ${isExpanded ? `${isChildItem ? 'ml-5 gap-2 px-3 text-sm' : 'gap-3 px-4'}` : 'justify-center px-2'} ${isChildItem ? 'py-2' : 'py-3'} rounded-lg transition-colors group ${
                           isActive
                             ? 'bg-bambu-green text-white'
                             : 'text-bambu-gray-light hover:bg-bambu-dark-tertiary hover:text-white'
@@ -616,20 +838,8 @@ export function Layout() {
                       }
                       title={!isSidebarCompact && !sidebarExpanded ? getNavItemLabel(navItem) : undefined}
                     >
-                      <div className="relative">
-                        <Icon className="w-5 h-5 flex-shrink-0" />
-                        {showClearPlateDot && (
-                          <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-yellow-500 rounded-full border-2 border-bambu-dark-secondary" />
-                        )}
-                        {showBadge && (
-                          <span className={`absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold rounded-full ${
-                            showArchiveBadge ? 'bg-blue-500 text-white' : 'bg-yellow-500 text-black'
-                          }`}>
-                            {badgeCount > 99 ? '99+' : badgeCount}
-                          </span>
-                        )}
-                      </div>
-                      {(isSidebarCompact || sidebarExpanded) && <span>{getNavItemLabel(navItem)}</span>}
+                      {renderNavIcon(id, Icon, isChildItem)}
+                      {isExpanded && <span>{getNavItemLabel(navItem)}</span>}
                     </NavLink>
                   </li>
                 );
