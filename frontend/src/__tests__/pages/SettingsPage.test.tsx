@@ -50,6 +50,44 @@ async function clickSettingsSearchResult(query: string) {
   await user.click(result);
 }
 
+type LegacyAliasLandingExpectation = {
+  alias: string;
+  anchorId: string;
+  tabLabel: string;
+  subTabLabel?: string;
+};
+
+async function expectLegacyAliasLanding({
+  alias,
+  anchorId,
+  tabLabel,
+  subTabLabel,
+}: LegacyAliasLandingExpectation) {
+  const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView');
+  window.history.replaceState({}, '', `/settings?tab=${alias}`);
+
+  render(<SettingsPage />);
+
+  const anchor = await waitFor(() => {
+    const element = document.getElementById(anchorId);
+    expect(element).not.toBeNull();
+    return element as HTMLElement;
+  });
+
+  await waitFor(() => {
+    expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    expect(anchor).toHaveClass('ring-2', 'ring-bambu-green');
+  });
+
+  expect(await screen.findByRole('button', { name: tabLabel })).toHaveClass('text-bambu-green');
+
+  if (subTabLabel) {
+    expect(await screen.findByRole('button', { name: subTabLabel })).toHaveClass('text-bambu-green');
+  }
+
+  scrollSpy.mockRestore();
+}
+
 describe('SettingsPage', () => {
   beforeEach(() => {
     // BrowserRouter shares window.location across tests; reset it so a tab
@@ -151,6 +189,20 @@ describe('SettingsPage', () => {
 
       expect(await screen.findByText('Users & Security')).toHaveClass('text-bambu-green');
       expect(await screen.findByText('Email Authentication')).toHaveClass('text-bambu-green');
+    });
+
+    it.each([
+      { alias: 'users', anchorId: 'card-users', tabLabel: 'Users & Security', subTabLabel: 'Authentication' },
+      { alias: 'email', anchorId: 'card-smtp', tabLabel: 'Users & Security', subTabLabel: 'Email Authentication' },
+      { alias: 'apikeys', anchorId: 'card-createapi', tabLabel: 'Users & Security' },
+      { alias: 'queue', anchorId: 'card-print-options', tabLabel: 'Printers & Production', subTabLabel: 'Queue & Dispatch' },
+      { alias: 'virtual-printer', anchorId: 'card-vp', tabLabel: 'Printers & Production' },
+      { alias: 'failure-detection', anchorId: 'card-fd-ml', tabLabel: 'Printers & Production' },
+      { alias: 'filament', anchorId: 'card-filamentchecks', tabLabel: 'Warehouse & Material' },
+      { alias: 'spoolbuddy', anchorId: 'card-spoolbuddy', tabLabel: 'Warehouse & Material' },
+      { alias: 'backup', anchorId: 'card-backup', tabLabel: 'Operations' },
+    ])('scrolls legacy %s URLs to their documented landing cards', async ({ alias, anchorId, tabLabel, subTabLabel }) => {
+      await expectLegacyAliasLanding({ alias, anchorId, tabLabel, subTabLabel });
     });
   });
 
@@ -316,6 +368,23 @@ describe('SettingsPage', () => {
         expect(within(dataCard as HTMLElement).getByText('Backup & Restore')).toBeInTheDocument();
         expect(within(updatesCard as HTMLElement).getByText('Updates')).toBeInTheDocument();
       });
+    });
+
+    it('shows Bed Cooled Threshold under Printers & Production instead of Integrations', async () => {
+      const user = userEvent.setup();
+      render(<SettingsPage />);
+
+      await user.click(await screen.findByRole('button', { name: 'Integrations' }));
+      await waitFor(() => {
+        expect(document.getElementById('card-providers')).not.toBeNull();
+      });
+      expect(screen.queryByText('Bed Cooled Threshold')).not.toBeInTheDocument();
+
+      await user.click(await screen.findByRole('button', { name: 'Printers & Production' }));
+      const completionRulesCard = await waitFor(() => document.getElementById('card-completion-rules'));
+
+      expect(completionRulesCard).not.toBeNull();
+      expect(within(completionRulesCard as HTMLElement).getByText('Bed Cooled Threshold')).toBeInTheDocument();
     });
 
     it('loads storage usage only on the Operations tab', async () => {

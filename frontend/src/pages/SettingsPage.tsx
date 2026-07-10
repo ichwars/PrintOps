@@ -52,6 +52,7 @@ import type { SettingsSearchEntry } from '../lib/settingsSearch';
 import {
   SETTINGS_NAV_ITEMS,
   canonicalTabToUrlParam,
+  legacySettingsTabDefaultAnchor,
   legacySettingsTabDefaultSubTab,
   resolveSettingsTab,
   settingsTabLabelKey,
@@ -285,6 +286,7 @@ export function SettingsPage() {
   // Initialize tab from URL params, resolving legacy aliases to canonical tabs.
   const tabParam = searchParams.get('tab');
   const initialTab = resolveSettingsTab(tabParam);
+  const legacyDefaultAnchor = legacySettingsTabDefaultAnchor(tabParam);
   const legacySubTabs = legacySettingsTabDefaultSubTab(tabParam);
   const [activeTab, setActiveTab] = useState<CanonicalSettingsTab>(initialTab);
   const [usersSubTab, setUsersSubTab] = useState<UsersSubTab>(legacySubTabs.usersSubTab ?? 'users');
@@ -296,6 +298,7 @@ export function SettingsPage() {
       ? 'pipelines'
       : legacySubTabs.queueSubTab ?? 'dispatch';
   const [queueSubTab, setQueueSubTab] = useState<QueueSubTab>(initialQueueSub);
+  const hasScrolledLegacyAnchorRef = useRef(false);
 
   // Update URL when tab changes
   const handleTabChange = (tab: CanonicalSettingsTab) => {
@@ -1315,6 +1318,39 @@ export function SettingsPage() {
     updatePrinterMutation.mutate({ id: printerId, data });
   };
 
+  const scrollToSettingsCard = (cardId: string) => {
+    const el = document.getElementById(cardId);
+    if (!el) return false;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.add('ring-2', 'ring-bambu-green');
+    setTimeout(() => el.classList.remove('ring-2', 'ring-bambu-green'), 1500);
+    return true;
+  };
+
+  useEffect(() => {
+    if (!legacyDefaultAnchor || hasScrolledLegacyAnchorRef.current) {
+      return;
+    }
+
+    if (tabParam === 'users' && usersSubTab !== 'users') {
+      return;
+    }
+
+    if (tabParam === 'email' && usersSubTab !== 'email') {
+      return;
+    }
+
+    if (tabParam === 'queue' && queueSubTab !== 'dispatch') {
+      return;
+    }
+
+    if (!scrollToSettingsCard(legacyDefaultAnchor)) {
+      return;
+    }
+
+    hasScrolledLegacyAnchorRef.current = true;
+  }, [activeTab, isLoading, legacyDefaultAnchor, localSettings, queueSubTab, tabParam, usersSubTab]);
+
   if (isLoading || !localSettings) {
     return (
       <div className="p-4 md:p-8 flex justify-center">
@@ -1358,14 +1394,6 @@ export function SettingsPage() {
     setTimeout(() => {
       scrollToSettingsCard(entry.anchor);
     }, 50);
-  };
-
-  const scrollToSettingsCard = (cardId: string) => {
-    const el = document.getElementById(cardId);
-    if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    el.classList.add('ring-2', 'ring-bambu-green');
-    setTimeout(() => el.classList.remove('ring-2', 'ring-bambu-green'), 1500);
   };
 
   const goToBackupFromDataManagement = () => {
@@ -3874,30 +3902,6 @@ export function SettingsPage() {
               </CardContent>
             </Card>
 
-            {/* Bed Cooled Threshold Setting */}
-            <Card className="mb-4">
-              <CardContent className="py-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white text-sm font-medium">{t('settings.bedCooledThreshold')}</p>
-                    <p className="text-xs text-bambu-gray">{t('settings.bedCooledThresholdDescription')}</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      min={20}
-                      max={80}
-                      step={1}
-                      value={localSettings.bed_cooled_threshold ?? 35}
-                      onChange={(e) => updateSetting('bed_cooled_threshold', Number(e.target.value))}
-                      className="w-16 px-2 py-1.5 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-bambu-green"
-                    />
-                    <span className="text-sm text-bambu-gray">°C</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
             {/* User Notifications Toggle */}
             <Card className="mb-4">
               <CardContent className="py-3">
@@ -4624,6 +4628,35 @@ export function SettingsPage() {
                   />
                   <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
                 </label>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card id="card-completion-rules">
+            <CardHeader>
+              <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-bambu-green" />
+                {t('settings.completionRules', 'Completion Rules')}
+              </h3>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white text-sm font-medium">{t('settings.bedCooledThreshold')}</p>
+                  <p className="text-xs text-bambu-gray">{t('settings.bedCooledThresholdDescription')}</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min={20}
+                    max={80}
+                    step={1}
+                    value={localSettings.bed_cooled_threshold ?? 35}
+                    onChange={(e) => updateSetting('bed_cooled_threshold', Number(e.target.value))}
+                    className="w-16 px-2 py-1.5 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-bambu-green"
+                  />
+                  <span className="text-sm text-bambu-gray">°C</span>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -5622,7 +5655,7 @@ export function SettingsPage() {
 
           {/* Users Sub-tab */}
           {usersSubTab === 'users' && (
-          <>
+          <div id="card-users" className="space-y-3">
           {/* Auth Toggle Header */}
           <Card>
             <CardContent className="py-4">
@@ -5801,7 +5834,7 @@ export function SettingsPage() {
                 <Card>
                   <CardHeader>
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-white flex items-center gap-2" id="card-users">
+                      <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                         <Users className="w-5 h-5 text-bambu-green" />
                         {t('settings.users')}
                       </h3>
@@ -5994,7 +6027,7 @@ export function SettingsPage() {
               </CardContent>
             </Card>
           )}
-          </>
+          </div>
           )}
 
           {/* Email Auth Sub-tab */}

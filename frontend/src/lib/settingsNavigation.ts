@@ -98,6 +98,30 @@ const LEGACY_TAB_ALIASES: Record<LegacySettingsTab, CanonicalSettingsTab> = {
   email: 'users-security',
 };
 
+const LEGACY_TAB_DEFAULT_SUBTABS: Partial<Record<LegacySettingsTab, {
+  usersSubTab?: UsersSubTab;
+  queueSubTab?: QueueSubTab;
+}>> = {
+  users: { usersSubTab: 'users' },
+  email: { usersSubTab: 'email' },
+  queue: { queueSubTab: 'dispatch' },
+};
+
+const LEGACY_TAB_DEFAULT_ANCHORS: Partial<Record<LegacySettingsTab, string>> = {
+  users: 'card-users',
+  email: 'card-smtp',
+  apikeys: 'card-createapi',
+  queue: 'card-print-options',
+  'virtual-printer': 'card-vp',
+  'failure-detection': 'card-fd-ml',
+  filament: 'card-filamentchecks',
+  spoolbuddy: 'card-spoolbuddy',
+  plugs: 'card-plugs',
+  notifications: 'card-providers',
+  network: 'card-externalurl',
+  backup: 'card-backup',
+};
+
 export function resolveSettingsTab(tabParam: string | null): CanonicalSettingsTab {
   if (!tabParam) {
     return 'general';
@@ -122,7 +146,17 @@ export function legacySettingsTabDefaultSubTab(tabParam: string | null): {
   usersSubTab?: UsersSubTab;
   queueSubTab?: QueueSubTab;
 } {
-  if (tabParam === 'email') return { usersSubTab: 'email' };
-  if (tabParam === 'queue') return { queueSubTab: 'dispatch' };
-  return {};
+  if (!tabParam) {
+    return {};
+  }
+
+  return LEGACY_TAB_DEFAULT_SUBTABS[tabParam as LegacySettingsTab] ?? {};
+}
+
+export function legacySettingsTabDefaultAnchor(tabParam: string | null): string | undefined {
+  if (!tabParam) {
+    return undefined;
+  }
+
+  return LEGACY_TAB_DEFAULT_ANCHORS[tabParam as LegacySettingsTab];
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   SETTINGS_NAV_ITEMS,
   canonicalTabToUrlParam,
+  legacySettingsTabDefaultAnchor,
   legacySettingsTabDefaultSubTab,
   resolveSettingsTab,
   settingsTabLabelKey,
@@ -38,8 +39,26 @@ describe('settingsNavigation', () => {
   });
 
   it('keeps legacy email and queue sub-tab intent', () => {
+    expect(legacySettingsTabDefaultSubTab('users')).toEqual({ usersSubTab: 'users' });
     expect(legacySettingsTabDefaultSubTab('email')).toEqual({ usersSubTab: 'email' });
     expect(legacySettingsTabDefaultSubTab('queue')).toEqual({ queueSubTab: 'dispatch' });
+  });
+
+  it('maps legacy tab ids to their documented default landing anchors', () => {
+    expect(legacySettingsTabDefaultAnchor(null)).toBeUndefined();
+    expect(legacySettingsTabDefaultAnchor('general')).toBeUndefined();
+    expect(legacySettingsTabDefaultAnchor('users')).toBe('card-users');
+    expect(legacySettingsTabDefaultAnchor('email')).toBe('card-smtp');
+    expect(legacySettingsTabDefaultAnchor('apikeys')).toBe('card-createapi');
+    expect(legacySettingsTabDefaultAnchor('queue')).toBe('card-print-options');
+    expect(legacySettingsTabDefaultAnchor('virtual-printer')).toBe('card-vp');
+    expect(legacySettingsTabDefaultAnchor('failure-detection')).toBe('card-fd-ml');
+    expect(legacySettingsTabDefaultAnchor('filament')).toBe('card-filamentchecks');
+    expect(legacySettingsTabDefaultAnchor('spoolbuddy')).toBe('card-spoolbuddy');
+    expect(legacySettingsTabDefaultAnchor('plugs')).toBe('card-plugs');
+    expect(legacySettingsTabDefaultAnchor('notifications')).toBe('card-providers');
+    expect(legacySettingsTabDefaultAnchor('network')).toBe('card-externalurl');
+    expect(legacySettingsTabDefaultAnchor('backup')).toBe('card-backup');
   });
 
   it('exposes the approved rail order and label keys', () => {
