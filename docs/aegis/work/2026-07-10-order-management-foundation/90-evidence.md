@@ -107,3 +107,28 @@ baseline and classified before completion claims.
   keys remain globally disabled, so a true concurrent customer-account insert
   during profile deletion remains a bounded platform risk despite the settled
   reference check. PostgreSQL is protected by row locking and `RESTRICT`.
+
+## Task 5: Customer Master Data API
+
+- TDD red state: customer POST returned 405 before router registration.
+- Added nested customer contracts, multiple per-profile accounts, transactional
+  number allocation, normalized tags, aggregate CRUD, distinct search/filter/
+  pagination, explicit serializers, permissions, and stable problem details.
+- Specification review found two missing field bounds; repair added locale and
+  notes limits plus API-level 422 evidence.
+- Quality review found blocked automatic numbering after manual values, reused
+  SQLite child IDs, Decimal scale drift, nonportable Unicode case behavior, and
+  stale profile validation/error classification.
+- Repairs added deterministic profile/sequence locks, occupied-number skipping,
+  in-place account replacement, exact two-decimal validation, shared NFKC+
+  casefold keys, Unicode-literal search, tag savepoint reuse, and FK-aware
+  resource errors.
+- Follow-up review found PostgreSQL B-tree width risk and overbroad integrity
+  classification. Broad normalized search indexes were removed, unique tag
+  keys are capped at 512 UTF-8 bytes, and only verified FK/unique violations
+  map to domain 409 responses.
+- Final focused result: 98 passed. Ruff and diff-check were clean.
+- Specification review: compliant. Quality re-review: ready with no remaining
+  findings.
+- Residual risk: no live PostgreSQL or true Asyncpg concurrency environment was
+  available; PostgreSQL DDL, lock ordering, and direct metadata probes pass.

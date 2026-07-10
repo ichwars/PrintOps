@@ -9,7 +9,6 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
-    Index,
     Integer,
     Numeric,
     String,
@@ -18,9 +17,18 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from backend.app.core.database import Base
+from backend.app.core.text_normalization import (
+    MAX_TAG_NAME_KEY_UTF8_BYTES,
+    normalize_case_insensitive_key,
+    normalize_tag_name_key,
+)
+
+# NFKC plus casefold can expand one code point to at most 18 code points in
+# Python's current Unicode database, so persisted keys reserve that full width.
+_NORMALIZED_KEY_EXPANSION = 18
 
 customer_tag_links = Table(
     "customer_tag_links",
@@ -43,6 +51,9 @@ class Customer(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     kind: Mapped[str] = mapped_column(String(16))
     display_name: Mapped[str] = mapped_column(String(255), index=True)
+    display_name_key: Mapped[str] = mapped_column(
+        String(255 * _NORMALIZED_KEY_EXPANSION),
+    )
     company_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     first_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
@@ -60,24 +71,34 @@ class Customer(Base):
     accounts: Mapped[list[CustomerAccount]] = relationship(
         cascade="all, delete-orphan",
         lazy="selectin",
+        order_by="CustomerAccount.id",
     )
     contacts: Mapped[list[CustomerContact]] = relationship(
         cascade="all, delete-orphan",
         lazy="selectin",
+        order_by="CustomerContact.id",
     )
     addresses: Mapped[list[CustomerAddress]] = relationship(
         cascade="all, delete-orphan",
         lazy="selectin",
+        order_by="CustomerAddress.id",
     )
     tax_identifiers: Mapped[list[CustomerTaxIdentifier]] = relationship(
         cascade="all, delete-orphan",
         lazy="selectin",
+        order_by="CustomerTaxIdentifier.id",
     )
     tags: Mapped[list[CustomerTag]] = relationship(
         secondary=customer_tag_links,
         back_populates="customers",
         lazy="selectin",
+        order_by="CustomerTag.name",
     )
+
+    @validates("display_name")
+    def populate_display_name_key(self, _key: str, value: str) -> str:
+        self.display_name_key = normalize_case_insensitive_key(value)
+        return value
 
 
 class CustomerAccount(Base):
@@ -102,11 +123,19 @@ class CustomerAccount(Base):
         index=True,
     )
     number: Mapped[str] = mapped_column(String(50))
+    number_key: Mapped[str] = mapped_column(
+        String(50 * _NORMALIZED_KEY_EXPANSION),
+    )
     preferred_currency: Mapped[str] = mapped_column(String(3))
     payment_term_days: Mapped[int] = mapped_column(Integer, default=14)
     delivery_terms: Mapped[str | None] = mapped_column(Text, nullable=True)
     discount_percent: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("0"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    @validates("number")
+    def populate_number_key(self, _key: str, value: str) -> str:
+        self.number_key = normalize_case_insensitive_key(value)
+        return value
 
 
 class CustomerContact(Base):
@@ -119,9 +148,18 @@ class CustomerContact(Base):
     last_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     role: Mapped[str | None] = mapped_column(String(120), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email_key: Mapped[str | None] = mapped_column(
+        String(255 * _NORMALIZED_KEY_EXPANSION),
+        nullable=True,
+    )
     phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
     include_on_documents: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    @validates("email")
+    def populate_email_key(self, _key: str, value: str | None) -> str | None:
+        self.email_key = normalize_case_insensitive_key(value) if value is not None else None
+        return value
 
 
 class CustomerAddress(Base):
@@ -165,10 +203,11 @@ class CustomerTag(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
+    name_key: Mapped[str] = mapped_column(String(MAX_TAG_NAME_KEY_UTF8_BYTES))
 
     __table_args__ = (
         UniqueConstraint("name", name="uq_customer_tag_name"),
-        Index("uq_customer_tag_name_ci", func.lower(name), unique=True),
+        UniqueConstraint("name_key", name="uq_customer_tag_name_key"),
     )
 
     customers: Mapped[list[Customer]] = relationship(
@@ -176,3 +215,8 @@ class CustomerTag(Base):
         back_populates="tags",
         lazy="selectin",
     )
+
+    @validates("name")
+    def populate_name_key(self, _key: str, value: str) -> str:
+        self.name_key = normalize_tag_name_key(value)
+        return value

@@ -57,6 +57,7 @@ EXPECTED_UNIQUE_CONSTRAINTS = {
     "uq_customer_account_customer_profile",
     "uq_customer_tax_identifier",
     "uq_customer_tag_name",
+    "uq_customer_tag_name_key",
 }
 
 
@@ -115,6 +116,13 @@ async def test_order_foundation_schema_contract(test_engine):
     assert check_names >= EXPECTED_CHECK_CONSTRAINTS
     assert unique_names >= EXPECTED_UNIQUE_CONSTRAINTS
     assert "uq_business_profiles_single_default" in index_names
+    assert index_names.isdisjoint(
+        {
+            "ix_customers_display_name_key",
+            "ix_customer_accounts_number_key",
+            "ix_customer_contacts_email_key",
+        }
+    )
     assert len(foreign_keys) == 11
     foreign_key_actions = {
         (table_name, tuple(foreign_key["constrained_columns"])): foreign_key["options"].get("ondelete")
@@ -136,16 +144,23 @@ async def test_order_foundation_schema_contract(test_engine):
     assert isinstance(currency_type, String)
     assert currency_type.length == 3
 
-    case_insensitive_indexes = [
-        index for index in CustomerTag.__table__.indexes if index.name == "uq_customer_tag_name_ci"
-    ]
-    assert len(case_insensitive_indexes) == 1
-    case_insensitive_index = case_insensitive_indexes[0]
-    assert case_insensitive_index.unique
-    for dialect in (sqlite.dialect(), postgresql.dialect()):
-        compiled_index = str(CreateIndex(case_insensitive_index).compile(dialect=dialect)).lower()
-        assert "unique index" in compiled_index
-        assert "lower(name)" in compiled_index
+    normalized_key_lengths = {
+        Customer.__table__.c.display_name_key.type.length,
+        CustomerAccount.__table__.c.number_key.type.length,
+        CustomerContact.__table__.c.email_key.type.length,
+        CustomerTag.__table__.c.name_key.type.length,
+    }
+    assert normalized_key_lengths == {512, 900, 4590}
+    assert not Customer.__table__.c.display_name_key.index
+    assert not CustomerAccount.__table__.c.number_key.index
+    assert not CustomerContact.__table__.c.email_key.index
+    assert CustomerTag.__table__.c.name_key.type.length == 512
+
+    customer_tag_postgresql_ddl = str(
+        CreateTable(CustomerTag.__table__).compile(dialect=postgresql.dialect())
+    ).lower()
+    assert "name_key varchar(512) not null" in customer_tag_postgresql_ddl
+    assert "constraint uq_customer_tag_name_key unique (name_key)" in customer_tag_postgresql_ddl
 
     single_default_indexes = [
         index
@@ -273,10 +288,14 @@ async def test_order_foundation_aggregate_can_be_committed(db_session):
     assert len(stored_profile.bank_accounts) == 1
     assert [sequence.key for sequence in stored_profile.number_sequences] == ["invoice"]
     assert stored_customer.accounts[0].discount_percent == Decimal("2.00")
+    assert stored_customer.display_name_key == "atelier nord gmbh"
+    assert stored_customer.accounts[0].number_key == "cust-00001"
     assert stored_customer.contacts[0].is_primary
+    assert stored_customer.contacts[0].email_key == "einkauf@example.test"
     assert stored_customer.addresses[0].is_default
     assert stored_customer.tax_identifiers[0].validation_status == "unchecked"
     assert [tag.name for tag in stored_customer.tags] == ["B2B"]
+    assert [tag.name_key for tag in stored_customer.tags] == ["b2b"]
 
 
 async def test_deleting_business_profile_deletes_owned_number_sequences(db_session):
@@ -295,13 +314,24 @@ async def test_deleting_business_profile_deletes_owned_number_sequences(db_sessi
 
 
 async def test_customer_tag_names_are_case_insensitively_unique(db_session):
-    db_session.add(CustomerTag(name="B2B"))
+    db_session.add(CustomerTag(name="Ärzte"))
     await db_session.commit()
 
-    db_session.add(CustomerTag(name="b2b"))
+    db_session.add(CustomerTag(name="ärzte"))
     with pytest.raises(IntegrityError):
         await db_session.commit()
     await db_session.rollback()
+
+
+def test_customer_tag_normalized_key_byte_boundary_applies_to_direct_orm_writes():
+    accepted_name = "\ufdfa" * 15
+    rejected_name = "\ufdfa" * 16
+
+    accepted_tag = CustomerTag(name=accepted_name)
+    assert len(accepted_tag.name_key.encode("utf-8")) == 495
+
+    with pytest.raises(ValueError, match="512 UTF-8 bytes"):
+        CustomerTag(name=rejected_name)
 
 
 async def test_deleting_customer_tag_prevents_retagging_after_pk_reuse(db_session):
