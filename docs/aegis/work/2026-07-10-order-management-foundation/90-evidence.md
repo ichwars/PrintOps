@@ -60,3 +60,23 @@ baseline and classified before completion claims.
   findings.
 - Residual risk: legacy `NULL` permission lists are not directly exercised;
   current model defaults and non-null typing prevent them in normal writes.
+
+## Task 3: Transactional Number Sequences
+
+- TDD red state: sequence service import was absent.
+- Added strict `{PREFIX}`, `{YYYY}`, `{YY}`, and one-to-ten-digit counter
+  validation and formatting.
+- Added caller-transaction-owned optimistic reservation with ten CAS attempts,
+  yearly reset behavior, and shared domain exceptions.
+- Specification review found early years were not zero-padded to four digits;
+  repair added exact `0001`–`9999` formatting and regression coverage.
+- Quality review found yearly periods could rewind and final CAS exhaustion
+  could leave stale ORM state.
+- Repair: yearly periods are monotonic, backdating is rejected before mutation,
+  malformed stored periods fail explicitly, and every failed CAS expires the
+  tracked entity including the final attempt.
+- Final focused result: 29 passed. Ruff and diff-check were clean.
+- Specification review: compliant. Quality re-review: ready with no remaining
+  findings.
+- Residual risk: true simultaneous PostgreSQL/file-backed SQLite writers remain
+  deliberately deferred to the document-numbering increment.
