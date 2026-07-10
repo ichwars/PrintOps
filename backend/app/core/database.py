@@ -3602,6 +3602,53 @@ async def seed_default_groups():
                 admin_group.permissions = perms
         await session.commit()
 
+        # Backfill the least-privilege order-management defaults for existing
+        # system groups. Additive updates preserve customized grants while
+        # bringing upgrades in line with fresh-install defaults.
+        order_backfill = {
+            "Operators": [
+                "customers:read",
+                "customers:manage",
+                "calculations:read",
+                "calculations:update",
+                "calculations:approve",
+                "orders:read",
+                "orders:update",
+                "orders:manage_production",
+                "commercial_documents:read",
+                "commercial_documents:draft",
+                "commercial_documents:approve",
+                "payments:read",
+                "order_audit:read",
+            ],
+            "Viewers": [
+                "customers:read",
+                "calculations:read",
+                "orders:read",
+                "commercial_documents:read",
+                "payments:read",
+                "order_audit:read",
+            ],
+        }
+        for group_name, new_permissions in order_backfill.items():
+            group = (
+                await session.execute(
+                    select(Group).where(Group.name == group_name, Group.is_system.is_(True))
+                )
+            ).scalar_one_or_none()
+            if group is None or group.permissions is None:
+                continue
+            permissions = list(group.permissions)
+            changed = False
+            for new_permission in new_permissions:
+                if new_permission not in permissions:
+                    permissions.append(new_permission)
+                    changed = True
+                    logger.info("Added %s to %s group (order backfill)", new_permission, group_name)
+            if changed:
+                group.permissions = permissions
+        await session.commit()
+
         # Same OWN-tier backfill for non-admin system groups. Operators and
         # Viewers are seeded with _own on fresh installs (see DEFAULT_GROUPS),
         # but the legacy-rename migration above won't run on a role that

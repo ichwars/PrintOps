@@ -39,3 +39,24 @@ baseline and classified before completion claims.
 - Final quality review: ready, with all four findings closed.
 - PostgreSQL evidence: all twelve tables and the functional tag index compiled;
   no live PostgreSQL server was available for `create_all` execution.
+
+## Task 2: Permission Contract And Backfill
+
+- TDD red state: five permission-contract failures and one order-backfill
+  integration failure.
+- Added 21 exact order-management enum/category/frontend permission values.
+- Fresh Operators and Viewers receive only the approved least-privilege sets;
+  issuer settings and commercial issuance remain administrator-only.
+- Existing system groups receive an additive, idempotent upgrade that preserves
+  customized permissions and ignores non-system groups.
+- Initial specification review found the existing API-key classification
+  invariant incomplete and one Ruff import-order error.
+- Repair: all 21 permissions are explicitly present in the API-key denylist,
+  remain absent from the allowlist, and imports were normalized.
+- Final expanded command covered permission units, groups API/backfill, and
+  API-key authorization invariants; result: 91 passed.
+- Ruff result: all checks passed for permissions, database, auth, and tests.
+- Specification re-review: compliant. Code-quality review: ready with no
+  findings.
+- Residual risk: legacy `NULL` permission lists are not directly exercised;
+  current model defaults and non-null typing prevent them in normal writes.

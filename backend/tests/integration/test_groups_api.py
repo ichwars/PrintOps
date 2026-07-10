@@ -10,6 +10,29 @@ from sqlalchemy import select
 
 from backend.app.models.group import Group
 
+ORDER_MANAGEMENT_PERMISSIONS = {
+    "customers:read",
+    "customers:manage",
+    "calculations:read",
+    "calculations:update",
+    "calculations:approve",
+    "orders:read",
+    "orders:update",
+    "orders:cancel",
+    "orders:manage_production",
+    "commercial_documents:read",
+    "commercial_documents:draft",
+    "commercial_documents:approve",
+    "commercial_documents:issue",
+    "commercial_documents:correct",
+    "commercial_documents:export",
+    "payments:read",
+    "payments:manage",
+    "order_audit:read",
+    "order_settings:read",
+    "order_settings:manage",
+    "accounting_integrations:manage",
+}
 
 async def _setup_admin(async_client: AsyncClient) -> dict[str, str]:
     await async_client.post(
@@ -21,6 +44,86 @@ async def _setup_admin(async_client: AsyncClient) -> dict[str, str]:
         json={"username": "gadmin", "password": "AdminPass1!"},
     )
     return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_order_management_permission_category_contract(async_client: AsyncClient):
+    headers = await _setup_admin(async_client)
+
+    response = await async_client.get("/api/v1/groups/permissions", headers=headers)
+
+    assert response.status_code == 200
+    categories = {category["name"]: category["permissions"] for category in response.json()["categories"]}
+    order_permissions = [permission["value"] for permission in categories["Order Management"]]
+    assert len(order_permissions) == len(ORDER_MANAGEMENT_PERMISSIONS)
+    assert set(order_permissions) == ORDER_MANAGEMENT_PERMISSIONS
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_order_permission_backfill_is_additive_and_idempotent(async_client: AsyncClient, db_session):
+    from backend.app.core.database import seed_default_groups
+
+    expected_operator_permissions = {
+        "customers:read",
+        "customers:manage",
+        "calculations:read",
+        "calculations:update",
+        "calculations:approve",
+        "orders:read",
+        "orders:update",
+        "orders:manage_production",
+        "commercial_documents:read",
+        "commercial_documents:draft",
+        "commercial_documents:approve",
+        "payments:read",
+        "order_audit:read",
+    }
+    expected_viewer_permissions = {
+        "customers:read",
+        "calculations:read",
+        "orders:read",
+        "commercial_documents:read",
+        "payments:read",
+        "order_audit:read",
+    }
+    result = await db_session.execute(select(Group).where(Group.name.in_(("Operators", "Viewers"))))
+    groups = {group.name: group for group in result.scalars().all()}
+    groups["Operators"].permissions = ["printers:read", "custom:operator"]
+    groups["Viewers"].permissions = ["system:read", "custom:viewer"]
+    db_session.add(
+        Group(
+            name="Order Specialists",
+            description="Custom order permissions",
+            permissions=["custom:specialist"],
+            is_system=False,
+        )
+    )
+    await db_session.commit()
+
+    await seed_default_groups()
+    db_session.expire_all()
+
+    result = await db_session.execute(
+        select(Group).where(Group.name.in_(("Operators", "Viewers", "Order Specialists")))
+    )
+    first_pass = {group.name: list(group.permissions) for group in result.scalars().all()}
+
+    assert set(first_pass["Operators"]) & ORDER_MANAGEMENT_PERMISSIONS == expected_operator_permissions
+    assert set(first_pass["Viewers"]) & ORDER_MANAGEMENT_PERMISSIONS == expected_viewer_permissions
+    assert "custom:operator" in first_pass["Operators"]
+    assert "custom:viewer" in first_pass["Viewers"]
+    assert first_pass["Order Specialists"] == ["custom:specialist"]
+
+    await seed_default_groups()
+    db_session.expire_all()
+
+    result = await db_session.execute(
+        select(Group).where(Group.name.in_(("Operators", "Viewers", "Order Specialists")))
+    )
+    second_pass = {group.name: list(group.permissions) for group in result.scalars().all()}
+    assert second_pass == first_pass
 
 
 @pytest.mark.asyncio
