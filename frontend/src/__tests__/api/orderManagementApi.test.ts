@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import {
+  ApiError,
   api,
   type BusinessProfileAddress,
   type BusinessProfileBankAccount,
@@ -157,5 +158,57 @@ describe('order management API contracts', () => {
     await api.getBusinessProfiles(true);
 
     expect(includeInactive).toBe('true');
+  });
+
+  it('retains only sanitized validation metadata for 422 responses', async () => {
+    server.use(http.get('/api/v1/business-profiles/', () => HttpResponse.json({
+      detail: [{
+        type: 'value_error', loc: ['body', 'legal_name'], msg: 'Value error, Legal name is invalid',
+        input: 'secret legal name', ctx: { error: 'sensitive validator context' },
+      }],
+    }, { status: 422 })));
+
+    const error = await api.getBusinessProfiles().catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).message).toBe('Legal name is invalid');
+    expect((error as ApiError).validationErrors).toEqual([
+      { type: 'value_error', loc: ['body', 'legal_name'], msg: 'Legal name is invalid' },
+    ]);
+    expect(JSON.stringify((error as ApiError).validationErrors)).not.toContain('secret legal name');
+    expect(JSON.stringify((error as ApiError).validationErrors)).not.toContain('sensitive validator context');
+  });
+
+  it('does not expose raw validation detail when 422 issue messages are empty', async () => {
+    const bankSecret = 'DE89370400440532013000';
+    const taxSecret = 'DE123456789';
+    server.use(http.get('/api/v1/business-profiles/', () => HttpResponse.json({
+      detail: [{
+        type: 'value_error', loc: ['body', 'bank_accounts', 0, 'iban'], msg: '',
+        input: bankSecret, ctx: { tax_identifier: taxSecret },
+      }],
+    }, { status: 422 })));
+
+    const error = await api.getBusinessProfiles().catch((caught) => caught);
+    const apiError = error as ApiError;
+
+    expect(apiError).toBeInstanceOf(ApiError);
+    expect(apiError.message).toBe('Validation failed.');
+    expect(JSON.stringify(apiError.validationErrors)).not.toContain(bankSecret);
+    expect(JSON.stringify(apiError.validationErrors)).not.toContain(taxSecret);
+    expect(apiError.message).not.toContain(bankSecret);
+    expect(apiError.message).not.toContain(taxSecret);
+  });
+
+  it('does not treat array detail on a non-422 response as validation metadata', async () => {
+    server.use(http.get('/api/v1/business-profiles/', () => HttpResponse.json({
+      detail: [{ type: 'conflict', loc: ['body'], msg: 'Profile conflict', input: 'secret' }],
+    }, { status: 409 })));
+
+    const error = await api.getBusinessProfiles().catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).message).toBe('Profile conflict');
+    expect((error as ApiError).validationErrors).toBeNull();
   });
 });

@@ -52,6 +52,11 @@ export default {
       loading: 'Unternehmensprofile werden geladen...',
       error: 'Unternehmensprofile konnten nicht geladen werden.',
       empty: 'Noch keine Unternehmensprofile vorhanden.',
+      permissionDenied: 'Sie haben keine Berechtigung, Unternehmensprofile anzuzeigen.',
+      add: 'Unternehmensprofil hinzufügen', includeInactive: 'Inaktive Profile einbeziehen', profile: 'Profil', country: 'Land', currency: 'Währung', timezone: 'Zeitzone', billingMode: 'Abrechnungsmodus', status: 'Status', actions: 'Aktionen', active: 'Aktiv', inactive: 'Inaktiv',
+      edit: '{{name}} bearbeiten', setDefault: '{{name}} als Standard festlegen', activate: '{{name}} aktivieren', deactivate: '{{name}} deaktivieren', delete: '{{name}} löschen', deleteConfirm: '{{name}} löschen? Dies kann nicht rückgängig gemacht werden.', dismiss: 'Schließen',
+      createTitle: 'Unternehmensprofil hinzufügen', editTitle: 'Unternehmensprofil bearbeiten', identity: 'Identität', address: 'Adresse', taxAndBank: 'Steuern und Bank', localeSection: 'Sprache und Region', profileName: 'Profilname', legalName: 'Rechtlicher Name', tradingName: 'Handelsname', profileCountry: 'Land des Unternehmensprofils', street: 'Straße', city: 'Ort', postalCode: 'Postleitzahl',
+      addAddress: 'Adresse hinzufügen', removeAddress: 'Adresse {{number}} entfernen', defaultAddress: 'Standardadresse {{number}}', taxIdKind: 'Art der Steuer-ID', taxIdValue: 'Steuer-ID', addTaxId: 'Steuer-ID hinzufügen', removeTaxId: 'Steuer-ID {{number}} entfernen', primaryTaxId: 'Primäre Steuer-ID {{number}}', bankAccountLabel: 'Bezeichnung des Bankkontos', accountHolder: 'Kontoinhaber', bankName: 'Bankname', bankCountry: 'Land der Bank', bankCurrency: 'Kontowährung', iban: 'IBAN', bic: 'BIC', accountNumber: 'Kontonummer', routingNumber: 'Bankleitzahl', defaultBankAccount: 'Standardbankkonto {{number}}', addBankAccount: 'Bankkonto hinzufügen', removeBankAccount: 'Bankkonto {{number}} entfernen', locale: 'Sprache', save: 'Unternehmensprofil speichern',
     },
     customers: {
       title: 'Kunden',

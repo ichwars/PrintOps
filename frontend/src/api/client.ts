@@ -12,18 +12,28 @@ export class ApiError extends Error {
    *  with additional fields (e.g. the deficit list for 409s on queue
    *  start, #1496). Null for plain-string or array-shaped details. */
   detail: Record<string, unknown> | null;
+  /** FastAPI/Pydantic validation issues, including nested `loc` paths. */
+  validationErrors: ApiValidationIssue[] | null;
   constructor(
     message: string,
     status: number,
     code: string | null = null,
     detail: Record<string, unknown> | null = null,
+    validationErrors: ApiValidationIssue[] | null = null,
   ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.detail = detail;
+    this.validationErrors = validationErrors;
   }
+}
+
+export interface ApiValidationIssue {
+  type?: string;
+  loc: Array<string | number>;
+  msg: string;
 }
 
 // Auth token storage
@@ -126,6 +136,7 @@ async function request<T>(
     const detail = error.detail;
     let message: string;
     let code: string | null = null;
+    let validationErrors: ApiValidationIssue[] | null = null;
     if (typeof detail === 'string') {
       message = detail;
     } else if (Array.isArray(detail)) {
@@ -133,11 +144,21 @@ async function request<T>(
       // Strip the prefix and join. Fall back to raw JSON if every entry has an
       // empty msg (defensive — shouldn't happen with stock Pydantic, but the
       // previous fallback masked the real cause as a bare "HTTP 422" toast).
-      const joined = detail
-        .map((e: { msg?: string }) => (e.msg ?? '').replace(/^Value error,\s*/i, ''))
+      const sanitizedIssues = detail
+        .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
+        .map((entry) => ({
+          type: typeof entry.type === 'string' ? entry.type : undefined,
+          loc: Array.isArray(entry.loc)
+            ? entry.loc.filter((part): part is string | number => typeof part === 'string' || typeof part === 'number')
+            : [],
+          msg: typeof entry.msg === 'string' ? entry.msg.replace(/^Value error,\s*/i, '') : '',
+        }));
+      if (response.status === 422) validationErrors = sanitizedIssues;
+      const joined = sanitizedIssues
+        .map((entry) => entry.msg)
         .filter(Boolean)
         .join('; ');
-      message = joined || JSON.stringify(detail) || `HTTP ${response.status}`;
+      message = joined || (response.status === 422 ? 'Validation failed.' : JSON.stringify(detail) || `HTTP ${response.status}`);
     } else if (detail && typeof detail === 'object') {
       // Structured detail `{code, message, ...}` — frontend uses the code
       // to pick an i18n key, message is the English fallback, any extra
@@ -173,7 +194,7 @@ async function request<T>(
       }
     }
 
-    throw new ApiError(message, response.status, code, structuredDetail);
+    throw new ApiError(message, response.status, code, structuredDetail, validationErrors);
   }
 
   // Handle empty responses (204 No Content, etc.)

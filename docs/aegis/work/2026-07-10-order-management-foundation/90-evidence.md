@@ -163,3 +163,34 @@ baseline and classified before completion claims.
   with no findings.
 - Residual risk: the existing Vite bundle-size advisory remains; generated
   `static` assets were removed from the task diff after verification.
+
+## Task 7: Business Profile Settings
+
+- TDD expanded the compact Task 6 profile list into create, edit, default,
+  activate/deactivate, and delete workflows with read/manage permission states.
+- Added a scrollable fixed-footer editor for identity, registered and other
+  addresses, tax identifiers, bank accounts, locale, currency, timezone,
+  billing mode, and active state, including repeatable aggregates and Boolean
+  controls.
+- Added optimistic version submission, field-adjacent FastAPI 422 mapping,
+  modal-local 409 conflicts that retain input, and persistent row-action errors
+  tied to the exact operation and profile.
+- Specification review exposed unusable bank rows, a hard-coded profile country,
+  incomplete validation fallback, hidden row-action conflicts, and missing
+  Boolean controls. Repairs added complete bank identifiers, independent
+  profile/address countries, exhaustive mapped-or-global validation display,
+  and accessible default/primary checkboxes.
+- Quality review exposed cross-kind tax-primary clearing, removable final
+  registered addresses, editable drafts during submission, unrelated-success
+  error clearing, missing Escape handling, broad cache invalidation, and unsafe
+  retention of validation `input`/`ctx`. All were repaired with focused tests.
+- ApiError now accepts validation metadata only for HTTP 422, retains only
+  `loc`, `msg`, and `type`, and uses a fixed safe fallback for empty messages;
+  secret-value regression coverage confirms raw input/context is discarded.
+- Final focused result: three Vitest files and 131 tests passed. All eleven
+  locale files report 5,689 leaves in parity. ESLint, `git diff --check`, and
+  `tsc -b && vite build` passed.
+- Final specification review: compliant. Final code-quality review: approved
+  with no findings.
+- Residual risk: the existing Vite bundle-size advisory remains; generated
+  `static` assets were removed after verification.

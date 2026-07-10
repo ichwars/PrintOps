@@ -2,8 +2,9 @@
 
 ## TodoCheckpointDraft
 
-- Active: Task 7, full business-profile settings workspace.
-- Pending: Tasks 8 and 9 from the implementation plan.
+- Active: Task 8, full customer-management workspace.
+- Pending: Task 9 from the implementation plan.
+- Completed: Task 7, full business-profile settings workspace.
 - Completed: Task 6, frontend contracts, navigation, settings routing, and
   compact API-backed profile/customer foundations.
 - Completed: Task 5, customer schemas, service, and API.
@@ -12,24 +13,25 @@
 - Completed: Task 2, order-management permissions and safe role backfill.
 - Completed: Task 1, relational profile, sequence, and customer models.
 - Completed: approved design and executable plan.
-- Next: dispatch the Task 7 TDD implementer, then run specification and
+- Next: dispatch the Task 8 TDD implementer, then run specification and
   code-quality reviews.
 
 ## Slice Card
 
-- Goal: expand the compact issuer-profile foundation into the complete
-  permission-aware profile settings workflow.
-- Parent plan: `docs/superpowers/plans/2026-07-10-order-management-foundation.md`, Task 7.
-- Files: business-profile settings/editor components, SettingsPage wiring,
-  locale copy, and focused workflow tests.
-- Boundary: issuer profile CRUD only; customer editor and details remain Task 8.
+- Goal: expand the compact customer foundation into the complete
+  permission-aware customer list, editor, and details workflow.
+- Parent plan: `docs/superpowers/plans/2026-07-10-order-management-foundation.md`, Task 8.
+- Files: customer page/editor/details components, route wiring, locale copy,
+  and focused workflow tests.
+- Boundary: customer master data only; commercial documents remain outside
+  this foundation increment.
 - Verification: focused Vitest, i18n, lint, and production build.
 - Stop: focused tests and both review gates pass, or a plan conflict is found.
 
 ## ResumeStateHint
 
 Resume on `codex/order-management`, confirm a clean or checkpoint-consistent
-worktree, read Task 7 and the latest review evidence, then continue at the next
+worktree, read Task 8 and the latest review evidence, then continue at the next
 open review or implementation step. `origin` is the only allowed push remote.
 
 ## DriftCheckDraft
@@ -50,5 +52,8 @@ open review or implementation step. `origin` is the only allowed push remote.
   foundation/profile/customer tests, and Ruff.
 - Evidence: Task 6 passed specification review and code-quality re-review,
   154 focused frontend tests, all 11 locale parity checks, ESLint, diff-check,
+  and the production build.
+- Evidence: Task 7 passed specification review and code-quality re-review,
+  131 focused frontend tests, all 11 locale parity checks, ESLint, diff-check,
   and the production build.
 - Decision: continue.
