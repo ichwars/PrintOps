@@ -28,6 +28,7 @@ from backend.app.models.user import User
 from backend.app.services.log_health import ScanResult, scan_logs
 from backend.app.services.log_reader import collect_sensitive_strings
 from backend.app.services.printer_manager import printer_manager
+from backend.app.utils.safe_path import safe_join_under
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -91,7 +92,7 @@ def _get_database_paths() -> list[Path]:
     legacy_name = "".join(("bambu", "ddy")) + ".db"
     candidates = [
         settings.base_dir / "printops.db",
-        settings.base_dir / legacy_name,
+        safe_join_under(settings.base_dir, legacy_name),
         settings.base_dir / "bambutrack.db",
     ]
     return [path for path in candidates if path.exists()]
