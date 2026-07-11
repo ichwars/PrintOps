@@ -10,6 +10,7 @@ pytest-timeout>=2.4.0
 pytest-split>=0.9.0
 httpx>=0.27.0
 ruff>=0.8.0
+unicodedata2==15.1.0
 pre-commit>=4.0
 
 # Required by pyftpdlib TLS_FTPHandler for mock FTP server tests

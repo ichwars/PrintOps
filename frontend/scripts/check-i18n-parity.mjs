@@ -192,6 +192,40 @@ const ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS = new Set([
   'settings.orderManagementSubTabDescriptions.businessProfile',
 ]);
 
+// Task 8 extends the same deliberately narrow English-fallback contract.
+[
+  'orders.customers.permissionDenied', 'orders.customers.configureProfiles', 'orders.customers.add',
+  'orders.customers.search', 'orders.customers.statusFilter', 'orders.customers.kindFilter',
+  'orders.customers.emptyFiltered', 'orders.customers.number', 'orders.customers.name',
+  'orders.customers.primaryContact', 'orders.customers.billingAddress', 'orders.customers.actions',
+  'orders.customers.view', 'orders.customers.viewAria', 'orders.customers.editCustomer',
+  'orders.customers.editAria', 'orders.customers.deleteCustomer', 'orders.customers.deleteAria',
+  'orders.customers.deleteTitle', 'orders.customers.deleteConfirm', 'orders.customers.pagination',
+  'orders.customers.previous', 'orders.customers.next', 'orders.customerEditor.createTitle',
+  'orders.customerEditor.editTitle', 'orders.customerEditor.kind', 'orders.customerEditor.identity',
+  'orders.customerEditor.displayName', 'orders.customerEditor.companyName', 'orders.customerEditor.firstName',
+  'orders.customerEditor.lastName', 'orders.customerEditor.accounts', 'orders.customerEditor.addAccount',
+  'orders.customerEditor.removeAccount', 'orders.customerEditor.accountProfile', 'orders.customerEditor.customerNumber',
+  'orders.customerEditor.currency', 'orders.customerEditor.paymentDays', 'orders.customerEditor.deliveryTerms',
+  'orders.customerEditor.discount', 'orders.customerEditor.activeAccount', 'orders.customerEditor.contacts',
+  'orders.customerEditor.addContact', 'orders.customerEditor.removeContact', 'orders.customerEditor.salutation',
+  'orders.customerEditor.contactFirstName', 'orders.customerEditor.contactLastName', 'orders.customerEditor.contactRole',
+  'orders.customerEditor.contactEmail', 'orders.customerEditor.contactPhone', 'orders.customerEditor.primaryContact',
+  'orders.customerEditor.includeContact', 'orders.customerEditor.onDocuments', 'orders.customerEditor.includeDocuments',
+  'orders.customerEditor.addresses', 'orders.customerEditor.addAddress', 'orders.customerEditor.removeAddress',
+  'orders.customerEditor.addressKindLabel', 'orders.customerEditor.addressKind.billing',
+  'orders.customerEditor.addressKind.delivery', 'orders.customerEditor.addressKind.other',
+  'orders.customerEditor.addressLabel', 'orders.customerEditor.additional', 'orders.customerEditor.street',
+  'orders.customerEditor.street2', 'orders.customerEditor.postalCode', 'orders.customerEditor.city',
+  'orders.customerEditor.region', 'orders.customerEditor.country', 'orders.customerEditor.defaultAddress',
+  'orders.customerEditor.taxIdentifiers', 'orders.customerEditor.addTax', 'orders.customerEditor.removeTax',
+  'orders.customerEditor.taxKind', 'orders.customerEditor.taxValue', 'orders.customerEditor.taxCountry',
+  'orders.customerEditor.validationStatus', 'orders.customerEditor.preferences', 'orders.customerEditor.locale',
+  'orders.customerEditor.tags', 'orders.customerEditor.notes', 'orders.customerEditor.required',
+  'orders.customerEditor.reload', 'orders.customerEditor.save', 'orders.customerEditor.loadError', 'orders.customerDetails.title',
+  'orders.customerDetails.loadError', 'orders.customerDetails.paymentDays', 'orders.customerDetails.created', 'orders.customerDetails.updated',
+].forEach((key) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(key));
+
 function isAllowedOrderManagementEnglishFallback(locale, key) {
   return ORDER_MANAGEMENT_ENGLISH_FALLBACK_LOCALES.has(locale)
     && ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.has(key);

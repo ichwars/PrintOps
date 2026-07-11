@@ -194,3 +194,34 @@ baseline and classified before completion claims.
   with no findings.
 - Residual risk: the existing Vite bundle-size advisory remains; generated
   `static` assets were removed after verification.
+
+## Task 8: Customer Management Workspace
+
+- TDD expanded the compact customer foundation into the complete list,
+  filtering, pagination, details, create, edit, conflict-reload, and delete
+  workflows with read/manage permission states.
+- Added complete nested customer editing for profile accounts, contacts,
+  addresses, tax identifiers, preferences, notes, and tags, including stable
+  client keys, field-adjacent validation, fixed modal footers, and explicit
+  retryable API failures.
+- Client validation now mirrors backend ISO country/currency sets and Python
+  3.13 Unicode 15.1 NFKC-casefold behavior. The generated source is
+  byte-for-byte checked, and tag normalization matches Python display
+  selection, whitespace stripping, normalized-key ordering, and the 512-byte
+  normalized-key bound.
+- Review repairs closed stale editor versions, explicit/background reload
+  races, query-cache regression, empty later pages after delete, unbounded
+  history refetching, unstable keys, silent modal failures, duplicate modal
+  owners, and incomplete loading/focus semantics.
+- Shared modal focus handling now provides named modal dialogs, initial focus,
+  Tab containment, focus restoration, and pending-safe Escape behavior for the
+  customer workspace and confirmation dialogs.
+- Final focused result: six Vitest files and 97 tests passed. All eleven locale
+  files report 5,781 leaves in parity. ESLint, TypeScript, Ruff, generated
+  source verification, `git diff --check`, and `tsc -b && vite build` passed.
+  The Unicode verifier matched 249 countries, 178 currencies, and all
+  1,114,112 code points with zero mismatches.
+- Final specification review: compliant. Final code-quality re-review:
+  approved with no findings.
+- Residual risk: the existing Vite bundle-size advisory remains; generated
+  `static` assets were removed after verification.

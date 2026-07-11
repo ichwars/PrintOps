@@ -2,8 +2,8 @@
 
 ## TodoCheckpointDraft
 
-- Active: Task 8, full customer-management workspace.
-- Pending: Task 9 from the implementation plan.
+- Active: Task 9, end-to-end verification and operator documentation.
+- Completed: Task 8, full customer-management workspace.
 - Completed: Task 7, full business-profile settings workspace.
 - Completed: Task 6, frontend contracts, navigation, settings routing, and
   compact API-backed profile/customer foundations.
@@ -13,26 +13,28 @@
 - Completed: Task 2, order-management permissions and safe role backfill.
 - Completed: Task 1, relational profile, sequence, and customer models.
 - Completed: approved design and executable plan.
-- Next: dispatch the Task 8 TDD implementer, then run specification and
-  code-quality reviews.
+- Next: run the complete foundation verification, browser and authorization
+  checks, add operator documentation, and prepare fork-only integration.
 
 ## Slice Card
 
-- Goal: expand the compact customer foundation into the complete
-  permission-aware customer list, editor, and details workflow.
-- Parent plan: `docs/superpowers/plans/2026-07-10-order-management-foundation.md`, Task 8.
-- Files: customer page/editor/details components, route wiring, locale copy,
-  and focused workflow tests.
-- Boundary: customer master data only; commercial documents remain outside
-  this foundation increment.
-- Verification: focused Vitest, i18n, lint, and production build.
-- Stop: focused tests and both review gates pass, or a plan conflict is found.
+- Goal: verify and document the complete order-management foundation increment.
+- Parent plan: `docs/superpowers/plans/2026-07-10-order-management-foundation.md`, Task 9.
+- Files: approved design status, operator documentation, and regression fixes
+  only when verification proves they are required.
+- Boundary: business profiles and customer master data only; calculation and
+  commercial documents remain later increments.
+- Verification: backend and frontend suites, browser states, authorization and
+  persistence invariants, diff review, and fork-only integration checks.
+- Stop: all verification and review gates pass, or an unresolved regression is
+  found.
 
 ## ResumeStateHint
 
 Resume on `codex/order-management`, confirm a clean or checkpoint-consistent
-worktree, read Task 8 and the latest review evidence, then continue at the next
-open review or implementation step. `origin` is the only allowed push remote.
+worktree, read Task 9 and the latest review evidence, then continue at the next
+open verification or documentation step. `origin` is the only allowed push
+remote.
 
 ## DriftCheckDraft
 
@@ -56,4 +58,8 @@ open review or implementation step. `origin` is the only allowed push remote.
 - Evidence: Task 7 passed specification review and code-quality re-review,
   131 focused frontend tests, all 11 locale parity checks, ESLint, diff-check,
   and the production build.
+- Evidence: Task 8 passed specification review and repeated code-quality
+  re-review, 97 focused frontend tests, all 11 locale parity checks, ESLint,
+  TypeScript, Ruff, byte-for-byte generated-source validation, full Unicode
+  parity across 1,114,112 code points, diff-check, and the production build.
 - Decision: continue.

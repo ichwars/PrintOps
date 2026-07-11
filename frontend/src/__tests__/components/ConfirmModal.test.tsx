@@ -22,6 +22,13 @@ describe('ConfirmModal', () => {
   });
 
   describe('rendering', () => {
+    it('exposes an accessible modal dialog', () => {
+      render(<ConfirmModal {...defaultProps} />);
+      const dialog = screen.getByRole('dialog', { name: 'Confirm Action' });
+      expect(dialog).toHaveAttribute('aria-modal', 'true');
+      expect(dialog).toHaveAccessibleDescription('Are you sure you want to proceed?');
+    });
+
     it('renders title', () => {
       render(<ConfirmModal {...defaultProps} />);
       expect(screen.getByText('Confirm Action')).toBeInTheDocument();
@@ -97,12 +104,33 @@ describe('ConfirmModal', () => {
       expect(onCancel).not.toHaveBeenCalled();
     });
 
-    it('calls onCancel when Escape key is pressed', () => {
+    it('calls onCancel when Escape key is pressed inside the dialog', () => {
       const onCancel = vi.fn();
       render(<ConfirmModal {...defaultProps} onCancel={onCancel} />);
 
-      fireEvent.keyDown(window, { key: 'Escape' });
+      fireEvent.keyDown(screen.getByRole('button', { name: 'Cancel' }), { key: 'Escape' });
       expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+
+    it('focuses safe cancel, traps Tab, and restores the trigger on close', async () => {
+      const user = userEvent.setup();
+      const trigger = document.createElement('button');
+      trigger.textContent = 'Open';
+      document.body.appendChild(trigger);
+      trigger.focus();
+      const view = render(<ConfirmModal {...defaultProps} />);
+
+      const cancel = screen.getByRole('button', { name: 'Cancel' });
+      const confirm = screen.getByRole('button', { name: 'Confirm' });
+      expect(cancel).toHaveFocus();
+      await user.tab({ shift: true });
+      expect(confirm).toHaveFocus();
+      await user.tab();
+      expect(cancel).toHaveFocus();
+
+      view.unmount();
+      expect(trigger).toHaveFocus();
+      trigger.remove();
     });
   });
 
@@ -156,12 +184,23 @@ describe('ConfirmModal', () => {
       }
     });
 
-    it('does not call onCancel on Escape key while loading', () => {
+    it('moves focus from a disabled control into the dialog and keeps Escape pending-safe', () => {
       const onCancel = vi.fn();
-      render(<ConfirmModal {...defaultProps} onCancel={onCancel} isLoading={true} />);
+      const view = render(<ConfirmModal {...defaultProps} onCancel={onCancel} />);
 
-      fireEvent.keyDown(window, { key: 'Escape' });
+      const dialog = screen.getByRole('dialog', { name: 'Confirm Action' });
+      const cancel = screen.getByRole('button', { name: 'Cancel' });
+      expect(cancel).toHaveFocus();
+
+      view.rerender(<ConfirmModal {...defaultProps} onCancel={onCancel} isLoading={true} />);
+
+      expect(dialog).toHaveFocus();
+      fireEvent.keyDown(dialog, { key: 'Escape' });
       expect(onCancel).not.toHaveBeenCalled();
+      expect(dialog).toBeInTheDocument();
+      expect(dialog).toContainElement(document.activeElement as HTMLElement);
+      expect(screen.getByRole('button', { name: 'Loading...' })).toBeDisabled();
+      expect(cancel).toBeDisabled();
     });
   });
 });
