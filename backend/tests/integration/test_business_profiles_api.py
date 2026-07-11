@@ -6,10 +6,12 @@ import asyncio
 from copy import deepcopy
 from datetime import date
 from decimal import Decimal
+from io import BytesIO
 from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
+from PIL import Image
 from pydantic import ValidationError
 from sqlalchemy import event, func, select, update
 from sqlalchemy.exc import IntegrityError
@@ -293,6 +295,36 @@ async def test_create_round_trips_document_tax_and_payment_settings(async_client
         "logo_version": None,
     }
     assert expected.items() <= response.json().items()
+
+
+@pytest.mark.asyncio
+async def test_logo_upload_read_and_delete_lifecycle(async_client: AsyncClient, tmp_path, monkeypatch):
+    monkeypatch.setattr(business_profile_routes.settings, "business_profile_logo_dir", tmp_path)
+    profile = await create_profile(async_client)
+    output = BytesIO()
+    Image.new("RGB", (8, 8), color="orange").save(output, format="PNG")
+
+    uploaded = await async_client.put(
+        f"{BASE_URL}/{profile['id']}/logo",
+        params={"version": profile["version"]},
+        files={"file": ("ignored-name.png", output.getvalue(), "image/png")},
+    )
+
+    assert uploaded.status_code == 200, uploaded.text
+    uploaded_profile = uploaded.json()
+    assert uploaded_profile["logo_media_type"] == "image/png"
+    assert uploaded_profile["logo_version"] == profile["version"] + 1
+    logo = await async_client.get(f"{BASE_URL}/{profile['id']}/logo")
+    assert logo.status_code == 200
+    assert logo.headers["content-type"].startswith("image/png")
+    assert logo.content == output.getvalue()
+
+    deleted = await async_client.delete(
+        f"{BASE_URL}/{profile['id']}/logo",
+        params={"version": uploaded_profile["version"]},
+    )
+    assert deleted.status_code == 204
+    assert (await async_client.get(f"{BASE_URL}/{profile['id']}/logo")).status_code == 404
 
 
 async def create_profile(
