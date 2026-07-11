@@ -166,6 +166,32 @@ describe('BusinessProfileSettings', () => {
     expect(within(section as HTMLElement).getByText('Default').parentElement).toBe(within(section as HTMLElement).getByText('Active').parentElement);
   });
 
+  it('enforces tax-mode dependencies and exposes document and payment settings', async () => {
+    const user = userEvent.setup();
+    useProfiles([]);
+    render(<BusinessProfileSettings />);
+    await user.click(await screen.findByRole('button', { name: 'Add business profile' }));
+
+    expect(screen.getByLabelText('Upload logo')).toHaveAttribute('accept', 'image/png,image/jpeg');
+    expect(screen.getByRole('checkbox', { name: 'Show online-offer QR code on PDFs' })).not.toBeChecked();
+    expect(screen.getByLabelText('PayPal.Me')).toHaveAttribute('placeholder', 'https://paypal.me/deinname');
+
+    await user.selectOptions(screen.getByLabelText('Tax mode'), 'exempt');
+    expect(screen.getByLabelText('Default VAT %')).toBeDisabled();
+    expect(screen.getByLabelText('Default VAT %')).toHaveValue(0);
+    expect(screen.getByRole('checkbox', { name: 'Input tax deductible' })).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: 'Input tax deductible' })).not.toBeChecked();
+  });
+
+  it('shows a versioned logo thumbnail before the profile name', async () => {
+    useProfiles([profile({ logo_media_type: 'image/png', logo_version: 9 })]);
+    render(<BusinessProfileSettings />);
+
+    const logo = await screen.findByRole('img', { name: 'EU Operations logo' });
+    expect(logo).toHaveAttribute('src', expect.stringContaining('/business-profiles/7/logo?v=9'));
+    expect(logo.closest('td')?.textContent).toContain('EU Operations');
+  });
+
   it('uses a dedicated scroll viewport between the editor header and footer', async () => {
     const user = userEvent.setup();
     useProfiles([]);

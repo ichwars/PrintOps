@@ -3,6 +3,7 @@ import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   ApiError,
+  api,
   type BusinessProfile,
   type BusinessProfileAddress,
   type BusinessProfileBankAccount,
@@ -25,7 +26,8 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 const inputClass = 'h-10 w-full rounded-md border border-bambu-dark-tertiary bg-bambu-dark px-3 py-2 text-white focus:border-bambu-green focus:outline-none';
 const topLevelFields = [
   'name', 'legal_name', 'trading_name', 'country_code', 'default_currency',
-  'timezone', 'default_locale', 'billing_mode', 'is_active',
+  'timezone', 'default_locale', 'billing_mode', 'tax_mode', 'default_tax_rate',
+  'cash_accounting', 'input_tax_deductible', 'show_offer_qr', 'paypal_me_url', 'is_active',
 ];
 const addressFields = ['kind', 'label', 'additional', 'street', 'street_2', 'postal_code', 'city', 'region', 'country_code', 'is_default'];
 const taxFields = ['kind', 'value', 'country_code', 'is_primary', 'valid_from', 'valid_until'];
@@ -73,6 +75,8 @@ function asDraft(profile: BusinessProfile | null): ProfileDraft {
     return {
       name: '', legal_name: '', trading_name: '', country_code: 'DE', default_currency: 'EUR',
       timezone: 'Europe/Berlin', default_locale: 'en', billing_mode: 'hybrid', is_active: true,
+      tax_mode: 'standard', default_tax_rate: '19.00', cash_accounting: false,
+      input_tax_deductible: true, show_offer_qr: false, paypal_me_url: null,
       is_default: false, addresses: [emptyAddress()], tax_identifiers: [], bank_accounts: [],
     };
   }
@@ -85,6 +89,9 @@ function asDraft(profile: BusinessProfile | null): ProfileDraft {
     timezone: profile.timezone,
     default_locale: profile.default_locale,
     billing_mode: profile.billing_mode,
+    tax_mode: profile.tax_mode, default_tax_rate: profile.default_tax_rate,
+    cash_accounting: profile.cash_accounting, input_tax_deductible: profile.input_tax_deductible,
+    show_offer_qr: profile.show_offer_qr, paypal_me_url: profile.paypal_me_url,
     is_active: profile.is_active,
     is_default: profile.is_default,
     addresses: profile.addresses.map((address) => ({
@@ -161,13 +168,15 @@ interface Props {
   profile: BusinessProfile | null;
   isSubmitting: boolean;
   onClose: () => void;
-  onSubmit: (data: BusinessProfileCreate | BusinessProfileUpdate) => Promise<void>;
+  onSubmit: (data: BusinessProfileCreate | BusinessProfileUpdate, logoFile?: File | null, removeLogo?: boolean) => Promise<void>;
 }
 
 export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onSubmit }: Props) {
   const { t, i18n } = useTranslation();
   const [draft, setDraft] = useState<ProfileDraft>(() => asDraft(profile));
   const [error, setError] = useState<unknown>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [removeLogo, setRemoveLogo] = useState(false);
   const editing = profile !== null;
   const initialFocusRef = useRef<HTMLInputElement>(null);
   const { dialogRef, onKeyDown } = useModalFocusLifecycle<HTMLFormElement>({ onClose, canClose: !isSubmitting, initialFocusRef });
@@ -270,7 +279,7 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     try {
-      await onSubmit(editing ? { ...draft, version: profile.version } : draft);
+      await onSubmit(editing ? { ...draft, version: profile.version } : draft, logoFile, removeLogo);
     } catch (submitError) {
       setError(submitError);
     }
@@ -397,7 +406,51 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
           </fieldset>
 
           <fieldset className="space-y-3">
+            <legend className="font-medium text-white">{german ? 'Dokumentdarstellung' : 'Document appearance'}</legend>
+            <div className="rounded-lg border border-bambu-dark-tertiary p-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {(logoFile || (profile?.logo_version && !removeLogo)) ? (
+                  <img className="h-16 w-24 rounded border border-bambu-dark-tertiary object-contain" alt={german ? 'Logovorschau' : 'Logo preview'} src={logoFile ? URL.createObjectURL(logoFile) : api.getBusinessProfileLogoUrl(profile!.id, profile!.logo_version!)} />
+                ) : <div className="flex h-16 w-24 items-center justify-center rounded border border-bambu-dark-tertiary text-xs text-bambu-gray">{german ? 'Kein Logo' : 'No logo'}</div>}
+                <label className="text-sm text-bambu-gray-light">
+                  {german ? 'Logo hochladen' : 'Upload logo'}
+                  <input type="file" accept="image/png,image/jpeg" aria-label={german ? 'Logo hochladen' : 'Upload logo'} onChange={(event) => { setLogoFile(event.target.files?.[0] ?? null); setRemoveLogo(false); }} className="mt-1 block text-sm" />
+                </label>
+                {(logoFile || (profile?.logo_version && !removeLogo)) && <button type="button" onClick={() => { setLogoFile(null); setRemoveLogo(true); }} className="text-sm text-red-300">{german ? 'Logo entfernen' : 'Remove logo'}</button>}
+              </div>
+              <label className="mt-3 inline-flex min-h-10 items-center gap-2 text-sm text-bambu-gray-light">
+                <input type="checkbox" checked={draft.show_offer_qr ?? false} onChange={(event) => setDraft({ ...draft, show_offer_qr: event.target.checked })} />
+                {german ? 'QR-Code zum Online-Angebot auf PDFs anzeigen' : 'Show online-offer QR code on PDFs'}
+              </label>
+              <p className="text-xs text-bambu-gray">{german ? 'Erfordert eine von außen erreichbare PrintOps-URL. Die PDF-Ausgabe folgt mit der Dokumentfunktion.' : 'Requires a publicly reachable PrintOps URL. PDF output follows with document support.'}</p>
+            </div>
+          </fieldset>
+
+          <fieldset className="space-y-3">
+            <legend className="font-medium text-white">{german ? 'Steuerangaben' : 'Tax settings'}</legend>
+            <p className="text-xs text-bambu-gray">{german ? 'Diese Angaben steuern die spätere Dokumentlogik und ersetzen keine steuerliche Prüfung.' : 'These settings control future document logic and do not replace professional tax advice.'}</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-sm text-bambu-gray-light">{german ? 'Steuermodus' : 'Tax mode'}
+                <select aria-label={german ? 'Steuermodus' : 'Tax mode'} value={draft.tax_mode ?? 'standard'} onChange={(event) => { const taxMode = event.target.value as 'standard' | 'exempt' | 'none'; setDraft({ ...draft, tax_mode: taxMode, ...(taxMode === 'standard' ? {} : { default_tax_rate: '0.00', input_tax_deductible: false }) }); }} className={inputClass}>
+                  <option value="standard">{german ? 'Reguläre Umsatzsteuer' : 'Standard VAT'}</option>
+                  <option value="exempt">{german && draft.country_code === 'DE' ? 'Kleinunternehmerregelung §19 UStG' : (german ? 'Steuerbefreit' : 'Tax exempt')}</option>
+                  <option value="none">{german ? 'Keine Umsatzsteuer' : 'No VAT'}</option>
+                </select>
+              </label>
+              <label className="text-sm text-bambu-gray-light">{german ? 'Standard-MwSt. %' : 'Default VAT %'}
+                <input type="number" min="0" max="100" step="0.01" disabled={draft.tax_mode !== 'standard'} aria-label={german ? 'Standard-MwSt. %' : 'Default VAT %'} value={draft.default_tax_rate ?? '0.00'} onChange={(event) => setDraft({ ...draft, default_tax_rate: event.target.value })} className={inputClass} />
+              </label>
+              <label className="inline-flex min-h-10 items-center gap-2 text-sm text-bambu-gray-light"><input type="checkbox" checked={draft.cash_accounting ?? false} onChange={(event) => setDraft({ ...draft, cash_accounting: event.target.checked })} />{german ? 'Ist-Versteuerung' : 'Cash accounting'}</label>
+              <label className="inline-flex min-h-10 items-center gap-2 text-sm text-bambu-gray-light"><input type="checkbox" disabled={draft.tax_mode !== 'standard'} checked={draft.input_tax_deductible ?? false} onChange={(event) => setDraft({ ...draft, input_tax_deductible: event.target.checked })} />{german ? 'Vorsteuerabzug aktiv' : 'Input tax deductible'}</label>
+            </div>
+          </fieldset>
+
+          <fieldset className="space-y-3">
             <legend className="font-medium text-white">{t('orders.businessProfile.taxAndBank')}</legend>
+            <label className="block text-sm text-bambu-gray-light">PayPal.Me
+              <input type="url" aria-label="PayPal.Me" placeholder="https://paypal.me/deinname" value={draft.paypal_me_url ?? ''} onChange={(event) => setDraft({ ...draft, paypal_me_url: event.target.value || null })} className={inputClass} />
+              <FieldError message={validation.fields.paypal_me_url} />
+            </label>
             {(draft.tax_identifiers ?? []).map((identifier, index) => (
               <div key={index} className="grid gap-3 sm:grid-cols-[1fr_2fr_auto]">
                 <FieldError message={validation.fields[`tax_identifiers.${index}`]} />

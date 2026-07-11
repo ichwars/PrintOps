@@ -17,6 +17,9 @@ function profilePayload(profile: BusinessProfile): BusinessProfileCreate {
     name: profile.name, legal_name: profile.legal_name, trading_name: profile.trading_name,
     country_code: profile.country_code, default_currency: profile.default_currency, timezone: profile.timezone,
     default_locale: profile.default_locale, billing_mode: profile.billing_mode, is_active: profile.is_active,
+    tax_mode: profile.tax_mode, default_tax_rate: profile.default_tax_rate,
+    cash_accounting: profile.cash_accounting, input_tax_deductible: profile.input_tax_deductible,
+    show_offer_qr: profile.show_offer_qr, paypal_me_url: profile.paypal_me_url,
     is_default: profile.is_default,
     addresses: profile.addresses.map(withoutResponseId),
     tax_identifiers: profile.tax_identifiers.map(withoutResponseId),
@@ -94,11 +97,16 @@ export function BusinessProfileSettings() {
   const deleteMutation = useMutation({ mutationFn: api.deleteBusinessProfile });
   const isMutating = createMutation.isPending || updateMutation.isPending || defaultMutation.isPending || deleteMutation.isPending;
 
-  const submitEditor = async (data: BusinessProfileCreate | BusinessProfileUpdate) => {
+  const submitEditor = async (data: BusinessProfileCreate | BusinessProfileUpdate, logoFile?: File | null, removeLogo?: boolean) => {
+    let saved: BusinessProfile;
     if (editorProfile) {
-      await updateMutation.mutateAsync({ id: editorProfile.id, data: data as BusinessProfileUpdate });
+      saved = await updateMutation.mutateAsync({ id: editorProfile.id, data: data as BusinessProfileUpdate });
     } else {
-      await createMutation.mutateAsync(data as BusinessProfileCreate);
+      saved = await createMutation.mutateAsync(data as BusinessProfileCreate);
+    }
+    if (logoFile) saved = await api.uploadBusinessProfileLogo(saved.id, saved.version, logoFile);
+    else if (removeLogo && saved.logo_version !== null) {
+      await api.deleteBusinessProfileLogo(saved.id, saved.version);
     }
     await invalidateProfiles();
     setEditorProfile(undefined);
@@ -196,7 +204,7 @@ export function BusinessProfileSettings() {
             <tbody className="divide-y divide-bambu-dark-tertiary">
               {profilesQuery.data.map((profile) => (
                 <tr key={profile.id} className="text-bambu-gray-light">
-                  <td className="w-[28%] px-2 py-3"><p className="truncate font-medium text-white">{profile.name}</p><p className="truncate text-xs text-bambu-gray">{profile.legal_name}</p></td>
+                  <td className="w-[28%] px-2 py-3"><div className="flex items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded border border-bambu-dark-tertiary bg-bambu-dark">{profile.logo_version != null ? <img src={api.getBusinessProfileLogoUrl(profile.id, profile.logo_version)} alt={`${profile.name} logo`} className="h-full w-full object-contain" /> : <Building2 className="h-4 w-4 text-bambu-gray" aria-hidden="true" />}</div><div className="min-w-0"><p className="truncate font-medium text-white">{profile.name}</p><p className="truncate text-xs text-bambu-gray">{profile.legal_name}</p></div></div></td>
                   <td className="px-2 py-3">{profile.country_code}</td><td className="px-2 py-3">{profile.default_currency}</td><td className="px-2 py-3">{profile.timezone}</td><td className="px-2 py-3">{t(`orderUi.billingModes.${profile.billing_mode}`)}</td>
                   <td className="px-2 py-3 align-middle"><div className="flex items-center gap-2"><span className={profile.is_active ? 'text-bambu-green' : 'text-bambu-gray'}>{profile.is_active ? t('orders.businessProfile.active') : t('orders.businessProfile.inactive')}</span>{profile.is_default && <span className="inline-flex items-center gap-1 text-xs text-bambu-green"><Check className="h-3 w-3" />{t('orders.default')}</span>}</div></td>
                   <td className="px-2 py-3"><div className="flex justify-end gap-1">
