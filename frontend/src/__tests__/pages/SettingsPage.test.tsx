@@ -205,6 +205,9 @@ describe('SettingsPage', () => {
 
       expect(await screen.findByRole('button', { name: 'Business Profile' })).toHaveClass('text-bambu-green');
       expect(document.getElementById('card-business-profile')).not.toBeNull();
+      expect(document.getElementById('card-business-profile')?.parentElement).toHaveClass('w-full');
+      expect(document.getElementById('card-business-profile')?.parentElement).not.toHaveClass('max-w-3xl');
+      expect(document.getElementById('card-business-profile')).toHaveClass('rounded-xl', 'border', 'bg-bambu-dark-secondary');
       expect(window.location.search).toContain('sub=business-profile');
     });
 

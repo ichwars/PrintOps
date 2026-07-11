@@ -101,8 +101,7 @@ describe('BusinessProfileSettings', () => {
     await user.type(screen.getByLabelText('Legal name'), 'North America LLC');
     await user.selectOptions(screen.getByLabelText('Profile country'), 'FR');
     await user.selectOptions(screen.getByLabelText('Currency'), 'JPY');
-    await user.clear(screen.getByLabelText('Locale'));
-    await user.type(screen.getByLabelText('Locale'), 'fr-FR');
+    await user.selectOptions(screen.getByLabelText('Locale'), 'fr');
     await user.clear(screen.getByLabelText('Timezone'));
     await user.type(screen.getByLabelText('Timezone'), 'Asia/Tokyo');
     await user.type(screen.getByLabelText('Street'), '100 Main Street');
@@ -116,10 +115,55 @@ describe('BusinessProfileSettings', () => {
       legal_name: 'North America LLC',
       country_code: 'FR',
       default_currency: 'JPY',
-      default_locale: 'fr-FR',
+      default_locale: 'fr',
       timezone: 'Asia/Tokyo',
       addresses: [expect.objectContaining({ kind: 'registered', street: '100 Main Street', city: 'New York', country_code: 'FR' })],
     }));
+  });
+
+  it('explains optional trading names and offers guided tax ID types with aligned checkboxes', async () => {
+    const user = userEvent.setup();
+    useProfiles([]);
+    render(<BusinessProfileSettings />);
+
+    await user.click(await screen.findByRole('button', { name: 'Add business profile' }));
+    expect(screen.getByText('Optional. Name used in business if it differs from the legal name.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Profile name')).toHaveClass('h-10');
+    expect(screen.getByLabelText('Profile country')).toHaveClass('h-10');
+
+    await user.click(screen.getByRole('button', { name: 'Add tax ID' }));
+    const kind = screen.getByRole('combobox', { name: 'Tax ID kind 1' });
+    expect(kind).toHaveValue('vat');
+    expect(within(kind).getByRole('option', { name: 'VAT identification number' })).toBeInTheDocument();
+    expect(within(kind).getByRole('option', { name: 'Tax number' })).toBeInTheDocument();
+    expect(within(kind).getByRole('option', { name: 'Other tax ID' })).toBeInTheDocument();
+    expect(screen.getByText('For Germany, enter the VAT ID including the DE prefix, e.g. DE123456789.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Valid from 1')).not.toBeInTheDocument();
+    await user.selectOptions(kind, 'other');
+    expect(screen.getByLabelText('Valid from 1')).toBeInTheDocument();
+    expect(screen.getByLabelText('Valid until 1')).toBeInTheDocument();
+
+    const locale = screen.getByRole('combobox', { name: 'Locale' });
+    expect(within(locale).getByRole('option', { name: 'Deutsch' })).toHaveValue('de');
+    expect(within(locale).getByRole('option', { name: 'English' })).toHaveValue('en');
+
+    for (const checkbox of within(screen.getByRole('dialog')).getAllByRole('checkbox')) {
+      expect(checkbox.closest('label')).toHaveClass('min-h-10', 'items-center');
+    }
+  });
+
+  it('uses the available settings width for the profile table', async () => {
+    useProfiles([profile()]);
+    render(<BusinessProfileSettings />);
+
+    const section = (await screen.findByText('EU Operations')).closest('#card-business-profile');
+    expect(section).toHaveClass('w-full');
+    expect(section).not.toHaveClass('max-w-5xl');
+    expect(within(section as HTMLElement).getByRole('table')).toHaveClass('table-fixed');
+    expect(within(section as HTMLElement).getByText('Active').closest('td')).toHaveClass('align-middle');
+    expect(within(section as HTMLElement).getByText('Default').closest('td')).toHaveClass('align-middle');
+    expect(within(section as HTMLElement).getByText('Active').parentElement).toHaveClass('flex', 'items-center');
+    expect(within(section as HTMLElement).getByText('Default').parentElement).toBe(within(section as HTMLElement).getByText('Active').parentElement);
   });
 
   it('uses a dedicated scroll viewport between the editor header and footer', async () => {
@@ -169,8 +213,7 @@ describe('BusinessProfileSettings', () => {
     await user.type(screen.getByLabelText('Trading name'), 'EU Print Shop');
     await user.selectOptions(screen.getByLabelText('Profile country'), 'US');
     await user.selectOptions(screen.getByLabelText('Billing mode'), 'hybrid');
-    await user.clear(screen.getByLabelText('Locale'));
-    await user.type(screen.getByLabelText('Locale'), 'de');
+    await user.selectOptions(screen.getByLabelText('Locale'), 'de');
     await user.click(screen.getByRole('button', { name: 'Save business profile' }));
 
     await waitFor(() => expect(submitted).toMatchObject({
@@ -423,7 +466,7 @@ describe('BusinessProfileSettings', () => {
   it('maps a tax validity-date 422 problem beside its newly exposed field', async () => {
     const user = userEvent.setup();
     useProfiles([profile({ tax_identifiers: [{
-      id: 31, kind: 'vat', value: 'DE123456789', country_code: 'DE', is_primary: true,
+      id: 31, kind: 'other', value: 'DE123456789', country_code: 'DE', is_primary: true,
       valid_from: null, valid_until: null,
     }] })]);
     server.use(http.put('/api/v1/business-profiles/7', () => HttpResponse.json({

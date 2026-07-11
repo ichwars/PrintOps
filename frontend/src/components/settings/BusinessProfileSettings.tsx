@@ -142,12 +142,12 @@ export function BusinessProfileSettings() {
   };
 
   if (!canRead) {
-    return <section id="card-business-profile" className="max-w-5xl text-sm text-red-300">{t('orders.businessProfile.permissionDenied')}</section>;
+    return <section id="card-business-profile" className="w-full text-sm text-red-300">{t('orders.businessProfile.permissionDenied')}</section>;
   }
 
   return (
-    <section id="card-business-profile" className="max-w-5xl space-y-3" aria-labelledby="business-profile-heading">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-bambu-dark-tertiary pb-3">
+    <section id="card-business-profile" className="w-full overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary card-shadow" aria-labelledby="business-profile-heading">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4">
         <div className="flex min-w-0 items-center gap-2">
           <Building2 className="h-5 w-5 shrink-0 text-bambu-green" aria-hidden="true" />
           <h2 id="business-profile-heading" className="text-lg font-semibold text-white">{t('orders.businessProfile.title')}</h2>
@@ -171,34 +171,34 @@ export function BusinessProfileSettings() {
       </div>
 
       {serverError && (
-        <div role="alert" className="flex items-start justify-between gap-3 border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+        <div role="alert" className="mx-4 mb-3 flex items-start justify-between gap-3 border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
           <span className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{serverError.message}</span>
           <button type="button" onClick={() => setServerError(null)} title={t('orders.businessProfile.dismiss')} aria-label={t('orders.businessProfile.dismiss')} className="shrink-0"><X className="h-4 w-4" /></button>
         </div>
       )}
 
-      {profilesQuery.isPending && !listError && <div className="flex items-center gap-2 text-sm text-bambu-gray"><Loader2 className="h-4 w-4 animate-spin" />{t('orders.businessProfile.loading')}</div>}
+      {profilesQuery.isPending && !listError && <div className="flex items-center gap-2 px-4 pb-4 text-sm text-bambu-gray"><Loader2 className="h-4 w-4 animate-spin" />{t('orders.businessProfile.loading')}</div>}
       {listError && (
-        <div className="flex flex-wrap items-center gap-3 text-sm text-red-300">
+        <div className="mx-4 mb-3 flex flex-wrap items-center gap-3 text-sm text-red-300">
           <AlertTriangle className="h-4 w-4" />
           <span>{listError}</span>
           <button type="button" onClick={() => profilesQuery.refetch()} title={t('common.retry')} aria-label={t('common.retry')} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-bambu-gray-light hover:bg-bambu-dark-tertiary"><RefreshCw className="h-4 w-4" /></button>
           <button type="button" onClick={() => setListError(null)} title={t('orders.businessProfile.dismiss')} aria-label={t('orders.businessProfile.dismiss')} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-bambu-gray-light hover:bg-bambu-dark-tertiary"><X className="h-4 w-4" /></button>
         </div>
       )}
-      {profilesQuery.isSuccess && profilesQuery.data.length === 0 && <p className="text-sm text-bambu-gray">{t('orders.businessProfile.empty')}</p>}
+      {profilesQuery.isSuccess && profilesQuery.data.length === 0 && <p className="px-4 pb-4 text-sm text-bambu-gray">{t('orders.businessProfile.empty')}</p>}
       {profilesQuery.isSuccess && profilesQuery.data.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px] text-left text-sm">
+        <div className="overflow-x-auto border-t border-bambu-dark-tertiary px-4 pb-4">
+          <table className="w-full min-w-[820px] table-fixed text-left text-sm">
             <thead className="border-b border-bambu-dark-tertiary text-xs uppercase text-bambu-gray">
               <tr><th className="px-2 py-2">{t('orders.businessProfile.profile')}</th><th className="px-2 py-2">{t('orders.businessProfile.country')}</th><th className="px-2 py-2">{t('orders.businessProfile.currency')}</th><th className="px-2 py-2">{t('orders.businessProfile.timezone')}</th><th className="px-2 py-2">{t('orders.businessProfile.billingMode')}</th><th className="px-2 py-2">{t('orders.businessProfile.status')}</th><th className="px-2 py-2 text-right">{t('orders.businessProfile.actions')}</th></tr>
             </thead>
             <tbody className="divide-y divide-bambu-dark-tertiary">
               {profilesQuery.data.map((profile) => (
                 <tr key={profile.id} className="text-bambu-gray-light">
-                  <td className="max-w-56 px-2 py-3"><p className="truncate font-medium text-white">{profile.name}</p><p className="truncate text-xs text-bambu-gray">{profile.legal_name}</p></td>
+                  <td className="w-[28%] px-2 py-3"><p className="truncate font-medium text-white">{profile.name}</p><p className="truncate text-xs text-bambu-gray">{profile.legal_name}</p></td>
                   <td className="px-2 py-3">{profile.country_code}</td><td className="px-2 py-3">{profile.default_currency}</td><td className="px-2 py-3">{profile.timezone}</td><td className="px-2 py-3">{t(`orderUi.billingModes.${profile.billing_mode}`)}</td>
-                  <td className="px-2 py-3"><span className={profile.is_active ? 'text-bambu-green' : 'text-bambu-gray'}>{profile.is_active ? t('orders.businessProfile.active') : t('orders.businessProfile.inactive')}</span>{profile.is_default && <span className="ml-2 inline-flex items-center gap-1 text-xs text-bambu-green"><Check className="h-3 w-3" />{t('orders.default')}</span>}</td>
+                  <td className="px-2 py-3 align-middle"><div className="flex items-center gap-2"><span className={profile.is_active ? 'text-bambu-green' : 'text-bambu-gray'}>{profile.is_active ? t('orders.businessProfile.active') : t('orders.businessProfile.inactive')}</span>{profile.is_default && <span className="inline-flex items-center gap-1 text-xs text-bambu-green"><Check className="h-3 w-3" />{t('orders.default')}</span>}</div></td>
                   <td className="px-2 py-3"><div className="flex justify-end gap-1">
                     {canManage && <button type="button" onClick={() => setEditorProfile(profile)} disabled={isMutating} title={t('orders.businessProfile.edit', { name: profile.name })} aria-label={t('orders.businessProfile.edit', { name: profile.name })} className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-bambu-dark-tertiary disabled:opacity-50"><Pencil className="h-4 w-4" /></button>}
                     {canManage && !profile.is_default && <button type="button" onClick={() => setDefault(profile)} disabled={isMutating} title={t('orders.businessProfile.setDefault', { name: profile.name })} aria-label={t('orders.businessProfile.setDefault', { name: profile.name })} className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-bambu-dark-tertiary disabled:opacity-50"><Star className="h-4 w-4" /></button>}

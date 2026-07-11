@@ -386,7 +386,10 @@ export function CustomerEditorModal({ customer, profiles, selectedProfileId, isS
             </Row>)}
           </Section>
 
-          <Section title={t('orders.customerEditor.addresses')} action={<Add label={t('orders.customerEditor.addAddress')} onClick={() => setDraft({ ...draft, addresses: [...(draft.addresses ?? []), emptyAddress()] })} />}>
+          <Section title={t('orders.customerEditor.addresses')} action={<div className="flex flex-wrap justify-end gap-2">
+            <Add label={`${t('orders.customerEditor.addAddress')}: ${t('orders.customerEditor.addressKind.billing')}`} onClick={() => setDraft({ ...draft, addresses: [...(draft.addresses ?? []), { ...emptyAddress(), kind: 'billing' }] })} />
+            <Add label={`${t('orders.customerEditor.addAddress')}: ${t('orders.customerEditor.addressKind.delivery')}`} onClick={() => setDraft({ ...draft, addresses: [...(draft.addresses ?? []), { ...emptyAddress(), kind: 'delivery' }] })} />
+          </div>}>
             {draft.addresses.map((address, index) => <Row key={address._clientKey} remove={() => setDraft({ ...draft, addresses: remove(draft.addresses, index) })} removeLabel={t('orders.customerEditor.removeAddress', { number: index + 1 })}>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Field label={t('orders.customerEditor.addressKindLabel')} error={errors[`addresses.${index}.kind`]}><select aria-label={`${t('orders.customerEditor.addressKindLabel')} ${index + 1}`} value={address.kind} onChange={(e) => patchAddress(index, { kind: e.target.value as CustomerAddress['kind'], is_default: false })} className={inputClass}>{(['billing', 'delivery', 'other'] as const).map((kind) => <option key={kind} value={kind}>{t(`orders.customerEditor.addressKind.${kind}`)}</option>)}</select></Field>
