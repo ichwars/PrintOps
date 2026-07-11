@@ -24,8 +24,10 @@ from backend.app.api.routes import (
     archives,
     auth,
     bug_report,
+    business_profiles,
     camera,
     cloud,
+    customers,
     discovery,
     external_links,
     filaments,
@@ -6716,6 +6718,8 @@ async def trace_id_middleware(request, call_next):
 app.include_router(auth.router, prefix=app_settings.api_prefix)
 app.include_router(mfa.router, prefix=app_settings.api_prefix)
 app.include_router(bug_report.router, prefix=app_settings.api_prefix)
+app.include_router(business_profiles.router, prefix=app_settings.api_prefix)
+app.include_router(customers.router, prefix=app_settings.api_prefix)
 app.include_router(users.router, prefix=app_settings.api_prefix)
 app.include_router(groups.router, prefix=app_settings.api_prefix)
 app.include_router(printers.router, prefix=app_settings.api_prefix)

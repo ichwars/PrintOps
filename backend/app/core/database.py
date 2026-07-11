@@ -172,7 +172,9 @@ async def init_db():
         archive,
         auth_ephemeral,
         bug_report,
+        business_profile,
         color_catalog,
+        customer,
         external_link,
         filament,
         filament_sku_settings,
@@ -186,6 +188,7 @@ async def init_db():
         maintenance,
         notification,
         notification_template,
+        number_sequence,
         oidc_provider,
         orca_base_cache,
         pending_upload,
@@ -3334,7 +3337,6 @@ async def run_migrations(conn):
     # names by appending " Email" (#1792). See ``_migrate_rename_user_print_template_names``.
     await _migrate_rename_user_print_template_names(conn)
 
-
 _USER_PRINT_TEMPLATE_RENAMES: tuple[tuple[str, str, str], ...] = (
     ("user_print_start", "User Print Started", "User Print Started Email"),
     ("user_print_complete", "User Print Completed", "User Print Completed Email"),
@@ -3597,6 +3599,53 @@ async def seed_default_groups():
                     logger.info("Added %s to Administrators group (ALL_PERMISSIONS sync)", new_perm)
             if added:
                 admin_group.permissions = perms
+        await session.commit()
+
+        # Backfill the least-privilege order-management defaults for existing
+        # system groups. Additive updates preserve customized grants while
+        # bringing upgrades in line with fresh-install defaults.
+        order_backfill = {
+            "Operators": [
+                "customers:read",
+                "customers:manage",
+                "calculations:read",
+                "calculations:update",
+                "calculations:approve",
+                "orders:read",
+                "orders:update",
+                "orders:manage_production",
+                "commercial_documents:read",
+                "commercial_documents:draft",
+                "commercial_documents:approve",
+                "payments:read",
+                "order_audit:read",
+            ],
+            "Viewers": [
+                "customers:read",
+                "calculations:read",
+                "orders:read",
+                "commercial_documents:read",
+                "payments:read",
+                "order_audit:read",
+            ],
+        }
+        for group_name, new_permissions in order_backfill.items():
+            group = (
+                await session.execute(
+                    select(Group).where(Group.name == group_name, Group.is_system.is_(True))
+                )
+            ).scalar_one_or_none()
+            if group is None or group.permissions is None:
+                continue
+            permissions = list(group.permissions)
+            changed = False
+            for new_permission in new_permissions:
+                if new_permission not in permissions:
+                    permissions.append(new_permission)
+                    changed = True
+                    logger.info("Added %s to %s group (order backfill)", new_permission, group_name)
+            if changed:
+                group.permissions = permissions
         await session.commit()
 
         # Same OWN-tier backfill for non-admin system groups. Operators and

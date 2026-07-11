@@ -4,11 +4,18 @@ import {
   canonicalTabToUrlParam,
   legacySettingsTabDefaultAnchor,
   legacySettingsTabDefaultSubTab,
+  resolveOrderManagementSubTab,
   resolveSettingsTab,
   settingsTabLabelKey,
 } from '../../lib/settingsNavigation';
 
 describe('settingsNavigation', () => {
+  it('resolves the canonical business profile order-management subtab', () => {
+    expect(resolveOrderManagementSubTab('business-profile')).toBe('business-profile');
+    expect(resolveOrderManagementSubTab('calculation')).toBe('calculation');
+    expect(resolveOrderManagementSubTab('unknown')).toBeNull();
+  });
+
   it('keeps Allgemein as the default tab without a URL parameter', () => {
     expect(resolveSettingsTab(null)).toBe('general');
     expect(canonicalTabToUrlParam('general')).toBeNull();

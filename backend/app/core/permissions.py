@@ -71,6 +71,29 @@ class Permission(StrEnum):
     PROJECTS_UPDATE = "projects:update"
     PROJECTS_DELETE = "projects:delete"
 
+    # Order Management
+    CUSTOMERS_READ = "customers:read"
+    CUSTOMERS_MANAGE = "customers:manage"
+    CALCULATIONS_READ = "calculations:read"
+    CALCULATIONS_UPDATE = "calculations:update"
+    CALCULATIONS_APPROVE = "calculations:approve"
+    ORDERS_READ = "orders:read"
+    ORDERS_UPDATE = "orders:update"
+    ORDERS_CANCEL = "orders:cancel"
+    ORDERS_MANAGE_PRODUCTION = "orders:manage_production"
+    COMMERCIAL_DOCUMENTS_READ = "commercial_documents:read"
+    COMMERCIAL_DOCUMENTS_DRAFT = "commercial_documents:draft"
+    COMMERCIAL_DOCUMENTS_APPROVE = "commercial_documents:approve"
+    COMMERCIAL_DOCUMENTS_ISSUE = "commercial_documents:issue"
+    COMMERCIAL_DOCUMENTS_CORRECT = "commercial_documents:correct"
+    COMMERCIAL_DOCUMENTS_EXPORT = "commercial_documents:export"
+    PAYMENTS_READ = "payments:read"
+    PAYMENTS_MANAGE = "payments:manage"
+    ORDER_AUDIT_READ = "order_audit:read"
+    ORDER_SETTINGS_READ = "order_settings:read"
+    ORDER_SETTINGS_MANAGE = "order_settings:manage"
+    ACCOUNTING_INTEGRATIONS_MANAGE = "accounting_integrations:manage"
+
     # Filaments
     FILAMENTS_READ = "filaments:read"
     FILAMENTS_CREATE = "filaments:create"
@@ -240,6 +263,29 @@ PERMISSION_CATEGORIES = {
         Permission.PROJECTS_UPDATE,
         Permission.PROJECTS_DELETE,
     ],
+    "Order Management": [
+        Permission.CUSTOMERS_READ,
+        Permission.CUSTOMERS_MANAGE,
+        Permission.CALCULATIONS_READ,
+        Permission.CALCULATIONS_UPDATE,
+        Permission.CALCULATIONS_APPROVE,
+        Permission.ORDERS_READ,
+        Permission.ORDERS_UPDATE,
+        Permission.ORDERS_CANCEL,
+        Permission.ORDERS_MANAGE_PRODUCTION,
+        Permission.COMMERCIAL_DOCUMENTS_READ,
+        Permission.COMMERCIAL_DOCUMENTS_DRAFT,
+        Permission.COMMERCIAL_DOCUMENTS_APPROVE,
+        Permission.COMMERCIAL_DOCUMENTS_ISSUE,
+        Permission.COMMERCIAL_DOCUMENTS_CORRECT,
+        Permission.COMMERCIAL_DOCUMENTS_EXPORT,
+        Permission.PAYMENTS_READ,
+        Permission.PAYMENTS_MANAGE,
+        Permission.ORDER_AUDIT_READ,
+        Permission.ORDER_SETTINGS_READ,
+        Permission.ORDER_SETTINGS_MANAGE,
+        Permission.ACCOUNTING_INTEGRATIONS_MANAGE,
+    ],
     "Filaments": [
         Permission.FILAMENTS_READ,
         Permission.FILAMENTS_CREATE,
@@ -407,6 +453,21 @@ DEFAULT_GROUPS = {
             Permission.PROJECTS_CREATE.value,
             Permission.PROJECTS_UPDATE.value,
             Permission.PROJECTS_DELETE.value,
+            # Order management - operational workflow, excluding privileged
+            # issue/cancel/settings actions
+            Permission.CUSTOMERS_READ.value,
+            Permission.CUSTOMERS_MANAGE.value,
+            Permission.CALCULATIONS_READ.value,
+            Permission.CALCULATIONS_UPDATE.value,
+            Permission.CALCULATIONS_APPROVE.value,
+            Permission.ORDERS_READ.value,
+            Permission.ORDERS_UPDATE.value,
+            Permission.ORDERS_MANAGE_PRODUCTION.value,
+            Permission.COMMERCIAL_DOCUMENTS_READ.value,
+            Permission.COMMERCIAL_DOCUMENTS_DRAFT.value,
+            Permission.COMMERCIAL_DOCUMENTS_APPROVE.value,
+            Permission.PAYMENTS_READ.value,
+            Permission.ORDER_AUDIT_READ.value,
             # Filaments - full access
             Permission.FILAMENTS_READ.value,
             Permission.FILAMENTS_CREATE.value,
@@ -480,6 +541,13 @@ DEFAULT_GROUPS = {
             Permission.QUEUE_READ_OWN.value,
             Permission.LIBRARY_READ_OWN.value,
             Permission.PROJECTS_READ.value,
+            # Order management - read only
+            Permission.CUSTOMERS_READ.value,
+            Permission.CALCULATIONS_READ.value,
+            Permission.ORDERS_READ.value,
+            Permission.COMMERCIAL_DOCUMENTS_READ.value,
+            Permission.PAYMENTS_READ.value,
+            Permission.ORDER_AUDIT_READ.value,
             Permission.FILAMENTS_READ.value,
             Permission.INVENTORY_READ.value,
             Permission.INVENTORY_VIEW_ASSIGNMENTS.value,

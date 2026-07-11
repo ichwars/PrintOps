@@ -1,4 +1,7 @@
 export default {
+  orderUiNotFound: 'Der Datensatz wurde nicht gefunden.',
+  orderUi: { operationBlocked: 'Der Vorgang ist im aktuellen Zustand des Datensatzes nicht möglich.', duplicateRecord: 'Ein Datensatz mit denselben eindeutigen Angaben existiert bereits.', singlePrimaryContact: 'Es ist nur ein Hauptkontakt zulässig.', billingModes: { internal: 'Intern', external: 'Extern', hybrid: 'Kombiniert' } },
+  orderMessages: { addressKind: 'Adressart', addressKinds: { registered: 'Sitz', billing: 'Rechnung', shipping: 'Versand', other: 'Sonstige' }, addressLabel: 'Adressbezeichnung', additional: 'Zusatz', street2: 'Adresszeile 2', region: 'Region', taxCountry: 'Steuerland', validFrom: 'Gültig ab', validUntil: 'Gültig bis', taxValidationStatus: { unchecked: 'Nicht geprüft', valid: 'Gültig', invalid: 'Ungültig' }, validation: { required: 'Pflichtfeld', maxCharacters: 'Darf höchstens {{count}} Zeichen enthalten.', customerKind: 'Wählen Sie eine gültige Kundenart.', customerStatus: 'Wählen Sie einen gültigen Kundenstatus.', accountRequired: 'Mindestens ein Konto ist erforderlich.', businessProfile: 'Wählen Sie ein gültiges Unternehmensprofil.', duplicateAccountProfile: 'Pro Unternehmensprofil ist nur ein Konto zulässig.', currency: 'Geben Sie einen gültigen ISO-4217-Währungscode ein.', range: 'Muss zwischen {{min}} und {{max}} liegen.', twoDecimalPlaces: 'Verwenden Sie höchstens zwei Nachkommastellen.', addressKind: 'Wählen Sie eine gültige Adressart.', country: 'Geben Sie einen gültigen ISO-3166-1-Alpha-2-Ländercode ein.', duplicateDefaultAddress: 'Pro Adressart ist nur eine Standardadresse zulässig.', taxValidationStatus: 'Wählen Sie einen gültigen Prüfstatus.', duplicateTaxIdentifier: 'Doppelte Steuerkennungen sind nicht zulässig.', maxTags: 'Es sind höchstens 50 Schlagwörter zulässig.', normalizedTag: 'Der normalisierte Name des Schlagworts darf höchstens 512 UTF-8-Bytes enthalten.', invalidField: 'Dieses Feld ist ungültig.', failed: 'Die Eingaben sind ungültig.' }, errors: { conflict: 'Dieser Datensatz wurde von einer anderen Person geändert.', business_profile_in_use: 'Dieses Unternehmensprofil wird noch von Kundenkonten verwendet.', business_profile_referenced: 'Dieses Unternehmensprofil wird noch referenziert und kann nicht geändert werden.', business_profile_version_conflict: 'Dieses Unternehmensprofil wurde von einer anderen Person geändert.', customer_number_conflict: 'Diese Kundennummer wird für dieses Unternehmensprofil bereits verwendet.', customer_account_number_conflict: 'Diese Kundennummer wird für dieses Unternehmensprofil bereits verwendet.', customer_version_conflict: 'Dieser Kunde wurde von einer anderen Person geändert.' } },
   // Navigation
   nav: {
     printers: 'Drucker',
@@ -43,6 +46,51 @@ export default {
       customers: 'Kunden',
       invoice: 'Rechnung',
     },
+  },
+
+  orders: {
+    default: 'Standard',
+    businessProfile: {
+      title: 'Unternehmensprofil',
+      loading: 'Unternehmensprofile werden geladen...',
+      error: 'Unternehmensprofile konnten nicht geladen werden.',
+      empty: 'Noch keine Unternehmensprofile vorhanden.',
+      permissionDenied: 'Sie haben keine Berechtigung, Unternehmensprofile anzuzeigen.',
+      add: 'Unternehmensprofil hinzufügen', includeInactive: 'Inaktive Profile einbeziehen', profile: 'Profil', country: 'Land', currency: 'Währung', timezone: 'Zeitzone', billingMode: 'Abrechnungsmodus', status: 'Status', actions: 'Aktionen', active: 'Aktiv', inactive: 'Inaktiv',
+      edit: '{{name}} bearbeiten', setDefault: '{{name}} als Standard festlegen', activate: '{{name}} aktivieren', deactivate: '{{name}} deaktivieren', delete: '{{name}} löschen', deleteConfirm: '{{name}} löschen? Dies kann nicht rückgängig gemacht werden.', dismiss: 'Schließen',
+      createTitle: 'Unternehmensprofil hinzufügen', editTitle: 'Unternehmensprofil bearbeiten', identity: 'Identität', address: 'Adresse', taxAndBank: 'Steuern und Bank', localeSection: 'Sprache und Region', profileName: 'Profilname', legalName: 'Rechtlicher Name', tradingName: 'Handelsname', profileCountry: 'Land des Unternehmensprofils', street: 'Straße', city: 'Ort', postalCode: 'Postleitzahl',
+      addAddress: 'Adresse hinzufügen', removeAddress: 'Adresse {{number}} entfernen', defaultAddress: 'Standardadresse {{number}}', taxIdKind: 'Art der Steuer-ID', taxIdValue: 'Steuer-ID', addTaxId: 'Steuer-ID hinzufügen', removeTaxId: 'Steuer-ID {{number}} entfernen', primaryTaxId: 'Primäre Steuer-ID {{number}}', bankAccountLabel: 'Bezeichnung des Bankkontos', accountHolder: 'Kontoinhaber', bankName: 'Bankname', bankCountry: 'Land der Bank', bankCurrency: 'Kontowährung', iban: 'IBAN', bic: 'BIC', accountNumber: 'Kontonummer', routingNumber: 'Bankleitzahl', defaultBankAccount: 'Standardbankkonto {{number}}', addBankAccount: 'Bankkonto hinzufügen', removeBankAccount: 'Bankkonto {{number}} entfernen', locale: 'Sprache', save: 'Unternehmensprofil speichern',
+    },
+    customers: {
+      title: 'Kunden',
+      subtitle: 'Kundenstammdaten für das ausgewählte Unternehmensprofil.',
+      businessProfile: 'Unternehmensprofil',
+      loading: 'Kunden werden geladen...',
+      error: 'Kunden konnten nicht geladen werden.',
+      noBusinessProfile: 'Kein aktives Unternehmensprofil verfügbar.',
+      empty: 'Noch keine Kunden vorhanden.',
+      customer: 'Kunde',
+      discount: 'Rabatt',
+      permissionDenied: 'Sie haben keine Berechtigung, Kunden anzuzeigen.',
+      configureProfiles: 'Unternehmensprofile konfigurieren', add: 'Kunde hinzufügen', search: 'Kunden suchen', statusFilter: 'Kundenstatus', kindFilter: 'Kundenart', emptyFiltered: 'Keine Kunden entsprechen den aktuellen Filtern.',
+      number: 'Nummer', name: 'Name', primaryContact: 'Hauptkontakt', billingAddress: 'Rechnungsadresse', actions: 'Aktionen',
+      view: 'Details anzeigen', viewAria: '{{name}} anzeigen', editCustomer: 'Kunde bearbeiten', editAria: '{{name}} bearbeiten', deleteCustomer: 'Kunde löschen', deleteAria: '{{name}} löschen', deleteTitle: '{{name}} löschen?', deleteConfirm: 'Dieser Kunde wird dauerhaft gelöscht.',
+      pagination: '{{start}}-{{end}} von {{total}}', previous: 'Vorherige Seite', next: 'Nächste Seite',
+    },
+    customerEditor: {
+      title: 'Kundenbearbeitung', loading: 'Kundeneditor wird geladen', loadError: 'Kundeneditor konnte nicht geladen werden.',
+      createTitle: 'Kunde hinzufügen', editTitle: 'Kunde bearbeiten', kind: 'Kundenart',
+      company: 'Unternehmen',
+      person: 'Privatperson',
+      identity: 'Identität', displayName: 'Anzeigename', companyName: 'Firmenname', firstName: 'Vorname', lastName: 'Nachname',
+      accounts: 'Profilkonten', addAccount: 'Konto hinzufügen', removeAccount: 'Konto {{number}} entfernen', accountProfile: 'Kontoprofil', customerNumber: 'Kundennummer', currency: 'Währung', paymentDays: 'Zahlungsziel in Tagen', deliveryTerms: 'Lieferbedingungen', discount: 'Rabatt', activeAccount: 'Aktives Konto',
+      contacts: 'Kontakte', addContact: 'Kontakt hinzufügen', removeContact: 'Kontakt {{number}} entfernen', salutation: 'Anrede', contactFirstName: 'Vorname des Kontakts', contactLastName: 'Nachname des Kontakts', contactRole: 'Rolle des Kontakts', contactEmail: 'E-Mail des Kontakts', contactPhone: 'Telefon des Kontakts', primaryContact: 'Hauptkontakt', includeContact: 'Kontakt', onDocuments: 'auf Dokumenten anzeigen', includeDocuments: 'Auf Dokumenten anzeigen',
+      addresses: 'Adressen', addAddress: 'Adresse hinzufügen', removeAddress: 'Adresse {{number}} entfernen', addressKindLabel: 'Adressart', addressKind: { billing: 'Rechnung', delivery: 'Lieferung', other: 'Sonstige' }, addressLabel: 'Adressbezeichnung', additional: 'Zusatz', street: 'Straße', street2: 'Adresszeile 2', postalCode: 'Postleitzahl', city: 'Ort', region: 'Region', country: 'Land', defaultAddress: 'Standardadresse',
+      taxIdentifiers: 'Steuerkennungen', addTax: 'Steuerkennung hinzufügen', removeTax: 'Steuerkennung {{number}} entfernen', taxKind: 'Art der Steuerkennung', taxValue: 'Steuerkennung', taxCountry: 'Steuerland', validationStatus: 'Prüfstatus',
+      preferences: 'Einstellungen', locale: 'Sprache', tags: 'Schlagwörter', notes: 'Notizen', required: 'Pflichtfeld', reload: 'Aktuelle Daten neu laden', save: 'Kunde speichern',
+    },
+    customerDetails: { title: 'Kundendetails', loading: 'Kundendetails werden geladen', loadError: 'Kundendetails konnten nicht geladen werden.', paymentDays: '{{count}} Tage Zahlungsziel', created: 'Erstellt {{date}}', updated: 'Aktualisiert {{date}}' },
+    status: { active: 'Aktiv', inactive: 'Inaktiv', blocked: 'Gesperrt' },
   },
 
   // Common
@@ -1638,6 +1686,7 @@ export default {
       warehouseFilament: 'Filament',
       warehouseCatalogs: 'Kataloge',
       orderManagementCalculation: 'Kalkulation',
+      orderManagementBusinessProfile: 'Unternehmensprofil',
       filament: 'Filament',
       network: 'Netzwerk',
       apiKeys: 'API-Schlüssel',
@@ -1667,6 +1716,7 @@ export default {
       spoolbuddy: 'SpoolBuddy-Kioske, NFC-Leser, Waagen, Kalibrierung und Geräteregistrierung verwalten.',
     },
     orderManagementSubTabDescriptions: {
+      businessProfile: 'Unternehmensdaten für die Ausstellung kaufmännischer Dokumente verwalten.',
       calculation: 'Währung, Kostenverfolgung und Kalkulationsstandards für kaufmännische Abläufe konfigurieren.',
     },
     spoolbuddy: {

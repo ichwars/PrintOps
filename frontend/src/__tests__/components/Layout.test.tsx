@@ -679,4 +679,79 @@ describe('Layout', () => {
       expect(sidebarLink('/queue')).toBeNull();
     });
   });
+
+  describe('Order management sidebar permissions', () => {
+    const enableAuthWithUser = (permissions: string[], isAdmin = false) => {
+      server.use(
+        http.get('/api/v1/auth/status', () =>
+          HttpResponse.json({ auth_enabled: true, requires_setup: false }),
+        ),
+        http.get('/api/v1/auth/me', () =>
+          HttpResponse.json({
+            id: 1,
+            username: 'order-user',
+            role: isAdmin ? 'admin' : 'user',
+            is_active: true,
+            is_admin: isAdmin,
+            groups: [],
+            permissions,
+            created_at: '2026-01-01T00:00:00Z',
+          }),
+        ),
+      );
+      setAuthToken('test-token');
+    };
+
+    it('shows the order parent and Customers only to a customers reader', async () => {
+      enableAuthWithUser(['customers:read']);
+
+      render(<Layout />);
+
+      await waitFor(() => expect(sidebarMenuButton('orders')).toBeInTheDocument());
+      expandSidebarMenu('orders');
+
+      expect(sidebarLink('/orders')).toBeInTheDocument();
+      expect(sidebarLink('/orders/customers')).toBeInTheDocument();
+      expect(sidebarLink('/orders/calculation')).toBeNull();
+      expect(sidebarLink('/orders/offers')).toBeNull();
+      expect(sidebarLink('/orders/invoices')).toBeNull();
+    });
+
+    it('shows the order parent and Calculation but not Customers to a calculations reader', async () => {
+      enableAuthWithUser(['calculations:read']);
+
+      render(<Layout />);
+
+      await waitFor(() => expect(sidebarMenuButton('orders')).toBeInTheDocument());
+      expandSidebarMenu('orders');
+
+      expect(sidebarLink('/orders')).toBeInTheDocument();
+      expect(sidebarLink('/orders/calculation')).toBeInTheDocument();
+      expect(sidebarLink('/orders/customers')).toBeNull();
+      expect(sidebarLink('/orders/offers')).toBeNull();
+      expect(sidebarLink('/orders/invoices')).toBeNull();
+    });
+
+    it('hides order navigation without an order read permission while keeping Settings gated independently', async () => {
+      enableAuthWithUser(['settings:read']);
+
+      render(<Layout />);
+
+      await waitFor(() => expect(sidebarMenuButton('settings')).toBeInTheDocument());
+      expect(sidebarMenuButton('orders')).toBeNull();
+      expect(sidebarLink('/orders')).toBeNull();
+      expect(sidebarLink('/settings')).toBeInTheDocument();
+    });
+
+    it('keeps order navigation open for administrators', async () => {
+      enableAuthWithUser([], true);
+
+      render(<Layout />);
+
+      await waitFor(() => expect(sidebarMenuButton('orders')).toBeInTheDocument());
+      expandSidebarMenu('orders');
+      expect(sidebarLink('/orders/customers')).toBeInTheDocument();
+      expect(sidebarLink('/orders/calculation')).toBeInTheDocument();
+    });
+  });
 });
