@@ -260,6 +260,24 @@ describe('OrdersCustomersPage', () => {
     expect(screen.getByRole('dialog', { name: 'Add customer' })).toBeInTheDocument();
   });
 
+  it('uses a dedicated scroll viewport between the editor header and footer', async () => {
+    const user = userEvent.setup();
+    render(<OrdersCustomersPage />);
+    await screen.findByRole('button', { name: 'View Ada Example' });
+    await user.click(screen.getByRole('button', { name: 'Add customer' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Add customer' });
+    const viewport = within(dialog).getByTestId('customer-editor-scroll-viewport');
+    const fieldset = viewport.firstElementChild;
+
+    expect(dialog.children[1]).toBe(viewport);
+    expect(viewport.previousElementSibling).toBe(dialog.firstElementChild);
+    expect(viewport.nextElementSibling).toBe(dialog.lastElementChild);
+    expect(viewport).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto');
+    expect(fieldset).toHaveProperty('tagName', 'FIELDSET');
+    expect(fieldset).not.toHaveClass('flex-1', 'overflow-y-auto');
+  });
+
   it('blocks incomplete company and person identities before creating a customer', async () => {
     let createRequests = 0;
     server.use(http.post('/api/v1/customers/', () => { createRequests += 1; return HttpResponse.json(detailCustomer, { status: 201 }); }));

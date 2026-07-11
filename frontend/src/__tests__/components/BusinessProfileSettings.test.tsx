@@ -112,6 +112,24 @@ describe('BusinessProfileSettings', () => {
     }));
   });
 
+  it('uses a dedicated scroll viewport between the editor header and footer', async () => {
+    const user = userEvent.setup();
+    useProfiles([]);
+    render(<BusinessProfileSettings />);
+    await user.click(await screen.findByRole('button', { name: 'Add business profile' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Add business profile' });
+    const viewport = within(dialog).getByTestId('business-profile-editor-scroll-viewport');
+    const fieldset = viewport.firstElementChild;
+
+    expect(dialog.children[1]).toBe(viewport);
+    expect(viewport.previousElementSibling).toBe(dialog.firstElementChild);
+    expect(viewport.nextElementSibling).toBe(dialog.lastElementChild);
+    expect(viewport).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto');
+    expect(fieldset).toHaveProperty('tagName', 'FIELDSET');
+    expect(fieldset).not.toHaveClass('flex-1', 'overflow-y-auto');
+  });
+
   it('edits nested identity and locale data with the current version', async () => {
     const user = userEvent.setup();
     let submitted: Record<string, unknown> | undefined;

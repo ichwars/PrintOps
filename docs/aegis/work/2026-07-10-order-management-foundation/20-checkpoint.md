@@ -2,7 +2,8 @@
 
 ## TodoCheckpointDraft
 
-- Active: Task 9, end-to-end verification and operator documentation.
+- Active: final whole-branch review and fork-only integration.
+- Completed: Task 9, end-to-end verification and operator documentation.
 - Completed: Task 8, full customer-management workspace.
 - Completed: Task 7, full business-profile settings workspace.
 - Completed: Task 6, frontend contracts, navigation, settings routing, and
@@ -13,28 +14,25 @@
 - Completed: Task 2, order-management permissions and safe role backfill.
 - Completed: Task 1, relational profile, sequence, and customer models.
 - Completed: approved design and executable plan.
-- Next: run the complete foundation verification, browser and authorization
-  checks, add operator documentation, and prepare fork-only integration.
+- Next: review the complete branch, verify fork remotes, push the feature branch
+  to `origin`, and merge an internal fork pull request into fork `main` only.
 
 ## Slice Card
 
-- Goal: verify and document the complete order-management foundation increment.
+- Goal: integrate the reviewed order-management foundation into fork `main`.
 - Parent plan: `docs/superpowers/plans/2026-07-10-order-management-foundation.md`, Task 9.
-- Files: approved design status, operator documentation, and regression fixes
-  only when verification proves they are required.
-- Boundary: business profiles and customer master data only; calculation and
-  commercial documents remain later increments.
-- Verification: backend and frontend suites, browser states, authorization and
-  persistence invariants, diff review, and fork-only integration checks.
-- Stop: all verification and review gates pass, or an unresolved regression is
-  found.
+- Files: complete branch diff and GitHub integration metadata only.
+- Boundary: the upstream repository remains fetch-only with a disabled push URL.
+- Verification: whole-branch review, clean worktree, fork remotes, required fork
+  checks, and post-merge fork `main` identity.
+- Stop: fork `main` contains the reviewed commits and required checks pass, or a
+  merge/check regression is found.
 
 ## ResumeStateHint
 
 Resume on `codex/order-management`, confirm a clean or checkpoint-consistent
-worktree, read Task 9 and the latest review evidence, then continue at the next
-open verification or documentation step. `origin` is the only allowed push
-remote.
+worktree, read the final Task 9 evidence, then continue at whole-branch review or
+fork-only integration. `origin` is the only allowed push remote.
 
 ## DriftCheckDraft
 
@@ -62,4 +60,11 @@ remote.
   re-review, 97 focused frontend tests, all 11 locale parity checks, ESLint,
   TypeScript, Ruff, byte-for-byte generated-source validation, full Unicode
   parity across 1,114,112 code points, diff-check, and the production build.
+- Evidence: Task 9 passed 155 backend tests, 199 frontend tests, Ruff, all 11
+  locale parity checks, full ESLint, and the production build. Chromium checks
+  covered 1440x900 and 390x844 empty, populated, editor, validation, read-only,
+  API-failure, and repeatable-row states. Live API checks confirmed default,
+  optimistic-lock, numbering, role, API-key, and restart invariants. The
+  browser-discovered fieldset/footer regression was repaired, regression-tested,
+  and independently approved with the operator documentation.
 - Decision: continue.

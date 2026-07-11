@@ -225,3 +225,35 @@ baseline and classified before completion claims.
   approved with no findings.
 - Residual risk: the existing Vite bundle-size advisory remains; generated
   `static` assets were removed after verification.
+
+## Task 9: End-to-End Verification And Operator Documentation
+
+- Backend foundation verification passed all 155 selected permission, sequence,
+  schema, business-profile, customer, and group tests. Ruff reported no findings
+  across `backend/app` and `backend/tests`.
+- Frontend verification passed five focused files and 199 tests after the local
+  browser was closed; the two tests that had timed out under concurrent browser,
+  backend, and Vitest load passed individually and in the repeated full run.
+  All eleven locale files remained at 5,781 leaves, full ESLint passed, and the
+  production build completed with only the existing bundle-size advisory.
+- Chromium verification at 1440x900 and 390x844 covered empty and populated
+  profile/customer views, long German customer data, create/edit forms,
+  validation, repeatable contacts/addresses/tax/bank rows, read-only Viewer
+  controls, and a retryable customer-list 503 response.
+- Browser inspection found native `fieldset` overflow painting and hit-testing
+  over the editor footer when repeatable rows were tall. Dedicated scroll
+  viewports now contain the disabled fieldsets in both customer and business
+  profile editors. The corrected desktop and mobile flows kept headers and
+  footers stable and the save action clickable; two structural regression tests
+  protect the layout owner.
+- Live API verification confirmed exactly one default profile, stale aggregate
+  updates returning 409, customer-number uniqueness per profile, Viewer writes
+  returning 403, Operator customer creation with no issue/integration rights,
+  API-key profile/customer writes returning 403, and restart persistence. After
+  restart, the second profile retained its rows and allocated `CUST-00002`.
+- Added `docs/order-management.md` with initial profile setup, exact default
+  workflow, billing-mode scope, profile accounts, numbering, roles/groups, and
+  links to later calculation, PDF-layout, standards-export, and Lexware Office
+  increments without claiming those workflows are already implemented.
+- Final Task 9 review: approved after correcting default-profile and per-account
+  numbering language. `git diff --check` was clean.

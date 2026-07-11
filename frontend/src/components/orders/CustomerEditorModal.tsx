@@ -321,7 +321,8 @@ export function CustomerEditorModal({ customer, profiles, selectedProfileId, isS
           <h2 id="customer-editor-title" className="text-lg font-semibold text-white">{editing ? t('orders.customerEditor.editTitle') : t('orders.customerEditor.createTitle')}</h2>
           <button type="button" disabled={pending} onClick={onClose} title={t('common.close')} aria-label={t('common.close')} className="rounded p-2 text-bambu-gray hover:bg-bambu-dark hover:text-white disabled:opacity-50"><X className="h-5 w-5" /></button>
         </header>
-        <fieldset disabled={pending} className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-4">
+        <div data-testid="customer-editor-scroll-viewport" className="min-h-0 flex-1 overflow-y-auto">
+          <fieldset disabled={pending} className="space-y-6 px-5 py-4">
           {loadError && <div role="alert" className="flex items-start gap-2 border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{loadError.message}</span>{onRetryLoad && <Button type="button" size="sm" variant="secondary" onClick={onRetryLoad}>{t('common.retry')}</Button>}</div>}
           {reloadError !== null && <div role="alert" className="flex items-start gap-2 border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{reloadError instanceof Error ? reloadError.message : String(reloadError)}</span><Button type="button" size="sm" variant="secondary" onClick={reload}>{t('common.retry')}</Button></div>}
           {mapped.message && <div role="alert" className={`flex items-start gap-2 border p-3 text-sm ${mapped.conflict ? 'border-amber-500/40 bg-amber-500/10 text-amber-100' : 'border-red-500/40 bg-red-500/10 text-red-200'}`}><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{mapped.message}</span>{mapped.conflict && <Button type="button" size="sm" variant="secondary" onClick={reload}>{t('orders.customerEditor.reload')}</Button>}</div>}
@@ -404,7 +405,8 @@ export function CustomerEditorModal({ customer, profiles, selectedProfileId, isS
             </div>
             <Field label={t('orders.customerEditor.notes')} error={errors.notes}><textarea aria-label={t('orders.customerEditor.notes')} value={draft.notes ?? ''} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} rows={3} className={inputClass} /></Field>
           </Section>
-        </fieldset>
+          </fieldset>
+        </div>
         <footer data-testid="customer-editor-footer" className="flex shrink-0 justify-end gap-3 border-t border-bambu-dark-tertiary bg-bambu-dark-secondary px-5 py-4">
           <Button type="button" variant="secondary" disabled={pending} onClick={onClose}>{t('common.cancel')}</Button>
           <Button type="submit" disabled={pending}>{isSubmitting ? t('common.saving') : t('orders.customerEditor.save')}</Button>

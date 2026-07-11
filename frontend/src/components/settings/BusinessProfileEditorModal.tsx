@@ -209,7 +209,8 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
             {editing ? t('orders.businessProfile.editTitle') : t('orders.businessProfile.createTitle')}
           </h2>
         </div>
-        <fieldset disabled={isSubmitting} className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-4">
+        <div data-testid="business-profile-editor-scroll-viewport" className="min-h-0 flex-1 overflow-y-auto">
+          <fieldset disabled={isSubmitting} className="space-y-6 px-5 py-4">
           {genericError && (
             <div role="alert" className={`flex gap-2 border p-3 text-sm ${error instanceof ApiError && error.status === 409 ? 'border-amber-500/40 bg-amber-500/10 text-amber-100' : 'border-red-500/40 bg-red-500/10 text-red-200'}`}>
               <AlertTriangle className="h-4 w-4 shrink-0" />{genericError}
@@ -423,7 +424,8 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
               <FieldError message={validation.fields.is_active} />
             </label>
           </fieldset>
-        </fieldset>
+          </fieldset>
+        </div>
         <div className="flex shrink-0 justify-end gap-3 border-t border-bambu-dark-tertiary bg-bambu-dark-secondary px-5 py-4">
           <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>{t('common.cancel')}</Button>
           <Button type="submit" disabled={isSubmitting} aria-label={t('orders.businessProfile.save')}>{isSubmitting ? t('common.saving') : t('orders.businessProfile.save')}</Button>
