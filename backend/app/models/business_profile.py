@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -11,6 +12,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     UniqueConstraint,
     func,
@@ -33,6 +35,14 @@ class BusinessProfile(Base):
             "billing_mode IN ('internal', 'external', 'hybrid')",
             name="ck_business_profiles_billing_mode",
         ),
+        CheckConstraint(
+            "tax_mode IN ('standard', 'exempt', 'none')",
+            name="ck_business_profiles_tax_mode",
+        ),
+        CheckConstraint(
+            "default_tax_rate >= 0 AND default_tax_rate <= 100",
+            name="ck_business_profiles_default_tax_rate",
+        ),
         Index(
             "uq_business_profiles_single_default",
             "is_default",
@@ -51,6 +61,14 @@ class BusinessProfile(Base):
     timezone: Mapped[str] = mapped_column(String(64), default="UTC")
     default_locale: Mapped[str] = mapped_column(String(16), default="en")
     billing_mode: Mapped[str] = mapped_column(String(16), default="hybrid")
+    tax_mode: Mapped[str] = mapped_column(String(16), default="standard")
+    default_tax_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("0.00"))
+    cash_accounting: Mapped[bool] = mapped_column(Boolean, default=False)
+    input_tax_deductible: Mapped[bool] = mapped_column(Boolean, default=True)
+    show_offer_qr: Mapped[bool] = mapped_column(Boolean, default=False)
+    paypal_me_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    logo_media_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    logo_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     version: Mapped[int] = mapped_column(Integer, default=1)

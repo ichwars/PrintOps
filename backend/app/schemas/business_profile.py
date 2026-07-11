@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Literal, Self
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pycountry
@@ -126,6 +128,12 @@ class BusinessProfileCreate(_NormalizedModel):
     timezone: str = Field(default="UTC", min_length=1, max_length=64)
     default_locale: str = Field(default="en", min_length=1, max_length=16)
     billing_mode: Literal["internal", "external", "hybrid"] = "hybrid"
+    tax_mode: Literal["standard", "exempt", "none"] = "standard"
+    default_tax_rate: Decimal = Field(default=Decimal("0.00"), ge=0, le=100, decimal_places=2)
+    cash_accounting: bool = False
+    input_tax_deductible: bool = True
+    show_offer_qr: bool = False
+    paypal_me_url: str | None = Field(default=None, max_length=500)
     is_active: bool = True
     is_default: bool = False
     addresses: list[BusinessProfileAddress]
@@ -153,8 +161,24 @@ class BusinessProfileCreate(_NormalizedModel):
             raise ValueError("timezone must be a valid IANA timezone") from exc
         return value
 
+    @field_validator("paypal_me_url")
+    @classmethod
+    def validate_paypal_me_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parsed = urlsplit(value)
+        if parsed.scheme != "https" or parsed.hostname not in {"paypal.me", "www.paypal.me"}:
+            raise ValueError("paypal_me_url must be an HTTPS paypal.me URL")
+        if parsed.username or parsed.password or parsed.port is not None:
+            raise ValueError("paypal_me_url must not contain credentials or a port")
+        return value
+
     @model_validator(mode="after")
     def validate_nested_defaults(self) -> Self:
+        if self.tax_mode in {"exempt", "none"}:
+            self.default_tax_rate = Decimal("0.00")
+            self.input_tax_deductible = False
+
         if not any(address.kind == "registered" for address in self.addresses):
             raise ValueError("At least one registered address is required")
 
@@ -208,6 +232,8 @@ class BusinessProfileResponse(BusinessProfileCreate):
     version: int
     created_at: datetime
     updated_at: datetime
+    logo_media_type: str | None = None
+    logo_version: int | None = None
     addresses: list[BusinessProfileAddressResponse]
     tax_identifiers: list[BusinessProfileTaxIdentifierResponse]
     bank_accounts: list[BusinessProfileBankAccountResponse]

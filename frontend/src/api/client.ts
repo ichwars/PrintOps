@@ -3210,6 +3210,12 @@ export interface BusinessProfileCreate {
   timezone?: string;
   default_locale?: string;
   billing_mode?: BillingMode;
+  tax_mode?: 'standard' | 'exempt' | 'none';
+  default_tax_rate?: string;
+  cash_accounting?: boolean;
+  input_tax_deductible?: boolean;
+  show_offer_qr?: boolean;
+  paypal_me_url?: string | null;
   is_active?: boolean;
   is_default?: boolean;
   addresses: BusinessProfileAddress[];
@@ -3226,6 +3232,8 @@ export interface BusinessProfile extends Omit<Required<BusinessProfileCreate>, '
   version: number;
   created_at: string;
   updated_at: string;
+  logo_media_type: string | null;
+  logo_version: number | null;
   addresses: BusinessProfileAddressResponse[];
   tax_identifiers: BusinessProfileTaxIdentifierResponse[];
   bank_accounts: BusinessProfileBankAccountResponse[];

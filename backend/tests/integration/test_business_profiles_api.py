@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 from copy import deepcopy
 from datetime import date
+from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
+from pydantic import ValidationError
 from sqlalchemy import event, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -23,6 +25,7 @@ from backend.app.models.customer import Customer, CustomerAccount
 from backend.app.models.group import Group
 from backend.app.models.number_sequence import NumberSequence
 from backend.app.models.user import User
+from backend.app.schemas.business_profile import BusinessProfileCreate
 from backend.app.schemas.customer import CustomerCreate
 from backend.app.services import business_profile as business_profile_service, customer as customer_service
 from backend.app.services.order_errors import (
@@ -230,6 +233,66 @@ def profile_payload(*, name: str = "EU Operations", is_default: bool = True) -> 
     payload["legal_name"] = f"{name} GmbH"
     payload["is_default"] = is_default
     return payload
+
+
+def test_exempt_profile_forces_zero_tax_and_disables_input_tax():
+    payload = profile_payload()
+    payload.update(
+        tax_mode="exempt",
+        default_tax_rate="19.00",
+        input_tax_deductible=True,
+    )
+
+    parsed = BusinessProfileCreate.model_validate(payload)
+
+    assert parsed.default_tax_rate == Decimal("0.00")
+    assert parsed.input_tax_deductible is False
+
+
+@pytest.mark.parametrize("url", ["http://paypal.me/example", "https://example.com/example"])
+def test_paypal_me_rejects_insecure_or_non_paypal_urls(url):
+    payload = profile_payload()
+    payload["paypal_me_url"] = url
+
+    with pytest.raises(ValidationError):
+        BusinessProfileCreate.model_validate(payload)
+
+
+def test_paypal_me_accepts_supported_https_hosts_and_blank_values():
+    payload = profile_payload()
+    payload["paypal_me_url"] = "https://paypal.me/Example/25EUR"
+    assert str(BusinessProfileCreate.model_validate(payload).paypal_me_url) == "https://paypal.me/Example/25EUR"
+
+    payload["paypal_me_url"] = ""
+    assert BusinessProfileCreate.model_validate(payload).paypal_me_url is None
+
+
+@pytest.mark.asyncio
+async def test_create_round_trips_document_tax_and_payment_settings(async_client: AsyncClient):
+    payload = profile_payload()
+    payload.update(
+        tax_mode="standard",
+        default_tax_rate="7.00",
+        cash_accounting=True,
+        input_tax_deductible=True,
+        show_offer_qr=True,
+        paypal_me_url="https://paypal.me/Example",
+    )
+
+    response = await async_client.post(BASE_URL + "/", json=payload)
+
+    assert response.status_code == 201, response.text
+    expected = {
+        "tax_mode": "standard",
+        "default_tax_rate": "7.00",
+        "cash_accounting": True,
+        "input_tax_deductible": True,
+        "show_offer_qr": True,
+        "paypal_me_url": "https://paypal.me/Example",
+        "logo_media_type": None,
+        "logo_version": None,
+    }
+    assert expected.items() <= response.json().items()
 
 
 async def create_profile(
