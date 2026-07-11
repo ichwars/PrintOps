@@ -1,6 +1,6 @@
 import { AlertTriangle, Pencil, Trash2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { BusinessProfileOption, CustomerDetail } from '../../api/client';
+import { ApiError, type BusinessProfileOption, type CustomerDetail } from '../../api/client';
 import { Button } from '../Button';
 import { useModalFocusLifecycle } from '../../hooks/useModalFocusLifecycle';
 
@@ -23,6 +23,9 @@ export function CustomerDetailsModal({ customer, profiles, selectedProfileId, ca
   const profileName = (id: number) => profiles.find((profile) => profile.id === id)?.name ?? `#${id}`;
   const accounts = [...customer.accounts].sort((a, b) => Number(b.business_profile_id === selectedProfileId) - Number(a.business_profile_id === selectedProfileId));
   const date = (input: string) => new Intl.DateTimeFormat(i18n.language, { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(input));
+  const loadErrorMessage = loadError instanceof ApiError && loadError.code === 'not_found'
+    ? t('orderUiNotFound')
+    : loadError?.message;
 
   const { dialogRef, onKeyDown } = useModalFocusLifecycle<HTMLElement>({ onClose });
 
@@ -41,7 +44,7 @@ export function CustomerDetailsModal({ customer, profiles, selectedProfileId, ca
           </div>
         </header>
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-4 text-sm">
-          {loadError && <div role="alert" className="flex items-start gap-2 border border-amber-500/40 bg-amber-500/10 p-3 text-amber-100"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{loadError.message}</span>{onRetryLoad && <Button size="sm" variant="secondary" onClick={onRetryLoad}>{t('common.retry')}</Button>}</div>}
+          {loadErrorMessage && <div role="alert" className="flex items-start gap-2 border border-amber-500/40 bg-amber-500/10 p-3 text-amber-100"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{loadErrorMessage}</span>{onRetryLoad && <Button size="sm" variant="secondary" onClick={onRetryLoad}>{t('common.retry')}</Button>}</div>}
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Info label={t('orders.customerEditor.kind')} text={t(`orders.customerEditor.${customer.kind}`)} />
             <Info label={t('common.status')} text={t(`orders.status.${customer.status}`)} />
@@ -80,7 +83,7 @@ export function CustomerDetailsModal({ customer, profiles, selectedProfileId, ca
           </Aggregate>
 
           <Aggregate title={t('orders.customerEditor.taxIdentifiers')} empty={customer.tax_identifiers.length === 0}>
-            {customer.tax_identifiers.map((tax) => <p key={tax.id} className="border-t border-bambu-dark-tertiary py-3 text-bambu-gray first:border-0"><strong className="text-white">{tax.kind}</strong> · <span>{tax.value}</span> · {value(tax.country_code)} · {tax.validation_status}</p>)}
+            {customer.tax_identifiers.map((tax) => <p key={tax.id} className="border-t border-bambu-dark-tertiary py-3 text-bambu-gray first:border-0"><strong className="text-white">{tax.kind}</strong> · <span>{tax.value}</span> · {value(tax.country_code)} · {t(`orderMessages.taxValidationStatus.${tax.validation_status}`)}</p>)}
           </Aggregate>
 
           <Aggregate title={t('orders.customerEditor.tags')} empty={customer.tags.length === 0}>

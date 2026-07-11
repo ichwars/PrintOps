@@ -88,7 +88,11 @@ def _error_metadata(sources: tuple[BaseException, ...], *attribute_names: str) -
     return values
 
 
-def _classify_integrity_error(error: IntegrityError, *, operation_kind: str) -> OrderDomainError:
+def _classify_integrity_error(
+    error: IntegrityError,
+    *,
+    operation_kind: str,
+) -> OrderDomainError | None:
     sources = _integrity_error_sources(error)
     message = " ".join(str(source) for source in sources).casefold()
     constraint_names = _error_metadata(sources, "constraint_name")
@@ -120,7 +124,14 @@ def _classify_integrity_error(error: IntegrityError, *, operation_kind: str) -> 
     ):
         return DuplicateBusinessKeyError(_DUPLICATE_MESSAGE)
 
-    return DuplicateBusinessKeyError(_GENERIC_INTEGRITY_MESSAGE)
+    is_unique_error = (
+        "23505" in sql_states
+        or "unique constraint failed" in message
+        or "duplicate key value violates unique constraint" in message
+    )
+    if is_unique_error:
+        return DuplicateBusinessKeyError(_GENERIC_INTEGRITY_MESSAGE)
+    return None
 
 
 async def _commit_write(
@@ -135,7 +146,10 @@ async def _commit_write(
         return result
     except IntegrityError as exc:
         await session.rollback()
-        raise _classify_integrity_error(exc, operation_kind=operation_kind) from exc
+        classified = _classify_integrity_error(exc, operation_kind=operation_kind)
+        if classified is None:
+            raise
+        raise classified from exc
     except OrderDomainError:
         await session.rollback()
         raise

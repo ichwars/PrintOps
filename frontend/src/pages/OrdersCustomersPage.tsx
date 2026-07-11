@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ChevronLeft, ChevronRight, Eye, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { api, type CustomerCreate, type CustomerDetail, type CustomerKind, type CustomerStatus, type CustomerUpdate } from '../api/client';
+import { ApiError, api, type CustomerCreate, type CustomerDetail, type CustomerKind, type CustomerStatus, type CustomerUpdate } from '../api/client';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CustomerDetailsModal } from '../components/orders/CustomerDetailsModal';
@@ -16,8 +16,22 @@ const limit = 25;
 const emptyProfiles: import('../api/client').BusinessProfileOption[] = [];
 const controlClass = 'h-10 rounded-md border border-bambu-dark-tertiary bg-bambu-dark px-3 text-sm text-white focus:border-bambu-green focus:outline-none';
 
+function localizedOrderError(error: unknown, t: (key: string) => string, language: string, fallback: string): string {
+  if (!(error instanceof ApiError)) return error instanceof Error ? error.message : fallback;
+  const knownKey = error.code ? ({
+    resource_in_use: 'orderUi.operationBlocked',
+    version_conflict: 'orderMessages.errors.customer_version_conflict',
+    duplicate_business_key: 'orderUi.duplicateRecord',
+    not_found: 'orderUiNotFound',
+  } as Record<string, string | null>)[error.code] : undefined;
+  if (knownKey === null) return fallback;
+  if (knownKey) return t(knownKey);
+  if (language.startsWith('de') && error.status === 409) return t('orderMessages.errors.conflict');
+  return error.message;
+}
+
 export function OrdersCustomersPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { loading: authLoading, hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const canRead = !authLoading && hasPermission('customers:read');
@@ -39,11 +53,23 @@ export function OrdersCustomersPage() {
   });
   const profiles = profilesQuery.data ?? emptyProfiles;
   const activeProfiles = useMemo(() => profiles.filter((profile) => profile.is_active), [profiles]);
+  const selectedProfileId = activeProfiles.some((profile) => profile.id === profileId) ? profileId : undefined;
 
   useEffect(() => {
-    if (profileId !== undefined || activeProfiles.length === 0) return;
+    if (activeProfiles.length === 0) {
+      if (profileId !== undefined) setProfileId(undefined);
+      setDetailsId(null);
+      setEditor(null);
+      setDeleteTarget(null);
+      return;
+    }
+    if (selectedProfileId !== undefined) return;
     setProfileId((activeProfiles.find((profile) => profile.is_default) ?? activeProfiles[0]).id);
-  }, [activeProfiles, profileId]);
+    setOffset(0);
+    setDetailsId(null);
+    setEditor(null);
+    setDeleteTarget(null);
+  }, [activeProfiles, profileId, selectedProfileId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -53,11 +79,11 @@ export function OrdersCustomersPage() {
     return () => window.clearTimeout(timer);
   }, [searchInput]);
 
-  const queryKey = ['customers', profileId, search, status, kind, limit, offset] as const;
+  const queryKey = ['customers', selectedProfileId, search, status, kind, limit, offset] as const;
   const customersQuery = useQuery({
     queryKey,
-    queryFn: () => api.getCustomers({ businessProfileId: profileId!, search: search || undefined, status: status || undefined, kind: kind || undefined, limit, offset }),
-    enabled: canRead && profileId !== undefined,
+    queryFn: () => api.getCustomers({ businessProfileId: selectedProfileId!, search: search || undefined, status: status || undefined, kind: kind || undefined, limit, offset }),
+    enabled: canRead && selectedProfileId !== undefined,
   });
   const detailsQuery = useQuery({
     queryKey: ['customer', detailsId],
@@ -139,7 +165,7 @@ export function OrdersCustomersPage() {
           <h1 className="flex items-center gap-3 text-2xl font-bold text-white"><Users className="h-7 w-7 text-bambu-green" />{t('orders.customers.title')}</h1>
           <p className="mt-1 text-sm text-bambu-gray">{t('orders.customers.subtitle')}</p>
         </div>
-        {canManage && profileId !== undefined && <Button onClick={() => openEditor('create')}><Plus className="mr-2 h-4 w-4" />{t('orders.customers.add')}</Button>}
+        {canManage && selectedProfileId !== undefined && <Button onClick={() => openEditor('create')}><Plus className="mr-2 h-4 w-4" />{t('orders.customers.add')}</Button>}
       </header>
 
       {profilesQuery.isPending ? <Loading label={t('orders.businessProfile.loading')} /> : profilesQuery.isError ? (
@@ -149,7 +175,7 @@ export function OrdersCustomersPage() {
       ) : (
         <>
           <div className="flex flex-wrap items-end gap-3 border-y border-bambu-dark-tertiary py-3">
-            <label className="min-w-52 text-xs text-bambu-gray">{t('orders.customers.businessProfile')}<select aria-label={t('orders.customers.businessProfile')} value={profileId} onChange={(event) => setProfile(Number(event.target.value))} className={`${controlClass} mt-1 w-full`}>{profiles.map((profile) => <option key={profile.id} value={profile.id} disabled={!profile.is_active}>{profile.name}</option>)}</select></label>
+            <label className="min-w-52 text-xs text-bambu-gray">{t('orders.customers.businessProfile')}<select aria-label={t('orders.customers.businessProfile')} value={selectedProfileId} onChange={(event) => setProfile(Number(event.target.value))} className={`${controlClass} mt-1 w-full`}>{profiles.map((profile) => <option key={profile.id} value={profile.id} disabled={!profile.is_active}>{profile.name}</option>)}</select></label>
             <label className="relative min-w-60 flex-1 text-xs text-bambu-gray">{t('orders.customers.search')}<Search className="pointer-events-none absolute bottom-2.5 left-3 h-4 w-4 text-bambu-gray" /><input type="search" aria-label={t('orders.customers.search')} value={searchInput} onChange={(event) => setSearchInput(event.target.value)} className={`${controlClass} mt-1 w-full pl-9`} /></label>
             <label className="min-w-40 text-xs text-bambu-gray">{t('orders.customers.statusFilter')}<select aria-label={t('orders.customers.statusFilter')} value={status} onChange={(event) => setStatusFilter(event.target.value as CustomerStatus | '')} className={`${controlClass} mt-1 w-full`}><option value="">{t('common.all')}</option>{(['active', 'inactive', 'blocked'] as const).map((item) => <option key={item} value={item}>{t(`orders.status.${item}`)}</option>)}</select></label>
             <div className="inline-flex h-10 items-center rounded-md border border-bambu-dark-tertiary bg-bambu-dark p-1" aria-label={t('orders.customers.kindFilter')}>{(['', 'company', 'person'] as const).map((item) => <button key={item || 'all'} type="button" aria-pressed={kind === item} onClick={() => setKindFilter(item)} className={`h-8 rounded px-3 text-sm ${kind === item ? 'bg-bambu-green text-black' : 'text-bambu-gray hover:text-white'}`}>{item ? t(`orders.customerEditor.${item}`) : t('common.all')}</button>)}</div>
@@ -179,12 +205,12 @@ export function OrdersCustomersPage() {
 
       {detailsId !== null && !detailsQuery.data && detailsQuery.isPending && <ModalLoading label={t('orders.customerDetails.loading')} />}
       {detailsId !== null && !detailsQuery.data && detailsQuery.isError && <ModalQueryError title={t('orders.customerDetails.loadError')} onClose={() => setDetailsId(null)} onRetry={() => detailsQuery.refetch()} />}
-      {detailsId !== null && detailsQuery.data && <CustomerDetailsModal customer={detailsQuery.data} profiles={profiles} selectedProfileId={profileId!} canManage={canManage} loadError={detailsQuery.isRefetchError && detailsQuery.error instanceof Error ? detailsQuery.error : null} onRetryLoad={() => detailsQuery.refetch()} onClose={() => setDetailsId(null)} onEdit={() => openEditor(detailsId)} onDelete={() => openDelete({ id: detailsQuery.data.id, name: detailsQuery.data.display_name })} />}
-      {editor === 'create' && <CustomerEditorModal customer={null} profiles={activeProfiles} selectedProfileId={profileId!} isSubmitting={mutationPending} onClose={closeEditor} onSubmit={submitEditor} onReloadCurrent={reloadCurrent} />}
+      {detailsId !== null && detailsQuery.data && selectedProfileId !== undefined && <CustomerDetailsModal customer={detailsQuery.data} profiles={profiles} selectedProfileId={selectedProfileId} canManage={canManage} loadError={detailsQuery.isRefetchError && detailsQuery.error instanceof Error ? detailsQuery.error : null} onRetryLoad={() => detailsQuery.refetch()} onClose={() => setDetailsId(null)} onEdit={() => openEditor(detailsId)} onDelete={() => openDelete({ id: detailsQuery.data.id, name: detailsQuery.data.display_name })} />}
+      {editor === 'create' && selectedProfileId !== undefined && <CustomerEditorModal customer={null} profiles={activeProfiles} selectedProfileId={selectedProfileId} isSubmitting={mutationPending} onClose={closeEditor} onSubmit={submitEditor} onReloadCurrent={reloadCurrent} />}
       {editorId !== null && !editorQuery.data && editorQuery.isPending && <ModalLoading label={t('orders.customerEditor.loading')} />}
       {editorId !== null && !editorQuery.data && editorQuery.isError && <ModalQueryError title={t('orders.customerEditor.loadError')} onClose={closeEditor} onRetry={() => editorQuery.refetch()} />}
-      {editorId !== null && editorQuery.data && <CustomerEditorModal customer={editorQuery.data} profiles={activeProfiles} selectedProfileId={profileId!} isSubmitting={mutationPending} loadError={editorQuery.isRefetchError && editorQuery.error instanceof Error ? editorQuery.error : null} onRetryLoad={() => editorQuery.refetch()} onClose={closeEditor} onSubmit={submitEditor} onReloadCurrent={reloadCurrent} onReloadAccepted={acceptReload} />}
-      {deleteTarget && <ConfirmModal title={t('orders.customers.deleteTitle', { name: deleteTarget.name })} message={t('orders.customers.deleteConfirm')} confirmText={t('orders.customers.deleteCustomer')} variant="danger" isLoading={deleteMutation.isPending} onCancel={() => { deleteMutation.reset(); setDeleteTarget(null); }} onConfirm={() => deleteMutation.mutate(deleteTarget.id)}>{deleteMutation.isError && <div role="alert" className="space-y-3 border-t border-red-500/30 pt-3 text-sm text-red-200"><p>{deleteMutation.error instanceof Error ? deleteMutation.error.message : t('orders.customers.deleteError')}</p><div className="flex gap-2"><Button size="sm" variant="secondary" onClick={() => deleteMutation.mutate(deleteTarget.id)}>{t('common.retry')}</Button><Button size="sm" variant="ghost" onClick={() => { deleteMutation.reset(); setDeleteTarget(null); }}>{t('common.dismiss')}</Button></div></div>}</ConfirmModal>}
+      {editorId !== null && editorQuery.data && selectedProfileId !== undefined && <CustomerEditorModal customer={editorQuery.data} profiles={activeProfiles} selectedProfileId={selectedProfileId} isSubmitting={mutationPending} loadError={editorQuery.isRefetchError && editorQuery.error instanceof Error ? editorQuery.error : null} onRetryLoad={() => editorQuery.refetch()} onClose={closeEditor} onSubmit={submitEditor} onReloadCurrent={reloadCurrent} onReloadAccepted={acceptReload} />}
+      {deleteTarget && <ConfirmModal title={t('orders.customers.deleteTitle', { name: deleteTarget.name })} message={t('orders.customers.deleteConfirm')} confirmText={t('orders.customers.deleteCustomer')} variant="danger" isLoading={deleteMutation.isPending} onCancel={() => { deleteMutation.reset(); setDeleteTarget(null); }} onConfirm={() => deleteMutation.mutate(deleteTarget.id)}>{deleteMutation.isError && <div role="alert" className="space-y-3 border-t border-red-500/30 pt-3 text-sm text-red-200"><p>{localizedOrderError(deleteMutation.error, t, i18n.language, t('orders.customers.deleteError'))}</p><div className="flex gap-2"><Button size="sm" variant="secondary" onClick={() => deleteMutation.mutate(deleteTarget.id)}>{t('common.retry')}</Button><Button size="sm" variant="ghost" onClick={() => { deleteMutation.reset(); setDeleteTarget(null); }}>{t('common.dismiss')}</Button></div></div>}</ConfirmModal>}
     </div>
   );
 }

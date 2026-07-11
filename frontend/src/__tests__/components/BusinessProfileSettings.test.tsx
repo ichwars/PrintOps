@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { setAuthToken } from '../../api/client';
 import { BusinessProfileSettings } from '../../components/settings/BusinessProfileSettings';
+import i18n from '../../i18n';
 import { server } from '../mocks/server';
 import { render } from '../utils';
 
@@ -71,8 +72,9 @@ describe('BusinessProfileSettings', () => {
     setAuthToken(null);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     setAuthToken(null);
+    await i18n.changeLanguage('en');
   });
 
   it('shows loading and an empty setup state', async () => {
@@ -97,18 +99,26 @@ describe('BusinessProfileSettings', () => {
     await user.click(await screen.findByRole('button', { name: 'Add business profile' }));
     await user.type(screen.getByLabelText('Profile name'), 'North America');
     await user.type(screen.getByLabelText('Legal name'), 'North America LLC');
-    await user.selectOptions(screen.getByLabelText('Profile country'), 'US');
+    await user.selectOptions(screen.getByLabelText('Profile country'), 'FR');
+    await user.selectOptions(screen.getByLabelText('Currency'), 'JPY');
+    await user.clear(screen.getByLabelText('Locale'));
+    await user.type(screen.getByLabelText('Locale'), 'fr-FR');
+    await user.clear(screen.getByLabelText('Timezone'));
+    await user.type(screen.getByLabelText('Timezone'), 'Asia/Tokyo');
     await user.type(screen.getByLabelText('Street'), '100 Main Street');
     await user.type(screen.getByLabelText('Postal code'), '10001');
     await user.type(screen.getByLabelText('City'), 'New York');
-    await user.selectOptions(screen.getByLabelText('Country'), 'GB');
+    await user.selectOptions(screen.getByLabelText('Country'), 'FR');
     await user.click(screen.getByRole('button', { name: 'Save business profile' }));
 
     await waitFor(() => expect(submitted).toMatchObject({
       name: 'North America',
       legal_name: 'North America LLC',
-      country_code: 'US',
-      addresses: [expect.objectContaining({ kind: 'registered', street: '100 Main Street', city: 'New York', country_code: 'GB' })],
+      country_code: 'FR',
+      default_currency: 'JPY',
+      default_locale: 'fr-FR',
+      timezone: 'Asia/Tokyo',
+      addresses: [expect.objectContaining({ kind: 'registered', street: '100 Main Street', city: 'New York', country_code: 'FR' })],
     }));
   });
 
@@ -130,6 +140,20 @@ describe('BusinessProfileSettings', () => {
     expect(fieldset).not.toHaveClass('flex-1', 'overflow-y-auto');
   });
 
+  it('focuses, traps, and restores focus for the profile editor', async () => {
+    const user = userEvent.setup();
+    useProfiles([]);
+    render(<BusinessProfileSettings />);
+    const add = await screen.findByRole('button', { name: 'Add business profile' });
+    await user.click(add);
+    expect(screen.getByLabelText('Profile name')).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(screen.getByRole('button', { name: 'Save business profile' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(add).toHaveFocus();
+  });
+
   it('edits nested identity and locale data with the current version', async () => {
     const user = userEvent.setup();
     let submitted: Record<string, unknown> | undefined;
@@ -145,7 +169,8 @@ describe('BusinessProfileSettings', () => {
     await user.type(screen.getByLabelText('Trading name'), 'EU Print Shop');
     await user.selectOptions(screen.getByLabelText('Profile country'), 'US');
     await user.selectOptions(screen.getByLabelText('Billing mode'), 'hybrid');
-    await user.selectOptions(screen.getByLabelText('Locale'), 'de');
+    await user.clear(screen.getByLabelText('Locale'));
+    await user.type(screen.getByLabelText('Locale'), 'de');
     await user.click(screen.getByRole('button', { name: 'Save business profile' }));
 
     await waitFor(() => expect(submitted).toMatchObject({
@@ -252,6 +277,60 @@ describe('BusinessProfileSettings', () => {
     await waitFor(() => expect(screen.queryByText('Default profile changed elsewhere.')).not.toBeInTheDocument());
   });
 
+  it('localizes a structured backend conflict code in German', async () => {
+    const user = userEvent.setup();
+    await i18n.changeLanguage('de');
+    useProfiles([profile(), profile({ id: 8, name: 'North America', legal_name: 'North America LLC', is_default: false })]);
+    server.use(http.post('/api/v1/business-profiles/8/default', () => HttpResponse.json({
+      detail: { code: 'resource_in_use', message: 'The business profile is referenced by a customer account' },
+    }, { status: 409 })));
+
+    render(<BusinessProfileSettings />);
+    await user.click(await screen.findByRole('button', { name: 'North America als Standard festlegen' }));
+
+    expect(await screen.findByText('Der Vorgang ist im aktuellen Zustand des Datensatzes nicht möglich.')).toBeInTheDocument();
+    expect(screen.queryByText('The business profile is referenced by a customer account')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Kombiniert')).toHaveLength(2);
+  });
+
+  it('localizes a structured not-found code in German', async () => {
+    const user = userEvent.setup();
+    await i18n.changeLanguage('de');
+    useProfiles([profile(), profile({ id: 8, name: 'North America', legal_name: 'North America LLC', is_default: false })]);
+    server.use(http.post('/api/v1/business-profiles/8/default', () => HttpResponse.json({
+      detail: { code: 'not_found', message: 'Business profile 8 was not found' },
+    }, { status: 404 })));
+
+    render(<BusinessProfileSettings />);
+    await user.click(await screen.findByRole('button', { name: 'North America als Standard festlegen' }));
+
+    expect(await screen.findByText('Der Datensatz wurde nicht gefunden.')).toBeInTheDocument();
+    expect(screen.queryByText('Business profile 8 was not found')).not.toBeInTheDocument();
+  });
+
+  it('strips response-only child ids from active-state update payloads', async () => {
+    const user = userEvent.setup();
+    let submitted: Record<string, unknown> | undefined;
+    useProfiles([profile({
+      tax_identifiers: [{ id: 31, kind: 'vat', value: 'DE123', country_code: 'DE', is_primary: true, valid_from: null, valid_until: null }],
+      bank_accounts: [{ id: 41, label: 'Main', account_holder: 'EU Operations GmbH', bank_name: null, country_code: 'DE', currency: 'EUR', iban: 'DE111', bic: null, account_number: null, routing_number: null, is_default: true }],
+    })]);
+    server.use(http.put('/api/v1/business-profiles/7', async ({ request }) => {
+      submitted = await request.json() as Record<string, unknown>;
+      return HttpResponse.json(profile({ is_active: false }));
+    }));
+
+    render(<BusinessProfileSettings />);
+    await user.click(await screen.findByRole('button', { name: 'Deactivate EU Operations' }));
+
+    await waitFor(() => expect(submitted).toBeDefined());
+    expect(submitted).toMatchObject({
+      addresses: [expect.not.objectContaining({ id: expect.anything() })],
+      tax_identifiers: [expect.not.objectContaining({ id: expect.anything() })],
+      bank_accounts: [expect.not.objectContaining({ id: expect.anything() })],
+    });
+  });
+
   it('dismisses a persistent row-action 409 explicitly', async () => {
     const user = userEvent.setup();
     useProfiles([profile(), profile({ id: 8, name: 'North America', legal_name: 'North America LLC', is_default: false })]);
@@ -341,7 +420,7 @@ describe('BusinessProfileSettings', () => {
     expect(iban.parentElement).toHaveTextContent('IBAN format is invalid');
   });
 
-  it('shows an unmapped 422 location in the top-level validation fallback', async () => {
+  it('maps a tax validity-date 422 problem beside its newly exposed field', async () => {
     const user = userEvent.setup();
     useProfiles([profile({ tax_identifiers: [{
       id: 31, kind: 'vat', value: 'DE123456789', country_code: 'DE', is_primary: true,
@@ -355,7 +434,9 @@ describe('BusinessProfileSettings', () => {
     await user.click(await screen.findByRole('button', { name: 'Edit EU Operations' }));
     await user.click(screen.getByRole('button', { name: 'Save business profile' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Valid-from date is invalid');
+    const validFrom = screen.getByLabelText('Valid from 1');
+    expect(await screen.findByText('Valid-from date is invalid')).toBeInTheDocument();
+    expect(validFrom.parentElement).toHaveTextContent('Valid-from date is invalid');
   });
 
   it('submits repeatable default and primary checkbox state while enforcing one selection', async () => {
@@ -425,6 +506,43 @@ describe('BusinessProfileSettings', () => {
     }));
   });
 
+  it('reconciles primary/default state when tax kind or bank currency changes', async () => {
+    const user = userEvent.setup();
+    let submitted: Record<string, unknown> | undefined;
+    useProfiles([profile({
+      tax_identifiers: [
+        { id: 31, kind: 'vat', value: 'DE111', country_code: 'DE', is_primary: true, valid_from: null, valid_until: null },
+        { id: 32, kind: 'tax', value: 'DE222', country_code: 'DE', is_primary: true, valid_from: null, valid_until: null },
+      ],
+      bank_accounts: [
+        { id: 41, label: 'EUR', account_holder: 'EU Operations GmbH', bank_name: null, country_code: 'DE', currency: 'EUR', iban: 'DE111', bic: null, account_number: null, routing_number: null, is_default: true },
+        { id: 42, label: 'USD', account_holder: 'EU Operations GmbH', bank_name: null, country_code: 'US', currency: 'USD', iban: null, bic: null, account_number: '123', routing_number: null, is_default: true },
+      ],
+    })]);
+    server.use(http.put('/api/v1/business-profiles/7', async ({ request }) => {
+      submitted = await request.json() as Record<string, unknown>;
+      return HttpResponse.json(profile());
+    }));
+
+    render(<BusinessProfileSettings />);
+    await user.click(await screen.findByRole('button', { name: 'Edit EU Operations' }));
+    fireEvent.change(screen.getByLabelText('Tax ID kind 1'), { target: { value: 'tax' } });
+    await user.selectOptions(screen.getByLabelText('Bank currency 1'), 'USD');
+    await user.click(screen.getByRole('button', { name: 'Save business profile' }));
+
+    await waitFor(() => expect(submitted).toBeDefined());
+    expect(submitted).toMatchObject({
+      tax_identifiers: [
+        { kind: 'tax', is_primary: true },
+        { kind: 'tax', is_primary: false },
+      ],
+      bank_accounts: [
+        { currency: 'USD', is_default: true },
+        { currency: 'USD', is_default: false },
+      ],
+    });
+  });
+
   it('does not allow removing the final registered address', async () => {
     const user = userEvent.setup();
     useProfiles([profile({ addresses: [
@@ -436,7 +554,31 @@ describe('BusinessProfileSettings', () => {
     await user.click(await screen.findByRole('button', { name: 'Edit EU Operations' }));
 
     expect(screen.queryByRole('button', { name: 'Remove address 1' })).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Address kind' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Remove address 2' })).toBeInTheDocument();
+  });
+
+  it('keeps one default address when a default row changes kind', async () => {
+    const user = userEvent.setup();
+    let submitted: Record<string, unknown> | undefined;
+    useProfiles([profile({ addresses: [
+      registeredAddress,
+      { ...registeredAddress, id: 12, label: 'Second seat', street: 'Second Street 2', is_default: false },
+      { ...registeredAddress, id: 13, kind: 'billing', label: 'Billing', is_default: true },
+    ] })]);
+    server.use(http.put('/api/v1/business-profiles/7', async ({ request }) => {
+      submitted = await request.json() as Record<string, unknown>;
+      return HttpResponse.json(profile());
+    }));
+
+    render(<BusinessProfileSettings />);
+    await user.click(await screen.findByRole('button', { name: 'Edit EU Operations' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Address kind' }), 'billing');
+    await user.click(screen.getByRole('button', { name: 'Save business profile' }));
+
+    await waitFor(() => expect(submitted).toBeDefined());
+    const billing = (submitted?.addresses as Array<{ kind: string; is_default: boolean }>).filter((address) => address.kind === 'billing');
+    expect(billing.filter((address) => address.is_default)).toHaveLength(1);
   });
 
   it('locks every draft control and Escape while submission is pending', async () => {
@@ -457,7 +599,8 @@ describe('BusinessProfileSettings', () => {
     await user.click(await screen.findByRole('button', { name: 'Edit EU Operations' }));
     const dialog = screen.getByRole('dialog');
     const name = within(dialog).getByLabelText('Profile name');
-    await user.click(within(dialog).getByRole('button', { name: 'Save business profile' }));
+    const save = within(dialog).getByRole('button', { name: 'Save business profile' });
+    await user.click(save);
     await waitFor(() => expect(name).toBeDisabled());
 
     expect(within(dialog).getByLabelText('Profile country')).toBeDisabled();
@@ -472,8 +615,10 @@ describe('BusinessProfileSettings', () => {
 
     await user.type(name, ' changed');
     expect(name).toHaveValue('EU Operations');
-    fireEvent.keyDown(window, { key: 'Escape' });
+    fireEvent.keyDown(dialog, { key: 'Escape' });
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.keyDown(dialog, { key: 'Tab' });
+    expect(dialog).toHaveFocus();
 
     resolveUpdate();
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
@@ -485,7 +630,7 @@ describe('BusinessProfileSettings', () => {
     render(<BusinessProfileSettings />);
     await user.click(await screen.findByRole('button', { name: 'Edit EU Operations' }));
 
-    fireEvent.keyDown(window, { key: 'Escape' });
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
@@ -538,6 +683,7 @@ describe('BusinessProfileSettings', () => {
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['business-profiles', false], exact: true });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['business-profiles', true], exact: true });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['business-profile-options'], exact: true });
     });
     invalidate.mockRestore();
   });

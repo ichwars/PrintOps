@@ -42,6 +42,7 @@ type Draft = Omit<CustomerCreate, 'accounts' | 'contacts' | 'addresses' | 'tax_i
   tax_identifiers: ClientRow<CustomerTaxIdentifier>[];
 };
 type FieldErrors = Record<string, string>;
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 const inputClass = 'mt-1 w-full rounded-md border border-bambu-dark-tertiary bg-bambu-dark px-3 py-2 text-sm text-white focus:border-bambu-green focus:outline-none';
 const customerKinds = ['company', 'person'] as const;
 const customerStatuses = ['active', 'inactive', 'blocked'] as const;
@@ -113,20 +114,20 @@ function isKnownFieldPath(path: string): boolean {
   return match !== null && nestedFields[match[1]]?.has(match[3]) === true;
 }
 
-function validateCustomer(draft: CustomerCreate, required: string): FieldErrors {
+function validateCustomer(draft: CustomerCreate, t: Translate): FieldErrors {
   const errors: FieldErrors = {};
   const add = (path: string, message: string) => { if (!errors[path]) errors[path] = message; };
   const text = (path: string, value: string | null | undefined, maximum: number, minimum = 0) => {
     const length = value?.length ?? 0;
-    if (minimum > 0 && length < minimum) add(path, required);
-    else if (length > maximum) add(path, `Must be at most ${maximum} characters.`);
+    if (minimum > 0 && length < minimum) add(path, t('orderMessages.validation.required'));
+    else if (length > maximum) add(path, t('orderMessages.validation.maxCharacters', { count: maximum }));
   };
   const optionalText = (path: string, value: string | null | undefined, maximum: number) => {
     if (value) text(path, value, maximum);
   };
 
   text('display_name', draft.display_name, 255, 1);
-  if (!customerKinds.includes(draft.kind)) add('kind', 'Choose a valid customer kind.');
+  if (!customerKinds.includes(draft.kind)) add('kind', t('orderMessages.validation.customerKind'));
   if (draft.kind === 'company') text('company_name', draft.company_name, 255, 1);
   else {
     text('first_name', draft.first_name, 120, 1);
@@ -135,29 +136,29 @@ function validateCustomer(draft: CustomerCreate, required: string): FieldErrors 
   optionalText('company_name', draft.company_name, 255);
   optionalText('first_name', draft.first_name, 120);
   optionalText('last_name', draft.last_name, 120);
-  if (!draft.status) add('status', required);
-  else if (!customerStatuses.includes(draft.status)) add('status', 'Choose a valid customer status.');
+  if (!draft.status) add('status', t('orderMessages.validation.required'));
+  else if (!customerStatuses.includes(draft.status)) add('status', t('orderMessages.validation.customerStatus'));
   text('preferred_locale', draft.preferred_locale, 16, 2);
   optionalText('notes', draft.notes, 10000);
 
-  if (draft.accounts.length === 0) add('accounts', 'At least one account is required.');
+  if (draft.accounts.length === 0) add('accounts', t('orderMessages.validation.accountRequired'));
   const profileIndexes = new Map<number, number>();
   draft.accounts.forEach((account, index) => {
     const path = (field: string) => `accounts.${index}.${field}`;
-    if (!Number.isInteger(account.business_profile_id) || account.business_profile_id <= 0) add(path('business_profile_id'), 'Choose a valid business profile.');
+    if (!Number.isInteger(account.business_profile_id) || account.business_profile_id <= 0) add(path('business_profile_id'), t('orderMessages.validation.businessProfile'));
     const firstProfile = profileIndexes.get(account.business_profile_id);
     if (firstProfile !== undefined) {
-      add(path('business_profile_id'), 'Only one account is allowed per business profile.');
-      add(`accounts.${firstProfile}.business_profile_id`, 'Only one account is allowed per business profile.');
+      add(path('business_profile_id'), t('orderMessages.validation.duplicateAccountProfile'));
+      add(`accounts.${firstProfile}.business_profile_id`, t('orderMessages.validation.duplicateAccountProfile'));
     } else profileIndexes.set(account.business_profile_id, index);
     optionalText(path('number'), account.number, 50);
-    if (!account.preferred_currency) add(path('preferred_currency'), required);
-    else if (!isIsoCurrencyCode(account.preferred_currency)) add(path('preferred_currency'), 'Enter a valid ISO 4217 currency code.');
-    if (!Number.isInteger(account.payment_term_days) || (account.payment_term_days ?? 0) < 0 || (account.payment_term_days ?? 0) > 365) add(path('payment_term_days'), 'Must be between 0 and 365.');
+    if (!account.preferred_currency) add(path('preferred_currency'), t('orderMessages.validation.required'));
+    else if (!isIsoCurrencyCode(account.preferred_currency)) add(path('preferred_currency'), t('orderMessages.validation.currency'));
+    if (!Number.isInteger(account.payment_term_days) || (account.payment_term_days ?? 0) < 0 || (account.payment_term_days ?? 0) > 365) add(path('payment_term_days'), t('orderMessages.validation.range', { min: 0, max: 365 }));
     optionalText(path('delivery_terms'), account.delivery_terms, 1000);
     const discount = Number(account.discount_percent);
-    if (!Number.isFinite(discount) || discount < 0 || discount > 100) add(path('discount_percent'), 'Must be between 0 and 100.');
-    else if (!/^\d+(?:\.\d{1,2})?$/.test(account.discount_percent ?? '')) add(path('discount_percent'), 'Use no more than two decimal places.');
+    if (!Number.isFinite(discount) || discount < 0 || discount > 100) add(path('discount_percent'), t('orderMessages.validation.range', { min: 0, max: 100 }));
+    else if (!/^\d+(?:\.\d{1,2})?$/.test(account.discount_percent ?? '')) add(path('discount_percent'), t('orderMessages.validation.twoDecimalPlaces'));
   });
 
   (draft.contacts ?? []).forEach((contact, index) => {
@@ -170,12 +171,12 @@ function validateCustomer(draft: CustomerCreate, required: string): FieldErrors 
     optionalText(path('phone'), contact.phone, 64);
   });
   const primaryContacts = (draft.contacts ?? []).map((contact, index) => contact.is_primary ? index : -1).filter((index) => index >= 0);
-  if (primaryContacts.length > 1) primaryContacts.forEach((index) => add(`contacts.${index}.is_primary`, 'Only one primary contact is allowed.'));
+  if (primaryContacts.length > 1) primaryContacts.forEach((index) => add(`contacts.${index}.is_primary`, t('orderUi.singlePrimaryContact')));
 
   const defaultAddresses = new Map<string, number>();
   (draft.addresses ?? []).forEach((address, index) => {
     const path = (field: string) => `addresses.${index}.${field}`;
-    if (!addressKinds.includes(address.kind)) add(path('kind'), 'Choose a valid address kind.');
+    if (!addressKinds.includes(address.kind)) add(path('kind'), t('orderMessages.validation.addressKind'));
     optionalText(path('label'), address.label, 100);
     optionalText(path('additional'), address.additional, 255);
     text(path('street'), address.street, 255, 1);
@@ -183,13 +184,13 @@ function validateCustomer(draft: CustomerCreate, required: string): FieldErrors 
     text(path('postal_code'), address.postal_code, 32, 1);
     text(path('city'), address.city, 120, 1);
     optionalText(path('region'), address.region, 120);
-    if (!address.country_code) add(path('country_code'), required);
-    else if (!isIsoCountryCode(address.country_code)) add(path('country_code'), 'Enter a valid ISO 3166-1 alpha-2 country code.');
+    if (!address.country_code) add(path('country_code'), t('orderMessages.validation.required'));
+    else if (!isIsoCountryCode(address.country_code)) add(path('country_code'), t('orderMessages.validation.country'));
     if (address.is_default) {
       const firstDefault = defaultAddresses.get(address.kind);
       if (firstDefault !== undefined) {
-        add(path('is_default'), 'Only one default address is allowed per kind.');
-        add(`addresses.${firstDefault}.is_default`, 'Only one default address is allowed per kind.');
+        add(path('is_default'), t('orderMessages.validation.duplicateDefaultAddress'));
+        add(`addresses.${firstDefault}.is_default`, t('orderMessages.validation.duplicateDefaultAddress'));
       } else defaultAddresses.set(address.kind, index);
     }
   });
@@ -199,15 +200,16 @@ function validateCustomer(draft: CustomerCreate, required: string): FieldErrors 
     const path = (field: string) => `tax_identifiers.${index}.${field}`;
     text(path('kind'), tax.kind, 32, 1);
     text(path('value'), tax.value, 64, 1);
-    if (tax.country_code && !isIsoCountryCode(tax.country_code)) add(path('country_code'), 'Enter a valid ISO 3166-1 alpha-2 country code.');
-    if (!taxValidationStatuses.includes(tax.validation_status ?? 'unchecked')) add(path('validation_status'), 'Choose a valid validation status.');
+    if (tax.country_code && !isIsoCountryCode(tax.country_code)) add(path('country_code'), t('orderMessages.validation.country'));
+    if (!taxValidationStatuses.includes(tax.validation_status ?? 'unchecked')) add(path('validation_status'), t('orderMessages.validation.taxValidationStatus'));
     const normalizedKind = normalizeNfkcCasefold(tax.kind);
     const normalizedValue = normalizeNfkcCasefold(tax.value);
+    if (normalizedKind.length > 32) add(path('kind'), t('orderMessages.validation.maxCharacters', { count: 32 }));
     const valuesForKind = taxIdentifiers.get(normalizedKind);
     const firstTax = valuesForKind?.get(normalizedValue);
     if (tax.kind && tax.value && firstTax !== undefined) {
-      add(path('value'), 'Duplicate tax identifiers are not allowed.');
-      add(`tax_identifiers.${firstTax}.value`, 'Duplicate tax identifiers are not allowed.');
+      add(path('value'), t('orderMessages.validation.duplicateTaxIdentifier'));
+      add(`tax_identifiers.${firstTax}.value`, t('orderMessages.validation.duplicateTaxIdentifier'));
     } else if (tax.kind && tax.value) {
       const values = valuesForKind ?? new Map<string, number>();
       values.set(normalizedValue, index);
@@ -215,33 +217,40 @@ function validateCustomer(draft: CustomerCreate, required: string): FieldErrors 
     }
   });
 
-  if ((draft.tags ?? []).length > 50) add('tags', 'Must contain no more than 50 tags.');
+  if ((draft.tags ?? []).length > 50) add('tags', t('orderMessages.validation.maxTags'));
   (draft.tags ?? []).forEach((tag) => {
     text('tags', tag, 100, 1);
     if (new TextEncoder().encode(normalizeNfkcCasefold(tag)).length > 512) {
-      add('tags', 'Normalized tag name must be at most 512 UTF-8 bytes.');
+      add('tags', t('orderMessages.validation.normalizedTag'));
     }
   });
   return errors;
 }
 
-function apiErrors(error: unknown): { fields: FieldErrors; message: string | null; conflict: boolean } {
+function apiErrors(error: unknown, t: Translate, language: string): { fields: FieldErrors; message: string | null; conflict: boolean } {
   if (!(error instanceof ApiError)) return { fields: {}, message: error instanceof Error ? error.message : null, conflict: false };
-  if (error.status !== 422) return { fields: {}, message: error.message, conflict: error.status === 409 };
+  const knownKey = error.code ? ({
+    resource_in_use: 'orderUi.operationBlocked',
+    version_conflict: 'orderMessages.errors.customer_version_conflict',
+    duplicate_business_key: 'orderUi.duplicateRecord',
+    not_found: 'orderUiNotFound',
+  } as Record<string, string>)[error.code] : undefined;
+  if (error.status !== 422) return { fields: {}, message: knownKey ? t(knownKey) : language.startsWith('de') && error.status === 409 ? t('orderMessages.errors.conflict') : error.message, conflict: error.status === 409 };
   const fields: FieldErrors = {};
   const global: string[] = [];
   for (const issue of error.validationErrors ?? []) {
     const parts = issue.loc[0] === 'body' ? issue.loc.slice(1) : issue.loc;
     const path = parts.join('.');
     const fieldPath = /^tags\.\d+$/.test(path) ? 'tags' : path;
-    if (fieldPath && isKnownFieldPath(path)) fields[fieldPath] = issue.msg;
-    else global.push(issue.msg);
+    const message = language.startsWith('de') ? t('orderMessages.validation.invalidField') : issue.msg;
+    if (fieldPath && isKnownFieldPath(path)) fields[fieldPath] = message;
+    else global.push(message);
   }
-  return { fields, message: global.join('; ') || (!error.validationErrors?.length ? error.message : null), conflict: false };
+  return { fields, message: global.join('; ') || (!error.validationErrors?.length ? language.startsWith('de') ? t('orderMessages.validation.failed') : error.message : null), conflict: false };
 }
 
 export function CustomerEditorModal({ customer, profiles, selectedProfileId, isSubmitting, onClose, onSubmit, onReloadCurrent, onReloadAccepted, loadError = null, onRetryLoad }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [draft, setDraft] = useState(() => asDraft(customer, selectedProfileId, profiles));
   const [draftVersion, setDraftVersion] = useState(customer?.version);
   const [tags, setTags] = useState(() => (customer?.tags ?? []).join(', '));
@@ -251,7 +260,15 @@ export function CustomerEditorModal({ customer, profiles, selectedProfileId, isS
   const [reloadError, setReloadError] = useState<unknown>(null);
   const reloadRequest = useRef(0);
   const mounted = useRef(true);
-  const mapped = useMemo(() => apiErrors(error), [error]);
+  const mapped = useMemo(() => apiErrors(error, t, i18n.language), [error, i18n.language, t]);
+  const loadErrorMessage = useMemo(
+    () => loadError ? apiErrors(loadError, t, i18n.language).message ?? loadError.message : null,
+    [i18n.language, loadError, t],
+  );
+  const reloadErrorMessage = useMemo(
+    () => reloadError !== null ? apiErrors(reloadError, t, i18n.language).message : null,
+    [i18n.language, reloadError, t],
+  );
   const errors = { ...mapped.fields, ...clientErrors };
   const editing = customer !== null;
   const initialFocusRef = useRef<HTMLInputElement>(null);
@@ -282,7 +299,7 @@ export function CustomerEditorModal({ customer, profiles, selectedProfileId, isS
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     const normalized = normalize({ ...draft, tags: tags.split(',') });
-    const validation = validateCustomer(normalized, t('orders.customerEditor.required'));
+    const validation = validateCustomer(normalized, t);
     setClientErrors(validation);
     if (Object.keys(validation).length) return;
     setError(null);
@@ -316,15 +333,15 @@ export function CustomerEditorModal({ customer, profiles, selectedProfileId, isS
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-3" role="presentation">
-      <form ref={dialogRef} onKeyDown={onKeyDown} noValidate onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="customer-editor-title" className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-xl">
+      <form ref={dialogRef} onKeyDown={onKeyDown} noValidate onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="customer-editor-title" tabIndex={-1} className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-xl">
         <header className="flex items-center justify-between border-b border-bambu-dark-tertiary px-5 py-4">
           <h2 id="customer-editor-title" className="text-lg font-semibold text-white">{editing ? t('orders.customerEditor.editTitle') : t('orders.customerEditor.createTitle')}</h2>
           <button type="button" disabled={pending} onClick={onClose} title={t('common.close')} aria-label={t('common.close')} className="rounded p-2 text-bambu-gray hover:bg-bambu-dark hover:text-white disabled:opacity-50"><X className="h-5 w-5" /></button>
         </header>
         <div data-testid="customer-editor-scroll-viewport" className="min-h-0 flex-1 overflow-y-auto">
           <fieldset disabled={pending} className="space-y-6 px-5 py-4">
-          {loadError && <div role="alert" className="flex items-start gap-2 border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{loadError.message}</span>{onRetryLoad && <Button type="button" size="sm" variant="secondary" onClick={onRetryLoad}>{t('common.retry')}</Button>}</div>}
-          {reloadError !== null && <div role="alert" className="flex items-start gap-2 border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{reloadError instanceof Error ? reloadError.message : String(reloadError)}</span><Button type="button" size="sm" variant="secondary" onClick={reload}>{t('common.retry')}</Button></div>}
+          {loadErrorMessage && <div role="alert" className="flex items-start gap-2 border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{loadErrorMessage}</span>{onRetryLoad && <Button type="button" size="sm" variant="secondary" onClick={onRetryLoad}>{t('common.retry')}</Button>}</div>}
+          {reloadErrorMessage && <div role="alert" className="flex items-start gap-2 border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{reloadErrorMessage}</span><Button type="button" size="sm" variant="secondary" onClick={reload}>{t('common.retry')}</Button></div>}
           {mapped.message && <div role="alert" className={`flex items-start gap-2 border p-3 text-sm ${mapped.conflict ? 'border-amber-500/40 bg-amber-500/10 text-amber-100' : 'border-red-500/40 bg-red-500/10 text-red-200'}`}><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{mapped.message}</span>{mapped.conflict && <Button type="button" size="sm" variant="secondary" onClick={reload}>{t('orders.customerEditor.reload')}</Button>}</div>}
 
           <Section title={t('orders.customerEditor.identity')}>
@@ -392,7 +409,7 @@ export function CustomerEditorModal({ customer, profiles, selectedProfileId, isS
                 <Text path={`tax_identifiers.${index}.kind`} label={t('orders.customerEditor.taxKind')} number={index} value={tax.kind} onChange={(value) => patchTax(index, { kind: value })} errors={errors} />
                 <Text path={`tax_identifiers.${index}.value`} label={t('orders.customerEditor.taxValue')} number={index} value={tax.value} onChange={(value) => patchTax(index, { value })} errors={errors} />
                 <Text path={`tax_identifiers.${index}.country_code`} label={t('orders.customerEditor.taxCountry')} number={index} value={tax.country_code} onChange={(value) => patchTax(index, { country_code: value })} errors={errors} />
-                <Field label={t('orders.customerEditor.validationStatus')} error={errors[`tax_identifiers.${index}.validation_status`]}><select aria-label={`${t('orders.customerEditor.validationStatus')} ${index + 1}`} value={tax.validation_status ?? 'unchecked'} onChange={(e) => patchTax(index, { validation_status: e.target.value as CustomerTaxIdentifier['validation_status'] })} className={inputClass}>{(['unchecked', 'valid', 'invalid'] as const).map((status) => <option key={status} value={status}>{status}</option>)}</select></Field>
+                <Field label={t('orders.customerEditor.validationStatus')} error={errors[`tax_identifiers.${index}.validation_status`]}><select aria-label={`${t('orders.customerEditor.validationStatus')} ${index + 1}`} value={tax.validation_status ?? 'unchecked'} onChange={(e) => patchTax(index, { validation_status: e.target.value as CustomerTaxIdentifier['validation_status'] })} className={inputClass}>{taxValidationStatuses.map((status) => <option key={status} value={status}>{t(`orderMessages.taxValidationStatus.${status}`)}</option>)}</select></Field>
               </div>
             </Row>)}
           </Section>

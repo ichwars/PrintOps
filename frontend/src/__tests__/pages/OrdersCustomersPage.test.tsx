@@ -8,6 +8,7 @@ import { render } from '../utils';
 import { server } from '../mocks/server';
 import { OrdersCustomersPage } from '../../pages/OrdersCustomersPage';
 import { setAuthToken } from '../../api/client';
+import i18n from '../../i18n';
 
 const profiles = [
   { id: 3, name: 'Inactive Profile', country_code: 'DE', default_currency: 'EUR', timezone: 'Europe/Berlin', default_locale: 'de', billing_mode: 'internal', is_default: false, is_active: false },
@@ -86,7 +87,10 @@ describe('OrdersCustomersPage', () => {
     useDefaultHandlers();
   });
 
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await i18n.changeLanguage('en');
+  });
 
   it('defaults to the active default profile and links no-profile state to settings', async () => {
     const requested: string[] = [];
@@ -110,6 +114,24 @@ describe('OrdersCustomersPage', () => {
     expect(await screen.findByText('No active business profile is available.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Configure business profiles' })).toHaveAttribute('href', '/settings?tab=orders-calculation&sub=business-profile');
     expect(customerRequests).toBe(0);
+  });
+
+  it('clears a selected profile when refreshed options remove it', async () => {
+    let optionRequests = 0;
+    server.use(http.get('/api/v1/business-profiles/options', () => {
+      optionRequests += 1;
+      return HttpResponse.json(optionRequests === 1 ? profiles : []);
+    }));
+
+    render(<OrdersCustomersPage />);
+    expect(await screen.findByRole('button', { name: 'Add customer' })).toBeInTheDocument();
+
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+
+    expect(await screen.findByText('No active business profile is available.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add customer' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Business profile' })).not.toBeInTheDocument();
   });
 
   it('debounces search for 300ms, sends status/kind, and resets offset on every selector', async () => {
@@ -166,6 +188,31 @@ describe('OrdersCustomersPage', () => {
       expect(within(dialog).getAllByText(value)[0]).toBeInTheDocument();
     }
     expect(within(dialog).queryByText(/revenue|receivable|history/i)).not.toBeInTheDocument();
+  });
+
+  it('localizes customer tax status and validation feedback in German', async () => {
+    const user = userEvent.setup();
+    await i18n.changeLanguage('de');
+    const duplicatePrimary = {
+      ...detailCustomer,
+      contacts: [
+        ...detailCustomer.contacts,
+        { ...detailCustomer.contacts[0], id: 202, first_name: 'Berta', email: 'berta@example.test' },
+      ],
+    };
+    server.use(http.get('/api/v1/customers/:id', () => HttpResponse.json(duplicatePrimary)));
+
+    render(<OrdersCustomersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ada Example anzeigen' }));
+    const details = await screen.findByRole('dialog', { name: 'Kundendetails' });
+    const taxLine = within(details).getByText((_content, element) => element?.tagName === 'P' && element.textContent?.includes('DE123456789') === true);
+    expect(taxLine).toHaveTextContent('Gültig');
+    expect(taxLine).not.toHaveTextContent(/\bvalid\b/);
+    await user.click(within(details).getByRole('button', { name: 'Schließen' }));
+
+    await user.click(screen.getByRole('button', { name: 'Ada Example bearbeiten' }));
+    await user.click(screen.getByRole('button', { name: 'Kunde speichern' }));
+    expect(await screen.findAllByText('Es ist nur ein Hauptkontakt zulässig.')).toHaveLength(2);
   });
 
   it('submits complete nested data for create and normalizes tags', async () => {
@@ -395,6 +442,19 @@ describe('OrdersCustomersPage', () => {
     const message = 'Duplicate tax identifiers are not allowed.';
     expect(screen.getByRole('textbox', { name: 'Tax identifier value 1' })).toHaveAccessibleDescription(message);
     expect(screen.getByRole('textbox', { name: 'Tax identifier value 2' })).toHaveAccessibleDescription(message);
+    expect(mutationRequests).toEqual({ post: 0, put: 0 });
+  });
+
+  it('rejects a tax kind that exceeds the limit after Unicode normalization', async () => {
+    const mutationRequests = trackCustomerMutations();
+    const user = await openValidCreateEditor();
+    await user.click(screen.getByRole('button', { name: 'Add tax identifier' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Tax identifier kind 1' }), { target: { value: 'ß'.repeat(17) } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Tax identifier value 1' }), { target: { value: 'DE123' } });
+
+    await user.click(screen.getByRole('button', { name: 'Save customer' }));
+
+    expect(screen.getByRole('textbox', { name: 'Tax identifier kind 1' })).toHaveAccessibleDescription('Must be at most 32 characters.');
     expect(mutationRequests).toEqual({ post: 0, put: 0 });
   });
 
@@ -847,6 +907,21 @@ describe('OrdersCustomersPage', () => {
     expect(screen.queryByText('Delete Ada Example?')).not.toBeInTheDocument();
   });
 
+  it('localizes a structured not-found error in German', async () => {
+    await i18n.changeLanguage('de');
+    server.use(http.delete('/api/v1/customers/11', () => HttpResponse.json({
+      detail: { code: 'not_found', message: 'Customer 11 was not found' },
+    }, { status: 404 })));
+    const user = userEvent.setup();
+
+    render(<OrdersCustomersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ada Example löschen' }));
+    await user.click(screen.getByRole('button', { name: 'Kunde löschen' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Der Datensatz wurde nicht gefunden.');
+    expect(screen.queryByText('Customer 11 was not found')).not.toBeInTheDocument();
+  });
+
   it('keeps Escape and the stable footer pending-safe', async () => {
     server.use(http.post('/api/v1/customers/', async () => { await delay('infinite'); return HttpResponse.json(detailCustomer); }));
     const user = userEvent.setup();
@@ -863,6 +938,9 @@ describe('OrdersCustomersPage', () => {
     expect(screen.getByRole('dialog', { name: 'Add customer' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Saving...' })).toBeDisabled();
     expect(screen.getByRole('dialog', { name: 'Add customer' })).toContainElement(document.activeElement as HTMLElement);
+    const dialog = screen.getByRole('dialog', { name: 'Add customer' });
+    fireEvent.keyDown(dialog, { key: 'Tab' });
+    expect(dialog).toHaveFocus();
     expect(screen.getByTestId('customer-editor-footer')).toBeInTheDocument();
   });
 

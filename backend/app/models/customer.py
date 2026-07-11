@@ -106,7 +106,7 @@ class CustomerAccount(Base):
     __table_args__ = (
         UniqueConstraint(
             "business_profile_id",
-            "number",
+            "number_key",
             name="uq_customer_account_profile_number",
         ),
         UniqueConstraint(

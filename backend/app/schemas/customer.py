@@ -113,7 +113,10 @@ class CustomerTaxIdentifierInput(_NormalizedModel):
     @field_validator("kind")
     @classmethod
     def normalize_kind(cls, value: str) -> str:
-        return normalize_case_insensitive_key(value)
+        normalized = normalize_case_insensitive_key(value)
+        if len(normalized) > 32:
+            raise ValueError("kind must not exceed 32 characters after normalization")
+        return normalized
 
     @field_validator("country_code")
     @classmethod

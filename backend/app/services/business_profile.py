@@ -27,6 +27,22 @@ _PROFILE_LOAD_OPTIONS = (
 _NESTED_FIELDS = {"addresses", "tax_identifiers", "bank_accounts"}
 
 
+async def _lock_customer_sequence_for_sqlite(session: AsyncSession, profile_id: int) -> None:
+    """Serialize profile lifecycle changes with SQLite customer creation."""
+    if session.get_bind().dialect.name != "sqlite":
+        return
+
+    await session.execute(
+        update(NumberSequence)
+        .where(
+            NumberSequence.business_profile_id == profile_id,
+            NumberSequence.key == "customer",
+        )
+        .values(updated_at=NumberSequence.updated_at)
+        .execution_options(synchronize_session=False)
+    )
+
+
 async def list_business_profiles(
     session: AsyncSession,
     *,
@@ -139,7 +155,23 @@ async def update_business_profile(
     profile_id: int,
     data: BusinessProfileUpdate,
 ) -> BusinessProfile:
-    profile = await get_business_profile(session, profile_id)
+    # SQLite must enter its write transaction before the first read. Otherwise
+    # a concurrent writer can invalidate the deferred read snapshot and turn
+    # the later lock upgrade into SQLITE_BUSY_SNAPSHOT.
+    await _lock_customer_sequence_for_sqlite(session, profile_id)
+    profile = await _load_business_profile(
+        session,
+        profile_id,
+        for_update=session.get_bind().dialect.name != "sqlite",
+    )
+    if profile.is_active and not data.is_active:
+        customer_account_id = await session.scalar(
+            select(CustomerAccount.id)
+            .where(CustomerAccount.business_profile_id == profile_id)
+            .limit(1)
+        )
+        if customer_account_id is not None:
+            raise ResourceInUseError("The business profile is referenced by a customer account")
     if profile.is_default and (not data.is_default or not data.is_active):
         raise ResourceInUseError("The active default business profile cannot be disabled or unset")
     if data.is_default and not data.is_active:
@@ -196,7 +228,12 @@ async def update_business_profile(
 
 
 async def set_default_business_profile(session: AsyncSession, profile_id: int) -> BusinessProfile:
-    profile = await _load_business_profile(session, profile_id, for_update=True)
+    await _lock_customer_sequence_for_sqlite(session, profile_id)
+    profile = await _load_business_profile(
+        session,
+        profile_id,
+        for_update=session.get_bind().dialect.name != "sqlite",
+    )
     observed_version = profile.version
     if not profile.is_active:
         raise ResourceInUseError("An inactive business profile cannot be the default")
@@ -229,7 +266,12 @@ async def set_default_business_profile(session: AsyncSession, profile_id: int) -
 
 
 async def delete_business_profile(session: AsyncSession, profile_id: int) -> None:
-    profile = await _load_business_profile(session, profile_id, for_update=True)
+    await _lock_customer_sequence_for_sqlite(session, profile_id)
+    profile = await _load_business_profile(
+        session,
+        profile_id,
+        for_update=session.get_bind().dialect.name != "sqlite",
+    )
     if profile.is_default:
         raise ResourceInUseError("The default business profile cannot be deleted")
 

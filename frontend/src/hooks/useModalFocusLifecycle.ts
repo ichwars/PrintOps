@@ -38,17 +38,23 @@ export function useModalFocusLifecycle<T extends HTMLElement>({ onClose, canClos
     }
     if (event.key !== 'Tab') return;
 
-    const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? []);
+    const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? [])
+      .filter((control) => !control.matches(':disabled'));
     if (controls.length === 0) {
       event.preventDefault();
+      dialogRef.current?.focus();
       return;
     }
     const first = controls[0];
     const last = controls[controls.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
+    const activeControl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (!activeControl || !controls.includes(activeControl)) {
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    } else if (event.shiftKey && activeControl === first) {
       event.preventDefault();
       last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
+    } else if (!event.shiftKey && activeControl === last) {
       event.preventDefault();
       first.focus();
     }

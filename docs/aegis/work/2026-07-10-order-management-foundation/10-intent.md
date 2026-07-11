@@ -47,4 +47,3 @@ and inconsistent frontend/backend contracts.
   code-quality review, and focused verification before the next task.
 - Completion evidence: all plan tasks checked, focused suites green, broader
   regressions classified, browser states inspected, fork-only remote verified.
-

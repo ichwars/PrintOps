@@ -226,6 +226,59 @@ const ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS = new Set([
   'orders.customerDetails.loadError', 'orders.customerDetails.paymentDays', 'orders.customerDetails.created', 'orders.customerDetails.updated',
 ].forEach((key) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(key));
 
+// Final foundation review adds shared profile/customer validation copy. The
+// approved increment translates German natively and intentionally retains
+// English fallbacks in the other non-English locales.
+[
+  'orderMessages.addressKind',
+  'orderMessages.addressKinds.registered',
+  'orderMessages.addressKinds.billing',
+  'orderMessages.addressKinds.shipping',
+  'orderMessages.addressKinds.other',
+  'orderMessages.addressLabel',
+  'orderMessages.additional',
+  'orderMessages.street2',
+  'orderMessages.region',
+  'orderMessages.taxCountry',
+  'orderMessages.validFrom',
+  'orderMessages.validUntil',
+  'orderMessages.taxValidationStatus.unchecked',
+  'orderMessages.taxValidationStatus.valid',
+  'orderMessages.taxValidationStatus.invalid',
+  'orderMessages.validation.required',
+  'orderMessages.validation.maxCharacters',
+  'orderMessages.validation.customerKind',
+  'orderMessages.validation.customerStatus',
+  'orderMessages.validation.accountRequired',
+  'orderMessages.validation.businessProfile',
+  'orderMessages.validation.duplicateAccountProfile',
+  'orderMessages.validation.currency',
+  'orderMessages.validation.range',
+  'orderMessages.validation.twoDecimalPlaces',
+  'orderMessages.validation.addressKind',
+  'orderMessages.validation.country',
+  'orderMessages.validation.duplicateDefaultAddress',
+  'orderMessages.validation.taxValidationStatus',
+  'orderMessages.validation.duplicateTaxIdentifier',
+  'orderMessages.validation.maxTags',
+  'orderMessages.validation.normalizedTag',
+  'orderMessages.validation.invalidField',
+  'orderMessages.validation.failed',
+  'orderMessages.errors.conflict',
+  'orderMessages.errors.business_profile_in_use',
+  'orderMessages.errors.business_profile_referenced',
+  'orderMessages.errors.business_profile_version_conflict',
+  'orderMessages.errors.customer_number_conflict',
+  'orderMessages.errors.customer_account_number_conflict',
+  'orderMessages.errors.customer_version_conflict',
+  'orderUi.operationBlocked',
+  'orderUi.duplicateRecord',
+  'orderUi.singlePrimaryContact',
+  'orderUi.billingModes.internal',
+  'orderUi.billingModes.external',
+  'orderUi.billingModes.hybrid',
+].forEach((key) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(key));
+
 function isAllowedOrderManagementEnglishFallback(locale, key) {
   return ORDER_MANAGEMENT_ENGLISH_FALLBACK_LOCALES.has(locale)
     && ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.has(key);

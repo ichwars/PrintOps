@@ -7,6 +7,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import pycountry
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from backend.app.core.text_normalization import normalize_case_insensitive_key
+
 _COUNTRY_CODES = frozenset(country.alpha_2 for country in pycountry.countries)
 _CURRENCY_CODES = frozenset(currency.alpha_3 for currency in pycountry.currencies)
 
@@ -74,7 +76,10 @@ class BusinessProfileTaxIdentifier(_NormalizedModel):
     @field_validator("kind")
     @classmethod
     def normalize_kind(cls, value: str) -> str:
-        return value.casefold()
+        normalized = normalize_case_insensitive_key(value)
+        if len(normalized) > 32:
+            raise ValueError("kind must not exceed 32 characters after normalization")
+        return normalized
 
     @model_validator(mode="after")
     def validate_date_range(self) -> Self:
@@ -162,7 +167,7 @@ class BusinessProfileCreate(_NormalizedModel):
             raise ValueError("Only one primary tax identifier is allowed per kind")
 
         tax_identifier_keys = [
-            (tax_id.kind, tax_id.value.casefold())
+            (tax_id.kind, normalize_case_insensitive_key(tax_id.value))
             for tax_id in self.tax_identifiers
         ]
         if len(tax_identifier_keys) != len(set(tax_identifier_keys)):

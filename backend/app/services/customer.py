@@ -32,6 +32,7 @@ from backend.app.schemas.customer import (
 )
 from backend.app.services.number_sequence import reserve_number
 from backend.app.services.order_errors import (
+    DuplicateBusinessKeyError,
     ResourceInUseError,
     ResourceNotFoundError,
     VersionConflictError,
@@ -189,33 +190,73 @@ async def _reserve_available_number(
     business_profile_id: int,
     effective_date: date,
 ) -> str:
-    existing_count = await session.scalar(
-        select(func.count(CustomerAccount.id)).where(
-            CustomerAccount.business_profile_id == business_profile_id
-        )
+    occupied_keys = await _normalized_number_keys(
+        session,
+        business_profile_id=business_profile_id,
     )
-    for _attempt in range((existing_count or 0) + 1):
+    for _attempt in range(len(occupied_keys) + 1):
         candidate = await reserve_number(
             session,
             business_profile_id=business_profile_id,
             key="customer",
             effective_date=effective_date,
         )
-        candidate_key = normalize_case_insensitive_key(candidate)
-        occupied = await session.scalar(
-            select(
-                exists().where(
-                    CustomerAccount.business_profile_id == business_profile_id,
-                    CustomerAccount.number_key == candidate_key,
-                )
-            )
-        )
-        if not occupied:
+        if normalize_case_insensitive_key(candidate) not in occupied_keys:
             return candidate
 
     raise VersionConflictError(
         f"Could not reserve an available customer number for business profile {business_profile_id}"
     )
+
+
+async def _assert_manual_number_available(
+    session: AsyncSession,
+    *,
+    business_profile_id: int,
+    number: str,
+    exclude_account_id: int | None = None,
+) -> None:
+    if await _normalized_number_exists(
+        session,
+        business_profile_id=business_profile_id,
+        number=number,
+        exclude_account_id=exclude_account_id,
+    ):
+        raise DuplicateBusinessKeyError(
+            "A customer account with this profile and number already exists"
+        )
+
+
+async def _normalized_number_exists(
+    session: AsyncSession,
+    *,
+    business_profile_id: int,
+    number: str,
+    exclude_account_id: int | None = None,
+) -> bool:
+    """Compare visible numbers so legacy runtime-derived keys cannot hide collisions."""
+    requested_key = normalize_case_insensitive_key(number)
+    occupied_keys = await _normalized_number_keys(
+        session,
+        business_profile_id=business_profile_id,
+        exclude_account_id=exclude_account_id,
+    )
+    return requested_key in occupied_keys
+
+
+async def _normalized_number_keys(
+    session: AsyncSession,
+    *,
+    business_profile_id: int,
+    exclude_account_id: int | None = None,
+) -> set[str]:
+    statement = select(CustomerAccount.id, CustomerAccount.number).where(
+        CustomerAccount.business_profile_id == business_profile_id
+    )
+    if exclude_account_id is not None:
+        statement = statement.where(CustomerAccount.id != exclude_account_id)
+    rows = (await session.execute(statement)).all()
+    return {normalize_case_insensitive_key(row.number) for row in rows}
 
 
 async def _new_accounts(
@@ -232,6 +273,12 @@ async def _new_accounts(
                 session,
                 business_profile_id=account_data.business_profile_id,
                 effective_date=effective_date,
+            )
+        else:
+            await _assert_manual_number_available(
+                session,
+                business_profile_id=account_data.business_profile_id,
+                number=values["number"],
             )
         accounts.append(CustomerAccount(**values))
     return accounts
@@ -336,11 +383,14 @@ async def update_customer(
     *,
     effective_date: date,
 ) -> Customer:
-    customer = await get_customer(session, customer_id)
+    # The profile validation acquires SQLite's write lock. Run it before the
+    # first customer read so the transaction cannot hold a stale read snapshot
+    # when it later mutates customer and account rows.
     await _validate_business_profiles(
         session,
         [account.business_profile_id for account in data.accounts],
     )
+    customer = await get_customer(session, customer_id)
 
     scalar_values = data.model_dump(include=_SCALAR_FIELDS)
     scalar_values["display_name_key"] = normalize_case_insensitive_key(data.display_name)
@@ -382,14 +432,21 @@ async def update_customer(
     for account_data in data.accounts:
         requested_profile_ids.add(account_data.business_profile_id)
         values = account_data.model_dump()
+        existing_account = existing_accounts.get(account_data.business_profile_id)
         if values["number"] is None:
             values["number"] = await _reserve_available_number(
                 session,
                 business_profile_id=account_data.business_profile_id,
                 effective_date=effective_date,
             )
+        else:
+            await _assert_manual_number_available(
+                session,
+                business_profile_id=account_data.business_profile_id,
+                number=values["number"],
+                exclude_account_id=existing_account.id if existing_account is not None else None,
+            )
 
-        existing_account = existing_accounts.get(account_data.business_profile_id)
         if existing_account is None:
             customer.accounts.append(CustomerAccount(**values))
             continue

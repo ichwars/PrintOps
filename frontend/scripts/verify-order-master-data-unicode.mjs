@@ -37,20 +37,18 @@ import json
 import sys
 
 import pycountry
+from backend.app.core.text_normalization import (
+    UNICODE_NORMALIZATION_VERSION,
+    normalize_case_insensitive_key,
+)
 
-if sys.version_info[:2] == (3, 13):
-    import unicodedata
-    unicode_provider = "stdlib"
-elif sys.version_info[:2] == (3, 12):
-    import unicodedata2 as unicodedata
-    unicode_provider = "unicodedata2"
-else:
-    raise RuntimeError(f"Expected Python 3.13.x or local verifier Python 3.12.x, received {sys.version.split()[0]}")
+if not (3, 10) <= sys.version_info[:2] <= (3, 13):
+    raise RuntimeError(f"Expected Python 3.10-3.13, received {sys.version.split()[0]}")
 
 print(json.dumps({
     "pythonVersion": sys.version.split()[0],
-    "unicodeVersion": unicodedata.unidata_version,
-    "unicodeProvider": unicode_provider,
+    "unicodeVersion": UNICODE_NORMALIZATION_VERSION,
+    "unicodeProvider": "backend.app.core.text_normalization",
     "pycountryVersion": pycountry.__version__,
     "countryCodes": sorted(country.alpha_2 for country in pycountry.countries),
     "currencyCodes": sorted(currency.alpha_3 for currency in pycountry.currencies),
@@ -58,7 +56,7 @@ print(json.dumps({
 chunk_size = 4096
 for start in range(0, sys.maxunicode + 1, chunk_size):
     end = min(start + chunk_size, sys.maxunicode + 1)
-    values = [unicodedata.normalize("NFKC", chr(cp)).casefold() for cp in range(start, end)]
+    values = [normalize_case_insensitive_key(chr(cp)) for cp in range(start, end)]
     print(json.dumps([start, values], ensure_ascii=True))
 `;
 
@@ -78,6 +76,7 @@ function acceptedCodes(length, predicate) {
 const python = spawn(pythonExecutable, ['-c', pythonSource], {
   stdio: ['ignore', 'pipe', 'pipe'],
   windowsHide: true,
+  cwd: resolve('..'),
 });
 let stderr = '';
 python.stderr.setEncoding('utf8');
@@ -97,13 +96,15 @@ for await (const line of lines) {
   const payload = JSON.parse(line);
   if (!metadataChecked) {
     metadataChecked = true;
-    const supportedPython = payload.pythonVersion.startsWith('3.13.')
-      || (payload.pythonVersion.startsWith('3.12.') && payload.unicodeProvider === 'unicodedata2');
+    const [, major, minor] = payload.pythonVersion.match(/^(\d+)\.(\d+)\./) ?? [];
+    const supportedPython = Number(major) === 3 && Number(minor) >= 10
+      && Number(minor) <= 13
+      && payload.unicodeProvider === 'backend.app.core.text_normalization';
     if (!supportedPython
       || payload.unicodeVersion !== orderMasterDataValidationMetadata.unicodeVersion
       || payload.pycountryVersion !== orderMasterDataValidationMetadata.pycountryVersion) {
       throw new Error(
-        `Expected Python 3.13.x (or Python 3.12.x + unicodedata2) / Unicode ${orderMasterDataValidationMetadata.unicodeVersion} / pycountry ${orderMasterDataValidationMetadata.pycountryVersion}; received Python ${payload.pythonVersion} (${payload.unicodeProvider}) / Unicode ${payload.unicodeVersion} / pycountry ${payload.pycountryVersion}`,
+        `Expected Python 3.10-3.13 with checked-in backend normalization / Unicode ${orderMasterDataValidationMetadata.unicodeVersion} / pycountry ${orderMasterDataValidationMetadata.pycountryVersion}; received Python ${payload.pythonVersion} (${payload.unicodeProvider}) / Unicode ${payload.unicodeVersion} / pycountry ${payload.pycountryVersion}`,
       );
     }
 

@@ -22,7 +22,7 @@ from backend.app.models.api_key import APIKey
 from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.customer import Customer, CustomerAccount, CustomerTag
 from backend.app.models.number_sequence import NumberSequence
-from backend.app.schemas.customer import CustomerCreate
+from backend.app.schemas.customer import CustomerCreate, CustomerUpdate
 from backend.app.services import (
     customer as customer_service,
 )
@@ -218,6 +218,65 @@ async def test_supplied_number_is_preserved(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_manual_numbers_are_unique_by_normalized_key_on_create_and_update(async_client: AsyncClient):
+    profile = await create_profile(async_client)
+    first_payload = customer_payload(profile["id"])
+    first_payload["accounts"][0]["number"] = "Straße-42"
+    first = await create_customer(async_client, profile["id"], payload=first_payload)
+
+    second_payload = customer_payload(profile["id"])
+    second_payload["display_name"] = "Second Customer"
+    second_payload["company_name"] = "Second Customer GmbH"
+    second_payload["accounts"][0]["number"] = "SECOND-42"
+    second = await create_customer(async_client, profile["id"], payload=second_payload)
+
+    duplicate = deepcopy(second_payload)
+    duplicate["display_name"] = "Duplicate Customer"
+    duplicate["company_name"] = "Duplicate Customer GmbH"
+    duplicate["accounts"][0]["number"] = "STRASSE-42"
+    create_conflict = await async_client.post(BASE_URL + "/", json=duplicate)
+    assert create_conflict.status_code == 409
+    assert create_conflict.json()["detail"]["code"] == "duplicate_business_key"
+
+    update_payload = deepcopy(second_payload)
+    update_payload["version"] = second["version"]
+    update_payload["accounts"][0]["number"] = "STRASSE-42"
+    update_conflict = await async_client.put(f"{BASE_URL}/{second['id']}", json=update_payload)
+    assert update_conflict.status_code == 409
+    assert update_conflict.json()["detail"]["code"] == "duplicate_business_key"
+
+    first_detail = await async_client.get(f"{BASE_URL}/{first['id']}")
+    assert first_detail.status_code == 200
+    assert first_detail.json()["accounts"][0]["number"] == "Straße-42"
+
+
+@pytest.mark.asyncio
+async def test_manual_number_check_recomputes_legacy_runtime_keys(async_client: AsyncClient, db_session):
+    profile = await create_profile(async_client)
+    old_character = "\U00010570"
+    folded_character = "\U00010597"
+    first_payload = customer_payload(profile["id"])
+    first_payload["accounts"][0]["number"] = f"{old_character}-42"
+    created = await create_customer(async_client, profile["id"], payload=first_payload)
+    account_id = created["accounts"][0]["id"]
+    await db_session.execute(
+        update(CustomerAccount)
+        .where(CustomerAccount.id == account_id)
+        .values(number_key=f"{old_character}-42")
+    )
+    await db_session.commit()
+
+    duplicate = customer_payload(profile["id"])
+    duplicate["display_name"] = "Legacy key collision"
+    duplicate["company_name"] = "Legacy key collision GmbH"
+    duplicate["accounts"][0]["number"] = f"{folded_character}-42"
+    response = await async_client.post(BASE_URL + "/", json=duplicate)
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "duplicate_business_key"
+
+
+@pytest.mark.asyncio
 async def test_manual_number_does_not_block_following_automatic_numbers(
     async_client: AsyncClient,
     db_session,
@@ -262,7 +321,6 @@ async def test_manual_and_automatic_writes_use_the_same_sequence_lock(
     def configure_sqlite(connection, _record):
         cursor = connection.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 
     async with engine.begin() as connection:
@@ -321,6 +379,74 @@ async def test_manual_and_automatic_writes_use_the_same_sequence_lock(
     await engine.dispose()
     assert was_blocked
     assert automatic_number == "CUST-00002"
+
+
+@pytest.mark.asyncio
+async def test_concurrent_manual_numbers_use_the_sequence_lock_and_normalized_key(tmp_path):
+    database_path = (tmp_path / "manual-number-key-lock.db").as_posix()
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{database_path}",
+        connect_args={"timeout": 2},
+    )
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def configure_sqlite(connection, _record):
+        cursor = connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
+
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with session_factory() as setup_session:
+        profile = BusinessProfile(
+            name="Concurrent Number Probe",
+            legal_name="Concurrent Number Probe GmbH",
+            country_code="DE",
+            default_currency="EUR",
+        )
+        setup_session.add(profile)
+        await setup_session.flush()
+        setup_session.add(
+            NumberSequence(
+                business_profile_id=profile.id,
+                key="customer",
+                prefix="CUST",
+                pattern="{PREFIX}-{#####}",
+            )
+        )
+        await setup_session.commit()
+        profile_id = profile.id
+
+    async def create_manual_customer(number: str, suffix: str) -> Exception | None:
+        payload = customer_payload(profile_id)
+        payload["display_name"] = f"Concurrent Customer {suffix}"
+        payload["company_name"] = f"Concurrent Customer {suffix} GmbH"
+        payload["accounts"][0]["number"] = number
+        async with session_factory() as session:
+            try:
+                await customer_service.create_customer(
+                    session,
+                    CustomerCreate.model_validate(payload),
+                    effective_date=date(2026, 7, 11),
+                )
+                await session.commit()
+                return None
+            except Exception as exc:
+                await session.rollback()
+                return exc
+
+    first, second = await asyncio.gather(
+        create_manual_customer("Straße-42", "A"),
+        create_manual_customer("STRASSE-42", "B"),
+    )
+
+    assert sum(result is None for result in (first, second)) == 1
+    assert sum(isinstance(result, DuplicateBusinessKeyError) for result in (first, second)) == 1
+    async with session_factory() as verify_session:
+        assert await verify_session.scalar(select(func.count(CustomerAccount.id))) == 1
+    await engine.dispose()
 
 
 @pytest.mark.asyncio
@@ -415,7 +541,6 @@ async def test_customer_profile_lock_blocks_stale_disable_or_delete(
     def configure_sqlite(connection, _record):
         cursor = connection.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 
     async with engine.begin() as connection:
@@ -464,6 +589,104 @@ async def test_customer_profile_lock_blocks_stale_disable_or_delete(
 
     await engine.dispose()
     assert was_blocked
+
+
+@pytest.mark.asyncio
+async def test_update_customer_acquires_sqlite_write_lock_before_customer_read(tmp_path):
+    database_path = (tmp_path / "customer-update-lock-order.db").as_posix()
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{database_path}",
+        connect_args={"timeout": 2},
+    )
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def configure_sqlite(connection, _record):
+        cursor = connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
+
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with session_factory() as setup_session:
+        profile = BusinessProfile(
+            name="Update Lock Probe",
+            legal_name="Update Lock Probe GmbH",
+            country_code="DE",
+            default_currency="EUR",
+        )
+        setup_session.add(profile)
+        await setup_session.flush()
+        setup_session.add(
+            NumberSequence(
+                business_profile_id=profile.id,
+                key="customer",
+                prefix="CUST",
+                pattern="{PREFIX}-{#####}",
+            )
+        )
+        await setup_session.flush()
+        created = await customer_service.create_customer(
+            setup_session,
+            CustomerCreate.model_validate(customer_payload(profile.id)),
+            effective_date=date(2026, 7, 11),
+        )
+        await setup_session.commit()
+        profile_id = profile.id
+        customer_id = created.id
+        customer_number = created.accounts[0].number
+
+    update_payload = customer_payload(profile_id)
+    update_payload["version"] = created.version
+    update_payload["display_name"] = "Updated Under Lock"
+    update_payload["accounts"][0]["number"] = customer_number
+    update_data = CustomerUpdate.model_validate(update_payload)
+
+    customer_loaded = asyncio.Event()
+    allow_update = asyncio.Event()
+    original_get = customer_service.get_customer
+
+    async def load_then_pause(session, loaded_customer_id):
+        loaded = await original_get(session, loaded_customer_id)
+        customer_loaded.set()
+        await allow_update.wait()
+        return loaded
+
+    async def update_customer() -> None:
+        async with session_factory() as update_session:
+            await customer_service.update_customer(
+                update_session,
+                customer_id,
+                update_data,
+                effective_date=date(2026, 7, 11),
+            )
+            await update_session.commit()
+
+    async def deactivate_profile() -> None:
+        async with session_factory() as competitor:
+            await competitor.execute(
+                update(BusinessProfile)
+                .where(BusinessProfile.id == profile_id)
+                .values(is_active=False)
+            )
+            await competitor.commit()
+
+    with patch.object(customer_service, "get_customer", side_effect=load_then_pause):
+        update_task = asyncio.create_task(update_customer())
+        await asyncio.wait_for(customer_loaded.wait(), timeout=2)
+        competing_change = asyncio.create_task(deactivate_profile())
+        await asyncio.sleep(0.1)
+        assert not competing_change.done()
+        allow_update.set()
+        await asyncio.wait_for(update_task, timeout=2)
+        await asyncio.wait_for(competing_change, timeout=2)
+
+    async with session_factory() as verify_session:
+        assert await verify_session.scalar(
+            select(Customer.display_name).where(Customer.id == customer_id)
+        ) == "Updated Under Lock"
+    await engine.dispose()
 
 
 @pytest.mark.asyncio
@@ -968,6 +1191,10 @@ def invalid_customer_cases(profile_id: int) -> list[tuple[str, dict]]:
     payload = customer_payload(profile_id)
     payload["tax_identifiers"][0]["kind"] = "   "
     cases.append(("blank tax kind", payload))
+
+    payload = customer_payload(profile_id)
+    payload["tax_identifiers"][0]["kind"] = "ß" * 17
+    cases.append(("tax kind expands beyond database width", payload))
 
     payload = customer_payload(profile_id)
     payload["tax_identifiers"][0]["value"] = "   "

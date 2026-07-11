@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -11,6 +11,8 @@ import {
   type BusinessProfileUpdate,
 } from '../../api/client';
 import { Button } from '../Button';
+import { useModalFocusLifecycle } from '../../hooks/useModalFocusLifecycle';
+import { orderMasterDataCountryCodes, orderMasterDataCurrencyCodes } from '../../lib/orderMasterDataValidation';
 
 type ProfileDraft = BusinessProfileCreate;
 
@@ -18,17 +20,41 @@ interface MappedValidationErrors {
   fields: Record<string, string>;
   global: string[];
 }
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 const inputClass = 'w-full rounded-md border border-bambu-dark-tertiary bg-bambu-dark px-3 py-2 text-white focus:border-bambu-green focus:outline-none';
-const countryOptions = ['DE', 'US', 'GB'];
-const currencyOptions = ['EUR', 'USD', 'GBP'];
 const topLevelFields = [
   'name', 'legal_name', 'trading_name', 'country_code', 'default_currency',
   'timezone', 'default_locale', 'billing_mode', 'is_active',
 ];
-const addressFields = ['street', 'postal_code', 'city', 'country_code', 'is_default'];
-const taxFields = ['kind', 'value', 'is_primary'];
+const addressFields = ['kind', 'label', 'additional', 'street', 'street_2', 'postal_code', 'city', 'region', 'country_code', 'is_default'];
+const taxFields = ['kind', 'value', 'country_code', 'is_primary', 'valid_from', 'valid_until'];
 const bankFields = ['label', 'account_holder', 'bank_name', 'country_code', 'currency', 'iban', 'bic', 'account_number', 'routing_number', 'is_default'];
+const addressKinds = ['registered', 'billing', 'shipping', 'other'] as const;
+const countryOptions = orderMasterDataCountryCodes;
+const currencyOptions = orderMasterDataCurrencyCodes;
+
+function systemTimezones(): string[] {
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  try {
+    const values = Intl.supportedValuesOf?.('timeZone');
+    if (values?.length) return Array.from(new Set([timezone, ...values])).sort();
+  } catch {
+    // Older browsers can still submit an IANA timezone through the text input.
+  }
+  return Array.from(new Set([timezone, 'UTC'])).filter(Boolean).sort();
+}
+
+function systemLocales(current: string): string[] {
+  const values = [current, Intl.DateTimeFormat().resolvedOptions().locale, ...(navigator.languages ?? [])];
+  try {
+    return Array.from(new Set(Intl.getCanonicalLocales(values))).sort();
+  } catch {
+    return Array.from(new Set(values.filter(Boolean))).sort();
+  }
+}
+
+const timezoneOptions = systemTimezones();
 
 function emptyAddress(countryCode = 'DE'): BusinessProfileAddress {
   return { kind: 'registered', street: '', postal_code: '', city: '', country_code: countryCode, is_default: true };
@@ -95,18 +121,32 @@ function knownFieldPaths(draft: ProfileDraft): Set<string> {
   return paths;
 }
 
-function mapApiValidationErrors(error: unknown, knownPaths: Set<string>): MappedValidationErrors {
+function localizedApiMessage(error: unknown, t: Translate, language: string): string | null {
+  if (!(error instanceof ApiError)) return error instanceof Error ? error.message : null;
+  const knownKey = error.code ? ({
+    resource_in_use: 'orderUi.operationBlocked',
+    version_conflict: 'orderMessages.errors.business_profile_version_conflict',
+    duplicate_business_key: 'orderUi.duplicateRecord',
+    not_found: 'orderUiNotFound',
+  } as Record<string, string>)[error.code] : undefined;
+  if (knownKey) return t(knownKey);
+  if (language.startsWith('de') && error.status === 409) return t('orderMessages.errors.conflict');
+  if (language.startsWith('de') && error.status === 422) return t('orderMessages.validation.failed');
+  return error.message;
+}
+
+function mapApiValidationErrors(error: unknown, knownPaths: Set<string>, t: Translate, language: string): MappedValidationErrors {
   const mapped: MappedValidationErrors = { fields: {}, global: [] };
   if (!(error instanceof ApiError) || error.status !== 422) return mapped;
   if (!error.validationErrors?.length) {
-    mapped.global.push(error.message);
+    mapped.global.push(localizedApiMessage(error, t, language) ?? t('orderMessages.validation.failed'));
     return mapped;
   }
 
   error.validationErrors.forEach((issue) => {
     const loc = issue.loc[0] === 'body' ? issue.loc.slice(1) : issue.loc;
     const path = loc.map(String).join('.');
-    const message = issue.msg || error.message;
+    const message = language.startsWith('de') ? t('orderMessages.validation.invalidField') : issue.msg || error.message;
     if (path && knownPaths.has(path)) {
       mapped.fields[path] = mapped.fields[path] ? `${mapped.fields[path]}; ${message}` : message;
     } else {
@@ -128,15 +168,29 @@ interface Props {
 }
 
 export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onSubmit }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [draft, setDraft] = useState<ProfileDraft>(() => asDraft(profile));
   const [error, setError] = useState<unknown>(null);
   const editing = profile !== null;
-  const validation = useMemo(() => mapApiValidationErrors(error, knownFieldPaths(draft)), [draft, error]);
+  const initialFocusRef = useRef<HTMLInputElement>(null);
+  const { dialogRef, onKeyDown } = useModalFocusLifecycle<HTMLFormElement>({ onClose, canClose: !isSubmitting, initialFocusRef });
+  const localeOptions = useMemo(() => systemLocales(draft.default_locale ?? 'en'), [draft.default_locale]);
+  const validation = useMemo(() => mapApiValidationErrors(error, knownFieldPaths(draft), t, i18n.language), [draft, error, i18n.language, t]);
   const updateAddress = (index: number, patch: Partial<BusinessProfileAddress>) => setDraft((current) => ({
     ...current,
     addresses: current.addresses.map((address, addressIndex) => addressIndex === index ? { ...address, ...patch } : address),
   }));
+  const changeAddressKind = (index: number, kind: BusinessProfileAddress['kind']) => setDraft((current) => {
+    const selected = current.addresses[index];
+    return {
+      ...current,
+      addresses: current.addresses.map((address, addressIndex) => {
+        if (addressIndex === index) return { ...address, kind };
+        if (selected.is_default && address.kind === kind) return { ...address, is_default: false };
+        return address;
+      }),
+    };
+  });
   const updateTaxId = (index: number, patch: Partial<BusinessProfileTaxIdentifier>) => setDraft((current) => ({
     ...current,
     tax_identifiers: (current.tax_identifiers ?? []).map((identifier, identifierIndex) => identifierIndex === index ? { ...identifier, ...patch } : identifier),
@@ -145,6 +199,30 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
     ...current,
     bank_accounts: (current.bank_accounts ?? []).map((account, accountIndex) => accountIndex === index ? { ...account, ...patch } : account),
   }));
+  const changeTaxKind = (index: number, kind: string) => setDraft((current) => {
+    const identifiers = current.tax_identifiers ?? [];
+    const selected = identifiers[index];
+    return {
+      ...current,
+      tax_identifiers: identifiers.map((identifier, identifierIndex) => {
+        if (identifierIndex === index) return { ...identifier, kind };
+        if (selected.is_primary && identifier.kind === kind) return { ...identifier, is_primary: false };
+        return identifier;
+      }),
+    };
+  });
+  const changeBankCurrency = (index: number, currency: string) => setDraft((current) => {
+    const accounts = current.bank_accounts ?? [];
+    const selected = accounts[index];
+    return {
+      ...current,
+      bank_accounts: accounts.map((account, accountIndex) => {
+        if (accountIndex === index) return { ...account, currency };
+        if (selected.is_default && account.currency === currency) return { ...account, is_default: false };
+        return account;
+      }),
+    };
+  });
   const setAddressDefault = (index: number, checked: boolean) => setDraft((current) => {
     const selected = current.addresses[index];
     return {
@@ -191,19 +269,11 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
   const numberedLabel = (base: string, index: number) => index === 0 ? base : `${base} ${index + 1}`;
   const genericError = error instanceof ApiError && error.status === 422
     ? validation.global.join('; ') || null
-    : error instanceof Error ? error.message : null;
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isSubmitting) onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSubmitting, onClose]);
+    : localizedApiMessage(error, t, i18n.language);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation">
-      <form onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="business-profile-editor-title" className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-xl">
+      <form ref={dialogRef} onKeyDown={onKeyDown} onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="business-profile-editor-title" tabIndex={-1} className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-xl">
         <div className="border-b border-bambu-dark-tertiary px-5 py-4">
           <h2 id="business-profile-editor-title" className="text-lg font-semibold text-white">
             {editing ? t('orders.businessProfile.editTitle') : t('orders.businessProfile.createTitle')}
@@ -222,7 +292,7 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.profileName')}
-                <input required aria-label={t('orders.businessProfile.profileName')} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className={inputClass} />
+                <input ref={initialFocusRef} required aria-label={t('orders.businessProfile.profileName')} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className={inputClass} />
                 <FieldError message={validation.fields.name} />
               </label>
               <label className="text-sm text-bambu-gray-light">
@@ -251,9 +321,31 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
               <div key={index} className="grid gap-3 border-b border-bambu-dark-tertiary pb-4 sm:grid-cols-2">
                 <FieldError message={validation.fields[`addresses.${index}`]} />
                 <label className="text-sm text-bambu-gray-light">
+                  {numberedLabel(t('orderMessages.addressKind'), index)}
+                  <select aria-label={numberedLabel(t('orderMessages.addressKind'), index)} value={address.kind} onChange={(event) => changeAddressKind(index, event.target.value as BusinessProfileAddress['kind'])} disabled={address.kind === 'registered' && draft.addresses.filter((item) => item.kind === 'registered').length === 1} className={inputClass}>
+                    {addressKinds.map((kind) => <option key={kind} value={kind}>{t(`orderMessages.addressKinds.${kind}`)}</option>)}
+                  </select>
+                  <FieldError message={validation.fields[`addresses.${index}.kind`]} />
+                </label>
+                <label className="text-sm text-bambu-gray-light">
+                  {numberedLabel(t('orderMessages.addressLabel'), index)}
+                  <input aria-label={numberedLabel(t('orderMessages.addressLabel'), index)} value={address.label ?? ''} onChange={(event) => updateAddress(index, { label: event.target.value || null })} className={inputClass} />
+                  <FieldError message={validation.fields[`addresses.${index}.label`]} />
+                </label>
+                <label className="text-sm text-bambu-gray-light">
+                  {numberedLabel(t('orderMessages.additional'), index)}
+                  <input aria-label={numberedLabel(t('orderMessages.additional'), index)} value={address.additional ?? ''} onChange={(event) => updateAddress(index, { additional: event.target.value || null })} className={inputClass} />
+                  <FieldError message={validation.fields[`addresses.${index}.additional`]} />
+                </label>
+                <label className="text-sm text-bambu-gray-light">
                   {numberedLabel(t('orders.businessProfile.street'), index)}
                   <input required aria-label={numberedLabel(t('orders.businessProfile.street'), index)} value={address.street} onChange={(event) => updateAddress(index, { street: event.target.value })} className={inputClass} />
                   <FieldError message={validation.fields[`addresses.${index}.street`]} />
+                </label>
+                <label className="text-sm text-bambu-gray-light">
+                  {numberedLabel(t('orderMessages.street2'), index)}
+                  <input aria-label={numberedLabel(t('orderMessages.street2'), index)} value={address.street_2 ?? ''} onChange={(event) => updateAddress(index, { street_2: event.target.value || null })} className={inputClass} />
+                  <FieldError message={validation.fields[`addresses.${index}.street_2`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {numberedLabel(t('orders.businessProfile.city'), index)}
@@ -272,6 +364,11 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
                   </select>
                   <FieldError message={validation.fields[`addresses.${index}.country_code`]} />
                 </label>
+                <label className="text-sm text-bambu-gray-light">
+                  {numberedLabel(t('orderMessages.region'), index)}
+                  <input aria-label={numberedLabel(t('orderMessages.region'), index)} value={address.region ?? ''} onChange={(event) => updateAddress(index, { region: event.target.value || null })} className={inputClass} />
+                  <FieldError message={validation.fields[`addresses.${index}.region`]} />
+                </label>
                 <label className="inline-flex items-center gap-2 text-sm text-bambu-gray-light">
                   <input type="checkbox" aria-label={t('orders.businessProfile.defaultAddress', { number: index + 1 })} checked={address.is_default ?? false} onChange={(event) => setAddressDefault(index, event.target.checked)} />
                   {t('orders.businessProfile.defaultAddress', { number: index + 1 })}
@@ -284,7 +381,7 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
                 )}
               </div>
             ))}
-            <button type="button" onClick={() => setDraft({ ...draft, addresses: [...draft.addresses, { ...emptyAddress(draft.country_code), kind: 'billing', is_default: false }] })} className="inline-flex items-center gap-1 text-sm text-bambu-green">
+            <button type="button" onClick={() => setDraft({ ...draft, addresses: [...draft.addresses, { ...emptyAddress(draft.country_code), kind: 'other', is_default: false }] })} className="inline-flex items-center gap-1 text-sm text-bambu-green">
               <Plus className="h-4 w-4" />{t('orders.businessProfile.addAddress')}
             </button>
           </fieldset>
@@ -296,13 +393,31 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
                 <FieldError message={validation.fields[`tax_identifiers.${index}`]} />
                 <label className="text-sm text-bambu-gray-light">
                   {t('orders.businessProfile.taxIdKind')}
-                  <input aria-label={`${t('orders.businessProfile.taxIdKind')} ${index + 1}`} value={identifier.kind} onChange={(event) => updateTaxId(index, { kind: event.target.value })} className={inputClass} />
+                  <input aria-label={`${t('orders.businessProfile.taxIdKind')} ${index + 1}`} value={identifier.kind} onChange={(event) => changeTaxKind(index, event.target.value)} className={inputClass} />
                   <FieldError message={validation.fields[`tax_identifiers.${index}.kind`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {t('orders.businessProfile.taxIdValue')}
                   <input required aria-label={`${t('orders.businessProfile.taxIdValue')} ${index + 1}`} value={identifier.value} onChange={(event) => updateTaxId(index, { value: event.target.value })} className={inputClass} />
                   <FieldError message={validation.fields[`tax_identifiers.${index}.value`]} />
+                </label>
+                <label className="text-sm text-bambu-gray-light">
+                  {t('orderMessages.taxCountry')}
+                  <select aria-label={`${t('orderMessages.taxCountry')} ${index + 1}`} value={identifier.country_code ?? ''} onChange={(event) => updateTaxId(index, { country_code: event.target.value || null })} className={inputClass}>
+                    <option value="">-</option>
+                    {countryOptions.map((country) => <option key={country} value={country}>{country}</option>)}
+                  </select>
+                  <FieldError message={validation.fields[`tax_identifiers.${index}.country_code`]} />
+                </label>
+                <label className="text-sm text-bambu-gray-light">
+                  {t('orderMessages.validFrom')}
+                  <input type="date" aria-label={`${t('orderMessages.validFrom')} ${index + 1}`} value={identifier.valid_from ?? ''} onChange={(event) => updateTaxId(index, { valid_from: event.target.value || null })} className={inputClass} />
+                  <FieldError message={validation.fields[`tax_identifiers.${index}.valid_from`]} />
+                </label>
+                <label className="text-sm text-bambu-gray-light">
+                  {t('orderMessages.validUntil')}
+                  <input type="date" aria-label={`${t('orderMessages.validUntil')} ${index + 1}`} value={identifier.valid_until ?? ''} onChange={(event) => updateTaxId(index, { valid_until: event.target.value || null })} className={inputClass} />
+                  <FieldError message={validation.fields[`tax_identifiers.${index}.valid_until`]} />
                 </label>
                 <label className="inline-flex items-center gap-2 text-sm text-bambu-gray-light">
                   <input type="checkbox" aria-label={t('orders.businessProfile.primaryTaxId', { number: index + 1 })} checked={identifier.is_primary ?? false} onChange={(event) => setPrimaryTaxId(index, event.target.checked)} />
@@ -346,7 +461,7 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {t('orders.businessProfile.bankCurrency')}
-                  <select required aria-label={`${t('orders.businessProfile.bankCurrency')} ${index + 1}`} value={account.currency} onChange={(event) => updateBankAccount(index, { currency: event.target.value })} className={inputClass}>
+                  <select required aria-label={`${t('orders.businessProfile.bankCurrency')} ${index + 1}`} value={account.currency} onChange={(event) => changeBankCurrency(index, event.target.value)} className={inputClass}>
                     {currencyOptions.map((currency) => <option key={currency} value={currency}>{currency}</option>)}
                   </select>
                   <FieldError message={validation.fields[`bank_accounts.${index}.currency`]} />
@@ -392,7 +507,7 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.billingMode')}
                 <select aria-label={t('orders.businessProfile.billingMode')} value={draft.billing_mode} onChange={(event) => setDraft({ ...draft, billing_mode: event.target.value as ProfileDraft['billing_mode'] })} className={inputClass}>
-                  <option value="internal">internal</option><option value="external">external</option><option value="hybrid">hybrid</option>
+                  <option value="internal">{t('orderUi.billingModes.internal')}</option><option value="external">{t('orderUi.billingModes.external')}</option><option value="hybrid">{t('orderUi.billingModes.hybrid')}</option>
                 </select>
                 <FieldError message={validation.fields.billing_mode} />
               </label>
@@ -405,16 +520,14 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
               </label>
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.locale')}
-                <select aria-label={t('orders.businessProfile.locale')} value={draft.default_locale} onChange={(event) => setDraft({ ...draft, default_locale: event.target.value })} className={inputClass}>
-                  <option value="en">English</option><option value="de">Deutsch</option>
-                </select>
+                <input list="business-profile-locales" aria-label={t('orders.businessProfile.locale')} value={draft.default_locale} onChange={(event) => setDraft({ ...draft, default_locale: event.target.value })} className={inputClass} />
+                <datalist id="business-profile-locales">{localeOptions.map((locale) => <option key={locale} value={locale} />)}</datalist>
                 <FieldError message={validation.fields.default_locale} />
               </label>
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.timezone')}
-                <select aria-label={t('orders.businessProfile.timezone')} value={draft.timezone} onChange={(event) => setDraft({ ...draft, timezone: event.target.value })} className={inputClass}>
-                  <option value="Europe/Berlin">Europe/Berlin</option><option value="America/New_York">America/New_York</option>
-                </select>
+                <input list="business-profile-timezones" aria-label={t('orders.businessProfile.timezone')} value={draft.timezone} onChange={(event) => setDraft({ ...draft, timezone: event.target.value })} className={inputClass} />
+                <datalist id="business-profile-timezones">{timezoneOptions.map((timezone) => <option key={timezone} value={timezone} />)}</datalist>
                 <FieldError message={validation.fields.timezone} />
               </label>
             </div>

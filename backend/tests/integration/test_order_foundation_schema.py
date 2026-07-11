@@ -61,6 +61,19 @@ EXPECTED_UNIQUE_CONSTRAINTS = {
 }
 
 
+def test_customer_account_number_uniqueness_uses_the_normalized_key():
+    unique_constraints = {
+        constraint.name: tuple(column.name for column in constraint.columns)
+        for constraint in CustomerAccount.__table__.constraints
+        if constraint.name
+    }
+
+    assert unique_constraints["uq_customer_account_profile_number"] == (
+        "business_profile_id",
+        "number_key",
+    )
+
+
 def _business_profile(name: str = "Primary issuer") -> BusinessProfile:
     return BusinessProfile(
         name=name,

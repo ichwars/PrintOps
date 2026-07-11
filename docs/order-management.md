@@ -82,6 +82,23 @@ Unternehmensprofils eindeutig sein. Dieselbe Nummer darf in einem anderen Profil
 verwendet werden. Manuelle Nummern blockieren die automatische Sequenz nicht;
 automatische Reservierungen ueberspringen bereits belegte Werte.
 
+## Technische Integritaetsgrenzen
+
+Kundennummern und andere case-insensitive Geschaeftsschluessel verwenden eine
+fest gepinnte Unicode-15.1-Normalisierung. Python 3.13 nutzt dafuer seine
+mitgelieferten Unicode-15.1-Tabellen; Python 3.10 bis 3.12 verwenden den
+gleichversionierten `unicodedata2`-Backport. Dadurch bleiben persistierte
+Schluessel und Frontend-Pruefungen unabhaengig von der Laufzeitversion gleich.
+
+Unter SQLite serialisieren Kundenwrites und Lebenszyklusaenderungen eines
+Unternehmensprofils ueber die zugehoerige Kundennummern-Sequenzzeile. Der
+Schreib-Lock wird vor dem ersten Lesen der Transaktion erworben, damit ein
+WAL-Read-Snapshot nicht spaeter in einen fehlgeschlagenen Schreib-Lock
+hochgestuft werden muss. Ein globales Einschalten von SQLite-Fremdschluesseln
+ist bewusst nicht Teil dieses Inkrements, weil es bestehende Migrations- und
+Initialisierungspfade ausserhalb der Auftragsverwaltung veraendern wuerde.
+PostgreSQL verwendet weiterhin Zeilen-Locks und Datenbank-Fremdschluessel.
+
 ## Rollen und Gruppen
 
 Die Standardgruppen erhalten folgende Rechte:

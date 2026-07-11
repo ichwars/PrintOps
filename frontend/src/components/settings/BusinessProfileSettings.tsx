@@ -2,17 +2,25 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Building2, Check, Loader2, Pencil, Plus, Power, RefreshCw, Star, Trash2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { api, type BusinessProfile, type BusinessProfileCreate, type BusinessProfileUpdate } from '../../api/client';
+import { ApiError, api, type BusinessProfile, type BusinessProfileCreate, type BusinessProfileUpdate } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { BusinessProfileEditorModal } from './BusinessProfileEditorModal';
+
+function withoutResponseId<T extends { id: number }>(value: T): Omit<T, 'id'> {
+  const result: Partial<T> = { ...value };
+  delete result.id;
+  return result as Omit<T, 'id'>;
+}
 
 function profilePayload(profile: BusinessProfile): BusinessProfileCreate {
   return {
     name: profile.name, legal_name: profile.legal_name, trading_name: profile.trading_name,
     country_code: profile.country_code, default_currency: profile.default_currency, timezone: profile.timezone,
     default_locale: profile.default_locale, billing_mode: profile.billing_mode, is_active: profile.is_active,
-    is_default: profile.is_default, addresses: profile.addresses, tax_identifiers: profile.tax_identifiers,
-    bank_accounts: profile.bank_accounts,
+    is_default: profile.is_default,
+    addresses: profile.addresses.map(withoutResponseId),
+    tax_identifiers: profile.tax_identifiers.map(withoutResponseId),
+    bank_accounts: profile.bank_accounts.map(withoutResponseId),
   };
 }
 
@@ -29,7 +37,7 @@ interface PersistentServerError {
 }
 
 export function BusinessProfileSettings() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { hasPermission, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const [includeInactive, setIncludeInactive] = useState(false);
@@ -43,10 +51,23 @@ export function BusinessProfileSettings() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['business-profiles', false], exact: true }),
       queryClient.invalidateQueries({ queryKey: ['business-profiles', true], exact: true }),
+      queryClient.invalidateQueries({ queryKey: ['business-profile-options'], exact: true }),
     ]);
   };
+  const localizedError = (error: unknown) => {
+    if (!(error instanceof ApiError)) return error instanceof Error ? error.message : t('orders.businessProfile.error');
+    const knownKey = error.code ? ({
+      resource_in_use: 'orderUi.operationBlocked',
+      version_conflict: 'orderMessages.errors.business_profile_version_conflict',
+      duplicate_business_key: 'orderUi.duplicateRecord',
+      not_found: 'orderUiNotFound',
+    } as Record<string, string>)[error.code] : undefined;
+    if (knownKey) return t(knownKey);
+    if (i18n.language.startsWith('de') && error.status === 409) return t('orderMessages.errors.conflict');
+    return error.message;
+  };
   const showActionError = (error: unknown, action: RowActionIdentity) => setServerError({
-    message: error instanceof Error ? error.message : t('orders.businessProfile.error'),
+    message: localizedError(error),
     action,
   });
   const clearActionError = (action: RowActionIdentity) => setServerError((current) => (
@@ -61,7 +82,7 @@ export function BusinessProfileSettings() {
         setListError(null);
         return profiles;
       } catch (error) {
-        setListError(error instanceof Error ? error.message : t('orders.businessProfile.error'));
+        setListError(localizedError(error));
         throw error;
       }
     },
@@ -176,7 +197,7 @@ export function BusinessProfileSettings() {
               {profilesQuery.data.map((profile) => (
                 <tr key={profile.id} className="text-bambu-gray-light">
                   <td className="max-w-56 px-2 py-3"><p className="truncate font-medium text-white">{profile.name}</p><p className="truncate text-xs text-bambu-gray">{profile.legal_name}</p></td>
-                  <td className="px-2 py-3">{profile.country_code}</td><td className="px-2 py-3">{profile.default_currency}</td><td className="px-2 py-3">{profile.timezone}</td><td className="px-2 py-3">{profile.billing_mode}</td>
+                  <td className="px-2 py-3">{profile.country_code}</td><td className="px-2 py-3">{profile.default_currency}</td><td className="px-2 py-3">{profile.timezone}</td><td className="px-2 py-3">{t(`orderUi.billingModes.${profile.billing_mode}`)}</td>
                   <td className="px-2 py-3"><span className={profile.is_active ? 'text-bambu-green' : 'text-bambu-gray'}>{profile.is_active ? t('orders.businessProfile.active') : t('orders.businessProfile.inactive')}</span>{profile.is_default && <span className="ml-2 inline-flex items-center gap-1 text-xs text-bambu-green"><Check className="h-3 w-3" />{t('orders.default')}</span>}</td>
                   <td className="px-2 py-3"><div className="flex justify-end gap-1">
                     {canManage && <button type="button" onClick={() => setEditorProfile(profile)} disabled={isMutating} title={t('orders.businessProfile.edit', { name: profile.name })} aria-label={t('orders.businessProfile.edit', { name: profile.name })} className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-bambu-dark-tertiary disabled:opacity-50"><Pencil className="h-4 w-4" /></button>}

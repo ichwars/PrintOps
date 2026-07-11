@@ -257,3 +257,55 @@ baseline and classified before completion claims.
   increments without claiming those workflows are already implemented.
 - Final Task 9 review: approved after correcting default-profile and per-account
   numbering language. `git diff --check` was clean.
+
+## Final Whole-Branch Correction Wave
+
+- Whole-branch review identified SQLite lifecycle races, normalized manual
+  customer-number collisions, post-normalization tax-kind overflow,
+  runtime-dependent Unicode casefolding, and referenced-profile deactivation.
+  The correction uses the customer sequence as the shared SQLite write lock,
+  checks manual normalized keys in the service, constrains new databases by
+  `number_key`, validates both tax schemas after normalization, and blocks
+  deactivation while customer accounts still reference the profile.
+- Global SQLite foreign-key enforcement and a startup-blocking legacy unique
+  index migration were evaluated and removed because they changed unrelated
+  legacy behavior. Existing installations remain protected for new writes by
+  the same per-profile service lock and normalized-key check.
+- Unicode normalization now uses vendored Unicode 15.1 CaseFolding data with
+  1,530 complete nonidentity mappings plus `unicodedata2==15.1.0` NFKC. Backend
+  and frontend generated outputs no longer use runtime `casefold`, `lower`, or
+  `toLowerCase` as a fallback. The exhaustive verifier compared all 1,114,112
+  code points with zero mismatches.
+- The business-profile editor now consumes all 249 ISO country and 178 currency
+  codes, accepts configurable BCP-47 locale and system-supported IANA timezone
+  values, exposes all address and tax fields, owns modal focus, preserves the
+  final registered address/default invariants, and invalidates customer profile
+  options after every profile mutation.
+- Customer/profile validation, structured conflict handling, billing modes, and
+  tax-validation statuses are localized for German. Other locales retain the
+  increment's explicit English-fallback contract with parity-safe allowlisting.
+- Fresh verification passed 117 backend tests and 85 frontend tests. Ruff,
+  ESLint, all 11 locale files at 5,829 leaves, byte-for-byte generated-source
+  validation, worktree `git diff --check`, and `tsc -b && vite build` passed.
+  Generated `static` assets were restored after the build. Python 3.12.13 was
+  available locally; the verifier accepts Python 3.10-3.13 and imports the same
+  pinned backend normalization owner instead of interpreter casefold data.
+- Legacy customer numbers are compared by freshly normalizing their visible
+  values instead of trusting old runtime-derived keys. Business-profile tax
+  kinds/values now share the pinned normalization owner. The profile editor
+  reconciles primary/default state when tax kinds or bank currencies change,
+  and its focus lifecycle is the sole Escape owner.
+- The final correction pass also moved every SQLite lifecycle/update lock ahead
+  of the first read, added WAL order regressions, re-raised unclassified profile
+  integrity failures, and reduced automatic collision lookup from O(n^2) to
+  O(n). Python 3.13 now uses its Unicode 15.1 stdlib provider while Python
+  3.10-3.12 install the pinned backport; the generator shares that owner.
+- Frontend corrections remove nested response IDs from profile toggle payloads,
+  keep Tab focus inside pending editors, clear removed/inactive profile
+  selections, localize `not_found` in all 11 locales, and validate expanded
+  Unicode tax-kind lengths before mutation.
+- Both independent backend and frontend re-reviews approved the correction wave
+  with no remaining Critical or Important findings. The Docker client was
+  present but its engine was unavailable, so an image build was not run;
+  provider unit tests, dependency-marker evaluation, the production frontend
+  build, and full Unicode parity cover the bounded compatibility risk.

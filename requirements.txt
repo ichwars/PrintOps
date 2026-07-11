@@ -63,6 +63,9 @@ pywebpush>=2.0.0
 python-multipart>=0.0.31
 aiofiles>=23.0.0
 pycountry==26.2.16
+# Unicode normalization is part of the persisted customer-number key contract.
+# Pin it instead of inheriting the interpreter's Unicode table (Python 3.10/3.11 differ).
+unicodedata2==15.1.0; python_version < "3.13"
 
 # QR Code generation
 qrcode[pil]>=7.4.0

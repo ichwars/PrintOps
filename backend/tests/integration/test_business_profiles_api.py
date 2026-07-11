@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
 from copy import deepcopy
 from datetime import date
 from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select, update
+from sqlalchemy import event, func, select, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from backend.app.api.routes import business_profiles as business_profile_routes
 from backend.app.core.auth import create_access_token, generate_api_key
+from backend.app.core.database import Base
 from backend.app.core.permissions import Permission
 from backend.app.models.api_key import APIKey
 from backend.app.models.business_profile import BusinessProfile, BusinessProfileTaxIdentifier
@@ -21,10 +23,12 @@ from backend.app.models.customer import Customer, CustomerAccount
 from backend.app.models.group import Group
 from backend.app.models.number_sequence import NumberSequence
 from backend.app.models.user import User
-from backend.app.services import business_profile as business_profile_service
+from backend.app.schemas.customer import CustomerCreate
+from backend.app.services import business_profile as business_profile_service, customer as customer_service
 from backend.app.services.order_errors import (
     DuplicateBusinessKeyError,
     ResourceInUseError,
+    ResourceNotFoundError,
     VersionConflictError,
 )
 
@@ -120,6 +124,53 @@ def test_asyncpg_integrity_metadata_maps_to_sanitized_domain_errors(
     assert type(classified) is expected_type
     assert str(classified) == expected_message
     assert "sensitive database detail" not in str(classified)
+
+
+@pytest.mark.parametrize(
+    "driver_error",
+    [
+        FakeAsyncpgError("private check detail", sqlstate="23514"),
+        FakeAsyncpgError("private not-null detail", sqlstate="23502"),
+        RuntimeError("CHECK constraint failed: ck_business_profiles_billing_mode"),
+        RuntimeError("NOT NULL constraint failed: business_profiles.legal_name"),
+        RuntimeError("private table detail"),
+    ],
+)
+def test_integrity_classification_does_not_mask_unknown_failures(driver_error):
+    classified = business_profile_routes._classify_integrity_error(
+        IntegrityError("redacted statement", {}, driver_error),
+        operation_kind="write",
+    )
+
+    assert classified is None
+
+
+@pytest.mark.asyncio
+async def test_commit_write_rolls_back_and_reraises_unclassified_integrity_error():
+    integrity_error = IntegrityError(
+        "redacted statement",
+        {},
+        FakeAsyncpgError("private check detail", sqlstate="23514"),
+    )
+
+    class SessionProbe:
+        rolled_back = False
+
+        async def rollback(self):
+            self.rolled_back = True
+
+        async def commit(self):
+            raise AssertionError("commit must not run")
+
+    async def fail_with_integrity_error():
+        raise integrity_error
+
+    session = SessionProbe()
+    with pytest.raises(IntegrityError) as captured:
+        await business_profile_routes._commit_write(session, fail_with_integrity_error())
+
+    assert captured.value is integrity_error
+    assert session.rolled_back
 
 PROFILE = {
     "name": "EU Operations",
@@ -379,7 +430,7 @@ async def test_put_replaces_all_children_and_rejects_stale_version(async_client:
 
 
 @pytest.mark.asyncio
-async def test_put_cas_rejects_competing_database_update(
+async def test_put_cas_rejects_database_version_advanced_outside_request(
     async_client: AsyncClient,
     test_engine,
 ):
@@ -387,33 +438,19 @@ async def test_put_cas_rejects_competing_database_update(
     losing_payload = profile_payload()
     losing_payload["name"] = "Losing Update"
     losing_payload["version"] = created["version"]
-    original_get = business_profile_service.get_business_profile
     competing_session = async_sessionmaker(test_engine, expire_on_commit=False)
-    competed = False
+    async with competing_session() as competitor:
+        await competitor.execute(
+            update(BusinessProfile)
+            .where(BusinessProfile.id == created["id"])
+            .values(
+                name="Concurrent Winner",
+                version=BusinessProfile.version + 1,
+            )
+        )
+        await competitor.commit()
 
-    async def load_then_advance_version(session, profile_id):
-        nonlocal competed
-        profile = await original_get(session, profile_id)
-        if not competed:
-            competed = True
-            async with competing_session() as competitor:
-                await competitor.execute(
-                    update(BusinessProfile)
-                    .where(BusinessProfile.id == profile_id)
-                    .values(
-                        name="Concurrent Winner",
-                        version=BusinessProfile.version + 1,
-                    )
-                )
-                await competitor.commit()
-        return profile
-
-    with patch.object(
-        business_profile_service,
-        "get_business_profile",
-        side_effect=load_then_advance_version,
-    ):
-        response = await async_client.put(f"{BASE_URL}/{created['id']}", json=losing_payload)
+    response = await async_client.put(f"{BASE_URL}/{created['id']}", json=losing_payload)
 
     assert response.status_code == 409, response.text
     assert response.json()["detail"]["code"] == "version_conflict"
@@ -480,6 +517,128 @@ async def test_delete_rejects_customer_account_reference(async_client: AsyncClie
 
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "resource_in_use"
+
+
+@pytest.mark.asyncio
+async def test_deactivation_rejects_customer_account_reference(async_client: AsyncClient, db_session):
+    await create_profile(async_client, name="EU Operations")
+    referenced = await create_profile(async_client, name="Referenced Operations", is_default=False)
+    customer = Customer(kind="company", display_name="Reference Customer")
+    db_session.add(customer)
+    await db_session.flush()
+    db_session.add(
+        CustomerAccount(
+            customer_id=customer.id,
+            business_profile_id=referenced["id"],
+            number="CUST-00001",
+            preferred_currency="EUR",
+        )
+    )
+    await db_session.commit()
+
+    payload = profile_payload(name="Referenced Operations", is_default=False)
+    payload["version"] = referenced["version"]
+    payload["is_active"] = False
+    response = await async_client.put(f"{BASE_URL}/{referenced['id']}", json=payload)
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "resource_in_use"
+
+
+@pytest.mark.asyncio
+async def test_sqlite_profile_deletion_and_customer_creation_do_not_orphan_accounts(tmp_path):
+    database_path = (tmp_path / "profile-customer-race.db").as_posix()
+    engine = create_async_engine(f"sqlite+aiosqlite:///{database_path}", connect_args={"timeout": 2})
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def configure_sqlite(connection, _record):
+        cursor = connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
+
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with session_factory() as setup_session:
+        profile = BusinessProfile(
+            name="Race Operations",
+            legal_name="Race Operations GmbH",
+            country_code="DE",
+            default_currency="EUR",
+        )
+        setup_session.add(profile)
+        await setup_session.flush()
+        setup_session.add(
+            NumberSequence(
+                business_profile_id=profile.id,
+                key="customer",
+                prefix="CUST",
+                pattern="{PREFIX}-{#####}",
+            )
+        )
+        await setup_session.commit()
+        profile_id = profile.id
+
+    customer_data = CustomerCreate.model_validate(
+        {
+            "kind": "company",
+            "display_name": "Race Customer",
+            "company_name": "Race Customer GmbH",
+            "status": "active",
+            "preferred_locale": "en",
+            "accounts": [
+                {
+                    "business_profile_id": profile_id,
+                    "number": "RACE-1",
+                    "preferred_currency": "EUR",
+                }
+            ],
+            "contacts": [],
+            "addresses": [],
+            "tax_identifiers": [],
+            "tags": [],
+        }
+    )
+
+    async def create_customer_after_delete_lock() -> None:
+        async with session_factory() as customer_session:
+            await customer_service.create_customer(
+                customer_session,
+                customer_data,
+                effective_date=date(2026, 7, 11),
+            )
+            await customer_session.commit()
+
+    profile_loaded = asyncio.Event()
+    allow_delete = asyncio.Event()
+    original_load = business_profile_service._load_business_profile
+
+    async def load_then_pause(session, loaded_profile_id, *, for_update=False):
+        loaded = await original_load(session, loaded_profile_id, for_update=for_update)
+        profile_loaded.set()
+        await allow_delete.wait()
+        return loaded
+
+    async def delete_profile() -> None:
+        async with session_factory() as delete_session:
+            await business_profile_service.delete_business_profile(delete_session, profile_id)
+            await delete_session.commit()
+
+    with patch.object(business_profile_service, "_load_business_profile", side_effect=load_then_pause):
+        delete_task = asyncio.create_task(delete_profile())
+        await asyncio.wait_for(profile_loaded.wait(), timeout=2)
+        create_task = asyncio.create_task(create_customer_after_delete_lock())
+        await asyncio.sleep(0.1)
+        assert not create_task.done()
+        allow_delete.set()
+        await asyncio.wait_for(delete_task, timeout=2)
+
+    with pytest.raises(ResourceNotFoundError):
+        await asyncio.wait_for(create_task, timeout=2)
+    async with session_factory() as verify_session:
+        assert await verify_session.scalar(select(func.count(CustomerAccount.id))) == 0
+    await engine.dispose()
 
 
 @pytest.mark.asyncio
@@ -659,6 +818,10 @@ def invalid_profile_cases() -> list[tuple[str, dict]]:
     cases.append(("tax country", payload))
 
     payload = profile_payload()
+    payload["tax_identifiers"][0]["kind"] = "ß" * 17
+    cases.append(("tax kind expands beyond database width", payload))
+
+    payload = profile_payload()
     payload["tax_identifiers"][0]["country_code"] = "ZZ"
     cases.append(("unknown tax country", payload))
 
@@ -710,6 +873,13 @@ def invalid_profile_cases() -> list[tuple[str, dict]]:
         }
     )
     cases.append(("case-insensitive duplicate tax identifier", payload))
+
+    payload = profile_payload()
+    payload["tax_identifiers"][0].update({"kind": "\U00010570", "value": "A", "is_primary": True})
+    payload["tax_identifiers"].append(
+        {**payload["tax_identifiers"][0], "kind": "\U00010597", "value": "B"}
+    )
+    cases.append(("Unicode 15.1 duplicate primary tax kind", payload))
 
     payload = profile_payload()
     payload["addresses"].append(
