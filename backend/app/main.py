@@ -25,6 +25,7 @@ from backend.app.api.routes import (
     auth,
     bug_report,
     business_profiles,
+    calculations,
     camera,
     cloud,
     customers,
@@ -6719,6 +6720,7 @@ app.include_router(auth.router, prefix=app_settings.api_prefix)
 app.include_router(mfa.router, prefix=app_settings.api_prefix)
 app.include_router(bug_report.router, prefix=app_settings.api_prefix)
 app.include_router(business_profiles.router, prefix=app_settings.api_prefix)
+app.include_router(calculations.router, prefix=app_settings.api_prefix)
 app.include_router(customers.router, prefix=app_settings.api_prefix)
 app.include_router(users.router, prefix=app_settings.api_prefix)
 app.include_router(groups.router, prefix=app_settings.api_prefix)

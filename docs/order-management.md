@@ -119,8 +119,20 @@ Berechtigungen unabhaengig davon, ob eine Aktion in der Oberflaeche sichtbar ist
 
 ## Naechste Ausbaustufen
 
-Als naechstes folgt die Kalkulation mit Revisionen, Varianten, Slicer-Eingaben
-und geplanten Kosten. Die vollstaendige Reihenfolge steht im Abschnitt
+Die Kalkulation ist unter `Auftraege > Kalkulation` erreichbar. Eine neue
+Kalkulation beginnt mit einer konkreten Kundenanfrage; die Kundenzuordnung kann
+zunaechst leer bleiben. Positionen, Drucklaeufe, Materialverbrauch, Druckzeit,
+Ausschusslaeufe und Varianten werden in einem gemeinsamen Arbeitsbereich
+gepflegt. Freigegebene Kalkulationen erzeugen unveraenderliche Revisionen und
+koennen als wiederverwendbare Vorlage gespeichert werden.
+
+Die Kostenbasis unter `Einstellungen > Auftragsverwaltung > Kalkulation`
+enthaelt Ersatzwerte fuer Maschine, Arbeit, Energie, Risiko, Mindestpreis,
+Nebenkosten und Preisverfahren. Konkrete Drucker- und Materialdaten haben
+Vorrang. Die Beispielrechnung zeigt die Auswirkung der aktuellen Vorgaben.
+
+Angebote werden im folgenden Ausbau aus einer freigegebenen Kalkulationsrevision
+erzeugt. Die vollstaendige Reihenfolge steht im Abschnitt
 [`Delivery Shape`](superpowers/specs/2026-07-10-order-management-design.md#delivery-shape)
 des freigegebenen Designs.
 
