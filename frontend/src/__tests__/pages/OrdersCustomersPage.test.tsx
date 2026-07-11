@@ -238,8 +238,10 @@ describe('OrdersCustomersPage', () => {
     await user.type(screen.getByRole('textbox', { name: 'Contact email 1' }), 'lin@nova.test');
     await user.click(screen.getByRole('checkbox', { name: 'Primary contact 1' }));
     await user.click(screen.getByRole('checkbox', { name: 'Include contact 1 on documents' }));
-    await user.click(screen.getByRole('button', { name: 'Add address' }));
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Address kind 1' }), 'delivery');
+    expect(within(editor).getByRole('button', { name: 'Add address: Billing' })).toBeInTheDocument();
+    expect(within(editor).getByRole('button', { name: 'Add address: Delivery' })).toBeInTheDocument();
+    await user.click(within(editor).getByRole('button', { name: 'Add address: Delivery' }));
+    expect(screen.getByRole('combobox', { name: 'Address kind 1' })).toHaveValue('delivery');
     await user.type(screen.getByRole('textbox', { name: 'Street 1' }), 'Novaweg 8');
     await user.type(screen.getByRole('textbox', { name: 'Postal code 1' }), '20095');
     await user.type(screen.getByRole('textbox', { name: 'City 1' }), 'Hamburg');
@@ -403,7 +405,7 @@ describe('OrdersCustomersPage', () => {
   it('rejects an Intl-only address country at the field before mutation', async () => {
     const mutationRequests = trackCustomerMutations();
     const user = await openValidCreateEditor();
-    await user.click(screen.getByRole('button', { name: 'Add address' }));
+    await user.click(screen.getByRole('button', { name: 'Add address: Billing' }));
     await user.type(screen.getByRole('textbox', { name: 'Street 1' }), 'Example 1');
     await user.type(screen.getByRole('textbox', { name: 'Postal code 1' }), '10115');
     await user.type(screen.getByRole('textbox', { name: 'City 1' }), 'Berlin');

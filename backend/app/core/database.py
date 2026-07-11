@@ -3326,6 +3326,40 @@ async def run_migrations(conn):
     else:
         await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN gate_acknowledged BOOLEAN DEFAULT false")
 
+    # Migration: business-profile document, tax, and payment settings.
+    await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN tax_mode VARCHAR(16) DEFAULT 'standard'")
+    await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN default_tax_rate NUMERIC(5, 2) DEFAULT 0")
+    boolean_false = "0" if is_sqlite() else "false"
+    boolean_true = "1" if is_sqlite() else "true"
+    await _safe_execute(
+        conn,
+        f"ALTER TABLE business_profiles ADD COLUMN cash_accounting BOOLEAN DEFAULT {boolean_false}",
+    )
+    await _safe_execute(
+        conn,
+        f"ALTER TABLE business_profiles ADD COLUMN input_tax_deductible BOOLEAN DEFAULT {boolean_true}",
+    )
+    await _safe_execute(
+        conn,
+        f"ALTER TABLE business_profiles ADD COLUMN show_offer_qr BOOLEAN DEFAULT {boolean_false}",
+    )
+    await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN paypal_me_url VARCHAR(500)")
+    await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN logo_media_type VARCHAR(32)")
+    await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN logo_version INTEGER")
+    async with conn.begin_nested():
+        await conn.execute(
+            text(
+                "UPDATE business_profiles SET "
+                "tax_mode = COALESCE(tax_mode, 'standard'), "
+                "default_tax_rate = CASE WHEN country_code = 'DE' THEN 19.00 ELSE 0.00 END, "
+                f"cash_accounting = COALESCE(cash_accounting, {boolean_false}), "
+                f"input_tax_deductible = COALESCE(input_tax_deductible, {boolean_true}), "
+                f"show_offer_qr = COALESCE(show_offer_qr, {boolean_false}) "
+                "WHERE default_tax_rate IS NULL OR tax_mode IS NULL "
+                "OR cash_accounting IS NULL OR input_tax_deductible IS NULL OR show_offer_qr IS NULL"
+            )
+        )
+
     # Migration: Add is_autologin column to oidc_providers (#1589). Postgres
     # rejects ``DEFAULT 0`` for BOOLEAN columns.
     if is_sqlite():

@@ -4148,7 +4148,7 @@ export function SettingsPage() {
       )}
 
       {activeTab === 'orders-calculation' && orderManagementSubTab === 'business-profile' && (
-        <div className="max-w-3xl space-y-3">
+        <div className="w-full">
           <BusinessProfileSettings />
         </div>
       )}
