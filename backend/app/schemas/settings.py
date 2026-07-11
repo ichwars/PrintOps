@@ -24,6 +24,10 @@ class AppSettings(BaseModel):
         default="total",
         description="Energy display mode on stats: 'print' shows sum of per-print energy, 'total' shows lifetime plug consumption",
     )
+    calculation_defaults: str = Field(
+        default="{}",
+        description="Versioned JSON defaults for commercial calculation previews and revisions",
+    )
 
     # Spoolman integration
     spoolman_enabled: bool = Field(default=False, description="Enable Spoolman integration for filament tracking")
@@ -473,6 +477,7 @@ class AppSettingsUpdate(BaseModel):
     currency: str | None = None
     energy_cost_per_kwh: float | None = None
     energy_tracking_mode: str | None = None
+    calculation_defaults: str | None = None
     spoolman_enabled: bool | None = None
     spoolman_url: str | None = None
     spoolman_sync_mode: str | None = None

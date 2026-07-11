@@ -110,7 +110,7 @@ function buildSlicerUrlFilename(filename: string): string {
   return safe.toLowerCase().endsWith('.3mf') ? safe : `${safe}.3mf`;
 }
 
-async function request<T>(
+export async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
@@ -1127,6 +1127,7 @@ export interface AppSettings {
   currency: string;
   energy_cost_per_kwh: number;
   energy_tracking_mode: 'print' | 'total';
+  calculation_defaults: string;
   check_updates: boolean;
   check_printer_firmware: boolean;
   include_beta_updates: boolean;
