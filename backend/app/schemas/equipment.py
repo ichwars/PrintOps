@@ -49,4 +49,6 @@ class EquipmentRead(EquipmentBase):
     @computed_field
     @property
     def hourly_rate(self) -> Decimal:
-        return calculate_hourly_rate(self.acquisition_value, self.service_years, self.annual_hours, self.maintenance_rate)
+        return calculate_hourly_rate(
+            self.acquisition_value, self.service_years, self.annual_hours, self.maintenance_rate
+        )

@@ -17,7 +17,10 @@ async def list_equipment(
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
 ) -> list[EquipmentRead]:
-    return [EquipmentRead.model_validate(item) for item in await equipment_service.list_equipment(db, active_only=active_only)]
+    return [
+        EquipmentRead.model_validate(item)
+        for item in await equipment_service.list_equipment(db, active_only=active_only)
+    ]
 
 
 @router.post("/", response_model=EquipmentRead, status_code=status.HTTP_201_CREATED)

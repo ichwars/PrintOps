@@ -7,9 +7,15 @@ from backend.app.services.equipment_costs import calculate_hourly_rate, calculat
 
 
 def test_residual_value_uses_straight_line_depreciation():
-    assert calculate_residual_value(Decimal("1200"), date(2025, 1, 1), Decimal("4"), date(2025, 1, 1)) == Decimal("1200.00")
-    assert calculate_residual_value(Decimal("1200"), date(2024, 1, 1), Decimal("4"), date(2026, 1, 1)) == Decimal("600.00")
-    assert calculate_residual_value(Decimal("1200"), date(2020, 1, 1), Decimal("4"), date(2026, 1, 1)) == Decimal("0.00")
+    assert calculate_residual_value(Decimal("1200"), date(2025, 1, 1), Decimal("4"), date(2025, 1, 1)) == Decimal(
+        "1200.00"
+    )
+    assert calculate_residual_value(Decimal("1200"), date(2024, 1, 1), Decimal("4"), date(2026, 1, 1)) == Decimal(
+        "600.00"
+    )
+    assert calculate_residual_value(Decimal("1200"), date(2020, 1, 1), Decimal("4"), date(2026, 1, 1)) == Decimal(
+        "0.00"
+    )
 
 
 def test_hourly_rate_includes_maintenance_and_wear():

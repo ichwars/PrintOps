@@ -141,13 +141,7 @@ def calculate_variant(inputs: VariantCostInputs) -> VariantCostResult:
             raise CalculationInputError("unknown labor allocation basis")
         labor += entry.hours * entry.hourly_rate * multiplier
     base_production = (
-        material
-        + machine
-        + energy
-        + labor
-        + inputs.consumables
-        + inputs.packaging
-        + inputs.additional_costs
+        material + machine + energy + labor + inputs.consumables + inputs.packaging + inputs.additional_costs
     )
     risk = base_production * inputs.risk_rate
     production = base_production + risk
@@ -198,5 +192,26 @@ def calculate_combined(operations: list[VariantCostInputs], commercial: VariantC
     machine = sum((item.machine_cost for item in results), Decimal("0"))
     energy = sum((item.energy_cost for item in results), Decimal("0"))
     labor = sum((item.labor_cost for item in results), Decimal("0"))
-    combined = calculate_variant(replace(commercial, material_grams_per_run=Decimal("0"), material_price_per_kg=Decimal("0"), print_hours_per_run=Decimal("0"), machine_cost_per_hour=Decimal("0"), printer_power_kw=Decimal("0"), drying_hours=Decimal("0"), dryer_power_kw=Decimal("0"), labor=(), additional_costs=commercial.additional_costs + material + machine + energy + labor))
-    return replace(combined, total_runs=sum(item.total_runs for item in results), material_cost=material, machine_cost=machine, energy_cost=energy, labor_cost=labor, additional_costs=round_money(commercial.additional_costs))
+    combined = calculate_variant(
+        replace(
+            commercial,
+            material_grams_per_run=Decimal("0"),
+            material_price_per_kg=Decimal("0"),
+            print_hours_per_run=Decimal("0"),
+            machine_cost_per_hour=Decimal("0"),
+            printer_power_kw=Decimal("0"),
+            drying_hours=Decimal("0"),
+            dryer_power_kw=Decimal("0"),
+            labor=(),
+            additional_costs=commercial.additional_costs + material + machine + energy + labor,
+        )
+    )
+    return replace(
+        combined,
+        total_runs=sum(item.total_runs for item in results),
+        material_cost=material,
+        machine_cost=machine,
+        energy_cost=energy,
+        labor_cost=labor,
+        additional_costs=round_money(commercial.additional_costs),
+    )

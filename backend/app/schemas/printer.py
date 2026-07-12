@@ -142,9 +142,18 @@ class PrinterResponse(PrinterBase):
             "updated_at": printer.updated_at,
         }
         if printer.acquisition_date and printer.acquisition_value is not None and printer.service_years is not None:
-            data["residual_value"] = calculate_residual_value(printer.acquisition_value, printer.acquisition_date, printer.service_years)
-        if printer.acquisition_value is not None and printer.service_years is not None and printer.annual_hours is not None and printer.maintenance_rate is not None:
-            data["hourly_rate"] = calculate_hourly_rate(printer.acquisition_value, printer.service_years, printer.annual_hours, printer.maintenance_rate)
+            data["residual_value"] = calculate_residual_value(
+                printer.acquisition_value, printer.acquisition_date, printer.service_years
+            )
+        if (
+            printer.acquisition_value is not None
+            and printer.service_years is not None
+            and printer.annual_hours is not None
+            and printer.maintenance_rate is not None
+        ):
+            data["hourly_rate"] = calculate_hourly_rate(
+                printer.acquisition_value, printer.service_years, printer.annual_hours, printer.maintenance_rate
+            )
         # Build ROI object if any ROI field is set
         if any(
             [

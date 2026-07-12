@@ -13,7 +13,18 @@ from backend.app.services.calculation_engine import (
 )
 
 
-@pytest.mark.parametrize(("mode", "expected"), [("none", "12.01"), ("0.05", "12.05"), ("0.10", "12.10"), ("0.50", "12.50"), ("1.00", "13.00"), ("x.90", "12.90"), ("x.99", "12.99")])
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [
+        ("none", "12.01"),
+        ("0.05", "12.05"),
+        ("0.10", "12.10"),
+        ("0.50", "12.50"),
+        ("1.00", "13.00"),
+        ("x.90", "12.90"),
+        ("x.99", "12.99"),
+    ],
+)
 def test_price_rounding_modes(mode, expected):
     assert apply_price_rounding(Decimal("12.01"), mode) == Decimal(expected)
 
