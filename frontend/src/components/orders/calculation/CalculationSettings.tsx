@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { BadgeEuro, Calculator, Clock3, Coins, Loader2, Package, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { calculationsApi, type CalculationPreview, type CalculationPreviewInput, type PriceMethod } from '../../../api/calculations';
+import { api } from '../../../api/client';
+import { SUPPORTED_CURRENCIES } from '../../../utils/currency';
 
 type SettingKey = 'currency' | 'default_filament_cost' | 'energy_cost_per_kwh' | 'calculation_defaults';
 type Settings = { currency: string; default_filament_cost: number; energy_cost_per_kwh: number; calculation_defaults: string };
 type Defaults = Record<string, number | string>;
 
 const FALLBACK: Defaults = {
-  acquisitionValue: 749, residualValue: 0, serviceYears: 4, annualHours: 1200, maintenancePercent: 25,
-  printerPowerWatts: 200, dryerPowerWatts: 250, dryingHours: 0, laborRate: 20,
+  defaultPrinterId: 0, defaultDryerId: 0, dryingHours: 0, laborRate: 20,
   requestHours: 0.15, cadHours: 0, slicingHours: 0.1, setupHours: 0.3,
   postProcessingHours: 0.25, qaHours: 0.05, packingHours: 0.1, scrapRuns: 0,
   riskPercent: 8, priceMethod: 'target_margin', priceRate: 35, explicitPrice: 0,
@@ -29,6 +31,10 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
   const [preview, setPreview] = useState<CalculationPreview | null>(null);
   const [previewError, setPreviewError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { data: printers = [] } = useQuery({ queryKey: ['printers'], queryFn: api.getPrinters });
+  const { data: dryers = [] } = useQuery({ queryKey: ['equipment', 'active'], queryFn: () => api.getEquipment(true) });
+  const selectedPrinter = printers.find(item => item.id === Number(defaults.defaultPrinterId));
+  const selectedDryer = dryers.find(item => item.id === Number(defaults.defaultDryerId));
   const update = (key: string, value: number | string) => onChange('calculation_defaults', JSON.stringify({ ...defaults, [key]: value }));
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -43,10 +49,10 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
         good_parts: n('exampleParts'), parts_per_run: n('examplePartsPerRun'), scrap_runs: n('scrapRuns'),
         material_grams_per_run: String(n('exampleMaterialGrams')), material_price_per_kg: String(settings.default_filament_cost),
         print_hours_per_run: String(n('examplePrintHours')), machine_cost_per_hour: '0',
-        acquisition_value: String(n('acquisitionValue')), residual_value: String(n('residualValue')),
-        service_years: String(n('serviceYears')), annual_hours: String(n('annualHours')), maintenance_rate: String(n('maintenancePercent') / 100),
-        printer_power_kw: String(n('printerPowerWatts') / 1000), electricity_price_per_kwh: String(settings.energy_cost_per_kwh),
-        drying_hours: String(n('dryingHours')), dryer_power_kw: String(n('dryerPowerWatts') / 1000), labor,
+        acquisition_value: selectedPrinter?.acquisition_value ?? '0', residual_value: '0',
+        service_years: selectedPrinter?.service_years ?? '1', annual_hours: selectedPrinter?.annual_hours ?? '1', maintenance_rate: selectedPrinter?.maintenance_rate ?? '0',
+        printer_power_kw: String(Number(selectedPrinter?.nominal_power_watts ?? 0) / 1000), electricity_price_per_kwh: String(settings.energy_cost_per_kwh),
+        drying_hours: String(n('dryingHours')), dryer_power_kw: String(Number(selectedDryer?.nominal_power_watts ?? 0) / 1000), labor,
         consumables: String(n('consumables')), packaging: String(n('packaging')), additional_costs: String(n('additionalCosts')),
         risk_rate: String(n('riskPercent') / 100), shipping: String(n('shipping')), price_method: String(defaults.priceMethod) as PriceMethod,
         price_rate: String(n('priceRate') / 100), explicit_price: String(n('explicitPrice')), discount_rate: String(n('discountPercent') / 100),
@@ -55,15 +61,10 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
       calculationsApi.preview(input).then(setPreview).catch(() => setPreviewError(true)).finally(() => setLoading(false));
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [defaults, settings.default_filament_cost, settings.energy_cost_per_kwh]);
+  }, [defaults, selectedDryer, selectedPrinter, settings.default_filament_cost, settings.energy_cost_per_kwh]);
 
   const groups: Array<{ title: string; description: string; icon: LucideIcon; column: 'cost' | 'commercial'; fields: Array<[string, string, number]> }> = [
-    { title: de ? 'Kostenbasis' : 'Cost basis', icon: Coins, column: 'cost', description: de ? 'Maschine, Material und Energie als Ersatzwerte.' : 'Machine, material, and energy fallbacks.', fields: [
-      ['acquisitionValue', de ? 'Anschaffungswert' : 'Acquisition value', .01], ['residualValue', de ? 'Restwert' : 'Residual value', .01],
-      ['serviceYears', de ? 'Nutzungsdauer (Jahre)' : 'Service life (years)', .1], ['annualHours', de ? 'Nutzbare Stunden/Jahr' : 'Usable hours/year', 1],
-      ['maintenancePercent', de ? 'Wartung & Verschleiß %' : 'Maintenance & wear %', .1], ['printerPowerWatts', de ? 'Druckerleistung W' : 'Printer power W', 1],
-      ['dryerPowerWatts', de ? 'Trocknerleistung W' : 'Dryer power W', 1], ['dryingHours', de ? 'Trocknungszeit h' : 'Drying time h', .05],
-    ]},
+    { title: de ? 'Kostenbasis' : 'Cost basis', icon: Coins, column: 'cost', description: de ? 'Standardgeräte aus der zentralen Geräteverwaltung.' : 'Default devices from central device management.', fields: [['dryingHours', de ? 'Standard-Trocknungszeit h' : 'Default drying time h', .05]]},
     { title: de ? 'Arbeitszeiten' : 'Labor times', icon: Clock3, column: 'cost', description: de ? 'Stundensatz und Standardzeiten je Tätigkeit.' : 'Hourly rate and defaults per activity.', fields: [
       ['laborRate', de ? 'Arbeitsstundensatz' : 'Hourly rate', .01], ['requestHours', de ? 'Anfragevorbereitung h' : 'Request preparation h', .05],
       ['cadHours', 'CAD/Reparatur h', .05], ['slicingHours', 'Slicing h', .05], ['setupHours', de ? 'Rüstzeit h/Lauf' : 'Setup h/run', .05],
@@ -92,6 +93,7 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
     const Icon = group.icon;
     return <section key={group.title} className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-5">
       <div className="flex items-start gap-3"><div className="rounded-lg bg-bambu-orange/10 p-2 text-bambu-orange"><Icon className="h-5 w-5" /></div><div><h3 className="font-semibold text-white">{group.title}</h3><p className="mt-1 text-xs text-bambu-gray">{group.description}</p></div></div>
+      {group.title === (de ? 'Kostenbasis' : 'Cost basis') && <div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-sm text-bambu-gray">{de ? 'Standarddrucker' : 'Default printer'}<select value={Number(defaults.defaultPrinterId)} onChange={e => update('defaultPrinterId', Number(e.target.value))} className={inputClass}><option value={0}>{de ? 'Kein Standarddrucker' : 'No default printer'}</option>{printers.filter(item => item.is_active).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label className="text-sm text-bambu-gray">{de ? 'Standardtrockner' : 'Default dryer'}<select value={Number(defaults.defaultDryerId)} onChange={e => update('defaultDryerId', Number(e.target.value))} className={inputClass}><option value={0}>{de ? 'Kein Standardtrockner' : 'No default dryer'}</option>{dryers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>{selectedPrinter && <div className="rounded-lg bg-bambu-dark p-3 text-sm"><span className="block text-xs text-bambu-gray">{de ? 'Drucker: Restwert / Stundensatz' : 'Printer: residual / hourly'}</span><strong className="text-white">{money(selectedPrinter.residual_value ?? '0')} / {money(selectedPrinter.hourly_rate ?? '0')}/h</strong></div>}{selectedDryer && <div className="rounded-lg bg-bambu-dark p-3 text-sm"><span className="block text-xs text-bambu-gray">{de ? 'Trockner: Restwert / Stundensatz' : 'Dryer: residual / hourly'}</span><strong className="text-white">{money(selectedDryer.residual_value)} / {money(selectedDryer.hourly_rate)}/h</strong></div>}</div>}
       {group.title === (de ? 'Preisbildung' : 'Price derivation') && <label className="mt-4 block text-sm text-bambu-gray">{de ? 'Verfahren' : 'Method'}<select value={String(defaults.priceMethod)} onChange={e => update('priceMethod', e.target.value)} className={inputClass}><option value="target_margin">{de ? 'Zielmarge' : 'Target margin'}</option><option value="markup">{de ? 'Aufschlag' : 'Markup'}</option><option value="explicit_price">{de ? 'Fester Zielpreis' : 'Explicit price'}</option></select></label>}
       <div className="mt-4 grid gap-3 sm:grid-cols-2">{group.fields.map(([key, label, step]) => <label key={key} className="text-sm text-bambu-gray">{label}<input type="number" min="0" step={step} value={Number(defaults[key] ?? 0)} onChange={e => update(key, Number(e.target.value))} className={inputClass} /></label>)}</div>
       {group.title === (de ? 'Beispielrechnung' : 'Example calculation') && <div className="mt-4">
@@ -108,7 +110,7 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
   };
   return <div id="card-cost" className="space-y-5">
     <div className="grid gap-3 md:grid-cols-3">
-      <label className="text-sm text-bambu-gray">{de ? 'Währung' : 'Currency'}<input value={settings.currency} onChange={e => onChange('currency', e.target.value.toUpperCase())} className={inputClass} /></label>
+      <label className="text-sm text-bambu-gray">{de ? 'Währung' : 'Currency'}<select value={settings.currency} onChange={e => onChange('currency', e.target.value)} className={inputClass}>{SUPPORTED_CURRENCIES.map(currency => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select></label>
       <label className="text-sm text-bambu-gray">{de ? 'Filamentpreis/kg' : 'Filament price/kg'}<input type="number" min="0" step="0.01" value={settings.default_filament_cost} onChange={e => onChange('default_filament_cost', Number(e.target.value))} className={inputClass} /></label>
       <label className="text-sm text-bambu-gray">{de ? 'Strompreis/kWh' : 'Electricity/kWh'}<input type="number" min="0" step="0.001" value={settings.energy_cost_per_kwh} onChange={e => onChange('energy_cost_per_kwh', Number(e.target.value))} className={inputClass} /></label>
     </div>
