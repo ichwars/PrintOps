@@ -37,6 +37,8 @@ frontend/.npm
 
 # Testing
 .pytest_cache/
+**/.pytest_cache/
+.tmp/
 .coverage
 htmlcov/
 
