@@ -107,6 +107,7 @@ export const calculationsApi = {
   create: (input: CalculationCreate) => request<CalculationDetail>('/calculations/', { method: 'POST', body: JSON.stringify(input) }),
   update: (id: number, input: CalculationUpdate) => request<CalculationDetail>(`/calculations/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
   approve: (id: number, expectedVersion: number) => request<CalculationRevision>(`/calculations/${id}/approve`, { method: 'POST', body: JSON.stringify({ expected_version: expectedVersion, warning_reasons: {} }) }),
+  archive: (id: number, expectedVersion: number) => request<CalculationDetail>(`/calculations/${id}/archive?expected_version=${expectedVersion}`, { method: 'POST' }),
   revisions: (id: number) => request<CalculationRevision[]>(`/calculations/${id}/revisions`),
   createTemplate: (id: number, name: string) => request(`/calculations/${id}/templates`, { method: 'POST', body: JSON.stringify({ name }) }),
 };
