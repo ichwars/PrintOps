@@ -352,3 +352,11 @@ The implementation plan must cover:
 ## Deferred Work
 
 Later increments will implement quotation/document generation, customer-facing acceptance links, numbering, PDF layout, reminders, automatic order creation, reservations, production scheduling, actual-cost comparison, and queue automation. Those capabilities must consume approved revisions rather than duplicating or mutating calculation logic.
+
+## Calculation Settings Overview Layout
+
+The calculation settings surface uses a responsive two-column overview so operators can quickly see configured defaults and missing decisions. The compact global values for currency, filament price, and electricity price span the full width above the cards.
+
+The left column contains cost inputs in this order: cost basis, labor times, and ancillary costs. The right column contains commercial decisions in this order: risk and scrap, price derivation, and the live example calculation. On narrow screens the cards collapse to one column while retaining this reading order.
+
+Every card title has a meaningful Lucide icon: `Coins` for cost basis, `Clock` for labor, `Package` for ancillary costs, `TriangleAlert` for risk, `BadgeEuro` for pricing, and `Calculator` for the example. Icons use the existing orange/green accent treatment and do not replace visible text labels. Card spacing, title rows, descriptions, input heights, and borders remain consistent with the existing PrintOps settings design.
