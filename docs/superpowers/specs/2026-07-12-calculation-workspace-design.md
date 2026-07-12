@@ -360,3 +360,15 @@ The calculation settings surface uses a responsive two-column overview so operat
 The left column contains cost inputs in this order: cost basis, labor times, and ancillary costs. The right column contains commercial decisions in this order: risk and scrap, price derivation, and the live example calculation. On narrow screens the cards collapse to one column while retaining this reading order.
 
 Every card title has a meaningful Lucide icon: `Coins` for cost basis, `Clock` for labor, `Package` for ancillary costs, `TriangleAlert` for risk, `BadgeEuro` for pricing, and `Calculator` for the example. Icons use the existing orange/green accent treatment and do not replace visible text labels. Card spacing, title rows, descriptions, input heights, and borders remain consistent with the existing PrintOps settings design.
+
+## Central Device Master Data
+
+PrintOps has one authoritative device-management surface under Settings. The existing printer-management UI is renamed to device management and presents printers and dryers together without duplicating printer records. Existing printer connection, control, archive, and maintenance behavior remains backed by the printer model. Dryers use a separate general-equipment model because they do not have printer connectivity or print-job behavior.
+
+The first supported calculable device types are `printer` and `dryer`. General-equipment records contain a name, active state, acquisition date, acquisition value, service life in years, expected annual operating hours, maintenance/wear percentage, and nominal power in watts. Printer records receive the same optional commercial fields without changing their operational fields. A later increment may add other equipment types through the same general-equipment model.
+
+Current residual value is read-only and calculated by straight-line depreciation from acquisition value and acquisition date to zero at the end of service life. The calculated machine hourly rate is also read-only and uses depreciable value, expected operating hours, and maintenance/wear. Both derived values are returned by the backend so every UI uses the same result.
+
+Calculation settings no longer create equipment. They select an active default printer and an optional active default dryer from device management. An order calculation resolves those defaults and may override them per production step. A dryer selection additionally records the required drying duration for that calculation. Approval snapshots retain device identifiers, names, and the resolved commercial values so historical revisions remain explainable after master data changes.
+
+Currency is selected from supported ISO currencies rather than entered as free text. Price derivation gains a backend-owned rounding rule matching the available ForgeDesk behavior; preview and approval apply the same rule. Device deletion is blocked when operational dependencies require it, while inactive devices remain visible in historical revisions but are excluded from new default selectors.
