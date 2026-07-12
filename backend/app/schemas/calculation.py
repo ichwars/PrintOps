@@ -109,6 +109,11 @@ class CalculationTemplateCreate(CalculationSchema):
     revision_id: int | None = Field(default=None, gt=0)
 
 
+class CalculationTemplateInstantiate(CalculationSchema):
+    title: str = Field(min_length=1, max_length=255)
+    customer_id: int | None = Field(default=None, gt=0)
+
+
 class CalculationPreviewInput(CalculationSchema):
     good_parts: int = Field(default=1, ge=0)
     parts_per_run: int = Field(default=1, gt=0)

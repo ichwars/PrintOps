@@ -93,6 +93,8 @@ export interface CalculationRevision {
   production_cost: string; selling_price: string; currency: string; approved_by_id: number | null; approved_at: string;
 }
 
+export interface CalculationTemplate { id: number; business_profile_id: number; name: string; version: number; definition: Record<string, unknown>; created_at: string }
+
 export const calculationsApi = {
   uploadSource: async (file: File) => {
     const form = new FormData(); form.append('file', file);
@@ -117,4 +119,6 @@ export const calculationsApi = {
   archive: (id: number, expectedVersion: number) => request<CalculationDetail>(`/calculations/${id}/archive?expected_version=${expectedVersion}`, { method: 'POST' }),
   revisions: (id: number) => request<CalculationRevision[]>(`/calculations/${id}/revisions`),
   createTemplate: (id: number, name: string) => request(`/calculations/${id}/templates`, { method: 'POST', body: JSON.stringify({ name }) }),
+  templates: () => request<CalculationTemplate[]>('/calculations/templates'),
+  instantiateTemplate: (id: number, title: string) => request<CalculationDetail>(`/calculations/templates/${id}/instantiate`, { method: 'POST', body: JSON.stringify({ title, customer_id: null }) }),
 };

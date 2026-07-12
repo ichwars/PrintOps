@@ -306,3 +306,25 @@ async def create_template(session: AsyncSession, calculation_id: int, name: str)
     session.add(template)
     await session.flush()
     return template
+
+
+async def list_templates(session: AsyncSession) -> list[CalculationTemplate]:
+    return list((await session.scalars(select(CalculationTemplate).order_by(CalculationTemplate.name, CalculationTemplate.id))).all())
+
+
+async def instantiate_template(session: AsyncSession, template_id: int, title: str, customer_id: int | None) -> Calculation:
+    template = await session.get(CalculationTemplate, template_id)
+    if template is None:
+        raise ResourceNotFoundError(f"Calculation template {template_id} was not found")
+    definition = template.definition
+    calculation_data = definition["calculation"]
+    await _validate_references(session, template.business_profile_id, customer_id)
+    calculation = Calculation(business_profile_id=template.business_profile_id, customer_id=customer_id, title=title, currency=calculation_data.get("currency", "EUR"), notes=None)
+    for variant_index, source_variant in enumerate(definition.get("variants", [])):
+        variant = CalculationVariant(name=source_variant["name"], is_preferred=source_variant.get("is_preferred", variant_index == 0), sort_order=variant_index, price_method=source_variant.get("price_method", "target_margin"), price_rate=Decimal(str(source_variant.get("price_rate", "0"))))
+        variant.lines = [CalculationLine(kind=line.get("kind", "printed_part"), description=line.get("description", ""), quantity=Decimal(str(line.get("quantity", "1"))), unit_code=line.get("unit_code", "C62"), unit_price=Decimal(str(line["unit_price"])) if line.get("unit_price") is not None else None, sort_order=index) for index, line in enumerate(source_variant.get("lines", []))]
+        variant.operations = [CalculationOperation(kind=operation.get("kind", "printing"), title=operation.get("title", ""), source_file=None, source_plate=None, good_parts=operation.get("good_parts", 1), parts_per_run=operation.get("parts_per_run", 1), scrap_runs=operation.get("scrap_runs", 0), material_grams_per_run=Decimal(str(operation.get("material_grams_per_run", "0"))), print_hours_per_run=Decimal(str(operation.get("print_hours_per_run", "0"))), provenance={"source": "template", "template_id": template.id, "template_version": template.version}, sort_order=index) for index, operation in enumerate(source_variant.get("operations", []))]
+        calculation.variants.append(variant)
+    session.add(calculation)
+    await session.flush()
+    return await _load(session, calculation.id)

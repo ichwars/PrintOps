@@ -21,6 +21,7 @@ from backend.app.schemas.calculation import (
     CalculationPreviewRead,
     CalculationRevisionRead,
     CalculationTemplateCreate,
+    CalculationTemplateInstantiate,
     CalculationTemplateRead,
     CalculationUpdate,
 )
@@ -139,6 +140,30 @@ async def create_calculation(
 ) -> CalculationDetail:
     try:
         calculation = await calculation_service.create_calculation(db, data)
+        await db.commit()
+    except OrderDomainError as exc:
+        await db.rollback()
+        _raise_http(exc)
+    return _detail(calculation)
+
+
+@router.get("/templates", response_model=list[CalculationTemplateRead])
+async def list_templates(
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
+) -> list[CalculationTemplateRead]:
+    return [CalculationTemplateRead.model_validate(item) for item in await calculation_service.list_templates(db)]
+
+
+@router.post("/templates/{template_id}/instantiate", response_model=CalculationDetail, status_code=status.HTTP_201_CREATED)
+async def instantiate_template(
+    template_id: int,
+    data: CalculationTemplateInstantiate,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_UPDATE),
+) -> CalculationDetail:
+    try:
+        calculation = await calculation_service.instantiate_template(db, template_id, data.title, data.customer_id)
         await db.commit()
     except OrderDomainError as exc:
         await db.rollback()

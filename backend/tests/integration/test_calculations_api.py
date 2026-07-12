@@ -108,6 +108,13 @@ async def test_template_excludes_customer_context(async_client, db_session):
 
     assert response.status_code == 201, response.text
     assert "customer_id" not in response.json()["definition"]["calculation"]
+    templates = await async_client.get("/api/v1/calculations/templates")
+    assert templates.status_code == 200
+    instantiated = await async_client.post(f"/api/v1/calculations/templates/{response.json()['id']}/instantiate", json={"title": "From template"})
+    assert instantiated.status_code == 201, instantiated.text
+    assert instantiated.json()["title"] == "From template"
+    assert instantiated.json()["customer_id"] is None
+    assert instantiated.json()["variants"][0]["operations"][0]["source_file"] is None
 
 
 async def test_preview_returns_complete_commercial_breakdown(async_client):
