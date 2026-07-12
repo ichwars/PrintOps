@@ -571,6 +571,25 @@ export interface PrinterCreate {
   plate_detection_roi?: PlateDetectionROI;
 }
 
+export interface Equipment {
+  id: number;
+  equipment_type: 'dryer';
+  name: string;
+  is_active: boolean;
+  acquisition_date: string;
+  acquisition_value: string;
+  service_years: string;
+  annual_hours: string;
+  maintenance_rate: string;
+  nominal_power_watts: string;
+  residual_value: string;
+  hourly_rate: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type EquipmentInput = Omit<Equipment, 'id' | 'residual_value' | 'hourly_rate' | 'created_at' | 'updated_at'>;
+
 // Plate Detection
 export interface PlateDetectionROI {
   x: number;  // X start % (0.0-1.0)
@@ -3975,6 +3994,10 @@ export const api = {
       `/printers/${id}?delete_archives=${deleteArchives}`,
       { method: 'DELETE' }
     ),
+  getEquipment: (activeOnly = false) => request<Equipment[]>(`/equipment/?active_only=${activeOnly}`),
+  createEquipment: (data: EquipmentInput) => request<Equipment>('/equipment/', { method: 'POST', body: JSON.stringify(data) }),
+  updateEquipment: (id: number, data: Partial<EquipmentInput>) => request<Equipment>(`/equipment/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteEquipment: (id: number) => request<void>(`/equipment/${id}`, { method: 'DELETE' }),
   getDeveloperModeWarnings: () =>
     request<{ printer_id: number; name: string }[]>('/printers/developer-mode-warnings'),
   getAvailableFilaments: (model: string, location?: string) => {

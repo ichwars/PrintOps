@@ -34,6 +34,7 @@ import { VirtualPrinterList } from '../components/VirtualPrinterList';
 import { SpoolBuddySettings } from '../components/SpoolBuddySettings';
 import { BusinessProfileSettings } from '../components/settings/BusinessProfileSettings';
 import { CalculationSettings } from '../components/orders/calculation/CalculationSettings';
+import { DeviceManagement } from '../components/settings/DeviceManagement';
 import { GitHubBackupSettings } from '../components/GitHubBackupSettings';
 import { FailureDetectionSettings } from '../components/FailureDetectionSettings';
 import { EmailSettings } from '../components/EmailSettings';
@@ -5323,6 +5324,7 @@ export function SettingsPage() {
       {activeTab === 'printers-production' && printerProductionSubTab === 'devices' && (
         <div className="space-y-3 mb-4">
           {defaultPrinterCard}
+          <DeviceManagement locale={i18n.resolvedLanguage ?? 'en'} />
           {cameraSettingsCard}
         </div>
       )}
