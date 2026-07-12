@@ -1495,6 +1495,12 @@ async def run_migrations(conn):
 
     # Migration: Add print_hours_offset column to printers (baseline hours adjustment)
     await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN print_hours_offset REAL DEFAULT 0.0")
+    await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN acquisition_date DATE")
+    await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN acquisition_value NUMERIC(14, 2)")
+    await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN service_years NUMERIC(8, 2)")
+    await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN annual_hours NUMERIC(12, 2)")
+    await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN maintenance_rate NUMERIC(8, 6)")
+    await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN nominal_power_watts NUMERIC(12, 2)")
 
     # Migration: Add queue notification event columns to notification_providers
     await _safe_execute(conn, "ALTER TABLE notification_providers ADD COLUMN on_queue_job_added BOOLEAN DEFAULT 0")

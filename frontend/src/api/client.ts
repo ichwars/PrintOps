@@ -347,6 +347,14 @@ export interface Printer {
   plate_detection_roi?: PlateDetectionROI;  // ROI for plate detection
   created_at: string;
   updated_at: string;
+  acquisition_date: string | null;
+  acquisition_value: string | null;
+  service_years: string | null;
+  annual_hours: string | null;
+  maintenance_rate: string | null;
+  nominal_power_watts: string | null;
+  residual_value: string | null;
+  hourly_rate: string | null;
 }
 
 export interface HMSError {
@@ -569,6 +577,12 @@ export interface PrinterCreate {
   camera_rotation?: number;
   plate_detection_enabled?: boolean;
   plate_detection_roi?: PlateDetectionROI;
+  acquisition_date?: string | null;
+  acquisition_value?: string | null;
+  service_years?: string | null;
+  annual_hours?: string | null;
+  maintenance_rate?: string | null;
+  nominal_power_watts?: string | null;
 }
 
 export interface Equipment {

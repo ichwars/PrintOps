@@ -1,6 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, Float, String, func
+from sqlalchemy import Boolean, Date, DateTime, Float, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.core.database import Base
@@ -20,6 +21,12 @@ class Printer(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_archive: Mapped[bool] = mapped_column(Boolean, default=True)
     print_hours_offset: Mapped[float] = mapped_column(Float, default=0.0)  # Baseline hours to add
+    acquisition_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    acquisition_value: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    service_years: Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)
+    annual_hours: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    maintenance_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
+    nominal_power_watts: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     runtime_seconds: Mapped[int] = mapped_column(
         default=0
     )  # Accumulated active runtime (RUNNING state only — see #1521)
