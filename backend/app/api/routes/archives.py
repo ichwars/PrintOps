@@ -4233,7 +4233,7 @@ async def upload_source_3mf(
     source_path.write_bytes(content)
 
     # Update archive with source path (relative to base_dir)
-    archive.source_3mf_path = str(source_path.relative_to(settings.base_dir))
+    archive.source_3mf_path = source_path.relative_to(settings.base_dir).as_posix()
 
     await db.commit()
     await db.refresh(archive)
@@ -4446,7 +4446,7 @@ async def upload_source_3mf_by_name(
     source_path.write_bytes(content)
 
     # Update archive with source path
-    archive.source_3mf_path = str(source_path.relative_to(settings.base_dir))
+    archive.source_3mf_path = source_path.relative_to(settings.base_dir).as_posix()
     await db.commit()
     await db.refresh(archive)
 
