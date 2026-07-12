@@ -8,6 +8,8 @@
 
 **Tech Stack:** FastAPI, SQLAlchemy async ORM, Pydantic, SQLite/PostgreSQL compatibility, Python `Decimal`, React, TypeScript, Tailwind CSS, Vitest, Testing Library, pytest, Ruff, ESLint.
 
+**Parity completion update (2026-07-12):** Tasks 1-6 and the minimal parts of Tasks 7-10 exist on `main`, but are not feature-complete. Execute Tasks 12-15 below to close the approved ForgeDesk-parity gap without reintroducing browser-local owners or activating later quotation, project, or production commands.
+
 ## Global Constraints
 
 - Follow `docs/superpowers/specs/2026-07-12-calculation-workspace-design.md` and the parent `docs/superpowers/specs/2026-07-10-order-management-design.md`.
@@ -605,11 +607,51 @@ git add docs/order-management.md docs/superpowers/plans/2026-07-12-calculation-w
 git commit -m "Document calculation workflow"
 ```
 
+### Task 12: Canonical Defaults and Preview API
+
+**Files:** `backend/app/schemas/calculation.py`, `backend/app/services/calculation_engine.py`, `backend/app/services/calculation.py`, `backend/app/api/routes/calculations.py`, `backend/tests/unit/test_calculation_engine.py`, `backend/tests/integration/test_calculations_api.py`
+
+**Produces:** Versioned defaults plus one backend preview result containing runs, material, machine, energy, labor, consumables, packaging, risk, production cost, shipping, contribution, margin, net, tax, gross, and unit price.
+
+- [ ] Add failing engine tests for every component, markup, target margin, explicit price, discount, tax, minimums, contribution, and rounding.
+- [ ] Add failing API tests for defaults round-trip and backend preview parity with approval.
+- [ ] Extend the `Decimal` engine and permission-gated defaults/preview endpoints.
+- [ ] Run `pytest backend/tests/unit/test_calculation_engine.py backend/tests/integration/test_calculations_api.py -q`; require PASS.
+
+### Task 13: Full Calculation Settings
+
+**Files:** Create `frontend/src/components/orders/calculation/CalculationSettings.tsx`; modify `frontend/src/pages/SettingsPage.tsx` and `frontend/src/api/calculations.ts`; test `frontend/src/__tests__/components/CalculationSettings.test.tsx` and `frontend/src/__tests__/pages/SettingsPage.test.tsx`.
+
+**Consumes:** Task 12 defaults and preview endpoints. **Produces:** Six full-width settings sections and a backend-computed live example.
+
+- [ ] Write failing tests for all sections, save/reload, validation, and live totals.
+- [ ] Remove the settings-only JavaScript formula from `SettingsPage`.
+- [ ] Implement cost basis, labor, risk/scrap, price, ancillary, and editable example sections.
+- [ ] Run the two focused frontend test files; require PASS.
+
+### Task 14: ForgeDesk-Parity Workspace
+
+**Files:** Modify `frontend/src/components/orders/CalculationWorkspace.tsx` and `frontend/src/api/calculations.ts`; create focused request, lines, production, cost-price, and variants components under `frontend/src/components/orders/calculation/`; test `frontend/src/__tests__/components/CalculationWorkspace.test.tsx`.
+
+**Consumes:** Backend preview, business profiles, customers, printers, files, spools/materials, and slicing profiles. **Produces:** One normalized persisted draft with provenance and stable later-handoff references.
+
+- [ ] Test real selectors, 3MF/file metadata, operations/labor, line CRUD, variants, totals, save, approval, and conflict recovery.
+- [ ] Replace numeric customer IDs and hard-coded choices with PrintOps sources.
+- [ ] Render every approved cost/price component without duplicating formulas.
+- [ ] Keep quotation/project/print-job actions inactive and explicitly deferred.
+- [ ] Run focused workspace tests; require PASS.
+
+### Task 15: Parity Verification and Delivery
+
+- [ ] Verify every ForgeDesk parity-table row against API, rendered UI, or an explicitly deferred handoff.
+- [ ] Run backend calculation suites, focused frontend suites, lint, typecheck, coverage, production build, and browser smoke tests for calculation and settings.
+- [ ] Update `docs/order-management.md`; commit, push, and merge only after all required checks pass.
+
 ---
 
 ## Plan Self-Review
 
-- **Spec coverage:** Tasks 1-6 cover the relational aggregate, formulas, validation, source precedence, concurrency, immutable revisions, templates, permissions, and APIs. Tasks 7-10 cover calculation defaults, live example, list, five-area workspace, provenance, variants, approval, revisions, and quotation readiness. Task 11 covers documentation and full verification.
+- **Spec coverage:** Tasks 1-11 cover the original aggregate and minimal workspace. Tasks 12-15 close the approved ForgeDesk-parity gaps in canonical preview math, complete settings, sourced inputs, full workspace behavior, and delivery verification.
 - **Deferred-scope check:** Quotation issuance, PDF output, numbering, reminders, reservations, actual cost, scheduling, and queue automation remain consumers for later increments.
 - **Type consistency:** Backend and frontend both use decimal strings at the API boundary, `expected_version` on mutations, one preferred variant, and the status/price/allocation enums declared in Stable Interfaces.
 - **Placeholder scan:** The plan contains no TBD/TODO steps; every task names files, interfaces, focused tests, commands, expected outcomes, implementation boundaries, and a commit.
