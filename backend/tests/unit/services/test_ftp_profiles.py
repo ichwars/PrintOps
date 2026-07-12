@@ -102,6 +102,14 @@ def test_cap_tls_v1_2_actually_applied_to_ssl_context():
     assert uncapped.ssl_context.maximum_version == ssl.TLSVersion.MAXIMUM_SUPPORTED
 
 
+def test_implicit_ftps_rejects_legacy_tls_versions():
+    """The printer connection must never negotiate TLS 1.0 or TLS 1.1."""
+    from backend.app.services.bambu_ftp import ImplicitFTP_TLS
+
+    client = ImplicitFTP_TLS()
+    assert client.ssl_context.minimum_version == ssl.TLSVersion.TLSv1_2
+
+
 def test_ftp_profile_dataclass_default_constructible():
     """Sanity: FTPProfile() with no args yields the default profile
     (every field has a default)."""
