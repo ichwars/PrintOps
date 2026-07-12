@@ -1,10 +1,13 @@
 from decimal import Decimal
+from pathlib import Path
 from typing import NoReturn
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
+from backend.app.core.config import settings as app_settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.models.user import User
@@ -29,6 +32,8 @@ from backend.app.services.calculation_engine import (
     calculate_variant,
 )
 from backend.app.services.order_errors import OrderDomainError, ResourceNotFoundError, VersionConflictError
+from backend.app.services.slicer_3mf_convert import count_plates_in_3mf
+from backend.app.utils.threemf_tools import extract_filament_usage_from_3mf, extract_print_time_from_3mf
 
 router = APIRouter(prefix="/calculations", tags=["calculations"])
 
@@ -76,6 +81,31 @@ async def preview_calculation(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> CalculationPreviewRead:
     return CalculationPreviewRead.model_validate(calculate_variant(_preview_inputs(data)), from_attributes=True)
+
+
+@router.post("/source-files", status_code=status.HTTP_201_CREATED)
+async def upload_calculation_source(
+    file: UploadFile = File(...),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_UPDATE),
+) -> dict:
+    from backend.app.api.routes.library import validate_print_file_upload
+
+    filename = Path(file.filename or "").name
+    if not filename.lower().endswith(".3mf"):
+        raise HTTPException(status_code=400, detail="Calculation source must be a .3mf file")
+    content = await file.read()
+    validate_print_file_upload(filename, content)
+    target_dir = app_settings.base_dir / "calculations" / "sources"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / f"{uuid4().hex}.3mf"
+    target.write_bytes(content)
+    filaments = extract_filament_usage_from_3mf(target)
+    return {
+        "source_file": target.relative_to(app_settings.base_dir).as_posix(), "filename": filename,
+        "size_bytes": len(content), "plate_count": count_plates_in_3mf(content),
+        "print_time_seconds": extract_print_time_from_3mf(target),
+        "material_grams": sum(float(item.get("used_g", 0)) for item in filaments), "filaments": filaments,
+    }
 
 
 @router.post("/preview-batch", response_model=CalculationPreviewRead)

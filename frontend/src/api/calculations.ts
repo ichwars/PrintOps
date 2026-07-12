@@ -1,4 +1,4 @@
-import { request } from './client';
+import { getAuthToken, request } from './client';
 
 export type CalculationStatus = 'draft' | 'approved' | 'superseded' | 'archived';
 export type PriceMethod = 'markup' | 'target_margin' | 'explicit_price';
@@ -94,6 +94,13 @@ export interface CalculationRevision {
 }
 
 export const calculationsApi = {
+  uploadSource: async (file: File) => {
+    const form = new FormData(); form.append('file', file);
+    const token = getAuthToken();
+    const response = await fetch('/api/v1/calculations/source-files', { method: 'POST', body: form, credentials: 'include', headers: token ? { Authorization: `Bearer ${token}` } : undefined });
+    if (!response.ok) throw new Error(`Upload failed (${response.status})`);
+    return response.json() as Promise<{ source_file: string; filename: string; size_bytes: number; plate_count: number; print_time_seconds: number | null; material_grams: number; filaments: Array<Record<string, unknown>> }>;
+  },
   preview: (input: CalculationPreviewInput) => request<CalculationPreview>('/calculations/preview', { method: 'POST', body: JSON.stringify(input) }),
   previewBatch: (operations: CalculationPreviewInput[], commercial: CalculationPreviewInput) => request<CalculationPreview>('/calculations/preview-batch', { method: 'POST', body: JSON.stringify({ operations, commercial }) }),
   list: (params: { status?: CalculationStatus; limit?: number; offset?: number } = {}) => {
