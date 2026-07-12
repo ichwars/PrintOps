@@ -5,9 +5,8 @@ name: Cleanup GHCR untagged images
 # Without that cross-reference, off-the-shelf cleanup actions can silently
 # break multi-arch tags by deleting referenced platform manifests.
 #
-# Requires a repo secret `GHCR_CLEANUP_TOKEN` — a classic PAT with
-# `read:packages` + `delete:packages` scope. GITHUB_TOKEN cannot delete
-# versions of user-owned packages (only org-owned).
+# The package is linked to this repository, so the workflow-scoped
+# GITHUB_TOKEN can manage its versions without a long-lived PAT.
 
 on:
   schedule:
@@ -19,11 +18,10 @@ on:
         type: boolean
         default: false
 
-# This workflow authenticates exclusively via GHCR_CLEANUP_TOKEN (a classic PAT)
-# and never reads/writes via the default GITHUB_TOKEN. Strip every permission
-# from the GITHUB_TOKEN so a stolen workflow run can't reach the repo at all
-# — least privilege per CodeQL `actions/missing-workflow-permissions`.
-permissions: {}
+# Package write includes listing and deleting package versions. No repository
+# contents permission is required because this job does not check out code.
+permissions:
+  packages: write
 
 jobs:
   cleanup:
@@ -35,7 +33,7 @@ jobs:
     steps:
       - name: Cleanup ${{ matrix.package }}
         env:
-          GH_TOKEN: ${{ secrets.GHCR_CLEANUP_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           OWNER: ${{ github.repository_owner }}
           PACKAGE: ${{ matrix.package }}
           DRY_RUN: ${{ inputs.dry_run }}
