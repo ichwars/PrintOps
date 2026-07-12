@@ -239,7 +239,9 @@ jobs:
       - name: Run tests
         timeout-minutes: 10
         working-directory: frontend
-        run: npm run test:run
+        # V8 coverage instrumentation makes the largest jsdom integration
+        # tests slower on shared runners; keep the normal 10s limit unchanged.
+        run: npm run test:coverage -- --testTimeout=20000 && npm run check:i18n
 
   frontend-build:
     name: Frontend Build

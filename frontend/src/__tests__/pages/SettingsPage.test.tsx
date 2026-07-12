@@ -567,9 +567,7 @@ describe('SettingsPage', () => {
 
       navigateSettingsTab('operations');
 
-      await waitFor(() => {
-        expect(screen.getByText('Check printer firmware')).toBeInTheDocument();
-      });
+      expect(await screen.findByText('Check printer firmware', {}, { timeout: 5000 })).toBeInTheDocument();
       expect(storageRequests).toBe(0);
 
       await userEvent.click(screen.getByRole('button', { name: 'Data Management' }));

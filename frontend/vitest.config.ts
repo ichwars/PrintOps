@@ -13,6 +13,13 @@ export default defineConfig({
       },
     },
     setupFiles: ['./src/__tests__/setup.ts'],
+    // Node 26 enables its own experimental Web Storage implementation in
+    // workers. Tests use jsdom's browser storage instead, so disable Node's
+    // copy to avoid one warning per worker and two competing storage owners.
+    execArgv: ['--no-experimental-webstorage'],
+    // Large-core developer machines otherwise spawn enough jsdom workers to
+    // exhaust memory and turn healthy tests into timeouts or spawn failures.
+    maxWorkers: 4,
     testTimeout: 10000,
     include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     exclude: ['node_modules', 'dist'],
@@ -27,6 +34,12 @@ export default defineConfig({
         'src/main.tsx',
         'src/vite-env.d.ts',
       ],
+      thresholds: {
+        statements: 46,
+        branches: 41,
+        functions: 37,
+        lines: 46,
+      },
     },
   },
   resolve: {

@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { delay, http, HttpResponse } from 'msw';
 import { focusManager, QueryClient } from '@tanstack/react-query';
@@ -88,6 +88,7 @@ describe('OrdersCustomersPage', () => {
   });
 
   afterEach(async () => {
+    cleanup();
     vi.restoreAllMocks();
     await i18n.changeLanguage('en');
   });
