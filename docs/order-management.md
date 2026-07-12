@@ -131,6 +131,20 @@ enthaelt Ersatzwerte fuer Maschine, Arbeit, Energie, Risiko, Mindestpreis,
 Nebenkosten und Preisverfahren. Konkrete Drucker- und Materialdaten haben
 Vorrang. Die Beispielrechnung zeigt die Auswirkung der aktuellen Vorgaben.
 
+Drucker und Trockner werden zentral unter `Einstellungen > Drucker & Produktion
+> Geräteverwaltung` gepflegt. Dort hinterlegte Anschaffungs-, Restwert-,
+Nutzungs-, Wartungs-, Leistungs- und Betriebsdaten ergeben den berechneten
+Maschinenstundensatz. In Kalkulationen werden diese Geräte lediglich zugeordnet;
+eine doppelte Gerätepflege ist nicht erforderlich. Ein 3MF-Upload übernimmt
+Plattenzahl, Druckzeit und Materialverbrauch, soweit diese Angaben im Archiv
+enthalten sind.
+
+Die Freigabe unterscheidet harte Blocker von fachlichen Warnungen. Warnungen
+benötigen eine dokumentierte Begründung und werden mit der unveränderlichen
+Revision gespeichert. Freigegebene Kalkulationen können nicht überschrieben,
+sondern nur als neuer Entwurf fortgeschrieben werden. Vorlagen erzeugen ebenfalls
+einen neuen bereinigten Entwurf ohne Kunden- und Quelldateikontext.
+
 Angebote werden im folgenden Ausbau aus einer freigegebenen Kalkulationsrevision
 erzeugt. Die vollstaendige Reihenfolge steht im Abschnitt
 [`Delivery Shape`](superpowers/specs/2026-07-10-order-management-design.md#delivery-shape)

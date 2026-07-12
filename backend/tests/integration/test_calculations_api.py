@@ -32,7 +32,7 @@ def _payload(profile_id: int) -> dict:
                         "scrap_runs": 1,
                         "material_grams_per_run": "100",
                         "print_hours_per_run": "2.5",
-                        "provenance": {"source": "slicer", "plate": 1},
+                        "provenance": {"source": "slicer", "plate": 1, "printer_hourly_rate": "2.50"},
                     }
                 ],
             }
@@ -95,6 +95,41 @@ async def test_create_list_update_and_approve_calculation(async_client, db_sessi
     assert [item["revision_number"] for item in revisions.json()] == [1]
     assert revisions.json()[0]["selling_price"] == approved.json()["selling_price"]
 
+    revised = await async_client.post(f"/api/v1/calculations/{calculation['id']}/revise")
+    assert revised.status_code == 201, revised.text
+    assert revised.json()["status"] == "draft"
+    assert revised.json()["title"] == "Revised mounting brackets"
+    original = await async_client.get(f"/api/v1/calculations/{calculation['id']}")
+    assert original.json()["status"] == "superseded"
+
+
+async def test_approval_warnings_require_reasons(async_client, db_session):
+    profile = await _profile(db_session)
+    payload = _payload(profile.id)
+    payload["variants"][0]["operations"][0]["provenance"] = {"source": "manual"}
+    created = await async_client.post("/api/v1/calculations/", json=payload)
+    calculation = created.json()
+
+    validation = await async_client.get(f"/api/v1/calculations/{calculation['id']}/validation")
+    assert validation.status_code == 200
+    assert set(validation.json()["warnings"]) == {"manual_source_values", "missing_machine_rate"}
+
+    rejected = await async_client.post(
+        f"/api/v1/calculations/{calculation['id']}/approve", json={"expected_version": 1, "warning_reasons": {}}
+    )
+    assert rejected.status_code == 422
+    accepted = await async_client.post(
+        f"/api/v1/calculations/{calculation['id']}/approve",
+        json={
+            "expected_version": 1,
+            "warning_reasons": {
+                "manual_source_values": "Checked against slicer",
+                "missing_machine_rate": "Introductory quote",
+            },
+        },
+    )
+    assert accepted.status_code == 200, accepted.text
+
 
 async def test_template_excludes_customer_context(async_client, db_session):
     profile = await _profile(db_session)
@@ -110,7 +145,9 @@ async def test_template_excludes_customer_context(async_client, db_session):
     assert "customer_id" not in response.json()["definition"]["calculation"]
     templates = await async_client.get("/api/v1/calculations/templates")
     assert templates.status_code == 200
-    instantiated = await async_client.post(f"/api/v1/calculations/templates/{response.json()['id']}/instantiate", json={"title": "From template"})
+    instantiated = await async_client.post(
+        f"/api/v1/calculations/templates/{response.json()['id']}/instantiate", json={"title": "From template"}
+    )
     assert instantiated.status_code == 201, instantiated.text
     assert instantiated.json()["title"] == "From template"
     assert instantiated.json()["customer_id"] is None
@@ -159,9 +196,25 @@ async def test_preview_returns_complete_commercial_breakdown(async_client):
 
 
 async def test_batch_preview_aggregates_operations_before_pricing(async_client):
-    operation = {"good_parts": 2, "parts_per_run": 1, "material_grams_per_run": "100", "material_price_per_kg": "20", "price_method": "markup"}
-    commercial = {"good_parts": 4, "parts_per_run": 1, "additional_costs": "2", "risk_rate": "0.10", "price_method": "markup", "price_rate": "0.25", "tax_rate": "0.19"}
-    response = await async_client.post("/api/v1/calculations/preview-batch", json={"operations": [operation, operation], "commercial": commercial})
+    operation = {
+        "good_parts": 2,
+        "parts_per_run": 1,
+        "material_grams_per_run": "100",
+        "material_price_per_kg": "20",
+        "price_method": "markup",
+    }
+    commercial = {
+        "good_parts": 4,
+        "parts_per_run": 1,
+        "additional_costs": "2",
+        "risk_rate": "0.10",
+        "price_method": "markup",
+        "price_rate": "0.25",
+        "tax_rate": "0.19",
+    }
+    response = await async_client.post(
+        "/api/v1/calculations/preview-batch", json={"operations": [operation, operation], "commercial": commercial}
+    )
     assert response.status_code == 200, response.text
     assert response.json()["total_runs"] == 4
     assert response.json()["material_cost"] == "8.00"

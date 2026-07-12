@@ -30,6 +30,8 @@ _LOAD = (
     .selectinload(CalculationVariant.operations)
     .selectinload(CalculationOperation.labor),
     selectinload(Calculation.revisions),
+    selectinload(Calculation.business_profile),
+    selectinload(Calculation.customer),
 )
 
 
@@ -217,6 +219,12 @@ async def approve_calculation(
         raise ResourceInUseError("Exactly one preferred variant is required")
     if not preferred[0].lines:
         raise ResourceInUseError("At least one sellable line is required")
+    validation = validate_for_approval(calculation)
+    if validation["blockers"]:
+        raise ResourceInUseError("; ".join(validation["blockers"]))
+    missing_reasons = [code for code in validation["warnings"] if not warning_reasons.get(code, "").strip()]
+    if missing_reasons:
+        raise ResourceInUseError(f"A reason is required for warnings: {', '.join(missing_reasons)}")
     defaults = await _cost_defaults(session)
     default_labor = (
         LaborCostInput(Decimal(str(defaults["setupHours"])), Decimal(str(defaults["laborRate"])), "request"),
@@ -259,7 +267,9 @@ async def approve_calculation(
             shipping=Decimal(str(defaults.get("shipping", 0))),
             price_method=preferred[0].price_method,
             price_rate=Decimal("0") if preferred[0].price_method == "explicit_price" else preferred[0].price_rate,
-            explicit_price=preferred[0].price_rate if preferred[0].price_method == "explicit_price" else Decimal(str(defaults.get("explicitPrice", 0))),
+            explicit_price=preferred[0].price_rate
+            if preferred[0].price_method == "explicit_price"
+            else Decimal(str(defaults.get("explicitPrice", 0))),
             discount_rate=Decimal(str(defaults.get("discountPercent", 0))) / Decimal("100"),
             tax_rate=Decimal(str(defaults.get("taxPercent", 0))) / Decimal("100"),
             minimum_price=Decimal(str(defaults.get("minimumPrice", 0))),
@@ -286,6 +296,92 @@ async def approve_calculation(
     return revision
 
 
+def validate_for_approval(calculation: Calculation) -> dict[str, list[str]]:
+    preferred = [variant for variant in calculation.variants if variant.is_preferred]
+    blockers: list[str] = []
+    warnings: list[str] = []
+    if len(preferred) != 1:
+        blockers.append("preferred_variant")
+        return {"blockers": blockers, "warnings": warnings}
+    variant = preferred[0]
+    if not variant.lines:
+        blockers.append("sellable_line")
+    if not variant.operations:
+        blockers.append("production_operation")
+    for operation in variant.operations:
+        provenance = operation.provenance or {}
+        if provenance.get("source") == "manual":
+            warnings.append("manual_source_values")
+        if Decimal(str(provenance.get("printer_hourly_rate") or "0")) <= 0:
+            warnings.append("missing_machine_rate")
+        if operation.material_grams_per_run <= 0 or operation.print_hours_per_run <= 0:
+            warnings.append("incomplete_production_values")
+    return {"blockers": list(dict.fromkeys(blockers)), "warnings": list(dict.fromkeys(warnings))}
+
+
+async def revise_calculation(session: AsyncSession, calculation_id: int) -> Calculation:
+    source = await _load(session, calculation_id, for_update=True)
+    if source.status not in {"approved", "superseded"}:
+        raise ResourceInUseError("Only approved calculations can be revised")
+    revised = Calculation(
+        business_profile_id=source.business_profile_id,
+        customer_id=source.customer_id,
+        title=source.title,
+        currency=source.currency,
+        notes=source.notes,
+    )
+    for source_variant in source.variants:
+        variant = CalculationVariant(
+            name=source_variant.name,
+            is_preferred=source_variant.is_preferred,
+            sort_order=source_variant.sort_order,
+            price_method=source_variant.price_method,
+            price_rate=source_variant.price_rate,
+        )
+        variant.lines = [
+            CalculationLine(
+                kind=line.kind,
+                description=line.description,
+                quantity=line.quantity,
+                unit_code=line.unit_code,
+                unit_price=line.unit_price,
+                sort_order=line.sort_order,
+            )
+            for line in source_variant.lines
+        ]
+        for source_operation in source_variant.operations:
+            operation = CalculationOperation(
+                kind=source_operation.kind,
+                title=source_operation.title,
+                source_file=source_operation.source_file,
+                source_plate=source_operation.source_plate,
+                good_parts=source_operation.good_parts,
+                parts_per_run=source_operation.parts_per_run,
+                scrap_runs=source_operation.scrap_runs,
+                material_grams_per_run=source_operation.material_grams_per_run,
+                print_hours_per_run=source_operation.print_hours_per_run,
+                provenance={**(source_operation.provenance or {}), "revised_from": source.id},
+                sort_order=source_operation.sort_order,
+            )
+            operation.labor = [
+                CalculationLabor(
+                    role=labor.role,
+                    hours=labor.hours,
+                    hourly_rate=labor.hourly_rate,
+                    allocation_basis=labor.allocation_basis,
+                    sort_order=labor.sort_order,
+                )
+                for labor in source_operation.labor
+            ]
+            variant.operations.append(operation)
+        revised.variants.append(variant)
+    source.status = "superseded"
+    source.version += 1
+    session.add(revised)
+    await session.flush()
+    return await _load(session, revised.id)
+
+
 async def archive_calculation(session: AsyncSession, calculation_id: int, expected_version: int) -> Calculation:
     calculation = await _load(session, calculation_id, for_update=True)
     if calculation.version != expected_version:
@@ -309,21 +405,66 @@ async def create_template(session: AsyncSession, calculation_id: int, name: str)
 
 
 async def list_templates(session: AsyncSession) -> list[CalculationTemplate]:
-    return list((await session.scalars(select(CalculationTemplate).order_by(CalculationTemplate.name, CalculationTemplate.id))).all())
+    return list(
+        (
+            await session.scalars(
+                select(CalculationTemplate).order_by(CalculationTemplate.name, CalculationTemplate.id)
+            )
+        ).all()
+    )
 
 
-async def instantiate_template(session: AsyncSession, template_id: int, title: str, customer_id: int | None) -> Calculation:
+async def instantiate_template(
+    session: AsyncSession, template_id: int, title: str, customer_id: int | None
+) -> Calculation:
     template = await session.get(CalculationTemplate, template_id)
     if template is None:
         raise ResourceNotFoundError(f"Calculation template {template_id} was not found")
     definition = template.definition
     calculation_data = definition["calculation"]
     await _validate_references(session, template.business_profile_id, customer_id)
-    calculation = Calculation(business_profile_id=template.business_profile_id, customer_id=customer_id, title=title, currency=calculation_data.get("currency", "EUR"), notes=None)
+    calculation = Calculation(
+        business_profile_id=template.business_profile_id,
+        customer_id=customer_id,
+        title=title,
+        currency=calculation_data.get("currency", "EUR"),
+        notes=None,
+    )
     for variant_index, source_variant in enumerate(definition.get("variants", [])):
-        variant = CalculationVariant(name=source_variant["name"], is_preferred=source_variant.get("is_preferred", variant_index == 0), sort_order=variant_index, price_method=source_variant.get("price_method", "target_margin"), price_rate=Decimal(str(source_variant.get("price_rate", "0"))))
-        variant.lines = [CalculationLine(kind=line.get("kind", "printed_part"), description=line.get("description", ""), quantity=Decimal(str(line.get("quantity", "1"))), unit_code=line.get("unit_code", "C62"), unit_price=Decimal(str(line["unit_price"])) if line.get("unit_price") is not None else None, sort_order=index) for index, line in enumerate(source_variant.get("lines", []))]
-        variant.operations = [CalculationOperation(kind=operation.get("kind", "printing"), title=operation.get("title", ""), source_file=None, source_plate=None, good_parts=operation.get("good_parts", 1), parts_per_run=operation.get("parts_per_run", 1), scrap_runs=operation.get("scrap_runs", 0), material_grams_per_run=Decimal(str(operation.get("material_grams_per_run", "0"))), print_hours_per_run=Decimal(str(operation.get("print_hours_per_run", "0"))), provenance={"source": "template", "template_id": template.id, "template_version": template.version}, sort_order=index) for index, operation in enumerate(source_variant.get("operations", []))]
+        variant = CalculationVariant(
+            name=source_variant["name"],
+            is_preferred=source_variant.get("is_preferred", variant_index == 0),
+            sort_order=variant_index,
+            price_method=source_variant.get("price_method", "target_margin"),
+            price_rate=Decimal(str(source_variant.get("price_rate", "0"))),
+        )
+        variant.lines = [
+            CalculationLine(
+                kind=line.get("kind", "printed_part"),
+                description=line.get("description", ""),
+                quantity=Decimal(str(line.get("quantity", "1"))),
+                unit_code=line.get("unit_code", "C62"),
+                unit_price=Decimal(str(line["unit_price"])) if line.get("unit_price") is not None else None,
+                sort_order=index,
+            )
+            for index, line in enumerate(source_variant.get("lines", []))
+        ]
+        variant.operations = [
+            CalculationOperation(
+                kind=operation.get("kind", "printing"),
+                title=operation.get("title", ""),
+                source_file=None,
+                source_plate=None,
+                good_parts=operation.get("good_parts", 1),
+                parts_per_run=operation.get("parts_per_run", 1),
+                scrap_runs=operation.get("scrap_runs", 0),
+                material_grams_per_run=Decimal(str(operation.get("material_grams_per_run", "0"))),
+                print_hours_per_run=Decimal(str(operation.get("print_hours_per_run", "0"))),
+                provenance={"source": "template", "template_id": template.id, "template_version": template.version},
+                sort_order=index,
+            )
+            for index, operation in enumerate(source_variant.get("operations", []))
+        ]
         calculation.variants.append(variant)
     session.add(calculation)
     await session.flush()

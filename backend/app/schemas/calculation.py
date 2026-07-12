@@ -104,6 +104,11 @@ class CalculationApprove(CalculationSchema):
     warning_reasons: dict[str, str] = Field(default_factory=dict)
 
 
+class CalculationValidationRead(CalculationSchema):
+    blockers: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class CalculationTemplateCreate(CalculationSchema):
     name: str = Field(min_length=1, max_length=255)
     revision_id: int | None = Field(default=None, gt=0)
@@ -177,6 +182,8 @@ class CalculationDetail(CalculationSchema):
     id: int
     business_profile_id: int
     customer_id: int | None
+    customer_display_name: str | None = None
+    business_profile_name: str | None = None
     title: str
     status: CalculationStatus
     currency: str

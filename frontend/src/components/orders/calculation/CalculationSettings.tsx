@@ -112,6 +112,7 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
     </section>;
   };
   return <div id="card-cost" className="space-y-5">
+    <h2 className="sr-only">{de ? 'Kostenverfolgung' : 'Cost Tracking'}</h2>
     <div className="grid gap-3 md:grid-cols-3">
       <label className="text-sm text-bambu-gray">{de ? 'Währung' : 'Currency'}<select value={settings.currency} onChange={e => onChange('currency', e.target.value)} className={inputClass}>{SUPPORTED_CURRENCIES.map(currency => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select></label>
       <label className="text-sm text-bambu-gray">{de ? 'Filamentpreis/kg' : 'Filament price/kg'}<input type="number" min="0" step="0.01" value={settings.default_filament_cost} onChange={e => onChange('default_filament_cost', Number(e.target.value))} className={inputClass} /></label>

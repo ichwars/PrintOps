@@ -65,6 +65,8 @@ export interface CalculationDetail {
   id: number;
   business_profile_id: number;
   customer_id: number | null;
+  customer_display_name: string | null;
+  business_profile_name: string | null;
   title: string;
   status: CalculationStatus;
   currency: string;
@@ -85,7 +87,7 @@ export interface CalculationPage {
   offset: number;
 }
 
-export type CalculationCreate = Omit<CalculationDetail, 'id' | 'status' | 'version' | 'created_at' | 'updated_at' | 'current_revision' | 'production_cost' | 'selling_price'>;
+export type CalculationCreate = Omit<CalculationDetail, 'id' | 'status' | 'version' | 'created_at' | 'updated_at' | 'current_revision' | 'production_cost' | 'selling_price' | 'customer_display_name' | 'business_profile_name'>;
 export type CalculationUpdate = CalculationCreate & { expected_version: number };
 
 export interface CalculationRevision {
@@ -94,6 +96,7 @@ export interface CalculationRevision {
 }
 
 export interface CalculationTemplate { id: number; business_profile_id: number; name: string; version: number; definition: Record<string, unknown>; created_at: string }
+export interface CalculationValidation { blockers: string[]; warnings: string[] }
 
 export const calculationsApi = {
   uploadSource: async (file: File) => {
@@ -115,7 +118,9 @@ export const calculationsApi = {
   get: (id: number) => request<CalculationDetail>(`/calculations/${id}`),
   create: (input: CalculationCreate) => request<CalculationDetail>('/calculations/', { method: 'POST', body: JSON.stringify(input) }),
   update: (id: number, input: CalculationUpdate) => request<CalculationDetail>(`/calculations/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
-  approve: (id: number, expectedVersion: number) => request<CalculationRevision>(`/calculations/${id}/approve`, { method: 'POST', body: JSON.stringify({ expected_version: expectedVersion, warning_reasons: {} }) }),
+  validate: (id: number) => request<CalculationValidation>(`/calculations/${id}/validation`),
+  approve: (id: number, expectedVersion: number, warningReasons: Record<string, string>) => request<CalculationRevision>(`/calculations/${id}/approve`, { method: 'POST', body: JSON.stringify({ expected_version: expectedVersion, warning_reasons: warningReasons }) }),
+  revise: (id: number) => request<CalculationDetail>(`/calculations/${id}/revise`, { method: 'POST' }),
   archive: (id: number, expectedVersion: number) => request<CalculationDetail>(`/calculations/${id}/archive?expected_version=${expectedVersion}`, { method: 'POST' }),
   revisions: (id: number) => request<CalculationRevision[]>(`/calculations/${id}/revisions`),
   createTemplate: (id: number, name: string) => request(`/calculations/${id}/templates`, { method: 'POST', body: JSON.stringify({ name }) }),

@@ -35,6 +35,8 @@ class Calculation(Base):
     revisions: Mapped[list[CalculationRevision]] = relationship(
         lazy="selectin", order_by="CalculationRevision.revision_number"
     )
+    business_profile = relationship("BusinessProfile", lazy="selectin")
+    customer = relationship("Customer", lazy="selectin")
 
 
 class CalculationVariant(Base):

@@ -24,6 +24,7 @@ from backend.app.schemas.calculation import (
     CalculationTemplateInstantiate,
     CalculationTemplateRead,
     CalculationUpdate,
+    CalculationValidationRead,
 )
 from backend.app.services import calculation as calculation_service
 from backend.app.services.calculation_engine import (
@@ -45,10 +46,12 @@ def _preview_inputs(data: CalculationPreviewInput) -> VariantCostInputs:
     )
     if data.acquisition_value is not None and data.service_years is not None and data.annual_hours is not None:
         depreciable = max(Decimal("0"), data.acquisition_value - data.residual_value)
-        values["machine_cost_per_hour"] = depreciable / (data.service_years * data.annual_hours) * (
-            Decimal("1") + data.maintenance_rate
+        values["machine_cost_per_hour"] = (
+            depreciable / (data.service_years * data.annual_hours) * (Decimal("1") + data.maintenance_rate)
         )
-    values["labor"] = tuple(LaborCostInput(entry.hours, entry.hourly_rate, entry.allocation_basis) for entry in data.labor)
+    values["labor"] = tuple(
+        LaborCostInput(entry.hours, entry.hourly_rate, entry.allocation_basis) for entry in data.labor
+    )
     return VariantCostInputs(**values)
 
 
@@ -58,12 +61,17 @@ def _raise_http(error: OrderDomainError) -> NoReturn:
     elif isinstance(error, VersionConflictError):
         code, status_code = "version_conflict", status.HTTP_409_CONFLICT
     else:
-        code, status_code = "invalid_calculation", status.HTTP_422_UNPROCESSABLE_ENTITY
+        code, status_code = "invalid_calculation", status.HTTP_422_UNPROCESSABLE_CONTENT
     raise HTTPException(status_code=status_code, detail={"code": code, "message": str(error)})
 
 
 def _detail(calculation) -> CalculationDetail:
-    detail = CalculationDetail.model_validate(calculation)
+    detail = CalculationDetail.model_validate(calculation).model_copy(
+        update={
+            "customer_display_name": calculation.customer.display_name if calculation.customer else None,
+            "business_profile_name": calculation.business_profile.name if calculation.business_profile else None,
+        }
+    )
     current = max(calculation.revisions, key=lambda item: item.revision_number, default=None)
     if current is None:
         return detail
@@ -102,10 +110,13 @@ async def upload_calculation_source(
     target.write_bytes(content)
     filaments = extract_filament_usage_from_3mf(target)
     return {
-        "source_file": target.relative_to(app_settings.base_dir).as_posix(), "filename": filename,
-        "size_bytes": len(content), "plate_count": count_plates_in_3mf(content),
+        "source_file": target.relative_to(app_settings.base_dir).as_posix(),
+        "filename": filename,
+        "size_bytes": len(content),
+        "plate_count": count_plates_in_3mf(content),
         "print_time_seconds": extract_print_time_from_3mf(target),
-        "material_grams": sum(float(item.get("used_g", 0)) for item in filaments), "filaments": filaments,
+        "material_grams": sum(float(item.get("used_g", 0)) for item in filaments),
+        "filaments": filaments,
     }
 
 
@@ -114,7 +125,9 @@ async def preview_calculation_batch(
     data: CalculationBatchPreviewInput,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> CalculationPreviewRead:
-    combined = calculate_combined([_preview_inputs(operation) for operation in data.operations], _preview_inputs(data.commercial))
+    combined = calculate_combined(
+        [_preview_inputs(operation) for operation in data.operations], _preview_inputs(data.commercial)
+    )
     return CalculationPreviewRead.model_validate(combined, from_attributes=True)
 
 
@@ -155,7 +168,9 @@ async def list_templates(
     return [CalculationTemplateRead.model_validate(item) for item in await calculation_service.list_templates(db)]
 
 
-@router.post("/templates/{template_id}/instantiate", response_model=CalculationDetail, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/templates/{template_id}/instantiate", response_model=CalculationDetail, status_code=status.HTTP_201_CREATED
+)
 async def instantiate_template(
     template_id: int,
     data: CalculationTemplateInstantiate,
@@ -216,6 +231,34 @@ async def approve_calculation(
         await db.rollback()
         _raise_http(exc)
     return CalculationRevisionRead.model_validate(revision)
+
+
+@router.get("/{calculation_id}/validation", response_model=CalculationValidationRead)
+async def validate_calculation(
+    calculation_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
+) -> CalculationValidationRead:
+    try:
+        calculation = await calculation_service.get_calculation(db, calculation_id)
+    except OrderDomainError as exc:
+        _raise_http(exc)
+    return CalculationValidationRead(**calculation_service.validate_for_approval(calculation))
+
+
+@router.post("/{calculation_id}/revise", response_model=CalculationDetail, status_code=status.HTTP_201_CREATED)
+async def revise_calculation(
+    calculation_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_UPDATE),
+) -> CalculationDetail:
+    try:
+        calculation = await calculation_service.revise_calculation(db, calculation_id)
+        await db.commit()
+    except OrderDomainError as exc:
+        await db.rollback()
+        _raise_http(exc)
+    return _detail(calculation)
 
 
 @router.get("/{calculation_id}/revisions", response_model=list[CalculationRevisionRead])
