@@ -2094,6 +2094,36 @@ export function SettingsPage() {
     }, 50);
   };
 
+  const calculationDefaults = (() => {
+    const fallback = {
+      acquisitionValue: 749, serviceYears: 4, annualHours: 1200, maintenancePercent: 25,
+      laborRate: 20, setupHours: 0.3, postProcessingHours: 0.25, qaHours: 0.05,
+      scrapPercent: 8, priceMethod: 'target_margin', priceRate: 35, minimumPrice: 12,
+      minimumProfit: 4, consumables: 0.75, packaging: 2.5, shipping: 5.49,
+    };
+    if (!localSettings?.calculation_defaults) return fallback;
+    try { return { ...fallback, ...JSON.parse(localSettings.calculation_defaults) }; }
+    catch { return fallback; }
+  })();
+  const updateCalculationDefault = (key: string, value: string | number) => {
+    updateSetting('calculation_defaults', JSON.stringify({ ...calculationDefaults, [key]: value }));
+  };
+  const machineHourlyRate = calculationDefaults.serviceYears > 0 && calculationDefaults.annualHours > 0
+    ? calculationDefaults.acquisitionValue / (calculationDefaults.serviceYears * calculationDefaults.annualHours) * (1 + calculationDefaults.maintenancePercent / 100)
+    : 0;
+  const exampleMaterial = localSettings ? localSettings.default_filament_cost * 0.2 : 0;
+  const exampleMachine = machineHourlyRate * 5;
+  const exampleEnergy = localSettings ? localSettings.energy_cost_per_kwh * 0.2 * 5 : 0;
+  const exampleLabor = calculationDefaults.laborRate * (calculationDefaults.setupHours + calculationDefaults.postProcessingHours + calculationDefaults.qaHours);
+  const exampleProduction = exampleMaterial + exampleMachine + exampleEnergy + exampleLabor + calculationDefaults.consumables + calculationDefaults.packaging;
+  const examplePrice = Math.max(
+    calculationDefaults.minimumPrice,
+    exampleProduction + calculationDefaults.minimumProfit,
+    calculationDefaults.priceMethod === 'markup'
+      ? exampleProduction * (1 + calculationDefaults.priceRate / 100)
+      : exampleProduction / Math.max(0.01, 1 - calculationDefaults.priceRate / 100),
+  ) + calculationDefaults.shipping;
+
   const costTrackingCard = localSettings ? (
     <Card id="card-cost">
       <CardHeader>
@@ -2171,6 +2201,46 @@ export function SettingsPage() {
               ? t('settings.energyModePrintDescription')
               : t('settings.energyModeTotalDescription')}
           </p>
+        </div>
+        <div className="border-t border-bambu-dark-tertiary pt-4">
+          <h3 className="font-semibold text-white">{i18n.resolvedLanguage?.startsWith('de') ? 'Kostenbasis' : 'Cost basis'}</h3>
+          <p className="mb-3 text-xs text-bambu-gray">{i18n.resolvedLanguage?.startsWith('de') ? 'Ersatzwerte, wenn am konkreten Drucker keine Kostendaten gepflegt sind.' : 'Fallbacks when the selected printer has no cost data.'}</p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ['acquisitionValue', 'Anschaffungspreis', 'Acquisition value'], ['serviceYears', 'Nutzungsdauer Jahre', 'Service life years'],
+              ['annualHours', 'Druckstunden/Jahr', 'Print hours/year'], ['maintenancePercent', 'Wartung & Verschleiß %', 'Maintenance & wear %'],
+              ['laborRate', 'Arbeitsstundensatz', 'Labor rate'],
+            ].map(([key, de, en]) => <label key={key} className="text-sm text-bambu-gray">{i18n.resolvedLanguage?.startsWith('de') ? de : en}<input type="number" min="0" step="0.01" value={calculationDefaults[key]} onChange={event => updateCalculationDefault(key, Number(event.target.value))} className="mt-1 h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 text-white outline-none focus:border-bambu-green" /></label>)}
+          </div>
+          <div className="mt-3 rounded-lg bg-bambu-dark p-3 text-sm"><span className="text-bambu-gray">{i18n.resolvedLanguage?.startsWith('de') ? 'Berechneter Maschinenstundensatz' : 'Calculated machine hourly rate'}</span><strong className="ml-3 text-white">{machineHourlyRate.toFixed(2)} {getCurrencySymbol(localSettings.currency)}/h</strong></div>
+        </div>
+        <div className="border-t border-bambu-dark-tertiary pt-4">
+          <h3 className="font-semibold text-white">{i18n.resolvedLanguage?.startsWith('de') ? 'Arbeitszeiten' : 'Labor times'}</h3>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">{[
+            ['setupHours', 'Rüstzeit h', 'Setup h'], ['postProcessingHours', 'Nachbereitung h/Stück', 'Post-processing h/unit'], ['qaHours', 'Qualitätskontrolle h', 'Quality assurance h'],
+          ].map(([key, de, en]) => <label key={key} className="text-sm text-bambu-gray">{i18n.resolvedLanguage?.startsWith('de') ? de : en}<input type="number" min="0" step="0.05" value={calculationDefaults[key]} onChange={event => updateCalculationDefault(key, Number(event.target.value))} className="mt-1 h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 text-white outline-none focus:border-bambu-green" /></label>)}</div>
+        </div>
+        <div className="border-t border-bambu-dark-tertiary pt-4">
+          <h3 className="font-semibold text-white">{i18n.resolvedLanguage?.startsWith('de') ? 'Risiko und Preisbildung' : 'Risk and pricing'}</h3>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <label className="text-sm text-bambu-gray">{i18n.resolvedLanguage?.startsWith('de') ? 'Verfahren' : 'Method'}<select value={calculationDefaults.priceMethod} onChange={event => updateCalculationDefault('priceMethod', event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 text-white"><option value="target_margin">{i18n.resolvedLanguage?.startsWith('de') ? 'Zielmarge' : 'Target margin'}</option><option value="markup">{i18n.resolvedLanguage?.startsWith('de') ? 'Aufschlag' : 'Markup'}</option></select></label>
+            {[
+              ['priceRate', 'Marge/Aufschlag %', 'Margin/markup %'], ['scrapPercent', 'Ausschuss %', 'Scrap %'], ['minimumPrice', 'Mindestpreis', 'Minimum price'], ['minimumProfit', 'Mindestgewinn', 'Minimum profit'],
+            ].map(([key, de, en]) => <label key={key} className="text-sm text-bambu-gray">{i18n.resolvedLanguage?.startsWith('de') ? de : en}<input type="number" min="0" step="0.01" value={calculationDefaults[key]} onChange={event => updateCalculationDefault(key, Number(event.target.value))} className="mt-1 h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 text-white" /></label>)}
+          </div>
+        </div>
+        <div className="border-t border-bambu-dark-tertiary pt-4">
+          <h3 className="font-semibold text-white">{i18n.resolvedLanguage?.startsWith('de') ? 'Nebenkosten' : 'Ancillary costs'}</h3>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">{[
+            ['consumables', 'Verbrauchsmaterial', 'Consumables'], ['packaging', 'Verpackung', 'Packaging'], ['shipping', 'Versand', 'Shipping'],
+          ].map(([key, de, en]) => <label key={key} className="text-sm text-bambu-gray">{i18n.resolvedLanguage?.startsWith('de') ? de : en}<input type="number" min="0" step="0.01" value={calculationDefaults[key]} onChange={event => updateCalculationDefault(key, Number(event.target.value))} className="mt-1 h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 text-white" /></label>)}</div>
+        </div>
+        <div className="border-t border-bambu-dark-tertiary pt-4">
+          <h3 className="font-semibold text-white">{i18n.resolvedLanguage?.startsWith('de') ? 'Beispielrechnung' : 'Example calculation'}</h3>
+          <p className="text-xs text-bambu-gray">{i18n.resolvedLanguage?.startsWith('de') ? 'Ein Einzelteil · 200 g Material · 5 h Druck · aktuelle Standards' : 'One unit · 200 g material · 5 h print · current defaults'}</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4 lg:grid-cols-7">{[
+            ['Material', exampleMaterial], [i18n.resolvedLanguage?.startsWith('de') ? 'Maschine' : 'Machine', exampleMachine], [i18n.resolvedLanguage?.startsWith('de') ? 'Energie' : 'Energy', exampleEnergy], [i18n.resolvedLanguage?.startsWith('de') ? 'Arbeit' : 'Labor', exampleLabor], [i18n.resolvedLanguage?.startsWith('de') ? 'Herstellkosten' : 'Production cost', exampleProduction], [i18n.resolvedLanguage?.startsWith('de') ? 'Versand' : 'Shipping', calculationDefaults.shipping], [i18n.resolvedLanguage?.startsWith('de') ? 'Empfohlener Preis' : 'Recommended price', examplePrice],
+          ].map(([label, value]) => <div key={String(label)} className="rounded-lg bg-bambu-dark p-3"><span className="block text-xs text-bambu-gray">{label}</span><strong className="text-white">{Number(value).toFixed(2)} {getCurrencySymbol(localSettings.currency)}</strong></div>)}</div>
         </div>
       </CardContent>
     </Card>

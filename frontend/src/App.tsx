@@ -16,6 +16,7 @@ import { LibraryTrashPage } from './pages/LibraryTrashPage';
 import { WarehousePage } from './pages/WarehousePage';
 import { OrdersPage } from './pages/OrdersPage';
 import { OrdersCustomersPage } from './pages/OrdersCustomersPage';
+import { CalculationsPage } from './pages/CalculationsPage';
 import { CameraPage } from './pages/CameraPage';
 import { StreamOverlayPage } from './pages/StreamOverlayPage';
 import { ExternalLinkPage } from './pages/ExternalLinkPage';
@@ -220,7 +221,7 @@ function App() {
                   <Route path="inventory" element={<Navigate to="/warehouse/filament" replace />} />
                   <Route path="orders" element={<OrdersPage />} />
                   <Route path="orders/customers" element={<OrdersCustomersPage />} />
-                  <Route path="orders/calculation" element={<OrdersPage />} />
+                  <Route path="orders/calculation" element={<CalculationsPage />} />
                   <Route path="orders/offers" element={<OrdersPage />} />
                   <Route path="orders/invoices" element={<OrdersPage />} />
                   <Route path="files" element={<FileManagerPage />} />

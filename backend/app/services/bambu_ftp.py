@@ -62,6 +62,7 @@ class ImplicitFTP_TLS(FTP_TLS):
         self._sock = None
         self.skip_session_reuse = skip_session_reuse
         self.ssl_context = ssl.create_default_context()
+        self.ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
         self.ssl_context.check_hostname = False
         self.ssl_context.verify_mode = ssl.CERT_NONE
         if cap_tls_v1_2:

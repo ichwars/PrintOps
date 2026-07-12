@@ -3346,19 +3346,30 @@ async def run_migrations(conn):
     await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN paypal_me_url VARCHAR(500)")
     await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN logo_media_type VARCHAR(32)")
     await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN logo_version INTEGER")
-    async with conn.begin_nested():
-        await conn.execute(
-            text(
-                "UPDATE business_profiles SET "
-                "tax_mode = COALESCE(tax_mode, 'standard'), "
-                "default_tax_rate = CASE WHEN country_code = 'DE' THEN 19.00 ELSE 0.00 END, "
-                f"cash_accounting = COALESCE(cash_accounting, {boolean_false}), "
-                f"input_tax_deductible = COALESCE(input_tax_deductible, {boolean_true}), "
-                f"show_offer_qr = COALESCE(show_offer_qr, {boolean_false}) "
-                "WHERE default_tax_rate IS NULL OR tax_mode IS NULL "
-                "OR cash_accounting IS NULL OR input_tax_deductible IS NULL OR show_offer_qr IS NULL"
-            )
+    if is_sqlite():
+        profile_defaults_sql = (
+            "UPDATE business_profiles SET "
+            "tax_mode = COALESCE(tax_mode, 'standard'), "
+            "default_tax_rate = CASE WHEN country_code = 'DE' THEN 19.00 ELSE 0.00 END, "
+            "cash_accounting = COALESCE(cash_accounting, 0), "
+            "input_tax_deductible = COALESCE(input_tax_deductible, 1), "
+            "show_offer_qr = COALESCE(show_offer_qr, 0) "
+            "WHERE default_tax_rate IS NULL OR tax_mode IS NULL "
+            "OR cash_accounting IS NULL OR input_tax_deductible IS NULL OR show_offer_qr IS NULL"
         )
+    else:
+        profile_defaults_sql = (
+            "UPDATE business_profiles SET "
+            "tax_mode = COALESCE(tax_mode, 'standard'), "
+            "default_tax_rate = CASE WHEN country_code = 'DE' THEN 19.00 ELSE 0.00 END, "
+            "cash_accounting = COALESCE(cash_accounting, false), "
+            "input_tax_deductible = COALESCE(input_tax_deductible, true), "
+            "show_offer_qr = COALESCE(show_offer_qr, false) "
+            "WHERE default_tax_rate IS NULL OR tax_mode IS NULL "
+            "OR cash_accounting IS NULL OR input_tax_deductible IS NULL OR show_offer_qr IS NULL"
+        )
+    async with conn.begin_nested():
+        await conn.execute(text(profile_defaults_sql))
 
     # Migration: Add is_autologin column to oidc_providers (#1589). Postgres
     # rejects ``DEFAULT 0`` for BOOLEAN columns.
