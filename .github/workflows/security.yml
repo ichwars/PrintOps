@@ -55,7 +55,9 @@ jobs:
 
       - name: Run Bandit
         run: |
-          bandit -r backend/ -f sarif -o bandit-results.sarif --severity-level medium || true
+          # Test fixtures intentionally use temporary paths and other patterns
+          # that are irrelevant to the security posture of production code.
+          bandit -r backend/ -x backend/tests/ -f sarif -o bandit-results.sarif --severity-level medium || true
 
       - name: Upload Bandit results to GitHub Security
         uses: github/codeql-action/upload-sarif@v4
@@ -83,6 +85,10 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
+          # GitHub code scanning should remain an actionable queue. Debian
+          # vulnerabilities without an upstream fix remain visible in Trivy's
+          # database and explicit full scans, but cannot be resolved here.
+          ignore-unfixed: true
           version: 'v0.69.3'
 
       - name: Upload Trivy results to GitHub Security
