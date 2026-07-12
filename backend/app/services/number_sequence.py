@@ -133,6 +133,4 @@ async def reserve_number(
         if attempt < _MAX_RESERVATION_ATTEMPTS - 1:
             await session.refresh(sequence)
 
-    raise VersionConflictError(
-        f"Could not reserve number for business profile {business_profile_id} and key '{key}'"
-    )
+    raise VersionConflictError(f"Could not reserve number for business profile {business_profile_id} and key '{key}'")

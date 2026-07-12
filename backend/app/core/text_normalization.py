@@ -16,10 +16,7 @@ UNICODE_NORMALIZATION_VERSION = CASEFOLD_UNICODE_VERSION
 def _select_unicode_provider(stdlib_provider, backport_provider):
     if stdlib_provider.unidata_version == UNICODE_NORMALIZATION_VERSION:
         return stdlib_provider
-    if (
-        backport_provider is not None
-        and backport_provider.unidata_version == UNICODE_NORMALIZATION_VERSION
-    ):
+    if backport_provider is not None and backport_provider.unidata_version == UNICODE_NORMALIZATION_VERSION:
         return backport_provider
 
     available_versions = [f"stdlib={stdlib_provider.unidata_version}"]
@@ -43,7 +40,5 @@ def normalize_tag_name_key(value: str) -> str:
     """Return a tag key that is safe for exact PostgreSQL B-tree uniqueness."""
     normalized = normalize_case_insensitive_key(value)
     if len(normalized.encode("utf-8")) > MAX_TAG_NAME_KEY_UTF8_BYTES:
-        raise ValueError(
-            f"normalized tag name must not exceed {MAX_TAG_NAME_KEY_UTF8_BYTES} UTF-8 bytes"
-        )
+        raise ValueError(f"normalized tag name must not exceed {MAX_TAG_NAME_KEY_UTF8_BYTES} UTF-8 bytes")
     return normalized

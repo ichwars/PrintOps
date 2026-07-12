@@ -72,11 +72,7 @@ async def _load_customer(
     *,
     for_update: bool = False,
 ) -> Customer:
-    statement = (
-        select(Customer)
-        .options(*_CUSTOMER_LOAD_OPTIONS)
-        .where(Customer.id == customer_id)
-    )
+    statement = select(Customer).options(*_CUSTOMER_LOAD_OPTIONS).where(Customer.id == customer_id)
     if for_update:
         statement = statement.with_for_update()
     result = await session.execute(statement)
@@ -153,11 +149,7 @@ async def _resolve_tags(session: AsyncSession, names: list[str]) -> list[Custome
         return []
 
     keys = [normalize_tag_name_key(name) for name in names]
-    existing_tags = (
-        await session.scalars(
-            select(CustomerTag).where(CustomerTag.name_key.in_(keys))
-        )
-    ).all()
+    existing_tags = (await session.scalars(select(CustomerTag).where(CustomerTag.name_key.in_(keys)))).all()
     tags_by_key = {tag.name_key: tag for tag in existing_tags}
 
     for name in names:
@@ -171,9 +163,7 @@ async def _resolve_tags(session: AsyncSession, names: list[str]) -> list[Custome
                 session.add(tag)
                 await session.flush([tag])
         except IntegrityError as exc:
-            tag = await session.scalar(
-                select(CustomerTag).where(CustomerTag.name_key == key)
-            )
+            tag = await session.scalar(select(CustomerTag).where(CustomerTag.name_key == key))
             if tag is None:
                 raise exc
         tags_by_key[key] = tag
@@ -222,9 +212,7 @@ async def _assert_manual_number_available(
         number=number,
         exclude_account_id=exclude_account_id,
     ):
-        raise DuplicateBusinessKeyError(
-            "A customer account with this profile and number already exists"
-        )
+        raise DuplicateBusinessKeyError("A customer account with this profile and number already exists")
 
 
 async def _normalized_number_exists(
@@ -293,10 +281,7 @@ def _new_addresses(data: CustomerCreate) -> list[CustomerAddress]:
 
 
 def _new_tax_identifiers(data: CustomerCreate) -> list[CustomerTaxIdentifier]:
-    return [
-        CustomerTaxIdentifier(**tax_identifier.model_dump())
-        for tax_identifier in data.tax_identifiers
-    ]
+    return [CustomerTaxIdentifier(**tax_identifier.model_dump()) for tax_identifier in data.tax_identifiers]
 
 
 async def create_customer(
@@ -406,9 +391,7 @@ async def update_customer(
     )
     cas_row = cas_result.one_or_none()
     if cas_row is None:
-        raise VersionConflictError(
-            f"Customer {customer_id} changed concurrently; reload it and retry"
-        )
+        raise VersionConflictError(f"Customer {customer_id} changed concurrently; reload it and retry")
 
     for field, value in scalar_values.items():
         set_committed_value(customer, field, value)
@@ -424,10 +407,7 @@ async def update_customer(
     old_addresses = list(customer.addresses)
     old_tax_identifiers = list(customer.tax_identifiers)
 
-    existing_accounts = {
-        account.business_profile_id: account
-        for account in customer.accounts
-    }
+    existing_accounts = {account.business_profile_id: account for account in customer.accounts}
     requested_profile_ids: set[int] = set()
     for account_data in data.accounts:
         requested_profile_ids.add(account_data.business_profile_id)

@@ -13,18 +13,28 @@ class Calculation(Base):
     __tablename__ = "calculations"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    business_profile_id: Mapped[int] = mapped_column(ForeignKey("business_profiles.id", ondelete="RESTRICT"), index=True)
-    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id", ondelete="SET NULL"), nullable=True, index=True)
+    business_profile_id: Mapped[int] = mapped_column(
+        ForeignKey("business_profiles.id", ondelete="RESTRICT"), index=True
+    )
+    customer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("customers.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     title: Mapped[str] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(16), default="draft", index=True)
     currency: Mapped[str] = mapped_column(String(3), default="EUR")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
-    variants: Mapped[list[CalculationVariant]] = relationship(cascade="all, delete-orphan", lazy="selectin", order_by="CalculationVariant.sort_order")
-    revisions: Mapped[list[CalculationRevision]] = relationship(lazy="selectin", order_by="CalculationRevision.revision_number")
+    variants: Mapped[list[CalculationVariant]] = relationship(
+        cascade="all, delete-orphan", lazy="selectin", order_by="CalculationVariant.sort_order"
+    )
+    revisions: Mapped[list[CalculationRevision]] = relationship(
+        lazy="selectin", order_by="CalculationRevision.revision_number"
+    )
 
 
 class CalculationVariant(Base):
@@ -39,8 +49,12 @@ class CalculationVariant(Base):
     price_method: Mapped[str] = mapped_column(String(24), default="target_margin")
     price_rate: Mapped[Decimal] = mapped_column(Numeric(12, 6), default=Decimal("0"))
 
-    lines: Mapped[list[CalculationLine]] = relationship(cascade="all, delete-orphan", lazy="selectin", order_by="CalculationLine.sort_order")
-    operations: Mapped[list[CalculationOperation]] = relationship(cascade="all, delete-orphan", lazy="selectin", order_by="CalculationOperation.sort_order")
+    lines: Mapped[list[CalculationLine]] = relationship(
+        cascade="all, delete-orphan", lazy="selectin", order_by="CalculationLine.sort_order"
+    )
+    operations: Mapped[list[CalculationOperation]] = relationship(
+        cascade="all, delete-orphan", lazy="selectin", order_by="CalculationOperation.sort_order"
+    )
 
 
 class CalculationLine(Base):
@@ -73,7 +87,9 @@ class CalculationOperation(Base):
     provenance: Mapped[dict] = mapped_column(JSON, default=dict)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
-    labor: Mapped[list[CalculationLabor]] = relationship(cascade="all, delete-orphan", lazy="selectin", order_by="CalculationLabor.sort_order")
+    labor: Mapped[list[CalculationLabor]] = relationship(
+        cascade="all, delete-orphan", lazy="selectin", order_by="CalculationLabor.sort_order"
+    )
 
 
 class CalculationLabor(Base):

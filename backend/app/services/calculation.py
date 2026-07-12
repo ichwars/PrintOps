@@ -58,7 +58,18 @@ async def get_calculation(session: AsyncSession, calculation_id: int) -> Calcula
 async def list_calculations(session: AsyncSession, *, status: str | None, limit: int, offset: int) -> CalculationPage:
     predicate = Calculation.status == status if status else True
     total = await session.scalar(select(func.count()).select_from(Calculation).where(predicate)) or 0
-    rows = list((await session.scalars(select(Calculation).options(*_LOAD).where(predicate).order_by(Calculation.updated_at.desc()).limit(limit).offset(offset))).all())
+    rows = list(
+        (
+            await session.scalars(
+                select(Calculation)
+                .options(*_LOAD)
+                .where(predicate)
+                .order_by(Calculation.updated_at.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+        ).all()
+    )
     return CalculationPage(rows, total, limit, offset)
 
 
@@ -161,8 +172,29 @@ def _snapshot(calculation: Calculation, warning_reasons: dict[str, str]) -> dict
                 "is_preferred": variant.is_preferred,
                 "price_method": variant.price_method,
                 "price_rate": str(variant.price_rate),
-                "lines": [{"kind": line.kind, "description": line.description, "quantity": str(line.quantity), "unit_code": line.unit_code, "unit_price": str(line.unit_price) if line.unit_price is not None else None} for line in variant.lines],
-                "operations": [{"kind": operation.kind, "title": operation.title, "good_parts": operation.good_parts, "parts_per_run": operation.parts_per_run, "scrap_runs": operation.scrap_runs, "material_grams_per_run": str(operation.material_grams_per_run), "print_hours_per_run": str(operation.print_hours_per_run), "provenance": operation.provenance} for operation in variant.operations],
+                "lines": [
+                    {
+                        "kind": line.kind,
+                        "description": line.description,
+                        "quantity": str(line.quantity),
+                        "unit_code": line.unit_code,
+                        "unit_price": str(line.unit_price) if line.unit_price is not None else None,
+                    }
+                    for line in variant.lines
+                ],
+                "operations": [
+                    {
+                        "kind": operation.kind,
+                        "title": operation.title,
+                        "good_parts": operation.good_parts,
+                        "parts_per_run": operation.parts_per_run,
+                        "scrap_runs": operation.scrap_runs,
+                        "material_grams_per_run": str(operation.material_grams_per_run),
+                        "print_hours_per_run": str(operation.print_hours_per_run),
+                        "provenance": operation.provenance,
+                    }
+                    for operation in variant.operations
+                ],
             }
             for variant in calculation.variants
         ],
@@ -170,7 +202,13 @@ def _snapshot(calculation: Calculation, warning_reasons: dict[str, str]) -> dict
     }
 
 
-async def approve_calculation(session: AsyncSession, calculation_id: int, expected_version: int, warning_reasons: dict[str, str], approved_by_id: int | None) -> CalculationRevision:
+async def approve_calculation(
+    session: AsyncSession,
+    calculation_id: int,
+    expected_version: int,
+    warning_reasons: dict[str, str],
+    approved_by_id: int | None,
+) -> CalculationRevision:
     calculation = await _load(session, calculation_id, for_update=True)
     if calculation.version != expected_version:
         raise VersionConflictError(f"Calculation {calculation_id} has changed")
@@ -185,9 +223,14 @@ async def approve_calculation(session: AsyncSession, calculation_id: int, expect
             total += line.quantity * line.unit_price
     defaults = await _cost_defaults(session)
     service_hours = Decimal(str(defaults["serviceYears"])) * Decimal(str(defaults["annualHours"]))
-    machine_hourly = Decimal("0") if service_hours <= 0 else (
-        Decimal(str(defaults["acquisitionValue"])) / service_hours
-        * (Decimal("1") + Decimal(str(defaults["maintenancePercent"])) / Decimal("100"))
+    machine_hourly = (
+        Decimal("0")
+        if service_hours <= 0
+        else (
+            Decimal(str(defaults["acquisitionValue"]))
+            / service_hours
+            * (Decimal("1") + Decimal(str(defaults["maintenancePercent"])) / Decimal("100"))
+        )
     )
     default_labor = (
         LaborCostInput(Decimal(str(defaults["setupHours"])), Decimal(str(defaults["laborRate"])), "request"),
@@ -196,10 +239,10 @@ async def approve_calculation(session: AsyncSession, calculation_id: int, expect
     )
     production = Decimal("0")
     for operation in preferred[0].operations:
-        labor = tuple(
-            LaborCostInput(item.hours, item.hourly_rate, item.allocation_basis)
-            for item in operation.labor
-        ) or default_labor
+        labor = (
+            tuple(LaborCostInput(item.hours, item.hourly_rate, item.allocation_basis) for item in operation.labor)
+            or default_labor
+        )
         production += calculate_variant(
             VariantCostInputs(
                 good_parts=operation.good_parts,
@@ -219,7 +262,15 @@ async def approve_calculation(session: AsyncSession, calculation_id: int, expect
     revision_number = 1 + max((revision.revision_number for revision in calculation.revisions), default=0)
     snapshot = _snapshot(calculation, warning_reasons)
     snapshot["cost_defaults"] = {key: str(value) for key, value in defaults.items()}
-    revision = CalculationRevision(calculation_id=calculation.id, revision_number=revision_number, snapshot=snapshot, production_cost=production, selling_price=total, currency=calculation.currency, approved_by_id=approved_by_id)
+    revision = CalculationRevision(
+        calculation_id=calculation.id,
+        revision_number=revision_number,
+        snapshot=snapshot,
+        production_cost=production,
+        selling_price=total,
+        currency=calculation.currency,
+        approved_by_id=approved_by_id,
+    )
     session.add(revision)
     calculation.status = "approved"
     calculation.version += 1
@@ -241,7 +292,9 @@ async def create_template(session: AsyncSession, calculation_id: int, name: str)
     calculation = await _load(session, calculation_id)
     definition = _snapshot(calculation, {})
     definition["calculation"].pop("customer_id", None)
-    template = CalculationTemplate(business_profile_id=calculation.business_profile_id, name=name, definition=definition)
+    template = CalculationTemplate(
+        business_profile_id=calculation.business_profile_id, name=name, definition=definition
+    )
     session.add(template)
     await session.flush()
     return template

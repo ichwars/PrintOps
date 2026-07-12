@@ -72,15 +72,11 @@ async def test_create_list_update_and_approve_calculation(async_client, db_sessi
     update_payload = _payload(profile.id)
     update_payload["expected_version"] = 1
     update_payload["title"] = "Revised mounting brackets"
-    updated = await async_client.put(
-        f"/api/v1/calculations/{calculation['id']}", json=update_payload
-    )
+    updated = await async_client.put(f"/api/v1/calculations/{calculation['id']}", json=update_payload)
     assert updated.status_code == 200, updated.text
     assert updated.json()["version"] == 2
 
-    stale = await async_client.put(
-        f"/api/v1/calculations/{calculation['id']}", json=update_payload
-    )
+    stale = await async_client.put(f"/api/v1/calculations/{calculation['id']}", json=update_payload)
     assert stale.status_code == 409
     assert stale.json()["detail"]["code"] == "version_conflict"
 

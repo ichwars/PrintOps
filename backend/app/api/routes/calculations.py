@@ -56,7 +56,9 @@ async def list_calculations(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> CalculationListResponse:
     page = await calculation_service.list_calculations(db, status=calculation_status, limit=limit, offset=offset)
-    return CalculationListResponse(items=[_detail(item) for item in page.rows], total=page.total, limit=page.limit, offset=page.offset)
+    return CalculationListResponse(
+        items=[_detail(item) for item in page.rows], total=page.total, limit=page.limit, offset=page.offset
+    )
 
 
 @router.post("/", response_model=CalculationDetail, status_code=status.HTTP_201_CREATED)
@@ -110,7 +112,9 @@ async def approve_calculation(
     user: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_APPROVE),
 ) -> CalculationRevisionRead:
     try:
-        revision = await calculation_service.approve_calculation(db, calculation_id, data.expected_version, data.warning_reasons, user.id if user else None)
+        revision = await calculation_service.approve_calculation(
+            db, calculation_id, data.expected_version, data.warning_reasons, user.id if user else None
+        )
         await db.commit()
         await db.refresh(revision)
     except OrderDomainError as exc:

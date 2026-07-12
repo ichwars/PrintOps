@@ -130,10 +130,7 @@ def _classify_integrity_error(
     if operation_kind == "delete" and is_foreign_key_error:
         return ResourceInUseError(_DELETE_REFERENCE_MESSAGE)
 
-    if (
-        "uq_business_profiles_single_default" in constraint_names
-        or "business_profiles.is_default" in message
-    ):
+    if "uq_business_profiles_single_default" in constraint_names or "business_profiles.is_default" in message:
         return VersionConflictError(_DEFAULT_CONFLICT_MESSAGE)
 
     if (
@@ -258,7 +255,9 @@ async def get_business_profile_logo(
     path = _stored_logo_path(profile)
     if path is None or not path.is_file():
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Logo not found"})
-    return FileResponse(path, media_type=profile.logo_media_type, headers={"Cache-Control": "private, max-age=31536000, immutable"})
+    return FileResponse(
+        path, media_type=profile.logo_media_type, headers={"Cache-Control": "private, max-age=31536000, immutable"}
+    )
 
 
 @router.put("/{profile_id}/logo", response_model=BusinessProfileResponse)
@@ -275,7 +274,9 @@ async def upload_business_profile_logo(
         profile = await business_profile_service.get_business_profile(db, profile_id)
         old_path = _stored_logo_path(profile)
         new_version = version + 1
-        new_path = logo_path(settings.business_profile_logo_dir, profile_id=profile_id, version=new_version, media_type=media_type)
+        new_path = logo_path(
+            settings.business_profile_logo_dir, profile_id=profile_id, version=new_version, media_type=media_type
+        )
         cas = await db.execute(
             update(BusinessProfile)
             .where(BusinessProfile.id == profile_id, BusinessProfile.version == version)

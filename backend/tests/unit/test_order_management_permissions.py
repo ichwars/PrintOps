@@ -64,7 +64,9 @@ def test_order_permission_enum_contract():
 
 def test_order_management_category_contains_each_order_permission_once():
     order_category = PERMISSION_CATEGORIES["Order Management"]
-    categorized_counts = Counter(permission.value for permissions in PERMISSION_CATEGORIES.values() for permission in permissions)
+    categorized_counts = Counter(
+        permission.value for permissions in PERMISSION_CATEGORIES.values() for permission in permissions
+    )
 
     assert {permission.value for permission in order_category} == set(ORDER_PERMISSIONS.values())
     assert len(order_category) == len(ORDER_PERMISSIONS)

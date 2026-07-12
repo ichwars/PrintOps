@@ -168,9 +168,7 @@ async def test_create_customer_auto_numbers_and_returns_normalized_aggregate(
         assert all(isinstance(child["id"], int) for child in body[collection])
 
     account = (
-        await db_session.execute(
-            select(CustomerAccount).where(CustomerAccount.customer_id == body["id"])
-        )
+        await db_session.execute(select(CustomerAccount).where(CustomerAccount.customer_id == body["id"]))
     ).scalar_one()
     assert isinstance(account.discount_percent, Decimal)
     assert account.discount_percent == Decimal("2.50")
@@ -193,9 +191,7 @@ async def test_discount_scale_is_exact_in_create_persistence_and_fresh_detail(
     assert created["accounts"][0]["discount_percent"] == "2.00"
 
     persisted = (
-        await db_session.execute(
-            select(CustomerAccount).where(CustomerAccount.customer_id == created["id"])
-        )
+        await db_session.execute(select(CustomerAccount).where(CustomerAccount.customer_id == created["id"]))
     ).scalar_one()
     assert persisted.discount_percent == Decimal("2.00")
     assert persisted.discount_percent.as_tuple().exponent == -2
@@ -260,9 +256,7 @@ async def test_manual_number_check_recomputes_legacy_runtime_keys(async_client: 
     created = await create_customer(async_client, profile["id"], payload=first_payload)
     account_id = created["accounts"][0]["id"]
     await db_session.execute(
-        update(CustomerAccount)
-        .where(CustomerAccount.id == account_id)
-        .values(number_key=f"{old_character}-42")
+        update(CustomerAccount).where(CustomerAccount.id == account_id).values(number_key=f"{old_character}-42")
     )
     await db_session.commit()
 
@@ -570,9 +564,7 @@ async def test_customer_profile_lock_blocks_stale_disable_or_delete(
     async def change_profile() -> None:
         async with session_factory() as competitor:
             statement = (
-                update(BusinessProfile)
-                .where(BusinessProfile.id == profile_id)
-                .values(is_active=False)
+                update(BusinessProfile).where(BusinessProfile.id == profile_id).values(is_active=False)
                 if profile_change == "disable"
                 else delete(BusinessProfile).where(BusinessProfile.id == profile_id)
             )
@@ -666,9 +658,7 @@ async def test_update_customer_acquires_sqlite_write_lock_before_customer_read(t
     async def deactivate_profile() -> None:
         async with session_factory() as competitor:
             await competitor.execute(
-                update(BusinessProfile)
-                .where(BusinessProfile.id == profile_id)
-                .values(is_active=False)
+                update(BusinessProfile).where(BusinessProfile.id == profile_id).values(is_active=False)
             )
             await competitor.commit()
 
@@ -683,9 +673,10 @@ async def test_update_customer_acquires_sqlite_write_lock_before_customer_read(t
         await asyncio.wait_for(competing_change, timeout=2)
 
     async with session_factory() as verify_session:
-        assert await verify_session.scalar(
-            select(Customer.display_name).where(Customer.id == customer_id)
-        ) == "Updated Under Lock"
+        assert (
+            await verify_session.scalar(select(Customer.display_name).where(Customer.id == customer_id))
+            == "Updated Under Lock"
+        )
     await engine.dispose()
 
 

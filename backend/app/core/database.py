@@ -3382,6 +3382,7 @@ async def run_migrations(conn):
     # names by appending " Email" (#1792). See ``_migrate_rename_user_print_template_names``.
     await _migrate_rename_user_print_template_names(conn)
 
+
 _USER_PRINT_TEMPLATE_RENAMES: tuple[tuple[str, str, str], ...] = (
     ("user_print_start", "User Print Started", "User Print Started Email"),
     ("user_print_complete", "User Print Completed", "User Print Completed Email"),
@@ -3676,9 +3677,7 @@ async def seed_default_groups():
         }
         for group_name, new_permissions in order_backfill.items():
             group = (
-                await session.execute(
-                    select(Group).where(Group.name == group_name, Group.is_system.is_(True))
-                )
+                await session.execute(select(Group).where(Group.name == group_name, Group.is_system.is_(True)))
             ).scalar_one_or_none()
             if group is None or group.permissions is None:
                 continue
