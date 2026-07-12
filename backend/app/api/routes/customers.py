@@ -125,12 +125,8 @@ def _classify_integrity_error(
             return ResourceInUseError(_DELETE_REFERENCE_MESSAGE)
         return ResourceInUseError(_PROFILE_UNAVAILABLE_MESSAGE)
 
-    if (
-        "uq_customer_account_profile_number" in constraint_names
-        or (
-            "customer_accounts.business_profile_id" in message
-            and "customer_accounts.number" in message
-        )
+    if "uq_customer_account_profile_number" in constraint_names or (
+        "customer_accounts.business_profile_id" in message and "customer_accounts.number" in message
     ):
         return DuplicateBusinessKeyError(_DUPLICATE_MESSAGE)
 
@@ -218,11 +214,7 @@ def _serialize_list_item(customer: Customer, account: CustomerAccount) -> Custom
         primary_contact_name = " ".join(part for part in name_parts if part) or None
 
     billing_address = next(
-        (
-            address
-            for address in customer.addresses
-            if address.kind == "billing" and address.is_default
-        ),
+        (address for address in customer.addresses if address.kind == "billing" and address.is_default),
         None,
     )
     return CustomerListItem(
@@ -244,9 +236,7 @@ def _serialize_list_item(customer: Customer, account: CustomerAccount) -> Custom
         primary_contact_name=primary_contact_name,
         primary_contact_email=primary_contact.email if primary_contact is not None else None,
         billing_city=billing_address.city if billing_address is not None else None,
-        billing_country_code=(
-            billing_address.country_code if billing_address is not None else None
-        ),
+        billing_country_code=(billing_address.country_code if billing_address is not None else None),
         tags=_sorted_tag_names(customer),
         version=customer.version,
     )

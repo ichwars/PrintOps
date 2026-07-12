@@ -180,8 +180,7 @@ class CustomerCreate(_NormalizedModel):
             raise ValueError("Only one default address is allowed per kind")
 
         tax_identifier_keys = [
-            (tax_id.kind, normalize_case_insensitive_key(tax_id.value))
-            for tax_id in self.tax_identifiers
+            (tax_id.kind, normalize_case_insensitive_key(tax_id.value)) for tax_id in self.tax_identifiers
         ]
         if len(tax_identifier_keys) != len(set(tax_identifier_keys)):
             raise ValueError("Duplicate tax identifiers are not allowed")

@@ -61,11 +61,7 @@ async def _load_business_profile(
     *,
     for_update: bool = False,
 ) -> BusinessProfile:
-    statement = (
-        select(BusinessProfile)
-        .options(*_PROFILE_LOAD_OPTIONS)
-        .where(BusinessProfile.id == profile_id)
-    )
+    statement = select(BusinessProfile).options(*_PROFILE_LOAD_OPTIONS).where(BusinessProfile.id == profile_id)
     if for_update:
         statement = statement.with_for_update()
     result = await session.execute(statement)
@@ -166,9 +162,7 @@ async def update_business_profile(
     )
     if profile.is_active and not data.is_active:
         customer_account_id = await session.scalar(
-            select(CustomerAccount.id)
-            .where(CustomerAccount.business_profile_id == profile_id)
-            .limit(1)
+            select(CustomerAccount.id).where(CustomerAccount.business_profile_id == profile_id).limit(1)
         )
         if customer_account_id is not None:
             raise ResourceInUseError("The business profile is referenced by a customer account")
@@ -188,9 +182,7 @@ async def update_business_profile(
         .execution_options(synchronize_session=False)
     )
     if cas_result.scalar_one_or_none() is None:
-        raise VersionConflictError(
-            f"Business profile {profile_id} changed concurrently; reload it and retry"
-        )
+        raise VersionConflictError(f"Business profile {profile_id} changed concurrently; reload it and retry")
     set_committed_value(profile, "version", data.version + 1)
 
     if data.is_default:
@@ -254,9 +246,7 @@ async def set_default_business_profile(session: AsyncSession, profile_id: int) -
         .execution_options(synchronize_session=False)
     )
     if cas_result.scalar_one_or_none() is None:
-        raise VersionConflictError(
-            f"Business profile {profile_id} changed concurrently; reload it and retry"
-        )
+        raise VersionConflictError(f"Business profile {profile_id} changed concurrently; reload it and retry")
 
     set_committed_value(profile, "is_default", True)
     set_committed_value(profile, "version", observed_version + 1)

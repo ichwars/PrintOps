@@ -177,6 +177,7 @@ async def test_commit_write_rolls_back_and_reraises_unclassified_integrity_error
     assert captured.value is integrity_error
     assert session.rolled_back
 
+
 PROFILE = {
     "name": "EU Operations",
     "legal_name": "Example Manufacturing GmbH",
@@ -373,7 +374,9 @@ async def test_create_normalizes_nested_codes_and_creates_customer_sequence(
     assert body["version"] == 1
     assert body["created_at"]
     assert body["updated_at"]
-    assert all(isinstance(child["id"], int) for key in ("addresses", "tax_identifiers", "bank_accounts") for child in body[key])
+    assert all(
+        isinstance(child["id"], int) for key in ("addresses", "tax_identifiers", "bank_accounts") for child in body[key]
+    )
 
     sequence = (
         await db_session.execute(
@@ -971,9 +974,7 @@ def invalid_profile_cases() -> list[tuple[str, dict]]:
 
     payload = profile_payload()
     payload["tax_identifiers"][0].update({"kind": "\U00010570", "value": "A", "is_primary": True})
-    payload["tax_identifiers"].append(
-        {**payload["tax_identifiers"][0], "kind": "\U00010597", "value": "B"}
-    )
+    payload["tax_identifiers"].append({**payload["tax_identifiers"][0], "kind": "\U00010597", "value": "B"})
     cases.append(("Unicode 15.1 duplicate primary tax kind", payload))
 
     payload = profile_payload()

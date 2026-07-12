@@ -144,11 +144,7 @@ async def test_order_foundation_schema_contract(test_engine):
     issuer_profile_key = ("customer_accounts", ("business_profile_id",))
     assert foreign_key_actions[issuer_profile_key] == "RESTRICT"
     assert sum(action == "CASCADE" for action in foreign_key_actions.values()) == 10
-    assert all(
-        action == "CASCADE"
-        for key, action in foreign_key_actions.items()
-        if key != issuer_profile_key
-    )
+    assert all(action == "CASCADE" for key, action in foreign_key_actions.items() if key != issuer_profile_key)
 
     discount_type = CustomerAccount.__table__.c.discount_percent.type
     currency_type = CustomerAccount.__table__.c.preferred_currency.type
@@ -169,16 +165,12 @@ async def test_order_foundation_schema_contract(test_engine):
     assert not CustomerContact.__table__.c.email_key.index
     assert CustomerTag.__table__.c.name_key.type.length == 512
 
-    customer_tag_postgresql_ddl = str(
-        CreateTable(CustomerTag.__table__).compile(dialect=postgresql.dialect())
-    ).lower()
+    customer_tag_postgresql_ddl = str(CreateTable(CustomerTag.__table__).compile(dialect=postgresql.dialect())).lower()
     assert "name_key varchar(512) not null" in customer_tag_postgresql_ddl
     assert "constraint uq_customer_tag_name_key unique (name_key)" in customer_tag_postgresql_ddl
 
     single_default_indexes = [
-        index
-        for index in BusinessProfile.__table__.indexes
-        if index.name == "uq_business_profiles_single_default"
+        index for index in BusinessProfile.__table__.indexes if index.name == "uq_business_profiles_single_default"
     ]
     assert len(single_default_indexes) == 1
     single_default_index = single_default_indexes[0]

@@ -34,6 +34,7 @@ ORDER_MANAGEMENT_PERMISSIONS = {
     "accounting_integrations:manage",
 }
 
+
 async def _setup_admin(async_client: AsyncClient) -> dict[str, str]:
     await async_client.post(
         "/api/v1/auth/setup",
