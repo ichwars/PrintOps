@@ -647,6 +647,21 @@ git commit -m "Document calculation workflow"
 - [ ] Run backend calculation suites, focused frontend suites, lint, typecheck, coverage, production build, and browser smoke tests for calculation and settings.
 - [ ] Update `docs/order-management.md`; commit, push, and merge only after all required checks pass.
 
+### Task 16: Calculation Settings Overview Layout
+
+**Files:**
+- Modify: `frontend/src/components/orders/calculation/CalculationSettings.tsx`
+
+**Interfaces:**
+- Consumes: the existing six settings groups and live backend preview.
+- Produces: a responsive two-column overview without changing persisted settings or calculation behavior.
+
+- [ ] Add an icon component to each group definition and render a consistent icon/title row.
+- [ ] Arrange cost basis, labor, and ancillary costs in the left column; risk, pricing, and example calculation in the right column.
+- [ ] Keep global currency/material/electricity defaults full-width and collapse the overview to one column below the desktop breakpoint.
+- [ ] Run `npm.cmd run build --prefix frontend` and require PASS.
+- [ ] Commit and push the focused layout change.
+
 ---
 
 ## Plan Self-Review

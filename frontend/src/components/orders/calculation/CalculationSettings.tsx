@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calculator, Loader2 } from 'lucide-react';
+import { BadgeEuro, Calculator, Clock3, Coins, Loader2, Package, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { calculationsApi, type CalculationPreview, type CalculationPreviewInput, type PriceMethod } from '../../../api/calculations';
 
 type SettingKey = 'currency' | 'default_filament_cost' | 'energy_cost_per_kwh' | 'calculation_defaults';
@@ -57,58 +57,62 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
     return () => window.clearTimeout(timer);
   }, [defaults, settings.default_filament_cost, settings.energy_cost_per_kwh]);
 
-  const groups: Array<{ title: string; description: string; fields: Array<[string, string, number]> }> = [
-    { title: de ? 'Kostenbasis' : 'Cost basis', description: de ? 'Maschine, Material und Energie als Ersatzwerte.' : 'Machine, material, and energy fallbacks.', fields: [
+  const groups: Array<{ title: string; description: string; icon: LucideIcon; column: 'cost' | 'commercial'; fields: Array<[string, string, number]> }> = [
+    { title: de ? 'Kostenbasis' : 'Cost basis', icon: Coins, column: 'cost', description: de ? 'Maschine, Material und Energie als Ersatzwerte.' : 'Machine, material, and energy fallbacks.', fields: [
       ['acquisitionValue', de ? 'Anschaffungswert' : 'Acquisition value', .01], ['residualValue', de ? 'Restwert' : 'Residual value', .01],
       ['serviceYears', de ? 'Nutzungsdauer (Jahre)' : 'Service life (years)', .1], ['annualHours', de ? 'Nutzbare Stunden/Jahr' : 'Usable hours/year', 1],
       ['maintenancePercent', de ? 'Wartung & Verschleiß %' : 'Maintenance & wear %', .1], ['printerPowerWatts', de ? 'Druckerleistung W' : 'Printer power W', 1],
       ['dryerPowerWatts', de ? 'Trocknerleistung W' : 'Dryer power W', 1], ['dryingHours', de ? 'Trocknungszeit h' : 'Drying time h', .05],
     ]},
-    { title: de ? 'Arbeitszeiten' : 'Labor times', description: de ? 'Stundensatz und Standardzeiten je Tätigkeit.' : 'Hourly rate and defaults per activity.', fields: [
+    { title: de ? 'Arbeitszeiten' : 'Labor times', icon: Clock3, column: 'cost', description: de ? 'Stundensatz und Standardzeiten je Tätigkeit.' : 'Hourly rate and defaults per activity.', fields: [
       ['laborRate', de ? 'Arbeitsstundensatz' : 'Hourly rate', .01], ['requestHours', de ? 'Anfragevorbereitung h' : 'Request preparation h', .05],
       ['cadHours', 'CAD/Reparatur h', .05], ['slicingHours', 'Slicing h', .05], ['setupHours', de ? 'Rüstzeit h/Lauf' : 'Setup h/run', .05],
       ['postProcessingHours', de ? 'Nachbearbeitung h/Stück' : 'Post-processing h/unit', .05], ['qaHours', de ? 'Qualitätssicherung h' : 'Quality assurance h', .05], ['packingHours', de ? 'Verpackungszeit h' : 'Packing time h', .05],
     ]},
-    { title: de ? 'Risiko und Ausschuss' : 'Risk and scrap', description: de ? 'Explizite Zusatzläufe und Risikoreserve.' : 'Explicit extra runs and risk reserve.', fields: [
+    { title: de ? 'Risiko und Ausschuss' : 'Risk and scrap', icon: TriangleAlert, column: 'commercial', description: de ? 'Explizite Zusatzläufe und Risikoreserve.' : 'Explicit extra runs and risk reserve.', fields: [
       ['scrapRuns', de ? 'Ausschussläufe' : 'Scrap runs', 1], ['riskPercent', de ? 'Risikoreserve %' : 'Risk reserve %', .1],
     ]},
-    { title: de ? 'Preisbildung' : 'Price derivation', description: de ? 'Marge, Aufschlag oder fester Zielpreis.' : 'Margin, markup, or explicit target.', fields: [
+    { title: de ? 'Preisbildung' : 'Price derivation', icon: BadgeEuro, column: 'commercial', description: de ? 'Marge, Aufschlag oder fester Zielpreis.' : 'Margin, markup, or explicit target.', fields: [
       ['priceRate', de ? 'Marge/Aufschlag %' : 'Margin/markup %', .1], ['explicitPrice', de ? 'Fester Zielpreis' : 'Explicit price', .01],
       ['discountPercent', de ? 'Standardrabatt %' : 'Default discount %', .1], ['taxPercent', de ? 'Steuer %' : 'Tax %', .1],
       ['minimumPrice', de ? 'Mindestpreis' : 'Minimum price', .01], ['minimumProfit', de ? 'Mindestgewinn' : 'Minimum profit', .01],
     ]},
-    { title: de ? 'Nebenkosten' : 'Ancillary costs', description: de ? 'Offen ausgewiesene Zusatzkosten.' : 'Explicit ancillary amounts.', fields: [
+    { title: de ? 'Nebenkosten' : 'Ancillary costs', icon: Package, column: 'cost', description: de ? 'Offen ausgewiesene Zusatzkosten.' : 'Explicit ancillary amounts.', fields: [
       ['consumables', de ? 'Verbrauchsmaterial' : 'Consumables', .01], ['packaging', de ? 'Verpackung' : 'Packaging', .01],
       ['additionalCosts', de ? 'Weitere Kosten' : 'Additional costs', .01], ['shipping', de ? 'Versand' : 'Shipping', .01],
     ]},
-    { title: de ? 'Beispielrechnung' : 'Example calculation', description: de ? 'Eingaben für die Live-Prüfung der Standards.' : 'Inputs for the live defaults check.', fields: [
+    { title: de ? 'Beispielrechnung' : 'Example calculation', icon: Calculator, column: 'commercial', description: de ? 'Eingaben für die Live-Prüfung der Standards.' : 'Inputs for the live defaults check.', fields: [
       ['exampleParts', de ? 'Gutteile' : 'Good parts', 1], ['examplePartsPerRun', de ? 'Teile/Lauf' : 'Parts/run', 1],
       ['exampleMaterialGrams', de ? 'Material g/Lauf' : 'Material g/run', 1], ['examplePrintHours', de ? 'Druckzeit h/Lauf' : 'Print time h/run', .05],
     ]},
   ];
 
   const money = (value: string) => new Intl.NumberFormat(locale, { style: 'currency', currency: settings.currency }).format(Number(value));
-  return <div id="card-cost" className="space-y-5">
-    <div className="grid gap-3 md:grid-cols-3">
-      <label className="text-sm text-bambu-gray">{de ? 'Währung' : 'Currency'}<input value={settings.currency} onChange={e => onChange('currency', e.target.value.toUpperCase())} className={inputClass} /></label>
-      <label className="text-sm text-bambu-gray">{de ? 'Filamentpreis/kg' : 'Filament price/kg'}<input type="number" min="0" step="0.01" value={settings.default_filament_cost} onChange={e => onChange('default_filament_cost', Number(e.target.value))} className={inputClass} /></label>
-      <label className="text-sm text-bambu-gray">{de ? 'Strompreis/kWh' : 'Electricity/kWh'}<input type="number" min="0" step="0.001" value={settings.energy_cost_per_kwh} onChange={e => onChange('energy_cost_per_kwh', Number(e.target.value))} className={inputClass} /></label>
-    </div>
-    {groups.map(group => <section key={group.title} className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-5">
-      <h3 className="font-semibold text-white">{group.title}</h3><p className="mt-1 text-xs text-bambu-gray">{group.description}</p>
-      {group.title === (de ? 'Preisbildung' : 'Price derivation') && <label className="mt-3 block text-sm text-bambu-gray">{de ? 'Verfahren' : 'Method'}<select value={String(defaults.priceMethod)} onChange={e => update('priceMethod', e.target.value)} className={inputClass}><option value="target_margin">{de ? 'Zielmarge' : 'Target margin'}</option><option value="markup">{de ? 'Aufschlag' : 'Markup'}</option><option value="explicit_price">{de ? 'Fester Zielpreis' : 'Explicit price'}</option></select></label>}
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{group.fields.map(([key, label, step]) => <label key={key} className="text-sm text-bambu-gray">{label}<input type="number" min="0" step={step} value={Number(defaults[key] ?? 0)} onChange={e => update(key, Number(e.target.value))} className={inputClass} /></label>)}</div>
+  const renderGroup = (group: typeof groups[number]) => {
+    const Icon = group.icon;
+    return <section key={group.title} className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-5">
+      <div className="flex items-start gap-3"><div className="rounded-lg bg-bambu-orange/10 p-2 text-bambu-orange"><Icon className="h-5 w-5" /></div><div><h3 className="font-semibold text-white">{group.title}</h3><p className="mt-1 text-xs text-bambu-gray">{group.description}</p></div></div>
+      {group.title === (de ? 'Preisbildung' : 'Price derivation') && <label className="mt-4 block text-sm text-bambu-gray">{de ? 'Verfahren' : 'Method'}<select value={String(defaults.priceMethod)} onChange={e => update('priceMethod', e.target.value)} className={inputClass}><option value="target_margin">{de ? 'Zielmarge' : 'Target margin'}</option><option value="markup">{de ? 'Aufschlag' : 'Markup'}</option><option value="explicit_price">{de ? 'Fester Zielpreis' : 'Explicit price'}</option></select></label>}
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">{group.fields.map(([key, label, step]) => <label key={key} className="text-sm text-bambu-gray">{label}<input type="number" min="0" step={step} value={Number(defaults[key] ?? 0)} onChange={e => update(key, Number(e.target.value))} className={inputClass} /></label>)}</div>
       {group.title === (de ? 'Beispielrechnung' : 'Example calculation') && <div className="mt-4">
         {loading && <div className="flex items-center gap-2 text-sm text-bambu-gray"><Loader2 className="h-4 w-4 animate-spin" />{de ? 'Berechnung läuft…' : 'Calculating…'}</div>}
         {previewError && <div role="alert" className="text-sm text-red-300">{de ? 'Beispiel konnte nicht berechnet werden.' : 'Example could not be calculated.'}</div>}
-        {preview && <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">{[
+        {preview && <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">{[
           [de ? 'Material' : 'Material', preview.material_cost], [de ? 'Maschine' : 'Machine', preview.machine_cost], [de ? 'Energie' : 'Energy', preview.energy_cost],
           [de ? 'Arbeit' : 'Labor', preview.labor_cost], [de ? 'Risiko' : 'Risk', preview.risk_cost], [de ? 'Herstellkosten' : 'Production cost', preview.production_cost],
           [de ? 'Deckungsbeitrag' : 'Contribution', preview.contribution], [de ? 'Netto' : 'Net', preview.net_price], [de ? 'Steuer' : 'Tax', preview.tax],
           [de ? 'Brutto' : 'Gross', preview.gross_price], [de ? 'Stückpreis' : 'Unit price', preview.unit_price], [de ? 'Läufe' : 'Runs', String(preview.total_runs)],
         ].map(([label, value]) => <div key={label} className="rounded-lg bg-bambu-dark p-3"><span className="block text-xs text-bambu-gray">{label}</span><strong className="text-white">{label === (de ? 'Läufe' : 'Runs') ? value : money(value)}</strong></div>)}</div>}
       </div>}
-    </section>)}
+    </section>;
+  };
+  return <div id="card-cost" className="space-y-5">
+    <div className="grid gap-3 md:grid-cols-3">
+      <label className="text-sm text-bambu-gray">{de ? 'Währung' : 'Currency'}<input value={settings.currency} onChange={e => onChange('currency', e.target.value.toUpperCase())} className={inputClass} /></label>
+      <label className="text-sm text-bambu-gray">{de ? 'Filamentpreis/kg' : 'Filament price/kg'}<input type="number" min="0" step="0.01" value={settings.default_filament_cost} onChange={e => onChange('default_filament_cost', Number(e.target.value))} className={inputClass} /></label>
+      <label className="text-sm text-bambu-gray">{de ? 'Strompreis/kWh' : 'Electricity/kWh'}<input type="number" min="0" step="0.001" value={settings.energy_cost_per_kwh} onChange={e => onChange('energy_cost_per_kwh', Number(e.target.value))} className={inputClass} /></label>
+    </div>
+    <div className="grid items-start gap-5 lg:grid-cols-2"><div className="space-y-5">{groups.filter(group => group.column === 'cost').map(renderGroup)}</div><div className="space-y-5">{groups.filter(group => group.column === 'commercial').map(renderGroup)}</div></div>
     <div className="flex items-center gap-2 rounded-lg border border-bambu-green/30 bg-bambu-green/5 p-3 text-xs text-bambu-gray"><Calculator className="h-4 w-4 text-bambu-green" />{de ? 'Vorschau und spätere Freigabe verwenden denselben Decimal-Kostenkern.' : 'Preview and approval use the same Decimal cost engine.'}</div>
   </div>;
 }
