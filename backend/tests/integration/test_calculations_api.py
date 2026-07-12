@@ -90,6 +90,11 @@ async def test_create_list_update_and_approve_calculation(async_client, db_sessi
     assert approved.json()["selling_price"] == "45.000000"
     assert approved.json()["snapshot"]["calculation"]["customer_id"] is None
 
+    revisions = await async_client.get(f"/api/v1/calculations/{calculation['id']}/revisions")
+    assert revisions.status_code == 200, revisions.text
+    assert [item["revision_number"] for item in revisions.json()] == [1]
+    assert revisions.json()[0]["selling_price"] == "45.000000"
+
 
 async def test_template_excludes_customer_context(async_client, db_session):
     profile = await _profile(db_session)

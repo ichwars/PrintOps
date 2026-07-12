@@ -146,6 +146,22 @@ async def approve_calculation(
     return CalculationRevisionRead.model_validate(revision)
 
 
+@router.get("/{calculation_id}/revisions", response_model=list[CalculationRevisionRead])
+async def list_calculation_revisions(
+    calculation_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
+) -> list[CalculationRevisionRead]:
+    try:
+        calculation = await calculation_service.get_calculation(db, calculation_id)
+    except OrderDomainError as exc:
+        _raise_http(exc)
+    return [
+        CalculationRevisionRead.model_validate(revision)
+        for revision in sorted(calculation.revisions, key=lambda item: item.revision_number, reverse=True)
+    ]
+
+
 @router.post("/{calculation_id}/archive", response_model=CalculationDetail)
 async def archive_calculation(
     calculation_id: int,
