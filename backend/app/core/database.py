@@ -175,6 +175,7 @@ async def init_db():
         business_profile,
         color_catalog,
         customer,
+        equipment,
         external_link,
         filament,
         filament_sku_settings,
