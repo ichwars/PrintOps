@@ -103,3 +103,44 @@ async def test_template_excludes_customer_context(async_client, db_session):
 
     assert response.status_code == 201, response.text
     assert "customer_id" not in response.json()["definition"]["calculation"]
+
+
+async def test_preview_returns_complete_commercial_breakdown(async_client):
+    response = await async_client.post(
+        "/api/v1/calculations/preview",
+        json={
+            "good_parts": 4,
+            "parts_per_run": 2,
+            "material_grams_per_run": "100",
+            "material_price_per_kg": "20",
+            "additional_costs": "6",
+            "risk_rate": "0.10",
+            "price_method": "explicit_price",
+            "explicit_price": "40",
+            "discount_rate": "0.10",
+            "shipping": "5",
+            "tax_rate": "0.19",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "total_runs": 2,
+        "material_cost": "4.00",
+        "machine_cost": "0.00",
+        "energy_cost": "0.00",
+        "labor_cost": "0.00",
+        "consumables": "0.00",
+        "packaging": "0.00",
+        "additional_costs": "6.00",
+        "risk_cost": "1.00",
+        "production_cost": "11.00",
+        "shipping": "5.00",
+        "selling_price": "41.00",
+        "net_price": "41.00",
+        "contribution": "25.00",
+        "effective_margin": "0.694444",
+        "tax": "7.79",
+        "gross_price": "48.79",
+        "unit_price": "10.25",
+    }

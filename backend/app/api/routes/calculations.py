@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import NoReturn
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -12,12 +13,15 @@ from backend.app.schemas.calculation import (
     CalculationCreate,
     CalculationDetail,
     CalculationListResponse,
+    CalculationPreviewInput,
+    CalculationPreviewRead,
     CalculationRevisionRead,
     CalculationTemplateCreate,
     CalculationTemplateRead,
     CalculationUpdate,
 )
 from backend.app.services import calculation as calculation_service
+from backend.app.services.calculation_engine import LaborCostInput, VariantCostInputs, calculate_variant
 from backend.app.services.order_errors import OrderDomainError, ResourceNotFoundError, VersionConflictError
 
 router = APIRouter(prefix="/calculations", tags=["calculations"])
@@ -45,6 +49,25 @@ def _detail(calculation) -> CalculationDetail:
             "selling_price": current.selling_price,
         }
     )
+
+
+@router.post("/preview", response_model=CalculationPreviewRead)
+async def preview_calculation(
+    data: CalculationPreviewInput,
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
+) -> CalculationPreviewRead:
+    values = data.model_dump(
+        exclude={"labor", "acquisition_value", "residual_value", "service_years", "annual_hours", "maintenance_rate"}
+    )
+    if data.acquisition_value is not None and data.service_years is not None and data.annual_hours is not None:
+        depreciable = max(Decimal("0"), data.acquisition_value - data.residual_value)
+        values["machine_cost_per_hour"] = depreciable / (data.service_years * data.annual_hours) * (
+            Decimal("1") + data.maintenance_rate
+        )
+    values["labor"] = tuple(
+        LaborCostInput(entry.hours, entry.hourly_rate, entry.allocation_basis) for entry in data.labor
+    )
+    return CalculationPreviewRead.model_validate(calculate_variant(VariantCostInputs(**values)), from_attributes=True)
 
 
 @router.get("/", response_model=CalculationListResponse)

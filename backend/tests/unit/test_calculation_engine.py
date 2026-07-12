@@ -61,3 +61,32 @@ def test_variant_cost_keeps_shipping_separate_and_allocates_labor():
     assert result.production_cost == Decimal("51.48")
     assert result.shipping == Decimal("5.00")
     assert result.selling_price == Decimal("69.35")
+
+
+def test_variant_cost_exposes_risk_discount_tax_contribution_and_unit_price():
+    result = calculate_variant(
+        VariantCostInputs(
+            good_parts=4,
+            parts_per_run=2,
+            material_grams_per_run=Decimal("100"),
+            material_price_per_kg=Decimal("20"),
+            additional_costs=Decimal("6"),
+            risk_rate=Decimal("0.10"),
+            price_method="explicit_price",
+            explicit_price=Decimal("40"),
+            discount_rate=Decimal("0.10"),
+            shipping=Decimal("5"),
+            tax_rate=Decimal("0.19"),
+        )
+    )
+
+    assert result.material_cost == Decimal("4.00")
+    assert result.additional_costs == Decimal("6.00")
+    assert result.risk_cost == Decimal("1.00")
+    assert result.production_cost == Decimal("11.00")
+    assert result.net_price == Decimal("41.00")
+    assert result.contribution == Decimal("25.00")
+    assert result.effective_margin == Decimal("0.694444")
+    assert result.tax == Decimal("7.79")
+    assert result.gross_price == Decimal("48.79")
+    assert result.unit_price == Decimal("10.25")

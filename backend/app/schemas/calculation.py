@@ -8,7 +8,7 @@ import pycountry
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 
 CalculationStatus = Literal["draft", "approved", "superseded", "archived"]
-PriceMethod = Literal["markup", "target_margin"]
+PriceMethod = Literal["markup", "target_margin", "explicit_price"]
 AllocationBasis = Literal["request", "run", "unit"]
 LineKind = Literal["printed_part", "service", "material", "packaging", "shipping", "discount", "text"]
 OperationKind = Literal["cad", "slicing", "setup", "printing", "drying", "post_processing", "qa", "packing"]
@@ -107,6 +107,59 @@ class CalculationApprove(CalculationSchema):
 class CalculationTemplateCreate(CalculationSchema):
     name: str = Field(min_length=1, max_length=255)
     revision_id: int | None = Field(default=None, gt=0)
+
+
+class CalculationPreviewInput(CalculationSchema):
+    good_parts: int = Field(default=1, ge=0)
+    parts_per_run: int = Field(default=1, gt=0)
+    scrap_runs: int = Field(default=0, ge=0)
+    material_grams_per_run: Decimal = Field(default=Decimal("0"), ge=0)
+    material_price_per_kg: Decimal = Field(default=Decimal("0"), ge=0)
+    print_hours_per_run: Decimal = Field(default=Decimal("0"), ge=0)
+    machine_cost_per_hour: Decimal = Field(default=Decimal("0"), ge=0)
+    acquisition_value: Decimal | None = Field(default=None, ge=0)
+    residual_value: Decimal = Field(default=Decimal("0"), ge=0)
+    service_years: Decimal | None = Field(default=None, gt=0)
+    annual_hours: Decimal | None = Field(default=None, gt=0)
+    maintenance_rate: Decimal = Field(default=Decimal("0"), ge=0)
+    printer_power_kw: Decimal = Field(default=Decimal("0"), ge=0)
+    electricity_price_per_kwh: Decimal = Field(default=Decimal("0"), ge=0)
+    drying_hours: Decimal = Field(default=Decimal("0"), ge=0)
+    dryer_power_kw: Decimal = Field(default=Decimal("0"), ge=0)
+    labor: list[CalculationLaborInput] = Field(default_factory=list)
+    consumables: Decimal = Field(default=Decimal("0"), ge=0)
+    packaging: Decimal = Field(default=Decimal("0"), ge=0)
+    additional_costs: Decimal = Field(default=Decimal("0"), ge=0)
+    risk_rate: Decimal = Field(default=Decimal("0"), ge=0)
+    shipping: Decimal = Field(default=Decimal("0"), ge=0)
+    price_method: PriceMethod = "target_margin"
+    price_rate: Decimal = Field(default=Decimal("0"), ge=0)
+    explicit_price: Decimal = Field(default=Decimal("0"), ge=0)
+    discount_rate: Decimal = Field(default=Decimal("0"), ge=0, lt=1)
+    tax_rate: Decimal = Field(default=Decimal("0"), ge=0)
+    minimum_price: Decimal = Field(default=Decimal("0"), ge=0)
+    minimum_profit: Decimal = Field(default=Decimal("0"), ge=0)
+
+
+class CalculationPreviewRead(CalculationSchema):
+    total_runs: int
+    material_cost: Decimal
+    machine_cost: Decimal
+    energy_cost: Decimal
+    labor_cost: Decimal
+    consumables: Decimal
+    packaging: Decimal
+    additional_costs: Decimal
+    risk_cost: Decimal
+    production_cost: Decimal
+    shipping: Decimal
+    selling_price: Decimal
+    net_price: Decimal
+    contribution: Decimal
+    effective_margin: Decimal
+    tax: Decimal
+    gross_price: Decimal
+    unit_price: Decimal
 
 
 class CalculationDetail(CalculationSchema):

@@ -32,9 +32,14 @@ class VariantCostInputs:
     labor: tuple[LaborCostInput, ...] = ()
     consumables: Decimal = Decimal("0")
     packaging: Decimal = Decimal("0")
+    additional_costs: Decimal = Decimal("0")
+    risk_rate: Decimal = Decimal("0")
     shipping: Decimal = Decimal("0")
-    price_method: Literal["markup", "target_margin"] = "target_margin"
+    price_method: Literal["markup", "target_margin", "explicit_price"] = "target_margin"
     price_rate: Decimal = Decimal("0")
+    explicit_price: Decimal = Decimal("0")
+    discount_rate: Decimal = Decimal("0")
+    tax_rate: Decimal = Decimal("0")
     minimum_price: Decimal = Decimal("0")
     minimum_profit: Decimal = Decimal("0")
 
@@ -46,9 +51,19 @@ class VariantCostResult:
     machine_cost: Decimal
     energy_cost: Decimal
     labor_cost: Decimal
+    consumables: Decimal
+    packaging: Decimal
+    additional_costs: Decimal
+    risk_cost: Decimal
     production_cost: Decimal
     shipping: Decimal
     selling_price: Decimal
+    net_price: Decimal
+    contribution: Decimal
+    effective_margin: Decimal
+    tax: Decimal
+    gross_price: Decimal
+    unit_price: Decimal
 
 
 def round_money(value: Decimal) -> Decimal:
@@ -72,12 +87,25 @@ def apply_price_method(cost: Decimal, method: str, rate: Decimal) -> Decimal:
         if rate >= Decimal("1"):
             raise CalculationInputError("target margin must be below one")
         return round_money(cost / (Decimal("1") - rate))
+    if method == "explicit_price":
+        return round_money(rate)
     raise CalculationInputError("unknown price method")
 
 
 def calculate_variant(inputs: VariantCostInputs) -> VariantCostResult:
-    if inputs.scrap_runs < 0:
-        raise CalculationInputError("scrap_runs must not be negative")
+    if inputs.scrap_runs < 0 or any(
+        value < 0
+        for value in (
+            inputs.additional_costs,
+            inputs.risk_rate,
+            inputs.explicit_price,
+            inputs.discount_rate,
+            inputs.tax_rate,
+        )
+    ):
+        raise CalculationInputError("cost, rate, and scrap inputs must not be negative")
+    if inputs.discount_rate >= 1:
+        raise CalculationInputError("discount rate must be below one")
     runs = required_runs(inputs.good_parts, inputs.parts_per_run) + inputs.scrap_runs
     material = inputs.material_grams_per_run * Decimal(runs) / Decimal("1000") * inputs.material_price_per_kg
     machine = inputs.print_hours_per_run * Decimal(runs) * inputs.machine_cost_per_hour
@@ -95,16 +123,51 @@ def calculate_variant(inputs: VariantCostInputs) -> VariantCostResult:
         elif entry.allocation_basis != "request":
             raise CalculationInputError("unknown labor allocation basis")
         labor += entry.hours * entry.hourly_rate * multiplier
-    production = material + machine + energy + labor + inputs.consumables + inputs.packaging
-    derived = apply_price_method(production, inputs.price_method, inputs.price_rate)
-    selling = max(derived, inputs.minimum_price, production + inputs.minimum_profit) + inputs.shipping
+    base_production = (
+        material
+        + machine
+        + energy
+        + labor
+        + inputs.consumables
+        + inputs.packaging
+        + inputs.additional_costs
+    )
+    risk = base_production * inputs.risk_rate
+    production = base_production + risk
+    derived = (
+        round_money(inputs.explicit_price)
+        if inputs.price_method == "explicit_price"
+        else apply_price_method(production, inputs.price_method, inputs.price_rate)
+    )
+    before_shipping = max(derived, inputs.minimum_price, production + inputs.minimum_profit)
+    discounted = before_shipping * (Decimal("1") - inputs.discount_rate)
+    net = round_money(discounted + inputs.shipping)
+    contribution = round_money(discounted - production)
+    margin = (
+        Decimal("0")
+        if discounted <= 0
+        else (contribution / round_money(discounted)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+    )
+    tax = round_money(net * inputs.tax_rate)
+    gross = round_money(net + tax)
+    unit = round_money(net / Decimal(inputs.good_parts)) if inputs.good_parts > 0 else Decimal("0.00")
     return VariantCostResult(
         total_runs=runs,
         material_cost=round_money(material),
         machine_cost=round_money(machine),
         energy_cost=round_money(energy),
         labor_cost=round_money(labor),
+        consumables=round_money(inputs.consumables),
+        packaging=round_money(inputs.packaging),
+        additional_costs=round_money(inputs.additional_costs),
+        risk_cost=round_money(risk),
         production_cost=round_money(production),
         shipping=round_money(inputs.shipping),
-        selling_price=round_money(selling),
+        selling_price=net,
+        net_price=net,
+        contribution=contribution,
+        effective_margin=margin,
+        tax=tax,
+        gross_price=gross,
+        unit_price=unit,
     )

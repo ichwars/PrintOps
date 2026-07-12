@@ -1,7 +1,29 @@
 import { request } from './client';
 
 export type CalculationStatus = 'draft' | 'approved' | 'superseded' | 'archived';
-export type PriceMethod = 'markup' | 'target_margin';
+export type PriceMethod = 'markup' | 'target_margin' | 'explicit_price';
+
+export interface CalculationPreviewInput {
+  good_parts: number; parts_per_run: number; scrap_runs: number;
+  material_grams_per_run: string; material_price_per_kg: string;
+  print_hours_per_run: string; machine_cost_per_hour: string;
+  acquisition_value?: string; residual_value?: string; service_years?: string;
+  annual_hours?: string; maintenance_rate?: string;
+  printer_power_kw: string; electricity_price_per_kwh: string;
+  drying_hours: string; dryer_power_kw: string;
+  labor: Array<{ kind: string; hours: string; hourly_rate: string; allocation_basis: 'request' | 'run' | 'unit'; sort_order: number }>;
+  consumables: string; packaging: string; additional_costs: string; risk_rate: string;
+  shipping: string; price_method: PriceMethod; price_rate: string; explicit_price: string;
+  discount_rate: string; tax_rate: string; minimum_price: string; minimum_profit: string;
+}
+
+export interface CalculationPreview {
+  total_runs: number; material_cost: string; machine_cost: string; energy_cost: string;
+  labor_cost: string; consumables: string; packaging: string; additional_costs: string;
+  risk_cost: string; production_cost: string; shipping: string; selling_price: string;
+  net_price: string; contribution: string; effective_margin: string; tax: string;
+  gross_price: string; unit_price: string;
+}
 
 export interface CalculationLine {
   kind: 'printed_part' | 'service' | 'material' | 'packaging' | 'shipping' | 'discount' | 'text';
@@ -71,6 +93,7 @@ export interface CalculationRevision {
 }
 
 export const calculationsApi = {
+  preview: (input: CalculationPreviewInput) => request<CalculationPreview>('/calculations/preview', { method: 'POST', body: JSON.stringify(input) }),
   list: (params: { status?: CalculationStatus; limit?: number; offset?: number } = {}) => {
     const query = new URLSearchParams();
     if (params.status) query.set('status', params.status);
