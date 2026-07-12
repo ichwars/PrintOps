@@ -21,7 +21,7 @@ from backend.app.models.calculation import (
 from backend.app.models.customer import Customer
 from backend.app.models.settings import Settings
 from backend.app.schemas.calculation import CalculationCreate, CalculationUpdate
-from backend.app.services.calculation_engine import LaborCostInput, VariantCostInputs, calculate_variant
+from backend.app.services.calculation_engine import LaborCostInput, VariantCostInputs, calculate_combined
 from backend.app.services.order_errors import ResourceInUseError, ResourceNotFoundError, VersionConflictError
 
 _LOAD = (
@@ -217,33 +217,20 @@ async def approve_calculation(
         raise ResourceInUseError("Exactly one preferred variant is required")
     if not preferred[0].lines:
         raise ResourceInUseError("At least one sellable line is required")
-    total = Decimal("0")
-    for line in preferred[0].lines:
-        if line.unit_price is not None:
-            total += line.quantity * line.unit_price
     defaults = await _cost_defaults(session)
-    service_hours = Decimal(str(defaults["serviceYears"])) * Decimal(str(defaults["annualHours"]))
-    machine_hourly = (
-        Decimal("0")
-        if service_hours <= 0
-        else (
-            Decimal(str(defaults["acquisitionValue"]))
-            / service_hours
-            * (Decimal("1") + Decimal(str(defaults["maintenancePercent"])) / Decimal("100"))
-        )
-    )
     default_labor = (
         LaborCostInput(Decimal(str(defaults["setupHours"])), Decimal(str(defaults["laborRate"])), "request"),
         LaborCostInput(Decimal(str(defaults["postProcessingHours"])), Decimal(str(defaults["laborRate"])), "unit"),
         LaborCostInput(Decimal(str(defaults["qaHours"])), Decimal(str(defaults["laborRate"])), "request"),
     )
-    production = Decimal("0")
+    operation_inputs: list[VariantCostInputs] = []
     for operation in preferred[0].operations:
         labor = (
             tuple(LaborCostInput(item.hours, item.hourly_rate, item.allocation_basis) for item in operation.labor)
             or default_labor
         )
-        production += calculate_variant(
+        provenance = operation.provenance or {}
+        operation_inputs.append(
             VariantCostInputs(
                 good_parts=operation.good_parts,
                 parts_per_run=operation.parts_per_run,
@@ -251,14 +238,35 @@ async def approve_calculation(
                 material_grams_per_run=operation.material_grams_per_run,
                 material_price_per_kg=Decimal(str(defaults["materialPricePerKg"])),
                 print_hours_per_run=operation.print_hours_per_run,
-                machine_cost_per_hour=machine_hourly,
-                printer_power_kw=Decimal("0.2"),
+                machine_cost_per_hour=Decimal(str(provenance.get("printer_hourly_rate") or "0")),
+                printer_power_kw=Decimal(str(provenance.get("printer_power_watts") or "0")) / Decimal("1000"),
                 electricity_price_per_kwh=Decimal(str(defaults["electricityPricePerKwh"])),
+                drying_hours=Decimal(str(provenance.get("drying_hours") or "0")),
+                dryer_power_kw=Decimal(str(provenance.get("dryer_power_watts") or "0")) / Decimal("1000"),
                 labor=labor,
-                consumables=Decimal(str(defaults["consumables"])),
-                packaging=Decimal(str(defaults["packaging"])),
             )
-        ).production_cost
+        )
+    total_units = max(1, int(sum((line.quantity for line in preferred[0].lines), Decimal("0"))))
+    result = calculate_combined(
+        operation_inputs,
+        VariantCostInputs(
+            good_parts=total_units,
+            parts_per_run=1,
+            consumables=Decimal(str(defaults.get("consumables", 0))),
+            packaging=Decimal(str(defaults.get("packaging", 0))),
+            additional_costs=Decimal(str(defaults.get("additionalCosts", 0))),
+            risk_rate=Decimal(str(defaults.get("riskPercent", 0))) / Decimal("100"),
+            shipping=Decimal(str(defaults.get("shipping", 0))),
+            price_method=preferred[0].price_method,
+            price_rate=Decimal("0") if preferred[0].price_method == "explicit_price" else preferred[0].price_rate,
+            explicit_price=preferred[0].price_rate if preferred[0].price_method == "explicit_price" else Decimal(str(defaults.get("explicitPrice", 0))),
+            discount_rate=Decimal(str(defaults.get("discountPercent", 0))) / Decimal("100"),
+            tax_rate=Decimal(str(defaults.get("taxPercent", 0))) / Decimal("100"),
+            minimum_price=Decimal(str(defaults.get("minimumPrice", 0))),
+            minimum_profit=Decimal(str(defaults.get("minimumProfit", 0))),
+            rounding_mode=str(defaults.get("roundingMode", "none")),
+        ),
+    )
     revision_number = 1 + max((revision.revision_number for revision in calculation.revisions), default=0)
     snapshot = _snapshot(calculation, warning_reasons)
     snapshot["cost_defaults"] = {key: str(value) for key, value in defaults.items()}
@@ -266,8 +274,8 @@ async def approve_calculation(
         calculation_id=calculation.id,
         revision_number=revision_number,
         snapshot=snapshot,
-        production_cost=production,
-        selling_price=total,
+        production_cost=result.production_cost,
+        selling_price=result.net_price,
         currency=calculation.currency,
         approved_by_id=approved_by_id,
     )

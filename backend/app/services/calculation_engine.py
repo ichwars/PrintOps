@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 from typing import Literal
 
@@ -188,3 +188,15 @@ def calculate_variant(inputs: VariantCostInputs) -> VariantCostResult:
         gross_price=gross,
         unit_price=unit,
     )
+
+
+def calculate_combined(operations: list[VariantCostInputs], commercial: VariantCostInputs) -> VariantCostResult:
+    if not operations:
+        raise CalculationInputError("at least one operation is required")
+    results = [calculate_variant(operation) for operation in operations]
+    material = sum((item.material_cost for item in results), Decimal("0"))
+    machine = sum((item.machine_cost for item in results), Decimal("0"))
+    energy = sum((item.energy_cost for item in results), Decimal("0"))
+    labor = sum((item.labor_cost for item in results), Decimal("0"))
+    combined = calculate_variant(replace(commercial, material_grams_per_run=Decimal("0"), material_price_per_kg=Decimal("0"), print_hours_per_run=Decimal("0"), machine_cost_per_hour=Decimal("0"), printer_power_kw=Decimal("0"), drying_hours=Decimal("0"), dryer_power_kw=Decimal("0"), labor=(), additional_costs=commercial.additional_costs + material + machine + energy + labor))
+    return replace(combined, total_runs=sum(item.total_runs for item in results), material_cost=material, machine_cost=machine, energy_cost=energy, labor_cost=labor, additional_costs=round_money(commercial.additional_costs))

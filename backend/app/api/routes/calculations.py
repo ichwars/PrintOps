@@ -1,4 +1,3 @@
-from dataclasses import replace
 from decimal import Decimal
 from typing import NoReturn
 
@@ -23,7 +22,12 @@ from backend.app.schemas.calculation import (
     CalculationUpdate,
 )
 from backend.app.services import calculation as calculation_service
-from backend.app.services.calculation_engine import LaborCostInput, VariantCostInputs, calculate_variant, round_money
+from backend.app.services.calculation_engine import (
+    LaborCostInput,
+    VariantCostInputs,
+    calculate_combined,
+    calculate_variant,
+)
 from backend.app.services.order_errors import OrderDomainError, ResourceNotFoundError, VersionConflictError
 
 router = APIRouter(prefix="/calculations", tags=["calculations"])
@@ -79,27 +83,7 @@ async def preview_calculation_batch(
     data: CalculationBatchPreviewInput,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> CalculationPreviewRead:
-    operation_results = [calculate_variant(_preview_inputs(operation)) for operation in data.operations]
-    material = sum((item.material_cost for item in operation_results), Decimal("0"))
-    machine = sum((item.machine_cost for item in operation_results), Decimal("0"))
-    energy = sum((item.energy_cost for item in operation_results), Decimal("0"))
-    labor = sum((item.labor_cost for item in operation_results), Decimal("0"))
-    commercial = _preview_inputs(data.commercial)
-    combined = calculate_variant(
-        replace(
-            commercial,
-            material_grams_per_run=Decimal("0"), material_price_per_kg=Decimal("0"),
-            print_hours_per_run=Decimal("0"), machine_cost_per_hour=Decimal("0"),
-            printer_power_kw=Decimal("0"), drying_hours=Decimal("0"), dryer_power_kw=Decimal("0"),
-            labor=(), additional_costs=commercial.additional_costs + material + machine + energy + labor,
-        )
-    )
-    combined = replace(
-        combined,
-        total_runs=sum(item.total_runs for item in operation_results),
-        material_cost=material, machine_cost=machine, energy_cost=energy, labor_cost=labor,
-        additional_costs=round_money(commercial.additional_costs),
-    )
+    combined = calculate_combined([_preview_inputs(operation) for operation in data.operations], _preview_inputs(data.commercial))
     return CalculationPreviewRead.model_validate(combined, from_attributes=True)
 
 
