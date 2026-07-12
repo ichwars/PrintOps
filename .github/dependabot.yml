@@ -1,0 +1,54 @@
+version: 2
+
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Europe/Berlin
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:15"
+      timezone: Europe/Berlin
+    groups:
+      frontend-dependencies:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:30"
+      timezone: Europe/Berlin
+    groups:
+      container-images:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:45"
+      timezone: Europe/Berlin
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 5
