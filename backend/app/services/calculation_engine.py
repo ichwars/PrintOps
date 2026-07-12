@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 from typing import Literal
 
 MONEY = Decimal("0.01")
@@ -42,6 +42,7 @@ class VariantCostInputs:
     tax_rate: Decimal = Decimal("0")
     minimum_price: Decimal = Decimal("0")
     minimum_profit: Decimal = Decimal("0")
+    rounding_mode: Literal["none", "0.05", "0.10", "0.50", "1.00", "x.90", "x.99"] = "none"
 
 
 @dataclass(frozen=True)
@@ -90,6 +91,22 @@ def apply_price_method(cost: Decimal, method: str, rate: Decimal) -> Decimal:
     if method == "explicit_price":
         return round_money(rate)
     raise CalculationInputError("unknown price method")
+
+
+def apply_price_rounding(value: Decimal, mode: str) -> Decimal:
+    if mode == "none":
+        return round_money(value)
+    if mode in {"0.05", "0.10", "0.50", "1.00"}:
+        increment = Decimal(mode)
+        return ((value / increment).to_integral_value(rounding=ROUND_CEILING) * increment).quantize(MONEY)
+    if mode in {"x.90", "x.99"}:
+        ending = Decimal("0.90") if mode == "x.90" else Decimal("0.99")
+        whole = value.to_integral_value(rounding=ROUND_CEILING)
+        candidate = whole - Decimal("1") + ending
+        if candidate < value:
+            candidate += Decimal("1")
+        return candidate.quantize(MONEY)
+    raise CalculationInputError("unknown price rounding mode")
 
 
 def calculate_variant(inputs: VariantCostInputs) -> VariantCostResult:
@@ -141,7 +158,7 @@ def calculate_variant(inputs: VariantCostInputs) -> VariantCostResult:
     )
     before_shipping = max(derived, inputs.minimum_price, production + inputs.minimum_profit)
     discounted = before_shipping * (Decimal("1") - inputs.discount_rate)
-    net = round_money(discounted + inputs.shipping)
+    net = apply_price_rounding(discounted + inputs.shipping, inputs.rounding_mode)
     contribution = round_money(discounted - production)
     margin = (
         Decimal("0")

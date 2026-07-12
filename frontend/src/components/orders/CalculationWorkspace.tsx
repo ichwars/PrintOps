@@ -73,6 +73,7 @@ export function CalculationWorkspace({ calculation, onClose, onSaved, locale }: 
       explicit_price: selected.price_method === 'explicit_price' ? selected.price_rate : String(n('explicitPrice')),
       discount_rate: String(n('discountPercent') / 100), tax_rate: String(n('taxPercent', 19) / 100),
       minimum_price: String(n('minimumPrice', 12)), minimum_profit: String(n('minimumProfit', 4)),
+      rounding_mode: String(defaults.roundingMode ?? 'none') as 'none' | '0.05' | '0.10' | '0.50' | '1.00' | 'x.90' | 'x.99',
     }).then(setPreview).catch(() => setPreview(null)), 250);
     return () => window.clearTimeout(timer);
   }, [selected, settings]);

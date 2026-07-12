@@ -15,6 +15,7 @@ export interface CalculationPreviewInput {
   consumables: string; packaging: string; additional_costs: string; risk_rate: string;
   shipping: string; price_method: PriceMethod; price_rate: string; explicit_price: string;
   discount_rate: string; tax_rate: string; minimum_price: string; minimum_profit: string;
+  rounding_mode: 'none' | '0.05' | '0.10' | '0.50' | '1.00' | 'x.90' | 'x.99';
 }
 
 export interface CalculationPreview {

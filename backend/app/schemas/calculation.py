@@ -139,6 +139,7 @@ class CalculationPreviewInput(CalculationSchema):
     tax_rate: Decimal = Field(default=Decimal("0"), ge=0)
     minimum_price: Decimal = Field(default=Decimal("0"), ge=0)
     minimum_profit: Decimal = Field(default=Decimal("0"), ge=0)
+    rounding_mode: Literal["none", "0.05", "0.10", "0.50", "1.00", "x.90", "x.99"] = "none"
 
 
 class CalculationPreviewRead(CalculationSchema):
