@@ -662,6 +662,81 @@ git commit -m "Document calculation workflow"
 - [ ] Run `npm.cmd run build --prefix frontend` and require PASS.
 - [ ] Commit and push the focused layout change.
 
+### Task 17: Calculable Device Master Data
+
+**Files:**
+- Modify: `backend/app/models/printer.py`
+- Create: `backend/app/models/equipment.py`
+- Modify: `backend/app/models/__init__.py`
+- Modify: `backend/app/core/database.py`
+- Create: `backend/app/schemas/equipment.py`
+- Create: `backend/app/services/equipment.py`
+- Test: `backend/tests/unit/test_equipment_costs.py`
+
+**Interfaces:**
+- Produces: commercial fields for printers plus `Equipment` records of type `dryer`; `calculate_residual_value(...)` and `calculate_hourly_rate(...)` are the only owners of derived device costs.
+
+- [ ] Add failing unit cases for new, halfway-depreciated, expired, and invalid device values.
+- [ ] Add optional acquisition date/value, service years, annual hours, maintenance percentage, and nominal watts to printers; create the dryer equipment model with the same commercial fields.
+- [ ] Add idempotent SQLite/PostgreSQL startup migration coverage following existing database migration patterns.
+- [ ] Implement Decimal-based straight-line residual value and hourly-rate helpers and expose derived read-only schema fields.
+- [ ] Run equipment unit and migration tests; require PASS.
+
+### Task 18: Device API and Unified Device Management
+
+**Files:**
+- Create: `backend/app/api/routes/equipment.py`
+- Modify: `backend/app/api/routes/__init__.py`
+- Modify: `backend/app/main.py`
+- Modify: `backend/app/schemas/printer.py`
+- Modify: `backend/app/api/routes/printers.py`
+- Create: `backend/tests/integration/test_equipment_api.py`
+- Modify: `backend/tests/integration/test_printers_api.py`
+- Create: `frontend/src/components/settings/DeviceManagement.tsx`
+- Modify: `frontend/src/pages/SettingsPage.tsx`
+- Modify: `frontend/src/api/client.ts`
+
+**Interfaces:**
+- Produces: CRUD `/equipment` for dryers and extended printer responses; unified settings UI renders both sources without copying printer records.
+
+- [ ] Test dryer CRUD, validation, inactive filtering, derived values, and extended printer commercial fields.
+- [ ] Implement permission-gated dryer CRUD and printer commercial-field updates.
+- [ ] Replace the device settings surface with printer and dryer sections, add/edit forms, derived-value display, and active-state controls.
+- [ ] Run focused backend tests and the frontend production build; require PASS.
+
+### Task 19: Device Selection and Central Price Rounding
+
+**Files:**
+- Modify: `backend/app/services/calculation_engine.py`
+- Modify: `backend/app/schemas/calculation.py`
+- Modify: `backend/tests/unit/test_calculation_engine.py`
+- Modify: `frontend/src/components/orders/calculation/CalculationSettings.tsx`
+- Modify: `frontend/src/components/orders/CalculationWorkspace.tsx`
+- Modify: `frontend/src/api/calculations.ts`
+
+**Interfaces:**
+- Consumes: active printer and dryer master data.
+- Produces: default device selectors, per-operation overrides, drying duration, and backend-owned price rounding shared by preview and approval.
+
+- [ ] Add failing rounding tests for none, 0.05, 0.10, 0.50, 1.00, x.90, and x.99.
+- [ ] Add rounding mode to preview/approval inputs and apply it after commercial price derivation using Decimal arithmetic.
+- [ ] Replace free-text currency with the existing supported ISO currency selector.
+- [ ] Replace device-entry defaults with active default-printer/default-dryer selectors and read-only residual/hourly-rate summaries.
+- [ ] Add per-operation printer/dryer selection and drying hours to the workspace, persisting resolved provenance.
+- [ ] Run calculation unit/API tests and frontend build; require PASS.
+
+### Task 20: Device and Calculation Verification
+
+**Files:**
+- Modify: `docs/order-management.md`
+- Modify: `docs/superpowers/plans/2026-07-12-calculation-workspace.md`
+
+- [ ] Run backend equipment, printer, calculation, permission, migration, lint, and security checks.
+- [ ] Run frontend lint, typecheck, focused tests, i18n parity, and production build.
+- [ ] Browser-smoke device creation, default selection, order override, residual/hourly display, and every rounding mode.
+- [ ] Update operator documentation and check off only verified plan items.
+- [ ] Commit, push, and merge only after required GitHub checks pass.
+
 ---
 
 ## Plan Self-Review
