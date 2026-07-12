@@ -239,7 +239,7 @@ jobs:
       - name: Run tests
         timeout-minutes: 10
         working-directory: frontend
-        run: npm run test:run
+        run: npm run test:coverage && npm run check:i18n
 
   frontend-build:
     name: Frontend Build
