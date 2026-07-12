@@ -149,3 +149,15 @@ async def test_preview_returns_complete_commercial_breakdown(async_client):
         "gross_price": "48.79",
         "unit_price": "10.25",
     }
+
+
+async def test_batch_preview_aggregates_operations_before_pricing(async_client):
+    operation = {"good_parts": 2, "parts_per_run": 1, "material_grams_per_run": "100", "material_price_per_kg": "20", "price_method": "markup"}
+    commercial = {"good_parts": 4, "parts_per_run": 1, "additional_costs": "2", "risk_rate": "0.10", "price_method": "markup", "price_rate": "0.25", "tax_rate": "0.19"}
+    response = await async_client.post("/api/v1/calculations/preview-batch", json={"operations": [operation, operation], "commercial": commercial})
+    assert response.status_code == 200, response.text
+    assert response.json()["total_runs"] == 4
+    assert response.json()["material_cost"] == "8.00"
+    assert response.json()["additional_costs"] == "2.00"
+    assert response.json()["production_cost"] == "11.00"
+    assert response.json()["net_price"] == "13.75"

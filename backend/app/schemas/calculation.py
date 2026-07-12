@@ -163,6 +163,11 @@ class CalculationPreviewRead(CalculationSchema):
     unit_price: Decimal
 
 
+class CalculationBatchPreviewInput(CalculationSchema):
+    operations: list[CalculationPreviewInput] = Field(min_length=1)
+    commercial: CalculationPreviewInput
+
+
 class CalculationDetail(CalculationSchema):
     id: int
     business_profile_id: int

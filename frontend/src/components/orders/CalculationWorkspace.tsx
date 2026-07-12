@@ -57,27 +57,19 @@ export function CalculationWorkspace({ calculation, onClose, onSaved, locale }: 
   ].filter(Boolean) as string[];
   useEffect(() => {
     if (!settings || !selected) return;
-    const operation = selected.operations.find(item => item.kind === 'printing') ?? selected.operations[0];
-    if (!operation) { setPreview(null); return; }
+    if (!selected.operations.length) { setPreview(null); return; }
     let defaults: Record<string, number | string> = {};
     try { defaults = JSON.parse(settings.calculation_defaults || '{}'); } catch { defaults = {}; }
     const n = (key: string, fallback = 0) => Number(defaults[key] ?? fallback);
-    const printer = printers.find(item => item.id === Number(operation.provenance.printer_id ?? defaults.defaultPrinterId ?? 0));
-    const dryer = dryers.find(item => item.id === Number(operation.provenance.dryer_id ?? defaults.defaultDryerId ?? 0));
-    const timer = window.setTimeout(() => void calculationsApi.preview({
-      good_parts: operation.good_parts, parts_per_run: operation.parts_per_run, scrap_runs: operation.scrap_runs,
-      material_grams_per_run: operation.material_grams_per_run, material_price_per_kg: String(settings.default_filament_cost),
-      print_hours_per_run: operation.print_hours_per_run, machine_cost_per_hour: printer?.hourly_rate ?? '0',
-      printer_power_kw: String(Number(printer?.nominal_power_watts ?? 0) / 1000), electricity_price_per_kwh: String(settings.energy_cost_per_kwh),
-      drying_hours: String(operation.provenance.drying_hours ?? n('dryingHours')), dryer_power_kw: String(Number(dryer?.nominal_power_watts ?? 0) / 1000),
-      labor: operation.labor, consumables: String(n('consumables', .75)), packaging: String(n('packaging', 2.5)),
-      additional_costs: String(n('additionalCosts')), risk_rate: String(n('riskPercent', 8) / 100), shipping: String(n('shipping', 5.49)),
-      price_method: selected.price_method, price_rate: selected.price_method === 'explicit_price' ? '0' : selected.price_rate,
-      explicit_price: selected.price_method === 'explicit_price' ? selected.price_rate : String(n('explicitPrice')),
-      discount_rate: String(n('discountPercent') / 100), tax_rate: String(n('taxPercent', 19) / 100),
-      minimum_price: String(n('minimumPrice', 12)), minimum_profit: String(n('minimumProfit', 4)),
-      rounding_mode: String(defaults.roundingMode ?? 'none') as 'none' | '0.05' | '0.10' | '0.50' | '1.00' | 'x.90' | 'x.99',
-    }).then(setPreview).catch(() => setPreview(null)), 250);
+    const roundingMode = String(defaults.roundingMode ?? 'none') as 'none' | '0.05' | '0.10' | '0.50' | '1.00' | 'x.90' | 'x.99';
+    const operationInputs = selected.operations.map(operation => {
+      const printer = printers.find(item => item.id === Number(operation.provenance.printer_id ?? defaults.defaultPrinterId ?? 0));
+      const dryer = dryers.find(item => item.id === Number(operation.provenance.dryer_id ?? defaults.defaultDryerId ?? 0));
+      return { good_parts: operation.good_parts, parts_per_run: operation.parts_per_run, scrap_runs: operation.scrap_runs, material_grams_per_run: operation.material_grams_per_run, material_price_per_kg: String(settings.default_filament_cost), print_hours_per_run: operation.print_hours_per_run, machine_cost_per_hour: printer?.hourly_rate ?? '0', printer_power_kw: String(Number(printer?.nominal_power_watts ?? 0) / 1000), electricity_price_per_kwh: String(settings.energy_cost_per_kwh), drying_hours: String(operation.provenance.drying_hours ?? n('dryingHours')), dryer_power_kw: String(Number(dryer?.nominal_power_watts ?? 0) / 1000), labor: operation.labor, consumables: '0', packaging: '0', additional_costs: '0', risk_rate: '0', shipping: '0', price_method: 'markup' as const, price_rate: '0', explicit_price: '0', discount_rate: '0', tax_rate: '0', minimum_price: '0', minimum_profit: '0', rounding_mode: 'none' as const };
+    });
+    const totalUnits = Math.max(1, selected.lines.reduce((sum, line) => sum + Number(line.quantity), 0));
+    const commercial = { ...operationInputs[0], good_parts: totalUnits, parts_per_run: 1, scrap_runs: 0, material_grams_per_run: '0', material_price_per_kg: '0', print_hours_per_run: '0', machine_cost_per_hour: '0', printer_power_kw: '0', drying_hours: '0', dryer_power_kw: '0', labor: [], consumables: String(n('consumables', .75)), packaging: String(n('packaging', 2.5)), additional_costs: String(n('additionalCosts')), risk_rate: String(n('riskPercent', 8) / 100), shipping: String(n('shipping', 5.49)), price_method: selected.price_method, price_rate: selected.price_method === 'explicit_price' ? '0' : selected.price_rate, explicit_price: selected.price_method === 'explicit_price' ? selected.price_rate : String(n('explicitPrice')), discount_rate: String(n('discountPercent') / 100), tax_rate: String(n('taxPercent', 19) / 100), minimum_price: String(n('minimumPrice', 12)), minimum_profit: String(n('minimumProfit', 4)), rounding_mode: roundingMode };
+    const timer = window.setTimeout(() => void calculationsApi.previewBatch(operationInputs, commercial).then(setPreview).catch(() => setPreview(null)), 250);
     return () => window.clearTimeout(timer);
   }, [dryers, printers, selected, settings]);
   const save = async () => { setSaving(true); setMessage(null); setConflict(false); try { if (calculation) await calculationsApi.update(calculation.id, { ...draft, expected_version: calculation.version }); else await calculationsApi.create(draft); onSaved(); } catch (error) { const stale = error instanceof ApiError && error.status === 409; setConflict(stale); setMessage(stale ? (de ? 'Die Serverversion ist neuer. Deine Eingaben bleiben erhalten.' : 'The server version is newer. Your input is preserved.') : error instanceof Error ? error.message : 'Error'); } finally { setSaving(false); } };

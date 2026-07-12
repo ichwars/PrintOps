@@ -1,3 +1,4 @@
+from dataclasses import replace
 from decimal import Decimal
 from typing import NoReturn
 
@@ -10,6 +11,7 @@ from backend.app.core.permissions import Permission
 from backend.app.models.user import User
 from backend.app.schemas.calculation import (
     CalculationApprove,
+    CalculationBatchPreviewInput,
     CalculationCreate,
     CalculationDetail,
     CalculationListResponse,
@@ -21,10 +23,23 @@ from backend.app.schemas.calculation import (
     CalculationUpdate,
 )
 from backend.app.services import calculation as calculation_service
-from backend.app.services.calculation_engine import LaborCostInput, VariantCostInputs, calculate_variant
+from backend.app.services.calculation_engine import LaborCostInput, VariantCostInputs, calculate_variant, round_money
 from backend.app.services.order_errors import OrderDomainError, ResourceNotFoundError, VersionConflictError
 
 router = APIRouter(prefix="/calculations", tags=["calculations"])
+
+
+def _preview_inputs(data: CalculationPreviewInput) -> VariantCostInputs:
+    values = data.model_dump(
+        exclude={"labor", "acquisition_value", "residual_value", "service_years", "annual_hours", "maintenance_rate"}
+    )
+    if data.acquisition_value is not None and data.service_years is not None and data.annual_hours is not None:
+        depreciable = max(Decimal("0"), data.acquisition_value - data.residual_value)
+        values["machine_cost_per_hour"] = depreciable / (data.service_years * data.annual_hours) * (
+            Decimal("1") + data.maintenance_rate
+        )
+    values["labor"] = tuple(LaborCostInput(entry.hours, entry.hourly_rate, entry.allocation_basis) for entry in data.labor)
+    return VariantCostInputs(**values)
 
 
 def _raise_http(error: OrderDomainError) -> NoReturn:
@@ -56,18 +71,36 @@ async def preview_calculation(
     data: CalculationPreviewInput,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> CalculationPreviewRead:
-    values = data.model_dump(
-        exclude={"labor", "acquisition_value", "residual_value", "service_years", "annual_hours", "maintenance_rate"}
-    )
-    if data.acquisition_value is not None and data.service_years is not None and data.annual_hours is not None:
-        depreciable = max(Decimal("0"), data.acquisition_value - data.residual_value)
-        values["machine_cost_per_hour"] = depreciable / (data.service_years * data.annual_hours) * (
-            Decimal("1") + data.maintenance_rate
+    return CalculationPreviewRead.model_validate(calculate_variant(_preview_inputs(data)), from_attributes=True)
+
+
+@router.post("/preview-batch", response_model=CalculationPreviewRead)
+async def preview_calculation_batch(
+    data: CalculationBatchPreviewInput,
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
+) -> CalculationPreviewRead:
+    operation_results = [calculate_variant(_preview_inputs(operation)) for operation in data.operations]
+    material = sum((item.material_cost for item in operation_results), Decimal("0"))
+    machine = sum((item.machine_cost for item in operation_results), Decimal("0"))
+    energy = sum((item.energy_cost for item in operation_results), Decimal("0"))
+    labor = sum((item.labor_cost for item in operation_results), Decimal("0"))
+    commercial = _preview_inputs(data.commercial)
+    combined = calculate_variant(
+        replace(
+            commercial,
+            material_grams_per_run=Decimal("0"), material_price_per_kg=Decimal("0"),
+            print_hours_per_run=Decimal("0"), machine_cost_per_hour=Decimal("0"),
+            printer_power_kw=Decimal("0"), drying_hours=Decimal("0"), dryer_power_kw=Decimal("0"),
+            labor=(), additional_costs=commercial.additional_costs + material + machine + energy + labor,
         )
-    values["labor"] = tuple(
-        LaborCostInput(entry.hours, entry.hourly_rate, entry.allocation_basis) for entry in data.labor
     )
-    return CalculationPreviewRead.model_validate(calculate_variant(VariantCostInputs(**values)), from_attributes=True)
+    combined = replace(
+        combined,
+        total_runs=sum(item.total_runs for item in operation_results),
+        material_cost=material, machine_cost=machine, energy_cost=energy, labor_cost=labor,
+        additional_costs=round_money(commercial.additional_costs),
+    )
+    return CalculationPreviewRead.model_validate(combined, from_attributes=True)
 
 
 @router.get("/", response_model=CalculationListResponse)

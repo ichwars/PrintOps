@@ -95,6 +95,7 @@ export interface CalculationRevision {
 
 export const calculationsApi = {
   preview: (input: CalculationPreviewInput) => request<CalculationPreview>('/calculations/preview', { method: 'POST', body: JSON.stringify(input) }),
+  previewBatch: (operations: CalculationPreviewInput[], commercial: CalculationPreviewInput) => request<CalculationPreview>('/calculations/preview-batch', { method: 'POST', body: JSON.stringify({ operations, commercial }) }),
   list: (params: { status?: CalculationStatus; limit?: number; offset?: number } = {}) => {
     const query = new URLSearchParams();
     if (params.status) query.set('status', params.status);
