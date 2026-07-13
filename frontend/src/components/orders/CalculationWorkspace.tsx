@@ -48,7 +48,7 @@ export function CalculationWorkspace({ calculation, onClose, onSaved, locale }: 
   useEffect(() => { if (calculation) void calculationsApi.revisions(calculation.id).then(setRevisions); }, [calculation]);
   useEffect(() => {
     if (!draft.business_profile_id) { setCustomers([]); return; }
-    void api.getCustomers({ businessProfileId: draft.business_profile_id, status: 'active', limit: 250, offset: 0 }).then(result => setCustomers(result.items));
+    void api.getCustomers({ businessProfileId: draft.business_profile_id, status: 'active', limit: 200, offset: 0 }).then(result => setCustomers(result.items));
   }, [draft.business_profile_id]);
   const selected = draft.variants.find(variant => variant.is_preferred) ?? draft.variants[0];
   const totals = useMemo(() => {

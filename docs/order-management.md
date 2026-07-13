@@ -145,6 +145,22 @@ Revision gespeichert. Freigegebene Kalkulationen können nicht überschrieben,
 sondern nur als neuer Entwurf fortgeschrieben werden. Vorlagen erzeugen ebenfalls
 einen neuen bereinigten Entwurf ohne Kunden- und Quelldateikontext.
 
+Der Kalkulationsarbeitsbereich umfasst außerdem Druckart, Gesamtstückzahl,
+optionalen Projektbezug, Positionstitel, Beschreibung und gesonderte
+Absprachen. Zusatzmaterialien und Kleinteile können aus dem lokalen
+Spulenbestand übernommen oder mit manueller Bezeichnung, Menge und
+Einstandspreis kalkuliert werden. Kalkulationsspezifische Abweichungen von den
+zentralen Vorgaben werden versioniert gespeichert und lassen sich kontrolliert
+zurücksetzen.
+
+Die Live-Vorschau weist Maschine, Arbeit, Material, Strom und Trocknung,
+Zusatzmaterial, Verbrauch, Ausschuss, Risiko, Verpackung und Versand mit
+Rechenbasis einzeln aus. Eine separate Preisentscheidung zeigt Herstellkosten,
+Gewinn, effektive Marge, Stückpreis, Netto und Brutto. Die vorbereiteten
+Optionen zum Erzeugen eines Angebotsentwurfs oder Druckauftrags bleiben bis zum
+jeweiligen Folgeinkrement sichtbar deaktiviert und lösen keine Datenänderung
+aus.
+
 Angebote werden im folgenden Ausbau aus einer freigegebenen Kalkulationsrevision
 erzeugt. Die vollstaendige Reihenfolge steht im Abschnitt
 [`Delivery Shape`](superpowers/specs/2026-07-10-order-management-design.md#delivery-shape)

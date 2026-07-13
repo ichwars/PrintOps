@@ -21,14 +21,14 @@ describe('CalculationWorkspace', () => {
     vi.mocked(api.getSettings).mockResolvedValue({ calculation_defaults: '{}', default_filament_cost: 25, energy_cost_per_kwh: 0.3 } as never);
     vi.mocked(api.getPrinters).mockResolvedValue([]);
     vi.mocked(api.getEquipment).mockResolvedValue([]);
-    vi.mocked(api.getCustomers).mockResolvedValue({ items: [], total: 0, limit: 250, offset: 0 });
+    vi.mocked(api.getCustomers).mockResolvedValue({ items: [], total: 0, limit: 200, offset: 0 });
     vi.mocked(api.getProjects).mockResolvedValue([]);
     vi.mocked(api.getSpools).mockResolvedValue([]);
     vi.mocked(calculationsApi.previewBatch).mockResolvedValue({ total_runs: 1, material_cost: '0', material_markup: '0', machine_cost: '0', energy_cost: '0', labor_cost: '0', consumables: '0', packaging: '0', additional_costs: '0', additive_materials: '0', scrap_cost: '0', risk_cost: '0', production_cost: '0', shipping: '0', selling_price: '0', net_price: '0', contribution: '0', effective_margin: '0', tax: '0', gross_price: '0', unit_price: '0', breakdown: [] });
 
     render(<CalculationWorkspace calculation={null} locale="en-US" onClose={vi.fn()} onSaved={vi.fn()} />);
     expect(screen.getByText('Add calculation')).toBeInTheDocument();
-    await waitFor(() => expect(api.getCustomers).toHaveBeenCalledWith({ businessProfileId: 2, status: 'active', limit: 250, offset: 0 }));
+    await waitFor(() => expect(api.getCustomers).toHaveBeenCalledWith({ businessProfileId: 2, status: 'active', limit: 200, offset: 0 }));
     expect(screen.getByRole('heading', { name: '1. Request' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '5. Cost & price' })).toBeInTheDocument();
     expect(screen.getByText('Project')).toBeInTheDocument();
