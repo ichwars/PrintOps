@@ -6,6 +6,7 @@ export type PriceMethod = 'markup' | 'target_margin' | 'explicit_price';
 export interface CalculationPreviewInput {
   good_parts: number; parts_per_run: number; scrap_runs: number;
   material_grams_per_run: string; material_price_per_kg: string;
+  material_markup_rate: string;
   print_hours_per_run: string; machine_cost_per_hour: string;
   acquisition_value?: string; residual_value?: string; service_years?: string;
   annual_hours?: string; maintenance_rate?: string;
@@ -13,6 +14,7 @@ export interface CalculationPreviewInput {
   drying_hours: string; dryer_power_kw: string;
   labor: Array<{ kind: string; hours: string; hourly_rate: string; allocation_basis: 'request' | 'run' | 'unit'; sort_order: number }>;
   consumables: string; packaging: string; additional_costs: string; risk_rate: string;
+  additive_materials: string; scrap_rate: string;
   shipping: string; price_method: PriceMethod; price_rate: string; explicit_price: string;
   discount_rate: string; tax_rate: string; minimum_price: string; minimum_profit: string;
   rounding_mode: 'none' | '0.05' | '0.10' | '0.50' | '1.00' | 'x.90' | 'x.99';
@@ -20,10 +22,13 @@ export interface CalculationPreviewInput {
 
 export interface CalculationPreview {
   total_runs: number; material_cost: string; machine_cost: string; energy_cost: string;
+  material_markup: string;
   labor_cost: string; consumables: string; packaging: string; additional_costs: string;
+  additive_materials: string; scrap_cost: string;
   risk_cost: string; production_cost: string; shipping: string; selling_price: string;
   net_price: string; contribution: string; effective_margin: string; tax: string;
   gross_price: string; unit_price: string;
+  breakdown: Array<{ code: string; label: string; basis: string; amount: string }>;
 }
 
 export interface CalculationLine {
@@ -65,6 +70,12 @@ export interface CalculationDetail {
   id: number;
   business_profile_id: number;
   customer_id: number | null;
+  project_id: number | null;
+  request_kind: 'single' | 'series' | 'prototype' | 'service';
+  quantity: number;
+  position_description: string | null;
+  special_terms: string | null;
+  commercial_overrides: Record<string, string>;
   customer_display_name: string | null;
   business_profile_name: string | null;
   title: string;

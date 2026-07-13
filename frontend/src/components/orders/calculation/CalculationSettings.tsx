@@ -14,6 +14,7 @@ const FALLBACK: Defaults = {
   requestHours: 0.15, cadHours: 0, slicingHours: 0.1, setupHours: 0.3,
   postProcessingHours: 0.25, qaHours: 0.05, packingHours: 0.1, scrapRuns: 0,
   riskPercent: 8, priceMethod: 'target_margin', priceRate: 35, explicitPrice: 0,
+  scrapPercent: 8, materialMarkupPercent: 15,
   discountPercent: 0, taxPercent: 19, minimumPrice: 12, minimumProfit: 4,
   roundingMode: 'none',
   consumables: 0.75, packaging: 2.5, additionalCosts: 0, shipping: 5.49,
@@ -49,12 +50,14 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
       const input: CalculationPreviewInput = {
         good_parts: n('exampleParts'), parts_per_run: n('examplePartsPerRun'), scrap_runs: n('scrapRuns'),
         material_grams_per_run: String(n('exampleMaterialGrams')), material_price_per_kg: String(settings.default_filament_cost),
+        material_markup_rate: String(n('materialMarkupPercent') / 100),
         print_hours_per_run: String(n('examplePrintHours')), machine_cost_per_hour: '0',
         acquisition_value: selectedPrinter?.acquisition_value ?? '0', residual_value: '0',
         service_years: selectedPrinter?.service_years ?? '1', annual_hours: selectedPrinter?.annual_hours ?? '1', maintenance_rate: selectedPrinter?.maintenance_rate ?? '0',
         printer_power_kw: String(Number(selectedPrinter?.nominal_power_watts ?? 0) / 1000), electricity_price_per_kwh: String(settings.energy_cost_per_kwh),
         drying_hours: String(n('dryingHours')), dryer_power_kw: String(Number(selectedDryer?.nominal_power_watts ?? 0) / 1000), labor,
         consumables: String(n('consumables')), packaging: String(n('packaging')), additional_costs: String(n('additionalCosts')),
+        additive_materials: '0', scrap_rate: String(n('scrapPercent') / 100),
         risk_rate: String(n('riskPercent') / 100), shipping: String(n('shipping')), price_method: String(defaults.priceMethod) as PriceMethod,
         price_rate: String(n('priceRate') / 100), explicit_price: String(n('explicitPrice')), discount_rate: String(n('discountPercent') / 100),
         tax_rate: String(n('taxPercent') / 100), minimum_price: String(n('minimumPrice')), minimum_profit: String(n('minimumProfit')),
@@ -73,7 +76,8 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
       ['postProcessingHours', de ? 'Nachbearbeitung h/Stück' : 'Post-processing h/unit', .05], ['qaHours', de ? 'Qualitätssicherung h' : 'Quality assurance h', .05], ['packingHours', de ? 'Verpackungszeit h' : 'Packing time h', .05],
     ]},
     { title: de ? 'Risiko und Ausschuss' : 'Risk and scrap', icon: TriangleAlert, column: 'commercial', description: de ? 'Explizite Zusatzläufe und Risikoreserve.' : 'Explicit extra runs and risk reserve.', fields: [
-      ['scrapRuns', de ? 'Ausschussläufe' : 'Scrap runs', 1], ['riskPercent', de ? 'Risikoreserve %' : 'Risk reserve %', .1],
+      ['scrapRuns', de ? 'Ausschussläufe' : 'Scrap runs', 1], ['scrapPercent', de ? 'Ausschuss %' : 'Scrap %', .1],
+      ['riskPercent', de ? 'Risikoreserve %' : 'Risk reserve %', .1], ['materialMarkupPercent', de ? 'Materialaufschlag %' : 'Material markup %', .1],
     ]},
     { title: de ? 'Preisbildung' : 'Price derivation', icon: BadgeEuro, column: 'commercial', description: de ? 'Marge, Aufschlag oder fester Zielpreis.' : 'Margin, markup, or explicit target.', fields: [
       ['priceRate', de ? 'Marge/Aufschlag %' : 'Margin/markup %', .1], ['explicitPrice', de ? 'Fester Zielpreis' : 'Explicit price', .01],
