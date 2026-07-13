@@ -186,12 +186,15 @@ async def test_preview_returns_complete_commercial_breakdown(async_client):
     assert response.json() == {
         "total_runs": 2,
         "material_cost": "4.00",
+        "material_markup": "0.00",
         "machine_cost": "0.00",
         "energy_cost": "0.00",
         "labor_cost": "0.00",
         "consumables": "0.00",
         "packaging": "0.00",
         "additional_costs": "6.00",
+        "additive_materials": "0.00",
+        "scrap_cost": "0.00",
         "risk_cost": "1.00",
         "production_cost": "11.00",
         "shipping": "5.00",
@@ -202,6 +205,18 @@ async def test_preview_returns_complete_commercial_breakdown(async_client):
         "tax": "7.79",
         "gross_price": "48.79",
         "unit_price": "10.25",
+        "breakdown": [
+            {"code": "machine", "label": "Machine", "basis": "2 runs", "amount": "0.00"},
+            {"code": "labor", "label": "Labor", "basis": "allocated time", "amount": "0.00"},
+            {"code": "material", "label": "Material", "basis": "2 runs", "amount": "4.00"},
+            {"code": "energy", "label": "Energy", "basis": "printer and dryer", "amount": "0.00"},
+            {"code": "additive_materials", "label": "Additional materials", "basis": "line items", "amount": "0.00"},
+            {"code": "consumables", "label": "Consumables", "basis": "flat amount", "amount": "0.00"},
+            {"code": "scrap", "label": "Scrap", "basis": "0%", "amount": "0.00"},
+            {"code": "risk", "label": "Risk", "basis": "10.00%", "amount": "1.00"},
+            {"code": "packaging", "label": "Packaging", "basis": "flat amount", "amount": "0.00"},
+            {"code": "shipping", "label": "Shipping", "basis": "flat amount", "amount": "5.00"},
+        ],
     }
 
 

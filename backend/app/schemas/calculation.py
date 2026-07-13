@@ -163,6 +163,7 @@ class CalculationPreviewInput(CalculationSchema):
     scrap_runs: int = Field(default=0, ge=0)
     material_grams_per_run: Decimal = Field(default=Decimal("0"), ge=0)
     material_price_per_kg: Decimal = Field(default=Decimal("0"), ge=0)
+    material_markup_rate: Decimal = Field(default=Decimal("0"), ge=0, lt=1)
     print_hours_per_run: Decimal = Field(default=Decimal("0"), ge=0)
     machine_cost_per_hour: Decimal = Field(default=Decimal("0"), ge=0)
     acquisition_value: Decimal | None = Field(default=None, ge=0)
@@ -178,6 +179,8 @@ class CalculationPreviewInput(CalculationSchema):
     consumables: Decimal = Field(default=Decimal("0"), ge=0)
     packaging: Decimal = Field(default=Decimal("0"), ge=0)
     additional_costs: Decimal = Field(default=Decimal("0"), ge=0)
+    additive_materials: Decimal = Field(default=Decimal("0"), ge=0)
+    scrap_rate: Decimal = Field(default=Decimal("0"), ge=0, lt=1)
     risk_rate: Decimal = Field(default=Decimal("0"), ge=0)
     shipping: Decimal = Field(default=Decimal("0"), ge=0)
     price_method: PriceMethod = "target_margin"
@@ -190,15 +193,25 @@ class CalculationPreviewInput(CalculationSchema):
     rounding_mode: Literal["none", "0.05", "0.10", "0.50", "1.00", "x.90", "x.99"] = "none"
 
 
+class CalculationBreakdownRead(CalculationSchema):
+    code: str
+    label: str
+    basis: str
+    amount: Decimal
+
+
 class CalculationPreviewRead(CalculationSchema):
     total_runs: int
     material_cost: Decimal
+    material_markup: Decimal
     machine_cost: Decimal
     energy_cost: Decimal
     labor_cost: Decimal
     consumables: Decimal
     packaging: Decimal
     additional_costs: Decimal
+    additive_materials: Decimal
+    scrap_cost: Decimal
     risk_cost: Decimal
     production_cost: Decimal
     shipping: Decimal
@@ -209,6 +222,7 @@ class CalculationPreviewRead(CalculationSchema):
     tax: Decimal
     gross_price: Decimal
     unit_price: Decimal
+    breakdown: list[CalculationBreakdownRead]
 
 
 class CalculationBatchPreviewInput(CalculationSchema):

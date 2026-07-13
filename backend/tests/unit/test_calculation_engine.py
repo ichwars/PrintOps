@@ -107,3 +107,37 @@ def test_variant_cost_exposes_risk_discount_tax_contribution_and_unit_price():
     assert result.tax == Decimal("7.79")
     assert result.gross_price == Decimal("48.79")
     assert result.unit_price == Decimal("10.25")
+
+
+def test_variant_cost_applies_material_markup_scrap_and_additive_materials():
+    result = calculate_variant(
+        VariantCostInputs(
+            good_parts=2,
+            parts_per_run=1,
+            material_grams_per_run=Decimal("100"),
+            material_price_per_kg=Decimal("20"),
+            material_markup_rate=Decimal("0.15"),
+            additive_materials=Decimal("3"),
+            scrap_rate=Decimal("0.10"),
+            price_method="markup",
+            price_rate=Decimal("0"),
+        )
+    )
+
+    assert result.material_markup == Decimal("0.60")
+    assert result.material_cost == Decimal("4.60")
+    assert result.additive_materials == Decimal("3.00")
+    assert result.scrap_cost == Decimal("0.76")
+    assert result.production_cost == Decimal("8.36")
+    assert {item.code for item in result.breakdown} == {
+        "machine",
+        "labor",
+        "material",
+        "energy",
+        "additive_materials",
+        "consumables",
+        "scrap",
+        "risk",
+        "packaging",
+        "shipping",
+    }

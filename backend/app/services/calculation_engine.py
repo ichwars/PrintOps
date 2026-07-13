@@ -23,6 +23,7 @@ class VariantCostInputs:
     scrap_runs: int = 0
     material_grams_per_run: Decimal = Decimal("0")
     material_price_per_kg: Decimal = Decimal("0")
+    material_markup_rate: Decimal = Decimal("0")
     print_hours_per_run: Decimal = Decimal("0")
     machine_cost_per_hour: Decimal = Decimal("0")
     printer_power_kw: Decimal = Decimal("0")
@@ -33,6 +34,8 @@ class VariantCostInputs:
     consumables: Decimal = Decimal("0")
     packaging: Decimal = Decimal("0")
     additional_costs: Decimal = Decimal("0")
+    additive_materials: Decimal = Decimal("0")
+    scrap_rate: Decimal = Decimal("0")
     risk_rate: Decimal = Decimal("0")
     shipping: Decimal = Decimal("0")
     price_method: Literal["markup", "target_margin", "explicit_price"] = "target_margin"
@@ -49,12 +52,15 @@ class VariantCostInputs:
 class VariantCostResult:
     total_runs: int
     material_cost: Decimal
+    material_markup: Decimal
     machine_cost: Decimal
     energy_cost: Decimal
     labor_cost: Decimal
     consumables: Decimal
     packaging: Decimal
     additional_costs: Decimal
+    additive_materials: Decimal
+    scrap_cost: Decimal
     risk_cost: Decimal
     production_cost: Decimal
     shipping: Decimal
@@ -65,6 +71,15 @@ class VariantCostResult:
     tax: Decimal
     gross_price: Decimal
     unit_price: Decimal
+    breakdown: tuple["CalculationCostBreakdownItem", ...]
+
+
+@dataclass(frozen=True)
+class CalculationCostBreakdownItem:
+    code: str
+    label: str
+    basis: str
+    amount: Decimal
 
 
 def round_money(value: Decimal) -> Decimal:
@@ -114,6 +129,9 @@ def calculate_variant(inputs: VariantCostInputs) -> VariantCostResult:
         value < 0
         for value in (
             inputs.additional_costs,
+            inputs.additive_materials,
+            inputs.material_markup_rate,
+            inputs.scrap_rate,
             inputs.risk_rate,
             inputs.explicit_price,
             inputs.discount_rate,
@@ -124,7 +142,9 @@ def calculate_variant(inputs: VariantCostInputs) -> VariantCostResult:
     if inputs.discount_rate >= 1:
         raise CalculationInputError("discount rate must be below one")
     runs = required_runs(inputs.good_parts, inputs.parts_per_run) + inputs.scrap_runs
-    material = inputs.material_grams_per_run * Decimal(runs) / Decimal("1000") * inputs.material_price_per_kg
+    raw_material = inputs.material_grams_per_run * Decimal(runs) / Decimal("1000") * inputs.material_price_per_kg
+    material_markup = raw_material * inputs.material_markup_rate
+    material = raw_material + material_markup
     machine = inputs.print_hours_per_run * Decimal(runs) * inputs.machine_cost_per_hour
     energy = (
         inputs.print_hours_per_run * Decimal(runs) * inputs.printer_power_kw
@@ -141,10 +161,18 @@ def calculate_variant(inputs: VariantCostInputs) -> VariantCostResult:
             raise CalculationInputError("unknown labor allocation basis")
         labor += entry.hours * entry.hourly_rate * multiplier
     base_production = (
-        material + machine + energy + labor + inputs.consumables + inputs.packaging + inputs.additional_costs
+        material
+        + machine
+        + energy
+        + labor
+        + inputs.consumables
+        + inputs.packaging
+        + inputs.additional_costs
+        + inputs.additive_materials
     )
+    scrap = base_production * inputs.scrap_rate
     risk = base_production * inputs.risk_rate
-    production = base_production + risk
+    production = base_production + scrap + risk
     derived = (
         round_money(inputs.explicit_price)
         if inputs.price_method == "explicit_price"
@@ -165,12 +193,15 @@ def calculate_variant(inputs: VariantCostInputs) -> VariantCostResult:
     return VariantCostResult(
         total_runs=runs,
         material_cost=round_money(material),
+        material_markup=round_money(material_markup),
         machine_cost=round_money(machine),
         energy_cost=round_money(energy),
         labor_cost=round_money(labor),
         consumables=round_money(inputs.consumables),
         packaging=round_money(inputs.packaging),
         additional_costs=round_money(inputs.additional_costs),
+        additive_materials=round_money(inputs.additive_materials),
+        scrap_cost=round_money(scrap),
         risk_cost=round_money(risk),
         production_cost=round_money(production),
         shipping=round_money(inputs.shipping),
@@ -181,6 +212,20 @@ def calculate_variant(inputs: VariantCostInputs) -> VariantCostResult:
         tax=tax,
         gross_price=gross,
         unit_price=unit,
+        breakdown=(
+            CalculationCostBreakdownItem("machine", "Machine", f"{runs} runs", round_money(machine)),
+            CalculationCostBreakdownItem("labor", "Labor", "allocated time", round_money(labor)),
+            CalculationCostBreakdownItem("material", "Material", f"{runs} runs", round_money(material)),
+            CalculationCostBreakdownItem("energy", "Energy", "printer and dryer", round_money(energy)),
+            CalculationCostBreakdownItem(
+                "additive_materials", "Additional materials", "line items", round_money(inputs.additive_materials)
+            ),
+            CalculationCostBreakdownItem("consumables", "Consumables", "flat amount", round_money(inputs.consumables)),
+            CalculationCostBreakdownItem("scrap", "Scrap", f"{inputs.scrap_rate * 100}%", round_money(scrap)),
+            CalculationCostBreakdownItem("risk", "Risk", f"{inputs.risk_rate * 100}%", round_money(risk)),
+            CalculationCostBreakdownItem("packaging", "Packaging", "flat amount", round_money(inputs.packaging)),
+            CalculationCostBreakdownItem("shipping", "Shipping", "flat amount", round_money(inputs.shipping)),
+        ),
     )
 
 
@@ -192,6 +237,7 @@ def calculate_combined(operations: list[VariantCostInputs], commercial: VariantC
     machine = sum((item.machine_cost for item in results), Decimal("0"))
     energy = sum((item.energy_cost for item in results), Decimal("0"))
     labor = sum((item.labor_cost for item in results), Decimal("0"))
+    material_markup = sum((item.material_markup for item in results), Decimal("0"))
     combined = calculate_variant(
         replace(
             commercial,
@@ -213,5 +259,19 @@ def calculate_combined(operations: list[VariantCostInputs], commercial: VariantC
         machine_cost=machine,
         energy_cost=energy,
         labor_cost=labor,
+        material_markup=material_markup,
         additional_costs=round_money(commercial.additional_costs),
+        breakdown=tuple(
+            item
+            for code in ("machine", "labor", "material", "energy")
+            for item in (
+                CalculationCostBreakdownItem(
+                    code,
+                    code.replace("_", " ").title(),
+                    "all operations",
+                    round_money(sum((getattr(result, f"{code}_cost") for result in results), Decimal("0"))),
+                ),
+            )
+        )
+        + tuple(item for item in combined.breakdown if item.code not in {"machine", "labor", "material", "energy"}),
     )

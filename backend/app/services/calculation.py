@@ -262,6 +262,8 @@ async def approve_calculation(
     if missing_reasons:
         raise ResourceInUseError(f"A reason is required for warnings: {', '.join(missing_reasons)}")
     defaults = await _cost_defaults(session)
+    overrides = calculation.commercial_overrides or {}
+    effective = {**defaults, **overrides}
     default_labor = (
         LaborCostInput(Decimal(str(defaults["setupHours"])), Decimal(str(defaults["laborRate"])), "request"),
         LaborCostInput(Decimal(str(defaults["postProcessingHours"])), Decimal(str(defaults["laborRate"])), "unit"),
@@ -280,7 +282,13 @@ async def approve_calculation(
                 parts_per_run=operation.parts_per_run,
                 scrap_runs=operation.scrap_runs,
                 material_grams_per_run=operation.material_grams_per_run,
-                material_price_per_kg=Decimal(str(defaults["materialPricePerKg"])),
+                material_price_per_kg=Decimal(
+                    str(effective.get("material_price_per_kg", defaults["materialPricePerKg"]))
+                ),
+                material_markup_rate=Decimal(
+                    str(effective.get("material_markup_rate", defaults.get("materialMarkupPercent", 0)))
+                )
+                / (Decimal("100") if "material_markup_rate" not in overrides else Decimal("1")),
                 print_hours_per_run=operation.print_hours_per_run,
                 machine_cost_per_hour=Decimal(str(provenance.get("printer_hourly_rate") or "0")),
                 printer_power_kw=Decimal(str(provenance.get("printer_power_watts") or "0")) / Decimal("1000"),
@@ -291,26 +299,36 @@ async def approve_calculation(
             )
         )
     total_units = max(1, int(sum((line.quantity for line in preferred[0].lines), Decimal("0"))))
+    additive_materials = sum(
+        (line.quantity * (line.unit_price or Decimal("0")) for line in preferred[0].lines if line.kind == "material"),
+        Decimal("0"),
+    )
     result = calculate_combined(
         operation_inputs,
         VariantCostInputs(
             good_parts=total_units,
             parts_per_run=1,
-            consumables=Decimal(str(defaults.get("consumables", 0))),
-            packaging=Decimal(str(defaults.get("packaging", 0))),
-            additional_costs=Decimal(str(defaults.get("additionalCosts", 0))),
-            risk_rate=Decimal(str(defaults.get("riskPercent", 0))) / Decimal("100"),
-            shipping=Decimal(str(defaults.get("shipping", 0))),
+            consumables=Decimal(str(effective.get("consumables", defaults.get("consumables", 0)))),
+            packaging=Decimal(str(effective.get("packaging", defaults.get("packaging", 0)))),
+            additional_costs=Decimal(str(effective.get("additional_costs", defaults.get("additionalCosts", 0)))),
+            additive_materials=additive_materials,
+            scrap_rate=Decimal(str(effective.get("scrap_rate", defaults.get("scrapPercent", 0))))
+            / (Decimal("100") if "scrap_rate" not in overrides else Decimal("1")),
+            risk_rate=Decimal(str(effective.get("risk_rate", defaults.get("riskPercent", 0))))
+            / (Decimal("100") if "risk_rate" not in overrides else Decimal("1")),
+            shipping=Decimal(str(effective.get("shipping", defaults.get("shipping", 0)))),
             price_method=preferred[0].price_method,
             price_rate=Decimal("0") if preferred[0].price_method == "explicit_price" else preferred[0].price_rate,
             explicit_price=preferred[0].price_rate
             if preferred[0].price_method == "explicit_price"
             else Decimal(str(defaults.get("explicitPrice", 0))),
-            discount_rate=Decimal(str(defaults.get("discountPercent", 0))) / Decimal("100"),
-            tax_rate=Decimal(str(defaults.get("taxPercent", 0))) / Decimal("100"),
-            minimum_price=Decimal(str(defaults.get("minimumPrice", 0))),
-            minimum_profit=Decimal(str(defaults.get("minimumProfit", 0))),
-            rounding_mode=str(defaults.get("roundingMode", "none")),
+            discount_rate=Decimal(str(effective.get("discount_rate", defaults.get("discountPercent", 0))))
+            / (Decimal("100") if "discount_rate" not in overrides else Decimal("1")),
+            tax_rate=Decimal(str(effective.get("tax_rate", defaults.get("taxPercent", 0))))
+            / (Decimal("100") if "tax_rate" not in overrides else Decimal("1")),
+            minimum_price=Decimal(str(effective.get("minimum_price", defaults.get("minimumPrice", 0)))),
+            minimum_profit=Decimal(str(effective.get("minimum_profit", defaults.get("minimumProfit", 0)))),
+            rounding_mode=str(effective.get("rounding_mode", defaults.get("roundingMode", "none"))),
         ),
     )
     revision_number = 1 + max((revision.revision_number for revision in calculation.revisions), default=0)
