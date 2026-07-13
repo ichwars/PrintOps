@@ -19,7 +19,15 @@ class Calculation(Base):
     customer_id: Mapped[int | None] = mapped_column(
         ForeignKey("customers.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    request_kind: Mapped[str] = mapped_column(String(24), default="single")
+    quantity: Mapped[int] = mapped_column(Integer, default=1)
     title: Mapped[str] = mapped_column(String(255))
+    position_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    special_terms: Mapped[str | None] = mapped_column(Text, nullable=True)
+    commercial_overrides: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(16), default="draft", index=True)
     currency: Mapped[str] = mapped_column(String(3), default="EUR")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -37,6 +45,7 @@ class Calculation(Base):
     )
     business_profile = relationship("BusinessProfile", lazy="selectin")
     customer = relationship("Customer", lazy="selectin")
+    project = relationship("Project", lazy="selectin")
 
 
 class CalculationVariant(Base):

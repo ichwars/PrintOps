@@ -5,7 +5,13 @@ def _payload(profile_id: int) -> dict:
     return {
         "business_profile_id": profile_id,
         "customer_id": None,
+        "project_id": None,
+        "request_kind": "series",
+        "quantity": 10,
         "title": "Ten mounting brackets",
+        "position_description": "Printed PETG mounting bracket",
+        "special_terms": "Deliver in two batches",
+        "commercial_overrides": {"scrap_rate": "0.08", "material_markup_rate": "0.15"},
         "currency": "eur",
         "notes": "Customer request by phone",
         "variants": [
@@ -61,6 +67,9 @@ async def test_create_list_update_and_approve_calculation(async_client, db_sessi
     assert created.status_code == 201, created.text
     calculation = created.json()
     assert calculation["customer_id"] is None
+    assert calculation["request_kind"] == "series"
+    assert calculation["quantity"] == 10
+    assert calculation["commercial_overrides"]["scrap_rate"] == "0.08"
     assert calculation["currency"] == "EUR"
     assert calculation["version"] == 1
     assert calculation["variants"][0]["operations"][0]["scrap_runs"] == 1
@@ -89,6 +98,7 @@ async def test_create_list_update_and_approve_calculation(async_client, db_sessi
     assert float(approved.json()["production_cost"]) > 0
     assert float(approved.json()["selling_price"]) > float(approved.json()["production_cost"])
     assert approved.json()["snapshot"]["calculation"]["customer_id"] is None
+    assert approved.json()["snapshot"]["calculation"]["position_description"] == "Printed PETG mounting bracket"
 
     revisions = await async_client.get(f"/api/v1/calculations/{calculation['id']}/revisions")
     assert revisions.status_code == 200, revisions.text

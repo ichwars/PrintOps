@@ -8,6 +8,7 @@ import pycountry
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 
 CalculationStatus = Literal["draft", "approved", "superseded", "archived"]
+RequestKind = Literal["single", "series", "prototype", "service"]
 PriceMethod = Literal["markup", "target_margin", "explicit_price"]
 AllocationBasis = Literal["request", "run", "unit"]
 LineKind = Literal["printed_part", "service", "material", "packaging", "shipping", "discount", "text"]
@@ -75,7 +76,13 @@ class CalculationVariantInput(CalculationSchema):
 class CalculationCreate(CalculationSchema):
     business_profile_id: int = Field(gt=0)
     customer_id: int | None = Field(default=None, gt=0)
+    project_id: int | None = Field(default=None, gt=0)
+    request_kind: RequestKind = "single"
+    quantity: int = Field(default=1, ge=1)
     title: str = Field(min_length=1, max_length=255)
+    position_description: str | None = Field(default=None, max_length=10000)
+    special_terms: str | None = Field(default=None, max_length=10000)
+    commercial_overrides: dict[str, Decimal | str] = Field(default_factory=dict)
     currency: str = Field(min_length=3, max_length=3)
     notes: str | None = Field(default=None, max_length=10000)
     variants: list[CalculationVariantInput] = Field(min_length=1)
@@ -87,6 +94,37 @@ class CalculationCreate(CalculationSchema):
         if value not in _CURRENCIES:
             raise ValueError("currency must be a valid ISO 4217 alpha-3 code")
         return value
+
+    @field_validator("commercial_overrides")
+    @classmethod
+    def validate_commercial_overrides(cls, value: dict[str, Decimal | str]) -> dict[str, Decimal | str]:
+        percentage_keys = {"scrap_rate", "material_markup_rate", "discount_rate", "tax_rate", "risk_rate"}
+        allowed = percentage_keys | {
+            "material_price_per_kg",
+            "labor_rate",
+            "consumables",
+            "packaging",
+            "shipping",
+            "additional_costs",
+            "minimum_price",
+            "minimum_profit",
+            "rounding_mode",
+        }
+        unknown = set(value) - allowed
+        if unknown:
+            raise ValueError(f"unknown commercial override: {sorted(unknown)[0]}")
+        normalized: dict[str, Decimal | str] = {}
+        for key, raw in value.items():
+            if key == "rounding_mode":
+                if raw not in {"none", "0.05", "0.10", "0.50", "1.00", "x.90", "x.99"}:
+                    raise ValueError("invalid rounding mode")
+                normalized[key] = str(raw)
+                continue
+            amount = Decimal(str(raw))
+            if amount < 0 or (key in percentage_keys and amount >= 1):
+                raise ValueError(f"invalid commercial override: {key}")
+            normalized[key] = amount
+        return normalized
 
     @model_validator(mode="after")
     def validate_preferred_variant(self) -> Self:
@@ -182,6 +220,12 @@ class CalculationDetail(CalculationSchema):
     id: int
     business_profile_id: int
     customer_id: int | None
+    project_id: int | None
+    request_kind: RequestKind
+    quantity: int
+    position_description: str | None
+    special_terms: str | None
+    commercial_overrides: dict[str, Decimal | str]
     customer_display_name: str | None = None
     business_profile_name: str | None = None
     title: str

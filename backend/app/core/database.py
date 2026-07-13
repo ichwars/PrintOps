@@ -3353,6 +3353,16 @@ async def run_migrations(conn):
     await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN paypal_me_url VARCHAR(500)")
     await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN logo_media_type VARCHAR(32)")
     await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN logo_version INTEGER")
+    # Migration: Complete the calculation request and commercial context.
+    await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN project_id INTEGER REFERENCES projects(id)")
+    await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN request_kind VARCHAR(24) DEFAULT 'single'")
+    await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN quantity INTEGER DEFAULT 1")
+    await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN position_description TEXT")
+    await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN special_terms TEXT")
+    if is_sqlite():
+        await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN commercial_overrides JSON DEFAULT '{}'")
+    else:
+        await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN commercial_overrides JSON DEFAULT '{}'::json")
     if is_sqlite():
         profile_defaults_sql = (
             "UPDATE business_profiles SET "

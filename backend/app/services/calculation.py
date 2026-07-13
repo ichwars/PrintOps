@@ -19,6 +19,7 @@ from backend.app.models.calculation import (
     CalculationVariant,
 )
 from backend.app.models.customer import Customer
+from backend.app.models.project import Project
 from backend.app.models.settings import Settings
 from backend.app.schemas.calculation import CalculationCreate, CalculationUpdate
 from backend.app.services.calculation_engine import LaborCostInput, VariantCostInputs, calculate_combined
@@ -32,6 +33,7 @@ _LOAD = (
     selectinload(Calculation.revisions),
     selectinload(Calculation.business_profile),
     selectinload(Calculation.customer),
+    selectinload(Calculation.project),
 )
 
 
@@ -85,6 +87,11 @@ async def _validate_references(session: AsyncSession, profile_id: int, customer_
         raise ResourceNotFoundError(f"Customer {customer_id} was not found")
 
 
+async def _validate_project(session: AsyncSession, project_id: int | None) -> None:
+    if project_id is not None and await session.get(Project, project_id) is None:
+        raise ResourceNotFoundError(f"Project {project_id} was not found")
+
+
 async def _cost_defaults(session: AsyncSession) -> dict:
     rows = (
         await session.execute(
@@ -133,9 +140,16 @@ def _variant(data) -> CalculationVariant:
     return variant
 
 
+def _commercial_overrides(values: dict) -> dict[str, str]:
+    return {key: str(value) for key, value in values.items()}
+
+
 async def create_calculation(session: AsyncSession, data: CalculationCreate) -> Calculation:
     await _validate_references(session, data.business_profile_id, data.customer_id)
-    calculation = Calculation(**data.model_dump(exclude={"variants"}))
+    await _validate_project(session, data.project_id)
+    values = data.model_dump(exclude={"variants"})
+    values["commercial_overrides"] = _commercial_overrides(values["commercial_overrides"])
+    calculation = Calculation(**values)
     calculation.variants = [_variant(item) for item in data.variants]
     session.add(calculation)
     await session.flush()
@@ -149,8 +163,24 @@ async def update_calculation(session: AsyncSession, calculation_id: int, data: C
     if calculation.version != data.expected_version:
         raise VersionConflictError(f"Calculation {calculation_id} has changed")
     await _validate_references(session, data.business_profile_id, data.customer_id)
-    for field in ("business_profile_id", "customer_id", "title", "currency", "notes"):
-        setattr(calculation, field, getattr(data, field))
+    await _validate_project(session, data.project_id)
+    for field in (
+        "business_profile_id",
+        "customer_id",
+        "project_id",
+        "request_kind",
+        "quantity",
+        "title",
+        "position_description",
+        "special_terms",
+        "commercial_overrides",
+        "currency",
+        "notes",
+    ):
+        value = getattr(data, field)
+        if field == "commercial_overrides":
+            value = _commercial_overrides(value)
+        setattr(calculation, field, value)
     calculation.variants.clear()
     await session.flush()
     calculation.variants = [_variant(item) for item in data.variants]
@@ -166,6 +196,12 @@ def _snapshot(calculation: Calculation, warning_reasons: dict[str, str]) -> dict
             "title": calculation.title,
             "business_profile_id": calculation.business_profile_id,
             "customer_id": calculation.customer_id,
+            "project_id": calculation.project_id,
+            "request_kind": calculation.request_kind,
+            "quantity": calculation.quantity,
+            "position_description": calculation.position_description,
+            "special_terms": calculation.special_terms,
+            "commercial_overrides": calculation.commercial_overrides,
             "currency": calculation.currency,
         },
         "variants": [
@@ -326,7 +362,13 @@ async def revise_calculation(session: AsyncSession, calculation_id: int) -> Calc
     revised = Calculation(
         business_profile_id=source.business_profile_id,
         customer_id=source.customer_id,
+        project_id=source.project_id,
+        request_kind=source.request_kind,
+        quantity=source.quantity,
         title=source.title,
+        position_description=source.position_description,
+        special_terms=source.special_terms,
+        commercial_overrides=dict(source.commercial_overrides or {}),
         currency=source.currency,
         notes=source.notes,
     )
@@ -426,7 +468,13 @@ async def instantiate_template(
     calculation = Calculation(
         business_profile_id=template.business_profile_id,
         customer_id=customer_id,
+        project_id=calculation_data.get("project_id"),
+        request_kind=calculation_data.get("request_kind", "single"),
+        quantity=calculation_data.get("quantity", 1),
         title=title,
+        position_description=calculation_data.get("position_description"),
+        special_terms=calculation_data.get("special_terms"),
+        commercial_overrides=calculation_data.get("commercial_overrides", {}),
         currency=calculation_data.get("currency", "EUR"),
         notes=None,
     )
