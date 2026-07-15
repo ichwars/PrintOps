@@ -18,7 +18,7 @@ vi.mock('../../api/calculations', () => ({
 describe('CalculationWorkspace', () => {
   it('initializes a new calculation from profiles, settings, and managed devices', async () => {
     vi.mocked(api.getBusinessProfileOptions).mockResolvedValue([{ id: 2, name: 'Main', legal_name: 'Main GmbH', country_code: 'DE', default_currency: 'EUR', is_active: true, is_default: true, version: 1 }]);
-    vi.mocked(api.getSettings).mockResolvedValue({ calculation_defaults: '{}', default_filament_cost: 25, energy_cost_per_kwh: 0.3 } as never);
+    vi.mocked(api.getSettings).mockResolvedValue({ calculation_defaults: '{invalid', default_filament_cost: 25, energy_cost_per_kwh: 0.3 } as never);
     vi.mocked(api.getPrinters).mockResolvedValue([]);
     vi.mocked(api.getEquipment).mockResolvedValue([]);
     vi.mocked(api.getCustomers).mockResolvedValue({ items: [], total: 0, limit: 200, offset: 0 });
@@ -26,7 +26,9 @@ describe('CalculationWorkspace', () => {
     vi.mocked(api.getSpools).mockResolvedValue([]);
     vi.mocked(calculationsApi.previewBatch).mockResolvedValue({ total_runs: 1, material_cost: '0', material_markup: '0', machine_cost: '0', energy_cost: '0', labor_cost: '0', consumables: '0', packaging: '0', additional_costs: '0', additive_materials: '0', scrap_cost: '0', risk_cost: '0', production_cost: '0', shipping: '0', selling_price: '0', net_price: '0', contribution: '0', effective_margin: '0', tax: '0', gross_price: '0', unit_price: '0', breakdown: [] });
 
-    render(<CalculationWorkspace calculation={null} locale="en-US" onClose={vi.fn()} onSaved={vi.fn()} />);
+    const onSaved = vi.fn();
+    vi.mocked(calculationsApi.create).mockResolvedValue({} as never);
+    render(<CalculationWorkspace calculation={null} locale="en-US" onClose={vi.fn()} onSaved={onSaved} />);
     expect(screen.getByText('Add calculation')).toBeInTheDocument();
     await waitFor(() => expect(api.getCustomers).toHaveBeenCalledWith({ businessProfileId: 2, status: 'active', limit: 200, offset: 0 }));
     expect(screen.getByRole('heading', { name: '1. Request' })).toBeInTheDocument();
@@ -37,6 +39,10 @@ describe('CalculationWorkspace', () => {
     expect(screen.getByText('Price decision')).toBeInTheDocument();
     expect(screen.getByLabelText('Create offer draft')).toBeDisabled();
     expect(screen.getByLabelText('Create print order')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(calculationsApi.create).toHaveBeenCalled());
+    expect(onSaved).toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Material' }));
     expect(screen.getByLabelText('Material description')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Material markup %'), { target: { value: '12' } });

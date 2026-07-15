@@ -3,6 +3,8 @@
 Tests the full request/response cycle for /api/v1/printers/ endpoints.
 """
 
+from datetime import date
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import unquote
 
@@ -48,14 +50,23 @@ class TestPrintersAPI:
     @pytest.mark.integration
     async def test_list_printers_with_data(self, async_client: AsyncClient, printer_factory, db_session):
         """Verify list returns existing printers."""
-        await printer_factory(name="Test Printer")
+        await printer_factory(
+            name="Test Printer",
+            acquisition_date=date.today(),
+            acquisition_value=Decimal("1200"),
+            service_years=Decimal("4"),
+            annual_hours=Decimal("1000"),
+            maintenance_rate=Decimal("0.10"),
+        )
 
         response = await async_client.get("/api/v1/printers/")
 
         assert response.status_code == 200
         data = response.json()
         assert len(data) >= 1
-        assert any(p["name"] == "Test Printer" for p in data)
+        printer = next(p for p in data if p["name"] == "Test Printer")
+        assert printer["hourly_rate"] == "0.330000"
+        assert printer["residual_value"] == "1200.00"
 
     # ========================================================================
     # Create endpoints

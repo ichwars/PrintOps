@@ -5,8 +5,8 @@ import { calculationsApi, type CalculationPreview, type CalculationPreviewInput,
 import { api } from '../../../api/client';
 import { SUPPORTED_CURRENCIES } from '../../../utils/currency';
 
-type SettingKey = 'currency' | 'default_filament_cost' | 'energy_cost_per_kwh' | 'calculation_defaults';
-type Settings = { currency: string; default_filament_cost: number; energy_cost_per_kwh: number; calculation_defaults: string };
+type SettingKey = 'currency' | 'default_filament_cost' | 'energy_cost_per_kwh' | 'energy_tracking_mode' | 'calculation_defaults';
+type Settings = { currency: string; default_filament_cost: number; energy_cost_per_kwh: number; energy_tracking_mode: string; calculation_defaults: string };
 type Defaults = Record<string, number | string>;
 
 const FALLBACK: Defaults = {
@@ -117,10 +117,11 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
   };
   return <div id="card-cost" className="space-y-5">
     <h2 className="sr-only">{de ? 'Kostenverfolgung' : 'Cost Tracking'}</h2>
-    <div className="grid gap-3 md:grid-cols-3">
+    <div className="grid gap-3 md:grid-cols-4">
       <label className="text-sm text-bambu-gray">{de ? 'Währung' : 'Currency'}<select value={settings.currency} onChange={e => onChange('currency', e.target.value)} className={inputClass}>{SUPPORTED_CURRENCIES.map(currency => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select></label>
       <label className="text-sm text-bambu-gray">{de ? 'Filamentpreis/kg' : 'Filament price/kg'}<input type="number" min="0" step="0.01" value={settings.default_filament_cost} onChange={e => onChange('default_filament_cost', Number(e.target.value))} className={inputClass} /></label>
       <label className="text-sm text-bambu-gray">{de ? 'Strompreis/kWh' : 'Electricity/kWh'}<input type="number" min="0" step="0.001" value={settings.energy_cost_per_kwh} onChange={e => onChange('energy_cost_per_kwh', Number(e.target.value))} className={inputClass} /></label>
+      <label className="text-sm text-bambu-gray">{de ? 'Energieanzeige' : 'Energy display'}<select value={settings.energy_tracking_mode} onChange={e => onChange('energy_tracking_mode', e.target.value)} className={inputClass}><option value="total">{de ? 'Gesamtverbrauch' : 'Total consumption'}</option><option value="print">{de ? 'Nur Druckenergie' : 'Print energy only'}</option></select></label>
     </div>
     <div className="grid items-start gap-5 lg:grid-cols-2"><div className="space-y-5">{groups.filter(group => group.column === 'cost').map(renderGroup)}</div><div className="space-y-5">{groups.filter(group => group.column === 'commercial').map(renderGroup)}</div></div>
     <div className="flex items-center gap-2 rounded-lg border border-bambu-green/30 bg-bambu-green/5 p-3 text-xs text-bambu-gray"><Calculator className="h-4 w-4 text-bambu-green" />{de ? 'Vorschau und spätere Freigabe verwenden denselben Decimal-Kostenkern.' : 'Preview and approval use the same Decimal cost engine.'}</div>

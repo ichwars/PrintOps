@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CalculationCreate, CalculationPreview } from '../../api/calculations';
 import { CommercialOverridesEditor } from '../../components/orders/calculation/CommercialOverridesEditor';
 import { CostBreakdown } from '../../components/orders/calculation/CostBreakdown';
+import { DeviceAssignmentEditor } from '../../components/orders/calculation/DeviceAssignmentEditor';
 import { MaterialsEditor } from '../../components/orders/calculation/MaterialsEditor';
 import { PriceDecision } from '../../components/orders/calculation/PriceDecision';
 import { RequestEditor } from '../../components/orders/calculation/RequestEditor';
@@ -83,5 +84,13 @@ describe('calculation editors', () => {
     render(<><CostBreakdown preview={null} locale="de-DE" currency="EUR" /><PriceDecision preview={null} locale="de-DE" currency="EUR" /></>);
     expect(screen.getByText('Vollständige Produktionswerte eingeben.')).toBeInTheDocument();
     expect(screen.getAllByText('–')).toHaveLength(6);
+  });
+
+  it('keeps an explicit no-device assignment instead of restoring defaults', () => {
+    const onChange = vi.fn();
+    const operation = { kind: 'printing', title: 'Print', good_parts: 1, parts_per_run: 1, scrap_runs: 0, material_grams_per_run: '1', print_hours_per_run: '1', provenance: { printer_id: null, dryer_id: null }, sort_order: 0, labor: [] } as never;
+    render(<DeviceAssignmentEditor operation={operation} printers={[{ id: 7, name: 'Default', is_active: true } as never]} dryers={[{ id: 8, name: 'Dryer', is_active: true } as never]} defaultPrinterId={7} defaultDryerId={8} locale="en-US" onChange={onChange} />);
+    expect(screen.getByLabelText('Printer')).toHaveValue('0');
+    expect(screen.getByLabelText('Dryer')).toHaveValue('0');
   });
 });

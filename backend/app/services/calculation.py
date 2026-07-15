@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,10 +19,13 @@ from backend.app.models.calculation import (
     CalculationVariant,
 )
 from backend.app.models.customer import Customer
+from backend.app.models.equipment import Equipment
+from backend.app.models.printer import Printer
 from backend.app.models.project import Project
 from backend.app.models.settings import Settings
 from backend.app.schemas.calculation import CalculationCreate, CalculationUpdate
 from backend.app.services.calculation_engine import LaborCostInput, VariantCostInputs, calculate_combined
+from backend.app.services.equipment_costs import calculate_hourly_rate
 from backend.app.services.order_errors import ResourceInUseError, ResourceNotFoundError, VersionConflictError
 
 _LOAD = (
@@ -113,6 +116,16 @@ async def _cost_defaults(session: AsyncSession) -> dict:
         "consumables": 0.75,
         "packaging": 2.5,
         "shipping": 5.49,
+        "riskPercent": 8,
+        "scrapPercent": 8,
+        "materialMarkupPercent": 15,
+        "discountPercent": 0,
+        "taxPercent": 19,
+        "minimumPrice": 12,
+        "minimumProfit": 4,
+        "roundingMode": "none",
+        "additionalCosts": 0,
+        "explicitPrice": 0,
     }
     try:
         defaults.update(json.loads(stored.get("calculation_defaults", "{}")))
@@ -142,6 +155,13 @@ def _variant(data) -> CalculationVariant:
 
 def _commercial_overrides(values: dict) -> dict[str, str]:
     return {key: str(value) for key, value in values.items()}
+
+
+def _decimal_value(value: object) -> Decimal:
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ResourceInUseError("Calculation provenance contains a non-numeric cost value") from exc
 
 
 async def create_calculation(session: AsyncSession, data: CalculationCreate) -> Calculation:
@@ -230,6 +250,15 @@ def _snapshot(calculation: Calculation, warning_reasons: dict[str, str]) -> dict
                         "material_grams_per_run": str(operation.material_grams_per_run),
                         "print_hours_per_run": str(operation.print_hours_per_run),
                         "provenance": operation.provenance,
+                        "labor": [
+                            {
+                                "kind": labor.kind,
+                                "hours": str(labor.hours),
+                                "hourly_rate": str(labor.hourly_rate),
+                                "allocation_basis": labor.allocation_basis,
+                            }
+                            for labor in operation.labor
+                        ],
                     }
                     for operation in variant.operations
                 ],
@@ -276,6 +305,18 @@ async def approve_calculation(
             or default_labor
         )
         provenance = operation.provenance or {}
+        printer_id = provenance.get("printer_id") if "printer_id" in provenance else defaults.get("defaultPrinterId")
+        dryer_id = provenance.get("dryer_id") if "dryer_id" in provenance else defaults.get("defaultDryerId")
+        printer = await session.get(Printer, int(printer_id)) if printer_id else None
+        dryer = await session.get(Equipment, int(dryer_id)) if dryer_id else None
+        printer_rate = printer.hourly_rate if printer is not None else None
+        dryer_rate = (
+            calculate_hourly_rate(
+                dryer.acquisition_value, dryer.service_years, dryer.annual_hours, dryer.maintenance_rate
+            )
+            if dryer is not None
+            else Decimal("0")
+        )
         operation_inputs.append(
             VariantCostInputs(
                 good_parts=operation.good_parts,
@@ -290,11 +331,19 @@ async def approve_calculation(
                 )
                 / (Decimal("100") if "material_markup_rate" not in overrides else Decimal("1")),
                 print_hours_per_run=operation.print_hours_per_run,
-                machine_cost_per_hour=Decimal(str(provenance.get("printer_hourly_rate") or "0")),
-                printer_power_kw=Decimal(str(provenance.get("printer_power_watts") or "0")) / Decimal("1000"),
+                machine_cost_per_hour=_decimal_value(provenance.get("printer_hourly_rate") or printer_rate or "0"),
+                printer_power_kw=_decimal_value(
+                    provenance.get("printer_power_watts") or getattr(printer, "nominal_power_watts", 0) or "0"
+                )
+                / Decimal("1000"),
                 electricity_price_per_kwh=Decimal(str(defaults["electricityPricePerKwh"])),
-                drying_hours=Decimal(str(provenance.get("drying_hours") or "0")),
-                dryer_power_kw=Decimal(str(provenance.get("dryer_power_watts") or "0")) / Decimal("1000"),
+                drying_hours=_decimal_value(provenance.get("drying_hours") or defaults.get("dryingHours", 0)),
+                dryer_power_kw=_decimal_value(
+                    provenance.get("dryer_power_watts") or getattr(dryer, "nominal_power_watts", 0) or "0"
+                )
+                / Decimal("1000"),
+                additional_costs=dryer_rate
+                * _decimal_value(provenance.get("drying_hours") or defaults.get("dryingHours", 0)),
                 labor=labor,
             )
         )
@@ -366,7 +415,12 @@ def validate_for_approval(calculation: Calculation) -> dict[str, list[str]]:
         provenance = operation.provenance or {}
         if provenance.get("source") == "manual":
             warnings.append("manual_source_values")
-        if Decimal(str(provenance.get("printer_hourly_rate") or "0")) <= 0:
+        try:
+            machine_rate = _decimal_value(provenance.get("printer_hourly_rate") or "0")
+        except ResourceInUseError:
+            blockers.append("invalid_provenance")
+            continue
+        if machine_rate <= 0 and not provenance.get("printer_id"):
             warnings.append("missing_machine_rate")
         if operation.material_grams_per_run <= 0 or operation.print_hours_per_run <= 0:
             warnings.append("incomplete_production_values")
@@ -425,7 +479,7 @@ async def revise_calculation(session: AsyncSession, calculation_id: int) -> Calc
             )
             operation.labor = [
                 CalculationLabor(
-                    role=labor.role,
+                    kind=labor.kind,
                     hours=labor.hours,
                     hourly_rate=labor.hourly_rate,
                     allocation_basis=labor.allocation_basis,
@@ -456,6 +510,9 @@ async def create_template(session: AsyncSession, calculation_id: int, name: str)
     calculation = await _load(session, calculation_id)
     definition = _snapshot(calculation, {})
     definition["calculation"].pop("customer_id", None)
+    for variant in definition.get("variants", []):
+        for operation in variant.get("operations", []):
+            operation["provenance"] = {"source": "template"}
     template = CalculationTemplate(
         business_profile_id=calculation.business_profile_id, name=name, definition=definition
     )
@@ -515,8 +572,9 @@ async def instantiate_template(
             )
             for index, line in enumerate(source_variant.get("lines", []))
         ]
-        variant.operations = [
-            CalculationOperation(
+        variant.operations = []
+        for index, operation in enumerate(source_variant.get("operations", [])):
+            created_operation = CalculationOperation(
                 kind=operation.get("kind", "printing"),
                 title=operation.get("title", ""),
                 source_file=None,
@@ -529,8 +587,17 @@ async def instantiate_template(
                 provenance={"source": "template", "template_id": template.id, "template_version": template.version},
                 sort_order=index,
             )
-            for index, operation in enumerate(source_variant.get("operations", []))
-        ]
+            created_operation.labor = [
+                CalculationLabor(
+                    kind=labor.get("kind", "operator"),
+                    hours=Decimal(str(labor.get("hours", "0"))),
+                    hourly_rate=Decimal(str(labor.get("hourly_rate", "0"))),
+                    allocation_basis=labor.get("allocation_basis", "request"),
+                    sort_order=labor_index,
+                )
+                for labor_index, labor in enumerate(operation.get("labor", []))
+            ]
+            variant.operations.append(created_operation)
         calculation.variants.append(variant)
     session.add(calculation)
     await session.flush()

@@ -5,6 +5,7 @@ from sqlalchemy import Boolean, Date, DateTime, Float, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.core.database import Base
+from backend.app.services.equipment_costs import calculate_hourly_rate, calculate_residual_value
 
 
 class Printer(Base):
@@ -68,6 +69,20 @@ class Printer(Base):
     sensor_history: Mapped[list["PrinterSensorHistory"]] = relationship(
         back_populates="printer", cascade="all, delete-orphan"
     )
+
+    @property
+    def residual_value(self) -> Decimal | None:
+        if self.acquisition_date is None or self.acquisition_value is None or self.service_years is None:
+            return None
+        return calculate_residual_value(self.acquisition_value, self.acquisition_date, self.service_years)
+
+    @property
+    def hourly_rate(self) -> Decimal | None:
+        if self.acquisition_value is None or self.service_years is None or self.annual_hours is None:
+            return None
+        return calculate_hourly_rate(
+            self.acquisition_value, self.service_years, self.annual_hours, self.maintenance_rate or Decimal("0")
+        )
 
 
 from backend.app.models.ams_history import AMSSensorHistory  # noqa: E402

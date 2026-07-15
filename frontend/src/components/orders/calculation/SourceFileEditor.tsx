@@ -10,7 +10,7 @@ export function SourceFileEditor({ operation, locale, onChange }: { operation: C
     setUploading(true);
     try {
       const imported = await calculationsApi.uploadSource(file);
-      onChange({ ...operation, source_file: imported.source_file, source_plate: imported.plate_count === 1 ? 1 : operation.source_plate, material_grams_per_run: imported.material_grams > 0 ? String(imported.material_grams) : operation.material_grams_per_run, print_hours_per_run: imported.print_time_seconds ? String(imported.print_time_seconds / 3600) : operation.print_hours_per_run, provenance: { ...operation.provenance, source: '3mf', ...imported, imported_at: new Date().toISOString() } });
+      onChange({ ...operation, source_file: imported.source_file, source_plate: imported.plate_count === 1 ? 1 : operation.source_plate, material_grams_per_run: imported.material_grams > 0 ? String(imported.material_grams) : operation.material_grams_per_run, print_hours_per_run: imported.print_time_seconds ? String(imported.print_time_seconds / 3600) : operation.print_hours_per_run, provenance: { ...operation.provenance, source: '3mf', filename: imported.filename, plate_count: imported.plate_count, material_grams: imported.material_grams, imported_at: new Date().toISOString() } });
     } finally { setUploading(false); }
   };
   return <div className="lg:col-span-7">

@@ -6,8 +6,8 @@ const inputClass = 'mt-1 h-10 w-full rounded-lg border border-bambu-dark-tertiar
 
 export function DeviceAssignmentEditor({ operation, printers, dryers, defaultPrinterId, defaultDryerId, locale, onChange }: { operation: CalculationOperation; printers: Printer[]; dryers: Equipment[]; defaultPrinterId: number; defaultDryerId: number; locale: string; onChange: (operation: CalculationOperation) => void }) {
   const de = locale.startsWith('de');
-  const printerId = Number(operation.provenance.printer_id ?? defaultPrinterId ?? 0);
-  const dryerId = Number(operation.provenance.dryer_id ?? defaultDryerId ?? 0);
+  const printerId = Number(Object.hasOwn(operation.provenance, 'printer_id') ? operation.provenance.printer_id ?? 0 : defaultPrinterId ?? 0);
+  const dryerId = Number(Object.hasOwn(operation.provenance, 'dryer_id') ? operation.provenance.dryer_id ?? 0 : defaultDryerId ?? 0);
   const dryingHours = Number(operation.provenance.drying_hours ?? 0);
   const assignPrinter = (id: number) => { const device = printers.find(item => item.id === id); onChange({ ...operation, provenance: { ...operation.provenance, printer_id: id || null, printer_name: device?.name ?? null, printer_hourly_rate: device?.hourly_rate ?? null, printer_power_watts: device?.nominal_power_watts ?? null } }); };
   const assignDryer = (id: number) => { const device = dryers.find(item => item.id === id); onChange({ ...operation, provenance: { ...operation.provenance, dryer_id: id || null, dryer_name: device?.name ?? null, dryer_hourly_rate: device?.hourly_rate ?? null, dryer_power_watts: device?.nominal_power_watts ?? null } }); };

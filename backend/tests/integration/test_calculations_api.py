@@ -1,4 +1,8 @@
+from datetime import date
+
 from backend.app.models.business_profile import BusinessProfile
+from backend.app.models.printer import Printer
+from backend.app.models.settings import Settings
 
 
 def _payload(profile_id: int) -> dict:
@@ -39,6 +43,9 @@ def _payload(profile_id: int) -> dict:
                         "material_grams_per_run": "100",
                         "print_hours_per_run": "2.5",
                         "provenance": {"source": "slicer", "plate": 1, "printer_hourly_rate": "2.50"},
+                        "labor": [
+                            {"kind": "operator", "hours": "0.5", "hourly_rate": "30", "allocation_basis": "request"}
+                        ],
                     }
                 ],
             }
@@ -162,6 +169,47 @@ async def test_template_excludes_customer_context(async_client, db_session):
     assert instantiated.json()["title"] == "From template"
     assert instantiated.json()["customer_id"] is None
     assert instantiated.json()["variants"][0]["operations"][0]["source_file"] is None
+    assert instantiated.json()["variants"][0]["operations"][0]["labor"][0]["hours"] == "0.500000"
+    assert response.json()["definition"]["variants"][0]["operations"][0]["provenance"] == {"source": "template"}
+
+
+async def test_approval_uses_configured_default_printer_costs(async_client, db_session):
+    profile = await _profile(db_session)
+    printer = Printer(
+        name="Costed printer",
+        serial_number="COSTED-1",
+        ip_address="127.0.0.1",
+        access_code="",
+        acquisition_date=date.today(),
+        acquisition_value="1200",
+        service_years="4",
+        annual_hours="1000",
+        maintenance_rate="0.10",
+        nominal_power_watts="200",
+    )
+    db_session.add(printer)
+    await db_session.flush()
+    db_session.add(Settings(key="calculation_defaults", value=f'{{"defaultPrinterId":{printer.id}}}'))
+    await db_session.commit()
+    payload = _payload(profile.id)
+    payload["variants"][0]["operations"][0]["provenance"] = {"source": "slicer"}
+    created = await async_client.post("/api/v1/calculations/", json=payload)
+    approved = await async_client.post(
+        f"/api/v1/calculations/{created.json()['id']}/approve",
+        json={"expected_version": 1, "warning_reasons": {"missing_machine_rate": "Configured default printer"}},
+    )
+    assert approved.status_code == 200, approved.text
+    assert float(approved.json()["production_cost"]) > 20
+
+
+async def test_invalid_provenance_is_a_validation_blocker(async_client, db_session):
+    profile = await _profile(db_session)
+    payload = _payload(profile.id)
+    payload["variants"][0]["operations"][0]["provenance"]["printer_hourly_rate"] = "not-a-number"
+    created = await async_client.post("/api/v1/calculations/", json=payload)
+    validation = await async_client.get(f"/api/v1/calculations/{created.json()['id']}/validation")
+    assert validation.status_code == 200
+    assert "invalid_provenance" in validation.json()["blockers"]
 
 
 async def test_preview_returns_complete_commercial_breakdown(async_client):
