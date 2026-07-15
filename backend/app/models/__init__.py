@@ -27,6 +27,7 @@ from backend.app.models.customer import (
     CustomerTag,
     CustomerTaxIdentifier,
 )
+from backend.app.models.equipment import Equipment
 from backend.app.models.filament import Filament
 from backend.app.models.github_backup import GitHubBackupConfig, GitHubBackupLog
 from backend.app.models.group import Group, user_groups
@@ -130,4 +131,5 @@ __all__ = [
     "CustomerTag",
     "CustomerTaxIdentifier",
     "NumberSequence",
+    "Equipment",
 ]

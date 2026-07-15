@@ -8,7 +8,8 @@ import pycountry
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 
 CalculationStatus = Literal["draft", "approved", "superseded", "archived"]
-PriceMethod = Literal["markup", "target_margin"]
+RequestKind = Literal["single", "series", "prototype", "service"]
+PriceMethod = Literal["markup", "target_margin", "explicit_price"]
 AllocationBasis = Literal["request", "run", "unit"]
 LineKind = Literal["printed_part", "service", "material", "packaging", "shipping", "discount", "text"]
 OperationKind = Literal["cad", "slicing", "setup", "printing", "drying", "post_processing", "qa", "packing"]
@@ -75,7 +76,13 @@ class CalculationVariantInput(CalculationSchema):
 class CalculationCreate(CalculationSchema):
     business_profile_id: int = Field(gt=0)
     customer_id: int | None = Field(default=None, gt=0)
+    project_id: int | None = Field(default=None, gt=0)
+    request_kind: RequestKind = "single"
+    quantity: int = Field(default=1, ge=1)
     title: str = Field(min_length=1, max_length=255)
+    position_description: str | None = Field(default=None, max_length=10000)
+    special_terms: str | None = Field(default=None, max_length=10000)
+    commercial_overrides: dict[str, Decimal | str] = Field(default_factory=dict)
     currency: str = Field(min_length=3, max_length=3)
     notes: str | None = Field(default=None, max_length=10000)
     variants: list[CalculationVariantInput] = Field(min_length=1)
@@ -87,6 +94,37 @@ class CalculationCreate(CalculationSchema):
         if value not in _CURRENCIES:
             raise ValueError("currency must be a valid ISO 4217 alpha-3 code")
         return value
+
+    @field_validator("commercial_overrides")
+    @classmethod
+    def validate_commercial_overrides(cls, value: dict[str, Decimal | str]) -> dict[str, Decimal | str]:
+        percentage_keys = {"scrap_rate", "material_markup_rate", "discount_rate", "tax_rate", "risk_rate"}
+        allowed = percentage_keys | {
+            "material_price_per_kg",
+            "labor_rate",
+            "consumables",
+            "packaging",
+            "shipping",
+            "additional_costs",
+            "minimum_price",
+            "minimum_profit",
+            "rounding_mode",
+        }
+        unknown = set(value) - allowed
+        if unknown:
+            raise ValueError(f"unknown commercial override: {sorted(unknown)[0]}")
+        normalized: dict[str, Decimal | str] = {}
+        for key, raw in value.items():
+            if key == "rounding_mode":
+                if raw not in {"none", "0.05", "0.10", "0.50", "1.00", "x.90", "x.99"}:
+                    raise ValueError("invalid rounding mode")
+                normalized[key] = str(raw)
+                continue
+            amount = Decimal(str(raw))
+            if amount < 0 or (key in percentage_keys and amount >= 1):
+                raise ValueError(f"invalid commercial override: {key}")
+            normalized[key] = amount
+        return normalized
 
     @model_validator(mode="after")
     def validate_preferred_variant(self) -> Self:
@@ -104,15 +142,106 @@ class CalculationApprove(CalculationSchema):
     warning_reasons: dict[str, str] = Field(default_factory=dict)
 
 
+class CalculationValidationRead(CalculationSchema):
+    blockers: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class CalculationTemplateCreate(CalculationSchema):
     name: str = Field(min_length=1, max_length=255)
     revision_id: int | None = Field(default=None, gt=0)
+
+
+class CalculationTemplateInstantiate(CalculationSchema):
+    title: str = Field(min_length=1, max_length=255)
+    customer_id: int | None = Field(default=None, gt=0)
+
+
+class CalculationPreviewInput(CalculationSchema):
+    good_parts: int = Field(default=1, ge=0)
+    parts_per_run: int = Field(default=1, gt=0)
+    scrap_runs: int = Field(default=0, ge=0)
+    material_grams_per_run: Decimal = Field(default=Decimal("0"), ge=0)
+    material_price_per_kg: Decimal = Field(default=Decimal("0"), ge=0)
+    material_markup_rate: Decimal = Field(default=Decimal("0"), ge=0, lt=1)
+    print_hours_per_run: Decimal = Field(default=Decimal("0"), ge=0)
+    machine_cost_per_hour: Decimal = Field(default=Decimal("0"), ge=0)
+    acquisition_value: Decimal | None = Field(default=None, ge=0)
+    residual_value: Decimal = Field(default=Decimal("0"), ge=0)
+    service_years: Decimal | None = Field(default=None, gt=0)
+    annual_hours: Decimal | None = Field(default=None, gt=0)
+    maintenance_rate: Decimal = Field(default=Decimal("0"), ge=0)
+    printer_power_kw: Decimal = Field(default=Decimal("0"), ge=0)
+    electricity_price_per_kwh: Decimal = Field(default=Decimal("0"), ge=0)
+    drying_hours: Decimal = Field(default=Decimal("0"), ge=0)
+    dryer_power_kw: Decimal = Field(default=Decimal("0"), ge=0)
+    labor: list[CalculationLaborInput] = Field(default_factory=list)
+    consumables: Decimal = Field(default=Decimal("0"), ge=0)
+    packaging: Decimal = Field(default=Decimal("0"), ge=0)
+    additional_costs: Decimal = Field(default=Decimal("0"), ge=0)
+    additive_materials: Decimal = Field(default=Decimal("0"), ge=0)
+    scrap_rate: Decimal = Field(default=Decimal("0"), ge=0, lt=1)
+    risk_rate: Decimal = Field(default=Decimal("0"), ge=0)
+    shipping: Decimal = Field(default=Decimal("0"), ge=0)
+    price_method: PriceMethod = "target_margin"
+    price_rate: Decimal = Field(default=Decimal("0"), ge=0)
+    explicit_price: Decimal = Field(default=Decimal("0"), ge=0)
+    discount_rate: Decimal = Field(default=Decimal("0"), ge=0, lt=1)
+    tax_rate: Decimal = Field(default=Decimal("0"), ge=0)
+    minimum_price: Decimal = Field(default=Decimal("0"), ge=0)
+    minimum_profit: Decimal = Field(default=Decimal("0"), ge=0)
+    rounding_mode: Literal["none", "0.05", "0.10", "0.50", "1.00", "x.90", "x.99"] = "none"
+
+
+class CalculationBreakdownRead(CalculationSchema):
+    code: str
+    label: str
+    basis: str
+    amount: Decimal
+
+
+class CalculationPreviewRead(CalculationSchema):
+    total_runs: int
+    material_cost: Decimal
+    material_markup: Decimal
+    machine_cost: Decimal
+    energy_cost: Decimal
+    labor_cost: Decimal
+    consumables: Decimal
+    packaging: Decimal
+    additional_costs: Decimal
+    additive_materials: Decimal
+    scrap_cost: Decimal
+    risk_cost: Decimal
+    production_cost: Decimal
+    shipping: Decimal
+    selling_price: Decimal
+    net_price: Decimal
+    contribution: Decimal
+    effective_margin: Decimal
+    tax: Decimal
+    gross_price: Decimal
+    unit_price: Decimal
+    breakdown: list[CalculationBreakdownRead]
+
+
+class CalculationBatchPreviewInput(CalculationSchema):
+    operations: list[CalculationPreviewInput] = Field(min_length=1)
+    commercial: CalculationPreviewInput
 
 
 class CalculationDetail(CalculationSchema):
     id: int
     business_profile_id: int
     customer_id: int | None
+    project_id: int | None
+    request_kind: RequestKind
+    quantity: int
+    position_description: str | None
+    special_terms: str | None
+    commercial_overrides: dict[str, Decimal | str]
+    customer_display_name: str | None = None
+    business_profile_name: str | None = None
     title: str
     status: CalculationStatus
     currency: str

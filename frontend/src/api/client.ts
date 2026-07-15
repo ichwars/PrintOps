@@ -347,6 +347,14 @@ export interface Printer {
   plate_detection_roi?: PlateDetectionROI;  // ROI for plate detection
   created_at: string;
   updated_at: string;
+  acquisition_date: string | null;
+  acquisition_value: string | null;
+  service_years: string | null;
+  annual_hours: string | null;
+  maintenance_rate: string | null;
+  nominal_power_watts: string | null;
+  residual_value: string | null;
+  hourly_rate: string | null;
 }
 
 export interface HMSError {
@@ -569,7 +577,32 @@ export interface PrinterCreate {
   camera_rotation?: number;
   plate_detection_enabled?: boolean;
   plate_detection_roi?: PlateDetectionROI;
+  acquisition_date?: string | null;
+  acquisition_value?: string | null;
+  service_years?: string | null;
+  annual_hours?: string | null;
+  maintenance_rate?: string | null;
+  nominal_power_watts?: string | null;
 }
+
+export interface Equipment {
+  id: number;
+  equipment_type: 'dryer';
+  name: string;
+  is_active: boolean;
+  acquisition_date: string;
+  acquisition_value: string;
+  service_years: string;
+  annual_hours: string;
+  maintenance_rate: string;
+  nominal_power_watts: string;
+  residual_value: string;
+  hourly_rate: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type EquipmentInput = Omit<Equipment, 'id' | 'residual_value' | 'hourly_rate' | 'created_at' | 'updated_at'>;
 
 // Plate Detection
 export interface PlateDetectionROI {
@@ -3975,6 +4008,10 @@ export const api = {
       `/printers/${id}?delete_archives=${deleteArchives}`,
       { method: 'DELETE' }
     ),
+  getEquipment: (activeOnly = false) => request<Equipment[]>(`/equipment/?active_only=${activeOnly}`),
+  createEquipment: (data: EquipmentInput) => request<Equipment>('/equipment/', { method: 'POST', body: JSON.stringify(data) }),
+  updateEquipment: (id: number, data: Partial<EquipmentInput>) => request<Equipment>(`/equipment/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteEquipment: (id: number) => request<void>(`/equipment/${id}`, { method: 'DELETE' }),
   getDeveloperModeWarnings: () =>
     request<{ printer_id: number; name: string }[]>('/printers/developer-mode-warnings'),
   getAvailableFilaments: (model: string, location?: string) => {

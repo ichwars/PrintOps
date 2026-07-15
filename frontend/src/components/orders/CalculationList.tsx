@@ -20,7 +20,7 @@ export function CalculationList({ items, locale, onOpen }: Props) {
       <table className="w-full min-w-[1050px] text-sm">
         <thead className="bg-bambu-dark">
           <tr className="text-left text-xs uppercase tracking-wide text-bambu-gray">
-            {[de ? 'Kalkulation' : 'Calculation', de ? 'Kunde' : 'Customer', de ? 'Variante' : 'Variant', de ? 'Revision' : 'Revision', de ? 'Status' : 'Status', de ? 'Selbstkosten' : 'Cost', de ? 'Verkaufspreis' : 'Selling price', de ? 'Aktualisiert' : 'Updated', ''].map(label => <th key={label} className="px-4 py-3 font-medium">{label}</th>)}
+            {[de ? 'Kalkulation' : 'Calculation', de ? 'Kunde / Profil' : 'Customer / profile', de ? 'Variante' : 'Variant', de ? 'Revision' : 'Revision', de ? 'Status' : 'Status', de ? 'Selbstkosten' : 'Cost', de ? 'Verkaufspreis' : 'Selling price', de ? 'Aktualisiert' : 'Updated', ''].map(label => <th key={label} className="px-4 py-3 font-medium">{label}</th>)}
           </tr>
         </thead>
         <tbody className="divide-y divide-bambu-dark-tertiary">
@@ -29,7 +29,7 @@ export function CalculationList({ items, locale, onOpen }: Props) {
             return (
               <tr key={item.id} className="bg-bambu-dark-secondary hover:bg-bambu-dark-tertiary/40">
                 <td className="px-4 py-3"><div className="font-medium text-white">K-{String(item.id).padStart(6, '0')}</div><div className="text-xs text-bambu-gray">{item.title}</div></td>
-                <td className="px-4 py-3 text-bambu-gray">{item.customer_id ? `#${item.customer_id}` : de ? 'Ohne Kundenzuordnung' : 'No customer assigned'}</td>
+                <td className="px-4 py-3"><div className="text-white">{item.customer_display_name ?? (de ? 'Ohne Kundenzuordnung' : 'No customer assigned')}</div><div className="text-xs text-bambu-gray">{item.business_profile_name ?? `#${item.business_profile_id}`}</div></td>
                 <td className="px-4 py-3 text-white">{preferred?.name ?? '—'}</td>
                 <td className="px-4 py-3 text-bambu-gray">{item.current_revision ? `R${item.current_revision}` : '—'}</td>
                 <td className="px-4 py-3"><span className="inline-flex items-center gap-1 rounded-full bg-bambu-dark px-2 py-1 text-xs text-bambu-green">{item.status === 'archived' && <Archive className="h-3 w-3" />}{status[item.status]}</span></td>

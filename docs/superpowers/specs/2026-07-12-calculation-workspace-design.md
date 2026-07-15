@@ -4,6 +4,11 @@
 **Status:** Approved  
 **Scope:** Delivery increment 2 from the order-management design: calculation revisions, variants, slicer inputs, and planned cost.
 
+**Revision note:** The approved scope now explicitly requires functional parity
+with the useful calculation capabilities already explored in ForgeDesk. Parity
+means equivalent user outcomes on PrintOps' relational backend, not copying
+ForgeDesk's browser-persisted implementation.
+
 ## Objective
 
 PrintOps shall turn a concrete customer request into a transparent, auditable production calculation that can later become a quotation without re-entering positions. A calculation may start without a fully registered customer, but creating a quotation requires a customer with a suitable billing address.
@@ -23,6 +28,31 @@ This increment includes:
 - a stable handoff contract for a later quotation increment.
 
 It does not issue quotations, invoices, or other commercial documents, reserve stock, schedule production, attribute actual cost, render PDFs, or automate the print queue. Those consumers may reference approved calculation revisions later.
+
+## ForgeDesk Parity Requirements
+
+This increment must not stop at the currently implemented minimal editor. It
+adopts every ForgeDesk calculation capability that belongs to calculation or
+calculation defaults and maps it to an authoritative PrintOps owner.
+
+| ForgeDesk outcome | Required PrintOps implementation |
+| --- | --- |
+| Start from a concrete customer request | Persisted request context with business profile, optional customer/contact, reference, dates, description, notes, tags, and source-file metadata |
+| Drop or select a 3MF file | PrintOps file/project selection plus upload, plate discovery, local 3MF metadata analysis, optional configured slicer execution, and an explicit manual fallback after an import error |
+| Select printer, process, plate, filament, and material | References to PrintOps printer profiles, slicing profiles, inventory/spools, materials, colors, nozzle data, and stored provenance instead of hard-coded option lists |
+| Apply slicing results to the calculation | One operation per selected plate with parts, runs, time, consumption, purge/support/waste, profile data, source timestamp, and visible overrides |
+| Add warehouse materials | Additional-material lines backed by PrintOps inventory records and cost snapshots; this increment reads availability but does not reserve stock |
+| Calculate machine, electricity, labor, material, ancillary, risk, packaging, and shipping amounts | Backend `Decimal` calculation engine with separately visible components, documented allocation bases, and no double counting |
+| Compare markup, target-margin, and explicit-price strategies | Per-variant price method, rate or override, effective margin, contribution, minimum-price/profit warnings, discounts, tax, rounding, net/gross totals, and unit price |
+| Compare alternatives | Persisted variants for printer, material, profile, quantity, processing, lead time, and price assumptions with one preferred variant |
+| Save and reopen calculations | Relational drafts with optimistic concurrency, list/search/filter states, and no browser-local calculation owner |
+| Save a reusable calculation | Versioned templates derived from calculation structure while excluding concrete customer, file, result, and approval data |
+| Create an offer, project, or print job | Stable references and handoff readiness only in this increment; activation remains owned by the later quotation, project, and production increments |
+
+ForgeDesk concepts that are not valid PrintOps owners must not be carried over:
+local-storage drafts, hard-coded customers/printers/materials, duplicated
+calculation formulas in React, or direct mutation of offers/projects from the
+calculation page.
 
 ## Workflow
 
@@ -200,6 +230,31 @@ A user with update permission may override the selling price. The editor warns w
 
 Relevant ForgeDesk concepts adopted as defaults are acquisition value, service life, annual print hours, maintenance and wear, labor rate, electricity rate, setup/post-processing/QA time, material markup, target margin, default discount, scrap rate, minimum price, minimum profit, rounding, consumables, packaging, and shipping.
 
+The six sections expose at least these editable defaults:
+
+- **Cost basis:** acquisition and residual value, service years, usable annual
+  hours, utilization, maintenance/wear, average printer power, electricity
+  price, default filament price by material, dryer power, space cost, and
+  overhead allocation;
+- **Labor times:** hourly rate plus request preparation, CAD/repair, slicing,
+  setup, post-processing, quality assurance, and packing defaults with their
+  allocation bases;
+- **Risk and scrap:** material waste, purge/support treatment, recommended
+  scrap runs/rate, risk surcharge, and the approval thresholds that convert a
+  warning into a blocker;
+- **Price derivation:** default method (`markup`, `target_margin`, or explicit
+  price), rate, minimum price, minimum profit, default discount, tax display,
+  and warning thresholds;
+- **Ancillary costs:** consumables, packaging, shipping, and named additional
+  cost defaults with per-request, per-run, or per-unit allocation;
+- **Example calculation:** editable representative quantity, duration,
+  material, and machine inputs with a complete live result and validation
+  messages.
+
+Settings inputs use the same units, formulas, validation codes, rounding, and
+labels as the workspace. A second settings-only formula implementation is not
+permitted.
+
 The live example calculation displays machine, labor, energy, material, production cost, contribution, and recommended selling price so invalid defaults are visible immediately.
 
 Calculation settings are fallback sources. Business-profile currency, language, timezone, and tax settings remain authoritative for their scope. Printer and inventory records override generic cost fallbacks. Every new revision stores a settings snapshot so later changes do not rewrite history.
@@ -297,3 +352,23 @@ The implementation plan must cover:
 ## Deferred Work
 
 Later increments will implement quotation/document generation, customer-facing acceptance links, numbering, PDF layout, reminders, automatic order creation, reservations, production scheduling, actual-cost comparison, and queue automation. Those capabilities must consume approved revisions rather than duplicating or mutating calculation logic.
+
+## Calculation Settings Overview Layout
+
+The calculation settings surface uses a responsive two-column overview so operators can quickly see configured defaults and missing decisions. The compact global values for currency, filament price, and electricity price span the full width above the cards.
+
+The left column contains cost inputs in this order: cost basis, labor times, and ancillary costs. The right column contains commercial decisions in this order: risk and scrap, price derivation, and the live example calculation. On narrow screens the cards collapse to one column while retaining this reading order.
+
+Every card title has a meaningful Lucide icon: `Coins` for cost basis, `Clock` for labor, `Package` for ancillary costs, `TriangleAlert` for risk, `BadgeEuro` for pricing, and `Calculator` for the example. Icons use the existing orange/green accent treatment and do not replace visible text labels. Card spacing, title rows, descriptions, input heights, and borders remain consistent with the existing PrintOps settings design.
+
+## Central Device Master Data
+
+PrintOps has one authoritative device-management surface under Settings. The existing printer-management UI is renamed to device management and presents printers and dryers together without duplicating printer records. Existing printer connection, control, archive, and maintenance behavior remains backed by the printer model. Dryers use a separate general-equipment model because they do not have printer connectivity or print-job behavior.
+
+The first supported calculable device types are `printer` and `dryer`. General-equipment records contain a name, active state, acquisition date, acquisition value, service life in years, expected annual operating hours, maintenance/wear percentage, and nominal power in watts. Printer records receive the same optional commercial fields without changing their operational fields. A later increment may add other equipment types through the same general-equipment model.
+
+Current residual value is read-only and calculated by straight-line depreciation from acquisition value and acquisition date to zero at the end of service life. The calculated machine hourly rate is also read-only and uses depreciable value, expected operating hours, and maintenance/wear. Both derived values are returned by the backend so every UI uses the same result.
+
+Calculation settings no longer create equipment. They select an active default printer and an optional active default dryer from device management. An order calculation resolves those defaults and may override them per production step. A dryer selection additionally records the required drying duration for that calculation. Approval snapshots retain device identifiers, names, and the resolved commercial values so historical revisions remain explainable after master data changes.
+
+Currency is selected from supported ISO currencies rather than entered as free text. Price derivation gains a backend-owned rounding rule matching the available ForgeDesk behavior; preview and approval apply the same rule. Device deletion is blocked when operational dependencies require it, while inactive devices remain visible in historical revisions but are excluded from new default selectors.

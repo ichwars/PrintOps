@@ -175,6 +175,7 @@ async def init_db():
         business_profile,
         color_catalog,
         customer,
+        equipment,
         external_link,
         filament,
         filament_sku_settings,
@@ -1494,6 +1495,12 @@ async def run_migrations(conn):
 
     # Migration: Add print_hours_offset column to printers (baseline hours adjustment)
     await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN print_hours_offset REAL DEFAULT 0.0")
+    await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN acquisition_date DATE")
+    await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN acquisition_value NUMERIC(14, 2)")
+    await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN service_years NUMERIC(8, 2)")
+    await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN annual_hours NUMERIC(12, 2)")
+    await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN maintenance_rate NUMERIC(8, 6)")
+    await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN nominal_power_watts NUMERIC(12, 2)")
 
     # Migration: Add queue notification event columns to notification_providers
     await _safe_execute(conn, "ALTER TABLE notification_providers ADD COLUMN on_queue_job_added BOOLEAN DEFAULT 0")
@@ -3346,6 +3353,16 @@ async def run_migrations(conn):
     await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN paypal_me_url VARCHAR(500)")
     await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN logo_media_type VARCHAR(32)")
     await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN logo_version INTEGER")
+    # Migration: Complete the calculation request and commercial context.
+    await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN project_id INTEGER REFERENCES projects(id)")
+    await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN request_kind VARCHAR(24) DEFAULT 'single'")
+    await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN quantity INTEGER DEFAULT 1")
+    await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN position_description TEXT")
+    await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN special_terms TEXT")
+    if is_sqlite():
+        await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN commercial_overrides JSON DEFAULT '{}'")
+    else:
+        await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN commercial_overrides JSON DEFAULT '{}'::json")
     if is_sqlite():
         profile_defaults_sql = (
             "UPDATE business_profiles SET "

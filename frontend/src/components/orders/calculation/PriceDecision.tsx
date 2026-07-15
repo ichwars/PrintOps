@@ -1,0 +1,7 @@
+import type { CalculationPreview } from '../../../api/calculations';
+
+export function PriceDecision({ preview, locale, currency }: { preview: CalculationPreview | null; locale: string; currency: string }) {
+  const de = locale.startsWith('de'); const money = (value?: string) => value === undefined ? '–' : new Intl.NumberFormat(locale, { style: 'currency', currency }).format(Number(value));
+  const cards = [[de ? 'Herstellkosten' : 'Production cost', money(preview?.production_cost)], [de ? 'Gewinn' : 'Profit', money(preview?.contribution)], [de ? 'Marge effektiv' : 'Effective margin', preview ? `${(Number(preview.effective_margin) * 100).toFixed(1)} %` : '–'], [de ? 'Stückpreis' : 'Unit price', money(preview?.unit_price)], ['Netto', money(preview?.net_price)], ['Brutto', money(preview?.gross_price)]];
+  return <section className="rounded-xl border border-bambu-green/30 bg-bambu-green/5 p-4"><div className="flex items-center justify-between"><h3 className="font-semibold text-white">{de ? 'Preisentscheidung' : 'Price decision'}</h3><span className="rounded-full bg-bambu-green/15 px-2 py-1 text-xs text-bambu-green">Live</span></div><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{cards.map(([label, value]) => <div key={label} className="rounded-lg bg-bambu-dark p-3"><span className="text-xs text-bambu-gray">{label}</span><strong className="mt-1 block text-lg text-white">{value}</strong></div>)}</div></section>;
+}

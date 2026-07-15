@@ -8,6 +8,8 @@
 
 **Tech Stack:** FastAPI, SQLAlchemy async ORM, Pydantic, SQLite/PostgreSQL compatibility, Python `Decimal`, React, TypeScript, Tailwind CSS, Vitest, Testing Library, pytest, Ruff, ESLint.
 
+**Parity completion update (2026-07-12):** Tasks 1-6 and the minimal parts of Tasks 7-10 exist on `main`, but are not feature-complete. Execute Tasks 12-15 below to close the approved ForgeDesk-parity gap without reintroducing browser-local owners or activating later quotation, project, or production commands.
+
 ## Global Constraints
 
 - Follow `docs/superpowers/specs/2026-07-12-calculation-workspace-design.md` and the parent `docs/superpowers/specs/2026-07-10-order-management-design.md`.
@@ -605,11 +607,141 @@ git add docs/order-management.md docs/superpowers/plans/2026-07-12-calculation-w
 git commit -m "Document calculation workflow"
 ```
 
+### Task 12: Canonical Defaults and Preview API
+
+**Files:** `backend/app/schemas/calculation.py`, `backend/app/services/calculation_engine.py`, `backend/app/services/calculation.py`, `backend/app/api/routes/calculations.py`, `backend/tests/unit/test_calculation_engine.py`, `backend/tests/integration/test_calculations_api.py`
+
+**Produces:** Versioned defaults plus one backend preview result containing runs, material, machine, energy, labor, consumables, packaging, risk, production cost, shipping, contribution, margin, net, tax, gross, and unit price.
+
+- [ ] Add failing engine tests for every component, markup, target margin, explicit price, discount, tax, minimums, contribution, and rounding.
+- [ ] Add failing API tests for defaults round-trip and backend preview parity with approval.
+- [ ] Extend the `Decimal` engine and permission-gated defaults/preview endpoints.
+- [ ] Run `pytest backend/tests/unit/test_calculation_engine.py backend/tests/integration/test_calculations_api.py -q`; require PASS.
+
+### Task 13: Full Calculation Settings
+
+**Files:** Create `frontend/src/components/orders/calculation/CalculationSettings.tsx`; modify `frontend/src/pages/SettingsPage.tsx` and `frontend/src/api/calculations.ts`; test `frontend/src/__tests__/components/CalculationSettings.test.tsx` and `frontend/src/__tests__/pages/SettingsPage.test.tsx`.
+
+**Consumes:** Task 12 defaults and preview endpoints. **Produces:** Six full-width settings sections and a backend-computed live example.
+
+- [ ] Write failing tests for all sections, save/reload, validation, and live totals.
+- [ ] Remove the settings-only JavaScript formula from `SettingsPage`.
+- [ ] Implement cost basis, labor, risk/scrap, price, ancillary, and editable example sections.
+- [ ] Run the two focused frontend test files; require PASS.
+
+### Task 14: ForgeDesk-Parity Workspace
+
+**Files:** Modify `frontend/src/components/orders/CalculationWorkspace.tsx` and `frontend/src/api/calculations.ts`; create focused request, lines, production, cost-price, and variants components under `frontend/src/components/orders/calculation/`; test `frontend/src/__tests__/components/CalculationWorkspace.test.tsx`.
+
+**Consumes:** Backend preview, business profiles, customers, printers, files, spools/materials, and slicing profiles. **Produces:** One normalized persisted draft with provenance and stable later-handoff references.
+
+- [ ] Test real selectors, 3MF/file metadata, operations/labor, line CRUD, variants, totals, save, approval, and conflict recovery.
+- [ ] Replace numeric customer IDs and hard-coded choices with PrintOps sources.
+- [ ] Render every approved cost/price component without duplicating formulas.
+- [ ] Keep quotation/project/print-job actions inactive and explicitly deferred.
+- [ ] Run focused workspace tests; require PASS.
+
+### Task 15: Parity Verification and Delivery
+
+- [ ] Verify every ForgeDesk parity-table row against API, rendered UI, or an explicitly deferred handoff.
+- [ ] Run backend calculation suites, focused frontend suites, lint, typecheck, coverage, production build, and browser smoke tests for calculation and settings.
+- [ ] Update `docs/order-management.md`; commit, push, and merge only after all required checks pass.
+
+### Task 16: Calculation Settings Overview Layout
+
+**Files:**
+- Modify: `frontend/src/components/orders/calculation/CalculationSettings.tsx`
+
+**Interfaces:**
+- Consumes: the existing six settings groups and live backend preview.
+- Produces: a responsive two-column overview without changing persisted settings or calculation behavior.
+
+- [ ] Add an icon component to each group definition and render a consistent icon/title row.
+- [ ] Arrange cost basis, labor, and ancillary costs in the left column; risk, pricing, and example calculation in the right column.
+- [ ] Keep global currency/material/electricity defaults full-width and collapse the overview to one column below the desktop breakpoint.
+- [ ] Run `npm.cmd run build --prefix frontend` and require PASS.
+- [ ] Commit and push the focused layout change.
+
+### Task 17: Calculable Device Master Data
+
+**Files:**
+- Modify: `backend/app/models/printer.py`
+- Create: `backend/app/models/equipment.py`
+- Modify: `backend/app/models/__init__.py`
+- Modify: `backend/app/core/database.py`
+- Create: `backend/app/schemas/equipment.py`
+- Create: `backend/app/services/equipment.py`
+- Test: `backend/tests/unit/test_equipment_costs.py`
+
+**Interfaces:**
+- Produces: commercial fields for printers plus `Equipment` records of type `dryer`; `calculate_residual_value(...)` and `calculate_hourly_rate(...)` are the only owners of derived device costs.
+
+- [ ] Add failing unit cases for new, halfway-depreciated, expired, and invalid device values.
+- [ ] Add optional acquisition date/value, service years, annual hours, maintenance percentage, and nominal watts to printers; create the dryer equipment model with the same commercial fields.
+- [ ] Add idempotent SQLite/PostgreSQL startup migration coverage following existing database migration patterns.
+- [ ] Implement Decimal-based straight-line residual value and hourly-rate helpers and expose derived read-only schema fields.
+- [ ] Run equipment unit and migration tests; require PASS.
+
+### Task 18: Device API and Unified Device Management
+
+**Files:**
+- Create: `backend/app/api/routes/equipment.py`
+- Modify: `backend/app/api/routes/__init__.py`
+- Modify: `backend/app/main.py`
+- Modify: `backend/app/schemas/printer.py`
+- Modify: `backend/app/api/routes/printers.py`
+- Create: `backend/tests/integration/test_equipment_api.py`
+- Modify: `backend/tests/integration/test_printers_api.py`
+- Create: `frontend/src/components/settings/DeviceManagement.tsx`
+- Modify: `frontend/src/pages/SettingsPage.tsx`
+- Modify: `frontend/src/api/client.ts`
+
+**Interfaces:**
+- Produces: CRUD `/equipment` for dryers and extended printer responses; unified settings UI renders both sources without copying printer records.
+
+- [ ] Test dryer CRUD, validation, inactive filtering, derived values, and extended printer commercial fields.
+- [ ] Implement permission-gated dryer CRUD and printer commercial-field updates.
+- [ ] Replace the device settings surface with printer and dryer sections, add/edit forms, derived-value display, and active-state controls.
+- [ ] Run focused backend tests and the frontend production build; require PASS.
+
+### Task 19: Device Selection and Central Price Rounding
+
+**Files:**
+- Modify: `backend/app/services/calculation_engine.py`
+- Modify: `backend/app/schemas/calculation.py`
+- Modify: `backend/tests/unit/test_calculation_engine.py`
+- Modify: `frontend/src/components/orders/calculation/CalculationSettings.tsx`
+- Modify: `frontend/src/components/orders/CalculationWorkspace.tsx`
+- Modify: `frontend/src/api/calculations.ts`
+
+**Interfaces:**
+- Consumes: active printer and dryer master data.
+- Produces: default device selectors, per-operation overrides, drying duration, and backend-owned price rounding shared by preview and approval.
+
+- [ ] Add failing rounding tests for none, 0.05, 0.10, 0.50, 1.00, x.90, and x.99.
+- [ ] Add rounding mode to preview/approval inputs and apply it after commercial price derivation using Decimal arithmetic.
+- [ ] Replace free-text currency with the existing supported ISO currency selector.
+- [ ] Replace device-entry defaults with active default-printer/default-dryer selectors and read-only residual/hourly-rate summaries.
+- [ ] Add per-operation printer/dryer selection and drying hours to the workspace, persisting resolved provenance.
+- [ ] Run calculation unit/API tests and frontend build; require PASS.
+
+### Task 20: Device and Calculation Verification
+
+**Files:**
+- Modify: `docs/order-management.md`
+- Modify: `docs/superpowers/plans/2026-07-12-calculation-workspace.md`
+
+- [ ] Run backend equipment, printer, calculation, permission, migration, lint, and security checks.
+- [ ] Run frontend lint, typecheck, focused tests, i18n parity, and production build.
+- [ ] Browser-smoke device creation, default selection, order override, residual/hourly display, and every rounding mode.
+- [ ] Update operator documentation and check off only verified plan items.
+- [ ] Commit, push, and merge only after required GitHub checks pass.
+
 ---
 
 ## Plan Self-Review
 
-- **Spec coverage:** Tasks 1-6 cover the relational aggregate, formulas, validation, source precedence, concurrency, immutable revisions, templates, permissions, and APIs. Tasks 7-10 cover calculation defaults, live example, list, five-area workspace, provenance, variants, approval, revisions, and quotation readiness. Task 11 covers documentation and full verification.
+- **Spec coverage:** Tasks 1-11 cover the original aggregate and minimal workspace. Tasks 12-15 close the approved ForgeDesk-parity gaps in canonical preview math, complete settings, sourced inputs, full workspace behavior, and delivery verification.
 - **Deferred-scope check:** Quotation issuance, PDF output, numbering, reminders, reservations, actual cost, scheduling, and queue automation remain consumers for later increments.
 - **Type consistency:** Backend and frontend both use decimal strings at the API boundary, `expected_version` on mutations, one preferred variant, and the status/price/allocation enums declared in Stable Interfaces.
 - **Placeholder scan:** The plan contains no TBD/TODO steps; every task names files, interfaces, focused tests, commands, expected outcomes, implementation boundaries, and a commit.

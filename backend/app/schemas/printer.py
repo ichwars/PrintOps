@@ -1,6 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator
+
+from backend.app.services.equipment_costs import calculate_hourly_rate, calculate_residual_value
 
 
 class PrinterBase(BaseModel):
@@ -37,6 +40,12 @@ class PrinterBase(BaseModel):
     external_camera_enabled: bool = False
     external_camera_snapshot_url: str | None = None  # Optional single-frame override; #1177
     camera_rotation: int = 0  # 0, 90, 180, 270 degrees
+    acquisition_date: date | None = None
+    acquisition_value: Decimal | None = Field(default=None, ge=0)
+    service_years: Decimal | None = Field(default=None, gt=0)
+    annual_hours: Decimal | None = Field(default=None, gt=0)
+    maintenance_rate: Decimal | None = Field(default=None, ge=0)
+    nominal_power_watts: Decimal | None = Field(default=None, ge=0)
 
 
 class PrinterCreate(PrinterBase):
@@ -75,6 +84,12 @@ class PrinterUpdate(BaseModel):
     camera_rotation: int | None = None  # 0, 90, 180, 270 degrees
     plate_detection_enabled: bool | None = None
     plate_detection_roi: PlateDetectionROI | None = None
+    acquisition_date: date | None = None
+    acquisition_value: Decimal | None = Field(default=None, ge=0)
+    service_years: Decimal | None = Field(default=None, gt=0)
+    annual_hours: Decimal | None = Field(default=None, gt=0)
+    maintenance_rate: Decimal | None = Field(default=None, ge=0)
+    nominal_power_watts: Decimal | None = Field(default=None, ge=0)
 
 
 class PrinterResponse(PrinterBase):
@@ -91,6 +106,8 @@ class PrinterResponse(PrinterBase):
     plate_detection_roi: PlateDetectionROI | None = None
     created_at: datetime
     updated_at: datetime
+    residual_value: Decimal | None = None
+    hourly_rate: Decimal | None = None
 
     class Config:
         from_attributes = True
@@ -114,10 +131,29 @@ class PrinterResponse(PrinterBase):
             "is_active": printer.is_active,
             "nozzle_count": printer.nozzle_count,
             "print_hours_offset": printer.print_hours_offset,
+            "acquisition_date": printer.acquisition_date,
+            "acquisition_value": printer.acquisition_value,
+            "service_years": printer.service_years,
+            "annual_hours": printer.annual_hours,
+            "maintenance_rate": printer.maintenance_rate,
+            "nominal_power_watts": printer.nominal_power_watts,
             "plate_detection_enabled": printer.plate_detection_enabled,
             "created_at": printer.created_at,
             "updated_at": printer.updated_at,
         }
+        if printer.acquisition_date and printer.acquisition_value is not None and printer.service_years is not None:
+            data["residual_value"] = calculate_residual_value(
+                printer.acquisition_value, printer.acquisition_date, printer.service_years
+            )
+        if (
+            printer.acquisition_value is not None
+            and printer.service_years is not None
+            and printer.annual_hours is not None
+            and printer.maintenance_rate is not None
+        ):
+            data["hourly_rate"] = calculate_hourly_rate(
+                printer.acquisition_value, printer.service_years, printer.annual_hours, printer.maintenance_rate
+            )
         # Build ROI object if any ROI field is set
         if any(
             [
