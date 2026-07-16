@@ -34,7 +34,10 @@ import { VirtualPrinterList } from '../components/VirtualPrinterList';
 import { SpoolBuddySettings } from '../components/SpoolBuddySettings';
 import { BusinessProfileSettings } from '../components/settings/BusinessProfileSettings';
 import { CalculationSettings } from '../components/orders/calculation/CalculationSettings';
-import { DeviceManagement } from '../components/settings/DeviceManagement';
+import {
+  DryerManagementCard,
+  PrinterManagementCard,
+} from '../components/settings/DeviceManagement';
 import { GitHubBackupSettings } from '../components/GitHubBackupSettings';
 import { FailureDetectionSettings } from '../components/FailureDetectionSettings';
 import { EmailSettings } from '../components/EmailSettings';
@@ -4429,12 +4432,6 @@ export function SettingsPage() {
       </div>
       )}
 
-      {activeTab === 'printers-production' && printerProductionSubTab === 'devices' && ftpRetryCard && (
-        <div className="space-y-3 mt-4">
-          {ftpRetryCard}
-        </div>
-      )}
-
       {/* Home Assistant Test Connection Modal */}
       {haTestResult && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -5322,10 +5319,45 @@ export function SettingsPage() {
       )}
 
       {activeTab === 'printers-production' && printerProductionSubTab === 'devices' && (
-        <div className="space-y-3 mb-4">
-          {defaultPrinterCard}
-          <DeviceManagement locale={i18n.resolvedLanguage ?? 'en'} />
-          {cameraSettingsCard}
+        <div
+          data-testid="device-settings-grid"
+          className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start"
+        >
+          <div
+            data-testid="device-settings-left-column"
+            className="contents xl:block xl:space-y-4"
+          >
+            <div data-testid="device-layout-ftp" className="order-1">
+              {ftpRetryCard}
+            </div>
+            <div
+              data-testid="device-layout-printers"
+              className="order-3 xl:order-none"
+            >
+              <PrinterManagementCard locale={i18n.resolvedLanguage ?? 'en'} />
+            </div>
+          </div>
+
+          <div
+            data-testid="device-settings-right-column"
+            className="contents xl:block xl:space-y-4"
+          >
+            <div data-testid="device-layout-default-printer" className="order-2">
+              {defaultPrinterCard}
+            </div>
+            <div
+              data-testid="device-layout-dryers"
+              className="order-4 xl:order-none"
+            >
+              <DryerManagementCard locale={i18n.resolvedLanguage ?? 'en'} />
+            </div>
+            <div
+              data-testid="device-layout-camera"
+              className="order-5 xl:order-none"
+            >
+              {cameraSettingsCard}
+            </div>
+          </div>
         </div>
       )}
 

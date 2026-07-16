@@ -256,6 +256,38 @@ describe('SettingsPage', () => {
       });
     });
 
+    it('composes device settings in two desktop columns before the full-width virtual printers area', async () => {
+      setSettingsTabUrl('printers-production');
+      server.use(
+        http.get('/api/v1/equipment/', () => HttpResponse.json([])),
+      );
+
+      render(<SettingsPage />);
+
+      const grid = await screen.findByTestId('device-settings-grid');
+      const left = within(grid).getByTestId('device-settings-left-column');
+      const right = within(grid).getByTestId('device-settings-right-column');
+      const virtualPrinters = document.getElementById('card-vp');
+
+      expect(grid).toHaveClass('xl:grid-cols-2');
+      expect(within(left).getByText('FTP Retry')).toBeInTheDocument();
+      expect(within(left).getByRole('heading', { name: 'Printers' })).toBeInTheDocument();
+      expect(within(right).getAllByText('Default Printer').length).toBeGreaterThan(0);
+      expect(within(right).getByRole('heading', { name: 'Dryers' })).toBeInTheDocument();
+      expect(within(right).getByText('External Cameras')).toBeInTheDocument();
+      expect(within(grid).getByTestId('device-layout-ftp')).toHaveClass('order-1');
+      expect(within(grid).getByTestId('device-layout-default-printer')).toHaveClass('order-2');
+      expect(within(grid).getByTestId('device-layout-printers')).toHaveClass('order-3');
+      expect(within(grid).getByTestId('device-layout-dryers')).toHaveClass('order-4');
+      expect(within(grid).getByTestId('device-layout-camera')).toHaveClass('order-5');
+      expect(virtualPrinters).not.toBeNull();
+      expect(
+        grid.compareDocumentPosition(virtualPrinters as Node) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(grid.contains(virtualPrinters)).toBe(false);
+    });
+
     it('uses the project management subpage as the page title', async () => {
       setSettingsTabUrl('projects-files');
       render(<SettingsPage />);
