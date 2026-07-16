@@ -75,8 +75,8 @@ describe('DeviceManagement cards', () => {
     expect(await screen.findByRole('heading', { name: 'Trockner' })).toBeInTheDocument();
     expect(screen.getByText('X1 Carbon')).toBeInTheDocument();
     expect(screen.getByText('Filament Dryer Pro')).toBeInTheDocument();
-    expect(screen.getByText('1.120,00 €')).toBeInTheDocument();
-    expect(screen.getByText('142,50 €')).toBeInTheDocument();
+    expect(screen.getByText(/1\.120,00\s€/)).toBeInTheDocument();
+    expect(screen.getByText(/142,50\s€/)).toBeInTheDocument();
 
     expect(container.querySelector('[data-device-card="printers"]')).toHaveClass(
       'border-bambu-dark-tertiary',
