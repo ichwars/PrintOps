@@ -35,6 +35,10 @@ const mockSettings = {
   check_updates: false,
   check_printer_firmware: false,
   bed_cooled_threshold: 35,
+  ftp_retry_enabled: true,
+  ftp_retry_count: 3,
+  ftp_retry_delay: 2,
+  ftp_timeout: 30,
 };
 
 const settingsSidebarChildIds = [
@@ -271,6 +275,17 @@ describe('SettingsPage', () => {
 
       expect(grid).toHaveClass('xl:grid-cols-2');
       expect(within(left).getByText('FTP Retry')).toBeInTheDocument();
+      const ftpRetryGrid = within(left).getByTestId('ftp-retry-fields-grid');
+      const ftpRetrySelects = within(ftpRetryGrid).getAllByRole('combobox');
+
+      expect(ftpRetryGrid).toHaveClass('grid-cols-1', 'md:grid-cols-3');
+      expect(ftpRetrySelects).toHaveLength(3);
+      for (const select of ftpRetrySelects) {
+        expect(select.parentElement).toHaveClass('w-full');
+      }
+      expect(
+        within(ftpRetryGrid).getByText('Increase for printers with weak WiFi'),
+      ).toBeInTheDocument();
       expect(within(left).getByRole('heading', { name: 'Printers' })).toBeInTheDocument();
       expect(within(right).getAllByText('Default Printer').length).toBeGreaterThan(0);
       expect(within(right).getByRole('heading', { name: 'Dryers' })).toBeInTheDocument();

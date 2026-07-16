@@ -3262,12 +3262,15 @@ export function SettingsPage() {
         </div>
 
         {localSettings.ftp_retry_enabled && (
-          <div className="space-y-3 pt-2 border-t border-bambu-dark-tertiary">
+          <div
+            data-testid="ftp-retry-fields-grid"
+            className="grid grid-cols-1 gap-3 border-t border-bambu-dark-tertiary pt-3 md:grid-cols-3 md:items-start"
+          >
             <div>
               <label className="block text-sm text-bambu-gray mb-1">
                 {t('settings.retryAttempts')}
               </label>
-              <div className="relative w-44">
+              <div className="relative w-full">
                 <select
                   value={localSettings.ftp_retry_count ?? 3}
                   onChange={(e) => updateSetting('ftp_retry_count', parseInt(e.target.value))}
@@ -3285,7 +3288,7 @@ export function SettingsPage() {
               <label className="block text-sm text-bambu-gray mb-1">
                 {t('settings.retryDelay')}
               </label>
-              <div className="relative w-44">
+              <div className="relative w-full">
                 <select
                   value={localSettings.ftp_retry_delay ?? 2}
                   onChange={(e) => updateSetting('ftp_retry_delay', parseInt(e.target.value))}
@@ -3302,7 +3305,7 @@ export function SettingsPage() {
               <label className="block text-sm text-bambu-gray mb-1">
                 {t('settings.connectionTimeout')}
               </label>
-              <div className="relative w-44">
+              <div className="relative w-full">
                 <select
                   value={localSettings.ftp_timeout ?? 30}
                   onChange={(e) => updateSetting('ftp_timeout', parseInt(e.target.value))}
