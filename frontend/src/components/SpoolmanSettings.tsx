@@ -2,7 +2,7 @@ import { LegacySelect, TextField, Checkbox } from './ui';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Check, X, RefreshCw, Link2, Link2Off, Database, ChevronDown, Info, AlertTriangle, Package, ExternalLink } from 'lucide-react';
+import { Loader2, Check, X, RefreshCw, Link2, Link2Off, Database, Info, AlertTriangle, Package, ExternalLink } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import type { SpoolmanSyncResult, Printer } from '../api/client';
 import { Card, CardContent, CardHeader } from './Card';
@@ -522,7 +522,6 @@ export function SpoolmanSettings() {
                           </option>
                         ))}
                       </LegacySelect>
-                      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
                     </div>
                     {/* Sync button */}
                     <Button

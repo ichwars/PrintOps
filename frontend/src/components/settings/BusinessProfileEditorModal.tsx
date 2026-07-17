@@ -11,7 +11,7 @@ import {
   type BusinessProfileTaxIdentifier,
   type BusinessProfileUpdate,
 } from '../../api/client';
-import { Button, Checkbox, DatePicker, IconButton, Modal, NumberField, Select, TextField } from '../ui';
+import { Button, Checkbox, DatePicker, IconButton, Modal, NumberField, Select, TextField , FileInput} from '../ui';
 import { orderMasterDataCountryCodes, orderMasterDataCurrencyCodes } from '../../lib/orderMasterDataValidation';
 
 type ProfileDraft = BusinessProfileCreate;
@@ -408,7 +408,7 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
                 ) : <div className="flex h-16 w-24 items-center justify-center rounded border border-bambu-dark-tertiary text-xs text-bambu-gray">{german ? 'Kein Logo' : 'No logo'}</div>}
                 <label className="text-sm text-bambu-gray-light">
                   {german ? 'Logo hochladen' : 'Upload logo'}
-                  <input type="file" accept="image/png,image/jpeg" aria-label={german ? 'Logo hochladen' : 'Upload logo'} onChange={(event) => { setLogoFile(event.target.files?.[0] ?? null); setRemoveLogo(false); }} className="mt-1 block text-sm" />
+                  <FileInput accept="image/png,image/jpeg" aria-label={german ? 'Logo hochladen' : 'Upload logo'} onChange={(event) => { setLogoFile(event.target.files?.[0] ?? null); setRemoveLogo(false); }} className="mt-1 block text-sm" />
                 </label>
                 {(logoFile || (profile?.logo_version && !removeLogo)) && <Button type="button" variant="ghost" size="sm" onClick={() => { setLogoFile(null); setRemoveLogo(true); }} className="text-red-300">{german ? 'Logo entfernen' : 'Remove logo'}</Button>}
               </div>

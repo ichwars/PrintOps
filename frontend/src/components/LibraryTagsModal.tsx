@@ -8,6 +8,7 @@ import { Button } from './Button';
 import { ConfirmModal } from './ConfirmModal';
 import { useToast } from '../contexts/ToastContext';
 import { libraryTagsQueryKey } from '../utils/libraryTagsQuery';
+import { TextField } from './ui';
 
 interface LibraryTagsModalProps {
   open: boolean;
@@ -239,7 +240,7 @@ export function LibraryTagsModal({ open, onClose, onPickTag }: LibraryTagsModalP
               <label className="block text-sm font-medium text-bambu-gray mb-1" htmlFor="library-tag-name">
                 {t('fileManager.tags.name')}
               </label>
-              <input
+              <TextField
                 id="library-tag-name"
                 type="text"
                 maxLength={64}

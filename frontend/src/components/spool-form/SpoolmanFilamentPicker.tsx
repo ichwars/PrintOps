@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Loader2, Package } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SpoolmanFilamentEntry } from '../../api/client';
+import { TextField } from '../ui';
 
 interface SpoolmanFilamentPickerProps {
   filaments: SpoolmanFilamentEntry[];
@@ -110,7 +111,7 @@ export function SpoolmanFilamentPicker({
         <div className="absolute z-50 w-full mt-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl">
           {/* Search */}
           <div className="p-2 border-b border-bambu-dark-tertiary">
-            <input
+            <TextField
               ref={inputRef}
               type="text"
               value={search}

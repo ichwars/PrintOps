@@ -7,6 +7,7 @@ import { api, type LibraryTag } from '../api/client';
 import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
 import { libraryTagsQueryKey } from '../utils/libraryTagsQuery';
+import { Checkbox, Radio, TextField } from './ui';
 
 interface BulkTagsPickerModalProps {
   open: boolean;
@@ -152,29 +153,25 @@ export function BulkTagsPickerModal({ open, fileIds, onClose }: BulkTagsPickerMo
 
         <div className="px-5 py-3 border-b border-bambu-dark-tertiary flex gap-4 text-sm">
           <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="radio"
+            <Radio
               name="bulk-action"
               checked={action === 'add'}
               onChange={() => setAction('add')}
-              className="accent-bambu-green"
             />
             <span className="text-white">{t('fileManager.tags.actionAdd')}</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="radio"
+            <Radio
               name="bulk-action"
               checked={action === 'remove'}
               onChange={() => setAction('remove')}
-              className="accent-bambu-green"
             />
             <span className="text-white">{t('fileManager.tags.actionRemove')}</span>
           </label>
         </div>
 
         <div className="px-5 py-3 border-b border-bambu-dark-tertiary">
-          <input
+          <TextField
             type="text"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
@@ -198,11 +195,9 @@ export function BulkTagsPickerModal({ open, fileIds, onClose }: BulkTagsPickerMo
               {filteredTags.map((tg) => (
                 <li key={tg.id}>
                   <label className="flex items-center gap-3 px-5 py-2 hover:bg-bambu-dark-tertiary/30 cursor-pointer">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={selected.has(tg.id)}
                       onChange={() => toggleTag(tg.id)}
-                      className="accent-bambu-green"
                     />
                     <span className="text-sm text-white truncate flex-1">{tg.name}</span>
                     <span className="text-xs text-bambu-gray">{tg.file_count}</span>
@@ -215,7 +210,7 @@ export function BulkTagsPickerModal({ open, fileIds, onClose }: BulkTagsPickerMo
 
         {action === 'add' && (
           <div className="px-5 py-3 border-t border-bambu-dark-tertiary flex gap-2">
-            <input
+            <TextField
               type="text"
               value={newTagName}
               onChange={(e) => setNewTagName(e.target.value)}

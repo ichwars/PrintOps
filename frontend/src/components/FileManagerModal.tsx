@@ -31,6 +31,7 @@ import { GcodeViewer } from './GcodeViewer';
 import type { PlateMetadata } from '../types/plates';
 import { useToast } from '../contexts/ToastContext';
 import { formatFileSize } from '../utils/file';
+import { LegacySelect, TextField } from './ui';
 
 interface FileManagerModalProps {
   printerId: number;
@@ -486,7 +487,7 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
           <div className="flex-1" />
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
-            <input
+            <TextField
               type="text"
               placeholder={t('printerFiles.filterPlaceholder')}
               value={searchQuery}
@@ -496,7 +497,7 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
           </div>
           <div className="relative flex items-center gap-1">
             <ArrowUpDown className="w-4 h-4 text-bambu-gray" />
-            <select
+            <LegacySelect
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortOption)}
               className="appearance-none bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm py-1.5 pl-2 pr-6 focus:border-bambu-green focus:outline-none cursor-pointer"
@@ -508,7 +509,7 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
                   {option.label}
                 </option>
               ))}
-            </select>
+            </LegacySelect>
           </div>
           <Button
             variant="secondary"

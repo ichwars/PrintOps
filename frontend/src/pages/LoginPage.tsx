@@ -8,6 +8,7 @@ import { X, Mail, Shield, Smartphone, Key } from 'lucide-react';
 import { api, type LoginResponse, type OIDCProvider, type TokenPersistence } from '../api/client';
 import { Card, CardHeader, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
+import { Checkbox, TextField } from '../components/ui';
 
 type LoginStep = 'credentials' | '2fa' | 'reset-password';
 
@@ -462,7 +463,7 @@ export function LoginPage() {
               <label htmlFor="new-password" className="block text-sm font-medium text-white mb-2">
                 {t('login.resetPassword.newPassword')}
               </label>
-              <input
+              <TextField
                 id="new-password"
                 type="password"
                 required
@@ -480,7 +481,7 @@ export function LoginPage() {
               <label htmlFor="confirm-password" className="block text-sm font-medium text-white mb-2">
                 {t('login.resetPassword.confirmPassword')}
               </label>
-              <input
+              <TextField
                 id="confirm-password"
                 type="password"
                 required
@@ -629,7 +630,7 @@ export function LoginPage() {
                   ? t('login.twoFA.backupCodeLabel')
                   : t('login.twoFA.codeLabel')}
               </label>
-              <input
+              <TextField
                 ref={twoFAInputRef}
                 id="twofa-code"
                 type="text"
@@ -722,7 +723,7 @@ export function LoginPage() {
                   ? t('login.usernameOrEmail')
                   : t('login.username')}
               </label>
-              <input
+              <TextField
                 id="username"
                 type="text"
                 required
@@ -740,7 +741,7 @@ export function LoginPage() {
               <label htmlFor="password" className="block text-sm font-medium text-white mb-2">
                 {t('login.password') || 'Password'}
               </label>
-              <input
+              <TextField
                 id="password"
                 type="password"
                 required
@@ -754,12 +755,10 @@ export function LoginPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <input
+            <Checkbox
               id="remember-me"
-              type="checkbox"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              className="h-4 w-4 rounded border-bambu-dark-tertiary bg-bambu-dark-secondary text-bambu-green focus:ring-bambu-green/50 cursor-pointer"
             />
             <label htmlFor="remember-me" className="text-sm text-bambu-gray cursor-pointer">
               {t('login.rememberMe')}
@@ -853,7 +852,7 @@ export function LoginPage() {
                     <label htmlFor="forgot-email" className="block text-sm font-medium text-white mb-2">
                       {t('login.emailAddress')}
                     </label>
-                    <input
+                    <TextField
                       id="forgot-email"
                       type="email"
                       required

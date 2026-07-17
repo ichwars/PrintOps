@@ -36,7 +36,7 @@ import type {
 } from '../api/client';
 import { Card, CardContent, CardHeader } from './Card';
 import { Button } from './Button';
-import { Checkbox, LegacySelect, NumberField, TextField } from './ui';
+import { Checkbox, LegacySelect, NumberField, TextField , FileInput, TimeField} from './ui';
 import { Toggle } from './Toggle';
 import { ConfirmModal } from './ConfirmModal';
 import { useToast } from '../contexts/ToastContext';
@@ -1055,9 +1055,8 @@ export function GitHubBackupSettings() {
                   {t('backup.restoreNote')}
                 </p>
               </div>
-              <input
+              <FileInput
                 ref={fileInputRef}
-                type="file"
                 accept=".zip"
                 className="hidden"
                 onChange={(e) => {
@@ -1175,8 +1174,7 @@ export function GitHubBackupSettings() {
                   {(localBackupStatus?.schedule ?? 'daily') !== 'hourly' && (
                     <div>
                       <label className="block text-sm text-bambu-gray mb-1">{t('backup.backupTime')}</label>
-                      <TextField
-                        type="time"
+                      <TimeField
                         value={localBackupStatus?.time ?? '03:00'}
                         className="w-full h-10 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none [color-scheme:dark]"
                         onChange={async (e) => {

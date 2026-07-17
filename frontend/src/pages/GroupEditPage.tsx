@@ -8,6 +8,7 @@ import type { Permission, PermissionCategory } from '../api/client';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { useToast } from '../contexts/ToastContext';
+import { Checkbox, TextField } from '../components/ui';
 
 export function GroupEditPage() {
   const { id } = useParams<{ id: string }>();
@@ -186,7 +187,7 @@ export function GroupEditPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-white mb-2">{t('groups.form.groupName')}</label>
-          <input
+          <TextField
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -197,7 +198,7 @@ export function GroupEditPage() {
         </div>
         <div>
           <label className="block text-sm font-medium text-white mb-2">{t('groups.form.description')}</label>
-          <input
+          <TextField
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -222,7 +223,7 @@ export function GroupEditPage() {
         </div>
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-bambu-gray" />
-          <input
+          <TextField
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -278,11 +279,9 @@ export function GroupEditPage() {
                       key={perm.value}
                       className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-secondary cursor-pointer"
                     >
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={permissions.includes(perm.value)}
                         onChange={() => togglePermission(perm.value)}
-                        className="w-4 h-4 shrink-0 rounded border-bambu-gray text-bambu-green focus:ring-bambu-green focus:ring-offset-0 bg-bambu-dark-secondary"
                       />
                       <span className="flex flex-col">
                         <span className="text-sm text-bambu-gray">{perm.label}</span>

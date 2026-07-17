@@ -20,6 +20,7 @@ import { Card, CardContent } from './Card';
 import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
+import { FileInput, TextField } from './ui';
 
 // Known material types for name-parsing fallback
 const MATERIAL_TYPES = ['PLA', 'PETG', 'PCTG', 'ABS', 'ASA', 'TPU', 'PC', 'PA', 'PVA', 'HIPS', 'PP', 'PET', 'NYLON'];
@@ -359,8 +360,7 @@ export function LocalProfilesView() {
               : 'border-bambu-dark-tertiary hover:border-bambu-gray'
           }`}
         >
-          <input
-            type="file"
+          <FileInput
             accept=".json,.zip,.orca_filament,.bbscfg,.bbsflmt"
             multiple
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -385,7 +385,7 @@ export function LocalProfilesView() {
       {hasAnyPresets && (
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
-          <input
+          <TextField
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}

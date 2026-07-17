@@ -10,6 +10,7 @@ import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { OrcaCloudProfilesView } from './OrcaCloudProfilesView';
+import { TextArea, TextField } from './ui';
 
 /**
  * Orca Cloud profile sync tab.
@@ -416,7 +417,7 @@ function PasteCard({
           <label htmlFor="orca-callback-url" className="block text-sm text-bambu-gray mb-2">
             {t('profiles.orcaCloud.paste.label')}
           </label>
-          <textarea
+          <TextArea
             id="orca-callback-url"
             value={pastedUrl}
             onChange={(e) => setPastedUrl(e.target.value)}
@@ -473,7 +474,7 @@ function PasswordCard({
             <label htmlFor="orca-password-email" className="block text-sm text-bambu-gray mb-1">
               {t('profiles.orcaCloud.password.email')}
             </label>
-            <input
+            <TextField
               id="orca-password-email"
               type="email"
               value={passwordEmail}
@@ -488,7 +489,7 @@ function PasswordCard({
             <label htmlFor="orca-password-value" className="block text-sm text-bambu-gray mb-1">
               {t('profiles.orcaCloud.password.password')}
             </label>
-            <input
+            <TextField
               id="orca-password-value"
               type="password"
               value={passwordValue}

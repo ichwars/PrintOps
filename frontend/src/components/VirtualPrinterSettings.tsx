@@ -2,7 +2,7 @@ import { LegacySelect, TextField } from './ui';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Check, AlertTriangle, Printer, Eye, EyeOff, Info, ChevronDown, ExternalLink, ArrowRightLeft } from 'lucide-react';
+import { Loader2, Check, AlertTriangle, Printer, Eye, EyeOff, Info, ExternalLink, ArrowRightLeft } from 'lucide-react';
 import { api, virtualPrinterApi } from '../api/client';
 import { Card, CardContent, CardHeader } from './Card';
 import { Button } from './Button';
@@ -256,7 +256,6 @@ export function VirtualPrinterSettings() {
                   </option>
                 ))}
               </LegacySelect>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
             </div>
             {localEnabled && isRunning && (
               <p className="text-xs text-bambu-gray mt-2">
@@ -356,7 +355,6 @@ export function VirtualPrinterSettings() {
                     </option>
                   ))}
                 </LegacySelect>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
               </div>
               <p className="text-xs text-bambu-gray mt-2">
                 {t('virtualPrinter.targetPrinter.hint')}
@@ -401,7 +399,6 @@ export function VirtualPrinterSettings() {
                     </option>
                   ))}
                 </LegacySelect>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
               </div>
               <p className="text-xs text-bambu-gray mt-2">
                 {t('virtualPrinter.remoteInterface.hint')}

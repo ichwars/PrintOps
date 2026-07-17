@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { render } from '../utils';
+import { openComboboxOptions, render } from '../utils';
 import { QueuePage } from '../../pages/QueuePage';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
@@ -267,17 +267,15 @@ describe('QueuePage', () => {
 
   describe('filtering', () => {
     it('has printer filter options', async () => {
-      const user = userEvent.setup();
       render(<QueuePage />);
 
       await waitFor(() => {
         expect(screen.getByText('All Printers')).toBeInTheDocument();
       });
 
-      const printerSelect = screen.getByDisplayValue('All Printers');
-      await user.click(printerSelect);
-
-      expect(screen.getByText('Unassigned')).toBeInTheDocument();
+      const printerSelect = screen.getByRole('combobox', { name: 'All Printers' });
+      const options = openComboboxOptions(printerSelect);
+      expect(options.some((option) => option.textContent === 'Unassigned')).toBe(true);
     });
 
     it('has status filter options', async () => {
@@ -288,7 +286,7 @@ describe('QueuePage', () => {
         expect(screen.getByText('All Status')).toBeInTheDocument();
       });
 
-      const statusSelect = screen.getByDisplayValue('All Status');
+      const statusSelect = screen.getByRole('combobox', { name: 'All Status' });
       await user.click(statusSelect);
 
       expect(screen.getByRole('option', { name: 'Pending' })).toBeInTheDocument();

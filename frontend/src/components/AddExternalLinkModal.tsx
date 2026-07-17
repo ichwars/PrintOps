@@ -6,6 +6,7 @@ import { api } from '../api/client';
 import type { ExternalLink, ExternalLinkCreate, ExternalLinkUpdate } from '../api/client';
 import { Button } from './Button';
 import { IconPicker, getIconByName } from './IconPicker';
+import { FileInput, TextField } from './ui';
 interface AddExternalLinkModalProps {
   link?: ExternalLink | null;
   onClose: () => void;
@@ -195,7 +196,7 @@ export function AddExternalLinkModal({ link, onClose }: AddExternalLinkModalProp
           {/* Name */}
           <div>
             <label className="block text-sm text-bambu-gray mb-1">Name *</label>
-            <input
+            <TextField
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -208,7 +209,7 @@ export function AddExternalLinkModal({ link, onClose }: AddExternalLinkModalProp
           {/* URL */}
           <div>
             <label className="block text-sm text-bambu-gray mb-1">URL *</label>
-            <input
+            <TextField
               type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -243,9 +244,8 @@ export function AddExternalLinkModal({ link, onClose }: AddExternalLinkModalProp
             <div className="p-3 rounded-lg bg-bambu-dark border border-bambu-dark-tertiary">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-white">Custom Icon</span>
-                <input
+                <FileInput
                   ref={fileInputRef}
-                  type="file"
                   accept="image/png,image/jpeg,image/gif,image/svg+xml,image/webp,image/x-icon"
                   className="hidden"
                   onChange={handleFileSelect}

@@ -1,4 +1,3 @@
-import { Check, ChevronDown } from 'lucide-react';
 import {
   Fragment,
   useEffect,
@@ -12,6 +11,22 @@ import {
 import { FloatingLayer } from './FloatingLayer';
 import { FormField } from './FormField';
 import { controlClass } from './TextField';
+
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+      <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+      <path d="m5 12 4 4L19 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export type SelectValue = string | number;
 
@@ -215,6 +230,7 @@ export function Select<T extends SelectValue>({
             aria-describedby={describedBy}
             aria-invalid={invalid || undefined}
             aria-required={required || undefined}
+            data-value={String(value)}
             disabled={disabled}
             className={`${controlClass} flex items-center justify-between gap-2 text-left ${controlClassName}`}
             onClick={() => {
@@ -224,8 +240,7 @@ export function Select<T extends SelectValue>({
             onKeyDown={handleKeyDown}
           >
             <span className="min-w-0 flex-1 truncate">{displayedValue}</span>
-            <ChevronDown
-              aria-hidden="true"
+            <ChevronDownIcon
               className={`h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
             />
           </button>
@@ -270,7 +285,7 @@ export function Select<T extends SelectValue>({
                       onClick={() => selectIndex(index)}
                     >
                       <span>{option.label}</span>
-                      {selected ? <Check aria-hidden="true" className="h-4 w-4 text-bambu-green" /> : null}
+                      {selected ? <CheckIcon className="h-4 w-4 text-bambu-green" /> : null}
                     </div>
                   </Fragment>
                 );

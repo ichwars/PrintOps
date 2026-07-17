@@ -2,7 +2,7 @@ import { LegacySelect, TextField } from './ui';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, ChevronDown, ArrowRightLeft } from 'lucide-react';
+import { Loader2, ArrowRightLeft } from 'lucide-react';
 import { api, multiVirtualPrinterApi } from '../api/client';
 import { Card, CardContent } from './Card';
 import { Button } from './Button';
@@ -123,7 +123,6 @@ export function VirtualPrinterAddDialog({ onClose }: VirtualPrinterAddDialogProp
                     <option key={p.id} value={p.id}>{p.name} ({p.ip_address})</option>
                   ))}
                 </LegacySelect>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
               </div>
             </div>
           )}

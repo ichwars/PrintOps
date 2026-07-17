@@ -43,6 +43,7 @@ import { getCurrencySymbol } from '../utils/currency';
 import { formatWeight } from '../utils/weight';
 import { parseUTCDate, formatDuration } from '../utils/date';
 import { MetricToggle, type Metric } from '../components/MetricToggle';
+import { LegacyDatePicker } from '../components/ui';
 
 // Timeframe types and helpers
 type TimeframePreset = 'today' | 'this-week' | 'this-month' | 'last-7' | 'last-30' | 'last-90' | 'this-year' | 'all-time' | 'custom';
@@ -1360,8 +1361,7 @@ export function StatsPage() {
                     <div className="mt-2 px-1 pb-1 space-y-2">
                       <div>
                         <label className="text-xs text-bambu-gray block mb-1">{t('stats.timeframe.from')}</label>
-                        <input
-                          type="date"
+                        <LegacyDatePicker
                           value={timeframe.dateFrom || ''}
                           max={timeframe.dateTo || new Date().toISOString().split('T')[0]}
                           onChange={(e) => setTimeframe(prev => ({ ...prev, dateFrom: e.target.value || undefined }))}
@@ -1370,8 +1370,7 @@ export function StatsPage() {
                       </div>
                       <div>
                         <label className="text-xs text-bambu-gray block mb-1">{t('stats.timeframe.to')}</label>
-                        <input
-                          type="date"
+                        <LegacyDatePicker
                           value={timeframe.dateTo || ''}
                           min={timeframe.dateFrom}
                           max={new Date().toISOString().split('T')[0]}

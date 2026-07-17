@@ -91,6 +91,7 @@ import type { PlateMetadata } from '../types/plates';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { formatFileSize } from '../utils/file';
+import { Checkbox, FileInput, LegacyDatePicker, LegacySelect, TextField } from '../components/ui';
 
 type TFunction = (key: string, options?: Record<string, unknown>) => string;
 
@@ -1341,9 +1342,7 @@ function ArchiveCard({
           {/* #1343: opt-in checkbox — by default the archive is soft-deleted,
               so its filament / time / cost contribution stays in Quick Stats. */}
           <label className="flex items-start gap-2 cursor-pointer text-sm text-bambu-gray">
-            <input
-              type="checkbox"
-              className="mt-0.5 accent-red-500"
+            <Checkbox
               checked={deletePurgeStats}
               onChange={(e) => setDeletePurgeStats(e.target.checked)}
             />
@@ -1516,9 +1515,8 @@ function ArchiveCard({
       )}
 
       {/* Hidden file input for source 3MF upload */}
-      <input
+      <FileInput
         ref={source3mfInputRef}
-        type="file"
         accept=".3mf"
         className="hidden"
         onChange={(e) => {
@@ -1530,9 +1528,8 @@ function ArchiveCard({
         }}
       />
       {/* Hidden file input for F3D upload */}
-      <input
+      <FileInput
         ref={f3dInputRef}
-        type="file"
         accept=".f3d"
         className="hidden"
         onChange={(e) => {
@@ -1544,9 +1541,8 @@ function ArchiveCard({
         }}
       />
       {/* Hidden file input for timelapse upload */}
-      <input
+      <FileInput
         ref={timelapseInputRef}
-        type="file"
         accept=".mp4,.avi,.mkv"
         className="hidden"
         onChange={(e) => {
@@ -2367,9 +2363,7 @@ function ArchiveListRow({
           {/* #1343: opt-in checkbox — by default the archive is soft-deleted,
               so its filament / time / cost contribution stays in Quick Stats. */}
           <label className="flex items-start gap-2 cursor-pointer text-sm text-bambu-gray">
-            <input
-              type="checkbox"
-              className="mt-0.5 accent-red-500"
+            <Checkbox
               checked={deletePurgeStats}
               onChange={(e) => setDeletePurgeStats(e.target.checked)}
             />
@@ -2529,9 +2523,8 @@ function ArchiveListRow({
       )}
 
       {/* Hidden file input for source 3MF upload */}
-      <input
+      <FileInput
         ref={source3mfInputRef}
-        type="file"
         accept=".3mf"
         className="hidden"
         onChange={(e) => {
@@ -2543,9 +2536,8 @@ function ArchiveListRow({
         }}
       />
       {/* Hidden file input for F3D upload */}
-      <input
+      <FileInput
         ref={f3dInputRef}
-        type="file"
         accept=".f3d"
         className="hidden"
         onChange={(e) => {
@@ -2557,9 +2549,8 @@ function ArchiveListRow({
         }}
       />
       {/* Hidden file input for timelapse upload */}
-      <input
+      <FileInput
         ref={timelapseInputRef}
-        type="file"
         accept=".mp4,.avi,.mkv"
         className="hidden"
         onChange={(e) => {
@@ -3314,7 +3305,8 @@ export function ArchivesPage() {
                 {filteredArchives?.length || 0} of {archives?.length || 0} prints
               </p>
             </div>
-            <select
+            <LegacySelect
+              aria-label="Archive collection"
               className="mt-0.5 px-3 py-1.5 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray-light text-sm focus:border-bambu-green focus:outline-none"
               value={collection}
               onChange={(e) => setCollection(e.target.value as Collection)}
@@ -3324,7 +3316,7 @@ export function ArchivesPage() {
                   {c.label}
                 </option>
               ))}
-            </select>
+            </LegacySelect>
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -3481,7 +3473,7 @@ export function ArchivesPage() {
             {/* Search - full width on mobile */}
             <div className="w-full md:flex-1 relative md:min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
-              <input
+              <TextField
                 ref={searchInputRef}
                 type="text"
                 placeholder={t('archives.searchPlaceholder')}
@@ -3494,7 +3486,8 @@ export function ArchivesPage() {
             <div className="flex gap-2 md:gap-4 overflow-x-auto pb-1 md:pb-0 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap scrollbar-hide">
             <div className="flex items-center gap-2 flex-shrink-0">
               <Filter className="w-4 h-4 text-bambu-gray hidden md:block" />
-              <select
+              <LegacySelect
+                aria-label={t('archives.filterByPrinter')}
                 className="px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                 value={filterPrinter || ''}
                 onChange={(e) =>
@@ -3507,11 +3500,11 @@ export function ArchivesPage() {
                     {p.name}
                   </option>
                 ))}
-              </select>
+              </LegacySelect>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <Package className="w-4 h-4 text-bambu-gray hidden md:block" />
-              <select
+              <LegacySelect
                 className="px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                 value={filterMaterial || ''}
                 onChange={(e) =>
@@ -3524,11 +3517,11 @@ export function ArchivesPage() {
                     {m}
                   </option>
                 ))}
-              </select>
+              </LegacySelect>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <FileCode className="w-4 h-4 text-bambu-gray hidden md:block" />
-              <select
+              <LegacySelect
                 className="px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                 value={filterFileType}
                 onChange={(e) => setFilterFileType(e.target.value as 'all' | 'gcode' | 'source')}
@@ -3536,7 +3529,7 @@ export function ArchivesPage() {
                 <option value="all">All Files</option>
                 <option value="gcode">Sliced (GCODE)</option>
                 <option value="source">Source Only</option>
-              </select>
+              </LegacySelect>
             </div>
             <button
               onClick={() => setFilterFavorites(!filterFavorites)}
@@ -3577,7 +3570,7 @@ export function ArchivesPage() {
             {uniqueTags.length > 0 && (
               <div className="flex items-center gap-2 flex-shrink-0">
                 <Tag className="w-4 h-4 text-bambu-gray hidden md:block" />
-                <select
+                <LegacySelect
                   className="px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                   value={filterTag || ''}
                   onChange={(e) => setFilterTag(e.target.value || null)}
@@ -3588,7 +3581,7 @@ export function ArchivesPage() {
                       {t}
                     </option>
                   ))}
-                </select>
+                </LegacySelect>
                 <button
                   onClick={() => setShowTagManagement(true)}
                   className="p-2 rounded-lg bg-bambu-dark border border-bambu-dark-tertiary text-bambu-gray hover:text-white hover:border-bambu-green transition-colors"
@@ -3600,7 +3593,7 @@ export function ArchivesPage() {
             )}
             <div className="flex items-center gap-2 flex-shrink-0">
               <ArrowUpDown className="w-4 h-4 text-bambu-gray hidden md:block" />
-              <select
+              <LegacySelect
                 className="px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
@@ -3611,7 +3604,7 @@ export function ArchivesPage() {
                 <option value="name-desc">{t('archives.sortName')} Z-A</option>
                 <option value="size-desc">{t('archives.sortLargest')}</option>
                 <option value="size-asc">{t('archives.sortSmallest')}</option>
-              </select>
+              </LegacySelect>
             </div>
             </div>
             {hasTopFilters && (
@@ -3785,7 +3778,7 @@ export function ArchivesPage() {
                 {/* Search */}
                 <div className="flex-1 relative md:min-w-[200px]">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
-                  <input
+                  <TextField
                     type="text"
                     placeholder={t('archives.searchPlaceholder')}
                     className="w-full pl-10 pr-4 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none text-sm"
@@ -3794,7 +3787,7 @@ export function ArchivesPage() {
                   />
                 </div>
                 {/* Printer filter */}
-                <select
+                <LegacySelect
                   className="px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none text-sm"
                   value={filterPrinter || ''}
                   onChange={(e) => { setFilterPrinter(e.target.value ? Number(e.target.value) : null); setLogOffset(0); }}
@@ -3803,9 +3796,9 @@ export function ArchivesPage() {
                   {printers?.map((p) => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
-                </select>
+                </LegacySelect>
                 {/* User filter */}
-                <select
+                <LegacySelect
                   className="px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none text-sm"
                   value={logFilterUser || ''}
                   onChange={(e) => { setLogFilterUser(e.target.value || null); setLogOffset(0); }}
@@ -3814,9 +3807,9 @@ export function ArchivesPage() {
                   {users?.map((u) => (
                     <option key={u.id} value={u.username}>{u.username}</option>
                   ))}
-                </select>
+                </LegacySelect>
                 {/* Status filter */}
-                <select
+                <LegacySelect
                   className="px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none text-sm"
                   value={logFilterStatus || ''}
                   onChange={(e) => { setLogFilterStatus(e.target.value || null); setLogOffset(0); }}
@@ -3827,12 +3820,11 @@ export function ArchivesPage() {
                   <option value="stopped">{t('archives.status.stopped')}</option>
                   <option value="cancelled">{t('archives.log.cancelled')}</option>
                   <option value="skipped">{t('archives.log.skipped')}</option>
-                </select>
+                </LegacySelect>
                 {/* Date range */}
                 <div className="flex items-center gap-2">
                   <label className="text-sm text-bambu-gray">{t('archives.log.dateFrom')}</label>
-                  <input
-                    type="date"
+                  <LegacyDatePicker
                     className="px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none text-sm"
                     value={logFilterDateFrom}
                     onChange={(e) => { setLogFilterDateFrom(e.target.value); setLogOffset(0); }}
@@ -3840,8 +3832,7 @@ export function ArchivesPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="text-sm text-bambu-gray">{t('archives.log.dateTo')}</label>
-                  <input
-                    type="date"
+                  <LegacyDatePicker
                     className="px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none text-sm"
                     value={logFilterDateTo}
                     onChange={(e) => { setLogFilterDateTo(e.target.value); setLogOffset(0); }}
@@ -4007,7 +3998,7 @@ export function ArchivesPage() {
                     </span>
                     <div className="flex items-center gap-1.5">
                       <label className="text-xs text-bambu-gray">{t('archives.log.rowsPerPage')}</label>
-                      <select
+                      <LegacySelect
                         className="px-2 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-xs focus:border-bambu-green focus:outline-none"
                         value={logPageSize}
                         onChange={(e) => { setLogPageSize(Number(e.target.value)); setLogOffset(0); }}
@@ -4016,7 +4007,7 @@ export function ArchivesPage() {
                         <option value={25}>25</option>
                         <option value={50}>50</option>
                         <option value={100}>100</option>
-                      </select>
+                      </LegacySelect>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -4158,7 +4149,7 @@ export function ArchivesPage() {
                 <label className="block text-sm text-bambu-gray mb-1">
                   {t('editArchive.status')}
                 </label>
-                <select
+                <LegacySelect
                   value={editingLogStatus}
                   onChange={(e) => setEditingLogStatus(e.target.value)}
                   className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
@@ -4168,14 +4159,14 @@ export function ArchivesPage() {
                   <option value="stopped">{t('archives.log.statuses.stopped', { defaultValue: 'stopped' })}</option>
                   <option value="cancelled">{t('archives.log.statuses.cancelled', { defaultValue: 'cancelled' })}</option>
                   <option value="skipped">{t('archives.log.statuses.skipped', { defaultValue: 'skipped' })}</option>
-                </select>
+                </LegacySelect>
               </div>
 
               <div>
                 <label className="block text-sm text-bambu-gray mb-1">
                   {t('editArchive.failureReason')}
                 </label>
-                <select
+                <LegacySelect
                   value={editingLogFailureReason}
                   onChange={(e) => setEditingLogFailureReason(e.target.value)}
                   className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
@@ -4186,7 +4177,7 @@ export function ArchivesPage() {
                       {t(`editArchive.failureReasons.${key}`)}
                     </option>
                   ))}
-                </select>
+                </LegacySelect>
               </div>
             </div>
 
@@ -4254,7 +4245,7 @@ function ArchivePaginationBar({
       </span>
       <div className="flex items-center gap-2">
         <span className="text-bambu-gray">{t('archives.pagination.show')}</span>
-        <select
+        <LegacySelect
           value={pageSize}
           onChange={(e) => onPageSizeChange(Number(e.target.value))}
           className="px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:outline-none focus:border-bambu-green"
@@ -4263,7 +4254,7 @@ function ArchivePaginationBar({
             <option key={n} value={n}>{n}</option>
           ))}
           <option value={-1}>{t('archives.pagination.all')}</option>
-        </select>
+        </LegacySelect>
         {!isShowAll && (
           <>
             <button

@@ -6,6 +6,7 @@ import { api, bugReportApi, type PrinterDiagnosticResult } from '../api/client';
 import { DiagnosticChecklist } from './ConnectionDiagnostic';
 import { SystemHealthPanel } from './SystemHealthPanel';
 import { Collapsible } from './Collapsible';
+import { FileInput, TextArea, TextField } from './ui';
 
 type ViewState = 'form' | 'logging' | 'stopping' | 'submitting' | 'success' | 'error';
 
@@ -336,7 +337,7 @@ export function BugReportBubble() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       {t('bugReport.description')} *
                     </label>
-                    <textarea
+                    <TextArea
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       placeholder={t('bugReport.descriptionPlaceholder')}
@@ -350,7 +351,7 @@ export function BugReportBubble() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       {t('bugReport.email')}
                     </label>
-                    <input
+                    <TextField
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -399,9 +400,8 @@ export function BugReportBubble() {
                         <span className="text-sm">{t('bugReport.uploadOrPaste')}</span>
                       </button>
                     )}
-                    <input
+                    <FileInput
                       ref={fileInputRef}
-                      type="file"
                       accept="image/*"
                       className="hidden"
                       onChange={(e) => {

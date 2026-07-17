@@ -7,6 +7,7 @@ import type { BulkUploadResult } from '../api/client';
 import { Card, CardContent } from './Card';
 import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
+import { FileInput } from './ui';
 
 interface FileWithStatus {
   file: File;
@@ -185,9 +186,8 @@ export function UploadModal({ onClose, initialFiles }: UploadModalProps) {
               >
                 {t('uploadModal.browseFiles')}
               </Button>
-              <input
+              <FileInput
                 ref={fileInputRef}
-                type="file"
                 accept=".3mf"
                 multiple
                 className="hidden"

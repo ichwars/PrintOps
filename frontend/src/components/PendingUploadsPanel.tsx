@@ -9,6 +9,7 @@ import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
 import { ConfirmModal } from './ConfirmModal';
 import { formatFileSize } from '../utils/file';
+import { LegacySelect, TextArea, TextField } from './ui';
 
 function formatTimeAgo(dateStr: string): string {
   const date = new Date(dateStr);
@@ -128,7 +129,7 @@ function PendingUploadItem({
           <div className="mt-4 pt-4 border-t border-bambu-dark-tertiary space-y-3">
             <div>
               <label className="block text-sm text-bambu-gray mb-1">Tags</label>
-              <input
+              <TextField
                 type="text"
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
@@ -138,7 +139,7 @@ function PendingUploadItem({
             </div>
             <div>
               <label className="block text-sm text-bambu-gray mb-1">Notes</label>
-              <textarea
+              <TextArea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Add notes about this print..."
@@ -148,7 +149,7 @@ function PendingUploadItem({
             </div>
             <div>
               <label className="block text-sm text-bambu-gray mb-1">Project</label>
-              <select
+              <LegacySelect
                 value={projectId || ''}
                 onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : null)}
                 className="w-full bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-md px-3 py-2 text-white text-sm"
@@ -159,7 +160,7 @@ function PendingUploadItem({
                     {project.name}
                   </option>
                 ))}
-              </select>
+              </LegacySelect>
             </div>
           </div>
         )}

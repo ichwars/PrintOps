@@ -5,7 +5,7 @@ import { X, Save, Loader2, Send, CheckCircle, XCircle } from 'lucide-react';
 import { api } from '../api/client';
 import type { NotificationProvider, NotificationProviderCreate, NotificationProviderUpdate, ProviderType } from '../api/client';
 import { Button } from './Button';
-import { LegacySelect, NumberField, TextField } from './ui';
+import { LegacySelect, NumberField, TextField , TimeField} from './ui';
 import { Toggle } from './Toggle';
 
 interface AddNotificationModalProps {
@@ -452,8 +452,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-bambu-gray mb-1">{t('notifications.quietStart')}</label>
-                  <TextField
-                    type="time"
+                  <TimeField
                     value={quietHoursStart}
                     onChange={(e) => setQuietHoursStart(e.target.value)}
                     className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -461,8 +460,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                 </div>
                 <div>
                   <label className="block text-xs text-bambu-gray mb-1">{t('notifications.quietEnd')}</label>
-                  <TextField
-                    type="time"
+                  <TimeField
                     value={quietHoursEnd}
                     onChange={(e) => setQuietHoursEnd(e.target.value)}
                     className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -487,8 +485,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
             {dailyDigestEnabled && (
               <div>
                 <label className="block text-xs text-bambu-gray mb-1">{t('notifications.sendDigestAt')}</label>
-                <TextField
-                  type="time"
+                <TimeField
                   value={dailyDigestTime}
                   onChange={(e) => setDailyDigestTime(e.target.value)}
                   className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"

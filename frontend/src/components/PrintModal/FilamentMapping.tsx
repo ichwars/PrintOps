@@ -8,6 +8,7 @@ import { getGlobalTrayId, effectivePreferLowest } from '../../utils/amsHelpers';
 import { getColorName } from '../../utils/colors';
 import { useFilamentLabels } from './useFilamentLabels';
 import type { FilamentMappingProps } from './types';
+import { Checkbox, LegacySelect } from '../ui';
 
 /**
  * Filament mapping UI for comparing required filaments with loaded AMS slots.
@@ -257,7 +258,7 @@ export function FilamentMapping({
                 {/* Arrow */}
                 <span className="text-bambu-gray">→</span>
                 {/* Slot selector dropdown */}
-                <select
+                <LegacySelect
                   value={item.loaded?.globalTrayId ?? ''}
                   onChange={(e) => handleSlotChange(slotId, e.target.value)}
                   className={`flex-1 px-2 py-1 rounded border text-xs bg-bambu-dark-secondary focus:outline-none focus:ring-1 focus:ring-bambu-green ${
@@ -309,7 +310,7 @@ export function FilamentMapping({
                         </option>
                       );
                   })}
-                </select>
+                </LegacySelect>
                 {/* Status icon */}
                 {item.status === 'match' ? (
                   <Check className="w-3 h-3 text-bambu-green" />
@@ -326,11 +327,9 @@ export function FilamentMapping({
               {/* Force Color Match checkbox — matches FilamentOverride's layout. */}
               {canForceMatch && (
                 <label className="inline-flex items-center gap-1.5 text-xs text-bambu-gray cursor-pointer select-none pl-5">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={forceColorMatch?.[slotId] ?? false}
                     onChange={(e) => onForceColorMatchChange(slotId, e.target.checked)}
-                    className="accent-bambu-green w-3 h-3"
                   />
                   <Palette className="w-3 h-3" />
                   {t('printModal.forceColorMatch')}

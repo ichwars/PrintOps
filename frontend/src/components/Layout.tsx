@@ -28,6 +28,7 @@ import {
   saveSidebarOrder,
   SIDEBAR_LAYOUT_CHANGED_EVENT,
 } from '../utils/sidebarLayout';
+import { TextField } from './ui';
 
 
 interface NavItem {
@@ -1224,7 +1225,7 @@ export function Layout() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <input
+                <TextField
                   type="text"
                   name="username"
                   autoComplete="username"
@@ -1238,7 +1239,7 @@ export function Layout() {
                   <label className="block text-sm font-medium text-white mb-2">
                     {t('changePassword.currentPassword')}
                   </label>
-                  <input
+                  <TextField
                     type="password"
                     value={changePasswordData.currentPassword}
                     onChange={(e) => setChangePasswordData({ ...changePasswordData, currentPassword: e.target.value })}
@@ -1251,7 +1252,7 @@ export function Layout() {
                   <label className="block text-sm font-medium text-white mb-2">
                     {t('changePassword.newPassword')}
                   </label>
-                  <input
+                  <TextField
                     type="password"
                     value={changePasswordData.newPassword}
                     onChange={(e) => setChangePasswordData({ ...changePasswordData, newPassword: e.target.value })}
@@ -1265,7 +1266,7 @@ export function Layout() {
                   <label className="block text-sm font-medium text-white mb-2">
                     {t('changePassword.confirmPassword')}
                   </label>
-                  <input
+                  <TextField
                     type="password"
                     value={changePasswordData.confirmPassword}
                     onChange={(e) => setChangePasswordData({ ...changePasswordData, confirmPassword: e.target.value })}

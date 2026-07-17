@@ -23,6 +23,7 @@ import {
 import type { PrinterSelectorProps, AssignmentMode } from './types';
 import type { PrinterMappingResult, PerPrinterConfig } from '../../hooks/useMultiPrinterFilamentMapping';
 import type { FilamentRequirement, LoadedFilament } from '../../hooks/useFilamentMapping';
+import { Checkbox, LegacySelect } from '../ui';
 
 interface PrinterSelectorWithMappingProps extends PrinterSelectorProps {
   /** Per-printer mapping results (only used when multiple printers selected) */
@@ -164,7 +165,7 @@ function InlineMappingEditor({
             {req.type} <span className="text-bambu-gray">({req.used_grams}g)</span>
           </span>
           <span className="text-bambu-gray">→</span>
-          <select
+          <LegacySelect
             value={loaded?.globalTrayId ?? ''}
             onChange={(e) => handleSlotChange(req.slot_id || 0, e.target.value)}
             className={`flex-1 px-2 py-1 rounded border text-xs bg-bambu-dark-secondary focus:outline-none focus:ring-1 focus:ring-bambu-green ${
@@ -185,7 +186,7 @@ function InlineMappingEditor({
                 {f.label}: {f.traySubBrands || f.type} ({f.colorName})
               </option>
             ))}
-          </select>
+          </LegacySelect>
           {status === 'match' ? (
             <Check className="w-3 h-3 text-bambu-green" />
           ) : status === 'type_only' ? (
@@ -434,7 +435,7 @@ export function PrinterSelector({
           {!slicedForModel && (
             <div>
               <label className="block text-xs text-bambu-gray mb-1">Target Model</label>
-              <select
+              <LegacySelect
                 value={targetModel || ''}
                 onChange={(e) => {
                   onTargetModelChange!(e.target.value || null);
@@ -451,7 +452,7 @@ export function PrinterSelector({
                     {model}
                   </option>
                 ))}
-              </select>
+              </LegacySelect>
             </div>
           )}
 
@@ -459,7 +460,7 @@ export function PrinterSelector({
           {targetModel && uniqueLocations.length > 0 && onTargetLocationChange && (
             <div>
               <label className="block text-xs text-bambu-gray mb-1">Location Filter (optional)</label>
-              <select
+              <LegacySelect
                 value={targetLocation || ''}
                 onChange={(e) => onTargetLocationChange(e.target.value || null)}
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none text-sm"
@@ -470,7 +471,7 @@ export function PrinterSelector({
                     {location}
                   </option>
                 ))}
-              </select>
+              </LegacySelect>
             </div>
           )}
 
@@ -592,11 +593,9 @@ export function PrinterSelector({
                     className="flex items-center gap-2 cursor-pointer"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <input
-                      type="checkbox"
-                      checked={hasOverride}
+                    <Checkbox
+                      checked={Boolean(hasOverride)}
                       onChange={(e) => handleOverrideToggle(printer.id, e.target.checked, e as unknown as React.MouseEvent)}
-                      className="w-3.5 h-3.5 rounded border-bambu-gray/30 bg-bambu-dark-secondary text-bambu-green focus:ring-bambu-green focus:ring-offset-0"
                     />
                     <span className="text-xs text-bambu-gray">Custom mapping</span>
                   </label>

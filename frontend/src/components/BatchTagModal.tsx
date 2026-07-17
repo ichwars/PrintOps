@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import { Card, CardContent } from './Card';
 import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
+import { TextField } from './ui';
 
 interface BatchTagModalProps {
   selectedIds: number[];
@@ -140,7 +141,7 @@ export function BatchTagModal({ selectedIds, existingTags, onClose }: BatchTagMo
             {/* New tag input (only for add mode) */}
             {mode === 'add' && (
               <div className="flex gap-2">
-                <input
+                <TextField
                   type="text"
                   placeholder="Enter new tag..."
                   className="flex-1 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:border-bambu-green focus:outline-none"

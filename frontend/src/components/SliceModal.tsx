@@ -31,6 +31,7 @@ import {
   pickProcessDefault,
   type Slot,
 } from '../utils/slicePresetPicker';
+import { Checkbox, LegacySelect, TextField } from './ui';
 
 export type SliceSource =
   | { kind: 'libraryFile'; id: number; filename: string }
@@ -595,7 +596,7 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
                 <span className="text-xs font-medium text-bambu-gray flex items-center gap-1">
                   <Cog className="w-3.5 h-3.5" /> {t('slice.pipelines.label', 'Pipeline')}
                 </span>
-                <select
+                <LegacySelect
                   value=""
                   disabled={isEnqueuing || (pipelinesQuery.data?.pipelines.length ?? 0) === 0}
                   onChange={(e) => {
@@ -637,7 +638,7 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
                       {p.name}
                     </option>
                   ))}
-                </select>
+                </LegacySelect>
                 {!savePipelineOpen ? (
                   <button
                     type="button"
@@ -659,7 +660,7 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
                   </button>
                 ) : (
                   <div className="flex items-center gap-1 flex-1 min-w-[16ch]">
-                    <input
+                    <TextField
                       autoFocus
                       value={pipelineDraftName}
                       onChange={(e) => setPipelineDraftName(e.target.value)}
@@ -808,12 +809,10 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
               className="flex items-center gap-2 mr-auto text-sm text-bambu-gray cursor-pointer select-none"
               title={t('slice.actionAllTitle', { count: totalPlateCount })}
             >
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={sliceAllPlates}
                 onChange={(e) => setSliceAllPlates(e.target.checked)}
                 disabled={isEnqueuing}
-                className="cursor-pointer"
               />
               {t('slice.allPlatesToggle', { count: totalPlateCount })}
             </label>
@@ -943,7 +942,8 @@ function BedTypeDropdown({
       <span className="block text-xs text-bambu-gray mb-1">
         {t('slice.bedType.label')}
       </span>
-      <select
+      <LegacySelect
+        aria-label={t('slice.bedType.label')}
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
         disabled={disabled}
@@ -955,7 +955,7 @@ function BedTypeDropdown({
             {t(opt.labelKey, opt.fallback)}
           </option>
         ))}
-      </select>
+      </LegacySelect>
     </label>
   );
 }
@@ -1050,7 +1050,8 @@ function PresetDropdown({
         )}
         <span>{label}</span>
       </span>
-      <select
+      <LegacySelect
+        aria-label={label}
         value={toRefValue(value)}
         onChange={(e) => onChange(fromRefValue(e.target.value))}
         disabled={disabled || totalEntries === 0}
@@ -1079,7 +1080,7 @@ function PresetDropdown({
             ))}
           </optgroup>
         )}
-      </select>
+      </LegacySelect>
     </label>
   );
 }

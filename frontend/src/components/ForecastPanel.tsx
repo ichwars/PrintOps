@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { NumberField } from './ui';
+import { NumberField , LegacySelect, TextField} from './ui';
 import {
   AlertTriangle, TrendingDown, ShoppingCart, Check, BellOff,
   ChevronDown, ChevronUp, Info, Edit2, X, Lock,
@@ -412,7 +412,7 @@ export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
         )}
 
         {/* Material filter */}
-        <select
+        <LegacySelect
           value={materialFilter}
           onChange={(e) => setMaterialFilter(e.target.value)}
           className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none ${
@@ -423,10 +423,10 @@ export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
         >
           <option value="">{t('inventory.material')}</option>
           {uniqueMaterials.map((m) => <option key={m} value={m}>{m}</option>)}
-        </select>
+        </LegacySelect>
 
         {/* Brand filter */}
-        <select
+        <LegacySelect
           value={brandFilter}
           onChange={(e) => setBrandFilter(e.target.value)}
           className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none ${
@@ -437,7 +437,7 @@ export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
         >
           <option value="">{t('inventory.brand')}</option>
           {uniqueBrands.map((b) => <option key={b} value={b}>{b}</option>)}
-        </select>
+        </LegacySelect>
 
         {/* Shopping list toggle */}
         <button
@@ -1878,7 +1878,7 @@ function AddToCartModal({
 
           <div className="space-y-1.5">
             <label className="text-xs text-bambu-gray">{t('forecast.noteOptional')}</label>
-            <input
+            <TextField
               type="text" maxLength={200}
               value={note} onChange={(e) => setNote(e.target.value)}
               placeholder={t('forecast.notePlaceholder')}

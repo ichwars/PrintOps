@@ -19,7 +19,7 @@ import {
 } from '../../lib/orderMasterDataValidation';
 import { normalizeOrderTags } from '../../lib/orderTagNormalization';
 import { Button } from '../Button';
-import { NumberField } from '../ui';
+import { NumberField , Checkbox, LegacySelect, TextArea, TextField} from '../ui';
 import { useModalFocusLifecycle } from '../../hooks/useModalFocusLifecycle';
 
 interface Props {
@@ -351,21 +351,21 @@ export function CustomerEditorModal({ customer, profiles, selectedProfileId, isS
             </div>
             {errors.kind && <span role="alert" className="block text-xs text-red-300">{errors.kind}</span>}
             <div className="grid gap-3 md:grid-cols-2">
-              <Field label={t('orders.customerEditor.displayName')} error={errors.display_name}><input ref={initialFocusRef} aria-label={t('orders.customerEditor.displayName')} value={draft.display_name} onChange={(e) => setDraft({ ...draft, display_name: e.target.value })} className={inputClass} /></Field>
-              {draft.kind === 'company' && <Field label={t('orders.customerEditor.companyName')} error={errors.company_name}><input aria-label={t('orders.customerEditor.companyName')} value={draft.company_name ?? ''} onChange={(e) => setDraft({ ...draft, company_name: e.target.value })} className={inputClass} /></Field>}
-              <Field label={t('orders.customerEditor.firstName')} error={errors.first_name}><input aria-label={t('orders.customerEditor.firstName')} value={draft.first_name ?? ''} onChange={(e) => setDraft({ ...draft, first_name: e.target.value })} className={inputClass} /></Field>
-              <Field label={t('orders.customerEditor.lastName')} error={errors.last_name}><input aria-label={t('orders.customerEditor.lastName')} value={draft.last_name ?? ''} onChange={(e) => setDraft({ ...draft, last_name: e.target.value })} className={inputClass} /></Field>
+              <Field label={t('orders.customerEditor.displayName')} error={errors.display_name}><TextField ref={initialFocusRef} aria-label={t('orders.customerEditor.displayName')} value={draft.display_name} onChange={(e) => setDraft({ ...draft, display_name: e.target.value })} className={inputClass} /></Field>
+              {draft.kind === 'company' && <Field label={t('orders.customerEditor.companyName')} error={errors.company_name}><TextField aria-label={t('orders.customerEditor.companyName')} value={draft.company_name ?? ''} onChange={(e) => setDraft({ ...draft, company_name: e.target.value })} className={inputClass} /></Field>}
+              <Field label={t('orders.customerEditor.firstName')} error={errors.first_name}><TextField aria-label={t('orders.customerEditor.firstName')} value={draft.first_name ?? ''} onChange={(e) => setDraft({ ...draft, first_name: e.target.value })} className={inputClass} /></Field>
+              <Field label={t('orders.customerEditor.lastName')} error={errors.last_name}><TextField aria-label={t('orders.customerEditor.lastName')} value={draft.last_name ?? ''} onChange={(e) => setDraft({ ...draft, last_name: e.target.value })} className={inputClass} /></Field>
             </div>
           </Section>
 
           <Section title={t('orders.customerEditor.accounts')} action={<Add label={t('orders.customerEditor.addAccount')} onClick={() => { const profile = profiles.find((item) => item.id === selectedProfileId); setDraft({ ...draft, accounts: [...draft.accounts, withClientKey({ business_profile_id: selectedProfileId, number: null, preferred_currency: profile?.default_currency ?? 'EUR', payment_term_days: 14, delivery_terms: null, discount_percent: '0.00', is_active: true })] }); }} />}>
             {draft.accounts.map((account, index) => <Row key={account._clientKey} remove={draft.accounts.length > 1 ? () => setDraft({ ...draft, accounts: remove(draft.accounts, index) }) : undefined} removeLabel={t('orders.customerEditor.removeAccount', { number: index + 1 })}>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Field label={t('orders.customerEditor.accountProfile')} error={errors[`accounts.${index}.business_profile_id`]}><select aria-label={`${t('orders.customerEditor.accountProfile')} ${index + 1}`} value={account.business_profile_id} onChange={(e) => { const id = Number(e.target.value); const profile = profiles.find((item) => item.id === id); patchAccount(index, { business_profile_id: id, preferred_currency: profile?.default_currency ?? account.preferred_currency }); }} className={inputClass}>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select></Field>
-                <Field label={t('orders.customerEditor.customerNumber')} error={errors[`accounts.${index}.number`]}><input aria-label={`${t('orders.customerEditor.customerNumber')} ${index + 1}`} value={account.number ?? ''} onChange={(e) => patchAccount(index, { number: e.target.value })} className={inputClass} /></Field>
-                <Field label={t('orders.customerEditor.currency')} error={errors[`accounts.${index}.preferred_currency`]}><input aria-label={`${t('orders.customerEditor.currency')} ${index + 1}`} value={account.preferred_currency} onChange={(e) => patchAccount(index, { preferred_currency: e.target.value.toUpperCase() })} className={inputClass} /></Field>
+                <Field label={t('orders.customerEditor.accountProfile')} error={errors[`accounts.${index}.business_profile_id`]}><LegacySelect aria-label={`${t('orders.customerEditor.accountProfile')} ${index + 1}`} value={account.business_profile_id} onChange={(e) => { const id = Number(e.target.value); const profile = profiles.find((item) => item.id === id); patchAccount(index, { business_profile_id: id, preferred_currency: profile?.default_currency ?? account.preferred_currency }); }} className={inputClass}>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</LegacySelect></Field>
+                <Field label={t('orders.customerEditor.customerNumber')} error={errors[`accounts.${index}.number`]}><TextField aria-label={`${t('orders.customerEditor.customerNumber')} ${index + 1}`} value={account.number ?? ''} onChange={(e) => patchAccount(index, { number: e.target.value })} className={inputClass} /></Field>
+                <Field label={t('orders.customerEditor.currency')} error={errors[`accounts.${index}.preferred_currency`]}><TextField aria-label={`${t('orders.customerEditor.currency')} ${index + 1}`} value={account.preferred_currency} onChange={(e) => patchAccount(index, { preferred_currency: e.target.value.toUpperCase() })} className={inputClass} /></Field>
                 <Field label={t('orders.customerEditor.paymentDays')} error={errors[`accounts.${index}.payment_term_days`]}><NumberField  min="0" aria-label={`${t('orders.customerEditor.paymentDays')} ${index + 1}`} value={account.payment_term_days ?? 0} onChange={(e) => patchAccount(index, { payment_term_days: Number(e.target.value) })} className={inputClass} /></Field>
-                <Field label={t('orders.customerEditor.deliveryTerms')} error={errors[`accounts.${index}.delivery_terms`]}><input aria-label={`${t('orders.customerEditor.deliveryTerms')} ${index + 1}`} value={account.delivery_terms ?? ''} onChange={(e) => patchAccount(index, { delivery_terms: e.target.value })} className={inputClass} /></Field>
+                <Field label={t('orders.customerEditor.deliveryTerms')} error={errors[`accounts.${index}.delivery_terms`]}><TextField aria-label={`${t('orders.customerEditor.deliveryTerms')} ${index + 1}`} value={account.delivery_terms ?? ''} onChange={(e) => patchAccount(index, { delivery_terms: e.target.value })} className={inputClass} /></Field>
                 <Field label={t('orders.customerEditor.discount')} error={errors[`accounts.${index}.discount_percent`]}><NumberField  min="0" max="100" step="0.01" aria-label={`${t('orders.customerEditor.discount')} ${index + 1}`} value={account.discount_percent ?? '0.00'} onChange={(e) => patchAccount(index, { discount_percent: e.target.value })} className={inputClass} /></Field>
                 <Check label={`${t('orders.customerEditor.activeAccount')} ${index + 1}`} checked={account.is_active ?? true} onChange={(checked) => patchAccount(index, { is_active: checked })} error={errors[`accounts.${index}.is_active`]} />
               </div>
@@ -393,7 +393,7 @@ export function CustomerEditorModal({ customer, profiles, selectedProfileId, isS
           </div>}>
             {draft.addresses.map((address, index) => <Row key={address._clientKey} remove={() => setDraft({ ...draft, addresses: remove(draft.addresses, index) })} removeLabel={t('orders.customerEditor.removeAddress', { number: index + 1 })}>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Field label={t('orders.customerEditor.addressKindLabel')} error={errors[`addresses.${index}.kind`]}><select aria-label={`${t('orders.customerEditor.addressKindLabel')} ${index + 1}`} value={address.kind} onChange={(e) => patchAddress(index, { kind: e.target.value as CustomerAddress['kind'], is_default: false })} className={inputClass}>{(['billing', 'delivery', 'other'] as const).map((kind) => <option key={kind} value={kind}>{t(`orders.customerEditor.addressKind.${kind}`)}</option>)}</select></Field>
+                <Field label={t('orders.customerEditor.addressKindLabel')} error={errors[`addresses.${index}.kind`]}><LegacySelect aria-label={`${t('orders.customerEditor.addressKindLabel')} ${index + 1}`} value={address.kind} onChange={(e) => patchAddress(index, { kind: e.target.value as CustomerAddress['kind'], is_default: false })} className={inputClass}>{(['billing', 'delivery', 'other'] as const).map((kind) => <option key={kind} value={kind}>{t(`orders.customerEditor.addressKind.${kind}`)}</option>)}</LegacySelect></Field>
                 <Text path={`addresses.${index}.label`} label={t('orders.customerEditor.addressLabel')} number={index} value={address.label} onChange={(value) => patchAddress(index, { label: value })} errors={errors} />
                 <Text path={`addresses.${index}.additional`} label={t('orders.customerEditor.additional')} number={index} value={address.additional} onChange={(value) => patchAddress(index, { additional: value })} errors={errors} />
                 <Text path={`addresses.${index}.street`} label={t('orders.customerEditor.street')} number={index} value={address.street} onChange={(value) => patchAddress(index, { street: value })} errors={errors} />
@@ -413,18 +413,18 @@ export function CustomerEditorModal({ customer, profiles, selectedProfileId, isS
                 <Text path={`tax_identifiers.${index}.kind`} label={t('orders.customerEditor.taxKind')} number={index} value={tax.kind} onChange={(value) => patchTax(index, { kind: value })} errors={errors} />
                 <Text path={`tax_identifiers.${index}.value`} label={t('orders.customerEditor.taxValue')} number={index} value={tax.value} onChange={(value) => patchTax(index, { value })} errors={errors} />
                 <Text path={`tax_identifiers.${index}.country_code`} label={t('orders.customerEditor.taxCountry')} number={index} value={tax.country_code} onChange={(value) => patchTax(index, { country_code: value })} errors={errors} />
-                <Field label={t('orders.customerEditor.validationStatus')} error={errors[`tax_identifiers.${index}.validation_status`]}><select aria-label={`${t('orders.customerEditor.validationStatus')} ${index + 1}`} value={tax.validation_status ?? 'unchecked'} onChange={(e) => patchTax(index, { validation_status: e.target.value as CustomerTaxIdentifier['validation_status'] })} className={inputClass}>{taxValidationStatuses.map((status) => <option key={status} value={status}>{t(`orderMessages.taxValidationStatus.${status}`)}</option>)}</select></Field>
+                <Field label={t('orders.customerEditor.validationStatus')} error={errors[`tax_identifiers.${index}.validation_status`]}><LegacySelect aria-label={`${t('orders.customerEditor.validationStatus')} ${index + 1}`} value={tax.validation_status ?? 'unchecked'} onChange={(e) => patchTax(index, { validation_status: e.target.value as CustomerTaxIdentifier['validation_status'] })} className={inputClass}>{taxValidationStatuses.map((status) => <option key={status} value={status}>{t(`orderMessages.taxValidationStatus.${status}`)}</option>)}</LegacySelect></Field>
               </div>
             </Row>)}
           </Section>
 
           <Section title={t('orders.customerEditor.preferences')}>
             <div className="grid gap-3 sm:grid-cols-3">
-              <Field label={t('common.status')} error={errors.status}><select aria-label={t('common.status')} value={draft.status ?? 'active'} onChange={(e) => setDraft({ ...draft, status: e.target.value as Draft['status'] })} className={inputClass}>{(['active', 'inactive', 'blocked'] as const).map((status) => <option key={status} value={status}>{t(`orders.status.${status}`)}</option>)}</select></Field>
-              <Field label={t('orders.customerEditor.locale')} error={errors.preferred_locale}><input aria-label={t('orders.customerEditor.locale')} value={draft.preferred_locale ?? 'en'} onChange={(e) => setDraft({ ...draft, preferred_locale: e.target.value })} className={inputClass} /></Field>
-              <Field label={t('orders.customerEditor.tags')} error={errors.tags}><input aria-label={t('orders.customerEditor.tags')} value={tags} onChange={(e) => setTags(e.target.value)} className={inputClass} /></Field>
+              <Field label={t('common.status')} error={errors.status}><LegacySelect aria-label={t('common.status')} value={draft.status ?? 'active'} onChange={(e) => setDraft({ ...draft, status: e.target.value as Draft['status'] })} className={inputClass}>{(['active', 'inactive', 'blocked'] as const).map((status) => <option key={status} value={status}>{t(`orders.status.${status}`)}</option>)}</LegacySelect></Field>
+              <Field label={t('orders.customerEditor.locale')} error={errors.preferred_locale}><TextField aria-label={t('orders.customerEditor.locale')} value={draft.preferred_locale ?? 'en'} onChange={(e) => setDraft({ ...draft, preferred_locale: e.target.value })} className={inputClass} /></Field>
+              <Field label={t('orders.customerEditor.tags')} error={errors.tags}><TextField aria-label={t('orders.customerEditor.tags')} value={tags} onChange={(e) => setTags(e.target.value)} className={inputClass} /></Field>
             </div>
-            <Field label={t('orders.customerEditor.notes')} error={errors.notes}><textarea aria-label={t('orders.customerEditor.notes')} value={draft.notes ?? ''} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} rows={3} className={inputClass} /></Field>
+            <Field label={t('orders.customerEditor.notes')} error={errors.notes}><TextArea aria-label={t('orders.customerEditor.notes')} value={draft.notes ?? ''} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} rows={3} className={inputClass} /></Field>
           </Section>
           </fieldset>
         </div>
@@ -458,10 +458,10 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 function Text({ path, label, number, value, onChange, errors, type = 'text' }: { path: string; label: string; number: number; value: string | null | undefined; onChange: (value: string) => void; errors: FieldErrors; type?: string }) {
-  return <Field label={label} error={errors[path]}><input type={type} aria-label={`${label} ${number + 1}`} value={value ?? ''} onChange={(event) => onChange(event.target.value)} className={inputClass} /></Field>;
+  return <Field label={label} error={errors[path]}><TextField type={type} aria-label={`${label} ${number + 1}`} value={value ?? ''} onChange={(event) => onChange(event.target.value)} className={inputClass} /></Field>;
 }
 
 function Check({ label, checked, onChange, error }: { label: string; checked: boolean; onChange: (checked: boolean) => void; error?: string }) {
   const errorId = useId();
-  return <label className="flex min-h-10 items-center gap-2 text-sm text-bambu-gray-light"><input type="checkbox" aria-label={label} checked={checked} onChange={(event) => onChange(event.target.checked)} aria-describedby={error ? errorId : undefined} aria-invalid={error ? true : undefined} className="h-4 w-4 accent-bambu-green" />{label}{error && <span id={errorId} role="alert" className="text-xs text-red-300">{error}</span>}</label>;
+  return <label className="flex min-h-10 items-center gap-2 text-sm text-bambu-gray-light"><Checkbox aria-label={label} checked={checked} onChange={(event) => onChange(event.target.checked)} aria-describedby={error ? errorId : undefined} aria-invalid={error ? true : undefined} />{label}{error && <span id={errorId} role="alert" className="text-xs text-red-300">{error}</span>}</label>;
 }

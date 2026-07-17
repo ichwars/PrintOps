@@ -6,9 +6,9 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
+import { screen, cleanup, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { render } from '../utils';
+import { openComboboxOptions, render, selectComboboxOption } from '../utils';
 import { server } from '../mocks/server';
 import { FilamentOverride } from '../../components/PrintModal/FilamentOverride';
 import type { FilamentReqsData } from '../../components/PrintModal/types';
@@ -122,15 +122,13 @@ describe('FilamentOverride', () => {
         />
       );
 
-      const select = screen.getByRole('combobox');
-      const options = select.querySelectorAll('option');
+      const options = openComboboxOptions(screen.getByRole('combobox'));
 
       // 1 default "Original" option + 2 PLA options (not PETG)
       expect(options).toHaveLength(3);
 
       // Verify no PETG option values exist
-      const optionValues = Array.from(options).map((o) => o.getAttribute('value'));
-      expect(optionValues).not.toContain('PETG|#0000FF');
+      expect(options.some((option) => option.textContent?.includes('PETG'))).toBe(false);
     });
 
     it('shows all same-type options regardless of color', () => {
@@ -149,8 +147,7 @@ describe('FilamentOverride', () => {
         />
       );
 
-      const select = screen.getByRole('combobox');
-      const options = select.querySelectorAll('option');
+      const options = openComboboxOptions(screen.getByRole('combobox'));
 
       // 1 default "Original" option + 3 PLA color options
       expect(options).toHaveLength(4);
@@ -173,8 +170,7 @@ describe('FilamentOverride', () => {
         />
       );
 
-      const select = screen.getByRole('combobox');
-      const options = Array.from(select.querySelectorAll('option'));
+      const options = openComboboxOptions(screen.getByRole('combobox'));
       const optionTexts = options.map((o) => o.textContent);
 
       // Should show "PLA Basic" and "PLA Matte", not just "PLA"
@@ -196,11 +192,9 @@ describe('FilamentOverride', () => {
         />
       );
 
-      const select = screen.getByRole('combobox');
-      const options = Array.from(select.querySelectorAll('option'));
+      const options = openComboboxOptions(screen.getByRole('combobox'));
       // Non-default option should show "PLA" as the type fallback
-      const nonDefaultOptions = options.filter((o) => o.getAttribute('value') !== '');
-      expect(nonDefaultOptions[0].textContent).toContain('PLA');
+      expect(options[1]).toHaveTextContent('PLA');
     });
   });
 
@@ -226,15 +220,13 @@ describe('FilamentOverride', () => {
         />
       );
 
-      const select = screen.getByRole('combobox');
-      const options = select.querySelectorAll('option');
+      const options = openComboboxOptions(screen.getByRole('combobox'));
 
       // 1 default + 1 PLA with extruder_id=0 (extruder_id=1 is filtered out)
       expect(options).toHaveLength(2);
 
-      const optionValues = Array.from(options).map((o) => o.getAttribute('value'));
-      expect(optionValues).toContain('PLA|#FF0000');
-      expect(optionValues).not.toContain('PLA|#00FF00');
+      expect(options.some((option) => option.textContent?.includes('Red'))).toBe(true);
+      expect(options.some((option) => option.textContent?.includes('Green'))).toBe(false);
     });
 
     it('shows all filaments when nozzle_id is undefined', () => {
@@ -258,8 +250,7 @@ describe('FilamentOverride', () => {
         />
       );
 
-      const select = screen.getByRole('combobox');
-      const options = select.querySelectorAll('option');
+      const options = openComboboxOptions(screen.getByRole('combobox'));
 
       // 1 default + 2 PLA options (no nozzle filtering)
       expect(options).toHaveLength(3);
@@ -287,16 +278,14 @@ describe('FilamentOverride', () => {
         />
       );
 
-      const select = screen.getByRole('combobox');
-      const options = select.querySelectorAll('option');
+      const options = openComboboxOptions(screen.getByRole('combobox'));
 
       // 1 default + extruder_id=0 + extruder_id=null (extruder_id=1 filtered out)
       expect(options).toHaveLength(3);
 
-      const optionValues = Array.from(options).map((o) => o.getAttribute('value'));
-      expect(optionValues).toContain('PLA|#FF0000');
-      expect(optionValues).toContain('PLA|#00FF00');
-      expect(optionValues).not.toContain('PLA|#FFFFFF');
+      expect(options.some((option) => option.textContent?.includes('Red'))).toBe(true);
+      expect(options.some((option) => option.textContent?.includes('Green'))).toBe(true);
+      expect(options.some((option) => option.textContent?.includes('White'))).toBe(false);
     });
   });
 
@@ -311,8 +300,7 @@ describe('FilamentOverride', () => {
         />
       );
 
-      const select = screen.getByRole('combobox');
-      fireEvent.change(select, { target: { value: 'PLA|#00FF00' } });
+      selectComboboxOption(screen.getByRole('combobox'), /PLA Basic \(Green\)/);
 
       expect(mockOnChange).toHaveBeenCalledWith({
         1: { type: 'PLA', color: '#00FF00' },
@@ -333,8 +321,7 @@ describe('FilamentOverride', () => {
         />
       );
 
-      const select = screen.getByRole('combobox');
-      fireEvent.change(select, { target: { value: '' } });
+      selectComboboxOption(screen.getByRole('combobox'), /^Original:/);
 
       expect(mockOnChange).toHaveBeenCalledWith({});
     });
@@ -372,9 +359,7 @@ describe('FilamentOverride', () => {
       // color swatch carries the same text, so we scope to the option to
       // avoid the multi-match.
       await waitFor(() => {
-        const select = screen.getByRole('combobox');
-        const placeholder = select.querySelector('option[value=""]');
-        expect(placeholder?.textContent).toMatch(/Bambu PLA Matte/);
+        expect(screen.getByRole('combobox')).toHaveTextContent(/Bambu PLA Matte/);
       });
     });
 
@@ -406,9 +391,7 @@ describe('FilamentOverride', () => {
       );
 
       await waitFor(() => {
-        const select = screen.getByRole('combobox');
-        const placeholder = select.querySelector('option[value=""]');
-        expect(placeholder?.textContent).toMatch(/My House PLA/);
+        expect(screen.getByRole('combobox')).toHaveTextContent(/My House PLA/);
       });
       // The builtin fallback must NOT bleed through anywhere — neither the
       // placeholder option nor the tooltip.
@@ -453,9 +436,7 @@ describe('FilamentOverride', () => {
       );
 
       await waitFor(() => {
-        const select = screen.getByRole('combobox');
-        const placeholder = select.querySelector('option[value=""]');
-        expect(placeholder?.textContent).toMatch(/Bambu PLA Matte \(Charcoal\)/);
+        expect(screen.getByRole('combobox')).toHaveTextContent(/Bambu PLA Matte \(Charcoal\)/);
       });
     });
 
@@ -499,8 +480,8 @@ describe('FilamentOverride', () => {
       await waitFor(() => {
         const selects = screen.getAllByRole('combobox');
         expect(selects).toHaveLength(2);
-        expect(selects[0].querySelector('option[value=""]')?.textContent).toMatch(/Bambu PLA Matte \(Charcoal\)/);
-        expect(selects[1].querySelector('option[value=""]')?.textContent).toMatch(/Bambu PLA Basic \(Black\)/);
+        expect(selects[0]).toHaveTextContent(/Bambu PLA Matte \(Charcoal\)/);
+        expect(selects[1]).toHaveTextContent(/Bambu PLA Basic \(Black\)/);
       });
     });
 
@@ -536,10 +517,8 @@ describe('FilamentOverride', () => {
       // Wait for the builtin lookup to land so we know the row mounted; the
       // colour fallback to getColorName for #FF0000 produces "Red"-shaped text.
       await waitFor(() => {
-        const select = screen.getByRole('combobox');
-        const placeholder = select.querySelector('option[value=""]');
-        expect(placeholder?.textContent).toMatch(/Bambu PLA Matte/);
-        expect(placeholder?.textContent).not.toMatch(/null/);
+        expect(screen.getByRole('combobox')).toHaveTextContent(/Bambu PLA Matte/);
+        expect(screen.getByRole('combobox')).not.toHaveTextContent(/null/);
       });
     });
 
@@ -571,9 +550,7 @@ describe('FilamentOverride', () => {
       await waitFor(() => {
         expect(screen.getByText('(25g)')).toBeInTheDocument();
       });
-      const select = screen.getByRole('combobox');
-      const placeholder = select.querySelector('option[value=""]');
-      expect(placeholder?.textContent).toMatch(/PLA \(/);
+      expect(screen.getByRole('combobox')).toHaveTextContent(/PLA \(/);
     });
   });
 });

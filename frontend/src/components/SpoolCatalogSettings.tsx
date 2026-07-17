@@ -1,4 +1,4 @@
-import { Button, Checkbox, NumberField, TextField } from './ui';
+import { Button, Checkbox, NumberField, TextField , FileInput} from './ui';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Database, Plus, Trash2, RotateCcw, Loader2, Pencil, Check, X, Search, Download, Upload } from 'lucide-react';
@@ -237,7 +237,7 @@ export function SpoolCatalogSettings() {
             <Upload className="w-4 h-4" />
             <span className="hidden sm:inline">{t('common.import')}</span>
           </Button>
-          <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
+          <FileInput ref={fileInputRef} accept=".json" className="hidden" onChange={handleImport} />
           <Button variant="unstyled"
             onClick={() => setShowResetConfirm(true)}
             className="px-3 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray hover:text-white transition-colors flex items-center gap-1.5"

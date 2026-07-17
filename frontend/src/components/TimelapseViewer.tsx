@@ -3,6 +3,7 @@ import { X, Download, Film, Play, Pause, SkipBack, SkipForward, Pencil } from 'l
 import { Button } from './Button';
 import { TimelapseEditorModal } from './TimelapseEditorModal';
 import { formatMediaTime } from '../utils/date';
+import { Slider } from './ui';
 
 interface TimelapseViewerProps {
   src: string;
@@ -151,8 +152,7 @@ export function TimelapseViewer({
               <span className="text-xs text-bambu-gray w-12 text-right">
                 {formatMediaTime(currentTime)}
               </span>
-              <input
-                type="range"
+              <Slider
                 min={0}
                 max={duration || 100}
                 value={currentTime}

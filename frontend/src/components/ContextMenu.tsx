@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useLayoutEffect } from 'react';
 import { ChevronRight, Search } from 'lucide-react';
+import { TextField } from './ui';
 
 export interface ContextMenuItem {
   label: string;
@@ -65,7 +66,7 @@ function SubmenuPanel({
         <div className="sticky top-0 z-[1] px-2 py-1.5 bg-bambu-dark-secondary border-b border-bambu-dark-tertiary">
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-bambu-gray pointer-events-none" />
-            <input
+            <TextField
               ref={inputRef}
               type="text"
               value={query}

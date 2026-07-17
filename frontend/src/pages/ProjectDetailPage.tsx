@@ -3,7 +3,7 @@ import DOMPurify from 'dompurify';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { NumberField } from '../components/ui';
+import { NumberField , TextField} from '../components/ui';
 import {
   ArrowLeft,
   Edit3,
@@ -1028,7 +1028,7 @@ export function ProjectDetailPage() {
           {showBomForm && (
             <form onSubmit={handleAddBomItem} className="bg-bambu-dark rounded-lg p-4 mb-4 space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <input
+                <TextField
                   type="text"
                   value={newBomName}
                   onChange={(e) => setNewBomName(e.target.value)}
@@ -1053,14 +1053,14 @@ export function ProjectDetailPage() {
                   />
                 </div>
               </div>
-              <input
+              <TextField
                 type="url"
                 value={newBomUrl}
                 onChange={(e) => setNewBomUrl(e.target.value)}
                 className="w-full bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded px-3 py-2 text-sm text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green"
                 placeholder={t('projectDetail.bom.sourcingUrlPlaceholder')}
               />
-              <input
+              <TextField
                 type="text"
                 value={newBomRemarks}
                 onChange={(e) => setNewBomRemarks(e.target.value)}
@@ -1101,7 +1101,7 @@ export function ProjectDetailPage() {
                     // Edit form for this BOM item
                     <form onSubmit={handleSaveBomEdit} className="space-y-3">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <input
+                        <TextField
                           type="text"
                           value={editBomName}
                           onChange={(e) => setEditBomName(e.target.value)}
@@ -1126,14 +1126,14 @@ export function ProjectDetailPage() {
                           />
                         </div>
                       </div>
-                      <input
+                      <TextField
                         type="url"
                         value={editBomUrl}
                         onChange={(e) => setEditBomUrl(e.target.value)}
                         className="w-full bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded px-3 py-2 text-sm text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green"
                         placeholder={t('projectDetail.bom.sourcingUrlPlaceholder')}
                       />
-                      <input
+                      <TextField
                         type="text"
                         value={editBomRemarks}
                         onChange={(e) => setEditBomRemarks(e.target.value)}

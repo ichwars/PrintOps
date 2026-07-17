@@ -5,6 +5,7 @@ import { api, type SpoolLabelTemplate, type InventorySpool } from '../api/client
 import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
 import { getSwatchStyle } from '../utils/colors';
+import { Checkbox, TextField } from './ui';
 
 /** Subset of InventorySpool the modal needs for checkbox rendering. */
 type SpoolForLabel = Pick<
@@ -324,7 +325,7 @@ export function LabelTemplatePickerModal({
         <div className="p-4 space-y-2 border-b border-bambu-dark-tertiary">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
-            <input
+            <TextField
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -442,11 +443,9 @@ export function LabelTemplatePickerModal({
                       ) : (
                         <Square className="w-4 h-4 text-bambu-gray shrink-0" />
                       )}
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={checked}
                         onChange={() => toggleOne(s.id)}
-                        className="sr-only"
                       />
                       <span
                         className="w-4 h-4 rounded border border-black/20 shrink-0"
@@ -474,11 +473,9 @@ export function LabelTemplatePickerModal({
             ) : (
               <Square className="w-4 h-4 text-bambu-gray shrink-0" />
             )}
-            <input
-              type="checkbox"
+            <Checkbox
               checked={monochrome}
               onChange={(e) => setMonochrome(e.target.checked)}
-              className="sr-only"
             />
             <span className="text-sm text-white">
               {t('inventory.labels.monochrome', 'Monochrome (black & white printer)')}

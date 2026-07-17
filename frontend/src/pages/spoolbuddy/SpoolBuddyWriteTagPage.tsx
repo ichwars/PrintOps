@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../../contexts/ToastContext';
-import { NumberField } from '../../components/ui';
+import { NumberField , ColorInput, LegacySelect, TextField} from '../../components/ui';
 import type { SpoolBuddyOutletContext } from '../../components/spoolbuddy/SpoolBuddyLayout';
 import {
   api,
@@ -291,7 +291,7 @@ export function SpoolBuddyWriteTagPage() {
             <>
               {/* Search */}
               <div className="p-3 shrink-0">
-                <input
+                <TextField
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -810,7 +810,7 @@ function NewSpoolTouchForm({ currencySymbol, onCreated, selectedSpool, spoolmanM
           <div className="p-4 space-y-4 overflow-y-auto bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
             <div>
               <label className="block text-xs text-zinc-400 mb-1">{t('spoolbuddy.writeTag.material', 'Material')}</label>
-              <select
+              <LegacySelect
                 value={formData.material}
                 onChange={(e) => updateField('material', e.target.value)}
                 className="w-full px-3 py-2 bg-bambu-dark-tertiary border border-bambu-dark-tertiary rounded text-sm text-white focus:outline-none focus:border-bambu-green"
@@ -818,13 +818,13 @@ function NewSpoolTouchForm({ currencySymbol, onCreated, selectedSpool, spoolmanM
                 {SIMPLE_COMMON_MATERIALS.map((m) => (
                   <option key={m} value={m}>{m}</option>
                 ))}
-              </select>
+              </LegacySelect>
             </div>
 
             <div className="flex gap-3">
               <div className="flex-1">
                 <label className="block text-xs text-zinc-400 mb-1">{t('spoolbuddy.writeTag.colorName', 'Color Name')}</label>
-                <input
+                <TextField
                   type="text"
                   value={formData.color_name}
                   onChange={(e) => updateField('color_name', e.target.value)}
@@ -834,8 +834,7 @@ function NewSpoolTouchForm({ currencySymbol, onCreated, selectedSpool, spoolmanM
               </div>
               <div>
                 <label className="block text-xs text-zinc-400 mb-1">{t('spoolbuddy.writeTag.color', 'Color')}</label>
-                <input
-                  type="color"
+                <ColorInput
                   value={simpleColorHex}
                   onChange={(e) => updateField('rgba', e.target.value.replace('#', '').toUpperCase() + 'FF')}
                   className="w-10 h-9 bg-transparent border border-bambu-dark-tertiary rounded cursor-pointer"
@@ -845,7 +844,7 @@ function NewSpoolTouchForm({ currencySymbol, onCreated, selectedSpool, spoolmanM
 
             <div>
               <label className="block text-xs text-zinc-400 mb-1">{t('spoolbuddy.writeTag.brand', 'Brand')}</label>
-              <input
+              <TextField
                 type="text"
                 value={formData.brand}
                 onChange={(e) => updateField('brand', e.target.value)}

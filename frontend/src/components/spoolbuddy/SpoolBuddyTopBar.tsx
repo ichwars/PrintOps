@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { WifiOff } from 'lucide-react';
 import { api, type Printer } from '../../api/client';
 import { formatTimeOnly } from '../../utils/date';
+import { LegacySelect } from '../ui';
 
 interface SpoolBuddyTopBarProps {
   selectedPrinterId: number | null;
@@ -61,7 +62,7 @@ export function SpoolBuddyTopBar({ selectedPrinterId, onPrinterChange, deviceOnl
 
       {/* Printer selector - centered */}
       <div className="flex-1 flex justify-center">
-        <select
+        <LegacySelect
           value={selectedPrinterId ?? ''}
           onChange={(e) => onPrinterChange(Number(e.target.value))}
           className="bg-bambu-dark text-white text-base px-4 py-2 rounded border border-bambu-dark-tertiary focus:outline-none focus:border-bambu-green min-w-[180px]"
@@ -75,7 +76,7 @@ export function SpoolBuddyTopBar({ selectedPrinterId, onPrinterChange, deviceOnl
               </option>
             ))
           )}
-        </select>
+        </LegacySelect>
       </div>
 
       {/* Right side indicators */}

@@ -455,9 +455,9 @@ describe('ConfigureAmsSlotModal', () => {
     render(<ConfigureAmsSlotModal {...defaultProps} slotInfo={slotInfo} />);
 
     await waitFor(() => {
-      // Renders as an <option> on the K-profile select even though
-      // "my-custom-tune" doesn't contain "PLA" anywhere.
-      expect(screen.getByRole('option', { name: /my-custom-tune/ })).toBeInTheDocument();
+      expect(screen.getAllByRole('combobox').some(
+        (combobox) => combobox.textContent?.includes('my-custom-tune'),
+      )).toBe(true);
     });
   });
 
@@ -493,7 +493,9 @@ describe('ConfigureAmsSlotModal', () => {
     render(<ConfigureAmsSlotModal {...defaultProps} slotInfo={slotInfo} />);
 
     await waitFor(() => {
-      expect(screen.getByRole('option', { name: /unrelated-petg-tune/ })).toBeInTheDocument();
+      expect(screen.getAllByRole('combobox').some(
+        (combobox) => combobox.textContent?.includes('unrelated-petg-tune'),
+      )).toBe(true);
     });
   });
 
@@ -532,7 +534,9 @@ describe('ConfigureAmsSlotModal', () => {
     render(<ConfigureAmsSlotModal {...defaultProps} slotInfo={slotInfo} />);
 
     await waitFor(() => {
-      expect(screen.getByRole('option', { name: /active-on-unconfigured-slot/ })).toBeInTheDocument();
+      expect(screen.getAllByRole('combobox').some(
+        (combobox) => combobox.textContent?.includes('active-on-unconfigured-slot'),
+      )).toBe(true);
     });
   });
 

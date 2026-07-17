@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Scale } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { NumberField } from '../ui';
+import { NumberField , LegacySelect, TextArea, TextField} from '../ui';
 import { useToast } from '../../contexts/ToastContext';
 import type { AdditionalSectionProps } from './types';
 
@@ -106,7 +106,7 @@ function SpoolWeightPicker({
       </label>
       <div className="flex gap-2 items-center">
         <div className="flex-1 min-w-0 relative" ref={dropdownRef}>
-          <input
+          <TextField
             ref={inputRef}
             type="text"
             className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray/50 focus:outline-none focus:border-bambu-green"
@@ -316,7 +316,7 @@ export function AdditionalSection({
         <label className="block text-sm font-medium text-bambu-gray mb-1" htmlFor="spool-category">
           {t('inventory.category')}
         </label>
-        <input
+        <TextField
           id="spool-category"
           type="text"
           list="spool-category-options"
@@ -371,7 +371,7 @@ export function AdditionalSection({
       {/* Note */}
       <div>
         <label className="block text-sm font-medium text-bambu-gray mb-1">{t('inventory.note')}</label>
-        <textarea
+        <TextArea
           className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray/50 focus:outline-none focus:border-bambu-green resize-none min-h-[80px]"
           placeholder={t('inventory.notePlaceholder')}
           value={formData.note}
@@ -384,7 +384,7 @@ export function AdditionalSection({
         <label className="block text-sm font-medium text-bambu-gray mb-1" htmlFor="spool-storage-location">
           {t('inventory.storageLocation')}
         </label>
-        <select
+        <LegacySelect
           id="spool-storage-location"
           className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
           value={formData.location_id ?? ''}
@@ -402,10 +402,10 @@ export function AdditionalSection({
           {availableLocations.map((loc) => (
             <option key={loc.id} value={loc.id}>{loc.name}</option>
           ))}
-        </select>
+        </LegacySelect>
         {onCreateLocation && (
           <div className="mt-2 flex gap-2">
-            <input
+            <TextField
               type="text"
               maxLength={255}
               className="flex-1 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray/50 focus:outline-none focus:border-bambu-green"

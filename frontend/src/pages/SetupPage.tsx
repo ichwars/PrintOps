@@ -6,6 +6,7 @@ import { api } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Info } from 'lucide-react';
+import { Checkbox, TextField } from '../components/ui';
 
 export function SetupPage() {
   const navigate = useNavigate();
@@ -93,12 +94,10 @@ export function SetupPage() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div className="flex items-center p-4 bg-bambu-dark-secondary/50 rounded-lg border border-bambu-dark-tertiary">
-              <input
+              <Checkbox
                 id="auth-enabled"
-                type="checkbox"
                 checked={authEnabled}
                 onChange={(e) => setAuthEnabled(e.target.checked)}
-                className="h-4 w-4 text-bambu-green focus:ring-bambu-green border-bambu-dark-tertiary rounded bg-bambu-dark-secondary"
               />
               <label htmlFor="auth-enabled" className="ml-3 block text-sm font-medium text-white">
                 {t('setup.enableAuth')}
@@ -123,7 +122,7 @@ export function SetupPage() {
                   <label htmlFor="admin-username" className="block text-sm font-medium text-white mb-2">
                     {t('setup.adminUsername')} <span className="text-bambu-gray text-xs">{t('setup.optionalIfAdminExists')}</span>
                   </label>
-                  <input
+                  <TextField
                     id="admin-username"
                     type="text"
                     value={adminUsername}
@@ -138,7 +137,7 @@ export function SetupPage() {
                   <label htmlFor="admin-password" className="block text-sm font-medium text-white mb-2">
                     {t('setup.adminPassword')} <span className="text-bambu-gray text-xs">{t('setup.optionalIfAdminExists')}</span>
                   </label>
-                  <input
+                  <TextField
                     id="admin-password"
                     type="password"
                     value={adminPassword}
@@ -155,7 +154,7 @@ export function SetupPage() {
                     <label htmlFor="confirm-password" className="block text-sm font-medium text-white mb-2">
                       {t('setup.confirmPassword')}
                     </label>
-                    <input
+                    <TextField
                       id="confirm-password"
                       type="password"
                       value={confirmPassword}

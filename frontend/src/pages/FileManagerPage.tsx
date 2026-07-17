@@ -71,6 +71,7 @@ import { usePageFileDrop } from '../hooks/usePageFileDrop';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDuration, parseUTCDate } from '../utils/date';
 import { formatFileSize } from '../utils/file';
+import { Checkbox, LegacySelect, TextField } from '../components/ui';
 
 type SortField = 'name' | 'date' | 'size' | 'type' | 'prints';
 type SortDirection = 'asc' | 'desc';
@@ -104,7 +105,7 @@ function NewFolderModal({ parentId, onClose, onSave, isLoading, t }: NewFolderMo
             <label className="block text-sm font-medium text-white mb-1">
               {t('fileManager.folderName')}
             </label>
-            <input
+            <TextField
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -167,7 +168,7 @@ function ExternalFolderModal({ onClose, onSave, isLoading, t }: ExternalFolderMo
             <label className="block text-sm font-medium text-white mb-1">
               {t('fileManager.folderName')}
             </label>
-            <input
+            <TextField
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -181,7 +182,7 @@ function ExternalFolderModal({ onClose, onSave, isLoading, t }: ExternalFolderMo
             <label className="block text-sm font-medium text-white mb-1">
               {t('fileManager.externalPath')}
             </label>
-            <input
+            <TextField
               type="text"
               value={path}
               onChange={(e) => setPath(e.target.value)}
@@ -193,21 +194,17 @@ function ExternalFolderModal({ onClose, onSave, isLoading, t }: ExternalFolderMo
           </div>
           <div className="space-y-2">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={readonly}
                 onChange={(e) => setReadonly(e.target.checked)}
-                className="rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
               />
               <span className="text-sm text-white">{t('fileManager.readOnly')}</span>
               <span className="text-xs text-bambu-gray">({t('fileManager.readOnlyHelp')})</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={showHidden}
                 onChange={(e) => setShowHidden(e.target.checked)}
-                className="rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
               />
               <span className="text-sm text-white">{t('fileManager.showHiddenFiles')}</span>
             </label>
@@ -281,7 +278,7 @@ function RenameModal({ type, currentName, onClose, onSave, isLoading, t }: Renam
               {t('common.name')}
             </label>
             <div className={`flex items-center bg-bambu-dark border rounded focus-within:border-bambu-green ${filenameError ? 'border-red-500' : 'border-bambu-dark-tertiary'}`}>
-              <input
+              <TextField
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -1745,7 +1742,7 @@ export function FileManagerPage() {
       <div className="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 min-h-0">
         {/* Mobile folder selector */}
         <div className="lg:hidden">
-          <select
+          <LegacySelect
             value={selectedFolderId !== null ? String(selectedFolderId) : `__top:${topLevelView}`}
             onChange={(e) => {
               const v = e.target.value;
@@ -1780,7 +1777,7 @@ export function FileManagerPage() {
                 </option>
               ));
             })()}
-          </select>
+          </LegacySelect>
         </div>
 
         {/* Folder sidebar - resizable, hidden on mobile */}
@@ -1817,7 +1814,7 @@ export function FileManagerPage() {
               {/* Folder tree sort (#1770). Dropdown drives the comparator;
                   direction button flips asc/desc. Both persist to localStorage
                   on change so the choice survives reloads. */}
-              <select
+              <LegacySelect
                 value={folderSortField}
                 onChange={(e) => {
                   const v = e.target.value === 'activity' ? 'activity' : 'name';
@@ -1830,7 +1827,7 @@ export function FileManagerPage() {
               >
                 <option value="name">{t('fileManager.folderSortByName')}</option>
                 <option value="activity">{t('fileManager.folderSortByActivity')}</option>
-              </select>
+              </LegacySelect>
               <button
                 onClick={() => {
                   const newValue = folderSortDirection === 'asc' ? 'desc' : 'asc';
@@ -2021,7 +2018,7 @@ export function FileManagerPage() {
               {/* Search */}
               <div className="relative w-full sm:w-auto sm:flex-1 sm:max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
-                <input
+                <TextField
                   type="text"
                   placeholder={t('fileManager.searchFiles')}
                   value={searchQuery}
@@ -2041,7 +2038,7 @@ export function FileManagerPage() {
               {/* Type filter */}
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-bambu-gray hidden sm:block" />
-                <select
+                <LegacySelect
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value)}
                   className="bg-bambu-dark border border-bambu-dark-tertiary rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-bambu-green"
@@ -2052,13 +2049,13 @@ export function FileManagerPage() {
                       {type.toUpperCase()}
                     </option>
                   ))}
-                </select>
+                </LegacySelect>
               </div>
 
               {/* Username filter with autocomplete - only show when auth is enabled */}
               {authEnabled && (
                 <div className="relative">
-                  <input
+                  <TextField
                     type="text"
                     placeholder={t('fileManager.filterByUser', { defaultValue: 'Filter by user' })}
                     value={filterUsername}
@@ -2085,7 +2082,7 @@ export function FileManagerPage() {
 
               {/* Sort */}
               <div className="flex items-center gap-2">
-                <select
+                <LegacySelect
                   value={sortField}
                   onChange={(e) => {
                     const newField = e.target.value as SortField;
@@ -2099,7 +2096,7 @@ export function FileManagerPage() {
                   <option value="size">{t('fileManager.size')}</option>
                   <option value="type">{t('common.type')}</option>
                   <option value="prints">{t('fileManager.prints')}</option>
-                </select>
+                </LegacySelect>
                 <button
                   onClick={() => setSortDirection((d) => {
                     const newDir = d === 'asc' ? 'desc' : 'asc';

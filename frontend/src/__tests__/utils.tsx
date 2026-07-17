@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { render } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type { RenderOptions } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
@@ -76,3 +76,15 @@ export { createTestQueryClient };
  * Helper to wait for async operations.
  */
 export const waitForAsync = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+/** Select an option through the application's custom combobox UI. */
+export function selectComboboxOption(combobox: HTMLElement, optionName: string | RegExp) {
+  fireEvent.click(combobox);
+  fireEvent.click(screen.getByRole('option', { name: optionName }));
+}
+
+/** Open a custom combobox and return the options exposed to the user. */
+export function openComboboxOptions(combobox: HTMLElement) {
+  fireEvent.click(combobox);
+  return screen.getAllByRole('option');
+}

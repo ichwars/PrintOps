@@ -220,8 +220,7 @@ describe('FileManagerPage - External Folders', () => {
       await user.click(screen.getByText('Link External'));
 
       await waitFor(() => {
-        const readonlyCheckbox = screen.getByText('Read Only').previousElementSibling as HTMLInputElement;
-        expect(readonlyCheckbox).toBeChecked();
+        expect(screen.getByRole('checkbox', { name: /Read Only/i })).toBeChecked();
       });
     });
 

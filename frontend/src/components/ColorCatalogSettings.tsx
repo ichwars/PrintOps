@@ -1,4 +1,4 @@
-import { Button, LegacySelect, TextField, Checkbox } from './ui';
+import { Button, LegacySelect, TextField, Checkbox , ColorInput, FileInput} from './ui';
 import { Fragment, useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Palette, Plus, Trash2, RotateCcw, Loader2, Pencil, Check, X, Search, Download, Upload, Cloud } from 'lucide-react';
@@ -350,7 +350,7 @@ export function ColorCatalogSettings() {
             <Upload className="w-4 h-4" />
             <span className="hidden sm:inline">{t('common.import')}</span>
           </Button>
-          <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
+          <FileInput ref={fileInputRef} accept=".json" className="hidden" onChange={handleImport} />
           <Button variant="unstyled"
             onClick={handleSync}
             disabled={syncing}
@@ -451,8 +451,7 @@ export function ColorCatalogSettings() {
                 onChange={(e) => setFormColorName(e.target.value)}
               />
               <div className="flex items-center gap-2">
-                <input
-                  type="color"
+                <ColorInput
                   className="w-20 h-10 rounded cursor-pointer border border-bambu-dark-tertiary"
                   value={formHexColor}
                   onChange={(e) => setFormHexColor(e.target.value)}
@@ -567,8 +566,7 @@ export function ColorCatalogSettings() {
                             />
                           </td>
                           <td className="px-3 py-2">
-                            <input
-                              type="color"
+                            <ColorInput
                               className="w-8 h-8 rounded cursor-pointer border border-bambu-dark-tertiary"
                               value={formHexColor}
                               onChange={(e) => setFormHexColor(e.target.value)}

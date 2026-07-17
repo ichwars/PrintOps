@@ -52,6 +52,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { KProfilesView } from '../components/KProfilesView';
 import { LocalProfilesView } from '../components/LocalProfilesView';
 import { OrcaCloudView } from '../components/OrcaCloudView';
+import { FileInput, LegacySelect, TextArea, TextField } from '../components/ui';
 
 type TFunction = (key: string, options?: Record<string, unknown>) => string;
 type ProfileTab = 'cloud' | 'orca_cloud' | 'local' | 'kprofiles';
@@ -175,7 +176,7 @@ function LoginForm({ onSuccess, t }: { onSuccess: () => void; t: TFunction }) {
             <>
               <div>
                 <label className="block text-sm text-bambu-gray mb-1">{t('profiles.login.email')}</label>
-                <input
+                <TextField
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -186,7 +187,7 @@ function LoginForm({ onSuccess, t }: { onSuccess: () => void; t: TFunction }) {
               </div>
               <div>
                 <label className="block text-sm text-bambu-gray mb-1">{t('profiles.login.password')}</label>
-                <input
+                <TextField
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -197,14 +198,14 @@ function LoginForm({ onSuccess, t }: { onSuccess: () => void; t: TFunction }) {
               </div>
               <div>
                 <label className="block text-sm text-bambu-gray mb-1">{t('profiles.login.region')}</label>
-                <select
+                <LegacySelect
                   value={region}
                   onChange={(e) => setRegion(e.target.value)}
                   className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                 >
                   <option value="global">{t('profiles.login.regionGlobal')}</option>
                   <option value="china">{t('profiles.login.regionChina')}</option>
-                </select>
+                </LegacySelect>
               </div>
             </>
           )}
@@ -219,7 +220,7 @@ function LoginForm({ onSuccess, t }: { onSuccess: () => void; t: TFunction }) {
                   ? t('profiles.login.enterTotpHint')
                   : t('profiles.login.checkEmail', { email })}
               </p>
-              <input
+              <TextField
                 type="text"
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -236,7 +237,7 @@ function LoginForm({ onSuccess, t }: { onSuccess: () => void; t: TFunction }) {
               <div>
                 <label className="block text-sm text-bambu-gray mb-1">{t('profiles.login.accessToken')}</label>
                 <p className="text-xs text-bambu-gray mb-2">{t('profiles.login.accessTokenHint')}</p>
-                <textarea
+                <TextArea
                   value={token}
                   onChange={(e) => setToken(e.target.value)}
                   className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-xs font-mono placeholder-bambu-gray-dark focus:border-bambu-green focus:outline-none resize-none"
@@ -247,14 +248,14 @@ function LoginForm({ onSuccess, t }: { onSuccess: () => void; t: TFunction }) {
               </div>
               <div>
                 <label className="block text-sm text-bambu-gray mb-1">{t('profiles.login.region')}</label>
-                <select
+                <LegacySelect
                   value={region}
                   onChange={(e) => setRegion(e.target.value)}
                   className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                 >
                   <option value="global">{t('profiles.login.regionGlobal')}</option>
                   <option value="china">{t('profiles.login.regionChina')}</option>
-                </select>
+                </LegacySelect>
               </div>
             </>
           )}
@@ -879,7 +880,7 @@ function TemplatesModal({
                         className="p-4 bg-bambu-dark rounded-lg border border-bambu-green"
                       >
                         <div className="grid grid-cols-2 gap-3 mb-3">
-                          <input
+                          <TextField
                             type="text"
                             value={editName}
                             onChange={(e) => setEditName(e.target.value)}
@@ -887,7 +888,7 @@ function TemplatesModal({
                             className="px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
                             autoFocus
                           />
-                          <input
+                          <TextField
                             type="text"
                             value={editDesc}
                             onChange={(e) => setEditDesc(e.target.value)}
@@ -897,7 +898,7 @@ function TemplatesModal({
                         </div>
                         <div className="mb-3">
                           <label className="text-xs text-bambu-gray mb-1 block">{t('profiles.templates.settingsJson')}</label>
-                          <textarea
+                          <TextArea
                             value={editSettings}
                             onChange={(e) => {
                               setEditSettings(e.target.value);
@@ -1160,7 +1161,7 @@ function DiffModal({
             <div className="flex items-center gap-3">
               <div className="relative">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
-                <input
+                <TextField
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -1665,7 +1666,7 @@ function CreatePresetModal({
 
     if (field.type === 'select') {
       return (
-        <select
+        <LegacySelect
           value={(value as string) || ''}
           onChange={(e) => updateField(field.key, e.target.value)}
           className={baseClass}
@@ -1674,13 +1675,13 @@ function CreatePresetModal({
           {field.options?.map(opt => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
-        </select>
+        </LegacySelect>
       );
     }
 
     return (
       <div className="flex items-center gap-2">
-        <input
+        <TextField
           type={field.type === 'number' ? 'number' : 'text'}
           value={value !== undefined ? String(value) : ''}
           onChange={(e) => updateField(field.key, e.target.value)}
@@ -1764,7 +1765,7 @@ function CreatePresetModal({
             <div className="grid grid-cols-3 gap-4 max-[640px]:grid-cols-1">
               <div>
                 <label className="block text-sm text-bambu-gray mb-1">{t('common.type')}</label>
-                <select
+                <LegacySelect
                   value={presetType}
                   onChange={(e) => { setPresetType(e.target.value as 'filament' | 'print' | 'printer'); setBaseId(''); }}
                   className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -1772,11 +1773,11 @@ function CreatePresetModal({
                   <option value="filament">{t('profiles.presets.types.filament')}</option>
                   <option value="print">{t('profiles.presets.types.process')}</option>
                   <option value="printer">{t('profiles.presets.types.printer')}</option>
-                </select>
+                </LegacySelect>
               </div>
               <div>
                 <label className="block text-sm text-bambu-gray mb-1">{t('profiles.presets.basePreset')}</label>
-                <select
+                <LegacySelect
                   value={baseId}
                   onChange={(e) => setBaseId(e.target.value)}
                   className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:border-bambu-green focus:outline-none"
@@ -1785,11 +1786,11 @@ function CreatePresetModal({
                   {availableBasePresets.map((preset) => (
                     <option key={preset.setting_id} value={preset.setting_id}>{preset.name}</option>
                   ))}
-                </select>
+                </LegacySelect>
               </div>
               <div>
                 <label className="block text-sm text-bambu-gray mb-1">{t('profiles.presets.presetName')}</label>
-                <input
+                <TextField
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -1875,9 +1876,8 @@ function CreatePresetModal({
               <Upload className="w-4 h-4" />
               {t('common.upload')}
             </button>
-            <input
+            <FileInput
               id="file-import"
-              type="file"
               accept=".json"
               className="hidden"
               onChange={(e) => {
@@ -1925,7 +1925,7 @@ function CreatePresetModal({
                   {showSaveTemplate && (
                     <div className="mb-3 p-3 bg-bambu-dark rounded-lg border border-bambu-dark-tertiary">
                       <div className="grid grid-cols-2 gap-2 mb-2">
-                        <input
+                        <TextField
                           type="text"
                           value={newTemplateName}
                           onChange={(e) => setNewTemplateName(e.target.value)}
@@ -1933,7 +1933,7 @@ function CreatePresetModal({
                           className="px-3 py-1.5 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
                           autoFocus
                         />
-                        <input
+                        <TextField
                           type="text"
                           value={newTemplateDesc}
                           onChange={(e) => setNewTemplateDesc(e.target.value)}
@@ -2051,7 +2051,7 @@ function CreatePresetModal({
 
                   <div className="relative mb-3 flex-shrink-0">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
-                    <input
+                    <TextField
                       type="text"
                       value={fieldSearch}
                       onChange={(e) => setFieldSearch(e.target.value)}
@@ -2104,7 +2104,7 @@ function CreatePresetModal({
                   <div className="pt-3 mt-3 border-t border-bambu-dark-tertiary flex-shrink-0">
                     {showCustomFieldInput ? (
                       <div className="flex gap-2">
-                        <input
+                        <TextField
                           type="text"
                           value={customFieldKey}
                           onChange={(e) => setCustomFieldKey(e.target.value)}
@@ -2163,7 +2163,7 @@ function CreatePresetModal({
                             {fieldDef ? (
                               renderFieldInput(fieldDef)
                             ) : (
-                              <input
+                              <TextField
                                 type="text"
                                 value={String(value)}
                                 onChange={(e) => updateField(key, e.target.value)}
@@ -2207,7 +2207,7 @@ function CreatePresetModal({
                     {jsonError}
                   </div>
                 )}
-                <textarea
+                <TextArea
                   value={jsonText}
                   onChange={(e) => handleJsonChange(e.target.value)}
                   className={`w-full h-80 px-3 py-2 bg-bambu-dark border rounded-lg text-white text-xs font-mono focus:outline-none resize-none ${
@@ -2448,7 +2448,7 @@ function CloudProfilesView({
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
-            <input
+            <TextField
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

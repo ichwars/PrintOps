@@ -514,7 +514,6 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                       <option key={code} value={code}>{name} ({code})</option>
                     ))}
                   </LegacySelect>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
                 </div>
               </div>
             )}
@@ -632,7 +631,6 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                     <option key={p.id} value={p.id}>{p.name} ({p.ip_address})</option>
                   ))}
                 </LegacySelect>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
               </div>
             </div>
 
@@ -657,7 +655,6 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                     </option>
                   ))}
                 </LegacySelect>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
               </div>
               <p className="text-xs text-bambu-gray mt-1">{t('virtualPrinter.bindIp.hint')}</p>
             </div>
@@ -686,7 +683,6 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                     </option>
                   ))}
                 </LegacySelect>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
               </div>
             </div>
           </CardContent>

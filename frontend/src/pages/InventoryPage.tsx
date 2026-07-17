@@ -34,6 +34,7 @@ import {
   invalidateSpoolAndLocationQueries,
 } from '../utils/inventoryQueries';
 import { aggregateGroupSpool } from '../utils/inventoryGrouping';
+import { Checkbox, LegacySelect, TextField } from '../components/ui';
 
 type ArchiveFilter = 'active' | 'archived';
 type UsageFilter = 'all' | 'used' | 'new' | 'lowstock';
@@ -1448,7 +1449,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                   className="flex items-center gap-2"
                 >
                   <span className="text-xs text-bambu-gray">{'<'}</span>
-                  <input
+                  <TextField
                     type="text"
                     inputMode="decimal"
                     pattern="^\d{0,2}(\.\d?)?$"
@@ -1494,7 +1495,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className={`relative flex-1 max-w-md ${viewMode === 'forecast' ? 'invisible pointer-events-none' : ''}`}>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray/50" />
-          <input
+          <TextField
             type="text"
             value={search}
             onChange={(e) => { setSearch(e.target.value); resetPage(); }}
@@ -1692,7 +1693,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
         <div className="w-px h-5 bg-bambu-dark-tertiary" />
 
         {/* Material dropdown chip */}
-        <select
+        <LegacySelect
           value={materialFilter}
           onChange={(e) => { setMaterialFilter(e.target.value); resetPage(); }}
           className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none ${
@@ -1705,10 +1706,10 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
           {uniqueMaterials.map((m) => (
             <option key={m} value={m}>{m}</option>
           ))}
-        </select>
+        </LegacySelect>
 
         {/* Brand dropdown chip */}
-        <select
+        <LegacySelect
           value={brandFilter}
           onChange={(e) => { setBrandFilter(e.target.value); resetPage(); }}
           className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none ${
@@ -1721,12 +1722,12 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
           {uniqueBrands.map((b) => (
             <option key={b} value={b}>{b}</option>
           ))}
-        </select>
+        </LegacySelect>
 
         {/* Category dropdown chip (#729) — only render once at least one
             spool carries a category, otherwise it's noise. */}
         {(uniqueCategories.length > 0 || categoryFilter) && (
-          <select
+          <LegacySelect
             value={categoryFilter}
             onChange={(e) => { setCategoryFilter(e.target.value); resetPage(); }}
             className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none ${
@@ -1742,12 +1743,12 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
             {hasUncategorized && (
               <option value="__none__">{t('inventory.categoryNone')}</option>
             )}
-          </select>
+          </LegacySelect>
         )}
 
         {/* Spool name dropdown chip */}
         {uniqueSpoolCatalogIds.length > 0 && (
-          <select
+          <LegacySelect
             value={spoolFilter}
             onChange={(e) => { setSpoolFilter(e.target.value); resetPage(); }}
             className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none ${
@@ -1760,14 +1761,14 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
             {uniqueSpoolCatalogIds.map((id) => (
               <option key={id} value={id}>{catalogMap[id]?.name || `#${id}`}</option>
             ))}
-          </select>
+          </LegacySelect>
         )}
 
         {/* Storage location dropdown chip (#1400) — only render when at
             least one spool carries a storage location, otherwise it's noise
             (matches the category chip pattern). */}
         {(storageLocations.length > 0 || storageLocationFilter) && (
-          <select
+          <LegacySelect
             value={storageLocationFilter}
             onChange={(e) => { setStorageLocationFilter(e.target.value); }}
             className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none ${
@@ -1783,7 +1784,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
             {hasUnsetStorageLocation && (
               <option value="__none__">{t('inventory.storageLocationNone')}</option>
             )}
-          </select>
+          </LegacySelect>
         )}
 
         {/* Clear filters */}
@@ -1985,9 +1986,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                 <thead>
                   <tr className="border-b border-bambu-dark-tertiary bg-bambu-dark-tertiary/30">
                     <th className="w-10 px-3 py-3">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 cursor-pointer"
+                      <Checkbox
                         aria-label={t('inventory.bulk.selectAllVisible')}
                         checked={pagedItems.length > 0 && pagedItems.every((item) => {
                           const ids = item.type === 'group' ? item.spools.map((s) => s.id) : [item.spool.id];
@@ -2131,7 +2130,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
 
               <div className="flex items-center gap-2">
                 <span className="text-bambu-gray">{t('inventory.show')}</span>
-                <select
+                <LegacySelect
                   value={pageSize}
                   onChange={(e) => handlePageSizeChange(Number(e.target.value))}
                   className="px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:outline-none focus:border-bambu-green"
@@ -2140,7 +2139,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                     <option key={n} value={n}>{n}</option>
                   ))}
                   <option value={-1}>{t('inventory.all')}</option>
-                </select>
+                </LegacySelect>
 
                 {!showAll && (
                   <>
@@ -2358,7 +2357,7 @@ function PaginationBar({
       </span>
       <div className="flex items-center gap-2">
         <span className="text-bambu-gray">{t('inventory.show')}</span>
-        <select
+        <LegacySelect
           value={pageSize}
           onChange={(e) => onPageSizeChange(Number(e.target.value))}
           className="px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:outline-none focus:border-bambu-green"
@@ -2367,7 +2366,7 @@ function PaginationBar({
             <option key={n} value={n}>{n}</option>
           ))}
           <option value={-1}>{t('inventory.all')}</option>
-        </select>
+        </LegacySelect>
         {!isShowAll && (
           <>
             <button
@@ -2548,9 +2547,7 @@ function SpoolTableRow({
     >
       <td className="w-10 px-3 py-3" onClick={(e) => e.stopPropagation()}>
         {onToggleSelected && (
-          <input
-            type="checkbox"
-            className="h-4 w-4 cursor-pointer"
+          <Checkbox
             aria-label={t('inventory.bulk.selectRow')}
             checked={!!isSelected}
             onChange={onToggleSelected}
@@ -2646,9 +2643,7 @@ function SpoolTableGroup({
       >
         <td className="w-10 px-3 py-3" onClick={(e) => e.stopPropagation()}>
           {onToggleGroupSelected && (
-            <input
-              type="checkbox"
-              className="h-4 w-4 cursor-pointer"
+            <Checkbox
               aria-label={t('inventory.bulk.selectGroup')}
               checked={allMembersSelected}
               onChange={(e) => onToggleGroupSelected(spools.map((s) => s.id), e.target.checked)}

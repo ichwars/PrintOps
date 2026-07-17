@@ -71,6 +71,11 @@ export function LegacySelect({
 }: LegacySelectProps) {
   const options = collectOptions(children);
 
+  const emitChange = (nextValue: string) => {
+    const target = { value: nextValue } as HTMLSelectElement;
+    onChange?.({ target, currentTarget: target } as ChangeEvent<HTMLSelectElement>);
+  };
+
   return (
     <Select
       id={id}
@@ -81,10 +86,7 @@ export function LegacySelect({
       disabled={disabled}
       required={required}
       controlClassName={className}
-      onValueChange={(nextValue) => {
-        const target = { value: nextValue } as HTMLSelectElement;
-        onChange?.({ target, currentTarget: target } as ChangeEvent<HTMLSelectElement>);
-      }}
+      onValueChange={emitChange}
     />
   );
 }

@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { render } from '../utils';
+import { openComboboxOptions, render } from '../utils';
 import { PrintersPage } from '../../pages/PrintersPage';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
@@ -82,8 +82,7 @@ describe('AddPrinterModal Discovery', () => {
     // Wait for the modal and discovery info to load
     await waitFor(() => {
       // Should show subnet dropdown with detected subnet
-      const subnetSelect = screen.getByDisplayValue('10.0.0.0/24');
-      expect(subnetSelect).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: /subnet to scan/i })).toHaveTextContent('10.0.0.0/24');
     });
   });
 
@@ -112,10 +111,9 @@ describe('AddPrinterModal Discovery', () => {
       // Should show a select element (dropdown) with both subnets and
       // the trailing "Custom subnet..." sentinel that lets a user enter
       // a CIDR for a printer on a different L3 segment (#1564).
-      const selectElement = screen.getByDisplayValue('192.168.1.0/24');
-      expect(selectElement.tagName).toBe('SELECT');
-
-      const options = selectElement.querySelectorAll('option');
+      const selectElement = screen.getByRole('combobox', { name: /subnet to scan/i });
+      expect(selectElement).toHaveTextContent('192.168.1.0/24');
+      const options = openComboboxOptions(selectElement);
       expect(options).toHaveLength(3);
       expect(options[0].textContent).toBe('192.168.1.0/24');
       expect(options[1].textContent).toBe('10.0.0.0/24');
@@ -180,9 +178,9 @@ describe('AddPrinterModal Discovery', () => {
     // Detected subnet is the default value; "Custom subnet..." sits
     // alongside it so the user can pick a foreign CIDR.
     await waitFor(() => {
-      const selectElement = screen.getByDisplayValue('192.168.1.0/24');
-      expect(selectElement.tagName).toBe('SELECT');
-      const options = selectElement.querySelectorAll('option');
+      const selectElement = screen.getByRole('combobox', { name: /subnet to scan/i });
+      expect(selectElement).toHaveTextContent('192.168.1.0/24');
+      const options = openComboboxOptions(selectElement);
       expect(options).toHaveLength(2);
       expect(options[0].textContent).toBe('192.168.1.0/24');
       expect(options[1].textContent).toMatch(/custom subnet/i);

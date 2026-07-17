@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { NumberField } from '../components/ui';
+import { NumberField , FileInput, LegacyDatePicker, LegacySelect, TextArea, TextField} from '../components/ui';
 import {
   FolderKanban,
   Loader2,
@@ -151,7 +151,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
             <label className="block text-sm font-medium text-white mb-1">
               {t('common.name')}
             </label>
-            <input
+            <TextField
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -165,7 +165,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
             <label className="block text-sm font-medium text-white mb-1">
               {t('common.description')}
             </label>
-            <textarea
+            <TextArea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded px-3 py-2 text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green resize-none"
@@ -179,7 +179,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
             <label className="block text-sm font-medium text-white mb-1">
               {t('projects.urlLabel')}
             </label>
-            <input
+            <TextField
               type="url"
               value={url}
               onChange={(e) => { setUrl(e.target.value); if (urlError) setUrlError(null); }}
@@ -212,9 +212,8 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
                   )}
                 </div>
                 <div className="flex flex-col gap-2">
-                  <input
+                  <FileInput
                     ref={coverFileInputRef}
-                    type="file"
                     accept="image/jpeg,image/png,image/gif,image/webp"
                     onChange={handleCoverFileChange}
                     className="hidden"
@@ -302,7 +301,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
             <label className="block text-sm font-medium text-white mb-1">
               {t('projects.tagsLabel')}
             </label>
-            <input
+            <TextField
               type="text"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
@@ -317,8 +316,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
               <label className="block text-sm font-medium text-white mb-1">
                 {t('projects.dueDate')}
               </label>
-              <input
-                type="date"
+              <LegacyDatePicker
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
                 className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded px-3 py-2 text-white focus:outline-none focus:border-bambu-green"
@@ -328,7 +326,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
               <label className="block text-sm font-medium text-white mb-1">
                 {t('projects.priority')}
               </label>
-              <select
+              <LegacySelect
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
                 className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded px-3 py-2 text-white focus:outline-none focus:border-bambu-green"
@@ -337,7 +335,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
                 <option value="normal">{t('projects.priorityNormal')}</option>
                 <option value="high">{t('projects.priorityHigh')}</option>
                 <option value="urgent">{t('projects.priorityUrgent')}</option>
-              </select>
+              </LegacySelect>
             </div>
           </div>
 
@@ -365,7 +363,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
               <label className="block text-sm font-medium text-white mb-1">
                 {t('common.status')}
               </label>
-              <select
+              <LegacySelect
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
                 className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded px-3 py-2 text-white focus:outline-none focus:border-bambu-green"
@@ -373,7 +371,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
                 <option value="active">{t('projects.statusActive')}</option>
                 <option value="completed">{t('projects.statusCompleted')}</option>
                 <option value="archived">{t('projects.statusArchived')}</option>
-              </select>
+              </LegacySelect>
             </div>
           )}
           </div>
@@ -1022,9 +1020,8 @@ export function ProjectsPage() {
   return (
     <div className="p-4 md:p-8 space-y-8">
       {/* Hidden file input for import */}
-      <input
+      <FileInput
         ref={fileInputRef}
-        type="file"
         accept=".json,.zip"
         onChange={handleFileChange}
         className="hidden"

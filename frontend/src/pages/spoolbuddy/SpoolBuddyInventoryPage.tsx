@@ -12,6 +12,7 @@ import { InventorySpoolInfoCard } from '../../components/spoolbuddy/InventorySpo
 import { AssignToAmsModal } from '../../components/spoolbuddy/AssignToAmsModal';
 import type { SpoolBuddyOutletContext } from '../../components/spoolbuddy/SpoolBuddyLayout';
 import { useToast } from '../../contexts/ToastContext';
+import { TextField } from '../../components/ui';
 
 type SlotInfo = { ams_id: number; tray_id: number; printer_name?: string | null };
 
@@ -163,7 +164,7 @@ export function SpoolBuddyInventoryPage() {
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
-          <input
+          <TextField
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}

@@ -10,25 +10,12 @@ import {
   type ReactNode,
 } from 'react';
 
-type CheckboxValueHandler =
-  | {
-      onCheckedChange: (checked: boolean) => void;
-      onChange?: never;
-      label: ReactNode;
-      ariaLabel?: string;
-    }
-  | {
-      onCheckedChange: (checked: boolean) => void;
-      onChange?: never;
-      label?: never;
-      ariaLabel: string;
-    }
-  | {
-      onCheckedChange?: never;
-      onChange: ChangeEventHandler<HTMLInputElement>;
-      label?: ReactNode;
-      ariaLabel?: string;
-    };
+type CheckboxValueHandler = {
+  onCheckedChange?: (checked: boolean) => void;
+  onChange?: ChangeEventHandler<HTMLInputElement>;
+  label?: ReactNode;
+  ariaLabel?: string;
+};
 
 export type CheckboxProps = Omit<
   InputHTMLAttributes<HTMLInputElement>,

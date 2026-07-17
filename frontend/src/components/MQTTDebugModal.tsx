@@ -4,6 +4,7 @@ import { X, Play, Square, Trash2, RefreshCw, ArrowDown, ArrowUp, Search } from '
 import { api, type MQTTLogEntry } from '../api/client';
 import { Button } from './Button';
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { Checkbox, TextField } from './ui';
 
 interface MQTTDebugModalProps {
   printerId: number;
@@ -174,11 +175,9 @@ export function MQTTDebugModal({ printerId, printerName, onClose }: MQTTDebugMod
             </Button>
             <div className="flex-1" />
             <label className="flex items-center gap-2 text-sm text-bambu-gray cursor-pointer">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={autoScroll}
                 onChange={(e) => setAutoScroll(e.target.checked)}
-                className="rounded border-bambu-dark-tertiary"
               />
               Auto-scroll
             </label>
@@ -191,7 +190,7 @@ export function MQTTDebugModal({ printerId, printerName, onClose }: MQTTDebugMod
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
-              <input
+              <TextField
                 type="text"
                 placeholder={t('mqttDebug.searchPlaceholder')}
                 value={searchQuery}

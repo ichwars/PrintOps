@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { NumberField } from './ui';
+import { NumberField , Checkbox} from './ui';
 import { AlertTriangle, Loader2, Trash2, X } from 'lucide-react';
 
 import { api } from '../api/client';
@@ -145,12 +145,10 @@ export function PurgeArchivesModal({ onClose, initialDays }: PurgeArchivesModalP
           </div>
 
           <label className="flex gap-2 items-start rounded border border-gray-200 dark:border-gray-700 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={purgeStats}
               onChange={(e) => setPurgeStats(e.target.checked)}
               disabled={purgeMutation.isPending}
-              className="mt-0.5 shrink-0"
             />
             <span className="text-xs text-gray-700 dark:text-gray-300">
               <span className="font-medium block mb-0.5">{t('archivePurge.purgeStatsLabel')}</span>

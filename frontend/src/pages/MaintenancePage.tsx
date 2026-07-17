@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { NumberField } from '../components/ui';
+import { NumberField , LegacySelect, TextField} from '../components/ui';
 import {
   Wrench,
   Loader2,
@@ -640,7 +640,7 @@ function SettingsSection({
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="lg:col-span-2">
                     <label className="block text-xs text-bambu-gray mb-1.5">{t('common.name')}</label>
-                    <input
+                    <TextField
                       type="text"
                       value={newTypeName}
                       onChange={(e) => setNewTypeName(e.target.value)}
@@ -651,7 +651,7 @@ function SettingsSection({
                   </div>
                   <div>
                     <label className="block text-xs text-bambu-gray mb-1.5">{t('maintenance.intervalType')}</label>
-                    <select
+                    <LegacySelect
                       value={newTypeIntervalType}
                       onChange={(e) => {
                         setNewTypeIntervalType(e.target.value as 'hours' | 'days');
@@ -666,7 +666,7 @@ function SettingsSection({
                     >
                       <option value="hours">{t('maintenance.printHours')}</option>
                       <option value="days">{t('maintenance.calendarDays')}</option>
-                    </select>
+                    </LegacySelect>
                   </div>
                   <div>
                     <label className="block text-xs text-bambu-gray mb-1.5">
@@ -707,7 +707,7 @@ function SettingsSection({
                 {/* Wiki URL */}
                 <div className="mt-4">
                   <label className="block text-xs text-bambu-gray mb-1.5">{t('maintenance.documentationLink')}</label>
-                  <input
+                  <TextField
                     type="url"
                     value={newTypeWikiUrl}
                     onChange={(e) => setNewTypeWikiUrl(e.target.value)}
@@ -795,7 +795,7 @@ function SettingsSection({
               return (
                 <div key={type.id} className="bg-bambu-dark-secondary rounded-xl p-4 border border-bambu-green">
                   <div className="space-y-3">
-                    <input
+                    <TextField
                       type="text"
                       value={editTypeName}
                       onChange={(e) => setEditTypeName(e.target.value)}
@@ -804,14 +804,14 @@ function SettingsSection({
                       autoFocus
                     />
                     <div className="flex gap-2">
-                      <select
+                      <LegacySelect
                         value={editTypeIntervalType}
                         onChange={(e) => setEditTypeIntervalType(e.target.value as 'hours' | 'days')}
                         className="flex-1 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:border-bambu-green focus:outline-none"
                       >
                         <option value="hours">{t('maintenance.printHours')}</option>
                         <option value="days">{t('maintenance.calendarDays')}</option>
-                      </select>
+                      </LegacySelect>
                       <NumberField
                         value={editTypeInterval}
                         onChange={(e) => setEditTypeInterval(e.target.value)}
@@ -838,7 +838,7 @@ function SettingsSection({
                         );
                       })}
                     </div>
-                    <input
+                    <TextField
                       type="url"
                       value={editTypeWikiUrl}
                       onChange={(e) => setEditTypeWikiUrl(e.target.value)}
@@ -998,14 +998,14 @@ function SettingsSection({
                               ) : (
                                 <Timer className="w-3.5 h-3.5 text-bambu-gray shrink-0" />
                               )}
-                              <select
+                              <LegacySelect
                                 value={intervalTypeInput}
                                 onChange={(e) => setIntervalTypeInput(e.target.value as 'hours' | 'days')}
                                 className="px-1.5 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-xs"
                               >
                                 <option value="hours">{t('maintenance.printHours')}</option>
                                 <option value="days">{t('maintenance.calendarDays')}</option>
-                              </select>
+                              </LegacySelect>
                               <NumberField
                                 value={intervalInput}
                                 onChange={(e) => setIntervalInput(e.target.value)}

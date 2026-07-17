@@ -25,6 +25,7 @@ import { Card, CardContent } from './Card';
 import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
+import { Checkbox, LegacySelect, TextArea, TextField } from './ui';
 
 interface KProfileCardProps {
   profile: KProfile;
@@ -410,7 +411,7 @@ function KProfileModal({
             {/* Profile Name - read-only when editing */}
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('kProfiles.modal.profileName')}</label>
-              <input
+              <TextField
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -424,7 +425,7 @@ function KProfileModal({
             {/* K-Value - always editable */}
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('kProfiles.modal.kValue')}</label>
-              <input
+              <TextField
                 type="text"
                 inputMode="decimal"
                 value={kValue}
@@ -454,7 +455,7 @@ function KProfileModal({
             {/* Filament - read-only when editing */}
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('kProfiles.modal.filament')}</label>
-              <select
+              <LegacySelect
                 value={filamentId}
                 onChange={(e) => {
                   const newFilamentId = e.target.value;
@@ -486,7 +487,7 @@ function KProfileModal({
                     {f.name}
                   </option>
                 ))}
-              </select>
+              </LegacySelect>
               {!profile && knownFilaments.length === 0 && (
                 <p className="text-xs text-bambu-gray mt-1">
                   {t('kProfiles.modal.noFilamentsHelp')}
@@ -498,7 +499,7 @@ function KProfileModal({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-bambu-gray mb-1">{t('kProfiles.modal.flowType')}</label>
-                <select
+                <LegacySelect
                   value={nozzleType}
                   onChange={(e) => {
                     const newNozzleType = e.target.value;
@@ -518,11 +519,11 @@ function KProfileModal({
                 >
                   <option value="HH00">{t('kProfiles.modal.highFlow')}</option>
                   <option value="HS00">{t('kProfiles.modal.standard')}</option>
-                </select>
+                </LegacySelect>
               </div>
               <div>
                 <label className="block text-sm text-bambu-gray mb-1">{t('kProfiles.modal.nozzleSize')}</label>
-                <select
+                <LegacySelect
                   value={modalDiameter}
                   onChange={(e) => setModalDiameter(e.target.value)}
                   disabled={!!profile}
@@ -532,7 +533,7 @@ function KProfileModal({
                   <option value="0.4">0.4mm</option>
                   <option value="0.6">0.6mm</option>
                   <option value="0.8">0.8mm</option>
-                </select>
+                </LegacySelect>
               </div>
             </div>
 
@@ -551,8 +552,7 @@ function KProfileModal({
                   // Checkboxes for new profile - can select both
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={selectedExtruders.includes(1)}
                         onChange={(e) => {
                           if (e.target.checked) {
@@ -561,13 +561,11 @@ function KProfileModal({
                             setSelectedExtruders(selectedExtruders.filter(id => id !== 1));
                           }
                         }}
-                        className="w-4 h-4 rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green focus:ring-offset-0 accent-bambu-green"
                       />
                       <span className="text-white">{t('kProfiles.modal.left')}</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={selectedExtruders.includes(0)}
                         onChange={(e) => {
                           if (e.target.checked) {
@@ -576,7 +574,6 @@ function KProfileModal({
                             setSelectedExtruders(selectedExtruders.filter(id => id !== 0));
                           }
                         }}
-                        className="w-4 h-4 rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green focus:ring-offset-0 accent-bambu-green"
                       />
                       <span className="text-white">{t('kProfiles.modal.right')}</span>
                     </label>
@@ -588,7 +585,7 @@ function KProfileModal({
             {/* Notes */}
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('kProfiles.modal.notes')}</label>
-              <textarea
+              <TextArea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder={t('kProfiles.modal.notesPlaceholder')}
@@ -1175,7 +1172,7 @@ export function KProfilesView() {
       <div className="flex flex-wrap gap-4 mb-6">
         <div className="flex-1 min-w-48">
           <label className="block text-sm text-bambu-gray mb-1">{t('kProfiles.printer')}</label>
-          <select
+          <LegacySelect
             value={selectedPrinter || ''}
             onChange={(e) => setSelectedPrinter(parseInt(e.target.value))}
             className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -1185,12 +1182,12 @@ export function KProfilesView() {
                 {printer.name}
               </option>
             ))}
-          </select>
+          </LegacySelect>
         </div>
 
         <div className="w-32">
           <label className="block text-sm text-bambu-gray mb-1">{t('kProfiles.nozzle')}</label>
-          <select
+          <LegacySelect
             value={nozzleDiameter}
             onChange={(e) => setNozzleDiameter(e.target.value)}
             className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -1199,7 +1196,7 @@ export function KProfilesView() {
             <option value="0.4">0.4mm</option>
             <option value="0.6">0.6mm</option>
             <option value="0.8">0.8mm</option>
-          </select>
+          </LegacySelect>
         </div>
 
         <div className="flex items-end gap-2">
@@ -1227,7 +1224,7 @@ export function KProfilesView() {
       <div className="flex flex-wrap gap-4 mb-4">
         <div className="flex-1 min-w-48 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
-          <input
+          <TextField
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -1237,7 +1234,7 @@ export function KProfilesView() {
         </div>
         {isDualNozzle && (
           <div className="w-36">
-            <select
+            <LegacySelect
               value={extruderFilter}
               onChange={(e) => setExtruderFilter(e.target.value as ExtruderFilter)}
               className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -1245,11 +1242,11 @@ export function KProfilesView() {
               <option value="all">{t('kProfiles.allExtruders')}</option>
               <option value="left">{t('kProfiles.leftOnly')}</option>
               <option value="right">{t('kProfiles.rightOnly')}</option>
-            </select>
+            </LegacySelect>
           </div>
         )}
         <div className="w-32">
-          <select
+          <LegacySelect
             value={flowTypeFilter}
             onChange={(e) => setFlowTypeFilter(e.target.value as FlowTypeFilter)}
             className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -1257,10 +1254,10 @@ export function KProfilesView() {
             <option value="all">{t('kProfiles.allFlow')}</option>
             <option value="hf">{t('kProfiles.hfOnly')}</option>
             <option value="s">{t('kProfiles.sOnly')}</option>
-          </select>
+          </LegacySelect>
         </div>
         <div className="w-32">
-          <select
+          <LegacySelect
             value={sortOption}
             onChange={(e) => setSortOption(e.target.value as SortOption)}
             className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -1268,7 +1265,7 @@ export function KProfilesView() {
             <option value="name">{t('kProfiles.sortName')}</option>
             <option value="k_value">{t('kProfiles.sortKValue')}</option>
             <option value="filament">{t('kProfiles.sortFilament')}</option>
-          </select>
+          </LegacySelect>
         </div>
       </div>
 

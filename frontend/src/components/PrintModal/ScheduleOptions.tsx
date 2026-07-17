@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Calendar, Clock, Hand, Power, Layers, Code, ListOrdered } from 'lucide-react';
-import { NumberField } from '../ui';
+import { Checkbox, DatePicker, NumberField, TimeField, type DateKey } from '../ui';
 import type { ScheduleOptionsProps, ScheduleType } from './types';
 import {
   formatDateInput,
   formatTimeInput,
   parseDateInput,
   parseTimeInput,
-  getDatePlaceholder,
   getTimePlaceholder,
   toDateTimeLocalValue,
   type DateFormat,
@@ -30,12 +29,11 @@ export function ScheduleOptionsPanel({
   printerCount = 0,
   hasGcodeSnippets = false,
 }: ScheduleOptionsProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [dateValue, setDateValue] = useState('');
   const [timeValue, setTimeValue] = useState('');
   const [isDateValid, setIsDateValid] = useState(true);
   const [isTimeValid, setIsTimeValid] = useState(true);
-  const hiddenInputRef = useRef<HTMLInputElement>(null);
   const isInitializedRef = useRef(false);
 
   // Initialize or sync from options.scheduledTime
@@ -94,34 +92,23 @@ export function ScheduleOptionsPanel({
     }
   };
 
-  const handleDateChange = (value: string) => {
-    setDateValue(value);
-    updateScheduledTime(value, timeValue);
-  };
-
   const handleTimeChange = (value: string) => {
     setTimeValue(value);
     updateScheduledTime(dateValue, value);
   };
 
-  // Handle calendar picker selection
-  const handleCalendarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (value) {
-      const date = new Date(value);
-      if (!isNaN(date.getTime())) {
-        setDateValue(formatDateInput(date, dateFormat as DateFormat));
-        setTimeValue(formatTimeInput(date, timeFormat as TimeFormat));
-        setIsDateValid(true);
-        setIsTimeValid(true);
-        onChange({ ...options, scheduledTime: value });
-      }
-    }
+  const handleCalendarDateChange = (value: DateKey | '') => {
+    if (!value) return;
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+    const formatted = formatDateInput(date, dateFormat as DateFormat);
+    setDateValue(formatted);
+    updateScheduledTime(formatted, timeValue);
   };
 
-  const openCalendar = () => {
-    hiddenInputRef.current?.showPicker();
-  };
+  const calendarDateValue = /^\d{4}-\d{2}-\d{2}/.test(options.scheduledTime)
+    ? (options.scheduledTime.slice(0, 10) as DateKey)
+    : '';
 
   return (
     <div className="space-y-4">
@@ -174,40 +161,18 @@ export function ScheduleOptionsPanel({
           <label className="block text-sm text-bambu-gray mb-1">{t('printModal.dateTime')}</label>
           <div className="flex gap-2">
             {/* Date input */}
-            <div className="flex-1 relative">
-              <input
-                type="text"
-                className={`w-full px-3 py-2 pr-10 bg-bambu-dark border rounded-lg text-white focus:outline-none ${
-                  isDateValid
-                    ? 'border-bambu-dark-tertiary focus:border-bambu-green'
-                    : 'border-red-500'
-                }`}
-                value={dateValue}
-                onChange={(e) => handleDateChange(e.target.value)}
-                placeholder={getDatePlaceholder(dateFormat as DateFormat)}
-              />
-              <button
-                type="button"
-                onClick={openCalendar}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-bambu-gray hover:text-white"
-                title={t('printModal.openCalendar')}
-              >
-                <Calendar className="w-4 h-4" />
-              </button>
-              {/* Hidden datetime-local anchored here so the native picker opens near the date field */}
-              <input
-                ref={hiddenInputRef}
-                type="datetime-local"
-                className="absolute top-0 left-0 w-0 h-0 opacity-0 pointer-events-none"
-                value={options.scheduledTime}
-                onChange={handleCalendarChange}
-                tabIndex={-1}
+            <div className="flex-1">
+              <DatePicker
+                ariaLabel={t('printModal.openCalendar')}
+                locale={i18n.resolvedLanguage ?? i18n.language}
+                value={calendarDateValue}
+                onValueChange={handleCalendarDateChange}
               />
             </div>
             {/* Time input */}
             <div className="w-32">
-              <input
-                type="text"
+              <TimeField
+                aria-label={t('common.time', 'Time')}
                 className={`w-full px-3 py-2 bg-bambu-dark border rounded-lg text-white focus:outline-none ${
                   isTimeValid
                     ? 'border-bambu-dark-tertiary focus:border-bambu-green'
@@ -230,12 +195,10 @@ export function ScheduleOptionsPanel({
       {/* Manual start */}
       {options.scheduleType === 'queue' && (
         <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
+          <Checkbox
             id="requireManualStart"
             checked={options.requireManualStart}
             onChange={(e) => onChange({ ...options, requireManualStart: e.target.checked })}
-            className="rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
           />
           <label htmlFor="requireManualStart" className="text-sm flex items-center gap-1 text-bambu-gray">
             <Hand className="w-3.5 h-3.5" />
@@ -246,12 +209,10 @@ export function ScheduleOptionsPanel({
 
       {/* Require previous success */}
       <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
+        <Checkbox
           id="requirePrevious"
           checked={options.requirePreviousSuccess}
           onChange={(e) => onChange({ ...options, requirePreviousSuccess: e.target.checked })}
-          className="rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
         />
         <label htmlFor="requirePrevious" className="text-sm text-bambu-gray">
           {t('printModal.requirePreviousSuccess')}
@@ -260,13 +221,11 @@ export function ScheduleOptionsPanel({
 
       {/* Auto power off */}
       <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
+        <Checkbox
           id="autoOffAfter"
           checked={options.autoOffAfter}
           onChange={(e) => onChange({ ...options, autoOffAfter: e.target.checked })}
           disabled={!canControlPrinter}
-          className="rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green disabled:opacity-50"
         />
         <label htmlFor="autoOffAfter" className={`text-sm flex items-center gap-1 ${canControlPrinter ? 'text-bambu-gray' : 'text-bambu-gray/50'}`}>
           <Power className="w-3.5 h-3.5" />
@@ -277,12 +236,10 @@ export function ScheduleOptionsPanel({
       {/* G-code injection */}
       {hasGcodeSnippets && (
         <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
+          <Checkbox
             id="gcodeInjection"
             checked={options.gcodeInjection}
             onChange={(e) => onChange({ ...options, gcodeInjection: e.target.checked })}
-            className="rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
           />
           <label htmlFor="gcodeInjection" className="text-sm flex items-center gap-1 text-bambu-gray">
             <Code className="w-3.5 h-3.5" />
@@ -295,12 +252,10 @@ export function ScheduleOptionsPanel({
       {showStagger && options.scheduleType !== 'queue' && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
+            <Checkbox
               id="staggerEnabled"
               checked={options.staggerEnabled}
               onChange={(e) => onChange({ ...options, staggerEnabled: e.target.checked })}
-              className="rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
             />
             <label htmlFor="staggerEnabled" className="text-sm flex items-center gap-1 text-bambu-gray">
               <Layers className="w-3.5 h-3.5" />

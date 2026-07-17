@@ -4,6 +4,7 @@ import { Upload, X, FileText, Loader2, CheckCircle, XCircle, MinusCircle, Wand2,
 import { api, type CsvImportPreview, type CsvImportRow } from '../api/client';
 import { getSwatchStyle } from '../utils/colors';
 import { Button } from './Button';
+import { FileInput } from './ui';
 
 interface SpoolCsvImportModalProps {
   onClose: () => void;
@@ -115,7 +116,7 @@ export function SpoolCsvImportModal({ onClose, onImported }: SpoolCsvImportModal
               </>
             )}
           </div>
-          <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFileSelect} />
+          <FileInput ref={fileInputRef} accept=".csv,text/csv" className="hidden" onChange={handleFileSelect} />
 
           {loading && (
             <div className="flex items-center justify-center gap-2 text-bambu-gray py-4">

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from './Card';
 import { Button } from './Button';
 import { Toggle } from './Toggle';
+import { Checkbox } from './ui';
 
 interface BackupCategory {
   id: string;
@@ -244,12 +245,10 @@ export function BackupModal({ onClose, onExport }: BackupModalProps) {
                     : 'bg-bambu-dark hover:bg-bambu-dark-tertiary border border-transparent'
                 }`}
               >
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={selected[category.id] && !isDisabled}
                   onChange={() => toggleCategory(category.id)}
                   disabled={isDisabled}
-                  className="w-4 h-4 rounded border-bambu-gray bg-bambu-dark text-bambu-green focus:ring-bambu-green focus:ring-offset-0"
                 />
                 <div className={`${selected[category.id] && !isDisabled ? 'text-bambu-green' : 'text-bambu-gray'}`}>
                   {category.icon}

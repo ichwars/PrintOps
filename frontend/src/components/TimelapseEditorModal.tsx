@@ -19,6 +19,7 @@ import { Button } from './Button';
 import { api } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { formatMediaTime } from '../utils/date';
+import { FileInput, Slider } from './ui';
 
 interface TimelapseEditorModalProps {
   archiveId: number;
@@ -361,8 +362,7 @@ export function TimelapseEditorModal({
               />
 
               {/* Trim handles */}
-              <input
-                type="range"
+              <Slider
                 min={0}
                 max={duration}
                 step={0.1}
@@ -379,8 +379,7 @@ export function TimelapseEditorModal({
                 className="absolute inset-0 w-full opacity-0 cursor-ew-resize"
                 style={{ clipPath: 'inset(0 50% 0 0)' }}
               />
-              <input
-                type="range"
+              <Slider
                 min={0}
                 max={duration}
                 step={0.1}
@@ -397,8 +396,7 @@ export function TimelapseEditorModal({
             </div>
 
             {/* Playback scrubber */}
-            <input
-              type="range"
+            <Slider
               min={0}
               max={duration}
               step={0.1}
@@ -477,8 +475,7 @@ export function TimelapseEditorModal({
                     <Volume2 className="w-4 h-4 text-bambu-green" />
                   )}
                 </button>
-                <input
-                  type="range"
+                <Slider
                   min={0}
                   max={1}
                   step={0.1}
@@ -505,8 +502,7 @@ export function TimelapseEditorModal({
                 <span className="text-xs text-bambu-gray/60">
                   MP3, WAV, M4A, AAC, OGG
                 </span>
-                <input
-                  type="file"
+                <FileInput
                   accept=".mp3,.wav,.m4a,.aac,.ogg,audio/*"
                   onChange={handleAudioUpload}
                   className="hidden"

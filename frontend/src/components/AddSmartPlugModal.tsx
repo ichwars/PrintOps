@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import type { SmartPlug, SmartPlugCreate, SmartPlugUpdate, DiscoveredTasmotaDevice } from '../api/client';
 import { Button } from './Button';
-import { LegacySelect, NumberField, Switch, TextArea, TextField } from './ui';
+import { LegacySelect, NumberField, Switch, TextArea, TextField , TimeField} from './ui';
 
 interface AddSmartPlugModalProps {
   plug?: SmartPlug | null;
@@ -1544,8 +1544,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.turnOnAt')}</label>
-                      <TextField
-                        type="time"
+                      <TimeField
                         value={scheduleOnTime}
                         onChange={(e) => setScheduleOnTime(e.target.value)}
                         className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -1553,8 +1552,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                     </div>
                     <div>
                       <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.turnOffAt')}</label>
-                      <TextField
-                        type="time"
+                      <TimeField
                         value={scheduleOffTime}
                         onChange={(e) => setScheduleOffTime(e.target.value)}
                         className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"

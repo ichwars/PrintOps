@@ -1,4 +1,4 @@
-import { Button, LegacySelect, TextArea, TextField } from './ui';
+import { Button, LegacySelect, TextArea, TextField , Radio} from './ui';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -427,8 +427,7 @@ function PipelineRow({
                 </label>
                 <div className="flex gap-3 text-xs">
                   <label className="flex items-center gap-1 text-white">
-                    <TextField
-                      type="radio"
+                    <Radio
                       name={`target-kind-${pipeline.id}`}
                       value="specific_printer"
                       checked={draftTargetKind === 'specific_printer'}
@@ -438,8 +437,7 @@ function PipelineRow({
                     {t('settings.pipelines.field.targetKindSpecific', 'Specific printer')}
                   </label>
                   <label className="flex items-center gap-1 text-white">
-                    <TextField
-                      type="radio"
+                    <Radio
                       name={`target-kind-${pipeline.id}`}
                       value="printer_class"
                       checked={draftTargetKind === 'printer_class'}
