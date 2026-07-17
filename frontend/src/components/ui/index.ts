@@ -12,6 +12,8 @@ export { RadioGroup } from './RadioGroup';
 export type { RadioGroupProps, RadioOption } from './RadioGroup';
 export { ScrollArea } from './ScrollArea';
 export type { ScrollAreaProps } from './ScrollArea';
+export { Select } from './Select';
+export type { SelectOption, SelectProps, SelectValue } from './Select';
 export { Switch } from './Switch';
 export type { SwitchProps } from './Switch';
 export { TextArea } from './TextArea';
