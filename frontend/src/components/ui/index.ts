@@ -1,5 +1,7 @@
 export { Button } from './Button';
 export type { ButtonProps } from './Button';
+export { Calendar } from './Calendar';
+export type { CalendarProps } from './Calendar';
 export { Checkbox } from './Checkbox';
 export type { CheckboxProps } from './Checkbox';
 export { FloatingLayer } from './FloatingLayer';
@@ -20,3 +22,13 @@ export { TextArea } from './TextArea';
 export type { TextAreaProps } from './TextArea';
 export { TextField, controlClass } from './TextField';
 export type { TextFieldProps } from './TextField';
+export {
+  addDays,
+  addMonthsClamped,
+  buildMonthGrid,
+  compareDateKeys,
+  formatDateKey,
+  parseDateKey,
+  weekStartsOn,
+} from './dateMath';
+export type { DateKey } from './dateMath';
