@@ -67,23 +67,20 @@ describe('Toggle', () => {
   it('applies correct styles when checked', () => {
     render(<Toggle checked={true} onChange={() => {}} />);
 
-    const toggle = screen.getByRole('switch');
-    expect(toggle.className).toContain('bg-bambu-green');
+    expect(screen.getByTestId('switch-track')).toHaveClass('bg-bambu-green');
   });
 
   it('applies correct styles when unchecked', () => {
     render(<Toggle checked={false} onChange={() => {}} />);
 
-    const toggle = screen.getByRole('switch');
-    expect(toggle.className).toContain('bg-bambu-dark-tertiary');
+    expect(screen.getByTestId('switch-track')).toHaveClass('bg-bambu-dark-tertiary');
   });
 
   it('applies disabled styles when disabled', () => {
     render(<Toggle checked={false} onChange={() => {}} disabled />);
 
-    const toggle = screen.getByRole('switch');
-    expect(toggle.className).toContain('cursor-not-allowed');
-    expect(toggle.className).toContain('opacity-50');
+    expect(screen.getByTestId('switch-track')).toHaveClass('cursor-not-allowed');
+    expect(screen.getByRole('switch').closest('label')).toHaveClass('opacity-50');
   });
 
   it('stops event propagation on click', async () => {

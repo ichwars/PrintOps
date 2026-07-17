@@ -1,5 +1,11 @@
+export { Checkbox } from './Checkbox';
+export type { CheckboxProps } from './Checkbox';
 export { FormField } from './FormField';
 export type { FormFieldA11y, FormFieldProps } from './FormField';
+export { RadioGroup } from './RadioGroup';
+export type { RadioGroupProps, RadioOption } from './RadioGroup';
+export { Switch } from './Switch';
+export type { SwitchProps } from './Switch';
 export { TextArea } from './TextArea';
 export type { TextAreaProps } from './TextArea';
 export { TextField, controlClass } from './TextField';
