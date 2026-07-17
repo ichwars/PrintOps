@@ -177,6 +177,8 @@ export function Select<T extends SelectValue>({
       return;
     }
     if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault();
+      event.stopPropagation();
       if (!open) openList();
       runPrefixSearch(event.key);
     }

@@ -130,6 +130,29 @@ describe('Select', () => {
     expect(screen.queryByText('Primary')).not.toBeInTheDocument();
   });
 
+  it('keeps prefix-search keys from reaching global shortcuts', async () => {
+    const onParentKeyDown = vi.fn();
+    render(
+      <div onKeyDown={onParentKeyDown}>
+        <Select
+          ariaLabel="Material"
+          value="pla"
+          onValueChange={() => {}}
+          options={[
+            { value: 'pla', label: 'PLA' },
+            { value: 'petg', label: 'PETG' },
+          ]}
+        />
+      </div>,
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('combobox', { name: 'Material' }));
+    await user.keyboard('p');
+
+    expect(onParentKeyDown).not.toHaveBeenCalled();
+  });
+
   it('renders an unknown current value without changing it on mount', () => {
     const onValueChange = vi.fn();
     render(
