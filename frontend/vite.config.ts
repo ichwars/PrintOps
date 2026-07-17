@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import fs from 'fs'
-import type { Connect } from 'vite'
+import type { Connect, Plugin } from 'vite'
 
 // Backend port for dev server proxy (default: 8000)
 const backendPort = process.env.BACKEND_PORT || '8000'
@@ -73,6 +73,25 @@ function serveGcodeViewer() {
   }
 }
 
+function emitLocaleAssetManifest(): Plugin {
+  return {
+    name: 'emit-locale-asset-manifest',
+    generateBundle(_options, bundle) {
+      const localeAssets = Object.values(bundle)
+        .filter((output) => output.type === 'chunk'
+          && Object.keys(output.modules).some((moduleId) => moduleId.includes('/src/i18n/locales/')))
+        .map((output) => `/${output.fileName}`)
+        .sort()
+
+      this.emitFile({
+        type: 'asset',
+        fileName: 'locale-assets.json',
+        source: JSON.stringify(localeAssets),
+      })
+    },
+  }
+}
+
 export default defineConfig({
   // Default base ('/') emits absolute asset URLs (/assets/...). Required so
   // deep SPA routes (camera popup at /camera/<id>, /projects/<id>, kiosk
@@ -83,7 +102,7 @@ export default defineConfig({
   // fix for subpath reverse proxies (#1195, wontfix) is reverted — that
   // audience uses NPM + Cloudflare Tunnel at a real domain per the
   // documented workaround, which doesn't depend on this setting.
-  plugins: [react(), serveGcodeViewer()],
+  plugins: [react(), serveGcodeViewer(), emitLocaleAssetManifest()],
   build: {
     outDir: '../static',
     emptyOutDir: true,

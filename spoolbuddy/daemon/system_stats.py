@@ -56,13 +56,14 @@ def _disk_info() -> dict | None:
     total = usage.total
     free = usage.free
     used = usage.used
-    if total == 0:
+    writable_total = used + free
+    if total == 0 or writable_total == 0:
         return None
     return {
         "total_gb": round(total / (1024**3), 1),
         "used_gb": round(used / (1024**3), 1),
         "free_gb": round(free / (1024**3), 1),
-        "percent": round(used / total * 100, 1),
+        "percent": round(used / writable_total * 100, 1),
     }
 
 
