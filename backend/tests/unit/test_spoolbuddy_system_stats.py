@@ -1,5 +1,7 @@
 """Tests for SpoolBuddy daemon system_stats collector."""
 
+import os
+
 import pytest
 
 pytest.importorskip("spoolbuddy", reason="spoolbuddy package not available in Docker")
@@ -67,6 +69,7 @@ class TestDiskInfo:
 
 
 class TestLoadAvg:
+    @pytest.mark.skipif(not hasattr(os, "getloadavg"), reason="Load average is not available on this platform")
     def test_returns_three_values(self):
         result = _load_avg()
         assert result is not None

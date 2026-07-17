@@ -166,7 +166,7 @@ def _enclosing_call_is_safe_join(stack: list[ast.AST]) -> bool:
 
 
 def _scan_file(py_file: Path) -> list[str]:
-    source = py_file.read_text()
+    source = py_file.read_text(encoding="utf-8")
     source_lines = source.splitlines()
     tree = ast.parse(source, filename=str(py_file))
     findings: list[str] = []

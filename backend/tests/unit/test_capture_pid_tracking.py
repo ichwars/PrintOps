@@ -197,8 +197,9 @@ class TestCleanupExcludesCapturePids:
             await cleanup_orphaned_streams()
 
         # 43000 should have been killed
-        mock_kill.assert_any_call(43000, signal.SIGKILL)
+        kill_signal = getattr(signal, "SIGKILL", signal.SIGTERM)
+        mock_kill.assert_any_call(43000, kill_signal)
 
         # 42000 should NOT have been killed with SIGKILL
-        killed_pids = [call[0][0] for call in mock_kill.call_args_list if call[0][1] == signal.SIGKILL]
+        killed_pids = [call[0][0] for call in mock_kill.call_args_list if call[0][1] == kill_signal]
         assert 42000 not in killed_pids

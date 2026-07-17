@@ -1539,6 +1539,7 @@ async def cleanup_orphaned_streams():
 
     cleaned = 0
     now = time.time()
+    kill_signal = getattr(signal, "SIGKILL", signal.SIGTERM)
 
     # Collect PIDs that are legitimately in-use (active stream, process alive)
     active_pids = {proc.pid for proc in _active_streams.values() if proc.returncode is None}
@@ -1555,7 +1556,7 @@ async def cleanup_orphaned_streams():
             continue
         logger.info("Killing orphaned ffmpeg process found via /proc (pid=%d)", pid)
         try:
-            os.kill(pid, signal.SIGKILL)
+            os.kill(pid, kill_signal)
         except (ProcessLookupError, OSError):
             pass
         _spawned_ffmpeg_pids.pop(pid, None)

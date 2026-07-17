@@ -1,0 +1,1 @@
+var e=[`inventory-locations`];function t(t){return t.invalidateQueries({queryKey:e})}function n(e,n){return Promise.all([e.invalidateQueries({queryKey:[...n]}),t(e)])}export{n,e as r,t};

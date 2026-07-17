@@ -111,11 +111,11 @@ class TestDispatchHoldHardTimeout:
         sched = PrintScheduler()
         sched._dispatch_max_hold = 0.001  # ~1 ms — instant expiry
         get_status = MagicMock(return_value=_status("FINISH", "subtask-1"))
-        with patch("backend.app.services.print_scheduler.printer_manager.get_status", get_status):
+        with (
+            patch("backend.app.services.print_scheduler.printer_manager.get_status", get_status),
+            patch("backend.app.services.print_scheduler.time.monotonic", side_effect=[100.0, 100.002]),
+        ):
             sched._mark_printer_dispatched(42, pre_state="FINISH", pre_subtask_id="subtask-1")
-            import time
-
-            time.sleep(0.005)
             assert sched._printer_in_dispatch_hold(42) is False
             assert 42 not in sched._dispatch_holds
 
@@ -139,11 +139,9 @@ class TestDispatchHoldFallbacks:
     def test_no_pre_state_releases_after_cooldown(self):
         sched = PrintScheduler()
         sched._dispatch_min_cooldown = 0.001
-        sched._mark_printer_dispatched(42, pre_state=None, pre_subtask_id=None)
-        import time
-
-        time.sleep(0.005)
-        assert sched._printer_in_dispatch_hold(42) is False
+        with patch("backend.app.services.print_scheduler.time.monotonic", side_effect=[100.0, 100.002]):
+            sched._mark_printer_dispatched(42, pre_state=None, pre_subtask_id=None)
+            assert sched._printer_in_dispatch_hold(42) is False
 
     def test_status_unavailable_keeps_hold(self):
         """If the printer disconnects after dispatch we can't read state —

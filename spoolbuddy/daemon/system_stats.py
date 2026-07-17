@@ -2,6 +2,7 @@
 
 import os
 import platform
+import shutil
 
 
 def _read_file(path: str) -> str | None:
@@ -49,12 +50,12 @@ def _memory_info() -> dict | None:
 
 def _disk_info() -> dict | None:
     try:
-        st = os.statvfs("/")
+        usage = shutil.disk_usage("/")
     except OSError:
         return None
-    total = st.f_frsize * st.f_blocks
-    free = st.f_frsize * st.f_bavail
-    used = total - free
+    total = usage.total
+    free = usage.free
+    used = usage.used
     if total == 0:
         return None
     return {
@@ -69,7 +70,7 @@ def _load_avg() -> list[float] | None:
     try:
         load = os.getloadavg()
         return [round(x, 2) for x in load]
-    except OSError:
+    except (AttributeError, OSError):
         return None
 
 

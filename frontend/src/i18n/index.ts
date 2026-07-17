@@ -1,44 +1,51 @@
 import i18n from 'i18next';
+import type { BackendModule, ResourceKey } from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
-// Import translations directly for bundling
-import en from './locales/en';
-import de from './locales/de';
-import es from './locales/es';
-import fr from './locales/fr';
-import ja from './locales/ja';
-import it from './locales/it';
-import ko from './locales/ko';
-import ptBR from './locales/pt-BR';
-import zhCN from './locales/zh-CN';
-import zhTW from './locales/zh-TW';
-import tr from './locales/tr';
+const localeLoaders = {
+  en: () => import('./locales/en'),
+  de: () => import('./locales/de'),
+  es: () => import('./locales/es'),
+  fr: () => import('./locales/fr'),
+  ja: () => import('./locales/ja'),
+  it: () => import('./locales/it'),
+  ko: () => import('./locales/ko'),
+  'pt-BR': () => import('./locales/pt-BR'),
+  'zh-CN': () => import('./locales/zh-CN'),
+  'zh-TW': () => import('./locales/zh-TW'),
+  tr: () => import('./locales/tr'),
+};
 
-const resources = {
-  en: { translation: en },
-  de: { translation: de },
-  es: { translation: es },
-  fr: { translation: fr },
-  ja: { translation: ja },
-  it: { translation: it },
-  ko: { translation: ko },
-  'pt-BR': { translation: ptBR },
-  'zh-CN': { translation: zhCN },
-  'zh-TW': { translation: zhTW },
-  tr: { translation: tr },
+type SupportedLanguage = keyof typeof localeLoaders;
+
+const localeBackend: BackendModule = {
+  type: 'backend',
+  init() {},
+  read(language, _namespace, callback) {
+    const loader = localeLoaders[language as SupportedLanguage];
+    if (!loader) {
+      callback(new Error(`Unsupported language: ${language}`), false);
+      return;
+    }
+
+    loader()
+      .then(({ default: translations }) => callback(null, translations as ResourceKey))
+      .catch((error: unknown) => callback(error instanceof Error ? error : String(error), false));
+  },
 };
 
 const SUPPORTED_LNGS = ['en', 'de', 'es', 'fr', 'ja', 'it', 'ko', 'pt-BR', 'tr', 'zh-CN', 'zh-TW'];
 const APPLIANCE_CONSUMED_KEY = 'printops_appliance_locale_consumed';
 
-i18n
+await i18n
   .use(LanguageDetector)
   .use(initReactI18next)
+  .use(localeBackend)
   .init({
-    resources,
     fallbackLng: 'en',
     supportedLngs: SUPPORTED_LNGS,
+    load: 'currentOnly',
 
     detection: {
       // Order of detection methods

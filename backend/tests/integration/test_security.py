@@ -13,6 +13,7 @@ Gap 8: challenge_id cookie binding untested
 from __future__ import annotations
 
 import base64
+import os
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
@@ -191,6 +192,7 @@ class TestEncryption:
         assert key == existing_key
         assert source == "file"
 
+    @pytest.mark.skipif(os.name == "nt", reason="Windows does not enforce POSIX mode bits")
     def test_load_or_generate_key_creates_file_with_0600(self, monkeypatch, tmp_path):
         """Neither env nor file → new key generated, file mode is 0o600."""
         import backend.app.core.encryption as enc_mod
@@ -1960,6 +1962,7 @@ class TestBackupKeyFiles:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    @pytest.mark.skipif(os.name == "nt", reason="Windows does not enforce POSIX mode bits")
     async def test_restore_writes_key_files_with_chmod_0600(self, async_client, monkeypatch, tmp_path):
         """T1: restore endpoint writes key file with mode 0o600.
 
@@ -2295,6 +2298,7 @@ class TestBackupKeyFiles:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    @pytest.mark.skipif(os.name == "nt", reason="Windows does not enforce POSIX mode bits")
     async def test_backup_restore_roundtrip_preserves_encrypted_oidc_secret(
         self, async_client, db_session, monkeypatch, tmp_path
     ):

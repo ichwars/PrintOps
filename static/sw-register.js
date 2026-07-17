@@ -25,7 +25,7 @@ if ('serviceWorker' in navigator) {
       location.reload();
     });
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js')
+      navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
         .then((registration) => {
           console.log('SW registered:', registration.scope);
         })
