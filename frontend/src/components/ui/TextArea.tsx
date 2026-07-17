@@ -1,18 +1,26 @@
-import { forwardRef, type ReactNode, type TextareaHTMLAttributes } from 'react';
+import {
+  forwardRef,
+  type ChangeEventHandler,
+  type ReactNode,
+  type TextareaHTMLAttributes,
+} from 'react';
 
 import { FormField } from './FormField';
 import { controlClass } from './TextField';
+
+type TextAreaValueHandler =
+  | { onValueChange: (value: string) => void; onChange?: never }
+  | { onValueChange?: never; onChange: ChangeEventHandler<HTMLTextAreaElement> };
 
 export type TextAreaProps = Omit<
   TextareaHTMLAttributes<HTMLTextAreaElement>,
   'value' | 'onChange'
 > & {
   value: string;
-  onValueChange: (value: string) => void;
   label?: ReactNode;
   helperText?: ReactNode;
   error?: ReactNode;
-};
+} & TextAreaValueHandler;
 
 export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function TextArea(
   {
@@ -24,6 +32,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function 
     className = '',
     value,
     onValueChange,
+    onChange,
     ...props
   },
   ref,
@@ -46,7 +55,10 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function 
           aria-describedby={describedBy}
           aria-invalid={invalid || undefined}
           className={`${controlClass} min-h-24 h-auto py-2 ${className}`}
-          onChange={(event) => onValueChange(event.target.value)}
+          onChange={(event) => {
+            onValueChange?.(event.target.value);
+            onChange?.(event);
+          }}
         />
       )}
     </FormField>

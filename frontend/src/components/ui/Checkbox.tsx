@@ -1,5 +1,32 @@
 import { Check, Minus } from 'lucide-react';
-import { useEffect, useId, useRef, type InputHTMLAttributes, type ReactNode } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  type ChangeEventHandler,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from 'react';
+
+type CheckboxValueHandler =
+  | {
+      onCheckedChange: (checked: boolean) => void;
+      onChange?: never;
+      label: ReactNode;
+      ariaLabel?: string;
+    }
+  | {
+      onCheckedChange: (checked: boolean) => void;
+      onChange?: never;
+      label?: never;
+      ariaLabel: string;
+    }
+  | {
+      onCheckedChange?: never;
+      onChange: ChangeEventHandler<HTMLInputElement>;
+      label?: ReactNode;
+      ariaLabel?: string;
+    };
 
 export type CheckboxProps = Omit<
   InputHTMLAttributes<HTMLInputElement>,
@@ -7,18 +34,18 @@ export type CheckboxProps = Omit<
 > & {
   checked: boolean;
   indeterminate?: boolean;
-  onCheckedChange: (checked: boolean) => void;
-  label: ReactNode;
   helperText?: ReactNode;
   error?: ReactNode;
-};
+} & CheckboxValueHandler;
 
 export function Checkbox({
   id,
   checked,
   indeterminate = false,
   onCheckedChange,
+  onChange,
   label,
+  ariaLabel,
   helperText,
   error,
   disabled,
@@ -36,12 +63,8 @@ export function Checkbox({
     if (inputRef.current) inputRef.current.indeterminate = indeterminate;
   }, [indeterminate]);
 
-  return (
-    <div className={`space-y-1 ${className}`}>
-      <label
-        htmlFor={controlId}
-        className={`inline-flex min-h-[38px] items-center gap-2 text-sm text-bambu-gray-light max-[768px]:min-h-11 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-      >
+  const control = (
+    <>
         <input
           {...props}
           ref={inputRef}
@@ -49,11 +72,15 @@ export function Checkbox({
           type="checkbox"
           checked={checked}
           disabled={disabled}
+          aria-label={ariaLabel}
           aria-checked={indeterminate ? 'mixed' : checked}
           aria-describedby={describedBy}
           aria-invalid={Boolean(error) || undefined}
           className="peer sr-only"
-          onChange={(event) => onCheckedChange(event.target.checked)}
+          onChange={(event) => {
+            onCheckedChange?.(event.target.checked);
+            onChange?.(event);
+          }}
         />
         <span
           data-testid="checkbox-visual"
@@ -70,8 +97,31 @@ export function Checkbox({
             <Check className="block h-3 w-3" strokeWidth={2.5} />
           ) : null}
         </span>
-        <span>{label}</span>
-      </label>
+    </>
+  );
+  const controlRow = label !== undefined ? (
+    <label
+      htmlFor={controlId}
+      className={`inline-flex min-h-[38px] items-center gap-2 text-sm text-bambu-gray-light max-[768px]:min-h-11 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+    >
+      {control}
+      <span>{label}</span>
+    </label>
+  ) : (
+    <span
+      className={`inline-flex min-h-[38px] items-center max-[768px]:min-h-11 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+    >
+      {control}
+    </span>
+  );
+
+  if (label === undefined && helperText === undefined && error === undefined) {
+    return controlRow;
+  }
+
+  return (
+    <div className={`space-y-1 ${className}`}>
+      {controlRow}
       {helperText ? (
         <p id={helperId} className="pl-[26px] text-xs text-bambu-gray max-[768px]:pl-[30px]">
           {helperText}

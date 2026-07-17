@@ -256,6 +256,7 @@ export function ExternalLinksSettings() {
                     checked={isDefaultSidebarEnabled}
                     onChange={handleToggleDefaultSidebarOrder}
                     disabled={updateDefaultSidebarMutation.isPending}
+                    ariaLabel={t('settings.setDefault')}
                   />
                 </label>
               )}

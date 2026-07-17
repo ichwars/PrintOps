@@ -262,8 +262,13 @@ describe('SettingsPage', () => {
 
     it('composes device settings in two desktop columns before the full-width virtual printers area', async () => {
       setSettingsTabUrl('printers-production');
+      let updatedSettings: Record<string, unknown> | undefined;
       server.use(
         http.get('/api/v1/equipment/', () => HttpResponse.json([])),
+        http.put('/api/v1/settings/', async ({ request }) => {
+          updatedSettings = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ ...mockSettings, ...updatedSettings });
+        }),
       );
 
       render(<SettingsPage />);
@@ -283,6 +288,14 @@ describe('SettingsPage', () => {
       for (const select of ftpRetrySelects) {
         expect(select.parentElement).toHaveClass('w-full');
       }
+      const retryAttempts = ftpRetrySelects[0];
+      expect(retryAttempts).toHaveAttribute('aria-expanded', 'false');
+      const user = userEvent.setup();
+      await user.click(retryAttempts);
+      await user.click(screen.getByRole('option', { name: '5 times' }));
+      await waitFor(() => {
+        expect(updatedSettings).toEqual(expect.objectContaining({ ftp_retry_count: 5 }));
+      });
       expect(
         within(ftpRetryGrid).getByText('Increase for printers with weak WiFi'),
       ).toBeInTheDocument();
@@ -448,11 +461,13 @@ describe('SettingsPage', () => {
     it('shows slicer dropdown with both options on Printers & Production', async () => {
       setSettingsTabUrl('printers-production', '&sub=print-process');
       render(<SettingsPage />);
+      const user = userEvent.setup();
 
-      await waitFor(() => {
-        const slicerSelect = screen.getAllByDisplayValue('Bambu Studio');
-        expect(slicerSelect.length).toBeGreaterThan(0);
-      });
+      const slicerSelect = await screen.findByRole('combobox', { name: 'Preferred Slicer' });
+      expect(slicerSelect).toHaveTextContent('Bambu Studio');
+      await user.click(slicerSelect);
+      expect(screen.getByRole('option', { name: 'Bambu Studio' })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'OrcaSlicer' })).toBeInTheDocument();
     });
 
     it('shows File Manager on Projects & Files', async () => {

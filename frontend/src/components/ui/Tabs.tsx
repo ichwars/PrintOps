@@ -13,6 +13,7 @@ export type TabsProps<T extends string> = {
   items: TabItem<T>[];
   ariaLabel: string;
   className?: string;
+  renderPanel?: boolean;
 };
 
 const adjacentEnabledIndex = <T extends string>(
@@ -33,6 +34,7 @@ export function Tabs<T extends string>({
   items,
   ariaLabel,
   className = '',
+  renderPanel = true,
 }: TabsProps<T>) {
   const generatedId = useId().replace(/:/g, '');
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -76,7 +78,7 @@ export function Tabs<T extends string>({
   return (
     <div className={className}>
       <div
-        role="tablist"
+        role={renderPanel ? 'tablist' : undefined}
         aria-label={ariaLabel}
         className="flex gap-1 overflow-x-auto border-b border-bambu-dark-tertiary"
       >
@@ -91,10 +93,11 @@ export function Tabs<T extends string>({
               }}
               id={`tabs-${generatedId}-tab-${valueId}`}
               type="button"
-              role="tab"
-              aria-selected={selected}
-              aria-controls={`tabs-${generatedId}-panel-${valueId}`}
-              tabIndex={selected ? 0 : -1}
+              role={renderPanel ? 'tab' : undefined}
+              aria-current={!renderPanel && selected ? 'page' : undefined}
+              aria-selected={renderPanel ? selected : undefined}
+              aria-controls={renderPanel ? `tabs-${generatedId}-panel-${valueId}` : undefined}
+              tabIndex={renderPanel ? (selected ? 0 : -1) : undefined}
               disabled={item.disabled}
               className={`min-h-[38px] shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green max-[768px]:min-h-11 ${
                 selected
@@ -109,7 +112,7 @@ export function Tabs<T extends string>({
           );
         })}
       </div>
-      {activeIndex >= 0 ? (
+      {renderPanel && activeIndex >= 0 ? (
         <div
           id={`tabs-${generatedId}-panel-${value.replace(/[^a-zA-Z0-9_-]/g, '-')}`}
           role="tabpanel"

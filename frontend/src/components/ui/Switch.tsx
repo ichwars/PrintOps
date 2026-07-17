@@ -1,26 +1,47 @@
-import { useId, type InputHTMLAttributes, type ReactNode } from 'react';
-
-type SwitchLabel =
-  | { label: ReactNode; ariaLabel?: never }
-  | { label?: never; ariaLabel: string };
+import {
+  useId,
+  type ChangeEventHandler,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from 'react';
 
 type NativeSwitchProps = Omit<
   InputHTMLAttributes<HTMLInputElement>,
   'checked' | 'defaultChecked' | 'onChange' | 'type' | 'aria-label'
 >;
 
+type SwitchValueHandler =
+  | {
+      onCheckedChange: (checked: boolean) => void;
+      onChange?: never;
+      label: ReactNode;
+      ariaLabel?: string;
+    }
+  | {
+      onCheckedChange: (checked: boolean) => void;
+      onChange?: never;
+      label?: never;
+      ariaLabel: string;
+    }
+  | {
+      onCheckedChange?: never;
+      onChange: ChangeEventHandler<HTMLInputElement>;
+      label?: ReactNode;
+      ariaLabel?: string;
+    };
+
 export type SwitchProps = NativeSwitchProps &
-  SwitchLabel & {
+  {
     checked: boolean;
-    onCheckedChange: (checked: boolean) => void;
     helperText?: ReactNode;
     stopPropagation?: boolean;
-  };
+  } & SwitchValueHandler;
 
 export function Switch({
   id,
   checked,
   onCheckedChange,
+  onChange,
   label,
   ariaLabel,
   helperText,
@@ -33,12 +54,8 @@ export function Switch({
   const controlId = id ?? `switch-${generatedId}`;
   const helperId = helperText ? `${controlId}-helper` : undefined;
 
-  return (
-    <div className={`space-y-1 ${className}`}>
-      <label
-        htmlFor={controlId}
-        className={`inline-flex min-h-[38px] items-center gap-2 text-sm text-bambu-gray-light max-[768px]:min-h-11 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-      >
+  const control = (
+    <>
         <input
           {...props}
           id={controlId}
@@ -53,7 +70,10 @@ export function Switch({
           onClick={(event) => {
             if (stopPropagation) event.stopPropagation();
           }}
-          onChange={(event) => onCheckedChange(event.target.checked)}
+          onChange={(event) => {
+            onCheckedChange?.(event.target.checked);
+            onChange?.(event);
+          }}
         />
         <span
           data-testid="switch-track"
@@ -74,8 +94,32 @@ export function Switch({
             }`}
           />
         </span>
-        {label !== undefined ? <span>{label}</span> : null}
-      </label>
+    </>
+  );
+  const wrapsOwnLabel = label !== undefined || ariaLabel !== undefined;
+  const controlRow = wrapsOwnLabel ? (
+    <label
+      htmlFor={controlId}
+      className={`inline-flex min-h-[38px] items-center gap-2 text-sm text-bambu-gray-light max-[768px]:min-h-11 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+    >
+      {control}
+      {label !== undefined ? <span>{label}</span> : null}
+    </label>
+  ) : (
+    <span
+      className={`inline-flex min-h-[38px] items-center max-[768px]:min-h-11 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+    >
+      {control}
+    </span>
+  );
+
+  if (!wrapsOwnLabel && helperText === undefined) {
+    return controlRow;
+  }
+
+  return (
+    <div className={`space-y-1 ${className}`}>
+      {controlRow}
       {helperText ? (
         <p id={helperId} className="pl-11 text-xs text-bambu-gray max-[768px]:pl-[52px]">
           {helperText}

@@ -15,7 +15,15 @@ import { SlicerBundlesPanel } from '../components/SlicerBundlesPanel';
 import { SlicerPipelinesPanel } from '../components/SlicerPipelinesPanel';
 import { CameraTokensSection } from './CameraTokensPage';
 import { Collapsible } from '../components/Collapsible';
-import { Button } from '../components/Button';
+import {
+  Button,
+  Checkbox,
+  Select,
+  Switch,
+  Tabs,
+  TextArea,
+  TextField,
+} from '../components/ui';
 import { SmartPlugCard } from '../components/SmartPlugCard';
 import { AddSmartPlugModal } from '../components/AddSmartPlugModal';
 import { NotificationProviderCard } from '../components/NotificationProviderCard';
@@ -2112,15 +2120,16 @@ export function SettingsPage() {
           <label className="block text-sm text-bambu-gray mb-1">
             {t('settings.createArchiveEntry')}
           </label>
-          <select
+          <Select
+            ariaLabel={t('settings.createArchiveEntry')}
             value={localSettings.library_archive_mode ?? 'ask'}
-            onChange={(e) => updateSetting('library_archive_mode', e.target.value as 'always' | 'never' | 'ask')}
-            className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-          >
-            <option value="always">{t('settings.archiveMode.always')}</option>
-            <option value="never">{t('settings.archiveMode.never')}</option>
-            <option value="ask">{t('settings.archiveMode.ask')}</option>
-          </select>
+            onValueChange={(value) => updateSetting('library_archive_mode', value as 'always' | 'never' | 'ask')}
+            options={[
+              { value: 'always', label: t('settings.archiveMode.always') },
+              { value: 'never', label: t('settings.archiveMode.never') },
+              { value: 'ask', label: t('settings.archiveMode.ask') },
+            ]}
+          />
           <p className="text-xs text-bambu-gray mt-1">
             {t('settings.createArchiveEntryDescription')}
           </p>
@@ -2131,7 +2140,7 @@ export function SettingsPage() {
             {t('settings.lowDiskSpaceWarning')}
           </label>
           <div className="flex items-center gap-2">
-            <input
+            <TextField
               type="number"
               min="0.5"
               max="100"
@@ -2155,13 +2164,10 @@ export function SettingsPage() {
                 <p className="text-sm text-bambu-gray">{t('libraryAutoPurge.enableDescription')}</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
+                <Switch
                   checked={trashSettings.auto_purge_enabled}
                   onChange={(e) => saveTrashSettings({ auto_purge_enabled: e.target.checked })}
-                  className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
               </label>
             </div>
 
@@ -2170,7 +2176,7 @@ export function SettingsPage() {
                 {t('libraryAutoPurge.ageLabel')}
               </label>
               <div className="flex items-center gap-2">
-                <input
+                <TextField
                   type="number"
                   min={7}
                   max={3650}
@@ -2191,12 +2197,10 @@ export function SettingsPage() {
             </div>
 
             <label className="flex items-center gap-2 text-sm text-white cursor-pointer">
-              <input
-                type="checkbox"
+              <Checkbox
                 disabled={!trashSettings.auto_purge_enabled}
                 checked={trashSettings.auto_purge_include_never_printed}
                 onChange={(e) => saveTrashSettings({ auto_purge_include_never_printed: e.target.checked })}
-                className="rounded border-gray-300 disabled:opacity-50"
               />
               {t('libraryAutoPurge.includeNeverPrinted')}
             </label>
@@ -2220,13 +2224,10 @@ export function SettingsPage() {
             </p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
+            <Switch
               checked={localSettings.auto_archive}
               onChange={(e) => updateSetting('auto_archive', e.target.checked)}
-              className="sr-only peer"
             />
-            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
           </label>
         </div>
         <div className="flex items-center justify-between">
@@ -2237,13 +2238,10 @@ export function SettingsPage() {
             </p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
+            <Switch
               checked={localSettings.save_thumbnails}
               onChange={(e) => updateSetting('save_thumbnails', e.target.checked)}
-              className="sr-only peer"
             />
-            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
           </label>
         </div>
         <div className="flex items-center justify-between">
@@ -2254,13 +2252,10 @@ export function SettingsPage() {
             </p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
+            <Switch
               checked={localSettings.capture_finish_photo}
               onChange={(e) => updateSetting('capture_finish_photo', e.target.checked)}
-              className="sr-only peer"
             />
-            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
           </label>
         </div>
         {localSettings.capture_finish_photo && ffmpegStatus && !ffmpegStatus.installed && (
@@ -2286,13 +2281,10 @@ export function SettingsPage() {
                 <p className="text-sm text-bambu-gray">{t('archiveAutoPurge.enableDescription')}</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
+                <Switch
                   checked={archivePurgeSettings.enabled}
                   onChange={(e) => saveArchivePurgeSettings({ enabled: e.target.checked })}
-                  className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
               </label>
             </div>
 
@@ -2301,7 +2293,7 @@ export function SettingsPage() {
                 {t('archiveAutoPurge.ageLabel')}
               </label>
               <div className="flex items-center gap-2">
-                <input
+                <TextField
                   type="number"
                   min={7}
                   max={3650}
@@ -2322,12 +2314,10 @@ export function SettingsPage() {
             </div>
 
             <label className="flex items-start gap-2 cursor-pointer">
-              <input
-                type="checkbox"
+              <Checkbox
                 disabled={!archivePurgeSettings.enabled}
                 checked={archivePurgeSettings.purge_stats}
                 onChange={(e) => saveArchivePurgeSettings({ purge_stats: e.target.checked })}
-                className="mt-0.5 shrink-0 disabled:opacity-50"
               />
               <span className="text-sm">
                 <span className="text-white block">{t('archiveAutoPurge.purgeStatsLabel')}</span>
@@ -2355,14 +2345,15 @@ export function SettingsPage() {
           <label className="block text-sm text-bambu-gray mb-1">
             {t('settings.cameraViewMode')}
           </label>
-          <select
+          <Select
+            ariaLabel={t('settings.cameraViewMode')}
             value={localSettings.camera_view_mode ?? 'window'}
-            onChange={(e) => updateSetting('camera_view_mode', e.target.value as 'window' | 'embedded')}
-            className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-          >
-            <option value="window">{t('settings.newWindow')}</option>
-            <option value="embedded">{t('settings.embeddedOverlay')}</option>
-          </select>
+            onValueChange={(value) => updateSetting('camera_view_mode', value as 'window' | 'embedded')}
+            options={[
+              { value: 'window', label: t('settings.newWindow') },
+              { value: 'embedded', label: t('settings.embeddedOverlay') },
+            ]}
+          />
           <p className="text-xs text-bambu-gray mt-1">
             {localSettings.camera_view_mode === 'embedded'
               ? t('settings.cameraOverlayDescription')
@@ -2384,19 +2375,16 @@ export function SettingsPage() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-white font-medium text-sm">{printer.name}</span>
                     <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
+                      <Switch
                         checked={printer.external_camera_enabled}
                         onChange={(e) => handleUpdatePrinterCamera(printer.id, { enabled: e.target.checked })}
-                        className="sr-only peer"
                       />
-                      <div className="w-9 h-5 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-bambu-green"></div>
                     </label>
                   </div>
 
                   {printer.external_camera_enabled && (
                     <div className="space-y-2 mt-2">
-                      <input
+                      <TextField
                         type="text"
                         placeholder={printer.external_camera_type === 'usb' ? t('settings.cameraPlaceholderUsb') : t('settings.cameraPlaceholderUrl')}
                         value={localCameraUrls[printer.id] ?? printer.external_camera_url ?? ''}
@@ -2404,16 +2392,18 @@ export function SettingsPage() {
                         className="w-full px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
                       />
                       <div className="flex gap-2">
-                        <select
+                        <Select
+                          ariaLabel={`${printer.name}: ${t('settings.externalCameras')}`}
                           value={printer.external_camera_type || 'mjpeg'}
-                          onChange={(e) => handleUpdatePrinterCamera(printer.id, { type: e.target.value })}
-                          className="flex-1 px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
-                        >
-                          <option value="mjpeg">{t('settings.cameraTypeMjpeg')}</option>
-                          <option value="rtsp">{t('settings.cameraTypeRtsp')}</option>
-                          <option value="snapshot">{t('settings.cameraTypeSnapshot')}</option>
-                          <option value="usb">{t('settings.cameraTypeUsb')}</option>
-                        </select>
+                          onValueChange={(value) => handleUpdatePrinterCamera(printer.id, { type: value })}
+                          className="min-w-0 flex-1"
+                          options={[
+                            { value: 'mjpeg', label: t('settings.cameraTypeMjpeg') },
+                            { value: 'rtsp', label: t('settings.cameraTypeRtsp') },
+                            { value: 'snapshot', label: t('settings.cameraTypeSnapshot') },
+                            { value: 'usb', label: t('settings.cameraTypeUsb') },
+                          ]}
+                        />
                         <Button
                           size="sm"
                           variant="secondary"
@@ -2446,7 +2436,7 @@ export function SettingsPage() {
                         <div className="space-y-1">
                           <label className="text-xs text-bambu-gray">{t('settings.cameraSnapshotUrl', 'Snapshot URL (optional)')}</label>
                           <div className="flex gap-2">
-                            <input
+                            <TextField
                               type="text"
                               placeholder={t('settings.cameraSnapshotUrlPlaceholder', 'http://192.168.1.61:1984/api/frame.jpeg?src=printer')}
                               value={localSnapshotUrls[printer.id] ?? printer.external_camera_snapshot_url ?? ''}
@@ -2473,16 +2463,18 @@ export function SettingsPage() {
                       )}
                       <div className="flex items-center gap-2">
                         <label className="text-xs text-bambu-gray">{t('settings.cameraRotation')}</label>
-                        <select
+                        <Select
+                          ariaLabel={`${printer.name} ${t('settings.cameraRotation')}`}
                           value={printer.camera_rotation || 0}
-                          onChange={(e) => handleUpdatePrinterCamera(printer.id, { rotation: parseInt(e.target.value) })}
-                          className="px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-xs focus:border-bambu-green focus:outline-none"
-                        >
-                          <option value={0}>0°</option>
-                          <option value={90}>90°</option>
-                          <option value={180}>180°</option>
-                          <option value={270}>270°</option>
-                        </select>
+                          onValueChange={(value) => handleUpdatePrinterCamera(printer.id, { rotation: value })}
+                          className="w-28"
+                          options={[
+                            { value: 0, label: '0°' },
+                            { value: 90, label: '90°' },
+                            { value: 180, label: '180°' },
+                            { value: 270, label: '270°' },
+                          ]}
+                        />
                       </div>
                     </div>
                   )}
@@ -2511,19 +2503,15 @@ export function SettingsPage() {
             {t('settings.defaultPrinter')}
           </label>
           <div className="relative">
-            <select
-              value={localSettings.default_printer_id ?? ''}
-              onChange={(e) => updateSetting('default_printer_id', e.target.value ? Number(e.target.value) : null)}
-              className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
-            >
-              <option value="">{t('settings.noDefaultPrinter')}</option>
-              {printers?.map((printer) => (
-                <option key={printer.id} value={printer.id}>
-                  {printer.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+            <Select
+              ariaLabel={t('settings.defaultPrinter')}
+              value={localSettings.default_printer_id ? String(localSettings.default_printer_id) : ''}
+              onValueChange={(value) => updateSetting('default_printer_id', value ? Number(value) : null)}
+              options={[
+                { value: '', label: t('settings.noDefaultPrinter') },
+                ...(printers?.map((printer) => ({ value: String(printer.id), label: printer.name })) ?? []),
+              ]}
+            />
           </div>
           <p className="text-xs text-bambu-gray mt-1">
             {t('settings.defaultPrinterDescription')}
@@ -2717,13 +2705,10 @@ export function SettingsPage() {
             </p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
+            <Switch
               checked={localSettings.check_printer_firmware ?? true}
               onChange={(e) => updateSetting('check_printer_firmware', e.target.checked)}
-              className="sr-only peer"
             />
-            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
           </label>
         </div>
         <div className="border-t border-bambu-dark-tertiary pt-4">
@@ -2737,13 +2722,10 @@ export function SettingsPage() {
             </p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
+            <Switch
               checked={localSettings.check_updates}
               onChange={(e) => updateSetting('check_updates', e.target.checked)}
-              className="sr-only peer"
             />
-            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
           </label>
         </div>
         <div className={`flex items-center justify-between ${!localSettings.check_updates ? 'opacity-50' : ''}`}>
@@ -2754,14 +2736,11 @@ export function SettingsPage() {
             </p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
+            <Switch
               checked={localSettings.include_beta_updates ?? false}
               onChange={(e) => updateSetting('include_beta_updates', e.target.checked)}
               disabled={!localSettings.check_updates}
-              className="sr-only peer"
             />
-            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-disabled:opacity-50 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
           </label>
         </div>
         {localSettings.check_updates && (
@@ -2970,13 +2949,10 @@ export function SettingsPage() {
             </p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
+            <Switch
               checked={localSettings.queue_drying_enabled ?? false}
               onChange={(e) => updateSetting('queue_drying_enabled', e.target.checked)}
-              className="sr-only peer"
             />
-            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
           </label>
         </div>
         {localSettings.queue_drying_enabled && (
@@ -2990,13 +2966,10 @@ export function SettingsPage() {
               </p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
+              <Switch
                 checked={localSettings.queue_drying_block ?? false}
                 onChange={(e) => updateSetting('queue_drying_block', e.target.checked)}
-                className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
             </label>
           </div>
         )}
@@ -3010,13 +2983,10 @@ export function SettingsPage() {
             </p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
+            <Switch
               checked={localSettings.ambient_drying_enabled ?? false}
               onChange={(e) => updateSetting('ambient_drying_enabled', e.target.checked)}
-              className="sr-only peer"
             />
-            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
           </label>
         </div>
         <div className="flex items-center justify-between">
@@ -3029,13 +2999,10 @@ export function SettingsPage() {
             </p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
+            <Switch
               checked={localSettings.print_drying_enabled ?? false}
               onChange={(e) => updateSetting('print_drying_enabled', e.target.checked)}
-              className="sr-only peer"
             />
-            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
           </label>
         </div>
         {/* Drying Presets Table */}
@@ -3083,7 +3050,7 @@ export function SettingsPage() {
                       <td className="py-1.5 pr-2 text-white font-medium">{fil}</td>
                       <td className="py-1 px-1">
                         <div className="flex items-center justify-end gap-1">
-                          <input type="number" min={30} max={65} value={preset.n3f}
+                          <TextField type="number" min={30} max={65} value={preset.n3f}
                             onChange={e => updatePreset(fil, 'n3f', Math.max(1, parseInt(e.target.value) || 0))}
                             className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
@@ -3092,7 +3059,7 @@ export function SettingsPage() {
                       </td>
                       <td className="py-1 px-1">
                         <div className="flex items-center gap-1">
-                          <input type="number" min={1} max={24} value={preset.n3f_hours}
+                          <TextField type="number" min={1} max={24} value={preset.n3f_hours}
                             onChange={e => updatePreset(fil, 'n3f_hours', Math.max(1, parseInt(e.target.value) || 0))}
                             className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
@@ -3101,7 +3068,7 @@ export function SettingsPage() {
                       </td>
                       <td className="py-1 px-1">
                         <div className="flex items-center justify-end gap-1">
-                          <input type="number" min={30} max={85} value={preset.n3s}
+                          <TextField type="number" min={30} max={85} value={preset.n3s}
                             onChange={e => updatePreset(fil, 'n3s', Math.max(1, parseInt(e.target.value) || 0))}
                             className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
@@ -3110,7 +3077,7 @@ export function SettingsPage() {
                       </td>
                       <td className="py-1 px-1">
                         <div className="flex items-center gap-1">
-                          <input type="number" min={1} max={24} value={preset.n3s_hours}
+                          <TextField type="number" min={1} max={24} value={preset.n3s_hours}
                             onChange={e => updatePreset(fil, 'n3s_hours', Math.max(1, parseInt(e.target.value) || 0))}
                             className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
@@ -3194,7 +3161,7 @@ export function SettingsPage() {
                         <td className={`py-1.5 pr-2 font-medium ${row.isDefault ? 'text-bambu-gray italic' : 'text-white'}`}>{row.label}</td>
                         <td className="py-1 pr-2">
                           <div className="flex items-center justify-end gap-1">
-                            <input
+                            <TextField
                               type="number"
                               min={5}
                               max={95}
@@ -3251,13 +3218,10 @@ export function SettingsPage() {
             </p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
+            <Switch
               checked={localSettings.ftp_retry_enabled ?? true}
               onChange={(e) => updateSetting('ftp_retry_enabled', e.target.checked)}
-              className="sr-only peer"
             />
-            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
           </label>
         </div>
 
@@ -3271,16 +3235,16 @@ export function SettingsPage() {
                 {t('settings.retryAttempts')}
               </label>
               <div className="relative w-full">
-                <select
+                <Select
+                  ariaLabel={t('settings.retryAttempts')}
                   value={localSettings.ftp_retry_count ?? 3}
-                  onChange={(e) => updateSetting('ftp_retry_count', parseInt(e.target.value))}
-                  className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
-                >
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
-                    <option key={n} value={n}>{t('settings.time', { count: n })}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+                  onValueChange={(value) => updateSetting('ftp_retry_count', value)}
+                  className="w-full"
+                  options={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => ({
+                    value,
+                    label: t('settings.time', { count: value }),
+                  }))}
+                />
               </div>
             </div>
 
@@ -3289,16 +3253,16 @@ export function SettingsPage() {
                 {t('settings.retryDelay')}
               </label>
               <div className="relative w-full">
-                <select
+                <Select
+                  ariaLabel={t('settings.retryDelay')}
                   value={localSettings.ftp_retry_delay ?? 2}
-                  onChange={(e) => updateSetting('ftp_retry_delay', parseInt(e.target.value))}
-                  className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
-                >
-                  {[1, 2, 3, 5, 10, 15, 20, 30].map(n => (
-                    <option key={n} value={n}>{t('settings.second', { count: n })}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+                  onValueChange={(value) => updateSetting('ftp_retry_delay', value)}
+                  className="w-full"
+                  options={[1, 2, 3, 5, 10, 15, 20, 30].map((value) => ({
+                    value,
+                    label: t('settings.second', { count: value }),
+                  }))}
+                />
               </div>
             </div>
             <div>
@@ -3306,16 +3270,16 @@ export function SettingsPage() {
                 {t('settings.connectionTimeout')}
               </label>
               <div className="relative w-full">
-                <select
+                <Select
+                  ariaLabel={t('settings.connectionTimeout')}
                   value={localSettings.ftp_timeout ?? 30}
-                  onChange={(e) => updateSetting('ftp_timeout', parseInt(e.target.value))}
-                  className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
-                >
-                  {[10, 15, 20, 30, 45, 60, 90, 120, 180, 300].map(n => (
-                    <option key={n} value={n}>{t('settings.nSeconds', { count: n })}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+                  onValueChange={(value) => updateSetting('ftp_timeout', value)}
+                  className="w-full"
+                  options={[10, 15, 20, 30, 45, 60, 90, 120, 180, 300].map((value) => ({
+                    value,
+                    label: t('settings.nSeconds', { count: value }),
+                  }))}
+                />
               </div>
               <p className="text-xs text-bambu-gray mt-1">
                 {t('settings.increaseForWeakWifi')}
@@ -3346,13 +3310,10 @@ export function SettingsPage() {
             <p className="text-xs text-bambu-gray">{t('settings.prometheusDescription')}</p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
+            <Switch
               checked={localSettings.prometheus_enabled ?? false}
               onChange={(e) => updateSetting('prometheus_enabled', e.target.checked)}
-              className="sr-only peer"
             />
-            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
           </label>
         </div>
 
@@ -3362,7 +3323,7 @@ export function SettingsPage() {
               <label className="block text-sm text-bambu-gray mb-1">
                 {t('settings.bearerTokenOptional')}
               </label>
-              <input
+              <TextField
                 type="password"
                 value={localSettings.prometheus_token ?? ''}
                 onChange={(e) => updateSetting('prometheus_token', e.target.value)}
@@ -3452,7 +3413,7 @@ export function SettingsPage() {
       <Card className="mb-4">
         <CardContent className="py-3">
           <label className="block text-sm text-bambu-gray mb-2">{t('settings.apiKeyForTesting')}</label>
-          <input
+          <TextField
             type="text"
             value={testApiKey}
             onChange={(e) => setTestApiKey(e.target.value)}
@@ -3468,13 +3429,6 @@ export function SettingsPage() {
       <APIBrowser apiKey={testApiKey} />
     </div>
   ) : null;
-
-  const subTabButtonClass = (active: boolean) =>
-    `h-full px-0 py-0 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 whitespace-nowrap ${
-      active
-        ? 'text-bambu-green border-bambu-green'
-        : 'text-bambu-gray hover:text-white border-transparent'
-    }`;
 
   const localizedHeaderLabel = (item: SettingsHeaderMeta) => {
     const fallback = i18n.resolvedLanguage?.startsWith('de')
@@ -3532,185 +3486,139 @@ export function SettingsPage() {
 
   const settingsSectionSubnav =
     activeTab === 'users-security' ? (
-      <nav
-        aria-label={t('settings.tabs.usersSecurity', 'Users & Security')}
-        className="mb-5 flex h-[48px] min-h-[48px] items-stretch gap-5 overflow-x-auto border-b border-bambu-dark-tertiary"
-      >
-        <button
-          onClick={() => setUsersSubTab('users')}
-          className={subTabButtonClass(usersSubTab === 'users')}
-        >
-          <Users className="w-4 h-4" />
-          {t('settings.tabs.users')}
-        </button>
-        <button
-          onClick={() => setUsersSubTab('email')}
-          className={subTabButtonClass(usersSubTab === 'email')}
-        >
-          <Mail className="w-4 h-4" />
-          {t('settings.tabs.emailAuth') || 'Email Authentication'}
-          {advancedAuthStatus?.advanced_auth_enabled && (
-            <span className="w-2 h-2 rounded-full bg-green-400" />
-          )}
-        </button>
-        <button
-          onClick={() => setUsersSubTab('ldap')}
-          className={subTabButtonClass(usersSubTab === 'ldap')}
-        >
-          <Shield className="w-4 h-4" />
-          {t('settings.tabs.ldap') || 'LDAP'}
-          {ldapStatus?.ldap_enabled && (
-            <span className="w-2 h-2 rounded-full bg-green-400" />
-          )}
-        </button>
-        <button
-          onClick={() => setUsersSubTab('twofa')}
-          className={subTabButtonClass(usersSubTab === 'twofa')}
-        >
-          <Shield className="w-4 h-4" />
-          {t('settings.tabs.twoFa')}
-          <span
-            className={`w-2 h-2 rounded-full ${
-              twoFAStatus?.totp_enabled || twoFAStatus?.email_otp_enabled
-                ? 'bg-green-400'
-                : 'bg-bambu-gray/40'
-            }`}
-          />
-        </button>
-        {isAdmin && (
-          <button
-            onClick={() => setUsersSubTab('oidc')}
-            className={subTabButtonClass(usersSubTab === 'oidc')}
-          >
-            <Globe className="w-4 h-4" />
-            {t('settings.tabs.oidc')}
-            <span
-              className={`w-2 h-2 rounded-full ${
-                oidcProvidersAll.some((p) => p.is_enabled)
-                  ? 'bg-green-400'
-                  : 'bg-bambu-gray/40'
-              }`}
-            />
-          </button>
-        )}
-        {isAdmin && (
-          <button
-            onClick={() => setUsersSubTab('security')}
-            className={subTabButtonClass(usersSubTab === 'security')}
-          >
-            <Shield className="w-4 h-4" />
-            {t('settings.tabs.security')}
-          </button>
-        )}
-      </nav>
+      <Tabs<UsersSubTab>
+        ariaLabel={t('settings.tabs.usersSecurity', 'Users & Security')}
+        value={usersSubTab}
+        onValueChange={setUsersSubTab}
+        renderPanel={false}
+        className="mb-5"
+        items={[
+          {
+            value: 'users',
+            label: <span className="flex items-center gap-2"><Users className="h-4 w-4" />{t('settings.tabs.users')}</span>,
+            content: null,
+          },
+          {
+            value: 'email',
+            label: <span className="flex items-center gap-2"><Mail className="h-4 w-4" />{t('settings.tabs.emailAuth') || 'Email Authentication'}{advancedAuthStatus?.advanced_auth_enabled ? <span className="h-2 w-2 rounded-full bg-green-400" /> : null}</span>,
+            content: null,
+          },
+          {
+            value: 'ldap',
+            label: <span className="flex items-center gap-2"><Shield className="h-4 w-4" />{t('settings.tabs.ldap') || 'LDAP'}{ldapStatus?.ldap_enabled ? <span className="h-2 w-2 rounded-full bg-green-400" /> : null}</span>,
+            content: null,
+          },
+          {
+            value: 'twofa',
+            label: <span className="flex items-center gap-2"><Shield className="h-4 w-4" />{t('settings.tabs.twoFa')}<span className={twoFAStatus?.totp_enabled || twoFAStatus?.email_otp_enabled ? 'h-2 w-2 rounded-full bg-green-400' : 'h-2 w-2 rounded-full bg-bambu-gray/40'} /></span>,
+            content: null,
+          },
+          ...(isAdmin
+            ? [
+                {
+                  value: 'oidc' as UsersSubTab,
+                  label: <span className="flex items-center gap-2"><Globe className="h-4 w-4" />{t('settings.tabs.oidc')}<span className={oidcProvidersAll.some((provider) => provider.is_enabled) ? 'h-2 w-2 rounded-full bg-green-400' : 'h-2 w-2 rounded-full bg-bambu-gray/40'} /></span>,
+                  content: null,
+                },
+                {
+                  value: 'security' as UsersSubTab,
+                  label: <span className="flex items-center gap-2"><Shield className="h-4 w-4" />{t('settings.tabs.security')}</span>,
+                  content: null,
+                },
+              ]
+            : []),
+        ]}
+      />
     ) : activeTab === 'integrations' ? (
-      <nav
-        aria-label={t('settings.tabs.integrations', 'Integrations')}
-        className="mb-5 flex h-[48px] min-h-[48px] items-stretch gap-5 overflow-x-auto border-b border-bambu-dark-tertiary"
-      >
-        {INTEGRATION_SUB_TABS.map(({ id, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => handleIntegrationSubTabChange(id)}
-            className={subTabButtonClass(integrationSubTab === id)}
-          >
-            <Icon className="w-4 h-4" />
-            {integrationSubTabLabel(id)}
-          </button>
-        ))}
-      </nav>
+      <Tabs<IntegrationSubTab>
+        ariaLabel={t('settings.tabs.integrations', 'Integrations')}
+        value={integrationSubTab}
+        onValueChange={handleIntegrationSubTabChange}
+        renderPanel={false}
+        className="mb-5"
+        items={INTEGRATION_SUB_TABS.map(({ id, icon: Icon }) => ({
+          value: id,
+          label: <span className="flex items-center gap-2"><Icon className="h-4 w-4" />{integrationSubTabLabel(id)}</span>,
+          content: null,
+        }))}
+      />
     ) : activeTab === 'operations' ? (
-      <nav
-        aria-label={t('settings.tabs.operations', 'Operations')}
-        className="mb-5 flex h-[48px] min-h-[48px] items-stretch gap-5 overflow-x-auto border-b border-bambu-dark-tertiary"
-      >
-        {OPERATION_SUB_TABS.map(({ id, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => handleOperationSubTabChange(id)}
-            className={subTabButtonClass(operationSubTab === id)}
-          >
-            <Icon className="w-4 h-4" />
-            {operationSubTabLabel(id)}
-          </button>
-        ))}
-      </nav>
+      <Tabs<OperationSubTab>
+        ariaLabel={t('settings.tabs.operations', 'Operations')}
+        value={operationSubTab}
+        onValueChange={handleOperationSubTabChange}
+        renderPanel={false}
+        className="mb-5"
+        items={OPERATION_SUB_TABS.map(({ id, icon: Icon }) => ({
+          value: id,
+          label: <span className="flex items-center gap-2"><Icon className="h-4 w-4" />{operationSubTabLabel(id)}</span>,
+          content: null,
+        }))}
+      />
     ) : activeTab === 'printers-production' ? (
-      <nav
-        aria-label={t('settings.tabs.printersProduction', 'Device Management')}
-        className="mb-5 flex h-[48px] min-h-[48px] items-stretch gap-5 overflow-x-auto border-b border-bambu-dark-tertiary"
-      >
-        {PRINTER_PRODUCTION_SUB_TAB_ITEMS.map(({ id, meta }) => {
+      <Tabs<PrinterProductionSubTab>
+        ariaLabel={t('settings.tabs.printersProduction', 'Device Management')}
+        value={printerProductionSubTab}
+        onValueChange={handlePrinterProductionSubTabChange}
+        renderPanel={false}
+        className="mb-5"
+        items={PRINTER_PRODUCTION_SUB_TAB_ITEMS.map(({ id, meta }) => {
           const Icon = meta.icon;
-          return (
-            <button
-              key={id}
-              onClick={() => handlePrinterProductionSubTabChange(id)}
-              className={subTabButtonClass(printerProductionSubTab === id)}
-            >
-              <Icon className="w-4 h-4" />
-              {printerProductionSubTabLabel(id)}
-            </button>
-          );
+          return {
+            value: id,
+            label: <span className="flex items-center gap-2"><Icon className="h-4 w-4" />{printerProductionSubTabLabel(id)}</span>,
+            content: null,
+          };
         })}
-      </nav>
+      />
     ) : activeTab === 'projects-files' ? (
-      <nav
-        aria-label={t('settings.tabs.projectsFiles', 'Project Management')}
-        className="mb-5 flex h-[48px] min-h-[48px] items-stretch gap-5 overflow-x-auto border-b border-bambu-dark-tertiary"
-      >
-        {PROJECT_MANAGEMENT_SUB_TAB_ITEMS.map(({ id, meta }) => {
+      <Tabs<ProjectManagementSubTab>
+        ariaLabel={t('settings.tabs.projectsFiles', 'Project Management')}
+        value={projectManagementSubTab}
+        onValueChange={handleProjectManagementSubTabChange}
+        renderPanel={false}
+        className="mb-5"
+        items={PROJECT_MANAGEMENT_SUB_TAB_ITEMS.map(({ id, meta }) => {
           const Icon = meta.icon;
-          return (
-            <button
-              key={id}
-              onClick={() => handleProjectManagementSubTabChange(id)}
-              className={subTabButtonClass(projectManagementSubTab === id)}
-            >
-              <Icon className="w-4 h-4" />
-              {projectManagementSubTabLabel(id)}
-            </button>
-          );
+          return {
+            value: id,
+            label: <span className="flex items-center gap-2"><Icon className="h-4 w-4" />{projectManagementSubTabLabel(id)}</span>,
+            content: null,
+          };
         })}
-      </nav>
+      />
     ) : activeTab === 'warehouse-material' ? (
-      <nav
-        aria-label={t('settings.tabs.warehouseMaterial', 'Warehouse Management')}
-        className="mb-5 flex h-[48px] min-h-[48px] items-stretch gap-5 overflow-x-auto border-b border-bambu-dark-tertiary"
-      >
-        {WAREHOUSE_MATERIAL_SUB_TAB_ITEMS.map(({ id, meta }) => {
+      <Tabs<WarehouseMaterialSubTab>
+        ariaLabel={t('settings.tabs.warehouseMaterial', 'Warehouse Management')}
+        value={warehouseMaterialSubTab}
+        onValueChange={handleWarehouseMaterialSubTabChange}
+        renderPanel={false}
+        className="mb-5"
+        items={WAREHOUSE_MATERIAL_SUB_TAB_ITEMS.map(({ id, meta }) => {
           const Icon = meta.icon;
-          return (
-            <button
-              key={id}
-              onClick={() => handleWarehouseMaterialSubTabChange(id)}
-              className={subTabButtonClass(warehouseMaterialSubTab === id)}
-            >
-              <Icon className="w-4 h-4" />
-              {warehouseMaterialSubTabLabel(id)}
-            </button>
-          );
+          return {
+            value: id,
+            label: <span className="flex items-center gap-2"><Icon className="h-4 w-4" />{warehouseMaterialSubTabLabel(id)}</span>,
+            content: null,
+          };
         })}
-      </nav>
+      />
     ) : activeTab === 'orders-calculation' ? (
-      <nav
-        aria-label={t('settings.tabs.ordersCalculation', 'Order Management')}
-        className="mb-5 flex h-[48px] min-h-[48px] items-stretch gap-5 overflow-x-auto border-b border-bambu-dark-tertiary"
-      >
-        {ORDER_MANAGEMENT_SUB_TAB_ITEMS.map(({ id, meta }) => {
+      <Tabs<OrderManagementSubTab>
+        ariaLabel={t('settings.tabs.ordersCalculation', 'Order Management')}
+        value={orderManagementSubTab}
+        onValueChange={handleOrderManagementSubTabChange}
+        renderPanel={false}
+        className="mb-5"
+        items={ORDER_MANAGEMENT_SUB_TAB_ITEMS.map(({ id, meta }) => {
           const Icon = meta.icon;
-          return (
-            <button
-              key={id}
-              onClick={() => handleOrderManagementSubTabChange(id)}
-              className={subTabButtonClass(orderManagementSubTab === id)}
-            >
-              <Icon className="w-4 h-4" />
-              {orderManagementSubTabLabel(id)}
-            </button>
-          );
+          return {
+            value: id,
+            label: <span className="flex items-center gap-2"><Icon className="h-4 w-4" />{orderManagementSubTabLabel(id)}</span>,
+            content: null,
+          };
         })}
-      </nav>
+      />
     ) : null;
 
   return (
@@ -3727,7 +3635,7 @@ export function SettingsPage() {
         {/* Cross-tab search */}
         <div className="relative sm:w-72">
           <Search className="w-4 h-4 text-bambu-gray absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
+          <TextField
             type="text"
             value={settingsSearch}
             onChange={(e) => setSettingsSearch(e.target.value)}
@@ -3822,10 +3730,10 @@ export function SettingsPage() {
                   {t('settings.language')}
                 </label>
                 <div className="relative">
-                  <select
+                  <Select
+                    ariaLabel={t('settings.language')}
                     value={i18n.language}
-                    onChange={(e) => {
-                      const newLang = e.target.value;
+                    onValueChange={(newLang) => {
                       // Block server persist if the user lacks settings:update —
                       // without this guard the fire-and-forget api.updateSettings
                       // call below would 403 silently while a success toast flashed.
@@ -3836,14 +3744,11 @@ export function SettingsPage() {
                       i18n.changeLanguage(newLang);
                       updateMutation.mutate({ language: newLang });
                     }}
-                    className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
-                  >
-                    {availableLanguages.map((lang) => (
-                      <option key={lang.code} value={lang.code}>
-                        {lang.nativeName} ({lang.name})
-                      </option>
-                    ))}
-                  </select>
+                    options={availableLanguages.map((lang) => ({
+                      value: lang.code,
+                      label: `${lang.nativeName} (${lang.name})`,
+                    }))}
+                  />
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
                 </div>
                 <p className="text-xs text-bambu-gray mt-1">
@@ -3855,21 +3760,19 @@ export function SettingsPage() {
                   {t('settings.defaultView')}
                 </label>
                 <div className="relative">
-                  <select
+                  <Select
+                    ariaLabel={t('settings.defaultView')}
                     value={defaultView}
-                    onChange={(e) => handleDefaultViewChange(e.target.value)}
-                    className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
-                  >
-                    {defaultNavItems.map((item) => (
-                      <option key={item.id} value={item.to}>
-                        {t(item.labelKey, {
+                    onValueChange={handleDefaultViewChange}
+                    options={defaultNavItems.map((item) => ({
+                      value: item.to,
+                      label: t(item.labelKey, {
                           defaultValue: i18n.resolvedLanguage?.startsWith('de')
                             ? item.defaultLabelDe ?? item.defaultLabel
                             : item.defaultLabel,
-                        })}
-                      </option>
-                    ))}
-                  </select>
+                        }),
+                    }))}
+                  />
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
                 </div>
                 <p className="text-xs text-bambu-gray mt-1">
@@ -3882,17 +3785,17 @@ export function SettingsPage() {
                     {t('settings.dateFormat')}
                   </label>
                   <div className="relative">
-                    <select
+                    <Select
+                      ariaLabel={t('settings.dateFormat')}
                       value={localSettings.date_format || 'system'}
-                      onChange={(e) => updateSetting('date_format', e.target.value as 'system' | 'us' | 'eu' | 'iso')}
-                      className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
-                    >
-                      <option value="system">{t('settings.systemDefault')}</option>
-                      <option value="us">{t('settings.dateFormatUs')}</option>
-                      <option value="eu">{t('settings.dateFormatEu')}</option>
-                      <option value="iso">{t('settings.dateFormatIso')}</option>
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+                      onValueChange={(value) => updateSetting('date_format', value as 'system' | 'us' | 'eu' | 'iso')}
+                      options={[
+                        { value: 'system', label: t('settings.systemDefault') },
+                        { value: 'us', label: t('settings.dateFormatUs') },
+                        { value: 'eu', label: t('settings.dateFormatEu') },
+                        { value: 'iso', label: t('settings.dateFormatIso') },
+                      ]}
+                    />
                   </div>
                 </div>
                 <div>
@@ -3900,16 +3803,16 @@ export function SettingsPage() {
                     {t('settings.timeFormat')}
                   </label>
                   <div className="relative">
-                    <select
+                    <Select
+                      ariaLabel={t('settings.timeFormat')}
                       value={localSettings.time_format || 'system'}
-                      onChange={(e) => updateSetting('time_format', e.target.value as 'system' | '12h' | '24h')}
-                      className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
-                    >
-                      <option value="system">{t('settings.systemDefault')}</option>
-                      <option value="12h">{t('settings.timeFormat12')}</option>
-                      <option value="24h">{t('settings.timeFormat24')}</option>
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+                      onValueChange={(value) => updateSetting('time_format', value as 'system' | '12h' | '24h')}
+                      options={[
+                        { value: 'system', label: t('settings.systemDefault') },
+                        { value: '12h', label: t('settings.timeFormat12') },
+                        { value: '24h', label: t('settings.timeFormat24') },
+                      ]}
+                    />
                   </div>
                 </div>
               </div>
@@ -3953,45 +3856,48 @@ export function SettingsPage() {
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs text-bambu-gray mb-1">{t('settings.background')}</label>
-                    <select
+                    <Select
+                      ariaLabel={`${t('settings.darkMode')} ${t('settings.background')}`}
                       value={darkBackground}
-                      onChange={(e) => { setDarkBackground(e.target.value as DarkBackground); showToast(t('settings.toast.settingsSaved'), 'success'); }}
-                      className="w-full px-2 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                    >
-                      <option value="neutral">{t('settings.bgNeutral')}</option>
-                      <option value="warm">{t('settings.bgWarm')}</option>
-                      <option value="cool">{t('settings.bgCool')}</option>
-                      <option value="oled">{t('settings.bgOled')}</option>
-                      <option value="slate">{t('settings.bgSlate')}</option>
-                      <option value="forest">{t('settings.bgForest')}</option>
-                    </select>
+                      onValueChange={(value) => { setDarkBackground(value as DarkBackground); showToast(t('settings.toast.settingsSaved'), 'success'); }}
+                      options={[
+                        { value: 'neutral', label: t('settings.bgNeutral') },
+                        { value: 'warm', label: t('settings.bgWarm') },
+                        { value: 'cool', label: t('settings.bgCool') },
+                        { value: 'oled', label: t('settings.bgOled') },
+                        { value: 'slate', label: t('settings.bgSlate') },
+                        { value: 'forest', label: t('settings.bgForest') },
+                      ]}
+                    />
                   </div>
                   <div>
                     <label className="block text-xs text-bambu-gray mb-1">{t('settings.accent')}</label>
-                    <select
+                    <Select
+                      ariaLabel={`${t('settings.darkMode')} ${t('settings.accent')}`}
                       value={darkAccent}
-                      onChange={(e) => { setDarkAccent(e.target.value as ThemeAccent); showToast(t('settings.toast.settingsSaved'), 'success'); }}
-                      className="w-full px-2 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                    >
-                      <option value="green">{t('settings.accentGreen')}</option>
-                      <option value="teal">{t('settings.accentTeal')}</option>
-                      <option value="blue">{t('settings.accentBlue')}</option>
-                      <option value="orange">{t('settings.accentOrange')}</option>
-                      <option value="purple">{t('settings.accentPurple')}</option>
-                      <option value="red">{t('settings.accentRed')}</option>
-                    </select>
+                      onValueChange={(value) => { setDarkAccent(value as ThemeAccent); showToast(t('settings.toast.settingsSaved'), 'success'); }}
+                      options={[
+                        { value: 'green', label: t('settings.accentGreen') },
+                        { value: 'teal', label: t('settings.accentTeal') },
+                        { value: 'blue', label: t('settings.accentBlue') },
+                        { value: 'orange', label: t('settings.accentOrange') },
+                        { value: 'purple', label: t('settings.accentPurple') },
+                        { value: 'red', label: t('settings.accentRed') },
+                      ]}
+                    />
                   </div>
                   <div>
                     <label className="block text-xs text-bambu-gray mb-1">{t('settings.style')}</label>
-                    <select
+                    <Select
+                      ariaLabel={`${t('settings.darkMode')} ${t('settings.style')}`}
                       value={darkStyle}
-                      onChange={(e) => { setDarkStyle(e.target.value as ThemeStyle); showToast(t('settings.toast.settingsSaved'), 'success'); }}
-                      className="w-full px-2 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                    >
-                      <option value="classic">{t('settings.styleClassic')}</option>
-                      <option value="glow">{t('settings.styleGlow')}</option>
-                      <option value="vibrant">{t('settings.styleVibrant')}</option>
-                    </select>
+                      onValueChange={(value) => { setDarkStyle(value as ThemeStyle); showToast(t('settings.toast.settingsSaved'), 'success'); }}
+                      options={[
+                        { value: 'classic', label: t('settings.styleClassic') },
+                        { value: 'glow', label: t('settings.styleGlow') },
+                        { value: 'vibrant', label: t('settings.styleVibrant') },
+                      ]}
+                    />
                   </div>
                 </div>
               </div>
@@ -4005,42 +3911,45 @@ export function SettingsPage() {
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs text-bambu-gray mb-1">{t('settings.background')}</label>
-                    <select
+                    <Select
+                      ariaLabel={`${t('settings.lightMode')} ${t('settings.background')}`}
                       value={lightBackground}
-                      onChange={(e) => { setLightBackground(e.target.value as LightBackground); showToast(t('settings.toast.settingsSaved'), 'success'); }}
-                      className="w-full px-2 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                    >
-                      <option value="neutral">{t('settings.bgNeutral')}</option>
-                      <option value="warm">{t('settings.bgWarm')}</option>
-                      <option value="cool">{t('settings.bgCool')}</option>
-                    </select>
+                      onValueChange={(value) => { setLightBackground(value as LightBackground); showToast(t('settings.toast.settingsSaved'), 'success'); }}
+                      options={[
+                        { value: 'neutral', label: t('settings.bgNeutral') },
+                        { value: 'warm', label: t('settings.bgWarm') },
+                        { value: 'cool', label: t('settings.bgCool') },
+                      ]}
+                    />
                   </div>
                   <div>
                     <label className="block text-xs text-bambu-gray mb-1">{t('settings.accent')}</label>
-                    <select
+                    <Select
+                      ariaLabel={`${t('settings.lightMode')} ${t('settings.accent')}`}
                       value={lightAccent}
-                      onChange={(e) => { setLightAccent(e.target.value as ThemeAccent); showToast(t('settings.toast.settingsSaved'), 'success'); }}
-                      className="w-full px-2 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                    >
-                      <option value="green">{t('settings.accentGreen')}</option>
-                      <option value="teal">{t('settings.accentTeal')}</option>
-                      <option value="blue">{t('settings.accentBlue')}</option>
-                      <option value="orange">{t('settings.accentOrange')}</option>
-                      <option value="purple">{t('settings.accentPurple')}</option>
-                      <option value="red">{t('settings.accentRed')}</option>
-                    </select>
+                      onValueChange={(value) => { setLightAccent(value as ThemeAccent); showToast(t('settings.toast.settingsSaved'), 'success'); }}
+                      options={[
+                        { value: 'green', label: t('settings.accentGreen') },
+                        { value: 'teal', label: t('settings.accentTeal') },
+                        { value: 'blue', label: t('settings.accentBlue') },
+                        { value: 'orange', label: t('settings.accentOrange') },
+                        { value: 'purple', label: t('settings.accentPurple') },
+                        { value: 'red', label: t('settings.accentRed') },
+                      ]}
+                    />
                   </div>
                   <div>
                     <label className="block text-xs text-bambu-gray mb-1">{t('settings.style')}</label>
-                    <select
+                    <Select
+                      ariaLabel={`${t('settings.lightMode')} ${t('settings.style')}`}
                       value={lightStyle}
-                      onChange={(e) => { setLightStyle(e.target.value as ThemeStyle); showToast(t('settings.toast.settingsSaved'), 'success'); }}
-                      className="w-full px-2 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                    >
-                      <option value="classic">{t('settings.styleClassic')}</option>
-                      <option value="glow">{t('settings.styleGlow')}</option>
-                      <option value="vibrant">{t('settings.styleVibrant')}</option>
-                    </select>
+                      onValueChange={(value) => { setLightStyle(value as ThemeStyle); showToast(t('settings.toast.settingsSaved'), 'success'); }}
+                      options={[
+                        { value: 'classic', label: t('settings.styleClassic') },
+                        { value: 'glow', label: t('settings.styleGlow') },
+                        { value: 'vibrant', label: t('settings.styleVibrant') },
+                      ]}
+                    />
                   </div>
                 </div>
               </div>
@@ -4110,7 +4019,7 @@ export function SettingsPage() {
                 <label className="block text-sm text-bambu-gray mb-1">
                   {t('settings.printopsUrl')}
                 </label>
-                <input
+                <TextField
                   type="text"
                   value={localSettings.external_url ?? ''}
                   onChange={(e) => updateSetting('external_url', e.target.value)}
@@ -4165,16 +4074,11 @@ export function SettingsPage() {
                   )}
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
+                  <Switch
                     checked={localSettings.ha_enabled ?? false}
                     onChange={(e) => updateSetting('ha_enabled', e.target.checked)}
                     disabled={localSettings.ha_env_managed}
-                    className="sr-only peer"
                   />
-                  <div className={`w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green ${
-                    localSettings.ha_env_managed ? 'opacity-60 cursor-not-allowed' : ''
-                  }`}></div>
                 </label>
               </div>
 
@@ -4190,7 +4094,7 @@ export function SettingsPage() {
                       )}
                     </label>
                     <div className="relative">
-                      <input
+                      <TextField
                         type="text"
                         value={localSettings.ha_url ?? ''}
                         onChange={(e) => updateSetting('ha_url', e.target.value)}
@@ -4221,7 +4125,7 @@ export function SettingsPage() {
                       )}
                     </label>
                     <div className="relative">
-                      <input
+                      <TextField
                         type="password"
                         value={localSettings.ha_token ?? ''}
                         onChange={(e) => updateSetting('ha_token', e.target.value)}
@@ -4306,13 +4210,10 @@ export function SettingsPage() {
                   </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
+                  <Switch
                     checked={localSettings.mqtt_enabled ?? false}
                     onChange={(e) => updateSetting('mqtt_enabled', e.target.checked)}
-                    className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
                 </label>
               </div>
 
@@ -4322,7 +4223,7 @@ export function SettingsPage() {
                     <label className="block text-sm text-bambu-gray mb-1">
                       {t('settings.brokerHostname')}
                     </label>
-                    <input
+                    <TextField
                       type="text"
                       value={localSettings.mqtt_broker ?? ''}
                       onChange={(e) => updateSetting('mqtt_broker', e.target.value)}
@@ -4336,7 +4237,7 @@ export function SettingsPage() {
                       <label className="block text-sm text-bambu-gray mb-1">
                         {t('settings.port')}
                       </label>
-                      <input
+                      <TextField
                         type="number"
                         min="1"
                         max="65535"
@@ -4347,8 +4248,7 @@ export function SettingsPage() {
                     </div>
                     <div className="flex items-center gap-3 pb-2">
                       <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
+                        <Switch
                           checked={localSettings.mqtt_use_tls ?? false}
                           onChange={(e) => {
                             const useTls = e.target.checked;
@@ -4361,9 +4261,7 @@ export function SettingsPage() {
                               updateSetting('mqtt_port', 1883);
                             }
                           }}
-                          className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
                       </label>
                       <span className="text-white text-sm">{t('settings.useTls')}</span>
                     </div>
@@ -4373,7 +4271,7 @@ export function SettingsPage() {
                     <label className="block text-sm text-bambu-gray mb-1">
                       {t('settings.usernameOptional')}
                     </label>
-                    <input
+                    <TextField
                       type="text"
                       value={localSettings.mqtt_username ?? ''}
                       onChange={(e) => updateSetting('mqtt_username', e.target.value)}
@@ -4386,7 +4284,7 @@ export function SettingsPage() {
                     <label className="block text-sm text-bambu-gray mb-1">
                       {t('settings.passwordOptional')}
                     </label>
-                    <input
+                    <TextField
                       type="password"
                       value={localSettings.mqtt_password ?? ''}
                       onChange={(e) => updateSetting('mqtt_password', e.target.value)}
@@ -4399,7 +4297,7 @@ export function SettingsPage() {
                     <label className="block text-sm text-bambu-gray mb-1">
                       {t('settings.topicPrefix')}
                     </label>
-                    <input
+                    <TextField
                       type="text"
                       value={localSettings.mqtt_topic_prefix ?? 'printops'}
                       onChange={(e) => updateSetting('mqtt_topic_prefix', e.target.value)}
@@ -4706,17 +4604,16 @@ export function SettingsPage() {
                     <p className="text-white text-sm font-medium">{t('settings.notificationLanguage')}</p>
                     <p className="text-xs text-bambu-gray">{t('settings.notificationLanguageDescription')}</p>
                   </div>
-                  <select
+                  <Select
+                    ariaLabel={t('settings.notificationLanguage')}
                     value={localSettings.notification_language || 'en'}
-                    onChange={(e) => updateSetting('notification_language', e.target.value)}
-                    className="px-2 py-1.5 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm focus:outline-none focus:ring-1 focus:ring-bambu-green"
-                  >
-                    {availableLanguages.map((lang) => (
-                      <option key={lang.code} value={lang.code}>
-                        {lang.nativeName}
-                      </option>
-                    ))}
-                  </select>
+                    onValueChange={(value) => updateSetting('notification_language', value)}
+                    className="w-48"
+                    options={availableLanguages.map((lang) => ({
+                      value: lang.code,
+                      label: lang.nativeName,
+                    }))}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -4734,14 +4631,11 @@ export function SettingsPage() {
                     </p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
+                    <Switch
                       checked={localSettings.user_notifications_enabled ?? true}
                       disabled={!advancedAuthStatus?.advanced_auth_enabled}
                       onChange={(e) => updateSetting('user_notifications_enabled', e.target.checked)}
                     />
-                    <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green peer-disabled:cursor-not-allowed"></div>
                   </label>
                 </div>
               </CardContent>
@@ -4838,7 +4732,7 @@ export function SettingsPage() {
             {/* Filter input */}
             <div className="relative mb-3">
               <Search className="w-4 h-4 text-bambu-gray absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
+              <TextField
                 type="text"
                 value={templateFilter}
                 onChange={(e) => setTemplateFilter(e.target.value)}
@@ -5049,7 +4943,7 @@ export function SettingsPage() {
                 <CardContent className="space-y-3">
                   <div>
                     <label className="block text-sm text-bambu-gray mb-1">{t('settings.keyName')}</label>
-                    <input
+                    <TextField
                       type="text"
                       value={newAPIKeyName}
                       onChange={(e) => setNewAPIKeyName(e.target.value)}
@@ -5061,11 +4955,9 @@ export function SettingsPage() {
                     <label className="block text-sm text-bambu-gray mb-2">{t('common.permissions')}</label>
                     <div className="space-y-2">
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={newAPIKeyPermissions.can_read_status}
                           onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_read_status: e.target.checked }))}
-                          className="w-4 h-4 text-bambu-green rounded border-bambu-dark-tertiary bg-bambu-dark focus:ring-bambu-green"
                         />
                         <div>
                           <span className="text-white">{t('settings.readStatus')}</span>
@@ -5073,11 +4965,9 @@ export function SettingsPage() {
                         </div>
                       </label>
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={newAPIKeyPermissions.can_queue}
                           onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_queue: e.target.checked }))}
-                          className="w-4 h-4 text-bambu-green rounded border-bambu-dark-tertiary bg-bambu-dark focus:ring-bambu-green"
                         />
                         <div>
                           <span className="text-white">{t('settings.manageQueue')}</span>
@@ -5085,11 +4975,9 @@ export function SettingsPage() {
                         </div>
                       </label>
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={newAPIKeyPermissions.can_control_printer}
                           onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_control_printer: e.target.checked }))}
-                          className="w-4 h-4 text-bambu-green rounded border-bambu-dark-tertiary bg-bambu-dark focus:ring-bambu-green"
                         />
                         <div>
                           <span className="text-white">{t('settings.controlPrinter')}</span>
@@ -5097,11 +4985,9 @@ export function SettingsPage() {
                         </div>
                       </label>
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={newAPIKeyPermissions.can_manage_library}
                           onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_manage_library: e.target.checked }))}
-                          className="w-4 h-4 text-bambu-green rounded border-bambu-dark-tertiary bg-bambu-dark focus:ring-bambu-green"
                         />
                         <div>
                           <span className="text-white">{t('settings.manageLibrary')}</span>
@@ -5109,11 +4995,9 @@ export function SettingsPage() {
                         </div>
                       </label>
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={newAPIKeyPermissions.can_manage_inventory}
                           onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_manage_inventory: e.target.checked }))}
-                          className="w-4 h-4 text-bambu-green rounded border-bambu-dark-tertiary bg-bambu-dark focus:ring-bambu-green"
                         />
                         <div>
                           <span className="text-white">{t('settings.manageInventory')}</span>
@@ -5121,11 +5005,9 @@ export function SettingsPage() {
                         </div>
                       </label>
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={newAPIKeyPermissions.can_manage_maintenance}
                           onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_manage_maintenance: e.target.checked }))}
-                          className="w-4 h-4 text-bambu-green rounded border-bambu-dark-tertiary bg-bambu-dark focus:ring-bambu-green"
                         />
                         <div>
                           <span className="text-white">{t('settings.manageMaintenance')}</span>
@@ -5133,11 +5015,9 @@ export function SettingsPage() {
                         </div>
                       </label>
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={newAPIKeyPermissions.can_manage_archives}
                           onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_manage_archives: e.target.checked }))}
-                          className="w-4 h-4 text-bambu-green rounded border-bambu-dark-tertiary bg-bambu-dark focus:ring-bambu-green"
                         />
                         <div>
                           <span className="text-white">{t('settings.manageArchives')}</span>
@@ -5145,11 +5025,9 @@ export function SettingsPage() {
                         </div>
                       </label>
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={newAPIKeyPermissions.can_manage_projects}
                           onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_manage_projects: e.target.checked }))}
-                          className="w-4 h-4 text-bambu-green rounded border-bambu-dark-tertiary bg-bambu-dark focus:ring-bambu-green"
                         />
                         <div>
                           <span className="text-white">{t('settings.manageProjects')}</span>
@@ -5157,11 +5035,9 @@ export function SettingsPage() {
                         </div>
                       </label>
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={newAPIKeyPermissions.can_access_cloud}
                           onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_access_cloud: e.target.checked }))}
-                          className="w-4 h-4 text-bambu-green rounded border-bambu-dark-tertiary bg-bambu-dark focus:ring-bambu-green"
                         />
                         <div>
                           <span className="text-white">{t('settings.cloudAccess', 'Allow cloud access')}</span>
@@ -5169,11 +5045,9 @@ export function SettingsPage() {
                         </div>
                       </label>
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={newAPIKeyPermissions.can_update_energy_cost}
                           onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_update_energy_cost: e.target.checked }))}
-                          className="w-4 h-4 text-bambu-green rounded border-bambu-dark-tertiary bg-bambu-dark focus:ring-bambu-green"
                         />
                         <div>
                           <span className="text-white">{t('settings.updateEnergyCost')}</span>
@@ -5416,13 +5290,10 @@ export function SettingsPage() {
                     <p className="text-xs text-bambu-gray mt-0.5">{desc}</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
+                    <Switch
                       checked={localSettings[key] ?? fallback}
                       onChange={(e) => updateSetting(key, e.target.checked)}
-                      className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
                   </label>
                 </div>
               ))}
@@ -5448,13 +5319,10 @@ export function SettingsPage() {
                   </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
+                  <Switch
                     checked={localSettings.require_plate_clear ?? false}
                     onChange={(e) => updateSetting('require_plate_clear', e.target.checked)}
-                    className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
                 </label>
               </div>
             </CardContent>
@@ -5474,7 +5342,7 @@ export function SettingsPage() {
                   <p className="text-xs text-bambu-gray">{t('settings.bedCooledThresholdDescription')}</p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <input
+                  <TextField
                     type="number"
                     min={20}
                     max={80}
@@ -5535,7 +5403,7 @@ export function SettingsPage() {
                     </div>
                     <div className="flex gap-2">
                       {[0, 1, 2].map(idx => (
-                        <input
+                        <TextField
                           key={idx}
                           type="number"
                           min={category.lo}
@@ -5575,7 +5443,7 @@ export function SettingsPage() {
                   <label className="block text-xs text-bambu-gray mb-1">
                     {t('settings.staggerGroupSize', 'Group size')}
                   </label>
-                  <input
+                  <TextField
                     type="number"
                     min={1}
                     max={50}
@@ -5591,7 +5459,7 @@ export function SettingsPage() {
                   <label className="block text-xs text-bambu-gray mb-1">
                     {t('settings.staggerInterval', 'Interval (minutes)')}
                   </label>
-                  <input
+                  <TextField
                     type="number"
                     min={1}
                     max={60}
@@ -5629,13 +5497,10 @@ export function SettingsPage() {
                   </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
+                  <Switch
                     checked={localSettings.preheat_enabled ?? false}
                     onChange={(e) => updateSetting('preheat_enabled', e.target.checked)}
-                    className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
                 </label>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
@@ -5643,7 +5508,7 @@ export function SettingsPage() {
                   <label className="block text-xs text-bambu-gray mb-1">
                     {t('settings.preheatMaxWait', 'Max wait (seconds)')}
                   </label>
-                  <input
+                  <TextField
                     type="number"
                     min={60}
                     max={3600}
@@ -5660,7 +5525,7 @@ export function SettingsPage() {
                   <label className="block text-xs text-bambu-gray mb-1">
                     {t('settings.preheatSoak', 'Soak (seconds)')}
                   </label>
-                  <input
+                  <TextField
                     type="number"
                     min={0}
                     max={1800}
@@ -5782,7 +5647,7 @@ export function SettingsPage() {
                           <label className="block text-xs text-bambu-gray mb-1">
                             {t('settings.gcodeStartLabel', 'Start G-code')}
                           </label>
-                          <textarea
+                          <TextArea
                             value={snippet.start_gcode}
                             onChange={(e) => updateSnippet(model, 'start_gcode', e.target.value)}
                             onBlur={saveGcodeSnippets}
@@ -5795,7 +5660,7 @@ export function SettingsPage() {
                           <label className="block text-xs text-bambu-gray mb-1">
                             {t('settings.gcodeEndLabel', 'End G-code')}
                           </label>
-                          <textarea
+                          <TextArea
                             value={snippet.end_gcode}
                             onChange={(e) => updateSnippet(model, 'end_gcode', e.target.value)}
                             onBlur={saveGcodeSnippets}
@@ -5839,7 +5704,7 @@ export function SettingsPage() {
                     )}
                   </p>
                 </div>
-                <input
+                <TextField
                   type="number"
                   min={1}
                   max={1000}
@@ -5870,15 +5735,15 @@ export function SettingsPage() {
                   {t('settings.preferredSlicer')}
                 </label>
                 <div className="relative">
-                  <select
+                  <Select
+                    ariaLabel={t('settings.preferredSlicer')}
                     value={localSettings.preferred_slicer ?? 'bambu_studio'}
-                    onChange={(e) => updateSetting('preferred_slicer', e.target.value as 'bambu_studio' | 'orcaslicer')}
-                    className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
-                  >
-                    <option value="bambu_studio">{t('settings.slicerBambuStudio')}</option>
-                    <option value="orcaslicer">{t('settings.slicerOrcaSlicer')}</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+                    onValueChange={(value) => updateSetting('preferred_slicer', value as 'bambu_studio' | 'orcaslicer')}
+                    options={[
+                      { value: 'bambu_studio', label: t('settings.slicerBambuStudio') },
+                      { value: 'orcaslicer', label: t('settings.slicerOrcaSlicer') },
+                    ]}
+                  />
                 </div>
                 <p className="text-xs text-bambu-gray mt-1">
                   {t('settings.preferredSlicerDescription')}
@@ -5911,21 +5776,21 @@ export function SettingsPage() {
                   {t('settings.openInSlicerLabel', 'Open in Slicer')}
                 </label>
                 <div className="relative">
-                  <select
+                  <Select
+                    ariaLabel={t('settings.openInSlicerLabel', 'Open in Slicer')}
                     value={localSettings.open_in_slicer ?? ''}
-                    onChange={(e) =>
+                    onValueChange={(value) =>
                       updateSetting(
                         'open_in_slicer',
-                        e.target.value === '' ? null : (e.target.value as 'bambu_studio' | 'orcaslicer'),
+                        value === '' ? null : (value as 'bambu_studio' | 'orcaslicer'),
                       )
                     }
-                    className="w-full px-3 py-2 pr-10 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
-                  >
-                    <option value="">{t('settings.openInSlicerInherit', 'Same as API slicer')}</option>
-                    <option value="bambu_studio">{t('settings.slicerBambuStudio')}</option>
-                    <option value="orcaslicer">{t('settings.slicerOrcaSlicer')}</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+                    options={[
+                      { value: '', label: t('settings.openInSlicerInherit', 'Same as API slicer') },
+                      { value: 'bambu_studio', label: t('settings.slicerBambuStudio') },
+                      { value: 'orcaslicer', label: t('settings.slicerOrcaSlicer') },
+                    ]}
+                  />
                 </div>
                 <p className="text-xs text-bambu-gray mt-1">
                   {t(
@@ -5942,13 +5807,10 @@ export function SettingsPage() {
                   </p>
                 </div>
                 <label className="flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
+                  <Switch
                     checked={localSettings.use_slicer_api ?? false}
                     onChange={(e) => updateSetting('use_slicer_api', e.target.checked)}
-                    className="sr-only peer"
                   />
-                  <div className="relative w-11 h-6 bg-bambu-dark-tertiary rounded-full peer peer-checked:bg-bambu-green peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-bambu-green/50 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-transform peer-checked:after:translate-x-5"></div>
                 </label>
               </div>
               {(localSettings.use_slicer_api ?? false) && (
@@ -5958,7 +5820,7 @@ export function SettingsPage() {
                       ? t('settings.orcaslicerApiUrl', 'OrcaSlicer sidecar URL')
                       : t('settings.bambuStudioApiUrl', 'Bambu Studio sidecar URL')}
                   </label>
-                  <input
+                  <TextField
                     type="text"
                     value={
                       ((localSettings.preferred_slicer ?? 'bambu_studio') === 'orcaslicer'
@@ -6025,13 +5887,10 @@ export function SettingsPage() {
                     </p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
+                    <Switch
                       checked={localSettings.disable_filament_warnings}
                       onChange={(e) => updateSetting('disable_filament_warnings', e.target.checked)}
-                      className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
                   </label>
                 </div>
                 <div className="flex items-center justify-between">
@@ -6045,13 +5904,10 @@ export function SettingsPage() {
                     </p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
+                    <Switch
                       checked={localSettings.prefer_lowest_filament}
                       onChange={(e) => updateSetting('prefer_lowest_filament', e.target.checked)}
-                      className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
                   </label>
                 </div>
               </CardContent>
@@ -6071,13 +5927,10 @@ export function SettingsPage() {
                     </p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
+                    <Switch
                       checked={localSettings.per_printer_mapping_expanded ?? false}
                       onChange={(e) => updateSetting('per_printer_mapping_expanded', e.target.checked)}
-                      className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
                   </label>
                 </div>
               </CardContent>
@@ -6104,7 +5957,7 @@ export function SettingsPage() {
                         {t('settings.goodGreen')} ≤
                       </label>
                       <div className="flex items-center gap-2">
-                        <input
+                        <TextField
                           type="number"
                           min="0"
                           max="100"
@@ -6120,7 +5973,7 @@ export function SettingsPage() {
                         {t('settings.fairOrange')} ≤
                       </label>
                       <div className="flex items-center gap-2">
-                        <input
+                        <TextField
                           type="number"
                           min="0"
                           max="100"
@@ -6152,7 +6005,7 @@ export function SettingsPage() {
                         {t('settings.goodBlue')} ≤
                       </label>
                       <div className="flex items-center gap-2">
-                        <input
+                        <TextField
                           type="number"
                           step="0.5"
                           min="0"
@@ -6169,7 +6022,7 @@ export function SettingsPage() {
                         {t('settings.fairOrange')} ≤
                       </label>
                       <div className="flex items-center gap-2">
-                        <input
+                        <TextField
                           type="number"
                           step="0.5"
                           min="0"
@@ -6198,7 +6051,7 @@ export function SettingsPage() {
                       {t('settings.keepSensorHistory')}
                     </label>
                     <div className="flex items-center gap-2">
-                      <input
+                      <TextField
                         type="number"
                         min="1"
                         max="365"
@@ -6489,7 +6342,7 @@ export function SettingsPage() {
                         );
                       })}
                       <div className="flex items-center gap-1">
-                        <input
+                        <TextField
                           type="number"
                           min={1}
                           max={720}
@@ -6791,11 +6644,9 @@ export function SettingsPage() {
               <Card>
                 <CardContent className="space-y-3 p-4">
                   <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={localSettings.local_login_enabled === false}
                       onChange={(e) => updateSetting('local_login_enabled', !e.target.checked)}
-                      className="mt-1 h-4 w-4 rounded border-bambu-dark-tertiary bg-bambu-dark-secondary text-bambu-green focus:ring-bambu-green/50 cursor-pointer"
                     />
                     <div>
                       <p className="text-sm font-medium text-white">{t('settings.localLogin.disable')}</p>
@@ -6911,7 +6762,7 @@ export function SettingsPage() {
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">{t('settings.username')}</label>
-                  <input
+                  <TextField
                     type="text"
                     value={userFormData.username}
                     onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
@@ -6922,9 +6773,9 @@ export function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">{t('settings.password')}</label>
-                  <input
+                  <TextField
                     type="password"
-                    value={userFormData.password}
+                    value={userFormData.password ?? ''}
                     onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
                     className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
                     placeholder={t('settings.enterPassword')}
@@ -6935,7 +6786,7 @@ export function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">{t('settings.confirmPassword')}</label>
-                  <input
+                  <TextField
                     type="password"
                     value={userFormData.confirmPassword}
                     onChange={(e) => setUserFormData({ ...userFormData, confirmPassword: e.target.value })}
@@ -6960,11 +6811,9 @@ export function SettingsPage() {
                         key={group.id}
                         className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={userFormData.group_ids.includes(group.id)}
                           onChange={() => toggleUserGroup(group.id)}
-                          className="w-4 h-4 rounded border-bambu-gray text-bambu-green focus:ring-bambu-green focus:ring-offset-0 bg-bambu-dark"
                         />
                         <span className="text-sm text-white">{group.name}</span>
                         {group.is_system && (
@@ -7074,7 +6923,7 @@ export function SettingsPage() {
                   <label className="block text-sm font-medium text-white mb-2">
                     {t('settings.username')} {advancedAuthStatus?.advanced_auth_enabled && <span className="text-red-700 dark:text-red-400">*</span>}
                   </label>
-                  <input
+                  <TextField
                     type="text"
                     value={userFormData.username}
                     onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
@@ -7089,9 +6938,9 @@ export function SettingsPage() {
                   <label className="block text-sm font-medium text-white mb-2">
                     {t('users.form.email') || 'Email'} {advancedAuthStatus?.advanced_auth_enabled ? <span className="text-red-700 dark:text-red-400">*</span> : <span className="text-bambu-gray font-normal">({t('users.form.optional') || 'optional'})</span>}
                   </label>
-                  <input
+                  <TextField
                     type="email"
-                    value={userFormData.email}
+                    value={userFormData.email ?? ''}
                     onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
                     className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
                     placeholder={t('users.form.emailPlaceholder') || 'user@example.com'}
@@ -7106,9 +6955,9 @@ export function SettingsPage() {
                       <label className="block text-sm font-medium text-white mb-2">
                         {t('users.form.password') || 'Password'} <span className="text-bambu-gray font-normal">({t('users.form.leaveBlankToKeep') || 'leave blank to keep current'})</span>
                       </label>
-                      <input
+                      <TextField
                         type="password"
-                        value={userFormData.password}
+                        value={userFormData.password ?? ''}
                         onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value, confirmPassword: '' })}
                         className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
                         placeholder={t('settings.enterNewPassword')}
@@ -7120,7 +6969,7 @@ export function SettingsPage() {
                     {userFormData.password && (
                       <div>
                         <label className="block text-sm font-medium text-white mb-2">{t('settings.confirmPassword')}</label>
-                        <input
+                        <TextField
                           type="password"
                           value={userFormData.confirmPassword}
                           onChange={(e) => setUserFormData({ ...userFormData, confirmPassword: e.target.value })}
@@ -7178,11 +7027,9 @@ export function SettingsPage() {
                         key={group.id}
                         className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={userFormData.group_ids.includes(group.id)}
                           onChange={() => toggleUserGroup(group.id)}
-                          className="w-4 h-4 rounded border-bambu-gray text-bambu-green focus:ring-bambu-green focus:ring-offset-0 bg-bambu-dark"
                         />
                         <span className="text-sm text-white">{group.name}</span>
                         {group.is_system && (
@@ -7437,7 +7284,7 @@ export function SettingsPage() {
                   <label className="block text-sm font-medium text-white mb-2">
                     Current Password
                   </label>
-                  <input
+                  <TextField
                     type="password"
                     value={changePasswordData.currentPassword}
                     onChange={(e) => setChangePasswordData({ ...changePasswordData, currentPassword: e.target.value })}
@@ -7450,7 +7297,7 @@ export function SettingsPage() {
                   <label className="block text-sm font-medium text-white mb-2">
                     New Password
                   </label>
-                  <input
+                  <TextField
                     type="password"
                     value={changePasswordData.newPassword}
                     onChange={(e) => setChangePasswordData({ ...changePasswordData, newPassword: e.target.value })}
@@ -7464,7 +7311,7 @@ export function SettingsPage() {
                   <label className="block text-sm font-medium text-white mb-2">
                     Confirm New Password
                   </label>
-                  <input
+                  <TextField
                     type="password"
                     value={changePasswordData.confirmPassword}
                     onChange={(e) => setChangePasswordData({ ...changePasswordData, confirmPassword: e.target.value })}
