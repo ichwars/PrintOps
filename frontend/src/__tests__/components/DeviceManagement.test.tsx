@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { render } from '../utils';
@@ -109,5 +109,40 @@ describe('DeviceManagement cards', () => {
     expect(screen.getByLabelText('Bezeichnung')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Abbrechen' }));
     expect(screen.queryByLabelText('Bezeichnung')).not.toBeInTheDocument();
+  });
+
+  it('selects a dryer acquisition date through the calendar and preserves the payload key', async () => {
+    useDeviceHandlers();
+    let submitted: Record<string, unknown> | undefined;
+    server.use(
+      http.post('/api/v1/equipment/', async ({ request }) => {
+        submitted = await request.json() as Record<string, unknown>;
+        return HttpResponse.json(dryer, { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    render(<DryerManagementCard locale="de-DE" />);
+
+    await user.click(await screen.findByRole('button', { name: 'Trockner hinzufügen' }));
+    await user.type(screen.getByLabelText('Bezeichnung'), 'Backup-Trockner');
+    const target = new Date();
+    target.setUTCDate(target.getUTCDate() + 1);
+    const targetKey = target.toISOString().slice(0, 10);
+    const targetLabel = new Intl.DateTimeFormat('de-DE', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }).format(target);
+
+    await user.click(screen.getByRole('button', { name: 'Anschaffungsdatum' }));
+    await user.click(screen.getByRole('button', { name: targetLabel }));
+    await user.click(screen.getByRole('button', { name: 'Speichern' }));
+
+    await waitFor(() => expect(submitted).toMatchObject({
+      equipment_type: 'dryer',
+      name: 'Backup-Trockner',
+      acquisition_date: targetKey,
+    }));
   });
 });

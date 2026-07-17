@@ -15,7 +15,7 @@ import {
   type Printer,
   type PrinterCreate,
 } from '../../api/client';
-import { Button } from '../Button';
+import { Button, DatePicker, IconButton, TextField } from '../ui';
 
 const inputClass =
   'mt-1 h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 text-sm text-white outline-none transition-colors focus:border-bambu-green';
@@ -143,20 +143,19 @@ export function PrinterManagementCard({ locale }: { locale: string }) {
                 ['access_code', de ? 'Zugriffscode' : 'Access code'],
               ] as Array<[keyof PrinterCreate, string]>
             ).map(([key, label]) => (
-              <label key={key} className="text-xs text-bambu-gray">
-                {label}
-                <input
+              <TextField
+                  key={key}
+                  label={label}
                   type={key === 'access_code' ? 'password' : 'text'}
                   value={String(printerDraft[key] ?? '')}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     setPrinterDraft({
                       ...printerDraft,
-                      [key]: event.target.value,
+                      [key]: value,
                     })
                   }
                   className={inputClass}
                 />
-              </label>
             ))}
             <div className="flex flex-wrap items-end justify-end gap-2 sm:col-span-2">
               <Button
@@ -280,19 +279,28 @@ function PrinterCostEditor({
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {fields.map(([key, label, type]) => (
-          <label key={key} className="text-xs text-bambu-gray">
-            {label}
-            <input
-              type={type}
-              min={type === 'number' ? '0' : undefined}
+        {fields.map(([key, label, type]) =>
+          type === 'date' ? (
+            <DatePicker
+              key={key}
+              label={label}
+              locale={locale}
+              value={draft[key]}
+              onValueChange={(value) => setDraft({ ...draft, [key]: value })}
+            />
+          ) : (
+            <TextField
+              key={key}
+              label={label}
+              type="number"
+              min="0"
               step="0.01"
               value={draft[key]}
-              onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
+              onValueChange={(value) => setDraft({ ...draft, [key]: value })}
               className={inputClass}
             />
-          </label>
-        ))}
+          ),
+        )}
       </div>
 
       <div className="mt-4 flex justify-end">
@@ -400,6 +408,7 @@ export function DryerManagementCard({ locale }: { locale: string }) {
           <DryerForm
             draft={draft}
             de={de}
+            locale={locale}
             pending={create.isPending || update.isPending}
             onChange={setDraft}
             onSave={saveDryer}
@@ -440,6 +449,7 @@ export function DryerManagementCard({ locale }: { locale: string }) {
 function DryerForm({
   draft,
   de,
+  locale,
   pending,
   onChange,
   onSave,
@@ -447,6 +457,7 @@ function DryerForm({
 }: {
   draft: EquipmentInput;
   de: boolean;
+  locale: string;
   pending: boolean;
   onChange: (draft: EquipmentInput) => void;
   onSave: () => void;
@@ -469,37 +480,29 @@ function DryerForm({
 
   return (
     <div className="grid gap-3 rounded-lg border border-cyan-500/20 bg-bambu-dark p-4 sm:grid-cols-2">
-      <label className="text-xs text-bambu-gray">
-        {de ? 'Bezeichnung' : 'Name'}
-        <input
+      <TextField
+          label={de ? 'Bezeichnung' : 'Name'}
           value={draft.name}
-          onChange={(event) => onChange({ ...draft, name: event.target.value })}
+          onValueChange={(value) => onChange({ ...draft, name: value })}
           className={inputClass}
         />
-      </label>
-      <label className="text-xs text-bambu-gray">
-        {de ? 'Anschaffungsdatum' : 'Acquisition date'}
-        <input
-          type="date"
+      <DatePicker
+          label={de ? 'Anschaffungsdatum' : 'Acquisition date'}
+          locale={locale}
           value={draft.acquisition_date}
-          onChange={(event) =>
-            onChange({ ...draft, acquisition_date: event.target.value })
-          }
-          className={inputClass}
+          onValueChange={(value) => onChange({ ...draft, acquisition_date: value })}
         />
-      </label>
       {fields.map(([key, label]) => (
-        <label key={key} className="text-xs text-bambu-gray">
-          {label}
-          <input
+          <TextField
+            key={key}
+            label={label}
             type="number"
             min="0"
             step="0.01"
             value={String(draft[key])}
-            onChange={(event) => onChange({ ...draft, [key]: event.target.value })}
+            onValueChange={(value) => onChange({ ...draft, [key]: value })}
             className={inputClass}
           />
-        </label>
       ))}
       <div className="flex flex-wrap items-end justify-end gap-2 sm:col-span-2">
         <Button size="sm" onClick={onSave} disabled={!draft.name || pending}>
@@ -552,30 +555,22 @@ function DryerPanel({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            aria-label={de ? 'Trockner bearbeiten' : 'Edit dryer'}
+          <IconButton
+            label={de ? 'Trockner bearbeiten' : 'Edit dryer'}
+            icon={Pencil}
             onClick={onEdit}
-            className="rounded-lg p-2 text-bambu-gray transition-colors hover:bg-bambu-dark-tertiary hover:text-white"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            aria-label={de ? 'Aktivstatus ändern' : 'Toggle active'}
+          />
+          <IconButton
+            label={de ? 'Aktivstatus ändern' : 'Toggle active'}
+            icon={Power}
             onClick={onToggle}
-            className="rounded-lg p-2 text-bambu-gray transition-colors hover:bg-bambu-dark-tertiary hover:text-white"
-          >
-            <Power className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            aria-label={de ? 'Trockner löschen' : 'Delete dryer'}
+          />
+          <IconButton
+            label={de ? 'Trockner löschen' : 'Delete dryer'}
+            icon={Trash2}
             onClick={onDelete}
-            className="rounded-lg p-2 text-red-300 transition-colors hover:bg-red-500/10 hover:text-red-200"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+            className="text-red-300 hover:bg-red-500/10 hover:text-red-200"
+          />
         </div>
       </div>
 

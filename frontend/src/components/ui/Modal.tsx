@@ -19,6 +19,7 @@ export type ModalProps = {
   description?: ReactNode;
   children: ReactNode;
   closeOnBackdrop?: boolean;
+  closeDisabled?: boolean;
   closeLabel?: string;
   initialFocusRef?: RefObject<HTMLElement | null>;
   className?: string;
@@ -35,7 +36,7 @@ const FOCUSABLE_SELECTOR = [
 
 const focusableElements = (container: HTMLElement) =>
   Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (element) => element.getAttribute('aria-hidden') !== 'true',
+    (element) => element.getAttribute('aria-hidden') !== 'true' && !element.matches(':disabled'),
   );
 
 export function Modal({
@@ -45,6 +46,7 @@ export function Modal({
   description,
   children,
   closeOnBackdrop = true,
+  closeDisabled = false,
   closeLabel = 'Close',
   initialFocusRef,
   className = '',
@@ -140,6 +142,7 @@ export function Modal({
             label={closeLabel}
             icon={X}
             size="sm"
+            disabled={closeDisabled}
             onClick={onClose}
           />
         </div>
