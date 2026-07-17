@@ -1123,17 +1123,17 @@ class TestLibraryPathHelpers:
 
         assert abs_path is not None
         assert abs_path.is_absolute()
-        assert str(abs_path) == f"{settings.base_dir}/archive/library/files/test.3mf"
+        assert abs_path == Path(settings.base_dir).resolve() / "archive" / "library" / "files" / "test.3mf"
 
     def test_to_absolute_path_handles_already_absolute(self):
         """Verify already absolute paths are returned as-is (for backwards compatibility)."""
         from backend.app.api.routes.library import to_absolute_path
 
-        abs_path_str = "/data/archive/test.3mf"
-        result = to_absolute_path(abs_path_str)
+        abs_path = Path(tempfile.gettempdir()).resolve() / "archive" / "test.3mf"
+        result = to_absolute_path(str(abs_path))
 
         assert result is not None
-        assert str(result) == abs_path_str
+        assert result == abs_path
 
     def test_to_absolute_path_returns_none_for_empty(self):
         """Verify None/empty input returns None."""

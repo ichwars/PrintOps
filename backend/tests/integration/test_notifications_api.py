@@ -553,8 +553,11 @@ class TestHomeAssistantNotificationProvider:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_test_homeassistant_config_without_ha_settings(self, async_client: AsyncClient):
+    async def test_test_homeassistant_config_without_ha_settings(self, async_client: AsyncClient, monkeypatch):
         """Verify test-config returns error when HA is not configured."""
+        monkeypatch.delenv("HA_URL", raising=False)
+        monkeypatch.delenv("HA_TOKEN", raising=False)
+
         response = await async_client.post(
             "/api/v1/notifications/test-config",
             json={"provider_type": "homeassistant", "config": {}},

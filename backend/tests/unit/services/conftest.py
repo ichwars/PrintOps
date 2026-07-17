@@ -49,6 +49,9 @@ def ftp_root(tmp_path_factory):
 @pytest.fixture(scope="class")
 def ftp_server(ftp_certs, ftp_root):
     """Start a mock implicit FTPS server, yield it, stop on cleanup."""
+    if os.name == "nt":
+        pytest.skip("The mock implicit FTPS server is not reliable on Windows")
+
     cert_path, key_path = ftp_certs
     port = _find_free_port()
     server = MockBambuFTPServer(

@@ -1,6 +1,6 @@
 // PrintOps Service Worker
-const CACHE_NAME = 'printops-v2';
-const STATIC_CACHE = 'printops-static-v2';
+const CACHE_NAME = 'printops-v3';
+const STATIC_CACHE = 'printops-static-v3';
 
 // Static assets to cache on install
 const STATIC_ASSETS = [
@@ -17,9 +17,22 @@ const STATIC_ASSETS = [
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing service worker...');
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
+    caches.open(STATIC_CACHE).then(async (cache) => {
       console.log('[SW] Caching static assets');
-      return cache.addAll(STATIC_ASSETS);
+      await cache.addAll(STATIC_ASSETS);
+
+      try {
+        const manifestResponse = await fetch('/locale-assets.json', { cache: 'no-store' });
+        if (!manifestResponse.ok) return;
+
+        const localeAssets = await manifestResponse.clone().json();
+        if (!Array.isArray(localeAssets) || !localeAssets.every((asset) => typeof asset === 'string')) return;
+
+        await cache.put('/locale-assets.json', manifestResponse);
+        await cache.addAll(localeAssets);
+      } catch (error) {
+        console.warn('[SW] Locale assets could not be precached:', error);
+      }
     })
   );
   // Activate immediately

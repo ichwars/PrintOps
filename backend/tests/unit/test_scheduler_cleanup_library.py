@@ -1,3 +1,4 @@
+import json
 from contextlib import ExitStack
 from pathlib import Path
 from types import SimpleNamespace
@@ -272,5 +273,5 @@ async def test_oserror_during_unlink_logs_orphan_path_and_does_not_crash_dispatc
     assert not ctx.thumbnail_path.exists()
     assert ctx.archive_path.exists()
     assert "TRANSIENT_LIBRARY_FILE_ORPHAN" in caplog.text
-    assert str(ctx.source_path) in caplog.text
+    assert json.dumps(str(ctx.source_path))[1:-1] in caplog.text
     assert "permission denied" in caplog.text

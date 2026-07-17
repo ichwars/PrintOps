@@ -71,7 +71,8 @@ async def test_get_or_create_keypair_generates_new(tmp_path):
         assert priv.exists()
         assert pub.exists()
         # Private key permissions — no world/group access
-        assert (priv.stat().st_mode & 0o077) == 0
+        if os.name != "nt":
+            assert (priv.stat().st_mode & 0o077) == 0
 
         # Public key is a valid OpenSSH ed25519 key with our comment
         pub_text = pub.read_text()

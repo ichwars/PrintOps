@@ -1,33 +1,7 @@
-import { Component, type ReactNode, type ErrorInfo } from 'react';
+import { Component, lazy, Suspense, type ReactNode, type ErrorInfo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Layout, getDefaultView } from './components/Layout';
-import { PrintersPage } from './pages/PrintersPage';
-import { ArchivesPage } from './pages/ArchivesPage';
-import { QueuePage } from './pages/QueuePage';
-import { StatsPage } from './pages/StatsPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { ProfilesPage } from './pages/ProfilesPage';
-import { MaintenancePage } from './pages/MaintenancePage';
-import { ProjectsPage } from './pages/ProjectsPage';
-import { ProjectDetailPage } from './pages/ProjectDetailPage';
-import { FileManagerPage } from './pages/FileManagerPage';
-import { LibraryTrashPage } from './pages/LibraryTrashPage';
-import { WarehousePage } from './pages/WarehousePage';
-import { OrdersPage } from './pages/OrdersPage';
-import { OrdersCustomersPage } from './pages/OrdersCustomersPage';
-import { CalculationsPage } from './pages/CalculationsPage';
-import { CameraPage } from './pages/CameraPage';
-import { StreamOverlayPage } from './pages/StreamOverlayPage';
-import { ExternalLinkPage } from './pages/ExternalLinkPage';
-import { GroupEditPage } from './pages/GroupEditPage';
-import InventoryPage from './pages/InventoryPage';
-import { MakerworldPage } from './pages/MakerworldPage';
-import { SystemInfoPage } from './pages/SystemInfoPage';
-import { LoginPage } from './pages/LoginPage';
-import { SetupPage } from './pages/SetupPage';
-import { NotificationsPage } from './pages/NotificationsPage';
-import { GCodeViewerPage } from './pages/GCodeViewerPage';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useStreamTokenSync } from './hooks/useCameraStreamToken';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -36,12 +10,39 @@ import { SliceJobTrackerProvider } from './contexts/SliceJobTrackerContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ColorCatalogProvider } from './contexts/ColorCatalogContext';
 import { SpoolBuddyLayout } from './components/spoolbuddy/SpoolBuddyLayout';
-import { SpoolBuddyDashboard } from './pages/spoolbuddy/SpoolBuddyDashboard';
-import { SpoolBuddyAmsPage } from './pages/spoolbuddy/SpoolBuddyAmsPage';
-import { SpoolBuddySettingsPage } from './pages/spoolbuddy/SpoolBuddySettingsPage';
-import { SpoolBuddyCalibrationPage } from './pages/spoolbuddy/SpoolBuddyCalibrationPage';
-import { SpoolBuddyWriteTagPage } from './pages/spoolbuddy/SpoolBuddyWriteTagPage';
-import { SpoolBuddyInventoryPage } from './pages/spoolbuddy/SpoolBuddyInventoryPage';
+
+const PrintersPage = lazy(() => import('./pages/PrintersPage').then(({ PrintersPage }) => ({ default: PrintersPage })));
+const ArchivesPage = lazy(() => import('./pages/ArchivesPage').then(({ ArchivesPage }) => ({ default: ArchivesPage })));
+const QueuePage = lazy(() => import('./pages/QueuePage').then(({ QueuePage }) => ({ default: QueuePage })));
+const StatsPage = lazy(() => import('./pages/StatsPage').then(({ StatsPage }) => ({ default: StatsPage })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then(({ SettingsPage }) => ({ default: SettingsPage })));
+const ProfilesPage = lazy(() => import('./pages/ProfilesPage').then(({ ProfilesPage }) => ({ default: ProfilesPage })));
+const MaintenancePage = lazy(() => import('./pages/MaintenancePage').then(({ MaintenancePage }) => ({ default: MaintenancePage })));
+const ProjectsPage = lazy(() => import('./pages/ProjectsPage').then(({ ProjectsPage }) => ({ default: ProjectsPage })));
+const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage').then(({ ProjectDetailPage }) => ({ default: ProjectDetailPage })));
+const FileManagerPage = lazy(() => import('./pages/FileManagerPage').then(({ FileManagerPage }) => ({ default: FileManagerPage })));
+const LibraryTrashPage = lazy(() => import('./pages/LibraryTrashPage').then(({ LibraryTrashPage }) => ({ default: LibraryTrashPage })));
+const WarehousePage = lazy(() => import('./pages/WarehousePage').then(({ WarehousePage }) => ({ default: WarehousePage })));
+const OrdersPage = lazy(() => import('./pages/OrdersPage').then(({ OrdersPage }) => ({ default: OrdersPage })));
+const OrdersCustomersPage = lazy(() => import('./pages/OrdersCustomersPage').then(({ OrdersCustomersPage }) => ({ default: OrdersCustomersPage })));
+const CalculationsPage = lazy(() => import('./pages/CalculationsPage').then(({ CalculationsPage }) => ({ default: CalculationsPage })));
+const CameraPage = lazy(() => import('./pages/CameraPage').then(({ CameraPage }) => ({ default: CameraPage })));
+const StreamOverlayPage = lazy(() => import('./pages/StreamOverlayPage').then(({ StreamOverlayPage }) => ({ default: StreamOverlayPage })));
+const ExternalLinkPage = lazy(() => import('./pages/ExternalLinkPage').then(({ ExternalLinkPage }) => ({ default: ExternalLinkPage })));
+const GroupEditPage = lazy(() => import('./pages/GroupEditPage').then(({ GroupEditPage }) => ({ default: GroupEditPage })));
+const InventoryPage = lazy(() => import('./pages/InventoryPage'));
+const MakerworldPage = lazy(() => import('./pages/MakerworldPage').then(({ MakerworldPage }) => ({ default: MakerworldPage })));
+const SystemInfoPage = lazy(() => import('./pages/SystemInfoPage').then(({ SystemInfoPage }) => ({ default: SystemInfoPage })));
+const LoginPage = lazy(() => import('./pages/LoginPage').then(({ LoginPage }) => ({ default: LoginPage })));
+const SetupPage = lazy(() => import('./pages/SetupPage').then(({ SetupPage }) => ({ default: SetupPage })));
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then(({ NotificationsPage }) => ({ default: NotificationsPage })));
+const GCodeViewerPage = lazy(() => import('./pages/GCodeViewerPage').then(({ GCodeViewerPage }) => ({ default: GCodeViewerPage })));
+const SpoolBuddyDashboard = lazy(() => import('./pages/spoolbuddy/SpoolBuddyDashboard').then(({ SpoolBuddyDashboard }) => ({ default: SpoolBuddyDashboard })));
+const SpoolBuddyAmsPage = lazy(() => import('./pages/spoolbuddy/SpoolBuddyAmsPage').then(({ SpoolBuddyAmsPage }) => ({ default: SpoolBuddyAmsPage })));
+const SpoolBuddySettingsPage = lazy(() => import('./pages/spoolbuddy/SpoolBuddySettingsPage').then(({ SpoolBuddySettingsPage }) => ({ default: SpoolBuddySettingsPage })));
+const SpoolBuddyCalibrationPage = lazy(() => import('./pages/spoolbuddy/SpoolBuddyCalibrationPage').then(({ SpoolBuddyCalibrationPage }) => ({ default: SpoolBuddyCalibrationPage })));
+const SpoolBuddyWriteTagPage = lazy(() => import('./pages/spoolbuddy/SpoolBuddyWriteTagPage').then(({ SpoolBuddyWriteTagPage }) => ({ default: SpoolBuddyWriteTagPage })));
+const SpoolBuddyInventoryPage = lazy(() => import('./pages/spoolbuddy/SpoolBuddyInventoryPage').then(({ SpoolBuddyInventoryPage }) => ({ default: SpoolBuddyInventoryPage })));
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null; errorInfo: ErrorInfo | null }> {
   state = { error: null as Error | null, errorInfo: null as ErrorInfo | null };
 
@@ -88,6 +89,14 @@ const queryClient = new QueryClient({
 function StreamTokenSync() {
   useStreamTokenSync();
   return null;
+}
+
+function RouteFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center" role="status" aria-live="polite">
+      Loading...
+    </div>
+  );
 }
 
 function WebSocketProvider({ children }: { children: React.ReactNode }) {
@@ -173,6 +182,7 @@ function App() {
             <SliceJobTrackerProvider>
             <StreamTokenSync />
             <BrowserRouter>
+              <Suspense fallback={<RouteFallback />}>
               <Routes>
                 {/* Setup page - only accessible if auth not enabled */}
                 <Route path="/setup" element={<SetupRoute><SetupPage /></SetupRoute>} />
@@ -239,6 +249,7 @@ function App() {
                   <Route path="camera-tokens" element={<Navigate to="/settings?tab=apikeys#card-camera-tokens" replace />} />
                 </Route>
               </Routes>
+              </Suspense>
             </BrowserRouter>
             </SliceJobTrackerProvider>
             </ColorCatalogProvider>

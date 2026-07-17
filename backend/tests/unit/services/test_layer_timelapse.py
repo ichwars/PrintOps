@@ -14,7 +14,7 @@ import pytest
 class TestTimelapseSessionManagement:
     """Tests for timelapse session lifecycle."""
 
-    def test_start_session_creates_new_session(self):
+    def test_start_session_creates_new_session(self, tmp_path):
         """Verify start_session creates and registers a new session."""
         from backend.app.services.layer_timelapse import (
             _active_sessions,
@@ -27,7 +27,7 @@ class TestTimelapseSessionManagement:
         _active_sessions.clear()
 
         with patch("backend.app.services.layer_timelapse.settings") as mock_settings:
-            mock_settings.base_dir = Path("/tmp/test_printops")
+            mock_settings.base_dir = tmp_path
 
             session = start_session(
                 printer_id=1,
@@ -51,7 +51,7 @@ class TestTimelapseSessionManagement:
             # Cleanup
             cancel_session(1)
 
-    def test_start_session_cancels_existing(self):
+    def test_start_session_cancels_existing(self, tmp_path):
         """Verify starting a new session cancels any existing session."""
         from backend.app.services.layer_timelapse import (
             _active_sessions,
@@ -63,7 +63,7 @@ class TestTimelapseSessionManagement:
         _active_sessions.clear()
 
         with patch("backend.app.services.layer_timelapse.settings") as mock_settings:
-            mock_settings.base_dir = Path("/tmp/test_printops")
+            mock_settings.base_dir = tmp_path
 
             # Start first session
             session1 = start_session(1, 100, "http://cam1/", "mjpeg")
@@ -95,7 +95,7 @@ class TestTimelapseSessionManagement:
         result = get_session(999)
         assert result is None
 
-    def test_cancel_session_removes_and_cleans_up(self):
+    def test_cancel_session_removes_and_cleans_up(self, tmp_path):
         """Verify cancel_session removes session and cleans up."""
         from backend.app.services.layer_timelapse import (
             _active_sessions,
@@ -107,7 +107,7 @@ class TestTimelapseSessionManagement:
         _active_sessions.clear()
 
         with patch("backend.app.services.layer_timelapse.settings") as mock_settings:
-            mock_settings.base_dir = Path("/tmp/test_printops")
+            mock_settings.base_dir = tmp_path
 
             session = start_session(1, 100, "http://cam/", "mjpeg")
 
@@ -134,14 +134,14 @@ class TestTimelapseSessionManagement:
 class TestTimelapseSession:
     """Tests for TimelapseSession class."""
 
-    def test_session_id_format(self):
+    def test_session_id_format(self, tmp_path):
         """Verify session ID follows expected datetime format."""
         from backend.app.services.layer_timelapse import TimelapseSession, _active_sessions
 
         _active_sessions.clear()
 
         with patch("backend.app.services.layer_timelapse.settings") as mock_settings:
-            mock_settings.base_dir = Path("/tmp/test_printops")
+            mock_settings.base_dir = tmp_path
 
             session = TimelapseSession(
                 printer_id=1,

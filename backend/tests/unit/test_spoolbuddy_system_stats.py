@@ -1,5 +1,8 @@
 """Tests for SpoolBuddy daemon system_stats collector."""
 
+import os
+from types import SimpleNamespace
+
 import pytest
 
 pytest.importorskip("spoolbuddy", reason="spoolbuddy package not available in Docker")
@@ -65,8 +68,18 @@ class TestDiskInfo:
         assert "percent" in result
         assert 0 <= result["percent"] <= 100
 
+    def test_percent_uses_space_available_to_the_daemon(self):
+        usage = SimpleNamespace(total=1000, used=700, free=200)
+
+        with patch("spoolbuddy.daemon.system_stats.shutil.disk_usage", return_value=usage):
+            result = _disk_info()
+
+        assert result is not None
+        assert result["percent"] == 77.8
+
 
 class TestLoadAvg:
+    @pytest.mark.skipif(not hasattr(os, "getloadavg"), reason="Load average is not available on this platform")
     def test_returns_three_values(self):
         result = _load_avg()
         assert result is not None

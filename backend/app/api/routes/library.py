@@ -153,7 +153,7 @@ def to_relative_path(absolute_path: Path | str) -> str:
     abs_path = Path(absolute_path)
     base_dir = Path(app_settings.base_dir)
     try:
-        return str(abs_path.relative_to(base_dir))
+        return abs_path.relative_to(base_dir).as_posix()
     except ValueError:
         # Path is not under base_dir, return as-is (shouldn't happen normally)
         return str(abs_path)
@@ -1097,7 +1097,7 @@ async def get_folder_readme(
     if truncated:
         raw = raw[:_README_BYTES_CAP]
     # `errors="replace"` so a single bad byte never blanks the panel.
-    content = raw.decode("utf-8", errors="replace")
+    content = raw.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
 
     return FolderReadmeResponse(filename=pick.filename, content=content, truncated=truncated)
 
@@ -1545,7 +1545,7 @@ async def scan_external_folder(
         for cf in all_child_folders:
             if cf.id == fid and cf.external_path:
                 try:
-                    rel = str(Path(cf.external_path).relative_to(ext_path))
+                    rel = Path(cf.external_path).relative_to(ext_path).as_posix()
                     if rel != ".":
                         folder_cache[rel] = cf.id
                 except ValueError:
@@ -1562,7 +1562,7 @@ async def scan_external_folder(
         if not folder.external_show_hidden:
             dirnames[:] = [d for d in dirnames if not d.startswith(".")]
 
-        rel_dir = str(Path(dirpath).relative_to(ext_path))
+        rel_dir = Path(dirpath).relative_to(ext_path).as_posix()
         if rel_dir == ".":
             rel_dir = ""
         seen_rel_dirs.add(rel_dir)
@@ -2439,7 +2439,10 @@ async def batch_generate_stl_thumbnails(
     failed = 0
 
     for stl_file in stl_files:
-        file_path = to_absolute_path(stl_file.file_path)
+        try:
+            file_path = to_absolute_path(stl_file.file_path)
+        except ValueError:
+            file_path = None
 
         if not file_path or not file_path.exists():
             results.append(

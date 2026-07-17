@@ -2,6 +2,7 @@
 
 import os
 import platform
+import shutil
 
 
 def _read_file(path: str) -> str | None:
@@ -49,19 +50,20 @@ def _memory_info() -> dict | None:
 
 def _disk_info() -> dict | None:
     try:
-        st = os.statvfs("/")
+        usage = shutil.disk_usage("/")
     except OSError:
         return None
-    total = st.f_frsize * st.f_blocks
-    free = st.f_frsize * st.f_bavail
-    used = total - free
-    if total == 0:
+    total = usage.total
+    free = usage.free
+    used = usage.used
+    writable_total = used + free
+    if total == 0 or writable_total == 0:
         return None
     return {
         "total_gb": round(total / (1024**3), 1),
         "used_gb": round(used / (1024**3), 1),
         "free_gb": round(free / (1024**3), 1),
-        "percent": round(used / total * 100, 1),
+        "percent": round(used / writable_total * 100, 1),
     }
 
 
@@ -69,7 +71,7 @@ def _load_avg() -> list[float] | None:
     try:
         load = os.getloadavg()
         return [round(x, 2) for x in load]
-    except OSError:
+    except (AttributeError, OSError):
         return None
 
 

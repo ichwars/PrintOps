@@ -89,4 +89,4 @@ class TestPhotoPathDerivation:
     def test_real_file_path_parent_is_archive_dir(self):
         """Real file_path parent gives the correct archive directory."""
         parent = Path("archive/2026/02/test.3mf").parent
-        assert str(parent) == "archive/2026/02"
+        assert parent == Path("archive") / "2026" / "02"
