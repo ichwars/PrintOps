@@ -22,6 +22,7 @@ export type DatePickerProps = {
   disabled?: boolean;
   required?: boolean;
   className?: string;
+  controlClassName?: string;
   isDateDisabled?: (value: DateKey) => boolean;
 };
 
@@ -40,6 +41,7 @@ export function DatePicker({
   disabled = false,
   required = false,
   className = '',
+  controlClassName = '',
   isDateDisabled,
 }: DatePickerProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -87,7 +89,7 @@ export function DatePicker({
             aria-invalid={invalid || invalidValue || undefined}
             aria-required={required || undefined}
             disabled={disabled}
-            className={`${controlClass} flex items-center justify-between gap-2 text-left`}
+            className={`${controlClass} flex items-center justify-between gap-2 text-left ${controlClassName}`}
             onClick={() => setOpen((current) => !current)}
             onKeyDown={(event) => {
               if ((event.key === 'Backspace' || event.key === 'Delete') && value && !required) {

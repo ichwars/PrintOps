@@ -30,6 +30,11 @@ export function FormField({
   const helperId = helperText ? `${controlId}-helper` : undefined;
   const errorId = error ? `${controlId}-error` : undefined;
   const describedBy = [helperId, errorId].filter(Boolean).join(' ') || undefined;
+  const control = children({ controlId, describedBy, invalid: Boolean(error) });
+
+  if (!label && !helperText && !error && !className) {
+    return control;
+  }
 
   return (
     <div className={`space-y-1 ${className}`}>
@@ -43,7 +48,7 @@ export function FormField({
           ) : null}
         </label>
       ) : null}
-      {children({ controlId, describedBy, invalid: Boolean(error) })}
+      {control}
       {helperText ? (
         <p id={helperId} className="text-xs text-bambu-gray">
           {helperText}

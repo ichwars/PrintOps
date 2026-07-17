@@ -1,6 +1,8 @@
 import { Check, Minus } from 'lucide-react';
 import {
+  forwardRef,
   useEffect,
+  useImperativeHandle,
   useId,
   useRef,
   type ChangeEventHandler,
@@ -38,7 +40,7 @@ export type CheckboxProps = Omit<
   error?: ReactNode;
 } & CheckboxValueHandler;
 
-export function Checkbox({
+export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox({
   id,
   checked,
   indeterminate = false,
@@ -51,13 +53,14 @@ export function Checkbox({
   disabled,
   className = '',
   ...props
-}: CheckboxProps) {
+}: CheckboxProps, forwardedRef) {
   const generatedId = useId().replace(/:/g, '');
   const controlId = id ?? `checkbox-${generatedId}`;
   const helperId = helperText ? `${controlId}-helper` : undefined;
   const errorId = error ? `${controlId}-error` : undefined;
   const describedBy = [helperId, errorId].filter(Boolean).join(' ') || undefined;
   const inputRef = useRef<HTMLInputElement>(null);
+  useImperativeHandle(forwardedRef, () => inputRef.current as HTMLInputElement);
 
   useEffect(() => {
     if (inputRef.current) inputRef.current.indeterminate = indeterminate;
@@ -102,14 +105,14 @@ export function Checkbox({
   const controlRow = label !== undefined ? (
     <label
       htmlFor={controlId}
-      className={`inline-flex min-h-[38px] items-center gap-2 text-sm text-bambu-gray-light max-[768px]:min-h-11 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+      className={`inline-flex min-h-[38px] items-center gap-2 text-sm text-bambu-gray-light max-[768px]:min-h-11 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${className}`}
     >
       {control}
       <span>{label}</span>
     </label>
   ) : (
     <span
-      className={`inline-flex min-h-[38px] items-center max-[768px]:min-h-11 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+      className={`inline-flex min-h-[38px] items-center max-[768px]:min-h-11 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${className}`}
     >
       {control}
     </span>
@@ -134,4 +137,4 @@ export function Checkbox({
       ) : null}
     </div>
   );
-}
+});

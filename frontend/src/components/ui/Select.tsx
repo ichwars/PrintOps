@@ -35,6 +35,7 @@ export type SelectProps<T extends SelectValue> = {
   disabled?: boolean;
   required?: boolean;
   className?: string;
+  controlClassName?: string;
   renderValue?: (option: SelectOption<T> | undefined, value: T) => ReactNode;
 };
 
@@ -77,6 +78,7 @@ export function Select<T extends SelectValue>({
   disabled = false,
   required = false,
   className = '',
+  controlClassName = '',
   renderValue,
 }: SelectProps<T>) {
   const generatedId = useId().replace(/:/g, '');
@@ -214,7 +216,7 @@ export function Select<T extends SelectValue>({
             aria-invalid={invalid || undefined}
             aria-required={required || undefined}
             disabled={disabled}
-            className={`${controlClass} flex items-center justify-between gap-2 text-left`}
+            className={`${controlClass} flex items-center justify-between gap-2 text-left ${controlClassName}`}
             onClick={() => {
               if (open) closeList(false);
               else openList();

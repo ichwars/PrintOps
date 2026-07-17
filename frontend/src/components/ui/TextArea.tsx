@@ -33,6 +33,8 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function 
     value,
     onValueChange,
     onChange,
+    'aria-describedby': externalDescribedBy,
+    'aria-invalid': externalInvalid,
     ...props
   },
   ref,
@@ -52,8 +54,10 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function 
           id={controlId}
           value={value}
           required={required}
-          aria-describedby={describedBy}
-          aria-invalid={invalid || undefined}
+          aria-describedby={
+            [externalDescribedBy, describedBy].filter(Boolean).join(' ') || undefined
+          }
+          aria-invalid={invalid ? true : externalInvalid}
           className={`${controlClass} min-h-24 h-auto py-2 ${className}`}
           onChange={(event) => {
             onValueChange?.(event.target.value);

@@ -80,7 +80,7 @@ export function LegacySelect({
       options={options}
       disabled={disabled}
       required={required}
-      className={className}
+      controlClassName={className}
       onValueChange={(nextValue) => {
         const target = { value: nextValue } as HTMLSelectElement;
         onChange?.({ target, currentTarget: target } as ChangeEvent<HTMLSelectElement>);

@@ -36,6 +36,8 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
     value,
     onValueChange,
     onChange,
+    'aria-describedby': externalDescribedBy,
+    'aria-invalid': externalInvalid,
     ...props
   },
   ref,
@@ -55,8 +57,10 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
           id={controlId}
           value={value ?? ''}
           required={required}
-          aria-describedby={describedBy}
-          aria-invalid={invalid || undefined}
+          aria-describedby={
+            [externalDescribedBy, describedBy].filter(Boolean).join(' ') || undefined
+          }
+          aria-invalid={invalid ? true : externalInvalid}
           className={`${controlClass} ${className}`}
           onChange={(event) => {
             onValueChange?.(event.target.value);
