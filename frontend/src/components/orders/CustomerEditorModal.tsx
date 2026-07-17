@@ -19,6 +19,7 @@ import {
 } from '../../lib/orderMasterDataValidation';
 import { normalizeOrderTags } from '../../lib/orderTagNormalization';
 import { Button } from '../Button';
+import { NumberField } from '../ui';
 import { useModalFocusLifecycle } from '../../hooks/useModalFocusLifecycle';
 
 interface Props {
@@ -363,9 +364,9 @@ export function CustomerEditorModal({ customer, profiles, selectedProfileId, isS
                 <Field label={t('orders.customerEditor.accountProfile')} error={errors[`accounts.${index}.business_profile_id`]}><select aria-label={`${t('orders.customerEditor.accountProfile')} ${index + 1}`} value={account.business_profile_id} onChange={(e) => { const id = Number(e.target.value); const profile = profiles.find((item) => item.id === id); patchAccount(index, { business_profile_id: id, preferred_currency: profile?.default_currency ?? account.preferred_currency }); }} className={inputClass}>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select></Field>
                 <Field label={t('orders.customerEditor.customerNumber')} error={errors[`accounts.${index}.number`]}><input aria-label={`${t('orders.customerEditor.customerNumber')} ${index + 1}`} value={account.number ?? ''} onChange={(e) => patchAccount(index, { number: e.target.value })} className={inputClass} /></Field>
                 <Field label={t('orders.customerEditor.currency')} error={errors[`accounts.${index}.preferred_currency`]}><input aria-label={`${t('orders.customerEditor.currency')} ${index + 1}`} value={account.preferred_currency} onChange={(e) => patchAccount(index, { preferred_currency: e.target.value.toUpperCase() })} className={inputClass} /></Field>
-                <Field label={t('orders.customerEditor.paymentDays')} error={errors[`accounts.${index}.payment_term_days`]}><input type="number" min="0" aria-label={`${t('orders.customerEditor.paymentDays')} ${index + 1}`} value={account.payment_term_days ?? 0} onChange={(e) => patchAccount(index, { payment_term_days: Number(e.target.value) })} className={inputClass} /></Field>
+                <Field label={t('orders.customerEditor.paymentDays')} error={errors[`accounts.${index}.payment_term_days`]}><NumberField  min="0" aria-label={`${t('orders.customerEditor.paymentDays')} ${index + 1}`} value={account.payment_term_days ?? 0} onChange={(e) => patchAccount(index, { payment_term_days: Number(e.target.value) })} className={inputClass} /></Field>
                 <Field label={t('orders.customerEditor.deliveryTerms')} error={errors[`accounts.${index}.delivery_terms`]}><input aria-label={`${t('orders.customerEditor.deliveryTerms')} ${index + 1}`} value={account.delivery_terms ?? ''} onChange={(e) => patchAccount(index, { delivery_terms: e.target.value })} className={inputClass} /></Field>
-                <Field label={t('orders.customerEditor.discount')} error={errors[`accounts.${index}.discount_percent`]}><input type="number" min="0" max="100" step="0.01" aria-label={`${t('orders.customerEditor.discount')} ${index + 1}`} value={account.discount_percent ?? '0.00'} onChange={(e) => patchAccount(index, { discount_percent: e.target.value })} className={inputClass} /></Field>
+                <Field label={t('orders.customerEditor.discount')} error={errors[`accounts.${index}.discount_percent`]}><NumberField  min="0" max="100" step="0.01" aria-label={`${t('orders.customerEditor.discount')} ${index + 1}`} value={account.discount_percent ?? '0.00'} onChange={(e) => patchAccount(index, { discount_percent: e.target.value })} className={inputClass} /></Field>
                 <Check label={`${t('orders.customerEditor.activeAccount')} ${index + 1}`} checked={account.is_active ?? true} onChange={(checked) => patchAccount(index, { is_active: checked })} error={errors[`accounts.${index}.is_active`]} />
               </div>
             </Row>)}

@@ -42,6 +42,16 @@ const groups = {
     'components/spool-form/AdditionalSection.tsx',
     'components/spool-form/FilamentSection.tsx',
   ],
+  orders: [
+    'components/orders/CalculationWorkspace.tsx',
+    'components/orders/CustomerEditorModal.tsx',
+    'components/orders/calculation/CalculationSettings.tsx',
+    'components/orders/calculation/CommercialOverridesEditor.tsx',
+    'components/orders/calculation/DeviceAssignmentEditor.tsx',
+    'components/orders/calculation/LaborEditor.tsx',
+    'components/orders/calculation/MaterialsEditor.tsx',
+    'components/orders/calculation/RequestEditor.tsx',
+  ],
 };
 
 const sourceRoot = path.resolve(process.cwd(), 'src');

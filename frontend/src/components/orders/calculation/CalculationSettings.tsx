@@ -4,7 +4,7 @@ import { BadgeEuro, Calculator, Clock3, Coins, Loader2, Package, TriangleAlert, 
 import { calculationsApi, type CalculationPreview, type CalculationPreviewInput, type PriceMethod } from '../../../api/calculations';
 import { api } from '../../../api/client';
 import { SUPPORTED_CURRENCIES } from '../../../utils/currency';
-import { Select, TextField } from '../../ui';
+import { NumberField, Select, TextField } from '../../ui';
 
 type SettingKey = 'currency' | 'default_filament_cost' | 'energy_cost_per_kwh' | 'energy_tracking_mode' | 'calculation_defaults';
 type Settings = { currency: string; default_filament_cost: number; energy_cost_per_kwh: number; energy_tracking_mode: string; calculation_defaults: string };
@@ -114,7 +114,7 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
       {group.title === (de ? 'Preisbildung' : 'Price derivation') && <Select label={de ? 'Preisrundung' : 'Price rounding'} value={String(defaults.roundingMode)} onValueChange={(value) => update('roundingMode', value)} className="mt-3" options={[
         { value: 'none', label: de ? 'Keine' : 'None' }, { value: '0.05', label: '0,05' }, { value: '0.10', label: '0,10' }, { value: '0.50', label: '0,50' }, { value: '1.00', label: '1,00' }, { value: 'x.90', label: 'x,90' }, { value: 'x.99', label: 'x,99' },
       ]} />}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">{group.fields.map(([key, label, step]) => <TextField key={key} label={label} type="number" min="0" step={step} value={Number(defaults[key] ?? 0)} onValueChange={(value) => update(key, Number(value))} className={inputClass} />)}</div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">{group.fields.map(([key, label, step]) => <NumberField key={key} label={label}  min="0" step={step} value={Number(defaults[key] ?? 0)} onValueChange={(value) => update(key, Number(value))} className={inputClass} />)}</div>
       {group.title === (de ? 'Beispielrechnung' : 'Example calculation') && <div className="mt-4">
         {loading && <div className="flex items-center gap-2 text-sm text-bambu-gray"><Loader2 className="h-4 w-4 animate-spin" />{de ? 'Berechnung läuft…' : 'Calculating…'}</div>}
         {previewError && <div role="alert" className="text-sm text-red-300">{de ? 'Beispiel konnte nicht berechnet werden.' : 'Example could not be calculated.'}</div>}
@@ -131,8 +131,8 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
     <h2 className="sr-only">{de ? 'Kostenverfolgung' : 'Cost Tracking'}</h2>
     <div className="grid gap-3 md:grid-cols-4">
       <Select label={de ? 'Währung' : 'Currency'} value={settings.currency} onValueChange={(value) => onChange('currency', value)} options={SUPPORTED_CURRENCIES.map(currency => ({ value: currency.code, label: currency.label }))} />
-      <TextField label={de ? 'Filamentpreis/kg' : 'Filament price/kg'} type="number" min="0" step="0.01" value={settings.default_filament_cost} onValueChange={(value) => onChange('default_filament_cost', Number(value))} className={inputClass} />
-      <TextField label={de ? 'Strompreis/kWh' : 'Electricity/kWh'} type="number" min="0" step="0.001" value={settings.energy_cost_per_kwh} onValueChange={(value) => onChange('energy_cost_per_kwh', Number(value))} className={inputClass} />
+      <NumberField label={de ? 'Filamentpreis/kg' : 'Filament price/kg'}  min="0" step="0.01" value={settings.default_filament_cost} onValueChange={(value) => onChange('default_filament_cost', Number(value))} className={inputClass} />
+      <NumberField label={de ? 'Strompreis/kWh' : 'Electricity/kWh'}  min="0" step="0.001" value={settings.energy_cost_per_kwh} onValueChange={(value) => onChange('energy_cost_per_kwh', Number(value))} className={inputClass} />
       <Select label={de ? 'Energieanzeige' : 'Energy display'} value={settings.energy_tracking_mode} onValueChange={(value) => onChange('energy_tracking_mode', value)} options={[{ value: 'total', label: de ? 'Gesamtverbrauch' : 'Total consumption' }, { value: 'print', label: de ? 'Nur Druckenergie' : 'Print energy only' }]} />
     </div>
     <div className="grid items-start gap-5 lg:grid-cols-2"><div className="space-y-5">{groups.filter(group => group.column === 'cost').map(renderGroup)}</div><div className="space-y-5">{groups.filter(group => group.column === 'commercial').map(renderGroup)}</div></div>

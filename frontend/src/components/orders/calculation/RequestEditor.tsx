@@ -1,6 +1,7 @@
 import type { BusinessProfileOption, CustomerListItem, ProjectListItem } from '../../../api/client';
 import type { CalculationCreate } from '../../../api/calculations';
 import { SUPPORTED_CURRENCIES } from '../../../utils/currency';
+import { NumberField } from '../../ui';
 
 const field = 'mt-1 h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 text-white outline-none focus:border-bambu-green';
 
@@ -12,7 +13,7 @@ export function RequestEditor({ draft, profiles, customers, projects, locale, on
     <label className="text-sm text-bambu-gray">{de ? 'Kunde' : 'Customer'}<select value={draft.customer_id ?? ''} onChange={e => set('customer_id', e.target.value ? Number(e.target.value) : null)} className={field}><option value="">{de ? 'Ohne Kundenzuordnung' : 'No customer'}</option>{customers.map(item => <option key={item.id} value={item.id}>{item.account_number} · {item.display_name}</option>)}</select></label>
     <label className="text-sm text-bambu-gray">{de ? 'Projektbezug' : 'Project'}<select value={draft.project_id ?? ''} onChange={e => set('project_id', e.target.value ? Number(e.target.value) : null)} className={field}><option value="">{de ? 'Kein Projekt' : 'No project'}</option>{projects.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
     <label className="text-sm text-bambu-gray">{de ? 'Druckart' : 'Request kind'}<select value={draft.request_kind} onChange={e => set('request_kind', e.target.value as CalculationCreate['request_kind'])} className={field}><option value="single">{de ? 'Einzeldruck' : 'Single print'}</option><option value="series">{de ? 'Serie' : 'Series'}</option><option value="prototype">{de ? 'Prototyp' : 'Prototype'}</option><option value="service">{de ? 'Dienstleistung' : 'Service'}</option></select></label>
-    <label className="text-sm text-bambu-gray">{de ? 'Gesamtstückzahl' : 'Total quantity'}<input type="number" min="1" step="1" value={draft.quantity} onChange={e => set('quantity', Math.max(1, Number(e.target.value)))} className={field} /></label>
+    <label className="text-sm text-bambu-gray">{de ? 'Gesamtstückzahl' : 'Total quantity'}<NumberField  min="1" step="1" value={draft.quantity} onChange={e => set('quantity', Math.max(1, Number(e.target.value)))} className={field} /></label>
     <label className="text-sm text-bambu-gray lg:col-span-2">{de ? 'Positionstitel' : 'Line title'}<input value={draft.title} onChange={e => set('title', e.target.value)} className={field} /></label>
     <label className="text-sm text-bambu-gray">{de ? 'Währung' : 'Currency'}<select value={draft.currency} onChange={e => set('currency', e.target.value)} className={field}>{SUPPORTED_CURRENCIES.map(item => <option key={item.code} value={item.code}>{item.label}</option>)}</select></label>
     <label className="text-sm text-bambu-gray md:col-span-2">{de ? 'Positionsbeschreibung' : 'Description'}<textarea rows={3} value={draft.position_description ?? ''} onChange={e => set('position_description', e.target.value || null)} className="mt-1 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 py-2 text-white" /></label>
