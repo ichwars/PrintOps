@@ -128,6 +128,8 @@ export default {
     expand: '展開',
     previous: '前へ',
     next: '次へ',
+    increaseValue: '値を増やす',
+    decreaseValue: '値を減らす',
     viewArchive: 'アーカイブを表示',
     viewInFileManager: 'ファイルマネージャーで表示',
     addedBy: '{{username}}が追加',

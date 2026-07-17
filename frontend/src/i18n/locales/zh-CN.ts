@@ -128,6 +128,8 @@ export default {
     expand: '展开',
     previous: '上一页',
     next: '下一页',
+    increaseValue: '增加数值',
+    decreaseValue: '减少数值',
     viewArchive: '查看归档',
     viewInFileManager: '在文件管理器中查看',
     addedBy: '由 {{username}} 添加',

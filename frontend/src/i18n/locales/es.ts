@@ -134,6 +134,8 @@ export default {
     expand: 'Expandir',
     previous: 'Anterior',
     next: 'Siguiente',
+    increaseValue: 'Aumentar valor',
+    decreaseValue: 'Disminuir valor',
     viewArchive: 'Ver archivo',
     viewInFileManager: 'Ver en el gestor de archivos',
     addedBy: 'Añadido por {{username}}',

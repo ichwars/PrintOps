@@ -165,6 +165,8 @@ export default {
     expand: 'Expand',
     previous: 'Previous',
     next: 'Next',
+    increaseValue: 'Increase value',
+    decreaseValue: 'Decrease value',
     viewArchive: 'View archive',
     viewInFileManager: 'View in File Manager',
     addedBy: 'Added by {{username}}',

@@ -127,6 +127,8 @@ export default {
     expand: 'Genişlet',
     previous: 'Önceki',
     next: 'Sonraki',
+    increaseValue: 'Değeri artır',
+    decreaseValue: 'Değeri azalt',
     viewArchive: 'Arşivi gör',
     viewInFileManager: 'Dosya Yöneticisinde gör',
     addedBy: '{{username}} tarafından eklendi',

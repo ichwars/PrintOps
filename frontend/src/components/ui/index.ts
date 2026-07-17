@@ -16,6 +16,8 @@ export { IconButton } from './IconButton';
 export type { IconButtonProps } from './IconButton';
 export { Modal } from './Modal';
 export type { ModalProps } from './Modal';
+export { NumberField } from './NumberField';
+export type { NumberFieldProps } from './NumberField';
 export { RadioGroup } from './RadioGroup';
 export type { RadioGroupProps, RadioOption } from './RadioGroup';
 export { ScrollArea } from './ScrollArea';
