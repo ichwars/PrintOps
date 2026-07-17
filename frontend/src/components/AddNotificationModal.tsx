@@ -5,7 +5,7 @@ import { X, Save, Loader2, Send, CheckCircle, XCircle } from 'lucide-react';
 import { api } from '../api/client';
 import type { NotificationProvider, NotificationProviderCreate, NotificationProviderUpdate, ProviderType } from '../api/client';
 import { Button } from './Button';
-import { LegacySelect, TextField } from './ui';
+import { LegacySelect, NumberField, TextField } from './ui';
 import { Toggle } from './Toggle';
 
 interface AddNotificationModalProps {
@@ -351,6 +351,16 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                       </option>
                     ))}
                   </LegacySelect>
+                ) : field.type === 'number' ? (
+                  <NumberField
+                    value={config[field.key] || ''}
+                    onValueChange={(value) => {
+                      setConfig({ ...config, [field.key]: value });
+                      setTestResult(null);
+                    }}
+                    placeholder={field.placeholder}
+                    className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+                  />
                 ) : (
                   <TextField
                     type={field.type}

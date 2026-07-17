@@ -18,6 +18,7 @@ import { Collapsible } from '../components/Collapsible';
 import {
   Button,
   Checkbox,
+  NumberField,
   Select,
   Switch,
   Tabs,
@@ -2140,8 +2141,7 @@ export function SettingsPage() {
             {t('settings.lowDiskSpaceWarning')}
           </label>
           <div className="flex items-center gap-2">
-            <TextField
-              type="number"
+            <NumberField
               min="0.5"
               max="100"
               step="0.5"
@@ -2176,8 +2176,7 @@ export function SettingsPage() {
                 {t('libraryAutoPurge.ageLabel')}
               </label>
               <div className="flex items-center gap-2">
-                <TextField
-                  type="number"
+                <NumberField
                   min={7}
                   max={3650}
                   disabled={!trashSettings.auto_purge_enabled}
@@ -2293,8 +2292,7 @@ export function SettingsPage() {
                 {t('archiveAutoPurge.ageLabel')}
               </label>
               <div className="flex items-center gap-2">
-                <TextField
-                  type="number"
+                <NumberField
                   min={7}
                   max={3650}
                   disabled={!archivePurgeSettings.enabled}
@@ -3050,7 +3048,7 @@ export function SettingsPage() {
                       <td className="py-1.5 pr-2 text-white font-medium">{fil}</td>
                       <td className="py-1 px-1">
                         <div className="flex items-center justify-end gap-1">
-                          <TextField type="number" min={30} max={65} value={preset.n3f}
+                          <NumberField min={30} max={65} value={preset.n3f}
                             onChange={e => updatePreset(fil, 'n3f', Math.max(1, parseInt(e.target.value) || 0))}
                             className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
@@ -3059,7 +3057,7 @@ export function SettingsPage() {
                       </td>
                       <td className="py-1 px-1">
                         <div className="flex items-center gap-1">
-                          <TextField type="number" min={1} max={24} value={preset.n3f_hours}
+                          <NumberField min={1} max={24} value={preset.n3f_hours}
                             onChange={e => updatePreset(fil, 'n3f_hours', Math.max(1, parseInt(e.target.value) || 0))}
                             className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
@@ -3068,7 +3066,7 @@ export function SettingsPage() {
                       </td>
                       <td className="py-1 px-1">
                         <div className="flex items-center justify-end gap-1">
-                          <TextField type="number" min={30} max={85} value={preset.n3s}
+                          <NumberField min={30} max={85} value={preset.n3s}
                             onChange={e => updatePreset(fil, 'n3s', Math.max(1, parseInt(e.target.value) || 0))}
                             className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
@@ -3077,7 +3075,7 @@ export function SettingsPage() {
                       </td>
                       <td className="py-1 px-1">
                         <div className="flex items-center gap-1">
-                          <TextField type="number" min={1} max={24} value={preset.n3s_hours}
+                          <NumberField min={1} max={24} value={preset.n3s_hours}
                             onChange={e => updatePreset(fil, 'n3s_hours', Math.max(1, parseInt(e.target.value) || 0))}
                             className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
@@ -3161,8 +3159,7 @@ export function SettingsPage() {
                         <td className={`py-1.5 pr-2 font-medium ${row.isDefault ? 'text-bambu-gray italic' : 'text-white'}`}>{row.label}</td>
                         <td className="py-1 pr-2">
                           <div className="flex items-center justify-end gap-1">
-                            <TextField
-                              type="number"
+                            <NumberField
                               min={5}
                               max={95}
                               value={displayValue}
@@ -4237,8 +4234,7 @@ export function SettingsPage() {
                       <label className="block text-sm text-bambu-gray mb-1">
                         {t('settings.port')}
                       </label>
-                      <TextField
-                        type="number"
+                      <NumberField
                         min="1"
                         max="65535"
                         value={localSettings.mqtt_port ?? 1883}
@@ -5342,8 +5338,7 @@ export function SettingsPage() {
                   <p className="text-xs text-bambu-gray">{t('settings.bedCooledThresholdDescription')}</p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <TextField
-                    type="number"
+                  <NumberField
                     min={20}
                     max={80}
                     step={1}
@@ -5403,9 +5398,8 @@ export function SettingsPage() {
                     </div>
                     <div className="flex gap-2">
                       {[0, 1, 2].map(idx => (
-                        <TextField
+                        <NumberField
                           key={idx}
-                          type="number"
                           min={category.lo}
                           max={category.hi}
                           value={triple[idx]}
@@ -5443,8 +5437,7 @@ export function SettingsPage() {
                   <label className="block text-xs text-bambu-gray mb-1">
                     {t('settings.staggerGroupSize', 'Group size')}
                   </label>
-                  <TextField
-                    type="number"
+                  <NumberField
                     min={1}
                     max={50}
                     value={localSettings.stagger_group_size ?? 2}
@@ -5459,8 +5452,7 @@ export function SettingsPage() {
                   <label className="block text-xs text-bambu-gray mb-1">
                     {t('settings.staggerInterval', 'Interval (minutes)')}
                   </label>
-                  <TextField
-                    type="number"
+                  <NumberField
                     min={1}
                     max={60}
                     value={localSettings.stagger_interval_minutes ?? 5}
@@ -5508,8 +5500,7 @@ export function SettingsPage() {
                   <label className="block text-xs text-bambu-gray mb-1">
                     {t('settings.preheatMaxWait', 'Max wait (seconds)')}
                   </label>
-                  <TextField
-                    type="number"
+                  <NumberField
                     min={60}
                     max={3600}
                     value={localSettings.preheat_max_wait_seconds ?? 900}
@@ -5525,8 +5516,7 @@ export function SettingsPage() {
                   <label className="block text-xs text-bambu-gray mb-1">
                     {t('settings.preheatSoak', 'Soak (seconds)')}
                   </label>
-                  <TextField
-                    type="number"
+                  <NumberField
                     min={0}
                     max={1800}
                     value={localSettings.preheat_soak_seconds ?? 300}
@@ -5704,8 +5694,7 @@ export function SettingsPage() {
                     )}
                   </p>
                 </div>
-                <TextField
-                  type="number"
+                <NumberField
                   min={1}
                   max={1000}
                   value={localSettings.pipeline_max_copies ?? 50}
@@ -5957,8 +5946,7 @@ export function SettingsPage() {
                         {t('settings.goodGreen')} ≤
                       </label>
                       <div className="flex items-center gap-2">
-                        <TextField
-                          type="number"
+                        <NumberField
                           min="0"
                           max="100"
                           value={localSettings.ams_humidity_good ?? 40}
@@ -5973,8 +5961,7 @@ export function SettingsPage() {
                         {t('settings.fairOrange')} ≤
                       </label>
                       <div className="flex items-center gap-2">
-                        <TextField
-                          type="number"
+                        <NumberField
                           min="0"
                           max="100"
                           value={localSettings.ams_humidity_fair ?? 60}
@@ -6005,8 +5992,7 @@ export function SettingsPage() {
                         {t('settings.goodBlue')} ≤
                       </label>
                       <div className="flex items-center gap-2">
-                        <TextField
-                          type="number"
+                        <NumberField
                           step="0.5"
                           min="0"
                           max="60"
@@ -6022,8 +6008,7 @@ export function SettingsPage() {
                         {t('settings.fairOrange')} ≤
                       </label>
                       <div className="flex items-center gap-2">
-                        <TextField
-                          type="number"
+                        <NumberField
                           step="0.5"
                           min="0"
                           max="60"
@@ -6051,8 +6036,7 @@ export function SettingsPage() {
                       {t('settings.keepSensorHistory')}
                     </label>
                     <div className="flex items-center gap-2">
-                      <TextField
-                        type="number"
+                      <NumberField
                         min="1"
                         max="365"
                         value={localSettings.ams_history_retention_days ?? 30}
@@ -6342,8 +6326,7 @@ export function SettingsPage() {
                         );
                       })}
                       <div className="flex items-center gap-1">
-                        <TextField
-                          type="number"
+                        <NumberField
                           min={1}
                           max={720}
                           value={localSettings?.session_max_hours ?? 24}

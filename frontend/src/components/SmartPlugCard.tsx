@@ -404,8 +404,7 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                   {plug.off_delay_mode === 'time' ? (
                     <div>
                       <label className="block text-xs text-bambu-gray mb-1">{t('smartPlugs.delayMinutes')}</label>
-                      <TextField
-                        type="number"
+                    <NumberField
                         min="1"
                         max="60"
                         value={plug.off_delay_minutes}
@@ -416,8 +415,7 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                   ) : (
                     <div>
                       <label className="block text-xs text-bambu-gray mb-1">{t('smartPlugs.tempThreshold')}</label>
-                      <TextField
-                        type="number"
+                    <NumberField
                         min="30"
                         max="100"
                         value={plug.off_temp_threshold}
@@ -451,8 +449,7 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
               {plug.auto_off_after_drying && (
                 <div className="pl-4 border-l-2 border-bambu-dark-tertiary">
                   <label className="block text-xs text-bambu-gray mb-1">{t('smartPlugs.delayAfterDryingMinutes')}</label>
-                  <TextField
-                    type="number"
+                <NumberField
                     min="0"
                     max="120"
                     value={plug.off_delay_after_drying_minutes}
@@ -536,4 +533,4 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
     </>
   );
 }
-import { Switch, TextField } from './ui';
+import { NumberField, Switch, TextField } from './ui';

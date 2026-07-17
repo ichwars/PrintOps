@@ -15,7 +15,7 @@ import {
   type Printer,
   type PrinterCreate,
 } from '../../api/client';
-import { Button, DatePicker, IconButton, TextField } from '../ui';
+import { Button, DatePicker, IconButton, NumberField, TextField } from '../ui';
 
 const inputClass =
   'mt-1 h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 text-sm text-white outline-none transition-colors focus:border-bambu-green';
@@ -289,10 +289,9 @@ function PrinterCostEditor({
               onValueChange={(value) => setDraft({ ...draft, [key]: value })}
             />
           ) : (
-            <TextField
+            <NumberField
               key={key}
               label={label}
-              type="number"
               min="0"
               step="0.01"
               value={draft[key]}
@@ -493,10 +492,9 @@ function DryerForm({
           onValueChange={(value) => onChange({ ...draft, acquisition_date: value })}
         />
       {fields.map(([key, label]) => (
-          <TextField
+          <NumberField
             key={key}
             label={label}
-            type="number"
             min="0"
             step="0.01"
             value={String(draft[key])}

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import type { SmartPlug, SmartPlugCreate, SmartPlugUpdate, DiscoveredTasmotaDevice } from '../api/client';
 import { Button } from './Button';
-import { LegacySelect, Switch, TextArea, TextField } from './ui';
+import { LegacySelect, NumberField, Switch, TextArea, TextField } from './ui';
 
 interface AddSmartPlugModalProps {
   plug?: SmartPlug | null;
@@ -1497,8 +1497,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.alertAbove')}</label>
-                    <TextField
-                      type="number"
+                    <NumberField
                       value={powerAlertHigh}
                       onChange={(e) => setPowerAlertHigh(e.target.value)}
                       placeholder="e.g. 200"
@@ -1509,8 +1508,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                   </div>
                   <div>
                     <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.alertBelow')}</label>
-                    <TextField
-                      type="number"
+                    <NumberField
                       value={powerAlertLow}
                       onChange={(e) => setPowerAlertLow(e.target.value)}
                       placeholder="e.g. 10"

@@ -7,6 +7,7 @@ import { ArrowLeft, RotateCcw, Save, Trash2, Loader2 } from 'lucide-react';
 import { api } from '../api/client';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { NumberField } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { formatFileSize } from '../utils/file';
@@ -208,9 +209,8 @@ export function LibraryTrashPage() {
           <label htmlFor="retention-days" className="text-sm font-medium text-gray-700 dark:text-gray-300">
             {t('libraryTrash.retentionLabel')}
           </label>
-          <input
+          <NumberField
             id="retention-days"
-            type="number"
             min={1}
             max={365}
             value={retentionDraft ?? settingsQuery.data.retention_days}

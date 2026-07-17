@@ -15,7 +15,7 @@
  * The plaintext token is shown EXACTLY ONCE at create time inside a copy-
  * to-clipboard modal. Listings only ever show metadata.
  */
-import { Button, TextField } from '../components/ui';
+import { Button, NumberField, TextField } from '../components/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Copy, Plus, Trash2, AlertTriangle } from 'lucide-react';
@@ -91,8 +91,7 @@ function CreateTokenForm({ onCreated }: CreateTokenFormProps) {
           className="px-3 py-2 bg-bambu-dark rounded-md text-white border border-bambu-dark-tertiary focus:border-bambu-green focus:outline-none"
           aria-label={t('cameraTokens.create.nameLabel', 'Token name')}
         />
-        <TextField
-          type="number"
+        <NumberField
           min={1}
           max={MAX_LIFETIME_DAYS}
           required

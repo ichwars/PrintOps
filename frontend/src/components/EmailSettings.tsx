@@ -6,7 +6,7 @@ import { api } from '../api/client';
 import type { SMTPSettings, TestSMTPRequest } from '../api/client';
 import { Card, CardContent, CardHeader } from './Card';
 import { Button } from './Button';
-import { LegacySelect, TextField } from './ui';
+import { LegacySelect, NumberField, TextField } from './ui';
 import { useToast } from '../contexts/ToastContext';
 import { useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
@@ -317,8 +317,7 @@ export function EmailSettings() {
                   <label className="block text-sm font-medium text-white mb-1">
                     {t('settings.email.smtpPort') || 'SMTP Port'}
                   </label>
-                  <TextField
-                    type="number"
+                  <NumberField
                     value={smtpSettings.smtp_port}
                     onChange={(e) => handlePortChange(parseInt(e.target.value) || 587)}
                     placeholder="587"

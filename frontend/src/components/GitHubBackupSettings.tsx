@@ -36,7 +36,7 @@ import type {
 } from '../api/client';
 import { Card, CardContent, CardHeader } from './Card';
 import { Button } from './Button';
-import { Checkbox, LegacySelect, TextField } from './ui';
+import { Checkbox, LegacySelect, NumberField, TextField } from './ui';
 import { Toggle } from './Toggle';
 import { ConfirmModal } from './ConfirmModal';
 import { useToast } from '../contexts/ToastContext';
@@ -1196,8 +1196,7 @@ export function GitHubBackupSettings() {
                   )}
                   <div>
                     <label className="block text-sm text-bambu-gray mb-1">{t('backup.retention')}</label>
-                    <TextField
-                      type="number"
+                    <NumberField
                       min={1}
                       max={100}
                       value={localBackupStatus?.retention ?? 5}

@@ -11,7 +11,7 @@ import {
   type BusinessProfileTaxIdentifier,
   type BusinessProfileUpdate,
 } from '../../api/client';
-import { Button, Checkbox, DatePicker, IconButton, Modal, Select, TextField } from '../ui';
+import { Button, Checkbox, DatePicker, IconButton, Modal, NumberField, Select, TextField } from '../ui';
 import { orderMasterDataCountryCodes, orderMasterDataCurrencyCodes } from '../../lib/orderMasterDataValidation';
 
 type ProfileDraft = BusinessProfileCreate;
@@ -432,7 +432,7 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
                 ]} />
               </label>
               <label className="text-sm text-bambu-gray-light">{german ? 'Standard-MwSt. %' : 'Default VAT %'}
-                <TextField type="number" min="0" max="100" step="0.01" disabled={draft.tax_mode !== 'standard'} aria-label={german ? 'Standard-MwSt. %' : 'Default VAT %'} value={draft.default_tax_rate ?? '0.00'} onChange={(event) => setDraft({ ...draft, default_tax_rate: event.target.value })} className={inputClass} />
+                <NumberField min="0" max="100" step="0.01" disabled={draft.tax_mode !== 'standard'} aria-label={german ? 'Standard-MwSt. %' : 'Default VAT %'} value={draft.default_tax_rate ?? '0.00'} onChange={(event) => setDraft({ ...draft, default_tax_rate: event.target.value })} className={inputClass} />
               </label>
               <Checkbox checked={draft.cash_accounting ?? false} onCheckedChange={(checked) => setDraft({ ...draft, cash_accounting: checked })} label={german ? 'Ist-Versteuerung' : 'Cash accounting'} />
               <Checkbox disabled={draft.tax_mode !== 'standard'} checked={draft.input_tax_deductible ?? false} onCheckedChange={(checked) => setDraft({ ...draft, input_tax_deductible: checked })} label={german ? 'Vorsteuerabzug aktiv' : 'Input tax deductible'} />

@@ -5,7 +5,7 @@ import { Loader2, ScanEye, Check, X, AlertTriangle, Info } from 'lucide-react';
 import { api } from '../api/client';
 import { Card, CardContent, CardHeader } from './Card';
 import { Button } from './Button';
-import { Checkbox, LegacySelect, TextField } from './ui';
+import { Checkbox, LegacySelect, NumberField, TextField } from './ui';
 import { Toggle } from './Toggle';
 import { useToast } from '../contexts/ToastContext';
 
@@ -210,8 +210,7 @@ export function FailureDetectionSettings() {
               <label className="block text-sm text-bambu-gray mb-1">
                 {t('failureDetection.pollInterval')}
               </label>
-              <TextField
-                type="number"
+              <NumberField
                 value={pollInterval}
                 onChange={(e) => setPollInterval(Math.max(5, Math.min(120, Number(e.target.value) || 10)))}
                 min={5}
