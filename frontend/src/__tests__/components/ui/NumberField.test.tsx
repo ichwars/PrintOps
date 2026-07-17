@@ -121,4 +121,22 @@ describe('NumberField', () => {
     expect(screen.getByRole('button', { name: 'Fewer copies' })).toBeInTheDocument();
     expect(onValueChange).not.toHaveBeenCalled();
   });
+
+  it('preserves accessibility state supplied by an outer field wrapper', () => {
+    render(
+      <>
+        <NumberField
+          aria-label="Payment days"
+          aria-describedby="payment-days-error"
+          aria-invalid
+          value="366"
+        />
+        <span id="payment-days-error">Must be between 0 and 365.</span>
+      </>,
+    );
+
+    const input = screen.getByRole('spinbutton', { name: 'Payment days' });
+    expect(input).toHaveAccessibleDescription('Must be between 0 and 365.');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+  });
 });

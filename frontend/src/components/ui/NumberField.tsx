@@ -49,6 +49,8 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
     step,
     disabled,
     readOnly,
+    'aria-describedby': externalDescribedBy,
+    'aria-invalid': externalInvalid,
     ...props
   },
   forwardedRef,
@@ -93,8 +95,10 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
             required={required}
             disabled={disabled}
             readOnly={readOnly}
-            aria-describedby={describedBy}
-            aria-invalid={invalid || undefined}
+            aria-describedby={
+              [externalDescribedBy, describedBy].filter(Boolean).join(' ') || undefined
+            }
+            aria-invalid={invalid ? true : externalInvalid}
             className={`${controlClass} [appearance:textfield] pr-11 max-[768px]:pr-12 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${className}`}
             onChange={(event) => {
               onValueChange?.(event.target.value);
