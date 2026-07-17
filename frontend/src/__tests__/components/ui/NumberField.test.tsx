@@ -78,6 +78,32 @@ describe('NumberField', () => {
     expect(onValueChange).toHaveBeenLastCalledWith('0.2');
   });
 
+  it('steps with Arrow Up and Arrow Down while preserving consumer key handlers', async () => {
+    const onValueChange = vi.fn();
+    const onKeyDown = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <NumberField
+        aria-label="Rate"
+        value="0.2"
+        step="0.1"
+        onValueChange={onValueChange}
+        onKeyDown={onKeyDown}
+      />,
+    );
+
+    const input = screen.getByRole('spinbutton', { name: 'Rate' });
+    input.focus();
+    await user.keyboard('{ArrowUp}');
+    await user.keyboard('{ArrowDown}');
+
+    expect(onKeyDown).toHaveBeenCalledTimes(2);
+    expect(onValueChange).toHaveBeenNthCalledWith(1, '0.3');
+    expect(onValueChange).toHaveBeenNthCalledWith(2, '0.1');
+    expect(input).toHaveFocus();
+  });
+
   it('never submits a surrounding form from either step button', async () => {
     const onSubmit = vi.fn((event: FormEvent) => event.preventDefault());
     render(

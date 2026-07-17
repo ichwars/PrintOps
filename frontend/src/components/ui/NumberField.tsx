@@ -42,6 +42,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
     value,
     onValueChange,
     onChange,
+    onKeyDown,
     incrementLabel,
     decrementLabel,
     min,
@@ -103,6 +104,14 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
             onChange={(event) => {
               onValueChange?.(event.target.value);
               onChange?.(event);
+            }}
+            onKeyDown={(event) => {
+              onKeyDown?.(event);
+              if (event.defaultPrevented) return;
+              if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+
+              event.preventDefault();
+              emitStep(event.key === 'ArrowUp' ? 1 : -1);
             }}
           />
           <div className="absolute inset-y-px right-px grid w-[34px] grid-rows-2 overflow-hidden rounded-r-[7px] border-l border-bambu-dark-tertiary max-[768px]:w-10">
