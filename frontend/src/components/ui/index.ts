@@ -2,6 +2,8 @@ export { Button } from './Button';
 export type { ButtonProps } from './Button';
 export { Checkbox } from './Checkbox';
 export type { CheckboxProps } from './Checkbox';
+export { FloatingLayer } from './FloatingLayer';
+export type { FloatingLayerProps } from './FloatingLayer';
 export { FormField } from './FormField';
 export type { FormFieldA11y, FormFieldProps } from './FormField';
 export { IconButton } from './IconButton';
