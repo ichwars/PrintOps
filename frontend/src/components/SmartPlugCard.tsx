@@ -283,7 +283,7 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
           )}
 
           {/* Toggle Settings Panel */}
-          <button
+          <Button variant="unstyled"
             onClick={() => setIsExpanded(!isExpanded)}
             className="w-full flex items-center justify-between py-2 text-sm text-bambu-gray hover:text-white transition-colors"
           >
@@ -292,7 +292,7 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
               {plug.plug_type === 'mqtt' ? t('smartPlugs.settings') : t('smartPlugs.automationSettings')}
             </span>
             <span>{isExpanded ? '-' : '+'}</span>
-          </button>
+          </Button>
 
           {/* Expanded Settings */}
           {isExpanded && (
@@ -306,15 +306,11 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                     <p className="text-xs text-bambu-gray">{t('smartPlugs.quickAccessSidebar')}</p>
                   </div>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
+                <Switch
+                    ariaLabel={t('smartPlugs.showInSwitchbar')}
                     checked={plug.show_in_switchbar}
                     onChange={(e) => updateMutation.mutate({ show_in_switchbar: e.target.checked })}
-                    className="sr-only peer"
                   />
-                  <div className="w-9 h-5 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
               </div>
 
               {/* Automation controls - only for controllable plugs (not MQTT) */}
@@ -326,15 +322,11 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                       <p className="text-sm text-white">{t('smartPlugs.enabled')}</p>
                       <p className="text-xs text-bambu-gray">{t('smartPlugs.enableAutomation')}</p>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={plug.enabled}
+                    <Switch
+                    ariaLabel={t('smartPlugs.enabled')}
+                    checked={plug.enabled}
                         onChange={(e) => updateMutation.mutate({ enabled: e.target.checked })}
-                        className="sr-only peer"
-                      />
-                      <div className="w-9 h-5 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-bambu-green"></div>
-                    </label>
+                  />
                   </div>
 
                   {/* Auto On */}
@@ -343,15 +335,11 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                       <p className="text-sm text-white">{t('smartPlugs.autoOn')}</p>
                       <p className="text-xs text-bambu-gray">{t('smartPlugs.autoOnDescription')}</p>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={plug.auto_on}
+                    <Switch
+                    ariaLabel={t('smartPlugs.autoOn')}
+                    checked={plug.auto_on}
                         onChange={(e) => updateMutation.mutate({ auto_on: e.target.checked })}
-                        className="sr-only peer"
-                      />
-                      <div className="w-9 h-5 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-bambu-green"></div>
-                    </label>
+                  />
                   </div>
 
                   {/* Auto Off */}
@@ -360,15 +348,11 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                       <p className="text-sm text-white">{t('smartPlugs.autoOff')}</p>
                       <p className="text-xs text-bambu-gray">{t('smartPlugs.autoOffDescription')}</p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
+                <Switch
+                    ariaLabel={t('smartPlugs.autoOff')}
                     checked={plug.auto_off}
                     onChange={(e) => updateMutation.mutate({ auto_off: e.target.checked })}
-                    className="sr-only peer"
                   />
-                  <div className="w-9 h-5 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
               </div>
 
               {/* Auto Off Persistent */}
@@ -378,15 +362,11 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                     <p className="text-sm text-white">{t('smartPlugs.autoOffPersistent')}</p>
                     <p className="text-xs text-bambu-gray">{t('smartPlugs.autoOffPersistentDescription')}</p>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={plug.auto_off_persistent}
+                  <Switch
+                    ariaLabel={t('smartPlugs.autoOffPersistent')}
+                    checked={plug.auto_off_persistent}
                       onChange={(e) => updateMutation.mutate({ auto_off_persistent: e.target.checked })}
-                      className="sr-only peer"
-                    />
-                    <div className="w-9 h-5 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-bambu-green"></div>
-                  </label>
+                  />
                 </div>
               )}
 
@@ -396,7 +376,7 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                   <div>
                     <p className="text-sm text-white mb-2">{t('smartPlugs.turnOffDelayMode')}</p>
                     <div className="flex gap-2">
-                      <button
+                      <Button variant="unstyled"
                         onClick={() => updateMutation.mutate({ off_delay_mode: 'time' })}
                         className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                           plug.off_delay_mode === 'time'
@@ -406,8 +386,8 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                       >
                         <Clock className="w-4 h-4" />
                         {t('smartPlugs.time')}
-                      </button>
-                      <button
+                      </Button>
+                      <Button variant="unstyled"
                         onClick={() => updateMutation.mutate({ off_delay_mode: 'temperature' })}
                         className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                           plug.off_delay_mode === 'temperature'
@@ -417,14 +397,14 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                       >
                         <Thermometer className="w-4 h-4" />
                         {t('smartPlugs.temp')}
-                      </button>
+                      </Button>
                     </div>
                   </div>
 
                   {plug.off_delay_mode === 'time' ? (
                     <div>
                       <label className="block text-xs text-bambu-gray mb-1">{t('smartPlugs.delayMinutes')}</label>
-                      <input
+                      <TextField
                         type="number"
                         min="1"
                         max="60"
@@ -436,7 +416,7 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                   ) : (
                     <div>
                       <label className="block text-xs text-bambu-gray mb-1">{t('smartPlugs.tempThreshold')}</label>
-                      <input
+                      <TextField
                         type="number"
                         min="30"
                         max="100"
@@ -461,21 +441,17 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                   <p className="text-sm text-white">{t('smartPlugs.autoOffAfterDrying')}</p>
                   <p className="text-xs text-bambu-gray">{t('smartPlugs.autoOffAfterDryingDescription')}</p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
+                <Switch
+                    ariaLabel={t('smartPlugs.autoOffAfterDrying')}
                     checked={plug.auto_off_after_drying}
                     onChange={(e) => updateMutation.mutate({ auto_off_after_drying: e.target.checked })}
-                    className="sr-only peer"
                   />
-                  <div className="w-9 h-5 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
               </div>
 
               {plug.auto_off_after_drying && (
                 <div className="pl-4 border-l-2 border-bambu-dark-tertiary">
                   <label className="block text-xs text-bambu-gray mb-1">{t('smartPlugs.delayAfterDryingMinutes')}</label>
-                  <input
+                  <TextField
                     type="number"
                     min="0"
                     max="120"
@@ -560,3 +536,4 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
     </>
   );
 }
+import { Switch, TextField } from './ui';

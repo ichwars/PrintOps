@@ -6,6 +6,7 @@ import { api } from '../api/client';
 import type { SMTPSettings, TestSMTPRequest } from '../api/client';
 import { Card, CardContent, CardHeader } from './Card';
 import { Button } from './Button';
+import { LegacySelect, TextField } from './ui';
 import { useToast } from '../contexts/ToastContext';
 import { useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
@@ -258,14 +259,14 @@ export function EmailSettings() {
                 <label className="block text-sm font-medium text-white mb-1">
                   {t('settings.email.authentication') || 'Authentication'}
                 </label>
-                <select
+                <LegacySelect
                   value={smtpSettings.smtp_auth_enabled ? 'true' : 'false'}
                   onChange={(e) => handleAuthChange(e.target.value === 'true')}
                   className={inputClasses}
                 >
                   <option value="true">{t('settings.email.authOptions.enabled')}</option>
                   <option value="false">{t('settings.email.authOptions.disabled')}</option>
-                </select>
+                </LegacySelect>
               </div>
 
               {/* Username / Password - dimmed when auth disabled */}
@@ -274,7 +275,7 @@ export function EmailSettings() {
                   <label className="block text-sm font-medium text-white mb-1">
                     {t('settings.email.username') || 'Username'}
                   </label>
-                  <input
+                  <TextField
                     type="text"
                     value={smtpSettings.smtp_username || ''}
                     onChange={(e) => setSMTPSettings({ ...smtpSettings, smtp_username: e.target.value })}
@@ -287,7 +288,7 @@ export function EmailSettings() {
                   <label className="block text-sm font-medium text-white mb-1">
                     {t('settings.email.password') || 'Password'}
                   </label>
-                  <input
+                  <TextField
                     type="password"
                     value={smtpSettings.smtp_password || ''}
                     onChange={(e) => setSMTPSettings({ ...smtpSettings, smtp_password: e.target.value })}
@@ -304,7 +305,7 @@ export function EmailSettings() {
                   <label className="block text-sm font-medium text-white mb-1">
                     {t('settings.email.smtpHost') || 'SMTP Server'} *
                   </label>
-                  <input
+                  <TextField
                     type="text"
                     value={smtpSettings.smtp_host}
                     onChange={(e) => setSMTPSettings({ ...smtpSettings, smtp_host: e.target.value })}
@@ -316,7 +317,7 @@ export function EmailSettings() {
                   <label className="block text-sm font-medium text-white mb-1">
                     {t('settings.email.smtpPort') || 'SMTP Port'}
                   </label>
-                  <input
+                  <TextField
                     type="number"
                     value={smtpSettings.smtp_port}
                     onChange={(e) => handlePortChange(parseInt(e.target.value) || 587)}
@@ -331,7 +332,7 @@ export function EmailSettings() {
                 <label className="block text-sm font-medium text-white mb-1">
                   {t('settings.email.security') || 'Security'}
                 </label>
-                <select
+                <LegacySelect
                   value={smtpSettings.smtp_security}
                   onChange={(e) => handleSecurityChange(e.target.value as 'starttls' | 'ssl' | 'none')}
                   className={inputClasses}
@@ -339,7 +340,7 @@ export function EmailSettings() {
                   <option value="starttls">{t('settings.email.securityOptions.starttls')}</option>
                   <option value="ssl">{t('settings.email.securityOptions.ssl')}</option>
                   <option value="none">{t('settings.email.securityOptions.none')}</option>
-                </select>
+                </LegacySelect>
               </div>
 
               {/* From Email / Name */}
@@ -348,7 +349,7 @@ export function EmailSettings() {
                   <label className="block text-sm font-medium text-white mb-1">
                     {t('settings.email.fromEmail') || 'From Email'} *
                   </label>
-                  <input
+                  <TextField
                     type="email"
                     value={smtpSettings.smtp_from_email}
                     onChange={(e) => setSMTPSettings({ ...smtpSettings, smtp_from_email: e.target.value })}
@@ -360,7 +361,7 @@ export function EmailSettings() {
                   <label className="block text-sm font-medium text-white mb-1">
                     {t('settings.email.fromName') || 'From Name'}
                   </label>
-                  <input
+                  <TextField
                     type="text"
                     value={smtpSettings.smtp_from_name}
                     onChange={(e) => setSMTPSettings({ ...smtpSettings, smtp_from_name: e.target.value })}
@@ -405,7 +406,7 @@ export function EmailSettings() {
                 <label className="block text-sm font-medium text-white mb-1">
                   {t('settings.email.testRecipient') || 'Test Recipient Email'}
                 </label>
-                <input
+                <TextField
                   type="email"
                   value={testEmail}
                   onChange={(e) => setTestEmail(e.target.value)}

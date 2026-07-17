@@ -2,7 +2,7 @@ import { LoaderCircle } from 'lucide-react';
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'unstyled';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   children: ReactNode;
@@ -30,6 +30,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     danger: 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500',
     ghost:
       'bg-transparent hover:bg-bambu-dark-tertiary text-bambu-gray-light hover:text-white',
+    unstyled:
+      'focus:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green disabled:opacity-50 disabled:cursor-not-allowed',
   };
 
   const sizes = {
@@ -44,7 +46,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`${variant === 'unstyled' ? '' : baseStyles} ${variants[variant]} ${variant === 'unstyled' ? '' : sizes[size]} ${className}`}
     >
       {loading ? <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" /> : null}
       {children}

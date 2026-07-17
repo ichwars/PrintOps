@@ -22,6 +22,7 @@ export { ScrollArea } from './ScrollArea';
 export type { ScrollAreaProps } from './ScrollArea';
 export { Select } from './Select';
 export type { SelectOption, SelectProps, SelectValue } from './Select';
+export { LegacySelect } from './LegacySelect';
 export { Switch } from './Switch';
 export type { SwitchProps } from './Switch';
 export { Tabs } from './Tabs';

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { FloatingLayer, Select } from '../../../components/ui';
+import { FloatingLayer, LegacySelect, Select } from '../../../components/ui';
 
 describe('FloatingLayer', () => {
   it('portals a floating layer and dismisses outside pointer events', async () => {
@@ -144,5 +144,23 @@ describe('Select', () => {
 
     expect(screen.getByRole('combobox', { name: 'Legacy' })).toHaveTextContent('Legacy 99');
     expect(onValueChange).not.toHaveBeenCalled();
+  });
+
+  it('adapts existing option declarations to the custom listbox', async () => {
+    const onChange = vi.fn();
+    render(
+      <LegacySelect aria-label="Retries" value="3" onChange={onChange}>
+        <option value="3">3 times</option>
+        <option value="5">5 times</option>
+      </LegacySelect>,
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('combobox', { name: 'Retries' }));
+    await user.click(screen.getByRole('option', { name: '5 times' }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      target: expect.objectContaining({ value: '5' }),
+    }));
   });
 });

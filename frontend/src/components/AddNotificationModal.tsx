@@ -5,6 +5,7 @@ import { X, Save, Loader2, Send, CheckCircle, XCircle } from 'lucide-react';
 import { api } from '../api/client';
 import type { NotificationProvider, NotificationProviderCreate, NotificationProviderUpdate, ProviderType } from '../api/client';
 import { Button } from './Button';
+import { LegacySelect, TextField } from './ui';
 import { Toggle } from './Toggle';
 
 interface AddNotificationModalProps {
@@ -273,12 +274,12 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
           <h2 className="text-lg font-semibold text-white">
             {isEditing ? t('notifications.editTitle') : t('notifications.addTitle')}
           </h2>
-          <button
+          <Button variant="unstyled"
             onClick={onClose}
             className="text-bambu-gray hover:text-white transition-colors"
           >
             <X className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Form */}
@@ -292,7 +293,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
           {/* Name */}
           <div>
             <label className="block text-sm text-bambu-gray mb-1">{t('notifications.nameLabel')}</label>
-            <input
+            <TextField
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -304,7 +305,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
           {/* Provider Type */}
           <div>
             <label className="block text-sm text-bambu-gray mb-1">{t('notifications.providerTypeLabel')}</label>
-            <select
+            <LegacySelect
               value={providerType}
               onChange={(e) => {
                 setProviderType(e.target.value as ProviderType);
@@ -319,7 +320,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                   {t(`notifications.providerTypes.${value}`, value)}
                 </option>
               ))}
-            </select>
+            </LegacySelect>
             <p className="text-xs text-bambu-gray mt-1">
               {t(`notifications.providerDescriptions.${providerType}`, '')}
             </p>
@@ -336,7 +337,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                   {field.label} {field.required && '*'}
                 </label>
                 {field.type === 'select' && 'options' in field && field.options ? (
-                  <select
+                  <LegacySelect
                     value={config[field.key] || field.options[0]?.value || ''}
                     onChange={(e) => {
                       setConfig({ ...config, [field.key]: e.target.value });
@@ -349,9 +350,9 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                         {opt.label}
                       </option>
                     ))}
-                  </select>
+                  </LegacySelect>
                 ) : (
-                  <input
+                  <TextField
                     type={field.type}
                     value={config[field.key] || ''}
                     onChange={(e) => {
@@ -411,7 +412,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
           {/* Link to Printer */}
           <div>
             <label className="block text-sm text-bambu-gray mb-1">{t('notifications.printerFilter')}</label>
-            <select
+            <LegacySelect
               value={printerId ?? ''}
               onChange={(e) => setPrinterId(e.target.value ? Number(e.target.value) : null)}
               className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -422,7 +423,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                   {p.name}
                 </option>
               ))}
-            </select>
+            </LegacySelect>
             <p className="text-xs text-bambu-gray mt-1">
               {t('notifications.onlyFromPrinter')}
             </p>
@@ -441,7 +442,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-bambu-gray mb-1">{t('notifications.quietStart')}</label>
-                  <input
+                  <TextField
                     type="time"
                     value={quietHoursStart}
                     onChange={(e) => setQuietHoursStart(e.target.value)}
@@ -450,7 +451,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                 </div>
                 <div>
                   <label className="block text-xs text-bambu-gray mb-1">{t('notifications.quietEnd')}</label>
-                  <input
+                  <TextField
                     type="time"
                     value={quietHoursEnd}
                     onChange={(e) => setQuietHoursEnd(e.target.value)}
@@ -476,7 +477,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
             {dailyDigestEnabled && (
               <div>
                 <label className="block text-xs text-bambu-gray mb-1">{t('notifications.sendDigestAt')}</label>
-                <input
+                <TextField
                   type="time"
                   value={dailyDigestTime}
                   onChange={(e) => setDailyDigestTime(e.target.value)}
@@ -573,14 +574,14 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                     <span className="text-sm text-white">{t('notifications.stockReorderAlert')}</span>
                     <span className="text-xs text-bambu-gray ml-1">{t('notifications.stockReorderAlertDescription')}</span>
                   </div>
-                  <Toggle checked={onStockReorderAlert} onChange={setOnStockReorderAlert} />
+                  <Toggle ariaLabel={t('notifications.stockReorderAlert')} checked={onStockReorderAlert} onChange={setOnStockReorderAlert} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-sm text-white">{t('notifications.stockBreakAlert')}</span>
                     <span className="text-xs text-bambu-gray ml-1">{t('notifications.stockBreakAlertDescription')}</span>
                   </div>
-                  <Toggle checked={onStockBreakAlert} onChange={setOnStockBreakAlert} />
+                  <Toggle ariaLabel={t('notifications.stockBreakAlert')} checked={onStockBreakAlert} onChange={setOnStockBreakAlert} />
                 </div>
               </div>
             </div>
@@ -615,7 +616,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                     {enabledEvents.map((ev) => (
                       <div key={ev.key} className="flex items-center justify-between gap-3">
                         <span className="text-sm text-white">{ev.label}</span>
-                        <select
+                        <LegacySelect
                           value={eventPriorities[ev.key] ?? 3}
                           onChange={(e) => {
                             const next = Number(e.target.value);
@@ -628,7 +629,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                           <option value={3}>{t('notifications.eventPriority.default')}</option>
                           <option value={4}>{t('notifications.eventPriority.high')}</option>
                           <option value={5}>{t('notifications.eventPriority.urgent')}</option>
-                        </select>
+                        </LegacySelect>
                       </div>
                     ))}
                   </div>

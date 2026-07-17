@@ -97,7 +97,7 @@ export function CreateUserAdvancedAuthModal({
               role="tablist"
               aria-label={t('users.modal.tabsAriaLabel')}
             >
-              <button
+              <Button variant="unstyled"
                 type="button"
                 role="tab"
                 aria-selected={tab === 'local'}
@@ -109,8 +109,8 @@ export function CreateUserAdvancedAuthModal({
                 }`}
               >
                 {t('users.modal.localTab')}
-              </button>
-              <button
+              </Button>
+              <Button variant="unstyled"
                 type="button"
                 role="tab"
                 aria-selected={tab === 'ldap'}
@@ -122,7 +122,7 @@ export function CreateUserAdvancedAuthModal({
                 }`}
               >
                 {t('users.modal.ldapTab')}
-              </button>
+              </Button>
             </div>
           )}
 
@@ -139,7 +139,7 @@ export function CreateUserAdvancedAuthModal({
               <label className="block text-sm font-medium text-white mb-2">
                 {t('users.form.username')} <span className="text-red-600 dark:text-red-400">*</span>
               </label>
-              <input
+              <TextField
                 type="text"
                 value={formData.username}
                 onChange={(e) => setFormData({ ...formData, username: e.target.value })}
@@ -155,7 +155,7 @@ export function CreateUserAdvancedAuthModal({
               <label className="block text-sm font-medium text-white mb-2">
                 {t('users.form.email') || 'Email'} <span className="text-red-600 dark:text-red-400">*</span>
               </label>
-              <input
+              <TextField
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -183,8 +183,7 @@ export function CreateUserAdvancedAuthModal({
                     key={group.id}
                     className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
                   >
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={formData.group_ids.includes(group.id)}
                       onChange={() => toggleGroup(group.id)}
                       className="w-4 h-4 rounded border-bambu-gray text-bambu-green focus:ring-bambu-green focus:ring-offset-0 bg-bambu-dark"
@@ -236,3 +235,4 @@ export function CreateUserAdvancedAuthModal({
     </div>
   );
 }
+import { Checkbox, TextField } from './ui';

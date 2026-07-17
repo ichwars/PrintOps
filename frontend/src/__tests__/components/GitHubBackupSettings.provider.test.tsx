@@ -4,10 +4,17 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { render } from '../utils';
 import { GitHubBackupSettings } from '../../components/GitHubBackupSettings';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
+
+async function chooseProvider(control: HTMLElement, name: string) {
+  const user = userEvent.setup();
+  await user.click(control);
+  await user.click(screen.getByRole('option', { name }));
+}
 
 const baseHandlers = () => [
   http.get('/api/v1/github-backup/config', () => HttpResponse.json(null)),
@@ -56,7 +63,7 @@ describe('GitHubBackupSettings - Provider Selection', () => {
       expect(screen.getByText('Git Provider')).toBeInTheDocument();
     });
     const select = screen.getByRole('combobox', { name: /git provider/i });
-    expect(select).toHaveValue('github');
+    expect(select).toHaveTextContent('GitHub');
   });
 
   it('does not show instance URL field for any provider', async () => {
@@ -97,7 +104,7 @@ describe('GitHubBackupSettings - Provider Selection', () => {
     render(<GitHubBackupSettings />);
     await waitFor(() => {
       const select = screen.getByRole('combobox', { name: /git provider/i });
-      expect(select).toHaveValue('gitea');
+      expect(select).toHaveTextContent('Gitea');
     });
   });
 
@@ -107,9 +114,9 @@ describe('GitHubBackupSettings - Provider Selection', () => {
       expect(screen.getByRole('combobox', { name: /git provider/i })).toBeInTheDocument();
     });
     const select = screen.getByRole('combobox', { name: /git provider/i });
-    const options = Array.from((select as HTMLSelectElement).options).map((o) => o.value);
-    expect(options).toContain('gitea');
-    expect(options).toContain('forgejo');
+    await userEvent.setup().click(select);
+    expect(screen.getByRole('option', { name: 'Gitea' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Forgejo' })).toBeInTheDocument();
   });
 
   it('loads forgejo provider from existing config', async () => {
@@ -142,7 +149,7 @@ describe('GitHubBackupSettings - Provider Selection', () => {
     render(<GitHubBackupSettings />);
     await waitFor(() => {
       const select = screen.getByRole('combobox', { name: /git provider/i });
-      expect(select).toHaveValue('forgejo');
+      expect(select).toHaveTextContent('Forgejo');
     });
   });
 
@@ -275,9 +282,9 @@ describe('GitHubBackupSettings - Provider Selection', () => {
     render(<GitHubBackupSettings />);
 
     const providerSelect = await screen.findByRole('combobox', { name: /git provider/i });
-    await waitFor(() => expect(providerSelect).toHaveValue('gitea'));
+    await waitFor(() => expect(providerSelect).toHaveTextContent('Gitea'));
 
-    fireEvent.change(providerSelect, { target: { value: 'forgejo' } });
+    await chooseProvider(providerSelect, 'Forgejo');
 
     await waitFor(() => {
       expect(patchBody).toEqual({ provider: 'forgejo' });
@@ -443,7 +450,7 @@ describe('GitHubBackupSettings - Provider Selection', () => {
     fireEvent.change(tokenInput, { target: { value: 'new-token' } });
 
     const providerSelect = await screen.findByRole('combobox', { name: /git provider/i });
-    fireEvent.change(providerSelect, { target: { value: 'forgejo' } });
+    await chooseProvider(providerSelect, 'Forgejo');
 
     await waitFor(() => {
       expect(patchBody).toEqual({ provider: 'forgejo' });

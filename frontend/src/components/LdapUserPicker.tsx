@@ -85,7 +85,7 @@ export function LdapUserPicker({ onSuccess }: LdapUserPickerProps) {
         </label>
         <div className="relative">
           <Search className="w-4 h-4 text-bambu-gray absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
+          <TextField
             type="text"
             value={rawQuery}
             onChange={(e) => setRawQuery(e.target.value)}
@@ -201,7 +201,7 @@ function LdapResultRow({ result, selected, onSelect }: LdapResultRowProps) {
 
   return (
     <li>
-      <button
+      <Button variant="unstyled"
         type="button"
         onClick={onSelect}
         disabled={disabled}
@@ -230,7 +230,8 @@ function LdapResultRow({ result, selected, onSelect }: LdapResultRowProps) {
             {t('users.modal.ldapAlreadyProvisioned')}
           </span>
         )}
-      </button>
+      </Button>
     </li>
   );
 }
+import { TextField } from './ui';

@@ -6,6 +6,7 @@ import { api } from '../api/client';
 import type { Group, OIDCProvider, OIDCProviderCreate } from '../api/client';
 import { Card, CardContent, CardHeader } from './Card';
 import { Button } from './Button';
+import { LegacySelect, TextField } from './ui';
 import { Toggle } from './Toggle';
 import { ConfirmModal } from './ConfirmModal';
 import { useToast } from '../contexts/ToastContext';
@@ -78,15 +79,15 @@ function ProviderForm({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className={labelCls}>{t('settings.oidc.form.name')} <span className="text-red-700 dark:text-red-400">*</span></label>
-          <input className={inputCls} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Google" />
+          <TextField className={inputCls} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Google" />
         </div>
         <div>
           <label className={labelCls}>{t('settings.oidc.form.issuerUrl')} <span className="text-red-700 dark:text-red-400">*</span></label>
-          <input className={inputCls} value={form.issuer_url} onChange={(e) => set('issuer_url', e.target.value)} placeholder="https://accounts.google.com" />
+          <TextField className={inputCls} value={form.issuer_url} onChange={(e) => set('issuer_url', e.target.value)} placeholder="https://accounts.google.com" />
         </div>
         <div>
           <label className={labelCls}>{t('settings.oidc.form.clientId')} <span className="text-red-700 dark:text-red-400">*</span></label>
-          <input className={inputCls} value={form.client_id} onChange={(e) => set('client_id', e.target.value)} placeholder="your-client-id" />
+          <TextField className={inputCls} value={form.client_id} onChange={(e) => set('client_id', e.target.value)} placeholder="your-client-id" />
         </div>
         <div>
           <label className={labelCls}>
@@ -94,7 +95,7 @@ function ProviderForm({
             {!isEdit && <span className="text-red-700 dark:text-red-400"> *</span>}
             {isEdit && <span className="text-bambu-gray text-xs ml-1">({t('settings.oidc.form.secretHint')})</span>}
           </label>
-          <input
+          <TextField
             className={inputCls}
             type="password"
             value={secretChanged ? form.client_secret : ''}
@@ -107,11 +108,11 @@ function ProviderForm({
         </div>
         <div>
           <label className={labelCls}>{t('settings.oidc.form.scopes')}</label>
-          <input className={inputCls} value={form.scopes} onChange={(e) => set('scopes', e.target.value)} placeholder="openid email profile" />
+          <TextField className={inputCls} value={form.scopes} onChange={(e) => set('scopes', e.target.value)} placeholder="openid email profile" />
         </div>
         <div>
           <label className={labelCls}>{t('settings.oidc.form.iconUrl')}</label>
-          <input
+          <TextField
             className={inputCls}
             value={form.icon_url ?? ''}
             onChange={(e) => set('icon_url', e.target.value === '' ? null : e.target.value)}
@@ -161,7 +162,7 @@ function ProviderForm({
 
       <div>
         <label className={labelCls}>{t('settings.oidc.form.emailClaim')}</label>
-        <input
+        <TextField
           className={inputCls}
           value={form.email_claim}
           onChange={(e) => set('email_claim', e.target.value || 'email')}
@@ -175,7 +176,7 @@ function ProviderForm({
 
       <div>
         <label className={labelCls}>{t('settings.oidc.form.defaultGroup')}</label>
-        <select
+        <LegacySelect
           className={inputCls}
           value={form.default_group_id ?? ''}
           onChange={(e) => set('default_group_id', e.target.value ? Number(e.target.value) : null)}
@@ -184,7 +185,7 @@ function ProviderForm({
           {groups.map((g) => (
             <option key={g.id} value={g.id}>{g.name}</option>
           ))}
-        </select>
+        </LegacySelect>
         <p className="text-bambu-gray text-xs mt-1">{t('settings.oidc.form.defaultGroupDesc')}</p>
       </div>
 

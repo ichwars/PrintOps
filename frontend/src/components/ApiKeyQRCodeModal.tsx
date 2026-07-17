@@ -39,13 +39,13 @@ export function ApiKeyQRCodeModal({ apiKey, baseUrl, onClose }: ApiKeyQRCodeModa
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-bambu-dark-tertiary">
           <h2 className="text-lg font-semibold text-white">{t('settings.apiKeyQrTitle')}</h2>
-          <button
+          <Button variant="unstyled"
             onClick={onClose}
             className="text-bambu-gray hover:text-white transition-colors"
             aria-label={t('common.close')}
           >
             <X className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Content */}

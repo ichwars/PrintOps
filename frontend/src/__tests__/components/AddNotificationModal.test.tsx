@@ -127,7 +127,8 @@ describe('AddNotificationModal — ntfy Priority (#990)', () => {
     const sectionRoot = sectionHeader.closest('div')!;
     const failedRow = within(sectionRoot).getByText('Failed').closest('div')!;
     const select = within(failedRow).getByRole('combobox');
-    await user.selectOptions(select, '5');
+    await user.click(select);
+    await user.click(screen.getByRole('option', { name: /urgent/i }));
 
     await user.click(screen.getByRole('button', { name: /^save$/i }));
 
@@ -156,14 +157,14 @@ describe('AddNotificationModal — ntfy Priority (#990)', () => {
     const sectionRoot = sectionHeader.closest('div')!;
 
     const failedRow = within(sectionRoot).getByText('Failed').closest('div')!;
-    expect((within(failedRow).getByRole('combobox') as HTMLSelectElement).value).toBe('5');
+    expect(within(failedRow).getByRole('combobox')).toHaveTextContent('Urgent');
 
     const completeRow = within(sectionRoot).getByText('Complete').closest('div')!;
-    expect((within(completeRow).getByRole('combobox') as HTMLSelectElement).value).toBe('2');
+    expect(within(completeRow).getByRole('combobox')).toHaveTextContent('Low');
 
     // Stopped is enabled but has no override → defaults to 3.
     const stoppedRow = within(sectionRoot).getByText('Stopped').closest('div')!;
-    expect((within(stoppedRow).getByRole('combobox') as HTMLSelectElement).value).toBe('3');
+    expect(within(stoppedRow).getByRole('combobox')).toHaveTextContent('Default');
   });
 
   it('drops events from the priority section when their toggle is disabled', async () => {
@@ -246,15 +247,8 @@ describe('AddNotificationModal — stock alert toggles', () => {
     await screen.findByText(/inventory alerts/i);
 
     // Reorder alert switch should be ON, break alert switch OFF
-    const switches = screen.getAllByRole('switch');
-    const reorderSwitch = switches.find((s) => {
-      const row = s.closest('div');
-      return row?.textContent?.match(/reorder alert/i);
-    });
-    const breakSwitch = switches.find((s) => {
-      const row = s.closest('div');
-      return row?.textContent?.match(/stock break alert/i);
-    });
+    const reorderSwitch = screen.getByRole('switch', { name: /reorder alert/i });
+    const breakSwitch = screen.getByRole('switch', { name: /stock break alert/i });
 
     expect(reorderSwitch).toHaveAttribute('aria-checked', 'true');
     expect(breakSwitch).toHaveAttribute('aria-checked', 'false');
@@ -276,11 +270,7 @@ describe('AddNotificationModal — stock alert toggles', () => {
     await screen.findByText(/inventory alerts/i);
 
     // Enable the reorder alert toggle
-    const switches = screen.getAllByRole('switch');
-    const reorderSwitch = switches.find((s) => {
-      const row = s.closest('div');
-      return row?.textContent?.match(/reorder alert/i);
-    })!;
+    const reorderSwitch = screen.getByRole('switch', { name: /reorder alert/i });
     await user.click(reorderSwitch);
 
     await user.click(screen.getByRole('button', { name: /^save$/i }));
@@ -305,11 +295,7 @@ describe('AddNotificationModal — stock alert toggles', () => {
 
     await screen.findByText(/inventory alerts/i);
 
-    const switches = screen.getAllByRole('switch');
-    const breakSwitch = switches.find((s) => {
-      const row = s.closest('div');
-      return row?.textContent?.match(/stock break alert/i);
-    })!;
+    const breakSwitch = screen.getByRole('switch', { name: /stock break alert/i });
     await user.click(breakSwitch);
 
     await user.click(screen.getByRole('button', { name: /^save$/i }));
