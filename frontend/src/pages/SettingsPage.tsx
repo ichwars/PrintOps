@@ -3643,18 +3643,18 @@ export function SettingsPage() {
             className="w-full pl-9 pr-8 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
           />
           {settingsSearch && (
-            <button
+            <Button variant="unstyled"
               onClick={() => setSettingsSearch('')}
               className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-bambu-gray hover:text-white"
               aria-label="Clear"
             >
               <X className="w-3.5 h-3.5" />
-            </button>
+            </Button>
           )}
           {searchResults.length > 0 && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl z-30 overflow-hidden">
               {searchResults.map((entry) => (
-                <button
+                <Button variant="unstyled"
                   key={entry.anchor}
                   onClick={() => jumpToSetting(entry)}
                   className="w-full px-3 py-2 text-left hover:bg-bambu-dark-tertiary transition-colors border-b border-bambu-dark-tertiary last:border-b-0"
@@ -3670,7 +3670,7 @@ export function SettingsPage() {
                     {entry.integrationSubTab ? ` › ${integrationSubTabLabel(entry.integrationSubTab)}` : ''}
                     {entry.operationSubTab ? ` › ${operationSubTabLabel(entry.operationSubTab)}` : ''}
                   </p>
-                </button>
+                </Button>
               ))}
             </div>
           )}
@@ -3836,13 +3836,13 @@ export function SettingsPage() {
                     { id: 'light', label: t('settings.themeLight') },
                     { id: 'system', label: t('settings.themeSystem') },
                   ] as const).map(({ id, label }) => (
-                    <button
+                    <Button variant="unstyled"
                       key={id}
                       onClick={() => { setMode(id); showToast(t('settings.toast.settingsSaved'), 'success'); }}
                       className={`px-3 py-1 text-xs rounded-lg border transition-colors ${mode === id ? 'border-bambu-green bg-bambu-green/10 text-bambu-green' : 'border-gray-300 dark:border-bambu-dark-tertiary text-gray-500 dark:text-bambu-gray hover:text-gray-900 dark:hover:text-white cursor-pointer'}`}
                     >
                       {label}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -4647,12 +4647,12 @@ export function SettingsPage() {
                 <CardContent className="py-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-white">{t('settings.testResults')}</span>
-                    <button
+                    <Button variant="unstyled"
                       onClick={() => setTestAllResult(null)}
                       className="text-bambu-gray hover:text-white text-xs"
                     >
                       {t('common.dismiss')}
-                    </button>
+                    </Button>
                   </div>
                   <div className="flex items-center gap-4 text-sm mb-2">
                     <span className="flex items-center gap-1 text-bambu-green">
@@ -4740,13 +4740,13 @@ export function SettingsPage() {
                 className="w-full pl-9 pr-8 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
               />
               {templateFilter && (
-                <button
+                <Button variant="unstyled"
                   onClick={() => setTemplateFilter('')}
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-bambu-gray hover:text-white"
                   aria-label="Clear filter"
                 >
                   <X className="w-3.5 h-3.5" />
-                </button>
+                </Button>
               )}
             </div>
 
@@ -4787,7 +4787,7 @@ export function SettingsPage() {
                             {template.title_template}
                           </p>
                         </div>
-                        <button
+                        <Button variant="unstyled"
                           className="p-1.5 hover:bg-bambu-dark-tertiary rounded transition-colors shrink-0 ml-2"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -4795,7 +4795,7 @@ export function SettingsPage() {
                           }}
                         >
                           <Edit2 className="w-4 h-4 text-bambu-gray" />
-                        </button>
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -5392,14 +5392,14 @@ export function SettingsPage() {
                       <label className="text-sm text-white">
                         {rowLabel} <span className="text-bambu-gray text-xs">({unitLabel} · {category.lo}–{category.hi})</span>
                       </label>
-                      <button
+                      <Button variant="unstyled"
                         type="button"
                         onClick={() => updateSetting(category.key, '')}
                         title={t('settings.tempFanPresetsReset', 'Reset to defaults')}
                         className="text-bambu-gray hover:text-white transition-colors p-1 rounded hover:bg-bambu-dark-tertiary"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
-                      </button>
+                      </Button>
                     </div>
                     <div className="flex gap-2">
                       {[0, 1, 2].map(idx => (
@@ -5545,14 +5545,14 @@ export function SettingsPage() {
                   <label className="text-sm text-white">
                     {t('settings.preheatFilamentTargetsLabel', 'Per-filament chamber target (°C)')}
                   </label>
-                  <button
+                  <Button variant="unstyled"
                     type="button"
                     onClick={() => updateSetting('preheat_filament_targets', '')}
                     title={t('settings.preheatFilamentTargetsReset', 'Reset to defaults')}
                     className="text-bambu-gray hover:text-white transition-colors p-1 rounded hover:bg-bambu-dark-tertiary"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                  </button>
+                  </Button>
                 </div>
                 <p className="text-xs text-bambu-gray mb-2">
                   {t('settings.preheatFilamentTargetsHint', 'PrintOps picks the highest target across the loaded AMS slots; PLA-only prints derive 0 and skip the chamber phase automatically.')}
@@ -6203,12 +6203,12 @@ export function SettingsPage() {
                   <p className="text-sm text-bambu-gray">{updateCheck.release_name}</p>
                 )}
               </div>
-              <button
+              <Button variant="unstyled"
                 onClick={() => setShowReleaseNotes(false)}
                 className="p-1 rounded hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white"
               >
                 <X className="w-5 h-5" />
-              </button>
+              </Button>
             </CardHeader>
             <CardContent className="overflow-y-auto flex-1">
               <pre className="text-sm text-bambu-gray whitespace-pre-wrap font-sans">
@@ -6326,7 +6326,7 @@ export function SettingsPage() {
                         const current = localSettings?.session_max_hours ?? 24;
                         const isActive = current === preset.hours;
                         return (
-                          <button
+                          <Button variant="unstyled"
                             key={preset.hours}
                             type="button"
                             onClick={() => updateSetting('session_max_hours', preset.hours)}
@@ -6338,7 +6338,7 @@ export function SettingsPage() {
                             } disabled:opacity-50 disabled:cursor-not-allowed`}
                           >
                             {t(preset.labelKey)}
-                          </button>
+                          </Button>
                         );
                       })}
                       <div className="flex items-center gap-1">
@@ -6705,7 +6705,7 @@ export function SettingsPage() {
                   role="tablist"
                   aria-label={t('users.modal.tabsAriaLabel')}
                 >
-                  <button
+                  <Button variant="unstyled"
                     type="button"
                     role="tab"
                     aria-selected={createUserTab === 'local'}
@@ -6717,8 +6717,8 @@ export function SettingsPage() {
                     }`}
                   >
                     {t('users.modal.localTab')}
-                  </button>
-                  <button
+                  </Button>
+                  <Button variant="unstyled"
                     type="button"
                     role="tab"
                     aria-selected={createUserTab === 'ldap'}
@@ -6730,7 +6730,7 @@ export function SettingsPage() {
                     }`}
                   >
                     {t('users.modal.ldapTab')}
-                  </button>
+                  </Button>
                 </div>
               )}
 

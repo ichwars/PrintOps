@@ -14,8 +14,8 @@ type LegacySelectProps = Omit<
   SelectHTMLAttributes<HTMLSelectElement>,
   'children' | 'defaultValue' | 'multiple' | 'onChange' | 'size' | 'value'
 > & {
-  value: string | number;
-  onChange: ChangeEventHandler<HTMLSelectElement>;
+  value?: string | number;
+  onChange?: ChangeEventHandler<HTMLSelectElement>;
   children: ReactNode;
   label?: ReactNode;
 };
@@ -39,7 +39,9 @@ const optionValue = (children: ReactNode) =>
 function collectOptions(children: ReactNode, group?: string): SelectOption<string>[] {
   return Children.toArray(children).flatMap((child): SelectOption<string>[] => {
     if (!isValidElement(child)) return [];
-    if (child.type === Fragment) return collectOptions(child.props.children, group);
+    if (child.type === Fragment) {
+      return collectOptions((child.props as { children?: ReactNode }).children, group);
+    }
     if (child.type === 'optgroup') {
       const props = child.props as OptionGroupProps;
       return collectOptions(props.children, props.label);
@@ -74,14 +76,14 @@ export function LegacySelect({
       id={id}
       label={label}
       ariaLabel={ariaLabel}
-      value={String(value)}
+      value={String(value ?? '')}
       options={options}
       disabled={disabled}
       required={required}
       className={className}
       onValueChange={(nextValue) => {
         const target = { value: nextValue } as HTMLSelectElement;
-        onChange({ target, currentTarget: target } as ChangeEvent<HTMLSelectElement>);
+        onChange?.({ target, currentTarget: target } as ChangeEvent<HTMLSelectElement>);
       }}
     />
   );

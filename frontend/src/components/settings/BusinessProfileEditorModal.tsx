@@ -561,7 +561,7 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.billingMode')}
-                <Select ariaLabel={t('orders.businessProfile.billingMode')} value={draft.billing_mode} onValueChange={(value) => setDraft({ ...draft, billing_mode: value as ProfileDraft['billing_mode'] })} options={[
+                <Select ariaLabel={t('orders.businessProfile.billingMode')} value={draft.billing_mode ?? 'internal'} onValueChange={(value) => setDraft({ ...draft, billing_mode: value as ProfileDraft['billing_mode'] })} options={[
                   { value: 'internal', label: t('orderUi.billingModes.internal') },
                   { value: 'external', label: t('orderUi.billingModes.external') },
                   { value: 'hybrid', label: t('orderUi.billingModes.hybrid') },
@@ -570,23 +570,23 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
               </label>
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.currency')}
-                <Select ariaLabel={t('orders.businessProfile.currency')} value={draft.default_currency} onValueChange={(value) => setDraft({ ...draft, default_currency: value })} options={currencyOptions.map((currency) => ({ value: currency, label: currency }))} />
+                <Select ariaLabel={t('orders.businessProfile.currency')} value={draft.default_currency ?? ''} onValueChange={(value) => setDraft({ ...draft, default_currency: String(value) })} options={currencyOptions.map((currency) => ({ value: currency, label: currency }))} />
                 <FieldError message={validation.fields.default_currency} />
               </label>
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.locale')}
-                <Select ariaLabel={t('orders.businessProfile.locale')} value={draft.default_locale} onValueChange={(value) => setDraft({ ...draft, default_locale: value })} options={localeOptions.map(([value, label]) => ({ value, label }))} />
+                <Select ariaLabel={t('orders.businessProfile.locale')} value={draft.default_locale ?? ''} onValueChange={(value) => setDraft({ ...draft, default_locale: String(value) })} options={localeOptions.map(([value, label]) => ({ value, label }))} />
                 <FieldError message={validation.fields.default_locale} />
               </label>
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.timezone')}
-                <TextField list="business-profile-timezones" aria-label={t('orders.businessProfile.timezone')} value={draft.timezone} onChange={(event) => setDraft({ ...draft, timezone: event.target.value })} className={inputClass} />
+                <TextField list="business-profile-timezones" aria-label={t('orders.businessProfile.timezone')} value={draft.timezone ?? ''} onChange={(event) => setDraft({ ...draft, timezone: event.target.value })} className={inputClass} />
                 <datalist id="business-profile-timezones">{timezoneOptions.map((timezone) => <option key={timezone} value={timezone} />)}</datalist>
                 <FieldError message={validation.fields.timezone} />
               </label>
             </div>
             <label className="inline-flex min-h-10 items-center gap-2 text-sm text-bambu-gray-light">
-              <Checkbox checked={draft.is_active} onChange={(event) => setDraft({ ...draft, is_active: event.target.checked })} />
+              <Checkbox checked={Boolean(draft.is_active)} onChange={(event) => setDraft({ ...draft, is_active: event.target.checked })} />
               {t('orders.businessProfile.active')}
               <FieldError message={validation.fields.is_active} />
             </label>
