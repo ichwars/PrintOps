@@ -29,6 +29,19 @@ const groups = {
     'components/PrintModal/ScheduleOptions.tsx',
     'components/RunWithPipelineModal.tsx',
   ],
+  inventoryAndHistory: [
+    'components/AMSHistoryModal.tsx',
+    'components/BulkEditSpoolsModal.tsx',
+    'components/CameraWall.tsx',
+    'components/EditArchiveModal.tsx',
+    'components/ForecastPanel.tsx',
+    'components/HeaterHistoryModal.tsx',
+    'components/PurgeArchivesModal.tsx',
+    'components/PurgeOldFilesModal.tsx',
+    'components/SpoolCatalogSettings.tsx',
+    'components/spool-form/AdditionalSection.tsx',
+    'components/spool-form/FilamentSection.tsx',
+  ],
 };
 
 const sourceRoot = path.resolve(process.cwd(), 'src');
@@ -86,5 +99,13 @@ describe('NumberField migration', () => {
       'utf8',
     );
     expect(source).toMatch(/field\.type === 'number'[\s\S]*?<NumberField/);
+  });
+
+  it('uses NumberField for dynamic numeric bulk-edit fields', () => {
+    const source = fs.readFileSync(
+      path.join(sourceRoot, 'components/BulkEditSpoolsModal.tsx'),
+      'utf8',
+    );
+    expect(source).toMatch(/f\.type === 'number'[\s\S]*?<NumberField/);
   });
 });

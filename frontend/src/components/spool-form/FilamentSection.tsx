@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, Loader2, ChevronDown, Cloud, CloudOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { NumberField } from '../ui';
 import type { FilamentSectionProps, FilamentOption } from './types';
 import { KNOWN_VARIANTS } from './constants';
 import { parsePresetName } from './utils';
@@ -387,8 +388,7 @@ export function FilamentSection({
       <div>
         <label className="block text-sm font-medium text-bambu-gray mb-1">{t('inventory.labelWeight')}</label>
         <div className="relative">
-          <input
-            type="number"
+          <NumberField
             className="w-full px-3 py-2 pr-7 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
             value={labelInput}
             min={0}
@@ -415,8 +415,7 @@ export function FilamentSection({
       {quickAdd && (
         <div>
           <label className="block text-sm font-medium text-bambu-gray mb-1">{t('inventory.quantity')}</label>
-          <input
-            type="number"
+          <NumberField
             className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
             value={quantity}
             min={1}

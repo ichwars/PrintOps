@@ -5,6 +5,7 @@ import { X, Loader2, ChevronDown } from 'lucide-react';
 import { api } from '../api/client';
 import type { InventorySpool } from '../api/client';
 import { Button } from './Button';
+import { NumberField } from './ui';
 import { MATERIALS, DEFAULT_BRANDS, KNOWN_VARIANTS } from './spool-form/constants';
 import { buildFilamentOptions } from './spool-form/utils';
 
@@ -423,15 +424,26 @@ export function BulkEditSpoolsModal({
       );
     }
 
+    if (f.type === 'number') {
+      return (
+        <NumberField
+          disabled={isPending}
+          value={value}
+          onValueChange={(next) => setField(f.id, next)}
+          min={f.min}
+          max={f.max}
+          step={f.step}
+          className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray/50 focus:border-bambu-green focus:outline-none"
+        />
+      );
+    }
+
     return (
       <input
-        type={f.type === 'number' ? 'number' : 'text'}
+        type="text"
         disabled={isPending}
         value={value}
         onChange={(e) => setField(f.id, e.target.value)}
-        min={f.min}
-        max={f.max}
-        step={f.step}
         className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray/50 focus:border-bambu-green focus:outline-none"
       />
     );

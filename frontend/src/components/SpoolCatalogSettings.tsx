@@ -1,4 +1,4 @@
-import { Button, TextField, Checkbox } from './ui';
+import { Button, Checkbox, NumberField, TextField } from './ui';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Database, Plus, Trash2, RotateCcw, Loader2, Pencil, Check, X, Search, Download, Upload } from 'lucide-react';
@@ -306,8 +306,7 @@ export function SpoolCatalogSettings() {
                   onChange={(e) => setFormName(e.target.value)}
                 />
               </div>
-              <TextField
-                type="number"
+              <NumberField
                 className="w-20 px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white text-center focus:border-bambu-green focus:outline-none"
                 placeholder="g"
                 value={formWeight}
@@ -383,8 +382,7 @@ export function SpoolCatalogSettings() {
                             />
                           </td>
                           <td className="px-4 py-2">
-                            <TextField
-                              type="number"
+                            <NumberField
                               className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-right focus:border-bambu-green focus:outline-none"
                               value={formWeight}
                               onChange={(e) => setFormWeight(e.target.value)}

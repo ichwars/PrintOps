@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Scale } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { NumberField } from '../ui';
 import { useToast } from '../../contexts/ToastContext';
 import type { AdditionalSectionProps } from './types';
 
@@ -150,8 +151,7 @@ function SpoolWeightPicker({
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <input
-            type="number"
+          <NumberField
             className="w-16 px-2 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm text-center font-mono focus:outline-none focus:border-bambu-green"
             value={value}
             min={0}
@@ -223,8 +223,7 @@ export function AdditionalSection({
         <label className="block text-sm font-medium text-bambu-gray mb-1">{t('inventory.currentWeight')}</label>
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <input
-              type="number"
+            <NumberField
               value={remainingInput}
               min={0}
               max={formData.label_weight}
@@ -257,8 +256,7 @@ export function AdditionalSection({
         <label className="block text-sm font-medium text-bambu-gray mb-1">{t('inventory.measuredWeight')}</label>
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <input
-              type="number"
+            <NumberField
               value={measuredInput}
               min={0}
               onFocus={() => setIsMeasuredFocused(true)}
@@ -297,8 +295,7 @@ export function AdditionalSection({
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-bambu-gray text-sm pointer-events-none">{currencySymbol}</span>
-            <input
-              type="number"
+            <NumberField
               value={formData.cost_per_kg ?? ''}
               min={0}
               step={0.01}
@@ -343,9 +340,8 @@ export function AdditionalSection({
         </label>
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <input
+            <NumberField
               id="spool-low-stock-threshold"
-              type="number"
               className="w-full px-3 py-2 pr-8 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray/50 focus:outline-none focus:border-bambu-green"
               placeholder={String(globalLowStockThreshold)}
               value={formData.low_stock_threshold_pct ?? ''}

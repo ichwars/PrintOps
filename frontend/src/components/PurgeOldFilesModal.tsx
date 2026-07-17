@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { NumberField } from './ui';
 import { AlertTriangle, Loader2, Trash2, X } from 'lucide-react';
 
 import { api } from '../api/client';
@@ -89,9 +90,8 @@ export function PurgeOldFilesModal({ onClose }: PurgeOldFilesModalProps) {
               {t('libraryPurge.ageLabel')}
             </label>
             <div className="flex items-center gap-3">
-              <input
+              <NumberField
                 id="purge-days"
-                type="number"
                 min={1}
                 max={3650}
                 value={days}

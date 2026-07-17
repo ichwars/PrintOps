@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { NumberField } from './ui';
 import { useQueries } from '@tanstack/react-query';
 import { Settings as SettingsIcon } from 'lucide-react';
 import { CameraTile, type CameraTileMode, type CameraTileStatusMode } from './CameraTile';
@@ -151,8 +152,7 @@ export function CameraWall({
                 <span className="text-xs font-medium text-white">
                   {t('printers.camWall.settings.maxLive')}
                 </span>
-                <input
-                  type="number"
+                <NumberField
                   min={MIN_MAX_LIVE}
                   max={MAX_MAX_LIVE}
                   value={maxLive}
@@ -173,8 +173,7 @@ export function CameraWall({
                 <span className="text-xs font-medium text-white">
                   {t('printers.camWall.settings.snapshotInterval')}
                 </span>
-                <input
-                  type="number"
+                <NumberField
                   min={MIN_SNAPSHOT_SEC}
                   max={MAX_SNAPSHOT_SEC}
                   value={snapshotIntervalSec}

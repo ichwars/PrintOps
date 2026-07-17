@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { NumberField } from './ui';
 import { X, Save, Tag, Camera, Trash2, Loader2, Plus, FolderKanban, Hash, Link } from 'lucide-react';
 import { api } from '../api/client';
 import type { Archive } from '../api/client';
@@ -295,8 +296,7 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
               <Hash className="w-4 h-4 inline mr-1" />
               {t('editArchive.itemsPrinted')}
             </label>
-            <input
-              type="number"
+            <NumberField
               min={1}
               value={quantity}
               onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
