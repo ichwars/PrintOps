@@ -14,6 +14,7 @@ import {
 import { api } from '../api/client';
 import type { LibraryFileUploadResponse } from '../api/client';
 import { Button } from './Button';
+import { Checkbox, FileInput } from './ui';
 
 interface UploadFile {
   file: File;
@@ -204,9 +205,8 @@ export function FileUploadModal({ folderId, onClose, onUploadComplete, onFileUpl
             <p className="text-xs text-bambu-gray/70 mt-2">{t('fileManager.allFileTypesSupported')}</p>
           </div>
 
-          <input
+          <FileInput
             ref={fileInputRef}
-            type="file"
             multiple
             accept={accept}
             className="hidden"
@@ -224,20 +224,16 @@ export function FileUploadModal({ folderId, onClose, onUploadComplete, onFileUpl
                     {t('fileManager.zipExtractOptions')}
                   </p>
                   <label className="flex items-center gap-2 mt-2 cursor-pointer">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={preserveZipStructure}
                       onChange={(e) => setPreserveZipStructure(e.target.checked)}
-                      className="w-4 h-4 rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
                     />
                     <span className="text-sm text-white">{t('fileManager.preserveZipStructure')}</span>
                   </label>
                   <label className="flex items-center gap-2 mt-2 cursor-pointer">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={createFolderFromZip}
                       onChange={(e) => setCreateFolderFromZip(e.target.checked)}
-                      className="w-4 h-4 rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
                     />
                     <span className="text-sm text-white">{t('fileManager.createFolderFromZip')}</span>
                   </label>
@@ -274,11 +270,9 @@ export function FileUploadModal({ folderId, onClose, onUploadComplete, onFileUpl
                       : t('fileManager.thumbnailsCanBeGenerated')}
                   </p>
                   <label className="flex items-center gap-2 mt-2 cursor-pointer">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={generateStlThumbnails}
                       onChange={(e) => setGenerateStlThumbnails(e.target.checked)}
-                      className="w-4 h-4 rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
                     />
                     <span className="text-sm text-white">{t('fileManager.generateThumbnailsForStl')}</span>
                   </label>

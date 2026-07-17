@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import type { SmartPlug, SmartPlugCreate, SmartPlugUpdate, DiscoveredTasmotaDevice } from '../api/client';
 import { Button } from './Button';
+import { LegacySelect, NumberField, Switch, TextArea, TextField , TimeField} from './ui';
 
 interface AddSmartPlugModalProps {
   plug?: SmartPlug | null;
@@ -420,12 +421,12 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
           <h2 className="text-lg font-semibold text-white">
             {isEditing ? t('smartPlugs.editTitle') : t('smartPlugs.addTitle')}
           </h2>
-          <button
+          <Button variant="unstyled"
             onClick={onClose}
             className="text-bambu-gray hover:text-white transition-colors"
           >
             <X className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Form */}
@@ -439,7 +440,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
           {/* Plug Type Selector - only show when not editing */}
           {!isEditing && (
             <div className="flex gap-2 mb-2">
-              <button
+              <Button variant="unstyled"
                 type="button"
                 onClick={() => {
                   setPlugType('tasmota');
@@ -454,8 +455,8 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
               >
                 <Plug className="w-4 h-4" />
                 Tasmota
-              </button>
-              <button
+              </Button>
+              <Button variant="unstyled"
                 type="button"
                 onClick={() => {
                   setPlugType('homeassistant');
@@ -470,8 +471,8 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
               >
                 <Home className="w-4 h-4" />
                 HA
-              </button>
-              <button
+              </Button>
+              <Button variant="unstyled"
                 type="button"
                 onClick={() => {
                   setPlugType('mqtt');
@@ -486,8 +487,8 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
               >
                 <Radio className="w-4 h-4" />
                 MQTT
-              </button>
-              <button
+              </Button>
+              <Button variant="unstyled"
                 type="button"
                 onClick={() => {
                   setPlugType('rest');
@@ -502,7 +503,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
               >
                 <Globe className="w-4 h-4" />
                 REST
-              </button>
+              </Button>
             </div>
           )}
 
@@ -544,7 +545,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                   <p className="text-xs text-bambu-gray">{t('smartPlugs.foundDevices', { count: discoveredDevices.length })}</p>
                   <div className="max-h-40 overflow-y-auto space-y-1">
                     {discoveredDevices.map((device) => (
-                      <button
+                      <Button variant="unstyled"
                         key={device.ip_address}
                         type="button"
                         onClick={() => selectDevice(device)}
@@ -565,7 +566,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                             {device.state}
                           </span>
                         )}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
@@ -591,12 +592,12 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                   </div>
                   <div>
                     <label className="block text-sm text-bambu-gray mb-1 opacity-50">{t('smartPlugs.selectEntity')}</label>
-                    <select
+                    <LegacySelect
                       disabled
                       className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray cursor-not-allowed opacity-50"
                     >
                       <option>{t('smartPlugs.addSmartPlug.chooseEntity')}</option>
-                    </select>
+                    </LegacySelect>
                   </div>
                 </div>
               )}
@@ -631,7 +632,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                         <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.selectEntity')}</label>
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
-                          <input
+                          <TextField
                             type="text"
                             value={isEntityDropdownOpen ? haEntitySearch : (selectedEntity ? `${selectedEntity.friendly_name} (${selectedEntity.entity_id})` : '')}
                             onChange={(e) => {
@@ -646,7 +647,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                             className="w-full pl-9 pr-8 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                           />
                           {haEntityId && !isEntityDropdownOpen && (
-                            <button
+                            <Button variant="unstyled"
                               type="button"
                               onClick={() => {
                                 setHaEntityId('');
@@ -655,7 +656,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                               className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-bambu-dark-tertiary rounded"
                             >
                               <X className="w-4 h-4 text-bambu-gray hover:text-white" />
-                            </button>
+                            </Button>
                           )}
                           {haEntitiesLoading && (
                             <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray animate-spin" />
@@ -679,7 +680,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                               </div>
                             )}
                             {!haEntitiesLoading && availableEntities.map((entity) => (
-                              <button
+                              <Button variant="unstyled"
                                 key={entity.entity_id}
                                 type="button"
                                 onClick={() => {
@@ -700,7 +701,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                                   <span>{entity.entity_id}</span>
                                   <span className={entity.state === 'on' ? 'text-bambu-green' : ''}>{entity.state}</span>
                                 </div>
-                              </button>
+                              </Button>
                             ))}
                           </div>
                         )}
@@ -743,7 +744,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                             <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.powerSensorW')}</label>
                             <div className="relative">
                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
-                              <input
+                              <TextField
                                 type="text"
                                 value={isPowerDropdownOpen ? powerSensorSearch : (selectedPowerSensor ? `${selectedPowerSensor.friendly_name} (${selectedPowerSensor.state} ${selectedPowerSensor.unit_of_measurement})` : '')}
                                 onChange={(e) => {
@@ -758,7 +759,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                                 className="w-full pl-9 pr-8 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                               />
                               {haPowerEntity && !isPowerDropdownOpen && (
-                                <button
+                                <Button variant="unstyled"
                                   type="button"
                                   onClick={() => {
                                     setHaPowerEntity('');
@@ -767,12 +768,12 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                                   className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-bambu-dark-tertiary rounded"
                                 >
                                   <X className="w-4 h-4 text-bambu-gray hover:text-white" />
-                                </button>
+                                </Button>
                               )}
                             </div>
                             {isPowerDropdownOpen && (
                               <div className="absolute z-50 w-full mt-1 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                                <button
+                                <Button variant="unstyled"
                                   type="button"
                                   onClick={() => {
                                     setHaPowerEntity('');
@@ -782,9 +783,9 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                                   className="w-full px-3 py-2 text-left text-sm text-bambu-gray hover:bg-bambu-dark-tertiary"
                                 >
                                   {t('smartPlugs.none')}
-                                </button>
+                                </Button>
                                 {filteredPowerSensors.map((sensor) => (
-                                  <button
+                                  <Button variant="unstyled"
                                     key={sensor.entity_id}
                                     type="button"
                                     onClick={() => {
@@ -798,7 +799,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                                   >
                                     <div className="font-medium">{sensor.friendly_name}</div>
                                     <div className="text-xs text-bambu-gray">{sensor.entity_id} • {sensor.state} {sensor.unit_of_measurement}</div>
-                                  </button>
+                                  </Button>
                                 ))}
                                 {filteredPowerSensors.length === 0 && (
                                   <div className="px-3 py-2 text-sm text-bambu-gray">{t('smartPlugs.noMatchingSensors')}</div>
@@ -827,7 +828,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                             <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.energyTodayKwh')}</label>
                             <div className="relative">
                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
-                              <input
+                              <TextField
                                 type="text"
                                 value={isEnergyTodayDropdownOpen ? energyTodaySearch : (selectedSensor ? `${selectedSensor.friendly_name} (${selectedSensor.state} ${selectedSensor.unit_of_measurement})` : '')}
                                 onChange={(e) => {
@@ -842,7 +843,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                                 className="w-full pl-9 pr-8 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                               />
                               {haEnergyTodayEntity && !isEnergyTodayDropdownOpen && (
-                                <button
+                                <Button variant="unstyled"
                                   type="button"
                                   onClick={() => {
                                     setHaEnergyTodayEntity('');
@@ -851,12 +852,12 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                                   className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-bambu-dark-tertiary rounded"
                                 >
                                   <X className="w-4 h-4 text-bambu-gray hover:text-white" />
-                                </button>
+                                </Button>
                               )}
                             </div>
                             {isEnergyTodayDropdownOpen && (
                               <div className="absolute z-50 w-full mt-1 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                                <button
+                                <Button variant="unstyled"
                                   type="button"
                                   onClick={() => {
                                     setHaEnergyTodayEntity('');
@@ -866,9 +867,9 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                                   className="w-full px-3 py-2 text-left text-sm text-bambu-gray hover:bg-bambu-dark-tertiary"
                                 >
                                   {t('smartPlugs.none')}
-                                </button>
+                                </Button>
                                 {filteredEnergySensors.map((sensor) => (
-                                  <button
+                                  <Button variant="unstyled"
                                     key={sensor.entity_id}
                                     type="button"
                                     onClick={() => {
@@ -882,7 +883,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                                   >
                                     <div className="font-medium">{sensor.friendly_name}</div>
                                     <div className="text-xs text-bambu-gray">{sensor.entity_id} • {sensor.state} {sensor.unit_of_measurement}</div>
-                                  </button>
+                                  </Button>
                                 ))}
                                 {filteredEnergySensors.length === 0 && (
                                   <div className="px-3 py-2 text-sm text-bambu-gray">{t('smartPlugs.noMatchingSensors')}</div>
@@ -911,7 +912,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                             <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.totalEnergyKwh')}</label>
                             <div className="relative">
                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
-                              <input
+                              <TextField
                                 type="text"
                                 value={isEnergyTotalDropdownOpen ? energyTotalSearch : (selectedSensor ? `${selectedSensor.friendly_name} (${selectedSensor.state} ${selectedSensor.unit_of_measurement})` : '')}
                                 onChange={(e) => {
@@ -926,7 +927,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                                 className="w-full pl-9 pr-8 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                               />
                               {haEnergyTotalEntity && !isEnergyTotalDropdownOpen && (
-                                <button
+                                <Button variant="unstyled"
                                   type="button"
                                   onClick={() => {
                                     setHaEnergyTotalEntity('');
@@ -935,12 +936,12 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                                   className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-bambu-dark-tertiary rounded"
                                 >
                                   <X className="w-4 h-4 text-bambu-gray hover:text-white" />
-                                </button>
+                                </Button>
                               )}
                             </div>
                             {isEnergyTotalDropdownOpen && (
                               <div className="absolute z-50 w-full mt-1 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                                <button
+                                <Button variant="unstyled"
                                   type="button"
                                   onClick={() => {
                                     setHaEnergyTotalEntity('');
@@ -950,9 +951,9 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                                   className="w-full px-3 py-2 text-left text-sm text-bambu-gray hover:bg-bambu-dark-tertiary"
                                 >
                                   {t('smartPlugs.none')}
-                                </button>
+                                </Button>
                                 {filteredEnergySensors.map((sensor) => (
-                                  <button
+                                  <Button variant="unstyled"
                                     key={sensor.entity_id}
                                     type="button"
                                     onClick={() => {
@@ -966,7 +967,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                                   >
                                     <div className="font-medium">{sensor.friendly_name}</div>
                                     <div className="text-xs text-bambu-gray">{sensor.entity_id} • {sensor.state} {sensor.unit_of_measurement}</div>
-                                  </button>
+                                  </Button>
                                 ))}
                                 {filteredEnergySensors.length === 0 && (
                                   <div className="px-3 py-2 text-sm text-bambu-gray">{t('smartPlugs.noMatchingSensors')}</div>
@@ -1010,7 +1011,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                     <p className="text-white font-medium text-sm">{t('smartPlugs.powerMonitoring')}</p>
                     <div>
                       <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.topic')}</label>
-                      <input
+                      <TextField
                         type="text"
                         value={mqttPowerTopic}
                         onChange={(e) => setMqttPowerTopic(e.target.value)}
@@ -1021,7 +1022,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.jsonPath')}</label>
-                        <input
+                        <TextField
                           type="text"
                           value={mqttPowerPath}
                           onChange={(e) => setMqttPowerPath(e.target.value)}
@@ -1031,7 +1032,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                       </div>
                       <div>
                         <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.multiplier')}</label>
-                        <input
+                        <TextField
                           type="text"
                           value={mqttPowerMultiplier}
                           onChange={(e) => setMqttPowerMultiplier(e.target.value)}
@@ -1050,7 +1051,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                     <p className="text-white font-medium text-sm">{t('smartPlugs.energyMonitoring')} <span className="text-bambu-gray font-normal">({t('smartPlugs.optional')})</span></p>
                     <div>
                       <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.topic')}</label>
-                      <input
+                      <TextField
                         type="text"
                         value={mqttEnergyTopic}
                         onChange={(e) => setMqttEnergyTopic(e.target.value)}
@@ -1061,7 +1062,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.jsonPath')}</label>
-                        <input
+                        <TextField
                           type="text"
                           value={mqttEnergyPath}
                           onChange={(e) => setMqttEnergyPath(e.target.value)}
@@ -1071,7 +1072,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                       </div>
                       <div>
                         <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.multiplier')}</label>
-                        <input
+                        <TextField
                           type="text"
                           value={mqttEnergyMultiplier}
                           onChange={(e) => setMqttEnergyMultiplier(e.target.value)}
@@ -1090,7 +1091,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                     <p className="text-white font-medium text-sm">{t('smartPlugs.stateMonitoring')} <span className="text-bambu-gray font-normal">({t('smartPlugs.optional')})</span></p>
                     <div>
                       <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.topic')}</label>
-                      <input
+                      <TextField
                         type="text"
                         value={mqttStateTopic}
                         onChange={(e) => setMqttStateTopic(e.target.value)}
@@ -1101,7 +1102,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.jsonPath')}</label>
-                        <input
+                        <TextField
                           type="text"
                           value={mqttStatePath}
                           onChange={(e) => setMqttStatePath(e.target.value)}
@@ -1111,7 +1112,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                       </div>
                       <div>
                         <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.onValue')}</label>
-                        <input
+                        <TextField
                           type="text"
                           value={mqttStateOnValue}
                           onChange={(e) => setMqttStateOnValue(e.target.value)}
@@ -1137,7 +1138,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                 <p className="text-white font-medium text-sm">{t('smartPlugs.restControl')}</p>
                 <div>
                   <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.restMethod')}</label>
-                  <select
+                  <LegacySelect
                     value={restMethod}
                     onChange={(e) => setRestMethod(e.target.value)}
                     className="w-full px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -1146,11 +1147,11 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                     <option value="POST">POST</option>
                     <option value="PUT">PUT</option>
                     <option value="PATCH">PATCH</option>
-                  </select>
+                  </LegacySelect>
                 </div>
                 <div>
                   <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.restOnUrl')}</label>
-                  <input
+                  <TextField
                     type="text"
                     value={restOnUrl}
                     onChange={(e) => { setRestOnUrl(e.target.value); setTestResult(null); }}
@@ -1160,7 +1161,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                 </div>
                 <div>
                   <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.restOnBody')} <span className="text-bambu-gray font-normal">({t('smartPlugs.optional')})</span></label>
-                  <input
+                  <TextField
                     type="text"
                     value={restOnBody}
                     onChange={(e) => setRestOnBody(e.target.value)}
@@ -1170,7 +1171,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                 </div>
                 <div>
                   <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.restOffUrl')}</label>
-                  <input
+                  <TextField
                     type="text"
                     value={restOffUrl}
                     onChange={(e) => { setRestOffUrl(e.target.value); setTestResult(null); }}
@@ -1180,7 +1181,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                 </div>
                 <div>
                   <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.restOffBody')} <span className="text-bambu-gray font-normal">({t('smartPlugs.optional')})</span></label>
-                  <input
+                  <TextField
                     type="text"
                     value={restOffBody}
                     onChange={(e) => setRestOffBody(e.target.value)}
@@ -1194,7 +1195,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
               <div className="space-y-3 p-3 bg-bambu-dark rounded-lg border border-bambu-dark-tertiary">
                 <p className="text-white font-medium text-sm">{t('smartPlugs.restHeaders')} <span className="text-bambu-gray font-normal">({t('smartPlugs.optional')})</span></p>
                 <div>
-                  <textarea
+                  <TextArea
                     value={restHeaders}
                     onChange={(e) => setRestHeaders(e.target.value)}
                     placeholder={t('smartPlugs.restHeadersHint')}
@@ -1209,7 +1210,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                 <p className="text-white font-medium text-sm">{t('smartPlugs.stateMonitoring')} <span className="text-bambu-gray font-normal">({t('smartPlugs.optional')})</span></p>
                 <div>
                   <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.restStatusUrl')}</label>
-                  <input
+                  <TextField
                     type="text"
                     value={restStatusUrl}
                     onChange={(e) => setRestStatusUrl(e.target.value)}
@@ -1220,7 +1221,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.restStatusPath')}</label>
-                    <input
+                    <TextField
                       type="text"
                       value={restStatusPath}
                       onChange={(e) => setRestStatusPath(e.target.value)}
@@ -1230,7 +1231,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                   </div>
                   <div>
                     <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.restStatusOnValue')}</label>
-                    <input
+                    <TextField
                       type="text"
                       value={restStatusOnValue}
                       onChange={(e) => setRestStatusOnValue(e.target.value)}
@@ -1248,7 +1249,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                 {/* Power */}
                 <div>
                   <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.restPowerUrl')} <span className="text-bambu-gray font-normal">({t('smartPlugs.optional')})</span></label>
-                  <input
+                  <TextField
                     type="text"
                     value={restPowerUrl}
                     onChange={(e) => setRestPowerUrl(e.target.value)}
@@ -1259,7 +1260,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.restPowerPath')}</label>
-                    <input
+                    <TextField
                       type="text"
                       value={restPowerPath}
                       onChange={(e) => setRestPowerPath(e.target.value)}
@@ -1269,7 +1270,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                   </div>
                   <div>
                     <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.restPowerMultiplier')}</label>
-                    <input
+                    <TextField
                       type="text"
                       value={restPowerMultiplier}
                       onChange={(e) => setRestPowerMultiplier(e.target.value)}
@@ -1282,7 +1283,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                 {/* Energy */}
                 <div>
                   <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.restEnergyUrl')} <span className="text-bambu-gray font-normal">({t('smartPlugs.optional')})</span></label>
-                  <input
+                  <TextField
                     type="text"
                     value={restEnergyUrl}
                     onChange={(e) => setRestEnergyUrl(e.target.value)}
@@ -1293,7 +1294,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.restEnergyPath')}</label>
-                    <input
+                    <TextField
                       type="text"
                       value={restEnergyPath}
                       onChange={(e) => setRestEnergyPath(e.target.value)}
@@ -1303,7 +1304,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                   </div>
                   <div>
                     <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.restEnergyMultiplier')}</label>
-                    <input
+                    <TextField
                       type="text"
                       value={restEnergyMultiplier}
                       onChange={(e) => setRestEnergyMultiplier(e.target.value)}
@@ -1359,7 +1360,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.ipAddress')}</label>
               <div className="flex gap-2">
-                <input
+                <TextField
                   type="text"
                   value={ipAddress}
                   onChange={(e) => {
@@ -1416,7 +1417,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
           {/* Name */}
           <div>
             <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.nameLabel')}</label>
-            <input
+            <TextField
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -1431,7 +1432,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.username')}</label>
-                  <input
+                  <TextField
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
@@ -1441,7 +1442,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                 </div>
                 <div>
                   <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.password')}</label>
-                  <input
+                  <TextField
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -1460,7 +1461,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
           {plugType !== 'mqtt' && (
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.linkToPrinter')}</label>
-              <select
+              <LegacySelect
                 value={printerId ?? ''}
                 onChange={(e) => setPrinterId(e.target.value ? Number(e.target.value) : null)}
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -1471,7 +1472,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                     {p.name}
                   </option>
                 ))}
-              </select>
+              </LegacySelect>
               <p className="text-xs text-bambu-gray mt-1">
                 {t('smartPlugs.linkingDescription')}
               </p>
@@ -1485,23 +1486,18 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                 <Bell className="w-4 h-4 text-bambu-green" />
                 <span className="text-white font-medium">{t('smartPlugs.powerAlerts')}</span>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={powerAlertEnabled}
+              <Switch
+                    ariaLabel={t('smartPlugs.powerAlerts')}
+                    checked={powerAlertEnabled}
                   onChange={(e) => setPowerAlertEnabled(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-              </label>
+                  />
             </div>
             {powerAlertEnabled && (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.alertAbove')}</label>
-                    <input
-                      type="number"
+                    <NumberField
                       value={powerAlertHigh}
                       onChange={(e) => setPowerAlertHigh(e.target.value)}
                       placeholder="e.g. 200"
@@ -1512,8 +1508,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                   </div>
                   <div>
                     <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.alertBelow')}</label>
-                    <input
-                      type="number"
+                    <NumberField
                       value={powerAlertLow}
                       onChange={(e) => setPowerAlertLow(e.target.value)}
                       placeholder="e.g. 10"
@@ -1538,23 +1533,18 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                   <Clock className="w-4 h-4 text-bambu-green" />
                   <span className="text-white font-medium">{t('smartPlugs.dailySchedule')}</span>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
+                <Switch
+                    ariaLabel={t('smartPlugs.dailySchedule')}
                     checked={scheduleEnabled}
                     onChange={(e) => setScheduleEnabled(e.target.checked)}
-                    className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
               </div>
               {scheduleEnabled && (
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.turnOnAt')}</label>
-                      <input
-                        type="time"
+                      <TimeField
                         value={scheduleOnTime}
                         onChange={(e) => setScheduleOnTime(e.target.value)}
                         className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -1562,8 +1552,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                     </div>
                     <div>
                       <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.turnOffAt')}</label>
-                      <input
-                        type="time"
+                      <TimeField
                         value={scheduleOffTime}
                         onChange={(e) => setScheduleOffTime(e.target.value)}
                         className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -1588,15 +1577,11 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                   <p className="text-xs text-bambu-gray">{t('smartPlugs.quickAccessSidebar')}</p>
                 </div>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showInSwitchbar}
+              <Switch
+                    ariaLabel={t('smartPlugs.showInSwitchbar')}
+                    checked={showInSwitchbar}
                   onChange={(e) => setShowInSwitchbar(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-              </label>
+                  />
             </div>
           </div>
 
@@ -1611,15 +1596,11 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                     <p className="text-xs text-bambu-gray">{t('smartPlugs.displayOnPrinterCard')}</p>
                   </div>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
+                <Switch
+                    ariaLabel={t('smartPlugs.showOnPrinterCard')}
                     checked={showOnPrinterCard}
                     onChange={(e) => setShowOnPrinterCard(e.target.checked)}
-                    className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
               </div>
             </div>
           )}

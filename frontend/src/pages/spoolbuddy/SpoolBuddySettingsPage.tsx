@@ -7,6 +7,7 @@ import { spoolbuddyApi, type SpoolBuddyDevice } from '../../api/client';
 import { DiagnosticModal } from '../../components/spoolbuddy/DiagnosticModal';
 import { FileText, Wand2, Zap } from 'lucide-react';
 import { parseUTCDate } from '../../utils/date';
+import { Slider, TextField } from '../../components/ui';
 
 
 function formatUptime(seconds: number): string {
@@ -147,14 +148,14 @@ function DeviceTab({ device }: { device: SpoolBuddyDevice }) {
           <h3 className="text-sm font-semibold text-zinc-300">
             {t('spoolbuddy.settings.systemConfig', 'Backend & Auth')}
           </h3>
-          <input
+          <TextField
             value={backendUrl}
             onChange={(e) => setBackendUrl(e.target.value)}
             placeholder="http://192.168.1.100:5000"
             className="w-full px-2 py-1.5 rounded bg-zinc-900 border border-zinc-700 text-zinc-100 text-xs"
           />
           <div className="flex gap-2">
-            <input
+            <TextField
               type="password"
               value={apiToken}
               onChange={(e) => setApiToken(e.target.value)}
@@ -286,8 +287,7 @@ function DisplayTab({ device, onBrightnessChange }: {
           <svg className="w-4 h-4 text-zinc-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
           </svg>
-          <input
-            type="range"
+          <Slider
             min={0}
             max={100}
             value={brightness}

@@ -128,6 +128,8 @@ export default {
     expand: 'Développer',
     previous: 'Précédent',
     next: 'Suivant',
+    increaseValue: 'Augmenter la valeur',
+    decreaseValue: 'Diminuer la valeur',
     viewArchive: 'Voir l\'archive',
     viewInFileManager: 'Voir dans le gestionnaire de fichiers',
     addedBy: 'Ajouté par {{username}}',

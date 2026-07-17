@@ -128,6 +128,8 @@ export default {
     expand: '展開',
     previous: '上一頁',
     next: '下一頁',
+    increaseValue: '增加數值',
+    decreaseValue: '減少數值',
     viewArchive: '檢視歸檔',
     viewInFileManager: '在檔案管理器中檢視',
     addedBy: '由 {{username}} 新增',

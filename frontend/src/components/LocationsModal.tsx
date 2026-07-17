@@ -7,6 +7,7 @@ import { Button } from './Button';
 import { ConfirmModal } from './ConfirmModal';
 import { useToast } from '../contexts/ToastContext';
 import { inventoryLocationsQueryKey, invalidateInventoryLocations } from '../utils/inventoryQueries';
+import { TextField } from './ui';
 
 interface LocationsModalProps {
   open: boolean;
@@ -234,7 +235,7 @@ export function LocationsModal({ open, onClose, onPickLocation }: LocationsModal
               <label className="block text-sm font-medium text-bambu-gray mb-1" htmlFor="location-name">
                 {t('locations.name')}
               </label>
-              <input
+              <TextField
                 id="location-name"
                 type="text"
                 maxLength={255}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { WebGLPreview } from 'gcode-preview';
 import { Loader2, Layers, ChevronLeft, ChevronRight, FileWarning } from 'lucide-react';
 import { getAuthToken } from '../api/client';
+import { Slider } from './ui';
 
 interface GcodeViewerProps {
   gcodeUrl: string;
@@ -248,8 +249,7 @@ export function GcodeViewer({
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            <input
-              type="range"
+            <Slider
               min={1}
               max={totalLayers}
               value={currentLayer}

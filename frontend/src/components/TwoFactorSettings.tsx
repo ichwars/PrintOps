@@ -21,7 +21,7 @@ function CodeInput({
   maxLength?: number;
 }) {
   return (
-    <input
+    <TextField
       type="text"
       value={value}
       onChange={(e) => onChange(e.target.value.toUpperCase().replace(/\s/g, ''))}
@@ -120,15 +120,15 @@ function TOTPSetupWizard({ onDone }: { onDone: () => void }) {
             <code className="text-white text-xs font-mono flex-1 break-all">
               {showSecret ? setupData.secret : '••••••••••••••••'}
             </code>
-            <button onClick={() => setShowSecret(!showSecret)} className="text-bambu-gray hover:text-white">
+            <Button variant="unstyled" onClick={() => setShowSecret(!showSecret)} className="text-bambu-gray hover:text-white">
               {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
-            <button
+            </Button>
+            <Button variant="unstyled"
               onClick={() => { navigator.clipboard.writeText(setupData.secret); }}
               className="text-bambu-gray hover:text-white"
             >
               <Copy className="w-4 h-4" />
-            </button>
+            </Button>
           </div>
         </div>
         <Button variant="primary" className="w-full" onClick={() => setStep('confirm')}>
@@ -315,9 +315,9 @@ export function TwoFactorSettings() {
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-white font-medium">{t('settings.twoFa.setupAuthApp')}</h4>
-                <button onClick={() => { setShowTOTPSetup(false); queryClient.removeQueries({ queryKey: ['totp-setup'] }); }} className="text-bambu-gray hover:text-white">
+                <Button variant="unstyled" onClick={() => { setShowTOTPSetup(false); queryClient.removeQueries({ queryKey: ['totp-setup'] }); }} className="text-bambu-gray hover:text-white">
                   <X className="w-5 h-5" />
-                </button>
+                </Button>
               </div>
               <TOTPSetupWizard onDone={() => { setShowTOTPSetup(false); queryClient.removeQueries({ queryKey: ['totp-setup'] }); }} />
             </div>
@@ -450,20 +450,20 @@ export function TwoFactorSettings() {
             <div className="space-y-4">
               <p className="text-bambu-gray-light text-sm">{t('settings.twoFa.emailDisablePasswordHint')}</p>
               <div className="relative">
-                <input
+                <TextField
                   type={showEmailDisablePassword ? 'text' : 'password'}
                   value={emailDisablePassword}
                   onChange={(e) => setEmailDisablePassword(e.target.value)}
                   placeholder={t('settings.twoFa.passwordPlaceholder')}
                   className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
                 />
-                <button
+                <Button variant="unstyled"
                   type="button"
                   onClick={() => setShowEmailDisablePassword(!showEmailDisablePassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-bambu-gray hover:text-white"
                 >
                   {showEmailDisablePassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
+                </Button>
               </div>
               <div className="flex gap-3">
                 <Button
@@ -545,3 +545,4 @@ export function TwoFactorSettings() {
     </div>
   );
 }
+import { TextField } from './ui';

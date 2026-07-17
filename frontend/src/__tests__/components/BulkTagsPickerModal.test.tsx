@@ -63,11 +63,7 @@ describe('BulkTagsPickerModal', () => {
     renderModal([10, 11, 12]);
     await screen.findByText('toy');
 
-    const toyCheckbox = screen
-      .getAllByRole('checkbox')
-      .find((el) => el.parentElement?.textContent?.includes('toy'));
-    expect(toyCheckbox).toBeDefined();
-    await user.click(toyCheckbox!);
+    await user.click(screen.getByRole('checkbox', { name: /^toy\b/i }));
 
     await user.click(screen.getByRole('button', { name: /Add tags/i }));
     await waitFor(() => {
@@ -88,10 +84,7 @@ describe('BulkTagsPickerModal', () => {
     // Pick the Remove radio.
     await user.click(screen.getByRole('radio', { name: /Remove from selected files/i }));
 
-    const petgCheckbox = screen
-      .getAllByRole('checkbox')
-      .find((el) => el.parentElement?.textContent?.includes('petg'));
-    await user.click(petgCheckbox!);
+    await user.click(screen.getByRole('checkbox', { name: /^petg\b/i }));
 
     await user.click(screen.getByRole('button', { name: /Remove tags/i }));
     await waitFor(() => {

@@ -125,12 +125,12 @@ export function NotificationTemplateEditor({ template, onClose }: NotificationTe
           <h2 className="text-lg font-semibold text-white">
             {t('notifications.editTemplate', { name: template.name })}
           </h2>
-          <button
+          <Button variant="unstyled"
             onClick={onClose}
             className="p-1 hover:bg-bambu-dark-tertiary rounded transition-colors"
           >
             <X className="w-5 h-5 text-bambu-gray" />
-          </button>
+          </Button>
         </div>
 
         {/* Content */}
@@ -146,7 +146,7 @@ export function NotificationTemplateEditor({ template, onClose }: NotificationTe
             <label className="block text-sm font-medium text-bambu-gray mb-1">
               {t('notifications.titleLabel')}
             </label>
-            <input
+            <TextField
               type="text"
               value={titleTemplate}
               onChange={(e) => setTitleTemplate(e.target.value)}
@@ -160,7 +160,7 @@ export function NotificationTemplateEditor({ template, onClose }: NotificationTe
             <label className="block text-sm font-medium text-bambu-gray mb-1">
               {t('notifications.bodyLabel')}
             </label>
-            <textarea
+            <TextArea
               ref={bodyRef}
               value={bodyTemplate}
               onChange={(e) => setBodyTemplate(e.target.value)}
@@ -178,7 +178,7 @@ export function NotificationTemplateEditor({ template, onClose }: NotificationTe
               </label>
               <div className="flex flex-wrap gap-2">
                 {eventVariables.variables.map((variable) => (
-                  <button
+                  <Button variant="unstyled"
                     key={variable}
                     type="button"
                     onClick={() => insertVariable(variable)}
@@ -186,7 +186,7 @@ export function NotificationTemplateEditor({ template, onClose }: NotificationTe
                   >
                     <Plus className="w-3 h-3" />
                     {variable}
-                  </button>
+                  </Button>
                 ))}
               </div>
               <p className="text-xs text-bambu-gray/60 mt-1">
@@ -202,13 +202,13 @@ export function NotificationTemplateEditor({ template, onClose }: NotificationTe
                 <Eye className="w-4 h-4" />
                 {t('notifications.livePreview')}
               </label>
-              <button
+              <Button variant="unstyled"
                 type="button"
                 onClick={() => setShowPreview(!showPreview)}
                 className="text-xs text-bambu-green hover:text-bambu-green-light"
               >
                 {showPreview ? t('notifications.hide') : t('notifications.show')}
-              </button>
+              </Button>
             </div>
             {showPreview && (
               <div className="bg-bambu-dark border border-bambu-dark-tertiary rounded p-3 space-y-2">
@@ -276,3 +276,4 @@ export function NotificationTemplateEditor({ template, onClose }: NotificationTe
     </div>
   );
 }
+import { TextArea, TextField } from './ui';

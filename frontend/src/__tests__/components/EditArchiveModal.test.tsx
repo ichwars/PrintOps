@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { render } from '../utils';
+import { render, selectComboboxOption } from '../utils';
 import { EditArchiveModal } from '../../components/EditArchiveModal';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
@@ -223,14 +223,12 @@ describe('EditArchiveModal', () => {
 
     it('preselects the option when the stored value is already a camelCase key', () => {
       render(<EditArchiveModal archive={failedArchive} onClose={mockOnClose} onSave={mockOnSave} />);
-      const select = screen.getByLabelText(/failure reason/i) as HTMLSelectElement;
-      expect(select.value).toBe('filamentRunout');
+      expect(screen.getByLabelText(/failure reason/i)).toHaveTextContent('Filament runout');
     });
 
     it('reverse-looks-up a legacy translated value back to its key', () => {
       render(<EditArchiveModal archive={legacyArchive} onClose={mockOnClose} onSave={mockOnSave} />);
-      const select = screen.getByLabelText(/failure reason/i) as HTMLSelectElement;
-      expect(select.value).toBe('filamentRunout');
+      expect(screen.getByLabelText(/failure reason/i)).toHaveTextContent('Filament runout');
     });
 
     it('sends the camelCase key on save, not the translated label', async () => {
@@ -245,7 +243,7 @@ describe('EditArchiveModal', () => {
 
       render(<EditArchiveModal archive={failedArchive} onClose={mockOnClose} onSave={mockOnSave} />);
       const select = screen.getByLabelText(/failure reason/i);
-      await user.selectOptions(select, 'cloggedNozzle');
+      selectComboboxOption(select, 'Clogged nozzle');
       await user.click(screen.getByRole('button', { name: /save/i }));
 
       await waitFor(() => {

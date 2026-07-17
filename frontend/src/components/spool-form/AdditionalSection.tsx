@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Scale } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { NumberField , LegacySelect, TextArea, TextField} from '../ui';
 import { useToast } from '../../contexts/ToastContext';
 import type { AdditionalSectionProps } from './types';
 
@@ -105,7 +106,7 @@ function SpoolWeightPicker({
       </label>
       <div className="flex gap-2 items-center">
         <div className="flex-1 min-w-0 relative" ref={dropdownRef}>
-          <input
+          <TextField
             ref={inputRef}
             type="text"
             className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray/50 focus:outline-none focus:border-bambu-green"
@@ -150,8 +151,7 @@ function SpoolWeightPicker({
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <input
-            type="number"
+          <NumberField
             className="w-16 px-2 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm text-center font-mono focus:outline-none focus:border-bambu-green"
             value={value}
             min={0}
@@ -223,11 +223,11 @@ export function AdditionalSection({
         <label className="block text-sm font-medium text-bambu-gray mb-1">{t('inventory.currentWeight')}</label>
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <input
-              type="number"
+            <NumberField
               value={remainingInput}
               min={0}
               max={formData.label_weight}
+              suffix="g"
               onFocus={() => setIsRemainingFocused(true)}
               onChange={(e) => {
                 setRemainingInput(e.target.value);
@@ -244,9 +244,8 @@ export function AdditionalSection({
                 updateField('weight_used', Math.max(0, formData.label_weight - rounded));
                 setRemainingInput(String(rounded));
               }}
-              className="w-full px-3 py-2 pr-7 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
+              className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
             />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-bambu-gray">g</span>
           </div>
           <span className="text-xs text-bambu-gray shrink-0">/ {formData.label_weight}g</span>
         </div>
@@ -257,10 +256,10 @@ export function AdditionalSection({
         <label className="block text-sm font-medium text-bambu-gray mb-1">{t('inventory.measuredWeight')}</label>
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <input
-              type="number"
+            <NumberField
               value={measuredInput}
               min={0}
+              suffix="g"
               onFocus={() => setIsMeasuredFocused(true)}
               onChange={(e) => {
                 setMeasuredInput(e.target.value);
@@ -283,9 +282,8 @@ export function AdditionalSection({
                 updateField('weight_used', Math.max(0, formData.label_weight - remaining));
                 setMeasuredInput(String(rounded));
               }}
-              className="w-full px-3 py-2 pr-7 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
+              className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
             />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-bambu-gray">g</span>
           </div>
           <span className="text-xs text-bambu-gray shrink-0">/ {formData.core_weight + formData.label_weight}g</span>
         </div>
@@ -297,8 +295,7 @@ export function AdditionalSection({
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-bambu-gray text-sm pointer-events-none">{currencySymbol}</span>
-            <input
-              type="number"
+            <NumberField
               value={formData.cost_per_kg ?? ''}
               min={0}
               step={0.01}
@@ -319,7 +316,7 @@ export function AdditionalSection({
         <label className="block text-sm font-medium text-bambu-gray mb-1" htmlFor="spool-category">
           {t('inventory.category')}
         </label>
-        <input
+        <TextField
           id="spool-category"
           type="text"
           list="spool-category-options"
@@ -343,15 +340,15 @@ export function AdditionalSection({
         </label>
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <input
+            <NumberField
               id="spool-low-stock-threshold"
-              type="number"
               className="w-full px-3 py-2 pr-8 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray/50 focus:outline-none focus:border-bambu-green"
               placeholder={String(globalLowStockThreshold)}
               value={formData.low_stock_threshold_pct ?? ''}
               min={1}
               max={99}
               step={1}
+              suffix="%"
               onChange={(e) => {
                 const raw = e.target.value;
                 if (raw === '') {
@@ -364,7 +361,6 @@ export function AdditionalSection({
                 }
               }}
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-bambu-gray pointer-events-none">%</span>
           </div>
         </div>
         <p className="text-xs text-bambu-gray mt-1">
@@ -375,7 +371,7 @@ export function AdditionalSection({
       {/* Note */}
       <div>
         <label className="block text-sm font-medium text-bambu-gray mb-1">{t('inventory.note')}</label>
-        <textarea
+        <TextArea
           className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray/50 focus:outline-none focus:border-bambu-green resize-none min-h-[80px]"
           placeholder={t('inventory.notePlaceholder')}
           value={formData.note}
@@ -388,7 +384,7 @@ export function AdditionalSection({
         <label className="block text-sm font-medium text-bambu-gray mb-1" htmlFor="spool-storage-location">
           {t('inventory.storageLocation')}
         </label>
-        <select
+        <LegacySelect
           id="spool-storage-location"
           className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
           value={formData.location_id ?? ''}
@@ -406,10 +402,10 @@ export function AdditionalSection({
           {availableLocations.map((loc) => (
             <option key={loc.id} value={loc.id}>{loc.name}</option>
           ))}
-        </select>
+        </LegacySelect>
         {onCreateLocation && (
           <div className="mt-2 flex gap-2">
-            <input
+            <TextField
               type="text"
               maxLength={255}
               className="flex-1 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray/50 focus:outline-none focus:border-bambu-green"

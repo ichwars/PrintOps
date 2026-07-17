@@ -165,6 +165,8 @@ export default {
     expand: 'Ausklappen',
     previous: 'Zurück',
     next: 'Weiter',
+    increaseValue: 'Wert erhöhen',
+    decreaseValue: 'Wert verringern',
     viewArchive: 'Archiv anzeigen',
     viewInFileManager: 'Im Dateimanager anzeigen',
     addedBy: 'Hinzugefügt von {{username}}',

@@ -124,6 +124,8 @@ export default {
     expand: '펼치기',
     previous: '이전',
     next: '다음',
+    increaseValue: '값 늘리기',
+    decreaseValue: '값 줄이기',
     viewArchive: '아카이브 보기',
     viewInFileManager: '파일 관리자에서 보기',
     addedBy: '{{username}}님이 추가함',

@@ -4,6 +4,7 @@ import { AlertTriangle, Building2, Check, Loader2, Pencil, Plus, Power, RefreshC
 import { useTranslation } from 'react-i18next';
 import { ApiError, api, type BusinessProfile, type BusinessProfileCreate, type BusinessProfileUpdate } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
+import { Checkbox, IconButton, ScrollArea } from '../ui';
 import { BusinessProfileEditorModal } from './BusinessProfileEditorModal';
 
 function withoutResponseId<T extends { id: number }>(value: T): Omit<T, 'id'> {
@@ -161,19 +162,13 @@ export function BusinessProfileSettings() {
           <h2 id="business-profile-heading" className="text-lg font-semibold text-white">{t('orders.businessProfile.title')}</h2>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="inline-flex items-center gap-2 text-sm text-bambu-gray-light">
-            <input
-              type="checkbox"
-              checked={includeInactive}
-              onChange={(event) => setIncludeInactive(event.target.checked)}
-              className="h-4 w-4 accent-bambu-green"
-            />
-            {t('orders.businessProfile.includeInactive')}
-          </label>
+          <Checkbox
+            checked={includeInactive}
+            onCheckedChange={setIncludeInactive}
+            label={t('orders.businessProfile.includeInactive')}
+          />
           {canManage && (
-            <button type="button" onClick={() => setEditorProfile(null)} disabled={isMutating} title={t('orders.businessProfile.add')} aria-label={t('orders.businessProfile.add')} className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-bambu-green text-white hover:bg-bambu-green-light disabled:cursor-not-allowed disabled:opacity-50">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-            </button>
+            <IconButton label={t('orders.businessProfile.add')} icon={Plus} onClick={() => setEditorProfile(null)} disabled={isMutating} className="bg-bambu-green text-white hover:bg-bambu-green-light" />
           )}
         </div>
       </div>
@@ -181,7 +176,7 @@ export function BusinessProfileSettings() {
       {serverError && (
         <div role="alert" className="mx-4 mb-3 flex items-start justify-between gap-3 border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
           <span className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{serverError.message}</span>
-          <button type="button" onClick={() => setServerError(null)} title={t('orders.businessProfile.dismiss')} aria-label={t('orders.businessProfile.dismiss')} className="shrink-0"><X className="h-4 w-4" /></button>
+          <IconButton label={t('orders.businessProfile.dismiss')} icon={X} onClick={() => setServerError(null)} size="sm" />
         </div>
       )}
 
@@ -190,13 +185,13 @@ export function BusinessProfileSettings() {
         <div className="mx-4 mb-3 flex flex-wrap items-center gap-3 text-sm text-red-300">
           <AlertTriangle className="h-4 w-4" />
           <span>{listError}</span>
-          <button type="button" onClick={() => profilesQuery.refetch()} title={t('common.retry')} aria-label={t('common.retry')} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-bambu-gray-light hover:bg-bambu-dark-tertiary"><RefreshCw className="h-4 w-4" /></button>
-          <button type="button" onClick={() => setListError(null)} title={t('orders.businessProfile.dismiss')} aria-label={t('orders.businessProfile.dismiss')} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-bambu-gray-light hover:bg-bambu-dark-tertiary"><X className="h-4 w-4" /></button>
+          <IconButton label={t('common.retry')} icon={RefreshCw} onClick={() => profilesQuery.refetch()} size="sm" />
+          <IconButton label={t('orders.businessProfile.dismiss')} icon={X} onClick={() => setListError(null)} size="sm" />
         </div>
       )}
       {profilesQuery.isSuccess && profilesQuery.data.length === 0 && <p className="px-4 pb-4 text-sm text-bambu-gray">{t('orders.businessProfile.empty')}</p>}
       {profilesQuery.isSuccess && profilesQuery.data.length > 0 && (
-        <div className="overflow-x-auto border-t border-bambu-dark-tertiary px-4 pb-4">
+        <ScrollArea direction="horizontal" scrollbar="thin" className="border-t border-bambu-dark-tertiary px-4 pb-4">
           <table className="w-full min-w-[820px] table-fixed text-left text-sm">
             <thead className="border-b border-bambu-dark-tertiary text-xs uppercase text-bambu-gray">
               <tr><th className="px-2 py-2">{t('orders.businessProfile.profile')}</th><th className="px-2 py-2">{t('orders.businessProfile.country')}</th><th className="px-2 py-2">{t('orders.businessProfile.currency')}</th><th className="px-2 py-2">{t('orders.businessProfile.timezone')}</th><th className="px-2 py-2">{t('orders.businessProfile.billingMode')}</th><th className="px-2 py-2">{t('orders.businessProfile.status')}</th><th className="px-2 py-2 text-right">{t('orders.businessProfile.actions')}</th></tr>
@@ -208,16 +203,16 @@ export function BusinessProfileSettings() {
                   <td className="px-2 py-3">{profile.country_code}</td><td className="px-2 py-3">{profile.default_currency}</td><td className="px-2 py-3">{profile.timezone}</td><td className="px-2 py-3">{t(`orderUi.billingModes.${profile.billing_mode}`)}</td>
                   <td className="px-2 py-3 align-middle"><div className="flex items-center gap-2"><span className={profile.is_active ? 'text-bambu-green' : 'text-bambu-gray'}>{profile.is_active ? t('orders.businessProfile.active') : t('orders.businessProfile.inactive')}</span>{profile.is_default && <span className="inline-flex items-center gap-1 text-xs text-bambu-green"><Check className="h-3 w-3" />{t('orders.default')}</span>}</div></td>
                   <td className="px-2 py-3"><div className="flex justify-end gap-1">
-                    {canManage && <button type="button" onClick={() => setEditorProfile(profile)} disabled={isMutating} title={t('orders.businessProfile.edit', { name: profile.name })} aria-label={t('orders.businessProfile.edit', { name: profile.name })} className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-bambu-dark-tertiary disabled:opacity-50"><Pencil className="h-4 w-4" /></button>}
-                    {canManage && !profile.is_default && <button type="button" onClick={() => setDefault(profile)} disabled={isMutating} title={t('orders.businessProfile.setDefault', { name: profile.name })} aria-label={t('orders.businessProfile.setDefault', { name: profile.name })} className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-bambu-dark-tertiary disabled:opacity-50"><Star className="h-4 w-4" /></button>}
-                    {canManage && <button type="button" onClick={() => toggleActive(profile)} disabled={isMutating} title={profile.is_active ? t('orders.businessProfile.deactivate', { name: profile.name }) : t('orders.businessProfile.activate', { name: profile.name })} aria-label={profile.is_active ? t('orders.businessProfile.deactivate', { name: profile.name }) : t('orders.businessProfile.activate', { name: profile.name })} className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-bambu-dark-tertiary disabled:opacity-50"><Power className="h-4 w-4" /></button>}
-                    {canManage && !profile.is_default && <button type="button" onClick={() => remove(profile)} disabled={isMutating} title={t('orders.businessProfile.delete', { name: profile.name })} aria-label={t('orders.businessProfile.delete', { name: profile.name })} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-red-300 hover:bg-red-500/10 disabled:opacity-50"><Trash2 className="h-4 w-4" /></button>}
+                    {canManage && <IconButton label={t('orders.businessProfile.edit', { name: profile.name })} icon={Pencil} onClick={() => setEditorProfile(profile)} disabled={isMutating} size="sm" className="!h-8 !w-8" />}
+                    {canManage && !profile.is_default && <IconButton label={t('orders.businessProfile.setDefault', { name: profile.name })} icon={Star} onClick={() => setDefault(profile)} disabled={isMutating} size="sm" className="!h-8 !w-8" />}
+                    {canManage && <IconButton label={profile.is_active ? t('orders.businessProfile.deactivate', { name: profile.name }) : t('orders.businessProfile.activate', { name: profile.name })} icon={Power} onClick={() => toggleActive(profile)} disabled={isMutating} size="sm" className="!h-8 !w-8" />}
+                    {canManage && !profile.is_default && <IconButton label={t('orders.businessProfile.delete', { name: profile.name })} icon={Trash2} onClick={() => remove(profile)} disabled={isMutating} size="sm" className="!h-8 !w-8 text-red-300 hover:bg-red-500/10" />}
                   </div></td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       )}
 
       {editorProfile !== undefined && <BusinessProfileEditorModal profile={editorProfile} isSubmitting={isMutating} onClose={() => setEditorProfile(undefined)} onSubmit={submitEditor} />}

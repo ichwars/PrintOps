@@ -4,6 +4,7 @@ import { Upload, X, AlertTriangle, CheckCircle, SkipForward, RefreshCw, Loader2,
 import { Card, CardContent } from './Card';
 import { Button } from './Button';
 import { Toggle } from './Toggle';
+import { FileInput } from './ui';
 
 interface RestoreResult {
   success: boolean;
@@ -157,9 +158,8 @@ export function RestoreModal({ onClose, onRestore, onSuccess }: RestoreModalProp
               <div className="p-4 space-y-4">
                 {/* File Selection */}
                 <div>
-                  <input
+                  <FileInput
                     ref={fileInputRef}
-                    type="file"
                     accept=".json,.zip"
                     className="hidden"
                     onChange={handleFileSelect}

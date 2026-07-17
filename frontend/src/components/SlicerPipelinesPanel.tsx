@@ -1,3 +1,4 @@
+import { Button, LegacySelect, TextArea, TextField , Radio} from './ui';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -190,7 +191,7 @@ export function SlicerPipelinesPanel() {
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <div className="relative flex-1 min-w-[12rem]">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-bambu-gray pointer-events-none" />
-              <input
+              <TextField
                 type="search"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -199,7 +200,7 @@ export function SlicerPipelinesPanel() {
                 className="w-full pl-7 pr-2 py-1 text-xs bg-bambu-dark border border-bambu-dark-tertiary rounded text-white"
               />
             </div>
-            <select
+            <LegacySelect
               value={targetFilter}
               onChange={(e) => setTargetFilter(e.target.value)}
               aria-label={t('settings.pipelines.filterTarget', 'Filter by target')}
@@ -231,7 +232,7 @@ export function SlicerPipelinesPanel() {
                   {t('settings.pipelines.filter.noTarget', 'No target set')}
                 </option>
               )}
-            </select>
+            </LegacySelect>
             {(searchTerm || targetFilter) && (
               <span className="text-xs text-bambu-gray">
                 {t('settings.pipelines.filter.count', '{{shown}} / {{total}}', {
@@ -401,14 +402,14 @@ function PipelineRow({
         <div className="min-w-0 flex-1">
           {editing ? (
             <div className="space-y-2">
-              <input
+              <TextField
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}
                 aria-label={t('settings.pipelines.field.name', 'Pipeline name')}
                 placeholder={t('settings.pipelines.field.name', 'Pipeline name')}
                 className="w-full px-2 py-1 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded text-white"
               />
-              <textarea
+              <TextArea
                 value={draftDescription}
                 onChange={(e) => setDraftDescription(e.target.value)}
                 aria-label={t('settings.pipelines.field.description', 'Description')}
@@ -426,8 +427,7 @@ function PipelineRow({
                 </label>
                 <div className="flex gap-3 text-xs">
                   <label className="flex items-center gap-1 text-white">
-                    <input
-                      type="radio"
+                    <Radio
                       name={`target-kind-${pipeline.id}`}
                       value="specific_printer"
                       checked={draftTargetKind === 'specific_printer'}
@@ -437,8 +437,7 @@ function PipelineRow({
                     {t('settings.pipelines.field.targetKindSpecific', 'Specific printer')}
                   </label>
                   <label className="flex items-center gap-1 text-white">
-                    <input
-                      type="radio"
+                    <Radio
                       name={`target-kind-${pipeline.id}`}
                       value="printer_class"
                       checked={draftTargetKind === 'printer_class'}
@@ -455,7 +454,7 @@ function PipelineRow({
                   <label className="text-xs text-bambu-gray block mb-1">
                     {t('settings.pipelines.field.targetPrinter', 'Target printer')}
                   </label>
-                  <select
+                  <LegacySelect
                     value={draftTargetPrinterId ?? ''}
                     onChange={(e) =>
                       setDraftTargetPrinterId(e.target.value ? parseInt(e.target.value, 10) : null)
@@ -471,7 +470,7 @@ function PipelineRow({
                         {p.name}
                       </option>
                     ))}
-                  </select>
+                  </LegacySelect>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -479,7 +478,7 @@ function PipelineRow({
                     <label className="text-xs text-bambu-gray block mb-1">
                       {t('settings.pipelines.field.targetModelClass', 'Printer model')}
                     </label>
-                    <select
+                    <LegacySelect
                       value={draftTargetModelClass}
                       onChange={(e) => setDraftTargetModelClass(e.target.value)}
                       aria-label={t('settings.pipelines.field.targetModelClass', 'Printer model')}
@@ -493,13 +492,13 @@ function PipelineRow({
                           {m}
                         </option>
                       ))}
-                    </select>
+                    </LegacySelect>
                   </div>
                   <div>
                     <label className="text-xs text-bambu-gray block mb-1">
                       {t('settings.pipelines.field.fanoutStrategy', 'Fanout strategy')}
                     </label>
-                    <select
+                    <LegacySelect
                       value={draftFanout}
                       onChange={(e) =>
                         setDraftFanout(e.target.value as 'max_parallel' | 'fill_one_first' | 'round_robin')
@@ -516,7 +515,7 @@ function PipelineRow({
                       <option value="fill_one_first">
                         {t('settings.pipelines.field.fanout.fill_one_first', 'Fill one first — pin all copies to one printer')}
                       </option>
-                    </select>
+                    </LegacySelect>
                   </div>
                 </div>
               )}
@@ -568,39 +567,39 @@ function PipelineRow({
         <div className="flex items-center gap-1 flex-shrink-0">
           {editing ? (
             <>
-              <button
+              <Button variant="unstyled"
                 onClick={handleSave}
                 disabled={saving || !draftName.trim()}
                 aria-label={t('settings.pipelines.action.save', 'Save')}
                 className="p-1.5 text-bambu-green hover:bg-bambu-dark-tertiary rounded disabled:opacity-50"
               >
                 <Check className="w-4 h-4" />
-              </button>
-              <button
+              </Button>
+              <Button variant="unstyled"
                 onClick={handleCancel}
                 aria-label={t('settings.pipelines.action.cancel', 'Cancel')}
                 className="p-1.5 text-bambu-gray hover:bg-bambu-dark-tertiary rounded"
               >
                 <X className="w-4 h-4" />
-              </button>
+              </Button>
             </>
           ) : (
             <>
-              <button
+              <Button variant="unstyled"
                 onClick={() => setEditing(true)}
                 aria-label={t('settings.pipelines.action.rename', 'Rename')}
                 className="p-1.5 text-bambu-gray hover:text-white hover:bg-bambu-dark-tertiary rounded"
               >
                 <Edit2 className="w-4 h-4" />
-              </button>
-              <button
+              </Button>
+              <Button variant="unstyled"
                 onClick={onDelete}
                 disabled={deleting}
                 aria-label={t('settings.pipelines.action.delete', 'Delete')}
                 className="p-1.5 text-bambu-gray hover:text-red-600 dark:hover:text-red-400 hover:bg-bambu-dark-tertiary rounded disabled:opacity-50"
               >
                 <Trash2 className="w-4 h-4" />
-              </button>
+              </Button>
             </>
           )}
         </div>

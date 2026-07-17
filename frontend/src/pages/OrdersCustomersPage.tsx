@@ -11,6 +11,7 @@ import { CustomerEditorModal } from '../components/orders/CustomerEditorModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useModalFocusLifecycle } from '../hooks/useModalFocusLifecycle';
 import { normalizeOrderTags } from '../lib/orderTagNormalization';
+import { LegacySelect, TextField } from '../components/ui';
 
 const limit = 25;
 const emptyProfiles: import('../api/client').BusinessProfileOption[] = [];
@@ -175,9 +176,9 @@ export function OrdersCustomersPage() {
       ) : (
         <>
           <div className="flex flex-wrap items-end gap-3 border-y border-bambu-dark-tertiary py-3">
-            <label className="min-w-52 text-xs text-bambu-gray">{t('orders.customers.businessProfile')}<select aria-label={t('orders.customers.businessProfile')} value={selectedProfileId} onChange={(event) => setProfile(Number(event.target.value))} className={`${controlClass} mt-1 w-full`}>{profiles.map((profile) => <option key={profile.id} value={profile.id} disabled={!profile.is_active}>{profile.name}</option>)}</select></label>
-            <label className="relative min-w-60 flex-1 text-xs text-bambu-gray">{t('orders.customers.search')}<Search className="pointer-events-none absolute bottom-2.5 left-3 h-4 w-4 text-bambu-gray" /><input type="search" aria-label={t('orders.customers.search')} value={searchInput} onChange={(event) => setSearchInput(event.target.value)} className={`${controlClass} mt-1 w-full pl-9`} /></label>
-            <label className="min-w-40 text-xs text-bambu-gray">{t('orders.customers.statusFilter')}<select aria-label={t('orders.customers.statusFilter')} value={status} onChange={(event) => setStatusFilter(event.target.value as CustomerStatus | '')} className={`${controlClass} mt-1 w-full`}><option value="">{t('common.all')}</option>{(['active', 'inactive', 'blocked'] as const).map((item) => <option key={item} value={item}>{t(`orders.status.${item}`)}</option>)}</select></label>
+            <label className="min-w-52 text-xs text-bambu-gray">{t('orders.customers.businessProfile')}<LegacySelect aria-label={t('orders.customers.businessProfile')} value={selectedProfileId} onChange={(event) => setProfile(Number(event.target.value))} className={`${controlClass} mt-1 w-full`}>{profiles.map((profile) => <option key={profile.id} value={profile.id} disabled={!profile.is_active}>{profile.name}</option>)}</LegacySelect></label>
+            <label className="relative min-w-60 flex-1 text-xs text-bambu-gray">{t('orders.customers.search')}<Search className="pointer-events-none absolute bottom-2.5 left-3 h-4 w-4 text-bambu-gray" /><TextField type="search" aria-label={t('orders.customers.search')} value={searchInput} onChange={(event) => setSearchInput(event.target.value)} className={`${controlClass} mt-1 w-full pl-9`} /></label>
+            <label className="min-w-40 text-xs text-bambu-gray">{t('orders.customers.statusFilter')}<LegacySelect aria-label={t('orders.customers.statusFilter')} value={status} onChange={(event) => setStatusFilter(event.target.value as CustomerStatus | '')} className={`${controlClass} mt-1 w-full`}><option value="">{t('common.all')}</option>{(['active', 'inactive', 'blocked'] as const).map((item) => <option key={item} value={item}>{t(`orders.status.${item}`)}</option>)}</LegacySelect></label>
             <div className="inline-flex h-10 items-center rounded-md border border-bambu-dark-tertiary bg-bambu-dark p-1" aria-label={t('orders.customers.kindFilter')}>{(['', 'company', 'person'] as const).map((item) => <button key={item || 'all'} type="button" aria-pressed={kind === item} onClick={() => setKindFilter(item)} className={`h-8 rounded px-3 text-sm ${kind === item ? 'bg-bambu-green text-black' : 'text-bambu-gray hover:text-white'}`}>{item ? t(`orders.customerEditor.${item}`) : t('common.all')}</button>)}</div>
           </div>
 

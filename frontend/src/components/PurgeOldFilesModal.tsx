@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { NumberField , Checkbox} from './ui';
 import { AlertTriangle, Loader2, Trash2, X } from 'lucide-react';
 
 import { api } from '../api/client';
@@ -89,9 +90,8 @@ export function PurgeOldFilesModal({ onClose }: PurgeOldFilesModalProps) {
               {t('libraryPurge.ageLabel')}
             </label>
             <div className="flex items-center gap-3">
-              <input
+              <NumberField
                 id="purge-days"
-                type="number"
                 min={1}
                 max={3650}
                 value={days}
@@ -103,11 +103,9 @@ export function PurgeOldFilesModal({ onClose }: PurgeOldFilesModalProps) {
           </div>
 
           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={includeNeverPrinted}
               onChange={(e) => setIncludeNeverPrinted(e.target.checked)}
-              className="rounded border-gray-300"
             />
             {t('libraryPurge.includeNeverPrinted')}
           </label>

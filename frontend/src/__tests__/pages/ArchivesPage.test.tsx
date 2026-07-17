@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { screen, waitFor, fireEvent } from '@testing-library/react';
-import { render } from '../utils';
+import { screen, waitFor } from '@testing-library/react';
+import { render, selectComboboxOption } from '../utils';
 import { ArchivesPage } from '../../pages/ArchivesPage';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
@@ -398,8 +398,7 @@ describe('ArchivesPage', () => {
         expect(screen.getByText('NeverPrinted')).toBeInTheDocument();
       });
 
-      const collectionSelect = screen.getByDisplayValue('All Archives');
-      fireEvent.change(collectionSelect, { target: { value: 'not-printed' } });
+      selectComboboxOption(screen.getByRole('combobox', { name: 'Archive collection' }), 'Not Printed');
 
       await waitFor(() => {
         expect(screen.getByText('NeverPrinted')).toBeInTheDocument();
@@ -416,8 +415,7 @@ describe('ArchivesPage', () => {
         expect(screen.getByText('NeverPrinted')).toBeInTheDocument();
       });
 
-      const collectionSelect = screen.getByDisplayValue('All Archives');
-      fireEvent.change(collectionSelect, { target: { value: 'printed' } });
+      selectComboboxOption(screen.getByRole('combobox', { name: 'Archive collection' }), 'Printed');
 
       await waitFor(() => {
         expect(screen.queryByText('NeverPrinted')).not.toBeInTheDocument();

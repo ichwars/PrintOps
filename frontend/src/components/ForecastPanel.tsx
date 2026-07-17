@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { NumberField , LegacySelect, TextField} from './ui';
 import {
   AlertTriangle, TrendingDown, ShoppingCart, Check, BellOff,
   ChevronDown, ChevronUp, Info, Edit2, X, Lock,
@@ -411,7 +412,7 @@ export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
         )}
 
         {/* Material filter */}
-        <select
+        <LegacySelect
           value={materialFilter}
           onChange={(e) => setMaterialFilter(e.target.value)}
           className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none ${
@@ -422,10 +423,10 @@ export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
         >
           <option value="">{t('inventory.material')}</option>
           {uniqueMaterials.map((m) => <option key={m} value={m}>{m}</option>)}
-        </select>
+        </LegacySelect>
 
         {/* Brand filter */}
-        <select
+        <LegacySelect
           value={brandFilter}
           onChange={(e) => setBrandFilter(e.target.value)}
           className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none ${
@@ -436,7 +437,7 @@ export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
         >
           <option value="">{t('inventory.brand')}</option>
           {uniqueBrands.map((b) => <option key={b} value={b}>{b}</option>)}
-        </select>
+        </LegacySelect>
 
         {/* Shopping list toggle */}
         <button
@@ -806,8 +807,8 @@ function GlobalLeadTimeSetting({ value, onSave }: { value: number; onSave: (v: n
       <span className="hidden sm:inline">{t('forecast.globalLeadTime')}:</span>
       {editing ? (
         <form className="flex items-center gap-1.5" onSubmit={(e) => { e.preventDefault(); save(); }}>
-          <input
-            type="number" min={0} max={365}
+          <NumberField
+            min={0} max={365}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             className="w-14 px-1.5 py-0.5 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-sm text-white focus:outline-none focus:border-bambu-green"
@@ -1151,8 +1152,8 @@ function SettingField({
       </div>
       {editing ? (
         <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); onSave(); }}>
-          <input
-            type="number" min={0} max={365}
+          <NumberField
+            min={0} max={365}
             value={inputValue} onChange={(e) => onInputChange(e.target.value)}
             className="w-20 px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-sm text-white focus:outline-none focus:border-bambu-green"
             autoFocus disabled={isPending}
@@ -1203,8 +1204,8 @@ function SafetyMarginField({
       </div>
       {editing ? (
         <form className="flex items-center gap-2 flex-wrap" onSubmit={(e) => { e.preventDefault(); onSave(); }}>
-          <input
-            type="number" min={0} max={unit === 'g' ? 10000 : 365}
+          <NumberField
+            min={0} max={unit === 'g' ? 10000 : 365}
             value={inputValue} onChange={(e) => onInputChange(e.target.value)}
             className="w-20 px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-sm text-white focus:outline-none focus:border-bambu-green"
             autoFocus disabled={isPending}
@@ -1845,8 +1846,8 @@ function AddToCartModal({
           {mode === 'qty' ? (
             <div className="space-y-1.5">
               <label className="text-xs text-bambu-gray">{t('forecast.numberOfSpools')}</label>
-              <input
-                type="number" min={1} max={99}
+              <NumberField
+                min={1} max={99}
                 value={qty} onChange={(e) => setQty(e.target.value)}
                 className="w-full px-3 py-2 bg-bambu-dark-tertiary border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
                 autoFocus
@@ -1856,8 +1857,8 @@ function AddToCartModal({
             <div className="space-y-2">
               <div className="space-y-1.5">
                 <label className="text-xs text-bambu-gray">{t('forecast.lastHowManyDays')}</label>
-                <input
-                  type="number" min={1} max={365}
+                <NumberField
+                  min={1} max={365}
                   value={durationDays} onChange={(e) => setDurationDays(e.target.value)}
                   className="w-full px-3 py-2 bg-bambu-dark-tertiary border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
                   autoFocus
@@ -1877,7 +1878,7 @@ function AddToCartModal({
 
           <div className="space-y-1.5">
             <label className="text-xs text-bambu-gray">{t('forecast.noteOptional')}</label>
-            <input
+            <TextField
               type="text" maxLength={200}
               value={note} onChange={(e) => setNote(e.target.value)}
               placeholder={t('forecast.notePlaceholder')}

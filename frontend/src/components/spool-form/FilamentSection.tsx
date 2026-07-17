@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, Loader2, ChevronDown, Cloud, CloudOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { NumberField , TextField} from '../ui';
 import type { FilamentSectionProps, FilamentOption } from './types';
 import { KNOWN_VARIANTS } from './constants';
 import { parsePresetName } from './utils';
@@ -143,7 +144,7 @@ export function FilamentSection({
           </label>
           <div className="relative" ref={presetRef}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray/50 pointer-events-none" />
-            <input
+            <TextField
               type="text"
               className="w-full pl-9 pr-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray/50 focus:outline-none focus:border-bambu-green"
               placeholder={t('inventory.searchPresets')}
@@ -195,7 +196,7 @@ export function FilamentSection({
       <div>
         <label className="block text-sm font-medium text-bambu-gray mb-1">{t('inventory.material')} *</label>
         <div className="relative" ref={materialRef}>
-          <input
+          <TextField
             type="text"
             className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray/50 focus:outline-none focus:border-bambu-green"
             placeholder={t('inventory.selectMaterial')}
@@ -260,7 +261,7 @@ export function FilamentSection({
           {t('inventory.brand')}{!quickAdd && ' *'}
         </label>
           <div className="relative" ref={brandRef}>
-            <input
+            <TextField
               type="text"
               className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray/50 focus:outline-none focus:border-bambu-green"
               placeholder={t('inventory.searchBrand')}
@@ -325,7 +326,7 @@ export function FilamentSection({
           {t('inventory.subtype')}{!quickAdd && ' *'}
         </label>
           <div className="relative" ref={subtypeRef}>
-            <input
+            <TextField
               type="text"
               value={subtypeDropdownOpen ? subtypeSearch : formData.subtype}
               onChange={(e) => {
@@ -386,12 +387,11 @@ export function FilamentSection({
       {/* Label Weight */}
       <div>
         <label className="block text-sm font-medium text-bambu-gray mb-1">{t('inventory.labelWeight')}</label>
-        <div className="relative">
-          <input
-            type="number"
-            className="w-full px-3 py-2 pr-7 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
+        <NumberField
+            className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
             value={labelInput}
             min={0}
+            suffix="g"
             onFocus={() => setIsLabelFocused(true)}
             onChange={(e) => setLabelInput(e.target.value)}
             onBlur={() => {
@@ -407,16 +407,13 @@ export function FilamentSection({
               setLabelInput(String(rounded));
             }}
           />
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-bambu-gray">g</span>
-        </div>
       </div>
 
       {/* Quantity — only in quick-add mode */}
       {quickAdd && (
         <div>
           <label className="block text-sm font-medium text-bambu-gray mb-1">{t('inventory.quantity')}</label>
-          <input
-            type="number"
+          <NumberField
             className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
             value={quantity}
             min={1}

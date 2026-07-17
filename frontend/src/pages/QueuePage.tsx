@@ -75,6 +75,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { QueueStatsBar } from '../components/QueueStatsBar';
 import { CompactHistoryRow } from '../components/CompactHistoryRow';
 import { QueueTimelineView } from '../components/QueueTimelineView';
+import { LegacySelect, TextField } from '../components/ui';
 
 function formatWeight(g: number, useKg = false): string {
   if (useKg && g >= 1000) return `${(g / 1000).toFixed(1)}kg`;
@@ -197,7 +198,7 @@ function BulkEditModal({
           {/* Printer Assignment */}
           <div>
             <label className="block text-sm font-medium text-white mb-2">{t('queue.bulkEdit.printer')}</label>
-            <select
+            <LegacySelect
               value={printerId === null ? 'null' : printerId === 'unchanged' ? 'unchanged' : String(printerId)}
               onChange={(e) => {
                 const val = e.target.value;
@@ -212,7 +213,7 @@ function BulkEditModal({
               {printers.map(p => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
-            </select>
+            </LegacySelect>
           </div>
 
           {/* Queue Options */}
@@ -1068,7 +1069,7 @@ function HistorySection({
           </span>
         </h2>
         <div className="flex items-center gap-2">
-          <select
+          <LegacySelect
             className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
             value={sortBy}
             onChange={(e) => onSortByChange(e.target.value as 'date' | 'name' | 'printer')}
@@ -1076,7 +1077,7 @@ function HistorySection({
             <option value="date">{t('queue.sort.byDate')}</option>
             <option value="name">{t('queue.sort.byName')}</option>
             <option value="printer">{t('queue.sort.byPrinter')}</option>
-          </select>
+          </LegacySelect>
           <Button
             variant="ghost"
             size="sm"
@@ -2005,7 +2006,8 @@ export function QueuePage() {
           dashboard, so this row is hidden when that tab is active. */}
       {activeTab !== 'pipelines' && (
       <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-6">
-        <select
+        <LegacySelect
+          aria-label={t('queue.filter.allPrinters')}
           className="px-2 sm:px-3 py-2 text-sm sm:text-base bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none min-w-0 flex-1 sm:flex-none"
           value={filterPrinter === -1 ? 'unassigned' : (filterPrinter || '')}
           onChange={(e) => {
@@ -2020,9 +2022,10 @@ export function QueuePage() {
           {printers?.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
-        </select>
+        </LegacySelect>
 
-        <select
+        <LegacySelect
+          aria-label={t('queue.filter.allStatus')}
           className="px-2 sm:px-3 py-2 text-sm sm:text-base bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none min-w-0 flex-1 sm:flex-none"
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
@@ -2034,10 +2037,11 @@ export function QueuePage() {
           <option value="failed">{t('queue.status.failed')}</option>
           <option value="skipped">{t('queue.status.skipped')}</option>
           <option value="cancelled">{t('queue.status.cancelled')}</option>
-        </select>
+        </LegacySelect>
 
         {uniqueLocations.length > 0 && (
-          <select
+          <LegacySelect
+            aria-label={t('queue.filter.allLocations')}
             className="px-2 sm:px-3 py-2 text-sm sm:text-base bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none min-w-0 flex-1 sm:flex-none"
             value={filterLocation}
             onChange={(e) => setFilterLocation(e.target.value)}
@@ -2046,7 +2050,7 @@ export function QueuePage() {
             {uniqueLocations.map((loc) => (
               <option key={loc} value={loc}>{loc}</option>
             ))}
-          </select>
+          </LegacySelect>
         )}
 
         <div className="hidden sm:block flex-1" />
@@ -2205,7 +2209,7 @@ export function QueuePage() {
                   </span>
                 </h2>
                 <div className="flex items-center gap-2">
-                  <select
+                  <LegacySelect
                     className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                     value={pendingSortBy}
                     onChange={(e) => setPendingSortBy(e.target.value as 'position' | 'name' | 'printer' | 'time')}
@@ -2214,7 +2218,7 @@ export function QueuePage() {
                     <option value="name">{t('queue.sort.byName')}</option>
                     <option value="printer">{t('queue.sort.byPrinter')}</option>
                     <option value="time">{t('queue.sort.bySchedule')}</option>
-                  </select>
+                  </LegacySelect>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -2591,7 +2595,7 @@ function GroupBatchModal({ itemCount, defaultName, isSaving, onSave, onClose, t 
         <label className="block text-sm font-medium text-white mb-2">
           {t('queue.batch.nameLabel')}
         </label>
-        <input
+        <TextField
           type="text"
           autoFocus
           value={name}

@@ -36,6 +36,7 @@ import type {
 } from '../api/client';
 import { Card, CardContent, CardHeader } from './Card';
 import { Button } from './Button';
+import { Checkbox, LegacySelect, NumberField, TextField , FileInput, TimeField} from './ui';
 import { Toggle } from './Toggle';
 import { ConfirmModal } from './ConfirmModal';
 import { useToast } from '../contexts/ToastContext';
@@ -616,7 +617,7 @@ export function GitHubBackupSettings() {
             {/* Provider Selection */}
             <div>
               <label htmlFor="git-provider-select" className="block text-sm text-bambu-gray mb-1">{t('backup.provider')}</label>
-              <select
+              <LegacySelect
                 id="git-provider-select"
                 value={provider}
                 onChange={(e) => { setProvider(e.target.value as GitProviderType); setTestResult(null); setSaveError(null); }}
@@ -626,7 +627,7 @@ export function GitHubBackupSettings() {
                 <option value="gitlab">{t('backup.providerGitLab')}</option>
                 <option value="gitea">{t('backup.providerGitea')}</option>
                 <option value="forgejo">{t('backup.providerForgejo')}</option>
-              </select>
+              </LegacySelect>
             </div>
 
                 {/* Repository URL */}
@@ -634,7 +635,7 @@ export function GitHubBackupSettings() {
                   <label className="block text-sm text-bambu-gray mb-1">
                     {t('backup.repositoryUrl')}
                   </label>
-                  <input
+                  <TextField
                     type="text"
                     value={repoUrl}
                     onChange={(e) => { setRepoUrl(e.target.value); setTestResult(null); setSaveError(null); }}
@@ -642,8 +643,7 @@ export function GitHubBackupSettings() {
                     className="w-full h-10 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                   />
                   <label className="flex items-start gap-2 mt-2 cursor-pointer">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={allowInsecureHttp}
                       onChange={(e) => { setAllowInsecureHttp(e.target.checked); setTestResult(null); }}
                       className="w-4 h-4 mt-0.5 rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
@@ -660,7 +660,7 @@ export function GitHubBackupSettings() {
                   <label className="block text-sm text-bambu-gray mb-1">
                     {t('backup.personalAccessToken')} {config?.has_token && <span className="text-green-700 dark:text-green-400">{t('backup.tokenSaved')}</span>}
                   </label>
-                  <input
+                  <TextField
                     type="password"
                     value={accessToken}
                     onChange={(e) => { setAccessToken(e.target.value); setTestResult(null); setSaveError(null); }}
@@ -676,7 +676,7 @@ export function GitHubBackupSettings() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-bambu-gray mb-1">{t('backup.branch')}</label>
-                <input
+                <TextField
                   type="text"
                   value={branch}
                   onChange={(e) => setBranch(e.target.value)}
@@ -686,7 +686,7 @@ export function GitHubBackupSettings() {
               </div>
               <div>
                 <label className="block text-sm text-bambu-gray mb-1">{t('backup.autoBackup')}</label>
-                <select
+                <LegacySelect
                   value={scheduleEnabled ? scheduleType : 'disabled'}
                   onChange={(e) => {
                     if (e.target.value === 'disabled') {
@@ -702,7 +702,7 @@ export function GitHubBackupSettings() {
                   <option value="hourly">{t('backup.hourly')}</option>
                   <option value="daily">{t('backup.daily')}</option>
                   <option value="weekly">{t('backup.weekly')}</option>
-                </select>
+                </LegacySelect>
               </div>
             </div>
 
@@ -711,8 +711,7 @@ export function GitHubBackupSettings() {
               <label className="block text-sm text-bambu-gray mb-2">{t('backup.includeInBackup')}</label>
               <div className="space-y-2">
                 <label className={`flex items-start gap-2 ${noPrintersConnected ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={backupKProfiles}
                     onChange={(e) => setBackupKProfiles(e.target.checked)}
                     className="w-4 h-4 mt-0.5 rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
@@ -738,8 +737,7 @@ export function GitHubBackupSettings() {
                   </div>
                 </label>
                 <label className={`flex items-start gap-2 ${!cloudStatus?.is_authenticated ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={backupCloudProfiles}
                     onChange={(e) => setBackupCloudProfiles(e.target.checked)}
                     className="w-4 h-4 mt-0.5 rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
@@ -759,8 +757,7 @@ export function GitHubBackupSettings() {
                   </div>
                 </label>
                 <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={backupSettings}
                     onChange={(e) => setBackupSettings(e.target.checked)}
                     className="w-4 h-4 mt-0.5 rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
@@ -771,8 +768,7 @@ export function GitHubBackupSettings() {
                   </div>
                 </label>
                 <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={backupSpools}
                     onChange={(e) => setBackupSpools(e.target.checked)}
                     className="w-4 h-4 mt-0.5 rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
@@ -783,8 +779,7 @@ export function GitHubBackupSettings() {
                   </div>
                 </label>
                 <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={backupArchives}
                     onChange={(e) => setBackupArchives(e.target.checked)}
                     className="w-4 h-4 mt-0.5 rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
@@ -828,14 +823,14 @@ export function GitHubBackupSettings() {
                 <div className="text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-300 dark:border-red-500/30 rounded p-3 flex items-start gap-2">
                   <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
                   <div className="flex-1 leading-relaxed whitespace-pre-wrap break-words">{saveError}</div>
-                  <button
+                  <Button variant="unstyled"
                     type="button"
                     onClick={() => setSaveError(null)}
                     className="text-bambu-gray hover:text-white shrink-0"
                     aria-label={t('common.dismiss', 'Dismiss')}
                   >
                     <XCircle className="w-4 h-4" />
-                  </button>
+                  </Button>
                 </div>
               )}
 
@@ -1060,9 +1055,8 @@ export function GitHubBackupSettings() {
                   {t('backup.restoreNote')}
                 </p>
               </div>
-              <input
+              <FileInput
                 ref={fileInputRef}
-                type="file"
                 accept=".zip"
                 className="hidden"
                 onChange={(e) => {
@@ -1159,7 +1153,7 @@ export function GitHubBackupSettings() {
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm text-bambu-gray mb-1">{t('backup.frequency')}</label>
-                    <select
+                    <LegacySelect
                       value={localBackupStatus?.schedule ?? 'daily'}
                       className="w-full h-10 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                       onChange={async (e) => {
@@ -1175,13 +1169,12 @@ export function GitHubBackupSettings() {
                       <option value="hourly">{t('backup.hourly')}</option>
                       <option value="daily">{t('backup.daily')}</option>
                       <option value="weekly">{t('backup.weekly')}</option>
-                    </select>
+                    </LegacySelect>
                   </div>
                   {(localBackupStatus?.schedule ?? 'daily') !== 'hourly' && (
                     <div>
                       <label className="block text-sm text-bambu-gray mb-1">{t('backup.backupTime')}</label>
-                      <input
-                        type="time"
+                      <TimeField
                         value={localBackupStatus?.time ?? '03:00'}
                         className="w-full h-10 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none [color-scheme:dark]"
                         onChange={async (e) => {
@@ -1201,8 +1194,7 @@ export function GitHubBackupSettings() {
                   )}
                   <div>
                     <label className="block text-sm text-bambu-gray mb-1">{t('backup.retention')}</label>
-                    <input
-                      type="number"
+                    <NumberField
                       min={1}
                       max={100}
                       value={localBackupStatus?.retention ?? 5}
@@ -1225,7 +1217,7 @@ export function GitHubBackupSettings() {
                 {/* Output Path */}
                 <div>
                   <label className="block text-sm text-bambu-gray mb-1">{t('backup.outputPath')}</label>
-                  <input
+                  <TextField
                     type="text"
                     value={localBackupPath}
                     onChange={(e) => setLocalBackupPath(e.target.value)}
@@ -1298,7 +1290,7 @@ export function GitHubBackupSettings() {
                             </span>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
-                            <button
+                            <Button variant="unstyled"
                               className="text-bambu-gray hover:text-bambu-green p-1"
                               title={t('backup.download')}
                               onClick={async () => {
@@ -1316,21 +1308,21 @@ export function GitHubBackupSettings() {
                               }}
                             >
                               <Download className="w-3.5 h-3.5" />
-                            </button>
-                            <button
+                            </Button>
+                            <Button variant="unstyled"
                               className="text-bambu-gray hover:text-yellow-600 dark:hover:text-yellow-400 p-1"
                               title={t('backup.restore')}
                               onClick={() => setRestoreConfirmFile(file.filename)}
                             >
                               <RotateCcw className="w-3.5 h-3.5" />
-                            </button>
-                            <button
+                            </Button>
+                            <Button variant="unstyled"
                               className="text-bambu-gray hover:text-red-600 dark:hover:text-red-400 p-1"
                               onClick={() => setDeleteConfirmFile(file.filename)}
                               title={t('backup.deleteBackup')}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       ))}

@@ -1,3 +1,4 @@
+import { LegacySelect, TextField } from './ui';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
@@ -253,12 +254,12 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
           className="px-4 py-3 flex items-center gap-3 cursor-pointer select-none"
           onClick={() => setExpanded(!expanded)}
         >
-          <button className="text-bambu-gray flex-shrink-0">
+          <Button variant="unstyled" className="text-bambu-gray flex-shrink-0">
             {expanded
               ? <ChevronDown className="w-4 h-4" />
               : <ChevronRight className="w-4 h-4" />
             }
-          </button>
+          </Button>
           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isRunning ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
           <span className="text-white font-medium truncate">{printer.name}</span>
           <span className="text-xs text-bambu-gray flex-shrink-0">{modeLabel}</span>
@@ -278,7 +279,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
             <span className="text-[10px] text-bambu-gray flex-shrink-0 font-mono">{localRemoteInterfaceIp}</span>
           )}
           <div className="ml-auto flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-            <button
+            <Button variant="unstyled"
               onClick={handleToggleEnabled}
               disabled={pendingAction === 'toggle'}
               className={`relative w-10 h-5 rounded-full transition-colors ${
@@ -290,7 +291,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                   localEnabled ? 'translate-x-5' : ''
                 }`}
               />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -301,7 +302,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
 
             {/* Name + delete */}
             <div className="flex items-center gap-2">
-              <input
+              <TextField
                 type="text"
                 value={localName}
                 onChange={(e) => setLocalName(e.target.value)}
@@ -309,20 +310,20 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                 onKeyDown={(e) => e.key === 'Enter' && handleNameChange()}
                 className="flex-1 text-sm text-white bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-md px-3 py-1.5 focus:border-bambu-green focus:outline-none"
               />
-              <button
+              <Button variant="unstyled"
                 onClick={() => setShowDiagnostic(true)}
                 className="p-1.5 text-bambu-gray hover:text-bambu-green transition-colors flex-shrink-0"
                 title={t('vpDiagnostic.runButton')}
               >
                 <Stethoscope className="w-4 h-4" />
-              </button>
-              <button
+              </Button>
+              <Button variant="unstyled"
                 onClick={() => setShowDeleteConfirm(true)}
                 className="p-1.5 text-bambu-gray hover:text-red-600 dark:hover:text-red-400 transition-colors flex-shrink-0"
                 title={t('common.delete')}
               >
                 <Trash2 className="w-4 h-4" />
-              </button>
+              </Button>
             </div>
 
             {/* Tailscale identity (host-level) + serial — compact info row.
@@ -334,7 +335,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                   <span className="font-mono text-xs truncate">
                     {tailscaleIp ? `${tailscaleIp} (${tailscaleFqdn})` : tailscaleFqdn}
                   </span>
-                  <button
+                  <Button variant="unstyled"
                     onClick={handleCopyFqdn}
                     className="p-0.5 rounded hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors flex-shrink-0"
                     title={fqdnCopied ? t('printers.copied') : t('printers.copyToClipboard')}
@@ -344,7 +345,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                     ) : (
                       <Copy className="w-3.5 h-3.5" />
                     )}
-                  </button>
+                  </Button>
                 </span>
               )}
               <span className="text-xs text-bambu-gray font-mono ml-auto flex-shrink-0">{printer.serial}</span>
@@ -355,7 +356,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
               <div className="text-white text-sm font-medium mb-2">{t('virtualPrinter.mode.title')}</div>
               <div className="grid grid-cols-2 gap-2">
                 {(['archive', 'review', 'queue', 'proxy'] as const).map((mode) => (
-                  <button
+                  <Button variant="unstyled"
                     key={mode}
                     onClick={() => handleModeChange(mode)}
                     disabled={pendingAction === 'mode'}
@@ -374,7 +375,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                     <div className="text-[10px] text-bambu-gray">
                       {t(`virtualPrinter.mode.${MODE_LABELS[mode]}Desc`)}
                     </div>
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -387,7 +388,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                     <div className="text-white text-sm font-medium">{t('virtualPrinter.autoDispatch.title')}</div>
                     <div className="text-[10px] text-bambu-gray">{t('virtualPrinter.autoDispatch.description')}</div>
                   </div>
-                  <button
+                  <Button variant="unstyled"
                     onClick={() => {
                       const newVal = !localAutoDispatch;
                       setLocalAutoDispatch(newVal);
@@ -404,7 +405,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                         localAutoDispatch ? 'translate-x-5' : ''
                       }`}
                     />
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -417,7 +418,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                     <div className="text-white text-sm font-medium">{t('virtualPrinter.queueForceColorMatch.title')}</div>
                     <div className="text-[10px] text-bambu-gray">{t('virtualPrinter.queueForceColorMatch.description')}</div>
                   </div>
-                  <button
+                  <Button variant="unstyled"
                     onClick={() => {
                       const newVal = !localQueueForceColorMatch;
                       setLocalQueueForceColorMatch(newVal);
@@ -434,7 +435,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                         localQueueForceColorMatch ? 'translate-x-5' : ''
                       }`}
                     />
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -447,7 +448,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                     <div className="text-white text-sm font-medium">{t('virtualPrinter.gcodeInjection.title')}</div>
                     <div className="text-[10px] text-bambu-gray">{t('virtualPrinter.gcodeInjection.description')}</div>
                   </div>
-                  <button
+                  <Button variant="unstyled"
                     onClick={() => {
                       const newVal = !localGcodeInjection;
                       setLocalGcodeInjection(newVal);
@@ -464,7 +465,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                         localGcodeInjection ? 'translate-x-5' : ''
                       }`}
                     />
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -476,7 +477,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                   <div className="text-white text-sm font-medium">{t('virtualPrinter.tailscaleDisabled.title')}</div>
                   <div className="text-[10px] text-bambu-gray">{t('virtualPrinter.tailscaleDisabled.description')}</div>
                 </div>
-                <button
+                <Button variant="unstyled"
                   onClick={() => {
                     const newVal = !localTailscaleDisabled;
                     setLocalTailscaleDisabled(newVal);
@@ -493,7 +494,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                       !localTailscaleDisabled ? 'translate-x-5' : ''
                     }`}
                   />
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -503,7 +504,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                 <div className="text-white text-sm font-medium mb-1">{t('virtualPrinter.model.title')}</div>
                 <p className="text-xs text-bambu-gray mb-2">{t('virtualPrinter.model.description')}</p>
                 <div className="relative">
-                  <select
+                  <LegacySelect
                     value={localModel}
                     onChange={(e) => handleModelChange(e.target.value)}
                     disabled={pendingAction === 'model'}
@@ -512,8 +513,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                     {Object.entries(models).map(([code, name]) => (
                       <option key={code} value={code}>{name} ({code})</option>
                     ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+                  </LegacySelect>
                 </div>
               </div>
             )}
@@ -555,20 +555,20 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                 {inheritsAccessCodeFromTarget ? (
                   <>
                     <div className="relative">
-                      <input
+                      <TextField
                         type={showAccessCode ? 'text' : 'password'}
                         value={inheritedAccessCode}
                         readOnly
                         aria-label={t('virtualPrinter.accessCode.title')}
                         className="w-full bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-md px-3 py-1.5 text-white text-sm pr-10 font-mono opacity-90 cursor-default"
                       />
-                      <button
+                      <Button variant="unstyled"
                         onClick={() => setShowAccessCode(!showAccessCode)}
                         className="absolute right-2 top-1/2 -translate-y-1/2 text-bambu-gray hover:text-white"
                         aria-label={showAccessCode ? t('virtualPrinter.accessCode.hide') : t('virtualPrinter.accessCode.reveal')}
                       >
                         {showAccessCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
+                      </Button>
                     </div>
                     <p className="text-xs text-bambu-gray mt-1">
                       {t('virtualPrinter.accessCode.derivedFromTargetHint')}
@@ -578,7 +578,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                   <>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
-                        <input
+                        <TextField
                           type={showAccessCode ? 'text' : 'password'}
                           value={localAccessCode}
                           onChange={(e) => setLocalAccessCode(e.target.value)}
@@ -586,12 +586,12 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                           maxLength={8}
                           className="w-full bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-md px-3 py-1.5 text-white text-sm placeholder-bambu-gray pr-10 font-mono"
                         />
-                        <button
+                        <Button variant="unstyled"
                           onClick={() => setShowAccessCode(!showAccessCode)}
                           className="absolute right-2 top-1/2 -translate-y-1/2 text-bambu-gray hover:text-white"
                         >
                           {showAccessCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
+                        </Button>
                       </div>
                       <Button
                         onClick={handleAccessCodeChange}
@@ -617,7 +617,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
             <div className="pt-2 border-t border-bambu-dark-tertiary">
               <div className="text-white text-sm font-medium mb-2">{t('virtualPrinter.targetPrinter.title')}</div>
               <div className="relative">
-                <select
+                <LegacySelect
                   value={localTargetPrinterId ?? ''}
                   onChange={(e) => {
                     const id = parseInt(e.target.value, 10);
@@ -630,8 +630,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                   {printers?.map((p) => (
                     <option key={p.id} value={p.id}>{p.name} ({p.ip_address})</option>
                   ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+                </LegacySelect>
               </div>
             </div>
 
@@ -639,7 +638,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
             <div className="pt-2 border-t border-bambu-dark-tertiary">
               <div className="text-white text-sm font-medium mb-1">{t('virtualPrinter.bindIp.title')}</div>
               <div className="relative">
-                <select
+                <LegacySelect
                   value={localBindIp}
                   onChange={(e) => {
                     setLocalBindIp(e.target.value);
@@ -655,8 +654,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                       {iface.name} ({iface.ip}){iface.is_alias ? ' [alias]' : ''} - {iface.subnet}
                     </option>
                   ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+                </LegacySelect>
               </div>
               <p className="text-xs text-bambu-gray mt-1">{t('virtualPrinter.bindIp.hint')}</p>
             </div>
@@ -672,7 +670,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                 )}
               </div>
               <div className="relative">
-                <select
+                <LegacySelect
                   value={localRemoteInterfaceIp}
                   onChange={(e) => handleRemoteInterfaceChange(e.target.value)}
                   disabled={pendingAction === 'remoteInterface'}
@@ -684,8 +682,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                       {iface.name} ({iface.ip}) - {iface.subnet}
                     </option>
                   ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+                </LegacySelect>
               </div>
             </div>
           </CardContent>

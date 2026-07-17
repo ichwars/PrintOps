@@ -19,6 +19,7 @@ import { SliceModal, type SliceSource } from '../components/SliceModal';
 import { Cog } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
+import { LegacySelect, TextField } from '../components/ui';
 
 // MakerWorld's API payloads are passed through as opaque dicts; these helpers
 // pull known fields out in a type-safe way so a missing/renamed field shows
@@ -457,7 +458,7 @@ export function MakerworldPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleResolve} className="flex gap-2">
-            <input
+            <TextField
               type="text"
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
@@ -550,7 +551,7 @@ export function MakerworldPage() {
                 <label className="text-xs text-gray-600 dark:text-gray-400">
                   {t('makerworld.importTo')}
                 </label>
-                <select
+                <LegacySelect
                   value={selectedFolderId ?? ''}
                   onChange={(e) => setSelectedFolderId(e.target.value ? Number(e.target.value) : null)}
                   className="text-sm px-2 py-1 border rounded bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700"
@@ -565,7 +566,7 @@ export function MakerworldPage() {
                         {`${'— '.repeat(depth)}${folder.name}`}
                       </option>
                     ))}
-                </select>
+                </LegacySelect>
                 <Button
                   variant="primary"
                   size="sm"

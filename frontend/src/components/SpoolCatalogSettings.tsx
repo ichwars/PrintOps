@@ -1,3 +1,4 @@
+import { Button, Checkbox, NumberField, TextField , FileInput} from './ui';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Database, Plus, Trash2, RotateCcw, Loader2, Pencil, Check, X, Search, Download, Upload } from 'lucide-react';
@@ -220,38 +221,38 @@ export function SpoolCatalogSettings() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <button
+          <Button variant="unstyled"
             onClick={handleExport}
             className="px-3 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray hover:text-white transition-colors flex items-center gap-1.5"
             title={t('settings.catalog.exportTooltip')}
           >
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline">{t('common.export')}</span>
-          </button>
-          <button
+          </Button>
+          <Button variant="unstyled"
             onClick={() => fileInputRef.current?.click()}
             className="px-3 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray hover:text-white transition-colors flex items-center gap-1.5"
             title={t('settings.catalog.importTooltip')}
           >
             <Upload className="w-4 h-4" />
             <span className="hidden sm:inline">{t('common.import')}</span>
-          </button>
-          <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
-          <button
+          </Button>
+          <FileInput ref={fileInputRef} accept=".json" className="hidden" onChange={handleImport} />
+          <Button variant="unstyled"
             onClick={() => setShowResetConfirm(true)}
             className="px-3 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray hover:text-white transition-colors flex items-center gap-1.5"
             title={t('settings.catalog.resetTooltip')}
           >
             <RotateCcw className="w-4 h-4" />
             <span className="hidden sm:inline">{t('common.reset')}</span>
-          </button>
-          <button
+          </Button>
+          <Button variant="unstyled"
             onClick={() => setShowAddForm(true)}
             className="px-3 py-1.5 text-sm bg-bambu-green text-white rounded-lg hover:bg-bambu-green/80 transition-colors flex items-center gap-1.5"
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">{t('common.add')}</span>
-          </button>
+          </Button>
         </div>
 
         {selectedIds.size > 0 && (
@@ -259,19 +260,19 @@ export function SpoolCatalogSettings() {
             <span className="text-sm text-red-700 dark:text-red-400">
               {t('settings.catalog.selectedCount', { count: selectedIds.size })}
             </span>
-            <button
+            <Button variant="unstyled"
               onClick={() => setShowBulkDeleteConfirm(true)}
               className="ml-auto px-3 py-1.5 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1.5"
             >
               <Trash2 className="w-4 h-4" />
               {t('settings.catalog.deleteSelected')}
-            </button>
-            <button
+            </Button>
+            <Button variant="unstyled"
               onClick={() => setSelectedIds(new Set())}
               className="px-3 py-1.5 text-sm text-bambu-gray hover:text-white transition-colors"
             >
               {t('common.cancel')}
-            </button>
+            </Button>
           </div>
         )}
       </CardHeader>
@@ -283,7 +284,7 @@ export function SpoolCatalogSettings() {
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
-          <input
+          <TextField
             type="text"
             className="w-full pl-10 pr-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
             placeholder={t('settings.catalog.searchCatalog')}
@@ -297,7 +298,7 @@ export function SpoolCatalogSettings() {
             <h3 className="text-sm font-medium text-white mb-3">{t('settings.catalog.addNewEntry')}</h3>
             <div className="flex gap-2 items-center">
               <div className="flex-1 min-w-0">
-                <input
+                <TextField
                   type="text"
                   className="w-full px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                   placeholder={t('settings.catalog.namePlaceholder')}
@@ -305,28 +306,27 @@ export function SpoolCatalogSettings() {
                   onChange={(e) => setFormName(e.target.value)}
                 />
               </div>
-              <input
-                type="number"
+              <NumberField
                 className="w-20 px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white text-center focus:border-bambu-green focus:outline-none"
                 placeholder="g"
                 value={formWeight}
                 onChange={(e) => setFormWeight(e.target.value)}
               />
               <span className="text-bambu-gray shrink-0">g</span>
-              <button
+              <Button variant="unstyled"
                 onClick={handleAdd}
                 disabled={saving}
                 className="px-3 py-2 bg-bambu-green text-white rounded-lg hover:bg-bambu-green/80 flex items-center gap-1 shrink-0"
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                 {t('common.add')}
-              </button>
-              <button
+              </Button>
+              <Button variant="unstyled"
                 onClick={() => { setShowAddForm(false); setFormName(''); setFormWeight(''); }}
                 className="p-2 rounded-lg text-bambu-gray hover:text-white hover:bg-bambu-dark-tertiary"
               >
                 <X className="w-4 h-4" />
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -342,8 +342,7 @@ export function SpoolCatalogSettings() {
               <thead className="bg-bambu-dark sticky top-0">
                 <tr>
                   <th className="px-2 py-2 w-10">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={filteredCatalog.length > 0 && selectedIds.size === filteredCatalog.length}
                       onChange={toggleSelectAll}
                       className="w-4 h-4 accent-bambu-green cursor-pointer"
@@ -368,15 +367,14 @@ export function SpoolCatalogSettings() {
                       {editingId === entry.id ? (
                         <>
                           <td className="px-2 py-2">
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               checked={selectedIds.has(entry.id)}
                               onChange={() => toggleSelect(entry.id)}
                               className="w-4 h-4 accent-bambu-green cursor-pointer"
                             />
                           </td>
                           <td className="px-4 py-2">
-                            <input
+                            <TextField
                               type="text"
                               className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white focus:border-bambu-green focus:outline-none"
                               value={formName}
@@ -384,8 +382,7 @@ export function SpoolCatalogSettings() {
                             />
                           </td>
                           <td className="px-4 py-2">
-                            <input
-                              type="number"
+                            <NumberField
                               className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-right focus:border-bambu-green focus:outline-none"
                               value={formWeight}
                               onChange={(e) => setFormWeight(e.target.value)}
@@ -396,24 +393,23 @@ export function SpoolCatalogSettings() {
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex justify-end gap-1">
-                              <button
+                              <Button variant="unstyled"
                                 onClick={() => handleUpdate(entry.id)}
                                 disabled={saving}
                                 className="p-1.5 rounded hover:bg-green-500/20 text-green-500"
                               >
                                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                              </button>
-                              <button onClick={cancelEdit} className="p-1.5 rounded hover:bg-bambu-dark-tertiary text-bambu-gray">
+                              </Button>
+                              <Button variant="unstyled" onClick={cancelEdit} className="p-1.5 rounded hover:bg-bambu-dark-tertiary text-bambu-gray">
                                 <X className="w-4 h-4" />
-                              </button>
+                              </Button>
                             </div>
                           </td>
                         </>
                       ) : (
                         <>
                           <td className="px-2 py-2">
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               checked={selectedIds.has(entry.id)}
                               onChange={() => toggleSelect(entry.id)}
                               className="w-4 h-4 accent-bambu-green cursor-pointer"
@@ -434,18 +430,18 @@ export function SpoolCatalogSettings() {
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex justify-end gap-1">
-                              <button
+                              <Button variant="unstyled"
                                 onClick={() => startEdit(entry)}
                                 className="p-1.5 rounded hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white"
                               >
                                 <Pencil className="w-4 h-4" />
-                              </button>
-                              <button
+                              </Button>
+                              <Button variant="unstyled"
                                 onClick={() => setDeleteEntry(entry)}
                                 className="p-1.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-500"
                               >
                                 <Trash2 className="w-4 h-4" />
-                              </button>
+                              </Button>
                             </div>
                           </td>
                         </>

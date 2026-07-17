@@ -2,6 +2,7 @@ import { ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { CalibrationProfile, PAProfileSectionProps } from './types';
 import { isMatchingCalibration } from './utils';
+import { Checkbox } from '../ui';
 
 export function PAProfileSection({
   formData,
@@ -115,11 +116,9 @@ export function PAProfileSection({
             : 'bg-bambu-dark border-transparent hover:bg-bambu-dark/80'
         }`}
       >
-        <input
-          type="checkbox"
+        <Checkbox
           checked={isSelected}
           onChange={() => toggleProfileSelected(String(printer.id), cal.cali_idx, cal.extruder_id)}
-          className="w-4 h-4 rounded border-bambu-dark-tertiary text-bambu-green focus:ring-bambu-green"
         />
         <div className="flex-1 min-w-0">
           <span className={`text-sm font-medium ${isSelected ? 'text-bambu-green' : 'text-white'}`}>

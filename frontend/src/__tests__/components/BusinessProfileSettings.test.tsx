@@ -67,6 +67,15 @@ function usePermissions(permissions: string[]) {
   );
 }
 
+async function chooseOption(
+  user: ReturnType<typeof userEvent.setup>,
+  control: HTMLElement,
+  optionName: string,
+) {
+  await user.click(control);
+  await user.click(screen.getByRole('option', { name: optionName }));
+}
+
 describe('BusinessProfileSettings', () => {
   beforeEach(() => {
     setAuthToken(null);
@@ -99,15 +108,15 @@ describe('BusinessProfileSettings', () => {
     await user.click(await screen.findByRole('button', { name: 'Add business profile' }));
     await user.type(screen.getByLabelText('Profile name'), 'North America');
     await user.type(screen.getByLabelText('Legal name'), 'North America LLC');
-    await user.selectOptions(screen.getByLabelText('Profile country'), 'FR');
-    await user.selectOptions(screen.getByLabelText('Currency'), 'JPY');
-    await user.selectOptions(screen.getByLabelText('Locale'), 'fr');
+    await chooseOption(user, screen.getByLabelText('Profile country'), 'FR');
+    await chooseOption(user, screen.getByLabelText('Currency'), 'JPY');
+    await chooseOption(user, screen.getByLabelText('Locale'), 'Français');
     await user.clear(screen.getByLabelText('Timezone'));
     await user.type(screen.getByLabelText('Timezone'), 'Asia/Tokyo');
     await user.type(screen.getByLabelText('Street'), '100 Main Street');
     await user.type(screen.getByLabelText('Postal code'), '10001');
     await user.type(screen.getByLabelText('City'), 'New York');
-    await user.selectOptions(screen.getByLabelText('Country'), 'FR');
+    await chooseOption(user, screen.getByLabelText('Country'), 'FR');
     await user.click(screen.getByRole('button', { name: 'Save business profile' }));
 
     await waitFor(() => expect(submitted).toMatchObject({
@@ -128,27 +137,31 @@ describe('BusinessProfileSettings', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Add business profile' }));
     expect(screen.getByText('Optional. Name used in business if it differs from the legal name.')).toBeInTheDocument();
-    expect(screen.getByLabelText('Profile name')).toHaveClass('h-10');
-    expect(screen.getByLabelText('Profile country')).toHaveClass('h-10');
+    expect(screen.getByLabelText('Profile name')).toHaveClass('h-[38px]', 'max-[768px]:min-h-11');
+    expect(screen.getByLabelText('Profile country')).toHaveClass('h-[38px]', 'max-[768px]:min-h-11');
 
     await user.click(screen.getByRole('button', { name: 'Add tax ID' }));
     const kind = screen.getByRole('combobox', { name: 'Tax ID kind 1' });
-    expect(kind).toHaveValue('vat');
-    expect(within(kind).getByRole('option', { name: 'VAT identification number' })).toBeInTheDocument();
-    expect(within(kind).getByRole('option', { name: 'Tax number' })).toBeInTheDocument();
-    expect(within(kind).getByRole('option', { name: 'Other tax ID' })).toBeInTheDocument();
+    expect(kind).toHaveTextContent('VAT identification number');
+    await user.click(kind);
+    expect(screen.getByRole('option', { name: 'VAT identification number' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Tax number' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Other tax ID' })).toBeInTheDocument();
     expect(screen.getByText('For Germany, enter the VAT ID including the DE prefix, e.g. DE123456789.')).toBeInTheDocument();
     expect(screen.queryByLabelText('Valid from 1')).not.toBeInTheDocument();
-    await user.selectOptions(kind, 'other');
+    await user.click(screen.getByRole('option', { name: 'Other tax ID' }));
     expect(screen.getByLabelText('Valid from 1')).toBeInTheDocument();
     expect(screen.getByLabelText('Valid until 1')).toBeInTheDocument();
 
     const locale = screen.getByRole('combobox', { name: 'Locale' });
-    expect(within(locale).getByRole('option', { name: 'Deutsch' })).toHaveValue('de');
-    expect(within(locale).getByRole('option', { name: 'English' })).toHaveValue('en');
+    await user.click(locale);
+    expect(screen.getByRole('option', { name: 'Deutsch' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'English' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
 
     for (const checkbox of within(screen.getByRole('dialog')).getAllByRole('checkbox')) {
-      expect(checkbox.closest('label')).toHaveClass('min-h-10', 'items-center');
+      expect(checkbox.closest('label')).toHaveClass('items-center');
+      expect(checkbox.closest('label')?.className).toMatch(/min-h/);
     }
   });
 
@@ -176,7 +189,7 @@ describe('BusinessProfileSettings', () => {
     expect(screen.getByRole('checkbox', { name: 'Show online-offer QR code on PDFs' })).not.toBeChecked();
     expect(screen.getByLabelText('PayPal.Me')).toHaveAttribute('placeholder', 'https://paypal.me/deinname');
 
-    await user.selectOptions(screen.getByLabelText('Tax mode'), 'exempt');
+    await chooseOption(user, screen.getByLabelText('Tax mode'), 'Tax exempt');
     expect(screen.getByLabelText('Default VAT %')).toBeDisabled();
     expect(screen.getByLabelText('Default VAT %')).toHaveValue(0);
     expect(screen.getByRole('checkbox', { name: 'Input tax deductible' })).toBeDisabled();
@@ -201,11 +214,10 @@ describe('BusinessProfileSettings', () => {
     const dialog = screen.getByRole('dialog', { name: 'Add business profile' });
     const viewport = within(dialog).getByTestId('business-profile-editor-scroll-viewport');
     const fieldset = viewport.firstElementChild;
+    const scrollArea = viewport.closest('.scrollbar-thin');
 
-    expect(dialog.children[1]).toBe(viewport);
-    expect(viewport.previousElementSibling).toBe(dialog.firstElementChild);
-    expect(viewport.nextElementSibling).toBe(dialog.lastElementChild);
-    expect(viewport).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto');
+    expect(scrollArea).toHaveClass('overflow-y-auto', 'min-h-0', 'flex-1');
+    expect(viewport).toHaveClass('min-h-0');
     expect(fieldset).toHaveProperty('tagName', 'FIELDSET');
     expect(fieldset).not.toHaveClass('flex-1', 'overflow-y-auto');
   });
@@ -218,7 +230,7 @@ describe('BusinessProfileSettings', () => {
     await user.click(add);
     expect(screen.getByLabelText('Profile name')).toHaveFocus();
     await user.tab({ shift: true });
-    expect(screen.getByRole('button', { name: 'Save business profile' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus();
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(add).toHaveFocus();
@@ -237,9 +249,9 @@ describe('BusinessProfileSettings', () => {
     await user.click(await screen.findByRole('button', { name: 'Edit EU Operations' }));
     await user.clear(screen.getByLabelText('Trading name'));
     await user.type(screen.getByLabelText('Trading name'), 'EU Print Shop');
-    await user.selectOptions(screen.getByLabelText('Profile country'), 'US');
-    await user.selectOptions(screen.getByLabelText('Billing mode'), 'hybrid');
-    await user.selectOptions(screen.getByLabelText('Locale'), 'de');
+    await chooseOption(user, screen.getByLabelText('Profile country'), 'US');
+    await chooseOption(user, screen.getByLabelText('Billing mode'), 'Hybrid');
+    await chooseOption(user, screen.getByLabelText('Locale'), 'Deutsch');
     await user.click(screen.getByRole('button', { name: 'Save business profile' }));
 
     await waitFor(() => expect(submitted).toMatchObject({
@@ -290,8 +302,8 @@ describe('BusinessProfileSettings', () => {
     await user.type(screen.getByLabelText('Bank account label 1'), 'US operating account');
     await user.type(screen.getByLabelText('Account holder 1'), 'EU Operations Inc.');
     await user.type(screen.getByLabelText('Bank name 1'), 'Example Bank');
-    await user.selectOptions(screen.getByLabelText('Bank country 1'), 'US');
-    await user.selectOptions(screen.getByLabelText('Bank currency 1'), 'USD');
+    await chooseOption(user, screen.getByLabelText('Bank country 1'), 'US');
+    await chooseOption(user, screen.getByLabelText('Bank currency 1'), 'USD');
     await user.type(screen.getByLabelText('IBAN 1'), 'GB82WEST12345698765432');
     await user.type(screen.getByLabelText('BIC 1'), 'DABAIE2D');
     await user.type(screen.getByLabelText('Account number 1'), '000123456789');
@@ -467,7 +479,7 @@ describe('BusinessProfileSettings', () => {
 
     const legalName = screen.getByLabelText('Legal name');
     expect(await screen.findByText('Legal name is required')).toBeInTheDocument();
-    expect(legalName.parentElement).toHaveTextContent('Legal name is required');
+    expect(legalName.closest('label')).toHaveTextContent('Legal name is required');
   });
 
   it('maps a nested 422 problem detail next to the matching bank field', async () => {
@@ -486,7 +498,7 @@ describe('BusinessProfileSettings', () => {
 
     const iban = screen.getByLabelText('IBAN 1');
     expect(await screen.findByText('IBAN format is invalid')).toBeInTheDocument();
-    expect(iban.parentElement).toHaveTextContent('IBAN format is invalid');
+    expect(iban.closest('label')).toHaveTextContent('IBAN format is invalid');
   });
 
   it('maps a tax validity-date 422 problem beside its newly exposed field', async () => {
@@ -505,7 +517,7 @@ describe('BusinessProfileSettings', () => {
 
     const validFrom = screen.getByLabelText('Valid from 1');
     expect(await screen.findByText('Valid-from date is invalid')).toBeInTheDocument();
-    expect(validFrom.parentElement).toHaveTextContent('Valid-from date is invalid');
+    expect(validFrom.closest('label')).toHaveTextContent('Valid-from date is invalid');
   });
 
   it('submits repeatable default and primary checkbox state while enforcing one selection', async () => {
@@ -595,8 +607,8 @@ describe('BusinessProfileSettings', () => {
 
     render(<BusinessProfileSettings />);
     await user.click(await screen.findByRole('button', { name: 'Edit EU Operations' }));
-    fireEvent.change(screen.getByLabelText('Tax ID kind 1'), { target: { value: 'tax' } });
-    await user.selectOptions(screen.getByLabelText('Bank currency 1'), 'USD');
+    await chooseOption(user, screen.getByLabelText('Tax ID kind 1'), 'Tax number');
+    await chooseOption(user, screen.getByLabelText('Bank currency 1'), 'USD');
     await user.click(screen.getByRole('button', { name: 'Save business profile' }));
 
     await waitFor(() => expect(submitted).toBeDefined());
@@ -642,7 +654,7 @@ describe('BusinessProfileSettings', () => {
 
     render(<BusinessProfileSettings />);
     await user.click(await screen.findByRole('button', { name: 'Edit EU Operations' }));
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Address kind' }), 'billing');
+    await chooseOption(user, screen.getByRole('combobox', { name: 'Address kind' }), 'Billing');
     await user.click(screen.getByRole('button', { name: 'Save business profile' }));
 
     await waitFor(() => expect(submitted).toBeDefined());

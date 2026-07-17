@@ -4,6 +4,7 @@ import { BadgeEuro, Calculator, Clock3, Coins, Loader2, Package, TriangleAlert, 
 import { calculationsApi, type CalculationPreview, type CalculationPreviewInput, type PriceMethod } from '../../../api/calculations';
 import { api } from '../../../api/client';
 import { SUPPORTED_CURRENCIES } from '../../../utils/currency';
+import { NumberField, Select } from '../../ui';
 
 type SettingKey = 'currency' | 'default_filament_cost' | 'energy_cost_per_kwh' | 'energy_tracking_mode' | 'calculation_defaults';
 type Settings = { currency: string; default_filament_cost: number; energy_cost_per_kwh: number; energy_tracking_mode: string; calculation_defaults: string };
@@ -20,8 +21,6 @@ const FALLBACK: Defaults = {
   consumables: 0.75, packaging: 2.5, additionalCosts: 0, shipping: 5.49,
   exampleParts: 1, examplePartsPerRun: 1, exampleMaterialGrams: 200, examplePrintHours: 5,
 };
-
-const inputClass = 'mt-1 h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 text-white outline-none focus:border-bambu-green';
 
 function parseDefaults(value: string): Defaults {
   try { return { ...FALLBACK, ...JSON.parse(value || '{}') }; } catch { return { ...FALLBACK }; }
@@ -99,10 +98,21 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
     const Icon = group.icon;
     return <section key={group.title} className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-5">
       <div className="flex items-start gap-3"><div className="rounded-lg bg-bambu-orange/10 p-2 text-bambu-orange"><Icon className="h-5 w-5" /></div><div><h3 className="font-semibold text-white">{group.title}</h3><p className="mt-1 text-xs text-bambu-gray">{group.description}</p></div></div>
-      {group.title === (de ? 'Kostenbasis' : 'Cost basis') && <div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-sm text-bambu-gray">{de ? 'Standarddrucker' : 'Default printer'}<select value={Number(defaults.defaultPrinterId)} onChange={e => update('defaultPrinterId', Number(e.target.value))} className={inputClass}><option value={0}>{de ? 'Kein Standarddrucker' : 'No default printer'}</option>{printers.filter(item => item.is_active).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label className="text-sm text-bambu-gray">{de ? 'Standardtrockner' : 'Default dryer'}<select value={Number(defaults.defaultDryerId)} onChange={e => update('defaultDryerId', Number(e.target.value))} className={inputClass}><option value={0}>{de ? 'Kein Standardtrockner' : 'No default dryer'}</option>{dryers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>{selectedPrinter && <div className="rounded-lg bg-bambu-dark p-3 text-sm"><span className="block text-xs text-bambu-gray">{de ? 'Drucker: Restwert / Stundensatz' : 'Printer: residual / hourly'}</span><strong className="text-white">{money(selectedPrinter.residual_value ?? '0')} / {money(selectedPrinter.hourly_rate ?? '0')}/h</strong></div>}{selectedDryer && <div className="rounded-lg bg-bambu-dark p-3 text-sm"><span className="block text-xs text-bambu-gray">{de ? 'Trockner: Restwert / Stundensatz' : 'Dryer: residual / hourly'}</span><strong className="text-white">{money(selectedDryer.residual_value)} / {money(selectedDryer.hourly_rate)}/h</strong></div>}</div>}
-      {group.title === (de ? 'Preisbildung' : 'Price derivation') && <label className="mt-4 block text-sm text-bambu-gray">{de ? 'Verfahren' : 'Method'}<select value={String(defaults.priceMethod)} onChange={e => update('priceMethod', e.target.value)} className={inputClass}><option value="target_margin">{de ? 'Zielmarge' : 'Target margin'}</option><option value="markup">{de ? 'Aufschlag' : 'Markup'}</option><option value="explicit_price">{de ? 'Fester Zielpreis' : 'Explicit price'}</option></select></label>}
-      {group.title === (de ? 'Preisbildung' : 'Price derivation') && <label className="mt-3 block text-sm text-bambu-gray">{de ? 'Preisrundung' : 'Price rounding'}<select value={String(defaults.roundingMode)} onChange={e => update('roundingMode', e.target.value)} className={inputClass}><option value="none">{de ? 'Keine' : 'None'}</option><option value="0.05">0,05</option><option value="0.10">0,10</option><option value="0.50">0,50</option><option value="1.00">1,00</option><option value="x.90">x,90</option><option value="x.99">x,99</option></select></label>}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">{group.fields.map(([key, label, step]) => <label key={key} className="text-sm text-bambu-gray">{label}<input type="number" min="0" step={step} value={Number(defaults[key] ?? 0)} onChange={e => update(key, Number(e.target.value))} className={inputClass} /></label>)}</div>
+      {group.title === (de ? 'Kostenbasis' : 'Cost basis') && <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <Select<number> label={de ? 'Standarddrucker' : 'Default printer'} value={Number(defaults.defaultPrinterId)} onValueChange={(value) => update('defaultPrinterId', value)} options={[{ value: 0, label: de ? 'Kein Standarddrucker' : 'No default printer' }, ...printers.filter(item => item.is_active).map(item => ({ value: item.id, label: item.name }))]} />
+        <Select<number> label={de ? 'Standardtrockner' : 'Default dryer'} value={Number(defaults.defaultDryerId)} onValueChange={(value) => update('defaultDryerId', value)} options={[{ value: 0, label: de ? 'Kein Standardtrockner' : 'No default dryer' }, ...dryers.map(item => ({ value: item.id, label: item.name }))]} />
+        {selectedPrinter && <div className="rounded-lg bg-bambu-dark p-3 text-sm"><span className="block text-xs text-bambu-gray">{de ? 'Drucker: Restwert / Stundensatz' : 'Printer: residual / hourly'}</span><strong className="text-white">{money(selectedPrinter.residual_value ?? '0')} / {money(selectedPrinter.hourly_rate ?? '0')}/h</strong></div>}
+        {selectedDryer && <div className="rounded-lg bg-bambu-dark p-3 text-sm"><span className="block text-xs text-bambu-gray">{de ? 'Trockner: Restwert / Stundensatz' : 'Dryer: residual / hourly'}</span><strong className="text-white">{money(selectedDryer.residual_value)} / {money(selectedDryer.hourly_rate)}/h</strong></div>}
+      </div>}
+      {group.title === (de ? 'Preisbildung' : 'Price derivation') && <Select label={de ? 'Verfahren' : 'Method'} value={String(defaults.priceMethod)} onValueChange={(value) => update('priceMethod', value)} className="mt-4" options={[
+        { value: 'target_margin', label: de ? 'Zielmarge' : 'Target margin' },
+        { value: 'markup', label: de ? 'Aufschlag' : 'Markup' },
+        { value: 'explicit_price', label: de ? 'Fester Zielpreis' : 'Explicit price' },
+      ]} />}
+      {group.title === (de ? 'Preisbildung' : 'Price derivation') && <Select label={de ? 'Preisrundung' : 'Price rounding'} value={String(defaults.roundingMode)} onValueChange={(value) => update('roundingMode', value)} className="mt-3" options={[
+        { value: 'none', label: de ? 'Keine' : 'None' }, { value: '0.05', label: '0,05' }, { value: '0.10', label: '0,10' }, { value: '0.50', label: '0,50' }, { value: '1.00', label: '1,00' }, { value: 'x.90', label: 'x,90' }, { value: 'x.99', label: 'x,99' },
+      ]} />}
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">{group.fields.map(([key, label, step]) => <NumberField key={key} label={label} min="0" step={step} value={Number(defaults[key] ?? 0)} onValueChange={(value) => update(key, Number(value))} />)}</div>
       {group.title === (de ? 'Beispielrechnung' : 'Example calculation') && <div className="mt-4">
         {loading && <div className="flex items-center gap-2 text-sm text-bambu-gray"><Loader2 className="h-4 w-4 animate-spin" />{de ? 'Berechnung läuft…' : 'Calculating…'}</div>}
         {previewError && <div role="alert" className="text-sm text-red-300">{de ? 'Beispiel konnte nicht berechnet werden.' : 'Example could not be calculated.'}</div>}
@@ -118,10 +128,10 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
   return <div id="card-cost" className="space-y-5">
     <h2 className="sr-only">{de ? 'Kostenverfolgung' : 'Cost Tracking'}</h2>
     <div className="grid gap-3 md:grid-cols-4">
-      <label className="text-sm text-bambu-gray">{de ? 'Währung' : 'Currency'}<select value={settings.currency} onChange={e => onChange('currency', e.target.value)} className={inputClass}>{SUPPORTED_CURRENCIES.map(currency => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select></label>
-      <label className="text-sm text-bambu-gray">{de ? 'Filamentpreis/kg' : 'Filament price/kg'}<input type="number" min="0" step="0.01" value={settings.default_filament_cost} onChange={e => onChange('default_filament_cost', Number(e.target.value))} className={inputClass} /></label>
-      <label className="text-sm text-bambu-gray">{de ? 'Strompreis/kWh' : 'Electricity/kWh'}<input type="number" min="0" step="0.001" value={settings.energy_cost_per_kwh} onChange={e => onChange('energy_cost_per_kwh', Number(e.target.value))} className={inputClass} /></label>
-      <label className="text-sm text-bambu-gray">{de ? 'Energieanzeige' : 'Energy display'}<select value={settings.energy_tracking_mode} onChange={e => onChange('energy_tracking_mode', e.target.value)} className={inputClass}><option value="total">{de ? 'Gesamtverbrauch' : 'Total consumption'}</option><option value="print">{de ? 'Nur Druckenergie' : 'Print energy only'}</option></select></label>
+      <Select label={de ? 'Währung' : 'Currency'} value={settings.currency} onValueChange={(value) => onChange('currency', value)} options={SUPPORTED_CURRENCIES.map(currency => ({ value: currency.code, label: currency.label }))} />
+      <NumberField label={de ? 'Filamentpreis/kg' : 'Filament price/kg'} min="0" step="0.01" value={settings.default_filament_cost} onValueChange={(value) => onChange('default_filament_cost', Number(value))} />
+      <NumberField label={de ? 'Strompreis/kWh' : 'Electricity/kWh'} min="0" step="0.001" value={settings.energy_cost_per_kwh} onValueChange={(value) => onChange('energy_cost_per_kwh', Number(value))} />
+      <Select label={de ? 'Energieanzeige' : 'Energy display'} value={settings.energy_tracking_mode} onValueChange={(value) => onChange('energy_tracking_mode', value)} options={[{ value: 'total', label: de ? 'Gesamtverbrauch' : 'Total consumption' }, { value: 'print', label: de ? 'Nur Druckenergie' : 'Print energy only' }]} />
     </div>
     <div className="grid items-start gap-5 lg:grid-cols-2"><div className="space-y-5">{groups.filter(group => group.column === 'cost').map(renderGroup)}</div><div className="space-y-5">{groups.filter(group => group.column === 'commercial').map(renderGroup)}</div></div>
     <div className="flex items-center gap-2 rounded-lg border border-bambu-green/30 bg-bambu-green/5 p-3 text-xs text-bambu-gray"><Calculator className="h-4 w-4 text-bambu-green" />{de ? 'Vorschau und spätere Freigabe verwenden denselben Decimal-Kostenkern.' : 'Preview and approval use the same Decimal cost engine.'}</div>

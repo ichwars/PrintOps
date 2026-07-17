@@ -16,6 +16,7 @@ import {
 import { api } from '../api/client';
 import { Button } from './Button';
 import { RichTextEditor } from './RichTextEditor';
+import { TextField } from './ui';
 
 interface ProjectPageModalProps {
   archiveId: number;
@@ -194,7 +195,7 @@ export function ProjectPageModal({ archiveId, archiveName, onClose }: ProjectPag
               {/* Title & Designer */}
               <div className="space-y-4">
                 {isEditing ? (
-                  <input
+                  <TextField
                     type="text"
                     value={editData.title || ''}
                     onChange={(e) => setEditData({ ...editData, title: e.target.value })}
@@ -211,7 +212,7 @@ export function ProjectPageModal({ archiveId, archiveName, onClose }: ProjectPag
                   {isEditing ? (
                     <div className="flex items-center gap-2">
                       <User className="w-4 h-4 text-bambu-gray" />
-                      <input
+                      <TextField
                         type="text"
                         value={editData.designer || ''}
                         onChange={(e) => setEditData({ ...editData, designer: e.target.value })}
@@ -248,7 +249,7 @@ export function ProjectPageModal({ archiveId, archiveName, onClose }: ProjectPag
                   {isEditing ? (
                     <div className="flex items-center gap-2">
                       <FileText className="w-4 h-4 text-bambu-gray" />
-                      <input
+                      <TextField
                         type="text"
                         value={editData.license || ''}
                         onChange={(e) => setEditData({ ...editData, license: e.target.value })}
@@ -304,7 +305,7 @@ export function ProjectPageModal({ archiveId, archiveName, onClose }: ProjectPag
                   </h4>
                   {isEditing ? (
                     <div className="space-y-2">
-                      <input
+                      <TextField
                         type="text"
                         value={editData.profile_title || ''}
                         onChange={(e) => setEditData({ ...editData, profile_title: e.target.value })}

@@ -15,6 +15,7 @@
  * The plaintext token is shown EXACTLY ONCE at create time inside a copy-
  * to-clipboard modal. Listings only ever show metadata.
  */
+import { Button, NumberField, TextField } from '../components/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Copy, Plus, Trash2, AlertTriangle } from 'lucide-react';
@@ -80,7 +81,7 @@ function CreateTokenForm({ onCreated }: CreateTokenFormProps) {
         {t('cameraTokens.create.title', 'Create new token')}
       </h3>
       <div className="grid gap-3 md:grid-cols-[1fr_140px_auto]">
-        <input
+        <TextField
           type="text"
           maxLength={100}
           required
@@ -90,8 +91,7 @@ function CreateTokenForm({ onCreated }: CreateTokenFormProps) {
           className="px-3 py-2 bg-bambu-dark rounded-md text-white border border-bambu-dark-tertiary focus:border-bambu-green focus:outline-none"
           aria-label={t('cameraTokens.create.nameLabel', 'Token name')}
         />
-        <input
-          type="number"
+        <NumberField
           min={1}
           max={MAX_LIFETIME_DAYS}
           required
@@ -106,14 +106,14 @@ function CreateTokenForm({ onCreated }: CreateTokenFormProps) {
           className="px-3 py-2 bg-bambu-dark rounded-md text-white border border-bambu-dark-tertiary focus:border-bambu-green focus:outline-none"
           aria-label={t('cameraTokens.create.daysLabel', 'Days until expiry')}
         />
-        <button
+        <Button variant="unstyled"
           type="submit"
           disabled={submitting || !name.trim()}
           className="flex items-center gap-2 px-4 py-2 bg-bambu-green text-white rounded-md hover:bg-bambu-green/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="w-4 h-4" />
           {t('cameraTokens.create.submit', 'Create')}
-        </button>
+        </Button>
       </div>
       <p className="text-xs text-bambu-gray mt-2">
         {t(
@@ -156,20 +156,20 @@ function ConfirmRevokeModal({ token, onConfirm, onCancel }: ConfirmRevokeModalPr
           </div>
         </div>
         <div className="flex justify-end gap-2">
-          <button
+          <Button variant="unstyled"
             type="button"
             onClick={onCancel}
             className="px-4 py-2 bg-bambu-dark-tertiary text-white rounded-md hover:bg-bambu-dark-tertiary/80"
           >
             {t('cameraTokens.confirmRevoke.cancel', 'Cancel')}
-          </button>
-          <button
+          </Button>
+          <Button variant="unstyled"
             type="button"
             onClick={onConfirm}
             className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"
           >
             {t('cameraTokens.confirmRevoke.confirm', 'Revoke')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -234,23 +234,23 @@ function JustCreatedModal({ token, onClose }: JustCreatedModalProps) {
           <code className="flex-1 px-3 py-2 bg-bambu-dark rounded-md text-bambu-green text-xs break-all font-mono select-all">
             {plaintext}
           </code>
-          <button
+          <Button variant="unstyled"
             type="button"
             onClick={handleCopy}
             className="flex items-center gap-2 px-3 py-2 bg-bambu-green text-white rounded-md hover:bg-bambu-green/90"
           >
             <Copy className="w-4 h-4" />
             {t('cameraTokens.created.copy', 'Copy')}
-          </button>
+          </Button>
         </div>
         <div className="flex justify-end">
-          <button
+          <Button variant="unstyled"
             type="button"
             onClick={onClose}
             className="px-4 py-2 bg-bambu-dark-tertiary text-white rounded-md hover:bg-bambu-dark-tertiary/80"
           >
             {t('cameraTokens.created.dismiss', "I've saved it")}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -283,7 +283,7 @@ function TokenRow({ token, showOwner, ownerLabel, onRevoke }: TokenRowProps) {
       </td>
       <td className="py-3 px-3 text-bambu-gray">{formatDate(token.last_used_at)}</td>
       <td className="py-3 px-3 text-right">
-        <button
+        <Button variant="unstyled"
           type="button"
           onClick={() => onRevoke(token.id)}
           className="inline-flex items-center gap-1 px-2 py-1 text-sm text-red-700 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
@@ -291,7 +291,7 @@ function TokenRow({ token, showOwner, ownerLabel, onRevoke }: TokenRowProps) {
         >
           <Trash2 className="w-4 h-4" />
           {t('cameraTokens.list.revoke', 'Revoke')}
-        </button>
+        </Button>
       </td>
     </tr>
   );

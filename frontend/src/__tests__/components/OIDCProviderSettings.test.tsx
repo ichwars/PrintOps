@@ -218,6 +218,8 @@ describe('OIDCProviderSettings', () => {
       });
       await userEvent.click(screen.getAllByRole('button', { name: /Add Provider/i })[0]);
 
+      await userEvent.click(screen.getByRole('combobox'));
+
       await waitFor(() => {
         // Global MSW mock returns Administrators, Operators, Viewers
         const options = screen.getAllByRole('option');

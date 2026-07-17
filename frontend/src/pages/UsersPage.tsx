@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader } from '../components/Card';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CreateUserAdvancedAuthModal } from '../components/CreateUserAdvancedAuthModal';
 import { LdapUserPicker } from '../components/LdapUserPicker';
+import { Checkbox, TextField } from '../components/ui';
 
 interface FormData extends UserCreate {
   group_ids: number[];
@@ -517,7 +518,7 @@ export function UsersPage() {
                   <label className="block text-sm font-medium text-white mb-2">
                     {t('users.form.username')}
                   </label>
-                  <input
+                  <TextField
                     type="text"
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
@@ -530,7 +531,7 @@ export function UsersPage() {
                   <label className="block text-sm font-medium text-white mb-2">
                     {t('users.form.password')}
                   </label>
-                  <input
+                  <TextField
                     type="password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -544,7 +545,7 @@ export function UsersPage() {
                   <label className="block text-sm font-medium text-white mb-2">
                     {t('users.form.confirmPassword')}
                   </label>
-                  <input
+                  <TextField
                     type="password"
                     value={formData.confirmPassword}
                     onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
@@ -571,11 +572,9 @@ export function UsersPage() {
                         key={group.id}
                         className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={formData.group_ids.includes(group.id)}
                           onChange={() => toggleGroup(group.id)}
-                          className="w-4 h-4 rounded border-bambu-gray text-bambu-green focus:ring-bambu-green focus:ring-offset-0 bg-bambu-dark"
                         />
                         <span className="text-sm text-white">{group.name}</span>
                         {group.is_system && (
@@ -676,7 +675,7 @@ export function UsersPage() {
                   <label className="block text-sm font-medium text-white mb-2">
                     {t('users.form.username')}
                   </label>
-                  <input
+                  <TextField
                     type="text"
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
@@ -689,7 +688,7 @@ export function UsersPage() {
                   <label className="block text-sm font-medium text-white mb-2">
                     {t('users.form.email') || 'Email'} <span className="text-bambu-gray font-normal">({t('users.form.optional') || 'optional'})</span>
                   </label>
-                  <input
+                  <TextField
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -701,7 +700,7 @@ export function UsersPage() {
                   <label className="block text-sm font-medium text-white mb-2">
                     {t('users.form.password')} <span className="text-bambu-gray font-normal">({t('users.form.leaveBlankToKeep')})</span>
                   </label>
-                  <input
+                  <TextField
                     type="password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value, confirmPassword: '' })}
@@ -716,7 +715,7 @@ export function UsersPage() {
                     <label className="block text-sm font-medium text-white mb-2">
                       {t('users.form.confirmPassword')}
                     </label>
-                    <input
+                    <TextField
                       type="password"
                       value={formData.confirmPassword}
                       onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
@@ -744,11 +743,9 @@ export function UsersPage() {
                         key={group.id}
                         className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={formData.group_ids.includes(group.id)}
                           onChange={() => toggleGroup(group.id)}
-                          className="w-4 h-4 rounded border-bambu-gray text-bambu-green focus:ring-bambu-green focus:ring-offset-0 bg-bambu-dark"
                         />
                         <span className="text-sm text-white">{group.name}</span>
                         {group.is_system && (

@@ -9,6 +9,7 @@ import { ConfirmModal } from './ConfirmModal';
 import { useToast } from '../contexts/ToastContext';
 import { filterSpoolsByQuery } from '../utils/inventorySearch';
 import { getSwatchStyle } from '../utils/colors';
+import { Checkbox, TextField } from './ui';
 
 interface AssignSpoolModalProps {
   isOpen: boolean;
@@ -393,7 +394,7 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
           {/* Search filter */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
-            <input
+            <TextField
               type="text"
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
@@ -536,12 +537,10 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
         {/* Footer with filtering toggle */}
         <div className="flex justify-between items-center p-4 border-t border-bambu-dark-tertiary">
           <div className="flex items-center gap-2">
-            <input
+            <Checkbox
               id="disable-filtering-toggle"
-              type="checkbox"
               checked={disableFiltering}
               onChange={() => setDisableFiltering(v => !v)}
-              className="accent-bambu-green w-4 h-4 rounded focus:ring-0 border-bambu-dark-tertiary"
             />
             <label htmlFor="disable-filtering-toggle" className="text-xs text-bambu-gray select-none cursor-pointer">
               {t('inventory.showAllSpools')}

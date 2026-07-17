@@ -23,6 +23,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { NumberField , Checkbox, LegacySelect, Slider, TextField} from '../components/ui';
 import {
   Plus,
   Link,
@@ -1291,8 +1292,7 @@ function IndicatorControlPopover({
                 submitCustom();
               }}
             >
-              <input
-                type="number"
+              <NumberField
                 min={customMin}
                 max={customMax}
                 step={customStep}
@@ -1375,8 +1375,7 @@ function NozzleTemperatureControlBox({
           submitCustom();
         }}
       >
-        <input
-          type="number"
+        <NumberField
           min={0}
           max={320}
           step={1}
@@ -1662,7 +1661,7 @@ export function AmsNameHoverCard({
                 </span>
                 <div className="flex-1 h-[2px] bg-bambu-dark-tertiary/50" />
               </div>
-              <input
+              <TextField
                 type="text"
                 value={editValue}
                 onChange={(e) => canEdit && setEditValue(e.target.value)}
@@ -3429,11 +3428,9 @@ function PrinterCard({
 
                 <div className="bg-bambu-dark rounded-lg p-3 mb-4">
                   <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={deleteArchives}
                       onChange={(e) => setDeleteArchives(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 rounded border-bambu-gray bg-bambu-dark-secondary text-bambu-green focus:ring-bambu-green focus:ring-offset-0"
                     />
                     <div>
                       <span className="text-sm text-white">{t('printers.deleteArchives')}</span>
@@ -5826,7 +5823,7 @@ function PrinterCard({
                         </button>
                         {/* Label */}
                         {editingRefLabel?.index === ref.index ? (
-                          <input
+                          <TextField
                             type="text"
                             value={editingRefLabel.label}
                             onChange={(e) => setEditingRefLabel({ ...editingRefLabel, label: e.target.value })}
@@ -5900,8 +5897,7 @@ function PrinterCard({
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="text-xs text-bambu-gray">{t('printers.roi.xStart')}</label>
-                          <input
-                            type="range"
+                          <Slider
                             min="0"
                             max="0.9"
                             step="0.01"
@@ -5913,8 +5909,7 @@ function PrinterCard({
                         </div>
                         <div>
                           <label className="text-xs text-bambu-gray">{t('printers.roi.yStart')}</label>
-                          <input
-                            type="range"
+                          <Slider
                             min="0"
                             max="0.9"
                             step="0.01"
@@ -5926,8 +5921,7 @@ function PrinterCard({
                         </div>
                         <div>
                           <label className="text-xs text-bambu-gray">{t('printers.width')}</label>
-                          <input
-                            type="range"
+                          <Slider
                             min="0.1"
                             max="1"
                             step="0.01"
@@ -5939,8 +5933,7 @@ function PrinterCard({
                         </div>
                         <div>
                           <label className="text-xs text-bambu-gray">{t('printers.height')}</label>
-                          <input
-                            type="range"
+                          <Slider
                             min="0.1"
                             max="1"
                             step="0.01"
@@ -6339,8 +6332,7 @@ function PrinterCard({
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-[10px] text-white/70 font-medium">{t('printers.drying.temperature')}</label>
                     <div className="flex items-center gap-1">
-                      <input
-                        type="number"
+                      <NumberField
                         min={45}
                         max={maxTemp}
                         value={dryingTemp}
@@ -6350,8 +6342,7 @@ function PrinterCard({
                       <span className="text-[10px] text-bambu-gray">°C</span>
                     </div>
                   </div>
-                  <input
-                    type="range"
+                  <Slider
                     min={sliderMin}
                     max={sliderMax}
                     value={dryingTemp}
@@ -6368,8 +6359,7 @@ function PrinterCard({
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-[10px] text-white/70 font-medium">{t('printers.drying.duration')}</label>
                     <div className="flex items-center gap-1">
-                      <input
-                        type="number"
+                      <NumberField
                         min={1}
                         max={24}
                         value={dryingDuration}
@@ -6379,8 +6369,7 @@ function PrinterCard({
                       <span className="text-[10px] text-bambu-gray">{t('printers.drying.hours')}</span>
                     </div>
                   </div>
-                  <input
-                    type="range"
+                  <Slider
                     min={1}
                     max={24}
                     value={dryingDuration}
@@ -6694,7 +6683,8 @@ export function AddPrinterModal({
                 {t('printers.discovery.subnetToScan')}
               </label>
               {detectedSubnets.length > 0 ? (
-                <select
+                <LegacySelect
+                  aria-label={t('printers.discovery.subnetToScan')}
                   className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none text-sm"
                   value={useCustomSubnet ? '__custom__' : subnet}
                   onChange={(e) => {
@@ -6711,9 +6701,9 @@ export function AddPrinterModal({
                     <option key={s} value={s}>{s}</option>
                   ))}
                   <option value="__custom__">{t('printers.discovery.customSubnetOption')}</option>
-                </select>
+                </LegacySelect>
               ) : (
-                <input
+                <TextField
                   type="text"
                   className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none text-sm"
                   value={subnet}
@@ -6723,7 +6713,7 @@ export function AddPrinterModal({
                 />
               )}
               {useCustomSubnet && (
-                <input
+                <TextField
                   type="text"
                   aria-label={t('printers.discovery.customSubnetLabel')}
                   className="mt-2 w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none text-sm"
@@ -6813,7 +6803,7 @@ export function AddPrinterModal({
           <form onSubmit={handleAddSubmit} className="space-y-4">
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('printers.name')}</label>
-              <input
+              <TextField
                 type="text"
                 required
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -6824,7 +6814,7 @@ export function AddPrinterModal({
             </div>
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('printers.ipAddress')}</label>
-              <input
+              <TextField
                 type="text"
                 required
                 pattern="(\d{1,3}(\.\d{1,3}){3}|[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*)"
@@ -6836,7 +6826,7 @@ export function AddPrinterModal({
             </div>
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('printers.serialNumber')}</label>
-              <input
+              <TextField
                 type="text"
                 required
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -6847,7 +6837,7 @@ export function AddPrinterModal({
             </div>
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('printers.accessCode')}</label>
-              <input
+              <TextField
                 type="password"
                 required
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -6858,7 +6848,7 @@ export function AddPrinterModal({
             </div>
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('printers.modal.modelOptional')}</label>
-              <select
+              <LegacySelect
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                 value={form.model || ''}
                 onChange={(e) => setForm({ ...form, model: e.target.value })}
@@ -6890,11 +6880,11 @@ export function AddPrinterModal({
                 <optgroup label="X2 Series">
                   <option value="X2D">X2D</option>
                 </optgroup>
-              </select>
+              </LegacySelect>
             </div>
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('printers.modal.locationGroup')}</label>
-              <input
+              <TextField
                 type="text"
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                 value={form.location || ''}
@@ -6904,12 +6894,10 @@ export function AddPrinterModal({
               <p className="text-xs text-bambu-gray mt-1">{t('printers.locationHelp')}</p>
             </div>
             <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
+              <Checkbox
                 id="auto_archive"
-                checked={form.auto_archive}
+                checked={Boolean(form.auto_archive)}
                 onChange={(e) => setForm({ ...form, auto_archive: e.target.checked })}
-                className="rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
               />
               <label htmlFor="auto_archive" className="text-sm text-bambu-gray">
                 {t('printers.modal.autoArchiveLabel')}
@@ -7346,7 +7334,7 @@ function EditPrinterModal({
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('printers.name')}</label>
-              <input
+              <TextField
                 type="text"
                 required
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -7357,7 +7345,7 @@ function EditPrinterModal({
             </div>
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('printers.ipAddress')}</label>
-              <input
+              <TextField
                 type="text"
                 required
                 pattern="(\d{1,3}(\.\d{1,3}){3}|[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*)"
@@ -7369,7 +7357,7 @@ function EditPrinterModal({
             </div>
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('printers.serialNumber')}</label>
-              <input
+              <TextField
                 type="text"
                 disabled
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray cursor-not-allowed"
@@ -7379,7 +7367,7 @@ function EditPrinterModal({
             </div>
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('printers.accessCode')}</label>
-              <input
+              <TextField
                 type="password"
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                 value={form.access_code}
@@ -7389,7 +7377,7 @@ function EditPrinterModal({
             </div>
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('printers.model')}</label>
-              <select
+              <LegacySelect
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                 value={form.model}
                 onChange={(e) => setForm({ ...form, model: e.target.value })}
@@ -7421,11 +7409,11 @@ function EditPrinterModal({
                 <optgroup label="X2 Series">
                   <option value="X2D">X2D</option>
                 </optgroup>
-              </select>
+              </LegacySelect>
             </div>
             <div>
               <label className="block text-sm text-bambu-gray mb-1">Location / Group</label>
-              <input
+              <TextField
                 type="text"
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                 value={form.location}
@@ -7435,12 +7423,10 @@ function EditPrinterModal({
               <p className="text-xs text-bambu-gray mt-1">{t('printers.locationHelp')}</p>
             </div>
             <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
+              <Checkbox
                 id="edit_auto_archive"
                 checked={form.auto_archive}
                 onChange={(e) => setForm({ ...form, auto_archive: e.target.checked })}
-                className="rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
               />
               <label htmlFor="edit_auto_archive" className="text-sm text-bambu-gray">
                 {t('printers.modal.autoArchiveLabel')}
@@ -7451,12 +7437,10 @@ function EditPrinterModal({
                 in maintenance" not "is it active". */}
             <div>
               <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
+                <Checkbox
                   id="edit_maintenance_mode"
                   checked={!form.is_active}
                   onChange={(e) => setForm({ ...form, is_active: !e.target.checked })}
-                  className="rounded border-bambu-dark-tertiary bg-bambu-dark text-amber-400 focus:ring-amber-400"
                 />
                 <label htmlFor="edit_maintenance_mode" className="text-sm text-bambu-gray flex items-center gap-1.5">
                   <Wrench className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
@@ -8530,7 +8514,7 @@ export function PrintersPage() {
           {printers && printers.length > 0 && (
             <div className="relative min-w-0 flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray/50" />
-              <input
+              <TextField
                 type="search"
                 name="printer-search"
                 autoComplete="off"

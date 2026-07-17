@@ -137,7 +137,7 @@ export function VirtualPrinterList() {
                     {t('virtualPrinter.caCert.title')}
                   </p>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
+                    <Button variant="unstyled"
                       onClick={handleCopyCert}
                       disabled={!caCert}
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded bg-bambu-dark-secondary border border-bambu-dark-tertiary text-white hover:border-bambu-gray disabled:opacity-50 transition-colors"
@@ -146,15 +146,15 @@ export function VirtualPrinterList() {
                         ? <Check className="w-3.5 h-3.5 text-bambu-green" />
                         : <Copy className="w-3.5 h-3.5" />}
                       {caCopied ? t('virtualPrinter.caCert.copied') : t('virtualPrinter.caCert.copy')}
-                    </button>
-                    <button
+                    </Button>
+                    <Button variant="unstyled"
                       onClick={handleDownloadCert}
                       disabled={!caCert}
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded bg-bambu-dark-secondary border border-bambu-dark-tertiary text-white hover:border-bambu-gray disabled:opacity-50 transition-colors"
                     >
                       <Download className="w-3.5 h-3.5" />
                       {t('virtualPrinter.caCert.download')}
-                    </button>
+                    </Button>
                   </div>
                 </div>
                 <p className="text-xs text-bambu-gray mt-1">

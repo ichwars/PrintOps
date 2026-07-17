@@ -35,6 +35,10 @@ const mockSettings = {
   check_updates: false,
   check_printer_firmware: false,
   bed_cooled_threshold: 35,
+  ftp_retry_enabled: true,
+  ftp_retry_count: 3,
+  ftp_retry_delay: 2,
+  ftp_timeout: 30,
 };
 
 const settingsSidebarChildIds = [
@@ -256,6 +260,62 @@ describe('SettingsPage', () => {
       });
     });
 
+    it('composes device settings in two desktop columns before the full-width virtual printers area', async () => {
+      setSettingsTabUrl('printers-production');
+      let updatedSettings: Record<string, unknown> | undefined;
+      server.use(
+        http.get('/api/v1/equipment/', () => HttpResponse.json([])),
+        http.put('/api/v1/settings/', async ({ request }) => {
+          updatedSettings = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ ...mockSettings, ...updatedSettings });
+        }),
+      );
+
+      render(<SettingsPage />);
+
+      const grid = await screen.findByTestId('device-settings-grid');
+      const left = within(grid).getByTestId('device-settings-left-column');
+      const right = within(grid).getByTestId('device-settings-right-column');
+      const virtualPrinters = document.getElementById('card-vp');
+
+      expect(grid).toHaveClass('xl:grid-cols-2');
+      expect(within(left).getByText('FTP Retry')).toBeInTheDocument();
+      const ftpRetryGrid = within(left).getByTestId('ftp-retry-fields-grid');
+      const ftpRetrySelects = within(ftpRetryGrid).getAllByRole('combobox');
+
+      expect(ftpRetryGrid).toHaveClass('grid-cols-1', 'md:grid-cols-3');
+      expect(ftpRetrySelects).toHaveLength(3);
+      for (const select of ftpRetrySelects) {
+        expect(select.parentElement).toHaveClass('w-full');
+      }
+      const retryAttempts = ftpRetrySelects[0];
+      expect(retryAttempts).toHaveAttribute('aria-expanded', 'false');
+      const user = userEvent.setup();
+      await user.click(retryAttempts);
+      await user.click(screen.getByRole('option', { name: '5 times' }));
+      await waitFor(() => {
+        expect(updatedSettings).toEqual(expect.objectContaining({ ftp_retry_count: 5 }));
+      });
+      expect(
+        within(ftpRetryGrid).getByText('Increase for printers with weak WiFi'),
+      ).toBeInTheDocument();
+      expect(within(left).getByRole('heading', { name: 'Printers' })).toBeInTheDocument();
+      expect(within(right).getAllByText('Default Printer').length).toBeGreaterThan(0);
+      expect(within(right).getByRole('heading', { name: 'Dryers' })).toBeInTheDocument();
+      expect(within(right).getByText('External Cameras')).toBeInTheDocument();
+      expect(within(grid).getByTestId('device-layout-ftp')).toHaveClass('order-1');
+      expect(within(grid).getByTestId('device-layout-default-printer')).toHaveClass('order-2');
+      expect(within(grid).getByTestId('device-layout-printers')).toHaveClass('order-3');
+      expect(within(grid).getByTestId('device-layout-dryers')).toHaveClass('order-4');
+      expect(within(grid).getByTestId('device-layout-camera')).toHaveClass('order-5');
+      expect(virtualPrinters).not.toBeNull();
+      expect(
+        grid.compareDocumentPosition(virtualPrinters as Node) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(grid.contains(virtualPrinters)).toBe(false);
+    });
+
     it('uses the project management subpage as the page title', async () => {
       setSettingsTabUrl('projects-files');
       render(<SettingsPage />);
@@ -401,11 +461,13 @@ describe('SettingsPage', () => {
     it('shows slicer dropdown with both options on Printers & Production', async () => {
       setSettingsTabUrl('printers-production', '&sub=print-process');
       render(<SettingsPage />);
+      const user = userEvent.setup();
 
-      await waitFor(() => {
-        const slicerSelect = screen.getAllByDisplayValue('Bambu Studio');
-        expect(slicerSelect.length).toBeGreaterThan(0);
-      });
+      const slicerSelect = await screen.findByRole('combobox', { name: 'Preferred Slicer' });
+      expect(slicerSelect).toHaveTextContent('Bambu Studio');
+      await user.click(slicerSelect);
+      expect(screen.getByRole('option', { name: 'Bambu Studio' })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'OrcaSlicer' })).toBeInTheDocument();
     });
 
     it('shows File Manager on Projects & Files', async () => {

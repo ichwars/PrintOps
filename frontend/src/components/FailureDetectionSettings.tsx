@@ -5,6 +5,7 @@ import { Loader2, ScanEye, Check, X, AlertTriangle, Info } from 'lucide-react';
 import { api } from '../api/client';
 import { Card, CardContent, CardHeader } from './Card';
 import { Button } from './Button';
+import { Checkbox, LegacySelect, NumberField, TextField } from './ui';
 import { Toggle } from './Toggle';
 import { useToast } from '../contexts/ToastContext';
 
@@ -143,7 +144,7 @@ export function FailureDetectionSettings() {
                 {t('failureDetection.mlUrl')}
               </label>
               <div className="flex gap-2">
-                <input
+                <TextField
                   type="text"
                   value={mlUrl}
                   onChange={(e) => setMlUrl(e.target.value)}
@@ -176,7 +177,7 @@ export function FailureDetectionSettings() {
               <label className="block text-sm text-bambu-gray mb-1">
                 {t('failureDetection.sensitivity')}
               </label>
-              <select
+              <LegacySelect
                 value={sensitivity}
                 onChange={(e) => setSensitivity(e.target.value as 'low' | 'medium' | 'high')}
                 disabled={!enabled}
@@ -185,7 +186,7 @@ export function FailureDetectionSettings() {
                 <option value="low">{t('failureDetection.sensitivityLow')}</option>
                 <option value="medium">{t('failureDetection.sensitivityMedium')}</option>
                 <option value="high">{t('failureDetection.sensitivityHigh')}</option>
-              </select>
+              </LegacySelect>
               <p className="text-xs text-bambu-gray mt-1">{t('failureDetection.sensitivityHint')}</p>
             </div>
 
@@ -193,7 +194,7 @@ export function FailureDetectionSettings() {
               <label className="block text-sm text-bambu-gray mb-1">
                 {t('failureDetection.action')}
               </label>
-              <select
+              <LegacySelect
                 value={action}
                 onChange={(e) => setAction(e.target.value as 'notify' | 'pause' | 'pause_and_off')}
                 disabled={!enabled}
@@ -202,15 +203,14 @@ export function FailureDetectionSettings() {
                 <option value="notify">{t('failureDetection.actionNotify')}</option>
                 <option value="pause">{t('failureDetection.actionPause')}</option>
                 <option value="pause_and_off">{t('failureDetection.actionPauseOff')}</option>
-              </select>
+              </LegacySelect>
             </div>
 
             <div>
               <label className="block text-sm text-bambu-gray mb-1">
                 {t('failureDetection.pollInterval')}
               </label>
-              <input
-                type="number"
+              <NumberField
                 value={pollInterval}
                 onChange={(e) => setPollInterval(Math.max(5, Math.min(120, Number(e.target.value) || 10)))}
                 min={5}
@@ -240,8 +240,7 @@ export function FailureDetectionSettings() {
           </CardHeader>
           <CardContent className="space-y-2">
             <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={enabledPrinters === null}
                 onChange={(e) => setEnabledPrinters(e.target.checked ? null : printers?.map((p) => p.id) ?? [])}
                 disabled={!enabled}
@@ -252,8 +251,7 @@ export function FailureDetectionSettings() {
               <div className="pl-5 space-y-1 border-l border-gray-700">
                 {printers.map((p) => (
                   <label key={p.id} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={enabledPrinters.includes(p.id)}
                       onChange={(e) => togglePrinter(p.id, e.target.checked)}
                       disabled={!enabled}
@@ -333,9 +331,9 @@ export function FailureDetectionSettings() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-white">{t('failureDetection.historyTitle')}</h2>
-              <button onClick={() => refetchStatus()} className="text-xs text-bambu-gray hover:text-white">
+              <Button variant="unstyled" onClick={() => refetchStatus()} className="text-xs text-bambu-gray hover:text-white">
                 {t('common.refresh')}
-              </button>
+              </Button>
             </div>
           </CardHeader>
           <CardContent>

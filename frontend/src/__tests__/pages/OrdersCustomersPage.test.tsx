@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-libra
 import userEvent from '@testing-library/user-event';
 import { delay, http, HttpResponse } from 'msw';
 import { focusManager, QueryClient } from '@tanstack/react-query';
-import { render } from '../utils';
+import { render, selectComboboxOption } from '../utils';
 import { server } from '../mocks/server';
 import { OrdersCustomersPage } from '../../pages/OrdersCustomersPage';
 import { setAuthToken } from '../../api/client';
@@ -101,8 +101,10 @@ describe('OrdersCustomersPage', () => {
     }));
     const view = render(<OrdersCustomersPage />);
     expect(await screen.findByRole('button', { name: 'View Ada Example' })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Business profile' })).toHaveValue('7');
-    expect(screen.getByRole('option', { name: 'Inactive Profile' })).toBeDisabled();
+    const profileSelect = screen.getByRole('combobox', { name: 'Business profile' });
+    expect(profileSelect).toHaveTextContent('Berlin Print Works');
+    fireEvent.click(profileSelect);
+    expect(screen.getByRole('option', { name: 'Inactive Profile' })).toHaveAttribute('aria-disabled', 'true');
     expect(requested).toEqual(['7']);
     view.unmount();
 
@@ -151,11 +153,11 @@ describe('OrdersCustomersPage', () => {
     await new Promise((resolve) => setTimeout(resolve, 200));
     expect(requests.at(-1)?.search).toBeUndefined();
     await waitFor(() => expect(requests.at(-1)).toMatchObject({ search: 'Ada', offset: '0' }), { timeout: 700 });
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Customer status' }), 'inactive');
+    selectComboboxOption(screen.getByRole('combobox', { name: 'Customer status' }), 'Inactive');
     await waitFor(() => expect(requests.at(-1)).toMatchObject({ status: 'inactive', offset: '0' }));
     await user.click(screen.getByRole('button', { name: 'Company' }));
     await waitFor(() => expect(requests.at(-1)).toMatchObject({ kind: 'company', offset: '0' }));
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Business profile' }), '8');
+    selectComboboxOption(screen.getByRole('combobox', { name: 'Business profile' }), 'Hamburg Lab');
     await waitFor(() => expect(requests.at(-1)).toMatchObject({ business_profile_id: '8', offset: '0' }));
   });
 
@@ -230,7 +232,7 @@ describe('OrdersCustomersPage', () => {
     await user.click(within(editor).getByRole('button', { name: 'Company' }));
     await user.type(screen.getByRole('textbox', { name: 'Display name' }), '  Nova Parts  ');
     await user.type(screen.getByRole('textbox', { name: 'Company name' }), 'Nova Parts GmbH');
-    expect(screen.getByRole('combobox', { name: 'Account profile 1' })).toHaveValue('7');
+    expect(screen.getByRole('combobox', { name: 'Account profile 1' })).toHaveTextContent('Berlin Print Works');
     await user.type(screen.getByRole('textbox', { name: 'Customer number 1' }), 'N-42');
     await user.clear(screen.getByRole('spinbutton', { name: 'Payment days 1' }));
     await user.type(screen.getByRole('spinbutton', { name: 'Payment days 1' }), '21');
@@ -242,7 +244,7 @@ describe('OrdersCustomersPage', () => {
     expect(within(editor).getByRole('button', { name: 'Add address: Billing' })).toBeInTheDocument();
     expect(within(editor).getByRole('button', { name: 'Add address: Delivery' })).toBeInTheDocument();
     await user.click(within(editor).getByRole('button', { name: 'Add address: Delivery' }));
-    expect(screen.getByRole('combobox', { name: 'Address kind 1' })).toHaveValue('delivery');
+    expect(screen.getByRole('combobox', { name: 'Address kind 1' })).toHaveTextContent('Delivery');
     await user.type(screen.getByRole('textbox', { name: 'Street 1' }), 'Novaweg 8');
     await user.type(screen.getByRole('textbox', { name: 'Postal code 1' }), '20095');
     await user.type(screen.getByRole('textbox', { name: 'City 1' }), 'Hamburg');
@@ -525,13 +527,13 @@ describe('OrdersCustomersPage', () => {
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
     await screen.findByRole('button', { name: 'View Ada Example' });
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Customer status' }), 'active');
+    selectComboboxOption(screen.getByRole('combobox', { name: 'Customer status' }), 'Active');
     await user.click(screen.getByRole('button', { name: 'Person' }));
     await waitFor(() => expect(requests.at(-1)).toMatchObject({ status: 'active', kind: 'person' }));
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Customer status' }), 'inactive');
+    selectComboboxOption(screen.getByRole('combobox', { name: 'Customer status' }), 'Inactive');
     await user.click(screen.getByRole('button', { name: 'Company' }));
     await waitFor(() => expect(requests.at(-1)).toMatchObject({ status: 'inactive', kind: 'company' }));
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Customer status' }), 'active');
+    selectComboboxOption(screen.getByRole('combobox', { name: 'Customer status' }), 'Active');
     await user.click(screen.getByRole('button', { name: 'Person' }));
     await user.click(await screen.findByRole('button', { name: 'Edit Ada Example' }));
     const editor = await screen.findByRole('dialog', { name: 'Edit customer' });
@@ -550,7 +552,7 @@ describe('OrdersCustomersPage', () => {
     await user.type(screen.getByRole('textbox', { name: 'Contact email 1' }), 'lin.updated@example.test');
     await user.clear(screen.getByRole('textbox', { name: 'City 1' }));
     await user.type(screen.getByRole('textbox', { name: 'City 1' }), 'Hamburg');
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'inactive');
+    selectComboboxOption(screen.getByRole('combobox', { name: 'Status' }), 'Inactive');
     const activePersonRequestsBeforeEdit = requests.filter((params) => params.status === 'active' && params.kind === 'person').length;
     const inactiveCompanyRequestsBeforeReactivation = requests.filter((params) => params.status === 'inactive' && params.kind === 'company').length;
     await user.click(screen.getByRole('button', { name: 'Save customer' }));
@@ -558,7 +560,7 @@ describe('OrdersCustomersPage', () => {
     await waitFor(() => expect(requests.filter((params) => params.status === 'active' && params.kind === 'person').length).toBeGreaterThan(activePersonRequestsBeforeEdit));
     expect(requests.filter((params) => params.status === 'inactive' && params.kind === 'company')).toHaveLength(inactiveCompanyRequestsBeforeReactivation);
     expect(await screen.findByText('No customers match the current filters.')).toBeInTheDocument();
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Customer status' }), 'inactive');
+    selectComboboxOption(screen.getByRole('combobox', { name: 'Customer status' }), 'Inactive');
     await user.click(screen.getByRole('button', { name: 'Company' }));
     await waitFor(() => expect(requests.filter((params) => params.status === 'inactive' && params.kind === 'company').length).toBeGreaterThan(inactiveCompanyRequestsBeforeReactivation));
     const updatedRow = await screen.findByRole('row', { name: /N-500 Nova GmbH/ });

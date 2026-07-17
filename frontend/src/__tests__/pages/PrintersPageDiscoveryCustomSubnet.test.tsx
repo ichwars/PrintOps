@@ -16,7 +16,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { render } from '../utils';
+import { openComboboxOptions, render, selectComboboxOption } from '../utils';
 import { AddPrinterModal } from '../../pages/PrintersPage';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
@@ -75,14 +75,10 @@ describe('AddPrinterModal — custom subnet (#1564)', () => {
 
     // The picker is now ungated; the detected subnet shows in the
     // dropdown alongside the "Custom..." sentinel.
-    await waitFor(() => {
-      expect(
-        screen.getByRole('option', { name: '192.168.1.0/24' }),
-      ).toBeInTheDocument();
-    });
-    expect(
-      screen.getByRole('option', { name: /custom subnet/i }),
-    ).toBeInTheDocument();
+    const subnetSelect = await screen.findByRole('combobox', { name: /subnet to scan/i });
+    const options = openComboboxOptions(subnetSelect);
+    expect(options.some((option) => option.textContent === '192.168.1.0/24')).toBe(true);
+    expect(options.some((option) => /custom subnet/i.test(option.textContent || ''))).toBe(true);
   });
 
   it('routes a custom CIDR through startSubnetScan, not SSDP', async () => {
@@ -96,16 +92,11 @@ describe('AddPrinterModal — custom subnet (#1564)', () => {
     );
 
     // Wait for discoveryApi.getInfo() to populate the dropdown.
-    await waitFor(() => {
-      expect(
-        screen.getByRole('option', { name: '192.168.1.0/24' }),
-      ).toBeInTheDocument();
-    });
+    const select = await screen.findByRole('combobox', { name: /subnet to scan/i });
 
     // Pick the "Custom..." sentinel. Scope by display value because the
     // modal also has a model <select>.
-    const select = screen.getByDisplayValue('192.168.1.0/24') as HTMLSelectElement;
-    await user.selectOptions(select, '__custom__');
+    selectComboboxOption(select, /custom subnet/i);
 
     // The CIDR text input appears (aria-labelled "Custom subnet (CIDR)").
     const cidrInput = await screen.findByLabelText(/custom subnet \(cidr\)/i);
@@ -141,11 +132,7 @@ describe('AddPrinterModal — custom subnet (#1564)', () => {
       />,
     );
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole('option', { name: '192.168.1.0/24' }),
-      ).toBeInTheDocument();
-    });
+    await screen.findByRole('combobox', { name: /subnet to scan/i });
 
     // Don't change the selection — default is the detected subnet.
     const scanButton = screen.getByRole('button', {

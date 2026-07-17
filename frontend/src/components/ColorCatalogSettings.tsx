@@ -1,3 +1,4 @@
+import { Button, LegacySelect, TextField, Checkbox , ColorInput, FileInput} from './ui';
 import { Fragment, useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Palette, Plus, Trash2, RotateCcw, Loader2, Pencil, Check, X, Search, Download, Upload, Cloud } from 'lucide-react';
@@ -335,22 +336,22 @@ export function ColorCatalogSettings() {
           <span className="text-sm text-bambu-gray">({catalog.length})</span>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <button
+          <Button variant="unstyled"
             onClick={handleExport}
             className="px-3 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray hover:text-white transition-colors flex items-center gap-1.5"
           >
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline">{t('common.export')}</span>
-          </button>
-          <button
+          </Button>
+          <Button variant="unstyled"
             onClick={() => fileInputRef.current?.click()}
             className="px-3 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray hover:text-white transition-colors flex items-center gap-1.5"
           >
             <Upload className="w-4 h-4" />
             <span className="hidden sm:inline">{t('common.import')}</span>
-          </button>
-          <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
-          <button
+          </Button>
+          <FileInput ref={fileInputRef} accept=".json" className="hidden" onChange={handleImport} />
+          <Button variant="unstyled"
             onClick={handleSync}
             disabled={syncing}
             className="px-3 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray hover:text-white transition-colors flex items-center gap-1.5"
@@ -364,40 +365,40 @@ export function ColorCatalogSettings() {
                   : t('settings.colorCatalog.starting')
                 : t('settings.colorCatalog.sync')}
             </span>
-          </button>
-          <button
+          </Button>
+          <Button variant="unstyled"
             onClick={() => setShowResetConfirm(true)}
             className="px-3 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray hover:text-white transition-colors flex items-center gap-1.5"
           >
             <RotateCcw className="w-4 h-4" />
             <span className="hidden sm:inline">{t('common.reset')}</span>
-          </button>
-          <button
+          </Button>
+          <Button variant="unstyled"
             onClick={() => setShowAddForm(true)}
             className="px-3 py-1.5 text-sm bg-bambu-green text-white rounded-lg hover:bg-bambu-green/80 transition-colors flex items-center gap-1.5"
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">{t('common.add')}</span>
-          </button>
+          </Button>
         </div>
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-red-50 dark:bg-red-500/10 border border-red-300 dark:border-red-500/30 rounded-lg">
             <span className="text-sm text-red-700 dark:text-red-400">
               {t('settings.colorCatalog.selectedCount', { count: selectedIds.size })}
             </span>
-            <button
+            <Button variant="unstyled"
               onClick={() => setShowBulkDeleteConfirm(true)}
               className="ml-auto px-3 py-1.5 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1.5"
             >
               <Trash2 className="w-4 h-4" />
               {t('settings.colorCatalog.deleteSelected')}
-            </button>
-            <button
+            </Button>
+            <Button variant="unstyled"
               onClick={() => setSelectedIds(new Set())}
               className="px-3 py-1.5 text-sm text-bambu-gray hover:text-white transition-colors"
             >
               {t('common.cancel')}
-            </button>
+            </Button>
           </div>
         )}
       </CardHeader>
@@ -410,7 +411,7 @@ export function ColorCatalogSettings() {
         <div className="flex gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
-            <input
+            <TextField
               type="text"
               className="w-full pl-10 pr-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
               placeholder={t('settings.colorCatalog.searchColors')}
@@ -418,7 +419,7 @@ export function ColorCatalogSettings() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <select
+          <LegacySelect
             className="px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
             value={filterManufacturer}
             onChange={(e) => setFilterManufacturer(e.target.value)}
@@ -427,7 +428,7 @@ export function ColorCatalogSettings() {
             {manufacturers.map(m => (
               <option key={m} value={m}>{m}</option>
             ))}
-          </select>
+          </LegacySelect>
         </div>
 
         {/* Add form */}
@@ -435,14 +436,14 @@ export function ColorCatalogSettings() {
           <div className="p-4 bg-bambu-dark rounded-lg border border-bambu-dark-tertiary">
             <h3 className="text-sm font-medium text-white mb-3">{t('settings.colorCatalog.addNewColor')}</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 items-end">
-              <input
+              <TextField
                 type="text"
                 className="px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                 placeholder={t('settings.colorCatalog.manufacturer')}
                 value={formManufacturer}
                 onChange={(e) => setFormManufacturer(e.target.value)}
               />
-              <input
+              <TextField
                 type="text"
                 className="px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                 placeholder={t('settings.colorCatalog.colorName')}
@@ -450,13 +451,12 @@ export function ColorCatalogSettings() {
                 onChange={(e) => setFormColorName(e.target.value)}
               />
               <div className="flex items-center gap-2">
-                <input
-                  type="color"
+                <ColorInput
                   className="w-20 h-10 rounded cursor-pointer border border-bambu-dark-tertiary"
                   value={formHexColor}
                   onChange={(e) => setFormHexColor(e.target.value)}
                 />
-                <input
+                <TextField
                   type="text"
                   className="w-32 px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                   placeholder="#FFFFFF"
@@ -465,39 +465,39 @@ export function ColorCatalogSettings() {
                 />
               </div>
               <div className="flex items-center gap-1">
-                <input
+                <TextField
                   type="text"
                   className="flex-1 max-w-lg min-w-[200px] px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                   placeholder={t('settings.colorCatalog.materialOptional')}
                   value={formMaterial}
                   onChange={(e) => setFormMaterial(e.target.value)}
                 />
-                <button
+                <Button variant="unstyled"
                   onClick={handleAdd}
                   disabled={saving}
                   className="w-24 px-3 py-2 bg-bambu-green text-white rounded-lg hover:bg-bambu-green/80 flex items-center justify-center gap-3"
                 >
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                   {t('common.add')}
-                </button>
-                <button
+                </Button>
+                <Button variant="unstyled"
                   onClick={() => { setShowAddForm(false); resetForm(); }}
                   className="p-2 ml-2 rounded-lg text-bambu-gray hover:text-white hover:bg-bambu-dark-tertiary"
                 >
                   <X className="w-4 h-4" />
-                </button>
+                </Button>
               </div>
             </div>
             {/* #1154: optional multi-colour stops + visual effect. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-              <input
+              <TextField
                 type="text"
                 className="px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white text-sm font-mono placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                 placeholder={t('inventory.extraColorsPlaceholder')}
                 value={formExtraColors}
                 onChange={(e) => setFormExtraColors(e.target.value)}
               />
-              <select
+              <LegacySelect
                 className="px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:border-bambu-green focus:outline-none"
                 value={formEffectType}
                 onChange={(e) => setFormEffectType(e.target.value)}
@@ -507,7 +507,7 @@ export function ColorCatalogSettings() {
                     {t(opt.labelKey)}
                   </option>
                 ))}
-              </select>
+              </LegacySelect>
             </div>
           </div>
         )}
@@ -531,8 +531,7 @@ export function ColorCatalogSettings() {
               <thead className="bg-bambu-dark sticky top-0">
                 <tr>
                   <th className="px-2 py-2 w-10">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={filteredCatalog.length > 0 && selectedIds.size === filteredCatalog.length}
                       onChange={toggleSelectAll}
                       className="w-4 h-4 accent-bambu-green cursor-pointer"
@@ -560,23 +559,21 @@ export function ColorCatalogSettings() {
                       {editingId === entry.id ? (
                         <>
                           <td className="px-2 py-2">
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               checked={selectedIds.has(entry.id)}
                               onChange={() => toggleSelect(entry.id)}
                               className="w-4 h-4 accent-bambu-green cursor-pointer"
                             />
                           </td>
                           <td className="px-3 py-2">
-                            <input
-                              type="color"
+                            <ColorInput
                               className="w-8 h-8 rounded cursor-pointer border border-bambu-dark-tertiary"
                               value={formHexColor}
                               onChange={(e) => setFormHexColor(e.target.value)}
                             />
                           </td>
                           <td className="px-3 py-2">
-                            <input
+                            <TextField
                               type="text"
                               className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
                               value={formManufacturer}
@@ -584,7 +581,7 @@ export function ColorCatalogSettings() {
                             />
                           </td>
                           <td className="px-3 py-2">
-                            <input
+                            <TextField
                               type="text"
                               className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
                               value={formMaterial}
@@ -592,7 +589,7 @@ export function ColorCatalogSettings() {
                             />
                           </td>
                           <td className="px-3 py-2">
-                            <input
+                            <TextField
                               type="text"
                               className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
                               value={formColorName}
@@ -600,7 +597,7 @@ export function ColorCatalogSettings() {
                             />
                           </td>
                           <td className="px-3 py-2">
-                            <input
+                            <TextField
                               type="text"
                               className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
                               value={formHexColor}
@@ -609,24 +606,23 @@ export function ColorCatalogSettings() {
                           </td>
                           <td className="px-3 py-2">
                             <div className="flex justify-end gap-1">
-                              <button
+                              <Button variant="unstyled"
                                 onClick={() => handleUpdate(entry.id)}
                                 disabled={saving}
                                 className="p-1.5 rounded hover:bg-green-500/20 text-green-500"
                               >
                                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                              </button>
-                              <button onClick={cancelEdit} className="p-1.5 rounded hover:bg-bambu-dark-tertiary text-bambu-gray">
+                              </Button>
+                              <Button variant="unstyled" onClick={cancelEdit} className="p-1.5 rounded hover:bg-bambu-dark-tertiary text-bambu-gray">
                                 <X className="w-4 h-4" />
-                              </button>
+                              </Button>
                             </div>
                           </td>
                         </>
                       ) : (
                         <>
                           <td className="px-2 py-2">
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               checked={selectedIds.has(entry.id)}
                               onChange={() => toggleSelect(entry.id)}
                               className="w-4 h-4 accent-bambu-green cursor-pointer"
@@ -649,18 +645,18 @@ export function ColorCatalogSettings() {
                           <td className="px-3 py-2 font-mono text-xs text-bambu-gray">{entry.hex_color}</td>
                           <td className="px-3 py-2">
                             <div className="flex justify-end gap-1">
-                              <button
+                              <Button variant="unstyled"
                                 onClick={() => startEdit(entry)}
                                 className="p-1.5 rounded hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white"
                               >
                                 <Pencil className="w-4 h-4" />
-                              </button>
-                              <button
+                              </Button>
+                              <Button variant="unstyled"
                                 onClick={() => setDeleteEntry(entry)}
                                 className="p-1.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-500"
                               >
                                 <Trash2 className="w-4 h-4" />
-                              </button>
+                              </Button>
                             </div>
                           </td>
                         </>
@@ -670,7 +666,7 @@ export function ColorCatalogSettings() {
                       <tr className="border-t border-bambu-dark-tertiary/50 bg-bambu-dark">
                         <td colSpan={2}></td>
                         <td className="px-3 py-2" colSpan={2}>
-                          <input
+                          <TextField
                             type="text"
                             className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm font-mono focus:border-bambu-green focus:outline-none"
                             placeholder={t('inventory.extraColorsPlaceholder')}
@@ -679,7 +675,7 @@ export function ColorCatalogSettings() {
                           />
                         </td>
                         <td className="px-3 py-2" colSpan={2}>
-                          <select
+                          <LegacySelect
                             className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
                             value={formEffectType}
                             onChange={(e) => setFormEffectType(e.target.value)}
@@ -689,7 +685,7 @@ export function ColorCatalogSettings() {
                                 {t(opt.labelKey)}
                               </option>
                             ))}
-                          </select>
+                          </LegacySelect>
                         </td>
                         <td></td>
                       </tr>

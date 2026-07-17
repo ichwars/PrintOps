@@ -1,13 +1,14 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { X, Loader2, Settings2, ChevronDown, CheckCircle2, RotateCcw } from 'lucide-react';
+import { X, Loader2, Settings2, CheckCircle2, RotateCcw } from 'lucide-react';
 import { api } from '../api/client';
 import type { KProfile } from '../api/client';
 import { matchesPrinterModelSuffix, presetCompatibility, buildCompatibilityIndex } from '../utils/slicerPrinterMatch';
 import { toFilamentId, isGenericFilamentId } from './spool-form/utils';
 import { Button } from './Button';
 import { getAmsLabel } from '../utils/amsHelpers';
+import { LegacySelect, TextField } from './ui';
 
 interface SlotInfo {
   amsId: number;
@@ -1165,7 +1166,7 @@ export function ConfigureAmsSlotModal({
                 <label className="block text-sm text-bambu-gray mb-2">
                   {t('configureAmsSlot.filamentProfile')} <span className="text-red-600 dark:text-red-400">*</span>
                 </label>
-                <input
+                <TextField
                   type="text"
                   placeholder={t('configureAmsSlot.searchPresets')}
                   value={searchQuery}
@@ -1236,7 +1237,8 @@ export function ConfigureAmsSlotModal({
                   </label>
                   {matchingKProfiles.length > 0 ? (
                     <div className="relative">
-                      <select
+                      <LegacySelect
+                        aria-label={t('configureAmsSlot.kProfileLabel')}
                         value={selectedKProfile?.name || ''}
                         onChange={(e) => {
                           const profile = matchingKProfiles.find(p => p.name === e.target.value);
@@ -1250,8 +1252,7 @@ export function ConfigureAmsSlotModal({
                             {profile.name} (K={profile.k_value})
                           </option>
                         ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+                      </LegacySelect>
                     </div>
                   ) : selectedPresetId ? (
                     <p className="text-sm text-bambu-gray italic py-2">
@@ -1355,7 +1356,7 @@ export function ConfigureAmsSlotModal({
                       className="w-10 h-10 rounded-lg border-2 border-white/20 flex-shrink-0"
                       style={{ backgroundColor: `#${displayColor}` }}
                     />
-                    <input
+                    <TextField
                       type="text"
                       placeholder={t('configureAmsSlot.colorPlaceholder')}
                       value={colorInput}
@@ -1405,7 +1406,7 @@ export function ConfigureAmsSlotModal({
                   {t('configureAmsSlot.filamentProfile')} <span className="text-red-600 dark:text-red-400">*</span>
                 </label>
                 <div className="relative">
-                  <input
+                  <TextField
                     type="text"
                     placeholder={t('configureAmsSlot.searchPresets')}
                     value={searchQuery}
@@ -1475,7 +1476,8 @@ export function ConfigureAmsSlotModal({
                 </label>
                 {matchingKProfiles.length > 0 ? (
                   <div className="relative">
-                    <select
+                    <LegacySelect
+                      aria-label={t('configureAmsSlot.kProfileLabel')}
                       value={selectedKProfile?.name || ''}
                       onChange={(e) => {
                         const profile = matchingKProfiles.find(p => p.name === e.target.value);
@@ -1489,8 +1491,7 @@ export function ConfigureAmsSlotModal({
                           {profile.name} (K={profile.k_value})
                         </option>
                       ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+                    </LegacySelect>
                   </div>
                 ) : selectedPresetId ? (
                   <p className="text-sm text-bambu-gray italic py-2">
@@ -1598,7 +1599,7 @@ export function ConfigureAmsSlotModal({
                     className="w-10 h-10 rounded-lg border-2 border-white/20 flex-shrink-0"
                     style={{ backgroundColor: `#${displayColor}` }}
                   />
-                  <input
+                  <TextField
                     type="text"
                     placeholder={t('configureAmsSlot.colorPlaceholder')}
                     value={colorInput}

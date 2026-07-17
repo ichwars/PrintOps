@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { NumberField , FileInput, LegacySelect, TextArea, TextField} from './ui';
 import { X, Save, Tag, Camera, Trash2, Loader2, Plus, FolderKanban, Hash, Link } from 'lucide-react';
 import { api } from '../api/client';
 import type { Archive } from '../api/client';
@@ -243,7 +244,7 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
           {/* Print Name */}
           <div>
             <label className="block text-sm text-bambu-gray mb-1">{t('editArchive.name')}</label>
-            <input
+            <TextField
               type="text"
               value={printName}
               onChange={(e) => setPrintName(e.target.value)}
@@ -255,7 +256,7 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
           {/* Printer */}
           <div>
             <label className="block text-sm text-bambu-gray mb-1">{t('editArchive.printer')}</label>
-            <select
+            <LegacySelect
               value={printerId ?? ''}
               onChange={(e) => setPrinterId(e.target.value ? Number(e.target.value) : null)}
               className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -266,7 +267,7 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
                   {p.name}
                 </option>
               ))}
-            </select>
+            </LegacySelect>
           </div>
 
           {/* Project */}
@@ -275,7 +276,7 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
               <FolderKanban className="w-4 h-4 inline mr-1" />
               {t('editArchive.project')}
             </label>
-            <select
+            <LegacySelect
               value={projectId ?? ''}
               onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : null)}
               className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -286,7 +287,7 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
                   {p.name}
                 </option>
               ))}
-            </select>
+            </LegacySelect>
           </div>
 
           {/* Quantity - number of items printed */}
@@ -295,8 +296,7 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
               <Hash className="w-4 h-4 inline mr-1" />
               {t('editArchive.itemsPrinted')}
             </label>
-            <input
-              type="number"
+            <NumberField
               min={1}
               value={quantity}
               onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
@@ -311,7 +311,7 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
           {/* Notes */}
           <div>
             <label className="block text-sm text-bambu-gray mb-1">{t('editArchive.notes')}</label>
-            <textarea
+            <TextArea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
@@ -326,7 +326,7 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
               <Link className="w-4 h-4 inline mr-1" />
               {t('editArchive.externalLink')}
             </label>
-            <input
+            <TextField
               type="url"
               value={externalUrl}
               onChange={(e) => setExternalUrl(e.target.value)}
@@ -364,7 +364,7 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
             )}
             {/* Tag input with suggestions */}
             <div className="relative">
-              <input
+              <TextField
                 ref={tagInputRef}
                 type="text"
                 value={tags}
@@ -407,7 +407,7 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
           {/* Status */}
           <div>
             <label className="block text-sm text-bambu-gray mb-1">{t('editArchive.status')}</label>
-            <select
+            <LegacySelect
               value={status}
               onChange={(e) => {
                 setStatus(e.target.value);
@@ -423,14 +423,14 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
                   {t(`editArchive.statuses.${statusKey}`)}
                 </option>
               ))}
-            </select>
+            </LegacySelect>
           </div>
 
           {/* Failure Reason - only show for failed/aborted prints */}
           {(status === 'failed' || status === 'aborted') && (
             <div>
               <label htmlFor="failure-reason-select" className="block text-sm text-bambu-gray mb-1">{t('editArchive.failureReason')}</label>
-              <select
+              <LegacySelect
                 id="failure-reason-select"
                 value={failureReason}
                 onChange={(e) => setFailureReason(e.target.value)}
@@ -442,7 +442,7 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
                     {t(`editArchive.failureReasons.${reasonKey}`)}
                   </option>
                 ))}
-              </select>
+              </LegacySelect>
             </div>
           )}
 
@@ -472,9 +472,8 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
               ))}
               {/* Upload button */}
               <label className="w-20 h-20 flex items-center justify-center border-2 border-dashed border-bambu-dark-tertiary rounded-lg cursor-pointer hover:border-bambu-green transition-colors">
-                <input
+                <FileInput
                   ref={photoInputRef}
-                  type="file"
                   accept="image/jpeg,image/png,image/webp"
                   onChange={handlePhotoUpload}
                   className="hidden"

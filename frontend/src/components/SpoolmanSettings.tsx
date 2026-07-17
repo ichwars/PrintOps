@@ -1,7 +1,8 @@
+import { LegacySelect, TextField, Checkbox } from './ui';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Check, X, RefreshCw, Link2, Link2Off, Database, ChevronDown, Info, AlertTriangle, Package, ExternalLink } from 'lucide-react';
+import { Loader2, Check, X, RefreshCw, Link2, Link2Off, Database, Info, AlertTriangle, Package, ExternalLink } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import type { SpoolmanSyncResult, Printer } from '../api/client';
 import { Card, CardContent, CardHeader } from './Card';
@@ -235,7 +236,7 @@ export function SpoolmanSettings() {
         {/* Mode selector cards */}
         <div className="grid grid-cols-2 gap-3">
           {/* Built-in Inventory */}
-          <button
+          <Button variant="unstyled"
             type="button"
             onClick={() => setLocalEnabled(false)}
             className={`p-3 rounded-lg border-2 text-left transition-colors ${
@@ -259,10 +260,10 @@ export function SpoolmanSettings() {
                 <span className="text-xs text-bambu-green">{t('common.enabled')}</span>
               </div>
             )}
-          </button>
+          </Button>
 
           {/* Spoolman */}
-          <button
+          <Button variant="unstyled"
             type="button"
             onClick={() => setLocalEnabled(true)}
             className={`p-3 rounded-lg border-2 text-left transition-colors ${
@@ -286,7 +287,7 @@ export function SpoolmanSettings() {
                 <span className="text-xs text-bambu-green">{t('common.enabled')}</span>
               </div>
             )}
-          </button>
+          </Button>
         </div>
 
         {/* Auto-add unknown RFID toggle — applies to both internal and Spoolman modes */}
@@ -298,8 +299,7 @@ export function SpoolmanSettings() {
             </p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={localAutoAddUnknownRfid}
               onChange={(e) => setLocalAutoAddUnknownRfid(e.target.checked)}
               className="sr-only peer"
@@ -368,7 +368,7 @@ export function SpoolmanSettings() {
               <label className="block text-sm text-bambu-gray mb-1">
                 {t('settings.spoolmanUrl')}
               </label>
-              <input
+              <TextField
                 type="text"
                 placeholder="http://192.168.1.100:7912"
                 value={localUrl}
@@ -385,14 +385,14 @@ export function SpoolmanSettings() {
               <label className="block text-sm text-bambu-gray mb-1">
                 {t('settings.syncMode')}
               </label>
-              <select
+              <LegacySelect
                 value={localSyncMode}
                 onChange={(e) => setLocalSyncMode(e.target.value)}
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
               >
                 <option value="auto">{t('settings.syncModeAuto')}</option>
                 <option value="manual">{t('settings.syncModeManual')}</option>
-              </select>
+              </LegacySelect>
               <p className="text-xs text-bambu-gray mt-1">
                 {localSyncMode === 'auto'
                   ? t('settings.syncModeAutoDesc')
@@ -410,8 +410,7 @@ export function SpoolmanSettings() {
                   </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={localDisableWeightSync}
                     onChange={(e) => setLocalDisableWeightSync(e.target.checked)}
                     className="sr-only peer"
@@ -431,8 +430,7 @@ export function SpoolmanSettings() {
                   </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={localReportPartialUsage}
                     onChange={(e) => setLocalReportPartialUsage(e.target.checked)}
                     className="sr-only peer"
@@ -512,7 +510,7 @@ export function SpoolmanSettings() {
                   <div className="flex items-center gap-2">
                     {/* Printer selector */}
                     <div className="relative flex-1">
-                      <select
+                      <LegacySelect
                         value={selectedPrinterId}
                         onChange={(e) => setSelectedPrinterId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
                         className="w-full px-3 py-2 pr-8 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:border-bambu-green focus:outline-none appearance-none cursor-pointer"
@@ -523,8 +521,7 @@ export function SpoolmanSettings() {
                             {printer.name}
                           </option>
                         ))}
-                      </select>
-                      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+                      </LegacySelect>
                     </div>
                     {/* Sync button */}
                     <Button
@@ -596,12 +593,12 @@ export function SpoolmanSettings() {
                           </span>
                         </div>
                         {syncResult.skipped_count > 5 && (
-                          <button
+                          <Button variant="unstyled"
                             onClick={() => setShowAllSkipped(!showAllSkipped)}
                             className="text-xs text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 underline"
                           >
                             {showAllSkipped ? 'Show less' : 'Show all'}
-                          </button>
+                          </Button>
                         )}
                       </div>
                       <ul className="text-xs text-amber-700/90 dark:text-amber-300/80 space-y-0.5">

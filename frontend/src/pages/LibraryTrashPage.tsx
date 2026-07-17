@@ -7,6 +7,7 @@ import { ArrowLeft, RotateCcw, Save, Trash2, Loader2 } from 'lucide-react';
 import { api } from '../api/client';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { NumberField , Checkbox} from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { formatFileSize } from '../utils/file';
@@ -208,9 +209,8 @@ export function LibraryTrashPage() {
           <label htmlFor="retention-days" className="text-sm font-medium text-gray-700 dark:text-gray-300">
             {t('libraryTrash.retentionLabel')}
           </label>
-          <input
+          <NumberField
             id="retention-days"
-            type="number"
             min={1}
             max={365}
             value={retentionDraft ?? settingsQuery.data.retention_days}
@@ -280,15 +280,13 @@ export function LibraryTrashPage() {
               <thead className="bg-gray-50 dark:bg-gray-800 text-left text-gray-600 dark:text-gray-300">
                 <tr>
                   <th className="px-3 py-2 w-10">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={allSelected}
                       ref={(el) => {
                         if (el) el.indeterminate = someSelected;
                       }}
                       onChange={toggleAll}
                       aria-label={t('libraryTrash.selectAll')}
-                      className="rounded border-gray-300 cursor-pointer"
                     />
                   </th>
                   <th className="px-3 py-2 font-medium">{t('libraryTrash.col.filename')}</th>
@@ -304,12 +302,10 @@ export function LibraryTrashPage() {
                 {items.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                     <td className="px-3 py-2">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={selected.has(item.id)}
                         onChange={() => toggleOne(item.id)}
                         aria-label={t('libraryTrash.selectOne', { filename: item.filename })}
-                        className="rounded border-gray-300 cursor-pointer"
                       />
                     </td>
                     <td

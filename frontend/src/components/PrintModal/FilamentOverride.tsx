@@ -5,6 +5,7 @@ import { getColorName } from '../../utils/colors';
 import { canonicalFilamentType } from '../../utils/amsHelpers';
 import { useFilamentLabels } from './useFilamentLabels';
 import type { FilamentReqsData } from './types';
+import { Checkbox, LegacySelect } from '../ui';
 
 interface FilamentOverrideProps {
   filamentReqs: FilamentReqsData | undefined;
@@ -112,7 +113,7 @@ export function FilamentOverride({
                 {/* Arrow */}
                 <span className="text-bambu-gray">→</span>
                 {/* Override dropdown — only compatible (same-type) filaments */}
-                <select
+                <LegacySelect
                   value={isOverridden ? `${override.type}|${override.color}` : ''}
                   onChange={(e) => handleChange(req.slot_id, e.target.value)}
                   disabled={compatible.length === 0}
@@ -134,7 +135,7 @@ export function FilamentOverride({
                     {f.tray_sub_brands || f.type} ({getColorName(f.color)})
                     </option>
                   ))}
-                </select>
+                </LegacySelect>
                 {/* Reset button */}
                 {isOverridden ? (
                   <button
@@ -151,11 +152,9 @@ export function FilamentOverride({
               </div>
               {/* Force Color Match checkbox — shown below each filament row */}
               <label className="inline-flex items-center gap-1.5 text-xs text-bambu-gray cursor-pointer select-none pl-5">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={forceColorMatch?.[req.slot_id] ?? false}
                   onChange={(e) => onForceColorMatchChange?.(req.slot_id, e.target.checked)}
-                  className="accent-bambu-green w-3 h-3"
                 />
                 <Palette className="w-3 h-3" />
                 {t('printModal.forceColorMatch')}

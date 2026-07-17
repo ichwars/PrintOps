@@ -11,8 +11,7 @@ import {
   type BusinessProfileTaxIdentifier,
   type BusinessProfileUpdate,
 } from '../../api/client';
-import { Button } from '../Button';
-import { useModalFocusLifecycle } from '../../hooks/useModalFocusLifecycle';
+import { Button, Checkbox, DatePicker, IconButton, Modal, NumberField, Select, TextField , FileInput} from '../ui';
 import { orderMasterDataCountryCodes, orderMasterDataCurrencyCodes } from '../../lib/orderMasterDataValidation';
 
 type ProfileDraft = BusinessProfileCreate;
@@ -179,7 +178,6 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
   const [removeLogo, setRemoveLogo] = useState(false);
   const editing = profile !== null;
   const initialFocusRef = useRef<HTMLInputElement>(null);
-  const { dialogRef, onKeyDown } = useModalFocusLifecycle<HTMLFormElement>({ onClose, canClose: !isSubmitting, initialFocusRef });
   const localeOptions = useMemo(() => {
     const current = draft.default_locale ?? 'en';
     return supportedLocales.some(([value]) => value === current)
@@ -290,15 +288,19 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
     : localizedApiMessage(error, t, i18n.language);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation">
-      <form ref={dialogRef} onKeyDown={onKeyDown} onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="business-profile-editor-title" tabIndex={-1} className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-xl">
-        <div className="border-b border-bambu-dark-tertiary px-5 py-4">
-          <h2 id="business-profile-editor-title" className="text-lg font-semibold text-white">
-            {editing ? t('orders.businessProfile.editTitle') : t('orders.businessProfile.createTitle')}
-          </h2>
-        </div>
-        <div data-testid="business-profile-editor-scroll-viewport" className="min-h-0 flex-1 overflow-y-auto">
-          <fieldset disabled={isSubmitting} className="space-y-6 px-5 py-4">
+    <Modal
+      open
+      onClose={() => { if (!isSubmitting) onClose(); }}
+      closeOnBackdrop={!isSubmitting}
+      closeDisabled={isSubmitting}
+      closeLabel={t('common.close', 'Close')}
+      title={editing ? t('orders.businessProfile.editTitle') : t('orders.businessProfile.createTitle')}
+      initialFocusRef={initialFocusRef}
+      className="max-w-3xl"
+    >
+      <form onSubmit={submit}>
+        <div data-testid="business-profile-editor-scroll-viewport" className="min-h-0">
+          <fieldset disabled={isSubmitting} className="space-y-6">
           {genericError && (
             <div role="alert" className={`flex gap-2 border p-3 text-sm ${error instanceof ApiError && error.status === 409 ? 'border-amber-500/40 bg-amber-500/10 text-amber-100' : 'border-red-500/40 bg-red-500/10 text-red-200'}`}>
               <AlertTriangle className="h-4 w-4 shrink-0" />{genericError}
@@ -310,25 +312,23 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.profileName')}
-                <input ref={initialFocusRef} required aria-label={t('orders.businessProfile.profileName')} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className={inputClass} />
+                <TextField ref={initialFocusRef} required aria-label={t('orders.businessProfile.profileName')} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className={inputClass} />
                 <FieldError message={validation.fields.name} />
               </label>
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.legalName')}
-                <input required aria-label={t('orders.businessProfile.legalName')} value={draft.legal_name} onChange={(event) => setDraft({ ...draft, legal_name: event.target.value })} className={inputClass} />
+                <TextField required aria-label={t('orders.businessProfile.legalName')} value={draft.legal_name} onChange={(event) => setDraft({ ...draft, legal_name: event.target.value })} className={inputClass} />
                 <FieldError message={validation.fields.legal_name} />
               </label>
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.tradingName')}
-                <input aria-label={t('orders.businessProfile.tradingName')} value={draft.trading_name ?? ''} onChange={(event) => setDraft({ ...draft, trading_name: event.target.value || null })} className={inputClass} />
+                <TextField aria-label={t('orders.businessProfile.tradingName')} value={draft.trading_name ?? ''} onChange={(event) => setDraft({ ...draft, trading_name: event.target.value || null })} className={inputClass} />
                 <span className="mt-1 block text-xs text-bambu-gray">{tradingNameHelp}</span>
                 <FieldError message={validation.fields.trading_name} />
               </label>
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.profileCountry')}
-                <select aria-label={t('orders.businessProfile.profileCountry')} value={draft.country_code} onChange={(event) => setDraft({ ...draft, country_code: event.target.value })} className={inputClass}>
-                  {countryOptions.map((country) => <option key={country} value={country}>{country}</option>)}
-                </select>
+                <Select ariaLabel={t('orders.businessProfile.profileCountry')} value={draft.country_code} onValueChange={(value) => setDraft({ ...draft, country_code: value })} options={countryOptions.map((country) => ({ value: country, label: country }))} />
                 <FieldError message={validation.fields.country_code} />
               </label>
             </div>
@@ -341,68 +341,62 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
                 <FieldError message={validation.fields[`addresses.${index}`]} />
                 <label className="text-sm text-bambu-gray-light">
                   {numberedLabel(t('orderMessages.addressKind'), index)}
-                  <select aria-label={numberedLabel(t('orderMessages.addressKind'), index)} value={address.kind} onChange={(event) => changeAddressKind(index, event.target.value as BusinessProfileAddress['kind'])} disabled={address.kind === 'registered' && draft.addresses.filter((item) => item.kind === 'registered').length === 1} className={inputClass}>
-                    {addressKinds.map((kind) => <option key={kind} value={kind}>{t(`orderMessages.addressKinds.${kind}`)}</option>)}
-                  </select>
+                  <Select ariaLabel={numberedLabel(t('orderMessages.addressKind'), index)} value={address.kind} onValueChange={(value) => changeAddressKind(index, value as BusinessProfileAddress['kind'])} disabled={address.kind === 'registered' && draft.addresses.filter((item) => item.kind === 'registered').length === 1} options={addressKinds.map((kind) => ({ value: kind, label: t(`orderMessages.addressKinds.${kind}`) }))} />
                   <FieldError message={validation.fields[`addresses.${index}.kind`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {numberedLabel(t('orderMessages.addressLabel'), index)}
-                  <input aria-label={numberedLabel(t('orderMessages.addressLabel'), index)} value={address.label ?? ''} onChange={(event) => updateAddress(index, { label: event.target.value || null })} className={inputClass} />
+                  <TextField aria-label={numberedLabel(t('orderMessages.addressLabel'), index)} value={address.label ?? ''} onChange={(event) => updateAddress(index, { label: event.target.value || null })} className={inputClass} />
                   <FieldError message={validation.fields[`addresses.${index}.label`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {numberedLabel(t('orderMessages.additional'), index)}
-                  <input aria-label={numberedLabel(t('orderMessages.additional'), index)} value={address.additional ?? ''} onChange={(event) => updateAddress(index, { additional: event.target.value || null })} className={inputClass} />
+                  <TextField aria-label={numberedLabel(t('orderMessages.additional'), index)} value={address.additional ?? ''} onChange={(event) => updateAddress(index, { additional: event.target.value || null })} className={inputClass} />
                   <FieldError message={validation.fields[`addresses.${index}.additional`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {numberedLabel(t('orders.businessProfile.street'), index)}
-                  <input required aria-label={numberedLabel(t('orders.businessProfile.street'), index)} value={address.street} onChange={(event) => updateAddress(index, { street: event.target.value })} className={inputClass} />
+                  <TextField required aria-label={numberedLabel(t('orders.businessProfile.street'), index)} value={address.street} onChange={(event) => updateAddress(index, { street: event.target.value })} className={inputClass} />
                   <FieldError message={validation.fields[`addresses.${index}.street`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {numberedLabel(t('orderMessages.street2'), index)}
-                  <input aria-label={numberedLabel(t('orderMessages.street2'), index)} value={address.street_2 ?? ''} onChange={(event) => updateAddress(index, { street_2: event.target.value || null })} className={inputClass} />
+                  <TextField aria-label={numberedLabel(t('orderMessages.street2'), index)} value={address.street_2 ?? ''} onChange={(event) => updateAddress(index, { street_2: event.target.value || null })} className={inputClass} />
                   <FieldError message={validation.fields[`addresses.${index}.street_2`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {numberedLabel(t('orders.businessProfile.city'), index)}
-                  <input required aria-label={numberedLabel(t('orders.businessProfile.city'), index)} value={address.city} onChange={(event) => updateAddress(index, { city: event.target.value })} className={inputClass} />
+                  <TextField required aria-label={numberedLabel(t('orders.businessProfile.city'), index)} value={address.city} onChange={(event) => updateAddress(index, { city: event.target.value })} className={inputClass} />
                   <FieldError message={validation.fields[`addresses.${index}.city`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {numberedLabel(t('orders.businessProfile.postalCode'), index)}
-                  <input required aria-label={numberedLabel(t('orders.businessProfile.postalCode'), index)} value={address.postal_code} onChange={(event) => updateAddress(index, { postal_code: event.target.value })} className={inputClass} />
+                  <TextField required aria-label={numberedLabel(t('orders.businessProfile.postalCode'), index)} value={address.postal_code} onChange={(event) => updateAddress(index, { postal_code: event.target.value })} className={inputClass} />
                   <FieldError message={validation.fields[`addresses.${index}.postal_code`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {numberedLabel(t('orders.businessProfile.country'), index)}
-                  <select aria-label={numberedLabel(t('orders.businessProfile.country'), index)} value={address.country_code} onChange={(event) => updateAddress(index, { country_code: event.target.value })} className={inputClass}>
-                    {countryOptions.map((country) => <option key={country} value={country}>{country}</option>)}
-                  </select>
+                  <Select ariaLabel={numberedLabel(t('orders.businessProfile.country'), index)} value={address.country_code} onValueChange={(value) => updateAddress(index, { country_code: value })} options={countryOptions.map((country) => ({ value: country, label: country }))} />
                   <FieldError message={validation.fields[`addresses.${index}.country_code`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {numberedLabel(t('orderMessages.region'), index)}
-                  <input aria-label={numberedLabel(t('orderMessages.region'), index)} value={address.region ?? ''} onChange={(event) => updateAddress(index, { region: event.target.value || null })} className={inputClass} />
+                  <TextField aria-label={numberedLabel(t('orderMessages.region'), index)} value={address.region ?? ''} onChange={(event) => updateAddress(index, { region: event.target.value || null })} className={inputClass} />
                   <FieldError message={validation.fields[`addresses.${index}.region`]} />
                 </label>
                 <label className="inline-flex min-h-10 items-center gap-2 self-end text-sm text-bambu-gray-light">
-                  <input type="checkbox" aria-label={t('orders.businessProfile.defaultAddress', { number: index + 1 })} checked={address.is_default ?? false} onChange={(event) => setAddressDefault(index, event.target.checked)} />
+                  <Checkbox ariaLabel={t('orders.businessProfile.defaultAddress', { number: index + 1 })} checked={address.is_default ?? false} onChange={(event) => setAddressDefault(index, event.target.checked)} />
                   {t('orders.businessProfile.defaultAddress', { number: index + 1 })}
                   <FieldError message={validation.fields[`addresses.${index}.is_default`]} />
                 </label>
                 {(address.kind !== 'registered' || draft.addresses.filter((item) => item.kind === 'registered').length > 1) && (
-                  <button type="button" onClick={() => setDraft({ ...draft, addresses: draft.addresses.filter((_, addressIndex) => addressIndex !== index) })} title={t('orders.businessProfile.removeAddress', { number: index + 1 })} aria-label={t('orders.businessProfile.removeAddress', { number: index + 1 })} className="justify-self-start text-red-300">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <IconButton label={t('orders.businessProfile.removeAddress', { number: index + 1 })} icon={Trash2} onClick={() => setDraft({ ...draft, addresses: draft.addresses.filter((_, addressIndex) => addressIndex !== index) })} size="sm" className="justify-self-start text-red-300" />
                 )}
               </div>
             ))}
-            <button type="button" onClick={() => setDraft({ ...draft, addresses: [...draft.addresses, { ...emptyAddress(draft.country_code), kind: 'other', is_default: false }] })} className="inline-flex items-center gap-1 text-sm text-bambu-green">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setDraft({ ...draft, addresses: [...draft.addresses, { ...emptyAddress(draft.country_code), kind: 'other', is_default: false }] })} className="text-bambu-green">
               <Plus className="h-4 w-4" />{t('orders.businessProfile.addAddress')}
-            </button>
+            </Button>
           </fieldset>
 
           <fieldset className="space-y-3">
@@ -414,12 +408,12 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
                 ) : <div className="flex h-16 w-24 items-center justify-center rounded border border-bambu-dark-tertiary text-xs text-bambu-gray">{german ? 'Kein Logo' : 'No logo'}</div>}
                 <label className="text-sm text-bambu-gray-light">
                   {german ? 'Logo hochladen' : 'Upload logo'}
-                  <input type="file" accept="image/png,image/jpeg" aria-label={german ? 'Logo hochladen' : 'Upload logo'} onChange={(event) => { setLogoFile(event.target.files?.[0] ?? null); setRemoveLogo(false); }} className="mt-1 block text-sm" />
+                  <FileInput accept="image/png,image/jpeg" aria-label={german ? 'Logo hochladen' : 'Upload logo'} onChange={(event) => { setLogoFile(event.target.files?.[0] ?? null); setRemoveLogo(false); }} className="mt-1 block text-sm" />
                 </label>
-                {(logoFile || (profile?.logo_version && !removeLogo)) && <button type="button" onClick={() => { setLogoFile(null); setRemoveLogo(true); }} className="text-sm text-red-300">{german ? 'Logo entfernen' : 'Remove logo'}</button>}
+                {(logoFile || (profile?.logo_version && !removeLogo)) && <Button type="button" variant="ghost" size="sm" onClick={() => { setLogoFile(null); setRemoveLogo(true); }} className="text-red-300">{german ? 'Logo entfernen' : 'Remove logo'}</Button>}
               </div>
               <label className="mt-3 inline-flex min-h-10 items-center gap-2 text-sm text-bambu-gray-light">
-                <input type="checkbox" checked={draft.show_offer_qr ?? false} onChange={(event) => setDraft({ ...draft, show_offer_qr: event.target.checked })} />
+                <Checkbox checked={draft.show_offer_qr ?? false} onChange={(event) => setDraft({ ...draft, show_offer_qr: event.target.checked })} />
                 {german ? 'QR-Code zum Online-Angebot auf PDFs anzeigen' : 'Show online-offer QR code on PDFs'}
               </label>
               <p className="text-xs text-bambu-gray">{german ? 'Erfordert eine von außen erreichbare PrintOps-URL. Die PDF-Ausgabe folgt mit der Dokumentfunktion.' : 'Requires a publicly reachable PrintOps URL. PDF output follows with document support.'}</p>
@@ -431,24 +425,24 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
             <p className="text-xs text-bambu-gray">{german ? 'Diese Angaben steuern die spätere Dokumentlogik und ersetzen keine steuerliche Prüfung.' : 'These settings control future document logic and do not replace professional tax advice.'}</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-sm text-bambu-gray-light">{german ? 'Steuermodus' : 'Tax mode'}
-                <select aria-label={german ? 'Steuermodus' : 'Tax mode'} value={draft.tax_mode ?? 'standard'} onChange={(event) => { const taxMode = event.target.value as 'standard' | 'exempt' | 'none'; setDraft({ ...draft, tax_mode: taxMode, ...(taxMode === 'standard' ? {} : { default_tax_rate: '0.00', input_tax_deductible: false }) }); }} className={inputClass}>
-                  <option value="standard">{german ? 'Reguläre Umsatzsteuer' : 'Standard VAT'}</option>
-                  <option value="exempt">{german && draft.country_code === 'DE' ? 'Kleinunternehmerregelung §19 UStG' : (german ? 'Steuerbefreit' : 'Tax exempt')}</option>
-                  <option value="none">{german ? 'Keine Umsatzsteuer' : 'No VAT'}</option>
-                </select>
+                <Select ariaLabel={german ? 'Steuermodus' : 'Tax mode'} value={draft.tax_mode ?? 'standard'} onValueChange={(taxMode) => setDraft({ ...draft, tax_mode: taxMode as 'standard' | 'exempt' | 'none', ...(taxMode === 'standard' ? {} : { default_tax_rate: '0.00', input_tax_deductible: false }) })} options={[
+                  { value: 'standard', label: german ? 'Reguläre Umsatzsteuer' : 'Standard VAT' },
+                  { value: 'exempt', label: german && draft.country_code === 'DE' ? 'Kleinunternehmerregelung §19 UStG' : (german ? 'Steuerbefreit' : 'Tax exempt') },
+                  { value: 'none', label: german ? 'Keine Umsatzsteuer' : 'No VAT' },
+                ]} />
               </label>
               <label className="text-sm text-bambu-gray-light">{german ? 'Standard-MwSt. %' : 'Default VAT %'}
-                <input type="number" min="0" max="100" step="0.01" disabled={draft.tax_mode !== 'standard'} aria-label={german ? 'Standard-MwSt. %' : 'Default VAT %'} value={draft.default_tax_rate ?? '0.00'} onChange={(event) => setDraft({ ...draft, default_tax_rate: event.target.value })} className={inputClass} />
+                <NumberField min="0" max="100" step="0.01" disabled={draft.tax_mode !== 'standard'} aria-label={german ? 'Standard-MwSt. %' : 'Default VAT %'} value={draft.default_tax_rate ?? '0.00'} onChange={(event) => setDraft({ ...draft, default_tax_rate: event.target.value })} className={inputClass} />
               </label>
-              <label className="inline-flex min-h-10 items-center gap-2 text-sm text-bambu-gray-light"><input type="checkbox" checked={draft.cash_accounting ?? false} onChange={(event) => setDraft({ ...draft, cash_accounting: event.target.checked })} />{german ? 'Ist-Versteuerung' : 'Cash accounting'}</label>
-              <label className="inline-flex min-h-10 items-center gap-2 text-sm text-bambu-gray-light"><input type="checkbox" disabled={draft.tax_mode !== 'standard'} checked={draft.input_tax_deductible ?? false} onChange={(event) => setDraft({ ...draft, input_tax_deductible: event.target.checked })} />{german ? 'Vorsteuerabzug aktiv' : 'Input tax deductible'}</label>
+              <Checkbox checked={draft.cash_accounting ?? false} onCheckedChange={(checked) => setDraft({ ...draft, cash_accounting: checked })} label={german ? 'Ist-Versteuerung' : 'Cash accounting'} />
+              <Checkbox disabled={draft.tax_mode !== 'standard'} checked={draft.input_tax_deductible ?? false} onCheckedChange={(checked) => setDraft({ ...draft, input_tax_deductible: checked })} label={german ? 'Vorsteuerabzug aktiv' : 'Input tax deductible'} />
             </div>
           </fieldset>
 
           <fieldset className="space-y-3">
             <legend className="font-medium text-white">{t('orders.businessProfile.taxAndBank')}</legend>
             <label className="block text-sm text-bambu-gray-light">PayPal.Me
-              <input type="url" aria-label="PayPal.Me" placeholder="https://paypal.me/deinname" value={draft.paypal_me_url ?? ''} onChange={(event) => setDraft({ ...draft, paypal_me_url: event.target.value || null })} className={inputClass} />
+              <TextField type="url" aria-label="PayPal.Me" placeholder="https://paypal.me/deinname" value={draft.paypal_me_url ?? ''} onChange={(event) => setDraft({ ...draft, paypal_me_url: event.target.value || null })} className={inputClass} />
               <FieldError message={validation.fields.paypal_me_url} />
             </label>
             {(draft.tax_identifiers ?? []).map((identifier, index) => (
@@ -456,15 +450,15 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
                 <FieldError message={validation.fields[`tax_identifiers.${index}`]} />
                 <label className="text-sm text-bambu-gray-light">
                   {t('orders.businessProfile.taxIdKind')}
-                  <select aria-label={`${t('orders.businessProfile.taxIdKind')} ${index + 1}`} value={identifier.kind} onChange={(event) => changeTaxKind(index, event.target.value)} className={inputClass}>
-                    {!taxIdentifierKinds.includes(identifier.kind as (typeof taxIdentifierKinds)[number]) && <option value={identifier.kind}>{identifier.kind}</option>}
-                    {taxIdentifierKinds.map((kind) => <option key={kind} value={kind}>{taxKindLabels[kind]}</option>)}
-                  </select>
+                  <Select ariaLabel={`${t('orders.businessProfile.taxIdKind')} ${index + 1}`} value={identifier.kind} onValueChange={(value) => changeTaxKind(index, value)} options={[
+                    ...(!taxIdentifierKinds.includes(identifier.kind as (typeof taxIdentifierKinds)[number]) ? [{ value: identifier.kind, label: identifier.kind }] : []),
+                    ...taxIdentifierKinds.map((kind) => ({ value: kind, label: taxKindLabels[kind] })),
+                  ]} />
                   <FieldError message={validation.fields[`tax_identifiers.${index}.kind`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {t('orders.businessProfile.taxIdValue')}
-                  <input required aria-label={`${t('orders.businessProfile.taxIdValue')} ${index + 1}`} value={identifier.value} onChange={(event) => updateTaxId(index, { value: event.target.value })} className={inputClass} />
+                  <TextField required aria-label={`${t('orders.businessProfile.taxIdValue')} ${index + 1}`} value={identifier.value} onChange={(event) => updateTaxId(index, { value: event.target.value })} className={inputClass} />
                   {identifier.kind === 'vat' && (
                     <span className="mt-1 block text-xs text-bambu-gray">
                       {german ? 'Für Deutschland die Umsatzsteuer-ID einschließlich DE-Präfix eingeben, z. B. DE123456789.' : 'For Germany, enter the VAT ID including the DE prefix, e.g. DE123456789.'}
@@ -474,104 +468,92 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {t('orderMessages.taxCountry')}
-                  <select aria-label={`${t('orderMessages.taxCountry')} ${index + 1}`} value={identifier.country_code ?? ''} onChange={(event) => updateTaxId(index, { country_code: event.target.value || null })} className={inputClass}>
-                    <option value="">-</option>
-                    {countryOptions.map((country) => <option key={country} value={country}>{country}</option>)}
-                  </select>
+                  <Select ariaLabel={`${t('orderMessages.taxCountry')} ${index + 1}`} value={identifier.country_code ?? ''} onValueChange={(value) => updateTaxId(index, { country_code: value || null })} options={[{ value: '', label: '-' }, ...countryOptions.map((country) => ({ value: country, label: country }))]} />
                   <FieldError message={validation.fields[`tax_identifiers.${index}.country_code`]} />
                 </label>
                 {identifier.kind === 'other' && <>
                   <label className="text-sm text-bambu-gray-light">
                     {t('orderMessages.validFrom')}
-                    <input type="date" aria-label={`${t('orderMessages.validFrom')} ${index + 1}`} value={identifier.valid_from ?? ''} onChange={(event) => updateTaxId(index, { valid_from: event.target.value || null })} className={inputClass} />
+                    <DatePicker locale={i18n.language} ariaLabel={`${t('orderMessages.validFrom')} ${index + 1}`} value={identifier.valid_from ?? ''} onValueChange={(value) => updateTaxId(index, { valid_from: value || null })} />
                     <FieldError message={validation.fields[`tax_identifiers.${index}.valid_from`]} />
                   </label>
                   <label className="text-sm text-bambu-gray-light">
                     {t('orderMessages.validUntil')}
-                    <input type="date" aria-label={`${t('orderMessages.validUntil')} ${index + 1}`} value={identifier.valid_until ?? ''} onChange={(event) => updateTaxId(index, { valid_until: event.target.value || null })} className={inputClass} />
+                    <DatePicker locale={i18n.language} ariaLabel={`${t('orderMessages.validUntil')} ${index + 1}`} value={identifier.valid_until ?? ''} onValueChange={(value) => updateTaxId(index, { valid_until: value || null })} />
                     <FieldError message={validation.fields[`tax_identifiers.${index}.valid_until`]} />
                   </label>
                 </>}
                 <label className="inline-flex min-h-10 items-center gap-2 self-end text-sm text-bambu-gray-light">
-                  <input type="checkbox" aria-label={t('orders.businessProfile.primaryTaxId', { number: index + 1 })} checked={identifier.is_primary ?? false} onChange={(event) => setPrimaryTaxId(index, event.target.checked)} />
+                  <Checkbox ariaLabel={t('orders.businessProfile.primaryTaxId', { number: index + 1 })} checked={identifier.is_primary ?? false} onChange={(event) => setPrimaryTaxId(index, event.target.checked)} />
                   {t('orders.businessProfile.primaryTaxId', { number: index + 1 })}
                   <FieldError message={validation.fields[`tax_identifiers.${index}.is_primary`]} />
                 </label>
-                <button type="button" onClick={() => setDraft({ ...draft, tax_identifiers: (draft.tax_identifiers ?? []).filter((_, itemIndex) => itemIndex !== index) })} title={t('orders.businessProfile.removeTaxId', { number: index + 1 })} aria-label={t('orders.businessProfile.removeTaxId', { number: index + 1 })} className="self-end p-2 text-red-300">
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <IconButton label={t('orders.businessProfile.removeTaxId', { number: index + 1 })} icon={Trash2} onClick={() => setDraft({ ...draft, tax_identifiers: (draft.tax_identifiers ?? []).filter((_, itemIndex) => itemIndex !== index) })} size="sm" className="self-end text-red-300" />
               </div>
             ))}
-            <button type="button" onClick={() => setDraft({ ...draft, tax_identifiers: [...(draft.tax_identifiers ?? []), emptyTaxId(draft.country_code)] })} className="inline-flex items-center gap-1 text-sm text-bambu-green">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setDraft({ ...draft, tax_identifiers: [...(draft.tax_identifiers ?? []), emptyTaxId(draft.country_code)] })} className="text-bambu-green">
               <Plus className="h-4 w-4" />{t('orders.businessProfile.addTaxId')}
-            </button>
+            </Button>
 
             {(draft.bank_accounts ?? []).map((account, index) => (
               <div key={index} className="grid gap-3 border-t border-bambu-dark-tertiary pt-3 sm:grid-cols-2">
                 <FieldError message={validation.fields[`bank_accounts.${index}`]} />
                 <label className="text-sm text-bambu-gray-light">
                   {t('orders.businessProfile.bankAccountLabel')}
-                  <input required aria-label={`${t('orders.businessProfile.bankAccountLabel')} ${index + 1}`} value={account.label} onChange={(event) => updateBankAccount(index, { label: event.target.value })} className={inputClass} />
+                  <TextField required aria-label={`${t('orders.businessProfile.bankAccountLabel')} ${index + 1}`} value={account.label} onChange={(event) => updateBankAccount(index, { label: event.target.value })} className={inputClass} />
                   <FieldError message={validation.fields[`bank_accounts.${index}.label`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {t('orders.businessProfile.accountHolder')}
-                  <input required aria-label={`${t('orders.businessProfile.accountHolder')} ${index + 1}`} value={account.account_holder} onChange={(event) => updateBankAccount(index, { account_holder: event.target.value })} className={inputClass} />
+                  <TextField required aria-label={`${t('orders.businessProfile.accountHolder')} ${index + 1}`} value={account.account_holder} onChange={(event) => updateBankAccount(index, { account_holder: event.target.value })} className={inputClass} />
                   <FieldError message={validation.fields[`bank_accounts.${index}.account_holder`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {t('orders.businessProfile.bankName')}
-                  <input aria-label={`${t('orders.businessProfile.bankName')} ${index + 1}`} value={account.bank_name ?? ''} onChange={(event) => updateBankAccount(index, { bank_name: event.target.value || null })} className={inputClass} />
+                  <TextField aria-label={`${t('orders.businessProfile.bankName')} ${index + 1}`} value={account.bank_name ?? ''} onChange={(event) => updateBankAccount(index, { bank_name: event.target.value || null })} className={inputClass} />
                   <FieldError message={validation.fields[`bank_accounts.${index}.bank_name`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {t('orders.businessProfile.bankCountry')}
-                  <select aria-label={`${t('orders.businessProfile.bankCountry')} ${index + 1}`} value={account.country_code ?? ''} onChange={(event) => updateBankAccount(index, { country_code: event.target.value || null })} className={inputClass}>
-                    <option value="">-</option>
-                    {countryOptions.map((country) => <option key={country} value={country}>{country}</option>)}
-                  </select>
+                  <Select ariaLabel={`${t('orders.businessProfile.bankCountry')} ${index + 1}`} value={account.country_code ?? ''} onValueChange={(value) => updateBankAccount(index, { country_code: value || null })} options={[{ value: '', label: '-' }, ...countryOptions.map((country) => ({ value: country, label: country }))]} />
                   <FieldError message={validation.fields[`bank_accounts.${index}.country_code`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {t('orders.businessProfile.bankCurrency')}
-                  <select required aria-label={`${t('orders.businessProfile.bankCurrency')} ${index + 1}`} value={account.currency} onChange={(event) => changeBankCurrency(index, event.target.value)} className={inputClass}>
-                    {currencyOptions.map((currency) => <option key={currency} value={currency}>{currency}</option>)}
-                  </select>
+                  <Select required ariaLabel={`${t('orders.businessProfile.bankCurrency')} ${index + 1}`} value={account.currency} onValueChange={(value) => changeBankCurrency(index, value)} options={currencyOptions.map((currency) => ({ value: currency, label: currency }))} />
                   <FieldError message={validation.fields[`bank_accounts.${index}.currency`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {t('orders.businessProfile.iban')}
-                  <input aria-label={`${t('orders.businessProfile.iban')} ${index + 1}`} value={account.iban ?? ''} onChange={(event) => updateBankAccount(index, { iban: event.target.value || null })} className={inputClass} />
+                  <TextField aria-label={`${t('orders.businessProfile.iban')} ${index + 1}`} value={account.iban ?? ''} onChange={(event) => updateBankAccount(index, { iban: event.target.value || null })} className={inputClass} />
                   <FieldError message={validation.fields[`bank_accounts.${index}.iban`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {t('orders.businessProfile.bic')}
-                  <input aria-label={`${t('orders.businessProfile.bic')} ${index + 1}`} value={account.bic ?? ''} onChange={(event) => updateBankAccount(index, { bic: event.target.value || null })} className={inputClass} />
+                  <TextField aria-label={`${t('orders.businessProfile.bic')} ${index + 1}`} value={account.bic ?? ''} onChange={(event) => updateBankAccount(index, { bic: event.target.value || null })} className={inputClass} />
                   <FieldError message={validation.fields[`bank_accounts.${index}.bic`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {t('orders.businessProfile.accountNumber')}
-                  <input aria-label={`${t('orders.businessProfile.accountNumber')} ${index + 1}`} value={account.account_number ?? ''} onChange={(event) => updateBankAccount(index, { account_number: event.target.value || null })} className={inputClass} />
+                  <TextField aria-label={`${t('orders.businessProfile.accountNumber')} ${index + 1}`} value={account.account_number ?? ''} onChange={(event) => updateBankAccount(index, { account_number: event.target.value || null })} className={inputClass} />
                   <FieldError message={validation.fields[`bank_accounts.${index}.account_number`]} />
                 </label>
                 <label className="text-sm text-bambu-gray-light">
                   {t('orders.businessProfile.routingNumber')}
-                  <input aria-label={`${t('orders.businessProfile.routingNumber')} ${index + 1}`} value={account.routing_number ?? ''} onChange={(event) => updateBankAccount(index, { routing_number: event.target.value || null })} className={inputClass} />
+                  <TextField aria-label={`${t('orders.businessProfile.routingNumber')} ${index + 1}`} value={account.routing_number ?? ''} onChange={(event) => updateBankAccount(index, { routing_number: event.target.value || null })} className={inputClass} />
                   <FieldError message={validation.fields[`bank_accounts.${index}.routing_number`]} />
                 </label>
                 <label className="inline-flex min-h-10 items-center gap-2 self-end text-sm text-bambu-gray-light">
-                  <input type="checkbox" aria-label={t('orders.businessProfile.defaultBankAccount', { number: index + 1 })} checked={account.is_default ?? false} onChange={(event) => setDefaultBankAccount(index, event.target.checked)} />
+                  <Checkbox ariaLabel={t('orders.businessProfile.defaultBankAccount', { number: index + 1 })} checked={account.is_default ?? false} onChange={(event) => setDefaultBankAccount(index, event.target.checked)} />
                   {t('orders.businessProfile.defaultBankAccount', { number: index + 1 })}
                   <FieldError message={validation.fields[`bank_accounts.${index}.is_default`]} />
                 </label>
-                <button type="button" onClick={() => setDraft({ ...draft, bank_accounts: (draft.bank_accounts ?? []).filter((_, itemIndex) => itemIndex !== index) })} title={t('orders.businessProfile.removeBankAccount', { number: index + 1 })} aria-label={t('orders.businessProfile.removeBankAccount', { number: index + 1 })} className="justify-self-start p-2 text-red-300">
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <IconButton label={t('orders.businessProfile.removeBankAccount', { number: index + 1 })} icon={Trash2} onClick={() => setDraft({ ...draft, bank_accounts: (draft.bank_accounts ?? []).filter((_, itemIndex) => itemIndex !== index) })} size="sm" className="justify-self-start text-red-300" />
               </div>
             ))}
-            <button type="button" onClick={() => setDraft({ ...draft, bank_accounts: [...(draft.bank_accounts ?? []), emptyBankAccount(draft.country_code, draft.default_currency)] })} className="inline-flex items-center gap-1 text-sm text-bambu-green">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setDraft({ ...draft, bank_accounts: [...(draft.bank_accounts ?? []), emptyBankAccount(draft.country_code, draft.default_currency)] })} className="text-bambu-green">
               <Plus className="h-4 w-4" />{t('orders.businessProfile.addBankAccount')}
-            </button>
+            </Button>
           </fieldset>
 
           <fieldset className="space-y-3">
@@ -579,45 +561,43 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.billingMode')}
-                <select aria-label={t('orders.businessProfile.billingMode')} value={draft.billing_mode} onChange={(event) => setDraft({ ...draft, billing_mode: event.target.value as ProfileDraft['billing_mode'] })} className={inputClass}>
-                  <option value="internal">{t('orderUi.billingModes.internal')}</option><option value="external">{t('orderUi.billingModes.external')}</option><option value="hybrid">{t('orderUi.billingModes.hybrid')}</option>
-                </select>
+                <Select ariaLabel={t('orders.businessProfile.billingMode')} value={draft.billing_mode ?? 'internal'} onValueChange={(value) => setDraft({ ...draft, billing_mode: value as ProfileDraft['billing_mode'] })} options={[
+                  { value: 'internal', label: t('orderUi.billingModes.internal') },
+                  { value: 'external', label: t('orderUi.billingModes.external') },
+                  { value: 'hybrid', label: t('orderUi.billingModes.hybrid') },
+                ]} />
                 <FieldError message={validation.fields.billing_mode} />
               </label>
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.currency')}
-                <select aria-label={t('orders.businessProfile.currency')} value={draft.default_currency} onChange={(event) => setDraft({ ...draft, default_currency: event.target.value })} className={inputClass}>
-                  {currencyOptions.map((currency) => <option key={currency} value={currency}>{currency}</option>)}
-                </select>
+                <Select ariaLabel={t('orders.businessProfile.currency')} value={draft.default_currency ?? ''} onValueChange={(value) => setDraft({ ...draft, default_currency: String(value) })} options={currencyOptions.map((currency) => ({ value: currency, label: currency }))} />
                 <FieldError message={validation.fields.default_currency} />
               </label>
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.locale')}
-                <select aria-label={t('orders.businessProfile.locale')} value={draft.default_locale} onChange={(event) => setDraft({ ...draft, default_locale: event.target.value })} className={inputClass}>
-                  {localeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
+                <Select ariaLabel={t('orders.businessProfile.locale')} value={draft.default_locale ?? ''} onValueChange={(value) => setDraft({ ...draft, default_locale: String(value) })} options={localeOptions.map(([value, label]) => ({ value, label }))} />
                 <FieldError message={validation.fields.default_locale} />
               </label>
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.timezone')}
-                <input list="business-profile-timezones" aria-label={t('orders.businessProfile.timezone')} value={draft.timezone} onChange={(event) => setDraft({ ...draft, timezone: event.target.value })} className={inputClass} />
+                <TextField list="business-profile-timezones" aria-label={t('orders.businessProfile.timezone')} value={draft.timezone ?? ''} onChange={(event) => setDraft({ ...draft, timezone: event.target.value })} className={inputClass} />
                 <datalist id="business-profile-timezones">{timezoneOptions.map((timezone) => <option key={timezone} value={timezone} />)}</datalist>
                 <FieldError message={validation.fields.timezone} />
               </label>
             </div>
             <label className="inline-flex min-h-10 items-center gap-2 text-sm text-bambu-gray-light">
-              <input type="checkbox" checked={draft.is_active} onChange={(event) => setDraft({ ...draft, is_active: event.target.checked })} />
+              <Checkbox checked={Boolean(draft.is_active)} onChange={(event) => setDraft({ ...draft, is_active: event.target.checked })} />
               {t('orders.businessProfile.active')}
               <FieldError message={validation.fields.is_active} />
             </label>
           </fieldset>
           </fieldset>
         </div>
-        <div className="flex shrink-0 justify-end gap-3 border-t border-bambu-dark-tertiary bg-bambu-dark-secondary px-5 py-4">
+        <div className="mt-6 flex justify-end gap-3 border-t border-bambu-dark-tertiary pt-4">
           <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>{t('common.cancel')}</Button>
           <Button type="submit" disabled={isSubmitting} aria-label={t('orders.businessProfile.save')}>{isSubmitting ? t('common.saving') : t('orders.businessProfile.save')}</Button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }

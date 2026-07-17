@@ -6,6 +6,7 @@ import { QUICK_COLORS, ALL_COLORS } from './constants';
 import { FilamentSwatch } from '../FilamentSwatch';
 import { buildFilamentBackground, FILAMENT_EFFECT_OPTIONS } from '../filamentSwatchHelpers';
 import { getSwatchStyle } from '../../utils/colors';
+import { ColorInput, LegacySelect, TextField } from '../ui';
 
 /** Parse user paste from 3dfilamentprofiles.com etc.: split on commas/whitespace,
  *  drop the leading `#`, accept 6/8-char hex, lowercase. Returns null when no
@@ -309,7 +310,7 @@ export function ColorSection({
       {/* Color Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray/50 pointer-events-none" />
-        <input
+        <TextField
           type="text"
           className="w-full pl-9 pr-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray/50 focus:outline-none focus:border-bambu-green"
           placeholder={t('inventory.searchColors')}
@@ -408,7 +409,7 @@ export function ColorSection({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium text-bambu-gray mb-1">{t('inventory.colorName')}</label>
-          <input
+          <TextField
             type="text"
             className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray/50 focus:outline-none focus:border-bambu-green"
             placeholder={t('inventory.colorNamePlaceholder')}
@@ -421,7 +422,7 @@ export function ColorSection({
           <div className="flex gap-2">
             <div className="relative flex-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-bambu-gray">#</span>
-              <input
+              <TextField
                 type="text"
                 className="w-full pl-7 pr-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm font-mono uppercase focus:outline-none focus:border-bambu-green"
                 placeholder="RRGGBB"
@@ -465,8 +466,7 @@ export function ColorSection({
                 }}
               />
             </div>
-            <input
-              type="color"
+            <ColorInput
               className="w-11 h-[38px] rounded-lg cursor-pointer border border-bambu-dark-tertiary shrink-0 bg-transparent"
               value={`#${currentHex}`}
               onChange={(e) => {
@@ -486,7 +486,7 @@ export function ColorSection({
           <label className="block text-sm font-medium text-bambu-gray mb-1">
             {t('inventory.extraColorsLabel')}
           </label>
-          <input
+          <TextField
             type="text"
             className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm font-mono placeholder:text-bambu-gray/50 focus:outline-none focus:border-bambu-green"
             placeholder={t('inventory.extraColorsPlaceholder')}
@@ -509,7 +509,7 @@ export function ColorSection({
             {t('inventory.colorEffectLabel')}
           </label>
           <div className="flex gap-2 items-stretch">
-            <select
+            <LegacySelect
               className="flex-1 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
               value={formData.effect_type}
               onChange={(e) => updateField('effect_type', e.target.value)}
@@ -520,7 +520,7 @@ export function ColorSection({
                   {t(opt.labelKey)}
                 </option>
               ))}
-            </select>
+            </LegacySelect>
             <FilamentSwatch
               rgba={formData.rgba}
               extraColors={formData.extra_colors}

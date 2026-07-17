@@ -6,6 +6,7 @@ import { api } from '../api/client';
 import { parseUTCDate, formatTimeOnly, formatDateTime, type TimeFormat } from '../utils/date';
 import type { NotificationLogEntry } from '../api/client';
 import { Button } from './Button';
+import { Checkbox, LegacySelect } from './ui';
 import { useToast } from '../contexts/ToastContext';
 
 const EVENT_COLORS: Record<string, string> = {
@@ -88,12 +89,12 @@ export function NotificationLogViewer({ onClose }: NotificationLogViewerProps) {
             <History className="w-5 h-5 text-bambu-green" />
             <h2 className="text-lg font-semibold text-white">{t('notifications.notificationLog')}</h2>
           </div>
-          <button
+          <Button variant="unstyled"
             onClick={onClose}
             className="text-bambu-gray hover:text-white transition-colors"
           >
             &times;
-          </button>
+          </Button>
         </div>
 
         {/* Stats Bar */}
@@ -119,7 +120,7 @@ export function NotificationLogViewer({ onClose }: NotificationLogViewerProps) {
 
         {/* Filters */}
         <div className="px-4 py-3 border-b border-bambu-dark-tertiary flex items-center gap-4">
-          <select
+          <LegacySelect
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
             className="px-3 py-1.5 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm focus:outline-none focus:ring-1 focus:ring-bambu-green"
@@ -128,11 +129,10 @@ export function NotificationLogViewer({ onClose }: NotificationLogViewerProps) {
             <option value={7}>{t('notifications.last7Days')}</option>
             <option value={30}>{t('notifications.last30Days')}</option>
             <option value={90}>{t('notifications.last90Days')}</option>
-          </select>
+          </LegacySelect>
 
           <label className="flex items-center gap-2 text-sm text-bambu-gray cursor-pointer">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={showFailedOnly}
               onChange={(e) => setShowFailedOnly(e.target.checked)}
               className="rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
@@ -227,7 +227,7 @@ function LogEntry({
           : 'border-red-500/30 bg-red-500/5'
       }`}
     >
-      <button
+      <Button variant="unstyled"
         className="w-full px-3 py-2 flex items-center gap-3 text-left hover:bg-bambu-dark/50 transition-colors"
         onClick={onToggle}
       >
@@ -260,7 +260,7 @@ function LogEntry({
         ) : (
           <ChevronDown className="w-4 h-4 text-bambu-gray shrink-0" />
         )}
-      </button>
+      </Button>
 
       {isExpanded && (
         <div className="px-3 py-2 border-t border-bambu-dark-tertiary bg-bambu-dark/20 space-y-2">

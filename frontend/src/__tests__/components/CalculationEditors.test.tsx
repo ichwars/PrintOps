@@ -7,6 +7,7 @@ import { DeviceAssignmentEditor } from '../../components/orders/calculation/Devi
 import { MaterialsEditor } from '../../components/orders/calculation/MaterialsEditor';
 import { PriceDecision } from '../../components/orders/calculation/PriceDecision';
 import { RequestEditor } from '../../components/orders/calculation/RequestEditor';
+import { selectComboboxOption } from '../utils';
 
 const draft = {
   business_profile_id: 1,
@@ -36,16 +37,16 @@ describe('calculation editors', () => {
   it('updates request metadata through all select and text controls', () => {
     const onChange = vi.fn();
     const { rerender } = render(<RequestEditor draft={draft} profiles={[{ id: 1, name: 'Main', legal_name: 'Main GmbH', country_code: 'DE', default_currency: 'EUR', is_active: true, is_default: true, version: 1 }]} customers={[{ id: 2, display_name: 'Customer', account_number: 'C-2' } as never]} projects={[{ id: 3, name: 'Project' } as never]} locale="de-DE" onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText('Kunde'), { target: { value: '2' } });
-    fireEvent.change(screen.getByLabelText('Projektbezug'), { target: { value: '3' } });
-    fireEvent.change(screen.getByLabelText('Druckart'), { target: { value: 'series' } });
+    selectComboboxOption(screen.getByLabelText('Kunde'), /C-2 · Customer/);
+    selectComboboxOption(screen.getByLabelText('Projektbezug'), 'Project');
+    selectComboboxOption(screen.getByLabelText('Druckart'), 'Serie');
     fireEvent.change(screen.getByLabelText('Gesamtstückzahl'), { target: { value: '4' } });
     fireEvent.change(screen.getByLabelText('Positionstitel'), { target: { value: 'Series' } });
     fireEvent.change(screen.getByLabelText('Positionsbeschreibung'), { target: { value: 'Description' } });
     fireEvent.change(screen.getByLabelText('Notizen / gesonderte Absprachen'), { target: { value: 'Terms' } });
     expect(onChange).toHaveBeenCalledTimes(7);
     rerender(<RequestEditor draft={{ ...draft, customer_id: 2, project_id: 3 }} profiles={[]} customers={[]} projects={[]} locale="en-US" onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText('Customer'), { target: { value: '' } });
+    selectComboboxOption(screen.getByLabelText('Customer'), 'No customer');
     fireEvent.change(screen.getByLabelText('Description'), { target: { value: '' } });
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ position_description: null }));
   });
@@ -57,7 +58,7 @@ describe('calculation editors', () => {
     expect(onChange).toHaveBeenCalledWith([expect.objectContaining({ kind: 'material' })]);
     const lines = [{ kind: 'material', description: 'Manual', quantity: '1', unit_code: 'C62', unit_price: '2', sort_order: 0 }] as CalculationCreate['lines'];
     rerender(<MaterialsEditor lines={lines} spools={[{ id: 9, brand: 'ACME', material: 'PLA', color_name: 'Black', cost_per_kg: 20 } as never]} locale="en-US" onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText('Inventory material'), { target: { value: '9' } });
+    selectComboboxOption(screen.getByLabelText('Inventory material'), 'ACME · PLA · Black');
     expect(onChange).toHaveBeenCalledWith([expect.objectContaining({ description: 'ACME · PLA · Black', unit_code: 'GRM', unit_price: '0.02' })]);
     fireEvent.change(screen.getByLabelText('Material description'), { target: { value: 'Screw' } });
     fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: '5' } });
@@ -90,7 +91,7 @@ describe('calculation editors', () => {
     const onChange = vi.fn();
     const operation = { kind: 'printing', title: 'Print', good_parts: 1, parts_per_run: 1, scrap_runs: 0, material_grams_per_run: '1', print_hours_per_run: '1', provenance: { printer_id: null, dryer_id: null }, sort_order: 0, labor: [] } as never;
     render(<DeviceAssignmentEditor operation={operation} printers={[{ id: 7, name: 'Default', is_active: true } as never]} dryers={[{ id: 8, name: 'Dryer', is_active: true } as never]} defaultPrinterId={7} defaultDryerId={8} locale="en-US" onChange={onChange} />);
-    expect(screen.getByLabelText('Printer')).toHaveValue('0');
-    expect(screen.getByLabelText('Dryer')).toHaveValue('0');
+    expect(screen.getByLabelText('Printer')).toHaveTextContent('No printer');
+    expect(screen.getByLabelText('Dryer')).toHaveTextContent('No dryer');
   });
 });

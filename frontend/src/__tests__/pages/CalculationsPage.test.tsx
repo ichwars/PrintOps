@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CalculationsPage } from '../../pages/CalculationsPage';
 import { calculationsApi } from '../../api/calculations';
+import { selectComboboxOption } from '../utils';
 
 vi.mock('../../api/calculations', () => ({
   calculationsApi: {
@@ -53,7 +54,7 @@ describe('CalculationsPage', () => {
     expect(screen.getByTestId('workspace')).toHaveTextContent('new');
     fireEvent.click(screen.getByText('close'));
 
-    fireEvent.change(screen.getByLabelText('Select template'), { target: { value: '4' } });
+    selectComboboxOption(screen.getByLabelText('Select template'), 'Standard');
     fireEvent.click(screen.getByText('From template'));
     await waitFor(() => expect(calculationsApi.instantiateTemplate).toHaveBeenCalledWith(4, 'Standard'));
     expect(screen.getByTestId('workspace')).toHaveTextContent('existing');
@@ -65,7 +66,7 @@ describe('CalculationsPage', () => {
     expect(await screen.findByText('Calculations could not be loaded.')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Retry'));
     expect(await screen.findByText('No calculations yet')).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Filter status'), { target: { value: 'approved' } });
+    selectComboboxOption(screen.getByLabelText('Filter status'), 'Approved');
     await waitFor(() => expect(calculationsApi.list).toHaveBeenLastCalledWith({ status: 'approved' }));
   });
 });

@@ -6,6 +6,7 @@ import type { TagInfo } from '../api/client';
 import { Card, CardContent } from './Card';
 import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
+import { LegacySelect, TextField } from './ui';
 
 interface TagManagementModalProps {
   onClose: () => void;
@@ -146,7 +147,7 @@ export function TagManagementModal({ onClose }: TagManagementModalProps) {
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
-                <input
+                <TextField
                   type="text"
                   placeholder="Search tags..."
                   className="w-full pl-9 pr-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:border-bambu-green focus:outline-none"
@@ -154,14 +155,14 @@ export function TagManagementModal({ onClose }: TagManagementModalProps) {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <select
+              <LegacySelect
                 className="px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:border-bambu-green focus:outline-none"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as 'count' | 'name')}
               >
                 <option value="count">Sort by Count</option>
                 <option value="name">Sort by Name</option>
-              </select>
+              </LegacySelect>
             </div>
             {tags && (
               <p className="text-xs text-bambu-gray mt-2">
@@ -190,7 +191,7 @@ export function TagManagementModal({ onClose }: TagManagementModalProps) {
                     {editingTag === tag.name ? (
                       // Edit mode
                       <div className="flex-1 flex items-center gap-2">
-                        <input
+                        <TextField
                           type="text"
                           className="flex-1 px-2 py-1 bg-bambu-dark-tertiary border border-bambu-green rounded text-white text-sm focus:outline-none"
                           value={editValue}

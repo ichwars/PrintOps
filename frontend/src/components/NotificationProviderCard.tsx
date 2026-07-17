@@ -227,7 +227,7 @@ export function NotificationProviderCard({ provider, onEdit }: NotificationProvi
 
           </>)}
           {/* Toggle Settings Panel */}
-          <button
+          <Button variant="unstyled"
             onClick={() => setIsExpanded(!isExpanded)}
             className={`w-full flex items-center justify-between py-2 text-sm text-bambu-gray hover:text-white transition-colors ${provider.enabled ? 'border-t border-bambu-dark-tertiary' : 'mt-2 border-t border-bambu-dark-tertiary'}`}
           >
@@ -240,7 +240,7 @@ export function NotificationProviderCard({ provider, onEdit }: NotificationProvi
             ) : (
               <ChevronDown className="w-4 h-4" />
             )}
-          </button>
+          </Button>
 
           {/* Expanded Settings */}
           {isExpanded && (

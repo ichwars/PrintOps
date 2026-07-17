@@ -94,20 +94,18 @@ describe('FilamentMapping — FTS routing', () => {
     // Both PLA and PETG slots must appear in the dropdown despite ams_extruder_map
     // being empty and the requirement asking for nozzle 1. Without the FTS guard
     // the dropdown would render only the "-- Select slot --" placeholder.
-    await waitFor(() => {
-      expect(screen.getByText(/Bambu PLA/)).toBeInTheDocument();
-    });
-    expect(screen.getByText(/Bambu PETG/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('combobox')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('combobox'));
+    const plaOption = screen.getByRole('option', { name: /Bambu PLA/ });
+    const petgOption = screen.getByRole('option', { name: /Bambu PETG/ });
 
     // The slot currently fed into a track gets an [L]/[R] badge. AMS-0 slot 1
     // (global tray ID 1) is in fila_switch.in_slots[1], whose track terminates
     // at extruder 1 → the LEFT-nozzle short label appears in that option.
-    const petgOption = screen.getByText(/Bambu PETG/);
     expect(petgOption.textContent).toMatch(/\[L\]/);
 
     // AMS-0 slot 0 (global tray ID 0) is NOT currently fed into any track —
     // FTS routes it on demand, so no badge.
-    const plaOption = screen.getByText(/Bambu PLA/);
     expect(plaOption.textContent).not.toMatch(/\[[LR]\]/);
   });
 
@@ -230,10 +228,10 @@ describe('FilamentMapping — FTS routing', () => {
     // Required nozzle is 1 (LEFT) and AMS 0 is wired to extruder 0 (RIGHT).
     // Both slots must STILL appear so the user can pick them — explicitly the
     // cross-extruder scenario the #1722 fix unblocks.
-    await waitFor(() => {
-      expect(screen.getByText(/Bambu PLA/)).toBeInTheDocument();
-    });
-    expect(screen.getByText(/Bambu PETG/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('combobox')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('combobox'));
+    expect(screen.getByRole('option', { name: /Bambu PLA/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Bambu PETG/ })).toBeInTheDocument();
   });
 
   it('renders sub-brand + material-disambiguated colour on the required side (#1718)', async () => {

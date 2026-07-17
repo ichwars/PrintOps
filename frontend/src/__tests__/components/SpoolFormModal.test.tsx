@@ -9,7 +9,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor, fireEvent } from '@testing-library/react';
-import { render } from '../utils';
+import { render, selectComboboxOption } from '../utils';
 import { SpoolFormModal } from '../../components/SpoolFormModal';
 import type { InventorySpool } from '../../api/client';
 
@@ -1003,7 +1003,7 @@ describe('SpoolFormModal locationIdTouched', () => {
 
     // Change storage location via the catalog dropdown
     const locationSelect = screen.getByLabelText(/storage location/i);
-    fireEvent.change(locationSelect, { target: { value: '2' } });
+    selectComboboxOption(locationSelect, 'Shelf B');
 
     const saveButton = screen.getByRole('button', { name: /save/i });
     fireEvent.click(saveButton);

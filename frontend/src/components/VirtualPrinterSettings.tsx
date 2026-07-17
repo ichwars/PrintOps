@@ -1,7 +1,8 @@
+import { LegacySelect, TextField } from './ui';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Check, AlertTriangle, Printer, Eye, EyeOff, Info, ChevronDown, ExternalLink, ArrowRightLeft } from 'lucide-react';
+import { Loader2, Check, AlertTriangle, Printer, Eye, EyeOff, Info, ExternalLink, ArrowRightLeft } from 'lucide-react';
 import { api, virtualPrinterApi } from '../api/client';
 import { Card, CardContent, CardHeader } from './Card';
 import { Button } from './Button';
@@ -218,7 +219,7 @@ export function VirtualPrinterSettings() {
                 ) : t('virtualPrinter.enable.notActive')}
               </div>
             </div>
-            <button
+            <Button variant="unstyled"
               onClick={handleToggleEnabled}
               disabled={pendingAction === 'toggle'}
               className={`relative w-12 h-6 rounded-full transition-colors ${
@@ -230,7 +231,7 @@ export function VirtualPrinterSettings() {
                   localEnabled ? 'translate-x-6' : ''
                 }`}
               />
-            </button>
+            </Button>
           </div>
 
           {/* Printer Model - only for non-proxy modes */}
@@ -241,7 +242,7 @@ export function VirtualPrinterSettings() {
               {t('virtualPrinter.model.description')}
             </div>
             <div className="relative">
-              <select
+              <LegacySelect
                 value={localModel}
                 onChange={(e) => handleModelChange(e.target.value)}
                 disabled={pendingAction === 'model'}
@@ -254,8 +255,7 @@ export function VirtualPrinterSettings() {
                     {name}
                   </option>
                 ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+              </LegacySelect>
             </div>
             {localEnabled && isRunning && (
               <p className="text-xs text-bambu-gray mt-2">
@@ -285,7 +285,7 @@ export function VirtualPrinterSettings() {
               </div>
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <input
+                  <TextField
                     type={showAccessCode ? 'text' : 'password'}
                     value={localAccessCode}
                     onChange={(e) => setLocalAccessCode(e.target.value)}
@@ -293,12 +293,12 @@ export function VirtualPrinterSettings() {
                     maxLength={8}
                     className="w-full bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-md px-3 py-2 text-white placeholder-bambu-gray pr-10 font-mono"
                   />
-                  <button
+                  <Button variant="unstyled"
                     onClick={() => setShowAccessCode(!showAccessCode)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-bambu-gray hover:text-white"
                   >
                     {showAccessCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                  </Button>
                 </div>
                 <Button
                   onClick={handleAccessCodeChange}
@@ -337,7 +337,7 @@ export function VirtualPrinterSettings() {
                 )}
               </div>
               <div className="relative">
-                <select
+                <LegacySelect
                   value={localTargetPrinterId ?? ''}
                   onChange={(e) => {
                     const id = parseInt(e.target.value, 10);
@@ -354,8 +354,7 @@ export function VirtualPrinterSettings() {
                       {printer.name} ({printer.ip_address})
                     </option>
                   ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+                </LegacySelect>
               </div>
               <p className="text-xs text-bambu-gray mt-2">
                 {t('virtualPrinter.targetPrinter.hint')}
@@ -387,7 +386,7 @@ export function VirtualPrinterSettings() {
                 )}
               </div>
               <div className="relative">
-                <select
+                <LegacySelect
                   value={localRemoteInterfaceIp}
                   onChange={(e) => handleRemoteInterfaceChange(e.target.value)}
                   disabled={pendingAction === 'remoteInterface'}
@@ -399,8 +398,7 @@ export function VirtualPrinterSettings() {
                       {iface.name} ({iface.ip}) - {iface.subnet}
                     </option>
                   ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
+                </LegacySelect>
               </div>
               <p className="text-xs text-bambu-gray mt-2">
                 {t('virtualPrinter.remoteInterface.hint')}
@@ -412,7 +410,7 @@ export function VirtualPrinterSettings() {
           <div className="py-3 border-t border-bambu-dark-tertiary">
             <div className="text-white font-medium mb-2">{t('virtualPrinter.mode.title')}</div>
             <div className="grid grid-cols-2 gap-3">
-              <button
+              <Button variant="unstyled"
                 onClick={() => handleModeChange('archive')}
                 disabled={pendingAction === 'mode'}
                 className={`p-3 rounded-lg border text-left transition-colors ${
@@ -423,8 +421,8 @@ export function VirtualPrinterSettings() {
               >
                 <div className="text-white font-medium">{t('virtualPrinter.mode.archive')}</div>
                 <div className="text-xs text-bambu-gray">{t('virtualPrinter.mode.archiveDesc')}</div>
-              </button>
-              <button
+              </Button>
+              <Button variant="unstyled"
                 onClick={() => handleModeChange('review')}
                 disabled={pendingAction === 'mode'}
                 className={`p-3 rounded-lg border text-left transition-colors ${
@@ -435,8 +433,8 @@ export function VirtualPrinterSettings() {
               >
                 <div className="text-white font-medium">{t('virtualPrinter.mode.review')}</div>
                 <div className="text-xs text-bambu-gray">{t('virtualPrinter.mode.reviewDesc')}</div>
-              </button>
-              <button
+              </Button>
+              <Button variant="unstyled"
                 onClick={() => handleModeChange('queue')}
                 disabled={pendingAction === 'mode'}
                 className={`p-3 rounded-lg border text-left transition-colors ${
@@ -447,8 +445,8 @@ export function VirtualPrinterSettings() {
               >
                 <div className="text-white font-medium">{t('virtualPrinter.mode.queue')}</div>
                 <div className="text-xs text-bambu-gray">{t('virtualPrinter.mode.queueDesc')}</div>
-              </button>
-              <button
+              </Button>
+              <Button variant="unstyled"
                 onClick={() => handleModeChange('proxy')}
                 disabled={pendingAction === 'mode'}
                 className={`p-3 rounded-lg border text-left transition-colors ${
@@ -462,7 +460,7 @@ export function VirtualPrinterSettings() {
                   {t('virtualPrinter.mode.proxy')}
                 </div>
                 <div className="text-xs text-bambu-gray">{t('virtualPrinter.mode.proxyDesc')}</div>
-              </button>
+              </Button>
             </div>
           </div>
         </CardContent>

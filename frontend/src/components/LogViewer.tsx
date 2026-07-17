@@ -15,6 +15,7 @@ import {
   Bug,
 } from 'lucide-react';
 import { supportApi, type LogEntry } from '../api/client';
+import { Checkbox, TextField } from './ui';
 
 const LOG_LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR'] as const;
 type LogLevel = (typeof LOG_LEVELS)[number];
@@ -204,11 +205,9 @@ export function LogViewer() {
 
               {/* Auto-scroll toggle */}
               <label className="flex items-center gap-2 text-sm text-bambu-gray cursor-pointer">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={autoScroll}
                   onChange={(e) => setAutoScroll(e.target.checked)}
-                  className="rounded border-bambu-dark-tertiary bg-bambu-dark-tertiary"
                 />
                 Auto-scroll
               </label>
@@ -224,7 +223,7 @@ export function LogViewer() {
               {/* Search input */}
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
-                <input
+                <TextField
                   type="text"
                   placeholder="Search message or logger name..."
                   value={searchQuery}

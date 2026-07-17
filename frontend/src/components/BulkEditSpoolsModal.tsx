@@ -5,6 +5,7 @@ import { X, Loader2, ChevronDown } from 'lucide-react';
 import { api } from '../api/client';
 import type { InventorySpool } from '../api/client';
 import { Button } from './Button';
+import { NumberField , Checkbox, ColorInput, TextArea, TextField} from './ui';
 import { MATERIALS, DEFAULT_BRANDS, KNOWN_VARIANTS } from './spool-form/constants';
 import { buildFilamentOptions } from './spool-form/utils';
 
@@ -141,7 +142,7 @@ function SearchableSelect({ value, onChange, options, allowCustom, placeholderKe
 
   return (
     <div className="relative" ref={ref}>
-      <input
+      <TextField
         type="text"
         disabled={disabled}
         value={displayValue}
@@ -383,7 +384,7 @@ export function BulkEditSpoolsModal({
 
     if (f.type === 'textarea') {
       return (
-        <textarea
+        <TextArea
           disabled={isPending}
           value={value}
           onChange={(e) => setField(f.id, e.target.value)}
@@ -399,14 +400,13 @@ export function BulkEditSpoolsModal({
       return (
         <div>
           <div className="flex items-center gap-2">
-            <input
-              type="color"
+            <ColorInput
               disabled={isPending}
               value={`#${(value || '808080').replace(/^#/, '').slice(0, 6)}`}
               onChange={(e) => setField(f.id, e.target.value.replace(/^#/, '').toUpperCase())}
               className="h-9 w-12 rounded cursor-pointer"
             />
-            <input
+            <TextField
               type="text"
               disabled={isPending}
               value={value}
@@ -423,15 +423,26 @@ export function BulkEditSpoolsModal({
       );
     }
 
+    if (f.type === 'number') {
+      return (
+        <NumberField
+          disabled={isPending}
+          value={value}
+          onValueChange={(next) => setField(f.id, next)}
+          min={f.min}
+          max={f.max}
+          step={f.step}
+          className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray/50 focus:border-bambu-green focus:outline-none"
+        />
+      );
+    }
+
     return (
-      <input
-        type={f.type === 'number' ? 'number' : 'text'}
+      <TextField
+        type="text"
         disabled={isPending}
         value={value}
         onChange={(e) => setField(f.id, e.target.value)}
-        min={f.min}
-        max={f.max}
-        step={f.step}
         className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray/50 focus:border-bambu-green focus:outline-none"
       />
     );
@@ -474,9 +485,7 @@ export function BulkEditSpoolsModal({
             return (
               <div key={f.id} className={`flex items-start gap-3 rounded-md p-2 transition-colors ${enabled ? 'bg-bambu-green/5 border border-bambu-green/30' : 'border border-transparent'}`}>
                 <div className="pt-2">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 cursor-pointer"
+                  <Checkbox
                     checked={enabled}
                     onChange={(e) => {
                       if (e.target.checked) setField(f.id, '');
