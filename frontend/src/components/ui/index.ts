@@ -1,9 +1,15 @@
+export { Button } from './Button';
+export type { ButtonProps } from './Button';
 export { Checkbox } from './Checkbox';
 export type { CheckboxProps } from './Checkbox';
 export { FormField } from './FormField';
 export type { FormFieldA11y, FormFieldProps } from './FormField';
+export { IconButton } from './IconButton';
+export type { IconButtonProps } from './IconButton';
 export { RadioGroup } from './RadioGroup';
 export type { RadioGroupProps, RadioOption } from './RadioGroup';
+export { ScrollArea } from './ScrollArea';
+export type { ScrollAreaProps } from './ScrollArea';
 export { Switch } from './Switch';
 export type { SwitchProps } from './Switch';
 export { TextArea } from './TextArea';
