@@ -533,4 +533,4 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
     </>
   );
 }
-import { NumberField, Switch, TextField } from './ui';
+import { NumberField, Switch } from './ui';

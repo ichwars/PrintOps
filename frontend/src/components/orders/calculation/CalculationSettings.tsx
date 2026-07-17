@@ -4,7 +4,7 @@ import { BadgeEuro, Calculator, Clock3, Coins, Loader2, Package, TriangleAlert, 
 import { calculationsApi, type CalculationPreview, type CalculationPreviewInput, type PriceMethod } from '../../../api/calculations';
 import { api } from '../../../api/client';
 import { SUPPORTED_CURRENCIES } from '../../../utils/currency';
-import { NumberField, Select, TextField } from '../../ui';
+import { NumberField, Select } from '../../ui';
 
 type SettingKey = 'currency' | 'default_filament_cost' | 'energy_cost_per_kwh' | 'energy_tracking_mode' | 'calculation_defaults';
 type Settings = { currency: string; default_filament_cost: number; energy_cost_per_kwh: number; energy_tracking_mode: string; calculation_defaults: string };
