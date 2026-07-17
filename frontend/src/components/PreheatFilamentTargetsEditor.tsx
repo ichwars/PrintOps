@@ -1,4 +1,4 @@
-import { TextField } from './ui';
+import { NumberField } from './ui';
 import { useTranslation } from 'react-i18next';
 import {
   DEFAULT_PREHEAT_FILAMENT_TARGETS,
@@ -43,8 +43,7 @@ export function PreheatFilamentTargetsEditor({ value, onChange, disabled = false
               {label}
             </span>
             <div className="flex items-center gap-1">
-              <TextField
-                type="number"
+              <NumberField
                 min={0}
                 max={60}
                 step={1}

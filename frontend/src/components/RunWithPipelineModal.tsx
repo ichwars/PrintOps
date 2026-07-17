@@ -10,6 +10,7 @@ import {
 } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { useSliceJobTracker } from '../contexts/SliceJobTrackerContext';
+import { NumberField } from './ui';
 
 // Same source-kind shape SliceModal uses, so the same library-file vs archive
 // distinction flows through eligibility-check, run dispatch, AND the progress
@@ -206,9 +207,8 @@ function PickStep({
         <label className="text-xs text-bambu-gray" htmlFor="run-pipeline-copies">
           {t('library.runWithPipeline.copies', 'Copies')}:
         </label>
-        <input
+        <NumberField
           id="run-pipeline-copies"
-          type="number"
           min={1}
           max={maxCopies}
           value={copies}

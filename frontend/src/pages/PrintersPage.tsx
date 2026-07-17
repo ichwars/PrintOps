@@ -23,6 +23,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { NumberField } from '../components/ui';
 import {
   Plus,
   Link,
@@ -1291,8 +1292,7 @@ function IndicatorControlPopover({
                 submitCustom();
               }}
             >
-              <input
-                type="number"
+              <NumberField
                 min={customMin}
                 max={customMax}
                 step={customStep}
@@ -1375,8 +1375,7 @@ function NozzleTemperatureControlBox({
           submitCustom();
         }}
       >
-        <input
-          type="number"
+        <NumberField
           min={0}
           max={320}
           step={1}
@@ -6339,8 +6338,7 @@ function PrinterCard({
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-[10px] text-white/70 font-medium">{t('printers.drying.temperature')}</label>
                     <div className="flex items-center gap-1">
-                      <input
-                        type="number"
+                      <NumberField
                         min={45}
                         max={maxTemp}
                         value={dryingTemp}
@@ -6368,8 +6366,7 @@ function PrinterCard({
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-[10px] text-white/70 font-medium">{t('printers.drying.duration')}</label>
                     <div className="flex items-center gap-1">
-                      <input
-                        type="number"
+                      <NumberField
                         min={1}
                         max={24}
                         value={dryingDuration}

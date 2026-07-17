@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Calendar, Clock, Hand, Power, Layers, Code, ListOrdered } from 'lucide-react';
+import { NumberField } from '../ui';
 import type { ScheduleOptionsProps, ScheduleType } from './types';
 import {
   formatDateInput,
@@ -312,8 +313,7 @@ export function ScheduleOptionsPanel({
               <div className="flex gap-3">
                 <div className="flex-1">
                   <label className="block text-xs text-bambu-gray mb-1">{t('printModal.staggerGroupSize', 'Group size')}</label>
-                  <input
-                    type="number"
+                  <NumberField
                     min={1}
                     max={printerCount}
                     value={options.staggerGroupSize}
@@ -323,8 +323,7 @@ export function ScheduleOptionsPanel({
                 </div>
                 <div className="flex-1">
                   <label className="block text-xs text-bambu-gray mb-1">{t('printModal.staggerInterval', 'Interval (min)')}</label>
-                  <input
-                    type="number"
+                  <NumberField
                     min={1}
                     max={60}
                     value={options.staggerIntervalMinutes}

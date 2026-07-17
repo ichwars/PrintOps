@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Card, CardContent } from '../Card';
 import { Button } from '../Button';
 import { ConfirmModal } from '../ConfirmModal';
+import { NumberField } from '../ui';
 import { useToast } from '../../contexts/ToastContext';
 import { buildLoadedFilaments, useFilamentMapping } from '../../hooks/useFilamentMapping';
 import { useMultiPrinterFilamentMapping, type PerPrinterConfig } from '../../hooks/useMultiPrinterFilamentMapping';
@@ -1181,9 +1182,8 @@ export function PrintModal({
                 <label htmlFor="printQuantity" className="text-sm text-bambu-gray whitespace-nowrap">
                   {t('queue.quantity', 'Quantity')}
                 </label>
-                <input
+                <NumberField
                   id="printQuantity"
-                  type="number"
                   min={1}
                   max={999}
                   value={quantity}

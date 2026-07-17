@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { NumberField } from '../components/ui';
 import {
   FolderKanban,
   Loader2,
@@ -272,8 +273,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
               <label className="block text-sm font-medium text-white mb-1">
                 {t('projects.targetPlates')}
               </label>
-              <input
-                type="number"
+              <NumberField
                 value={targetCount}
                 onChange={(e) => setTargetCount(e.target.value)}
                 className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded px-3 py-2 text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green"
@@ -286,8 +286,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
               <label className="block text-sm font-medium text-white mb-1">
                 {t('projects.targetParts')}
               </label>
-              <input
-                type="number"
+              <NumberField
                 value={targetPartsCount}
                 onChange={(e) => setTargetPartsCount(e.target.value)}
                 className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded px-3 py-2 text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green"
@@ -350,8 +349,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-bambu-gray pointer-events-none">
                 {currencySymbol}
               </span>
-              <input
-                type="number"
+              <NumberField
                 step="0.01"
                 min="0"
                 value={budget}

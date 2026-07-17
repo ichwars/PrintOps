@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { NumberField } from '../components/ui';
 import {
   Wrench,
   Loader2,
@@ -370,8 +371,7 @@ function PrinterSection({
             </div>
             {editingHours ? (
               <div className="flex items-center gap-2">
-                <input
-                  type="number"
+                <NumberField
                   value={hoursInput}
                   onChange={(e) => setHoursInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -672,8 +672,7 @@ function SettingsSection({
                     <label className="block text-xs text-bambu-gray mb-1.5">
                       {t('maintenance.intervalValue', { type: newTypeIntervalType === 'days' ? t('maintenance.calendarDays').toLowerCase() : t('common.hours') })}
                     </label>
-                    <input
-                      type="number"
+                    <NumberField
                       value={newTypeInterval}
                       onChange={(e) => setNewTypeInterval(e.target.value)}
                       className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:border-bambu-green focus:outline-none"
@@ -813,8 +812,7 @@ function SettingsSection({
                         <option value="hours">{t('maintenance.printHours')}</option>
                         <option value="days">{t('maintenance.calendarDays')}</option>
                       </select>
-                      <input
-                        type="number"
+                      <NumberField
                         value={editTypeInterval}
                         onChange={(e) => setEditTypeInterval(e.target.value)}
                         className="w-24 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:border-bambu-green focus:outline-none"
@@ -1008,8 +1006,7 @@ function SettingsSection({
                                 <option value="hours">{t('maintenance.printHours')}</option>
                                 <option value="days">{t('maintenance.calendarDays')}</option>
                               </select>
-                              <input
-                                type="number"
+                              <NumberField
                                 value={intervalInput}
                                 onChange={(e) => setIntervalInput(e.target.value)}
                                 onKeyDown={(e) => {

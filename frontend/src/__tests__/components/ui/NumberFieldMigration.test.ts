@@ -17,6 +17,18 @@ const groups = {
     'components/settings/BusinessProfileEditorModal.tsx',
     'components/settings/DeviceManagement.tsx',
   ],
+  printerAndProjects: [
+    'pages/MaintenancePage.tsx',
+    'pages/PrintersPage.tsx',
+    'pages/ProjectsPage.tsx',
+    'pages/ProjectDetailPage.tsx',
+    'pages/spoolbuddy/SpoolBuddyWriteTagPage.tsx',
+    'components/PreheatFilamentTargetsEditor.tsx',
+    'components/PrintModal/index.tsx',
+    'components/PrintModal/PrintOptions.tsx',
+    'components/PrintModal/ScheduleOptions.tsx',
+    'components/RunWithPipelineModal.tsx',
+  ],
 };
 
 const sourceRoot = path.resolve(process.cwd(), 'src');

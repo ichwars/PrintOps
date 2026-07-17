@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Settings, ChevronDown, ChevronUp, Flame } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { NumberField } from '../ui';
 import type { PrintOptionsProps, PrintOptions as PrintOptionsType, PreheatOverride } from './types';
 
 type OptionConfig = {
@@ -136,8 +137,7 @@ export function PrintOptionsPanel({
                 <label className="text-xs text-bambu-gray flex-1">
                   {t('settings.preheatTargetOverride', 'Chamber target override (°C, blank = filament default)')}
                 </label>
-                <input
-                  type="number"
+                <NumberField
                   min={0}
                   max={60}
                   step={1}

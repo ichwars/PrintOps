@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { NumberField } from '../components/ui';
 import {
   ArrowLeft,
   Edit3,
@@ -1036,16 +1037,14 @@ export function ProjectDetailPage() {
                   autoFocus
                 />
                 <div className="flex gap-2">
-                  <input
-                    type="number"
+                  <NumberField
                     value={newBomQty}
                     onChange={(e) => setNewBomQty(parseInt(e.target.value) || 1)}
                     className="w-20 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-bambu-green"
                     min="1"
                     placeholder={t('projectDetail.bom.qty')}
                   />
-                  <input
-                    type="number"
+                  <NumberField
                     step="0.01"
                     value={newBomPrice}
                     onChange={(e) => setNewBomPrice(e.target.value)}
@@ -1111,16 +1110,14 @@ export function ProjectDetailPage() {
                           autoFocus
                         />
                         <div className="flex gap-2">
-                          <input
-                            type="number"
+                          <NumberField
                             value={editBomQty}
                             onChange={(e) => setEditBomQty(parseInt(e.target.value) || 1)}
                             className="w-20 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-bambu-green"
                             min="1"
                             placeholder={t('projectDetail.bom.qty')}
                           />
-                          <input
-                            type="number"
+                          <NumberField
                             step="0.01"
                             value={editBomPrice}
                             onChange={(e) => setEditBomPrice(e.target.value)}
