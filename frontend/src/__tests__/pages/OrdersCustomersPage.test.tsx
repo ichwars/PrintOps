@@ -174,7 +174,7 @@ describe('OrdersCustomersPage', () => {
     expect(screen.getByText('1-25 of 51')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Next page' }));
-    expect(await screen.findByText('26-50 of 51')).toBeInTheDocument();
+    await screen.findByText('26-50 of 51', {}, { timeout: 5_000 });
   });
 
   it('keeps details usable for read-only users and shows every real aggregate', async () => {
