@@ -1,3 +1,4 @@
+import { LegacySelect, TextArea, TextField } from './ui';
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Play, Copy, Loader2, ExternalLink, AlertCircle, CheckCircle } from 'lucide-react';
 import { Card, CardContent } from './Card';
@@ -307,7 +308,7 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
 
   return (
     <div className="border border-bambu-dark-tertiary rounded-lg overflow-hidden">
-      <button
+      <Button variant="unstyled"
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-3 p-3 hover:bg-bambu-dark-tertiary/50 transition-colors text-left"
       >
@@ -323,7 +324,7 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
         {spec.summary && (
           <span className="text-sm text-bambu-gray truncate max-w-[40%]">{spec.summary}</span>
         )}
-      </button>
+      </Button>
 
       {expanded && (
         <div className="border-t border-bambu-dark-tertiary p-4 space-y-4 bg-bambu-dark/50">
@@ -342,7 +343,7 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
                       {param.name}
                       {param.required && <span className="text-red-700 dark:text-red-400 ml-1">*</span>}
                     </label>
-                    <input
+                    <TextField
                       type="text"
                       value={params[param.name] || ''}
                       onChange={(e) => setParams(p => ({ ...p, [param.name]: e.target.value }))}
@@ -367,7 +368,7 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
                       {param.required && <span className="text-red-700 dark:text-red-400 ml-1">*</span>}
                     </label>
                     {param.schema?.enum ? (
-                      <select
+                      <LegacySelect
                         value={params[param.name] || ''}
                         onChange={(e) => setParams(p => ({ ...p, [param.name]: e.target.value }))}
                         className="flex-1 px-2 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
@@ -376,9 +377,9 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
                         {param.schema.enum.map(opt => (
                           <option key={opt} value={opt}>{opt}</option>
                         ))}
-                      </select>
+                      </LegacySelect>
                     ) : (
-                      <input
+                      <TextField
                         type="text"
                         value={params[param.name] || ''}
                         onChange={(e) => setParams(p => ({ ...p, [param.name]: e.target.value }))}
@@ -396,7 +397,7 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
           {hasBody && (
             <div className="space-y-2">
               <h4 className="text-sm font-medium text-white">Request Body</h4>
-              <textarea
+              <TextArea
                 value={bodyText}
                 onChange={(e) => setBodyText(e.target.value)}
                 rows={8}
@@ -573,7 +574,7 @@ export function APIBrowser({ apiKey = '' }: APIBrowserProps) {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1">
-          <input
+          <TextField
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -609,7 +610,7 @@ export function APIBrowser({ apiKey = '' }: APIBrowserProps) {
       <div className="space-y-3">
         {filteredTags.map(({ tag, endpoints }) => (
           <Card key={tag}>
-            <button
+            <Button variant="unstyled"
               onClick={() => toggleTag(tag)}
               className="w-full flex items-center justify-between p-4 hover:bg-bambu-dark-tertiary/30 transition-colors text-left"
             >
@@ -624,7 +625,7 @@ export function APIBrowser({ apiKey = '' }: APIBrowserProps) {
                   {endpoints.length}
                 </span>
               </div>
-            </button>
+            </Button>
 
             {expandedTags.has(tag) && (
               <CardContent className="pt-0 space-y-2">

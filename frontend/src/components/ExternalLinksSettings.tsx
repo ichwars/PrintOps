@@ -341,7 +341,7 @@ export function ExternalLinksSettings() {
                           {contextLabel} · {statusLabel}
                         </span>
                       </div>
-                      <button
+                      <Button variant="unstyled"
                         onClick={() => toggleSystemItemVisibility(item.id)}
                         disabled={!canToggleVisibility}
                         className="p-2 rounded-lg hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-bambu-gray"
@@ -349,7 +349,7 @@ export function ExternalLinksSettings() {
                         aria-label={visibilityTitle}
                       >
                         {isEffectivelyHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
+                      </Button>
                     </div>
                   );
                 }
@@ -393,21 +393,21 @@ export function ExternalLinksSettings() {
                       <span className="text-sm text-bambu-gray truncate block">{link.url}</span>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
+                      <Button variant="unstyled"
                         onClick={() => setEditingLink(link)}
                         className="p-2 rounded-lg hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors"
                         title={t('common.edit')}
                       >
                         <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
+                      </Button>
+                      <Button variant="unstyled"
                         onClick={() => handleDelete(link)}
                         disabled={deleteMutation.isPending}
                         className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-500/20 text-bambu-gray hover:text-red-900 dark:hover:text-red-400 transition-colors disabled:opacity-50"
                         title={t('externalLinks.deleteLink')}
                       >
                         <Trash2 className="w-4 h-4" />
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 );

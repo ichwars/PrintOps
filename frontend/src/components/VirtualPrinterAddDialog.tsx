@@ -1,3 +1,4 @@
+import { LegacySelect, TextField } from './ui';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -66,7 +67,7 @@ export function VirtualPrinterAddDialog({ onClose }: VirtualPrinterAddDialogProp
           {/* Name */}
           <div>
             <label className="text-sm text-white font-medium block mb-1">{t('virtualPrinter.addDialog.name')}</label>
-            <input
+            <TextField
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -81,7 +82,7 @@ export function VirtualPrinterAddDialog({ onClose }: VirtualPrinterAddDialogProp
             <label className="text-sm text-white font-medium block mb-1">{t('virtualPrinter.mode.title')}</label>
             <div className="grid grid-cols-2 gap-2">
               {(['archive', 'review', 'queue', 'proxy'] as const).map((m) => (
-                <button
+                <Button variant="unstyled"
                   key={m}
                   onClick={() => setMode(m)}
                   className={`p-2 rounded-lg border text-left transition-colors ${
@@ -99,7 +100,7 @@ export function VirtualPrinterAddDialog({ onClose }: VirtualPrinterAddDialogProp
                   <div className="text-[10px] text-bambu-gray">
                     {t(`virtualPrinter.mode.${MODE_LABELS[m]}Desc`)}
                   </div>
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -109,7 +110,7 @@ export function VirtualPrinterAddDialog({ onClose }: VirtualPrinterAddDialogProp
             <div>
               <label className="text-sm text-white font-medium block mb-1">{t('virtualPrinter.targetPrinter.title')}</label>
               <div className="relative">
-                <select
+                <LegacySelect
                   value={targetPrinterId ?? ''}
                   onChange={(e) => {
                     const id = parseInt(e.target.value, 10);
@@ -121,7 +122,7 @@ export function VirtualPrinterAddDialog({ onClose }: VirtualPrinterAddDialogProp
                   {printers?.map((p) => (
                     <option key={p.id} value={p.id}>{p.name} ({p.ip_address})</option>
                   ))}
-                </select>
+                </LegacySelect>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
               </div>
             </div>
