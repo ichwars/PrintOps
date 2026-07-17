@@ -148,6 +148,19 @@ describe('NumberField', () => {
     expect(onValueChange).not.toHaveBeenCalled();
   });
 
+  it('uses consistently sized step controls and readable icons', () => {
+    render(<NumberField aria-label="Copies" value="1" />);
+
+    const increase = screen.getByRole('button', { name: 'Increase value' });
+    const decrease = screen.getByRole('button', { name: 'Decrease value' });
+    const stepper = increase.parentElement;
+
+    expect(stepper).toHaveClass('w-10');
+    expect(stepper).not.toHaveClass('w-[34px]');
+    expect(increase.querySelector('svg')).toHaveClass('h-3.5', 'w-3.5');
+    expect(decrease.querySelector('svg')).toHaveClass('h-3.5', 'w-3.5');
+  });
+
   it('preserves accessibility state supplied by an outer field wrapper', () => {
     render(
       <>

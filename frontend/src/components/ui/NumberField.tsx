@@ -114,7 +114,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
               emitStep(event.key === 'ArrowUp' ? 1 : -1);
             }}
           />
-          <div className="absolute inset-y-px right-px grid w-[34px] grid-rows-2 overflow-hidden rounded-r-[7px] border-l border-bambu-dark-tertiary max-[768px]:w-10">
+          <div className="absolute inset-y-px right-px grid w-10 grid-rows-2 overflow-hidden rounded-r-[7px] border-l border-bambu-dark-tertiary">
             <button
               type="button"
               aria-label={incrementLabel ?? t('common.increaseValue')}
@@ -127,7 +127,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => emitStep(1)}
             >
-              <ChevronUp aria-hidden="true" className="h-3 w-3" />
+              <ChevronUp aria-hidden="true" className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"
@@ -141,7 +141,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => emitStep(-1)}
             >
-              <ChevronDown aria-hidden="true" className="h-3 w-3" />
+              <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>

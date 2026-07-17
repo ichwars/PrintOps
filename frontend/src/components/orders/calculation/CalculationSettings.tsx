@@ -22,8 +22,6 @@ const FALLBACK: Defaults = {
   exampleParts: 1, examplePartsPerRun: 1, exampleMaterialGrams: 200, examplePrintHours: 5,
 };
 
-const inputClass = 'mt-1 h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 text-white outline-none focus:border-bambu-green';
-
 function parseDefaults(value: string): Defaults {
   try { return { ...FALLBACK, ...JSON.parse(value || '{}') }; } catch { return { ...FALLBACK }; }
 }
@@ -114,7 +112,7 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
       {group.title === (de ? 'Preisbildung' : 'Price derivation') && <Select label={de ? 'Preisrundung' : 'Price rounding'} value={String(defaults.roundingMode)} onValueChange={(value) => update('roundingMode', value)} className="mt-3" options={[
         { value: 'none', label: de ? 'Keine' : 'None' }, { value: '0.05', label: '0,05' }, { value: '0.10', label: '0,10' }, { value: '0.50', label: '0,50' }, { value: '1.00', label: '1,00' }, { value: 'x.90', label: 'x,90' }, { value: 'x.99', label: 'x,99' },
       ]} />}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">{group.fields.map(([key, label, step]) => <NumberField key={key} label={label}  min="0" step={step} value={Number(defaults[key] ?? 0)} onValueChange={(value) => update(key, Number(value))} className={inputClass} />)}</div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">{group.fields.map(([key, label, step]) => <NumberField key={key} label={label} min="0" step={step} value={Number(defaults[key] ?? 0)} onValueChange={(value) => update(key, Number(value))} />)}</div>
       {group.title === (de ? 'Beispielrechnung' : 'Example calculation') && <div className="mt-4">
         {loading && <div className="flex items-center gap-2 text-sm text-bambu-gray"><Loader2 className="h-4 w-4 animate-spin" />{de ? 'Berechnung läuft…' : 'Calculating…'}</div>}
         {previewError && <div role="alert" className="text-sm text-red-300">{de ? 'Beispiel konnte nicht berechnet werden.' : 'Example could not be calculated.'}</div>}
@@ -131,8 +129,8 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
     <h2 className="sr-only">{de ? 'Kostenverfolgung' : 'Cost Tracking'}</h2>
     <div className="grid gap-3 md:grid-cols-4">
       <Select label={de ? 'Währung' : 'Currency'} value={settings.currency} onValueChange={(value) => onChange('currency', value)} options={SUPPORTED_CURRENCIES.map(currency => ({ value: currency.code, label: currency.label }))} />
-      <NumberField label={de ? 'Filamentpreis/kg' : 'Filament price/kg'}  min="0" step="0.01" value={settings.default_filament_cost} onValueChange={(value) => onChange('default_filament_cost', Number(value))} className={inputClass} />
-      <NumberField label={de ? 'Strompreis/kWh' : 'Electricity/kWh'}  min="0" step="0.001" value={settings.energy_cost_per_kwh} onValueChange={(value) => onChange('energy_cost_per_kwh', Number(value))} className={inputClass} />
+      <NumberField label={de ? 'Filamentpreis/kg' : 'Filament price/kg'} min="0" step="0.01" value={settings.default_filament_cost} onValueChange={(value) => onChange('default_filament_cost', Number(value))} />
+      <NumberField label={de ? 'Strompreis/kWh' : 'Electricity/kWh'} min="0" step="0.001" value={settings.energy_cost_per_kwh} onValueChange={(value) => onChange('energy_cost_per_kwh', Number(value))} />
       <Select label={de ? 'Energieanzeige' : 'Energy display'} value={settings.energy_tracking_mode} onValueChange={(value) => onChange('energy_tracking_mode', value)} options={[{ value: 'total', label: de ? 'Gesamtverbrauch' : 'Total consumption' }, { value: 'print', label: de ? 'Nur Druckenergie' : 'Print energy only' }]} />
     </div>
     <div className="grid items-start gap-5 lg:grid-cols-2"><div className="space-y-5">{groups.filter(group => group.column === 'cost').map(renderGroup)}</div><div className="space-y-5">{groups.filter(group => group.column === 'commercial').map(renderGroup)}</div></div>
