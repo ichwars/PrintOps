@@ -78,7 +78,7 @@ export function Tabs<T extends string>({
   return (
     <div className={className}>
       <div
-        role={renderPanel ? 'tablist' : undefined}
+        role={renderPanel ? 'tablist' : 'navigation'}
         aria-label={ariaLabel}
         className="flex gap-1 overflow-x-auto border-b border-bambu-dark-tertiary"
       >

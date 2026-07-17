@@ -30,6 +30,16 @@ describe('CalculationWorkspace', () => {
     vi.mocked(calculationsApi.create).mockResolvedValue({} as never);
     render(<CalculationWorkspace calculation={null} locale="en-US" onClose={vi.fn()} onSaved={onSaved} />);
     expect(screen.getByText('Add calculation')).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: 'Add calculation' });
+    expect(dialog).toHaveClass('flex', 'max-h-full', 'overflow-hidden');
+    expect(dialog.parentElement).toHaveClass('flex', 'items-center', 'overflow-hidden');
+    expect(screen.getByTestId('calculation-scroll-viewport')).toHaveClass(
+      'min-h-0',
+      'flex-1',
+      'overflow-y-auto',
+    );
+    expect(dialog.querySelector('header')).toHaveClass('shrink-0');
+    expect(dialog.querySelector('header')).not.toHaveClass('sticky');
     await waitFor(() => expect(api.getCustomers).toHaveBeenCalledWith({ businessProfileId: 2, status: 'active', limit: 200, offset: 0 }));
     expect(screen.getByRole('heading', { name: '1. Request' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '5. Cost & price' })).toBeInTheDocument();

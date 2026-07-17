@@ -27,6 +27,8 @@ export type NumberFieldProps = Omit<
   label?: ReactNode;
   helperText?: ReactNode;
   error?: ReactNode;
+  containerClassName?: string;
+  suffix?: ReactNode;
   incrementLabel?: string;
   decrementLabel?: string;
 };
@@ -37,6 +39,8 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
     label,
     helperText,
     error,
+    containerClassName = '',
+    suffix,
     required,
     className = '',
     value,
@@ -83,7 +87,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
       required={required}
     >
       {({ controlId, describedBy, invalid }) => (
-        <div className="relative">
+        <div className={`relative ${containerClassName}`}>
           <input
             {...props}
             ref={inputRef}
@@ -100,7 +104,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
               [externalDescribedBy, describedBy].filter(Boolean).join(' ') || undefined
             }
             aria-invalid={invalid ? true : externalInvalid}
-            className={`${controlClass} [appearance:textfield] pr-11 max-[768px]:pr-12 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${className}`}
+            className={`${controlClass} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${className} ${suffix ? 'pr-16 max-[768px]:pr-20' : 'pr-9 max-[768px]:pr-12'}`}
             onChange={(event) => {
               onValueChange?.(event.target.value);
               onChange?.(event);
@@ -114,7 +118,15 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
               emitStep(event.key === 'ArrowUp' ? 1 : -1);
             }}
           />
-          <div className="absolute inset-y-px right-px grid w-10 grid-rows-2 overflow-hidden rounded-r-[7px] border-l border-bambu-dark-tertiary">
+          {suffix ? (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-px right-9 flex items-center px-2 text-xs text-bambu-gray max-[768px]:right-12"
+            >
+              {suffix}
+            </span>
+          ) : null}
+          <div className="absolute inset-y-px right-px grid w-8 grid-rows-2 overflow-hidden rounded-r-[7px] border-l border-bambu-dark-tertiary max-[768px]:w-11">
             <button
               type="button"
               aria-label={incrementLabel ?? t('common.increaseValue')}
@@ -127,7 +139,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => emitStep(1)}
             >
-              <ChevronUp aria-hidden="true" className="h-3.5 w-3.5" />
+              <ChevronUp aria-hidden="true" className="h-3 w-3" />
             </button>
             <button
               type="button"
@@ -141,7 +153,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => emitStep(-1)}
             >
-              <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" />
+              <ChevronDown aria-hidden="true" className="h-3 w-3" />
             </button>
           </div>
         </div>

@@ -387,11 +387,11 @@ export function FilamentSection({
       {/* Label Weight */}
       <div>
         <label className="block text-sm font-medium text-bambu-gray mb-1">{t('inventory.labelWeight')}</label>
-        <div className="relative">
-          <NumberField
-            className="w-full px-3 py-2 pr-7 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
+        <NumberField
+            className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
             value={labelInput}
             min={0}
+            suffix="g"
             onFocus={() => setIsLabelFocused(true)}
             onChange={(e) => setLabelInput(e.target.value)}
             onBlur={() => {
@@ -407,8 +407,6 @@ export function FilamentSection({
               setLabelInput(String(rounded));
             }}
           />
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-bambu-gray">g</span>
-        </div>
       </div>
 
       {/* Quantity — only in quick-add mode */}

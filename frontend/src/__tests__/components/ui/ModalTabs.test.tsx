@@ -63,4 +63,25 @@ describe('Tabs', () => {
     expect(general).toHaveAttribute('aria-selected', 'true');
     expect(general).toHaveFocus();
   });
+
+  it('exposes panel-less settings tabs as labeled navigation', () => {
+    render(
+      <Tabs
+        ariaLabel="Settings sections"
+        value="general"
+        onValueChange={() => {}}
+        renderPanel={false}
+        items={[
+          { value: 'general', label: 'General', content: null },
+          { value: 'advanced', label: 'Advanced', content: null },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole('navigation', { name: 'Settings sections' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'General' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
 });

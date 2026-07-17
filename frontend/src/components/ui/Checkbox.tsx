@@ -98,11 +98,12 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
       <span>{label}</span>
     </label>
   ) : (
-    <span
+    <label
+      htmlFor={controlId}
       className={`inline-flex min-h-[38px] items-center max-[768px]:min-h-11 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${className}`}
     >
       {control}
-    </span>
+    </label>
   );
 
   if (label === undefined && helperText === undefined && error === undefined) {

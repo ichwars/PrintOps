@@ -19,6 +19,8 @@ import { Button, DatePicker, IconButton, NumberField, TextField } from '../ui';
 
 const inputClass =
   'mt-1 h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 text-sm text-white outline-none transition-colors focus:border-bambu-green';
+const numberInputClass =
+  'h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 text-sm text-white outline-none transition-colors focus:border-bambu-green';
 
 const initialDryer = (): EquipmentInput => ({
   equipment_type: 'dryer',
@@ -296,7 +298,8 @@ function PrinterCostEditor({
               step="0.01"
               value={draft[key]}
               onValueChange={(value) => setDraft({ ...draft, [key]: value })}
-              className={inputClass}
+              containerClassName="mt-1"
+              className={numberInputClass}
             />
           ),
         )}
@@ -499,7 +502,8 @@ function DryerForm({
             step="0.01"
             value={String(draft[key])}
             onValueChange={(value) => onChange({ ...draft, [key]: value })}
-            className={inputClass}
+            containerClassName="mt-1"
+            className={numberInputClass}
           />
       ))}
       <div className="flex flex-wrap items-end justify-end gap-2 sm:col-span-2">

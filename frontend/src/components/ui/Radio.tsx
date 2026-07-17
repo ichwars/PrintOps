@@ -16,9 +16,9 @@ export const Radio = forwardRef<HTMLInputElement, RadioProps>(function Radio(
       <span
         data-testid="radio-visual"
         aria-hidden="true"
-        className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border border-bambu-dark-tertiary bg-bambu-dark leading-none transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-bambu-green peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-bambu-dark peer-checked:border-bambu-green max-[768px]:h-[22px] max-[768px]:w-[22px]"
+        className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border border-bambu-dark-tertiary bg-bambu-dark leading-none transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-bambu-green peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-bambu-dark peer-checked:border-bambu-green peer-checked:[&>span]:opacity-100 max-[768px]:h-[22px] max-[768px]:w-[22px]"
       >
-        <span className="h-2 w-2 rounded-full bg-bambu-green opacity-0 peer-checked:opacity-100 max-[768px]:h-2.5 max-[768px]:w-2.5" />
+        <span className="h-2 w-2 rounded-full bg-bambu-green opacity-0 max-[768px]:h-2.5 max-[768px]:w-2.5" />
       </span>
     </span>
   );

@@ -6,6 +6,7 @@ import { Calendar } from '../../../components/ui';
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe('Calendar', () => {
@@ -58,6 +59,21 @@ describe('Calendar', () => {
 
     expect(screen.getByText('Juli 2026')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '17. Juli 2026' })).toHaveAttribute(
+      'aria-current',
+      'date',
+    );
+  });
+
+  it('derives today from local calendar fields instead of UTC fields', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-17T12:00:00Z'));
+    vi.spyOn(Date.prototype, 'getFullYear').mockReturnValue(2026);
+    vi.spyOn(Date.prototype, 'getMonth').mockReturnValue(6);
+    vi.spyOn(Date.prototype, 'getDate').mockReturnValue(18);
+
+    render(<Calendar locale="de-DE" value="2026-07-18" onSelect={() => {}} />);
+
+    expect(screen.getByRole('button', { name: '18. Juli 2026' })).toHaveAttribute(
       'aria-current',
       'date',
     );

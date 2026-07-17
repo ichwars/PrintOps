@@ -37,7 +37,10 @@ export function Calendar({
   className = '',
 }: CalendarProps) {
   const generatedId = useId().replace(/:/g, '');
-  const today = formatDateKey(new Date());
+  const now = new Date();
+  const today = formatDateKey(
+    new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())),
+  );
   const initialFocus =
     (focusedValue && parseDateKey(focusedValue) ? focusedValue : undefined) ??
     (value && parseDateKey(value) ? value : undefined) ??

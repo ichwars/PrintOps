@@ -35,6 +35,21 @@ describe('selection controls', () => {
     expect(screen.getByTestId('checkbox-visual').querySelector('svg')).toHaveClass('block');
   });
 
+  it('toggles a standalone checkbox when its visible control is clicked', async () => {
+    const onCheckedChange = vi.fn();
+    render(
+      <Checkbox
+        checked={false}
+        ariaLabel="Select all colors"
+        onCheckedChange={onCheckedChange}
+      />,
+    );
+
+    await userEvent.setup().click(screen.getByTestId('checkbox-visual'));
+
+    expect(onCheckedChange).toHaveBeenCalledWith(true);
+  });
+
   it('requires an accessible switch name and reports its next state', async () => {
     const onCheckedChange = vi.fn();
     render(

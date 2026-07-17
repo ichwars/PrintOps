@@ -28,7 +28,13 @@ describe('specialized form controls', () => {
 
     await userEvent.setup().click(screen.getByRole('radio', { name: 'Preferred' }));
 
-    expect(screen.getByTestId('radio-visual')).toHaveClass('items-center', 'justify-center');
+    const visual = screen.getByTestId('radio-visual');
+    expect(visual).toHaveClass(
+      'items-center',
+      'justify-center',
+      'peer-checked:[&>span]:opacity-100',
+    );
+    expect(visual.firstElementChild).not.toHaveClass('peer-checked:opacity-100');
     expect(onChange).toHaveBeenCalledTimes(1);
   });
 
@@ -42,6 +48,12 @@ describe('specialized form controls', () => {
     expect(input).not.toHaveAttribute('type', 'time');
     await userEvent.setup().clear(input);
     expect(onValueChange).toHaveBeenCalled();
+  });
+
+  it('accepts the 12-hour values produced by print scheduling', () => {
+    render(<TimeField aria-label="Start" value="9:30 AM" onValueChange={() => {}} />);
+
+    expect(screen.getByRole('textbox', { name: 'Start' })).toBeValid();
   });
 
   it('adapts the owned date picker to a native-style change callback', async () => {

@@ -227,6 +227,7 @@ export function AdditionalSection({
               value={remainingInput}
               min={0}
               max={formData.label_weight}
+              suffix="g"
               onFocus={() => setIsRemainingFocused(true)}
               onChange={(e) => {
                 setRemainingInput(e.target.value);
@@ -243,9 +244,8 @@ export function AdditionalSection({
                 updateField('weight_used', Math.max(0, formData.label_weight - rounded));
                 setRemainingInput(String(rounded));
               }}
-              className="w-full px-3 py-2 pr-7 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
+              className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
             />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-bambu-gray">g</span>
           </div>
           <span className="text-xs text-bambu-gray shrink-0">/ {formData.label_weight}g</span>
         </div>
@@ -259,6 +259,7 @@ export function AdditionalSection({
             <NumberField
               value={measuredInput}
               min={0}
+              suffix="g"
               onFocus={() => setIsMeasuredFocused(true)}
               onChange={(e) => {
                 setMeasuredInput(e.target.value);
@@ -281,9 +282,8 @@ export function AdditionalSection({
                 updateField('weight_used', Math.max(0, formData.label_weight - remaining));
                 setMeasuredInput(String(rounded));
               }}
-              className="w-full px-3 py-2 pr-7 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
+              className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
             />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-bambu-gray">g</span>
           </div>
           <span className="text-xs text-bambu-gray shrink-0">/ {formData.core_weight + formData.label_weight}g</span>
         </div>
@@ -348,6 +348,7 @@ export function AdditionalSection({
               min={1}
               max={99}
               step={1}
+              suffix="%"
               onChange={(e) => {
                 const raw = e.target.value;
                 if (raw === '') {
@@ -360,7 +361,6 @@ export function AdditionalSection({
                 }
               }}
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-bambu-gray pointer-events-none">%</span>
           </div>
         </div>
         <p className="text-xs text-bambu-gray mt-1">
