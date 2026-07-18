@@ -26,6 +26,7 @@ from backend.app.api.routes import (
     bug_report,
     business_profiles,
     calculations,
+    calculation_projects,
     camera,
     cloud,
     customers,
@@ -6723,6 +6724,7 @@ app.include_router(mfa.router, prefix=app_settings.api_prefix)
 app.include_router(bug_report.router, prefix=app_settings.api_prefix)
 app.include_router(business_profiles.router, prefix=app_settings.api_prefix)
 app.include_router(calculations.router, prefix=app_settings.api_prefix)
+app.include_router(calculation_projects.router, prefix=app_settings.api_prefix)
 app.include_router(customers.router, prefix=app_settings.api_prefix)
 app.include_router(users.router, prefix=app_settings.api_prefix)
 app.include_router(groups.router, prefix=app_settings.api_prefix)
