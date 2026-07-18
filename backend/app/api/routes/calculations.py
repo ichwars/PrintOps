@@ -40,6 +40,14 @@ from backend.app.utils.threemf_tools import extract_filament_usage_from_3mf, ext
 router = APIRouter(prefix="/calculations", tags=["calculations"])
 
 
+@router.get("/effective-defaults")
+async def get_effective_defaults(
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
+) -> dict:
+    return await calculation_service.effective_defaults(db)
+
+
 def _preview_inputs(data: CalculationPreviewInput) -> VariantCostInputs:
     values = data.model_dump(
         exclude={"labor", "acquisition_value", "residual_value", "service_years", "annual_hours", "maintenance_rate"}
