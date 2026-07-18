@@ -3,7 +3,18 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.core.database import Base
@@ -20,9 +31,7 @@ class SmallPartCategory(Base):
 
 class SmallPartUnit(Base):
     __tablename__ = "small_part_units"
-    __table_args__ = (
-        CheckConstraint("decimal_places BETWEEN 0 AND 6", name="ck_small_part_unit_precision"),
-    )
+    __table_args__ = (CheckConstraint("decimal_places BETWEEN 0 AND 6", name="ck_small_part_unit_precision"),)
 
     code: Mapped[str] = mapped_column(String(16), primary_key=True)
     label: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -90,4 +99,3 @@ class SmallPartLedgerEntry(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     small_part: Mapped[SmallPart] = relationship(back_populates="ledger_entries")
-

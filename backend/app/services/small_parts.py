@@ -129,8 +129,7 @@ async def search_small_parts(
     statement = statement.order_by(SmallPart.is_active.desc(), func.lower(SmallPart.name)).limit(limit)
     parts = list((await session.scalars(statement)).unique())
     return [
-        SmallPartSearchResult(part=part, available=(await get_balance(session, part.id)).available)
-        for part in parts
+        SmallPartSearchResult(part=part, available=(await get_balance(session, part.id)).available) for part in parts
     ]
 
 

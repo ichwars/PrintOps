@@ -157,4 +157,3 @@ class SmallPartListResponse(SmallPartSchema):
     total: int
     limit: int
     offset: int
-
