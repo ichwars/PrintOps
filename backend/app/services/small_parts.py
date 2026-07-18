@@ -28,6 +28,10 @@ class SmallPartUnitChangeNotAllowed(ValueError):
     pass
 
 
+class SmallPartIdempotencyConflict(ValueError):
+    pass
+
+
 @dataclass(frozen=True)
 class SmallPartBalance:
     physical: Decimal
@@ -72,6 +76,18 @@ async def append_ledger_entry(
         select(SmallPartLedgerEntry).where(SmallPartLedgerEntry.idempotency_key == idempotency_key)
     )
     if existing is not None:
+        command_matches = (
+            existing.small_part_id == small_part_id
+            and existing.entry_kind == entry_kind
+            and Decimal(existing.physical_delta) == Decimal(physical_delta)
+            and Decimal(existing.reserved_delta) == Decimal(reserved_delta)
+            and existing.reason == reason.strip()
+            and existing.reference_type == reference_type
+            and existing.reference_id == reference_id
+            and existing.actor_id == actor_id
+        )
+        if not command_matches:
+            raise SmallPartIdempotencyConflict("Idempotency key belongs to a different stock command")
         return existing
 
     part = await session.scalar(select(SmallPart).where(SmallPart.id == small_part_id).with_for_update())

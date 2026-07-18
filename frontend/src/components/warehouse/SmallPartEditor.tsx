@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { api } from '../../api/client';
 import { smallPartsApi, type SmallPart, type SmallPartInput } from '../../api/smallParts';
@@ -15,6 +15,7 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
   const categories = useQuery({ queryKey: ['small-parts', 'categories'], queryFn: smallPartsApi.categories.list });
   const units = useQuery({ queryKey: ['small-parts', 'units'], queryFn: smallPartsApi.units.list });
   const locations = useQuery({ queryKey: ['warehouse', 'locations'], queryFn: api.getLocations });
+  const settings = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
   const [form, setForm] = useState<SmallPartInput>({
     sku: part?.sku ?? '',
     name: part?.name ?? '',
@@ -28,7 +29,15 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
     supplier_reference: part?.supplier_reference ?? '',
     is_active: part?.is_active ?? true,
   });
+  const [minimumStockTouched, setMinimumStockTouched] = useState(false);
   const [error, setError] = useState('');
+  useEffect(() => {
+    if (part || minimumStockTouched || settings.data?.small_parts_default_minimum_stock == null) return;
+    setForm((current) => ({
+      ...current,
+      minimum_stock: String(settings.data?.small_parts_default_minimum_stock ?? '0'),
+    }));
+  }, [minimumStockTouched, part, settings.data?.small_parts_default_minimum_stock]);
   const mutation = useMutation({
     mutationFn: () => part ? smallPartsApi.update(part.id, form) : smallPartsApi.create(form),
     onSuccess: async () => {
@@ -49,7 +58,7 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
         <Select label="Kategorie" value={String(form.category_id ?? '')} onValueChange={(value) => update('category_id', value ? Number(value) : null)} options={[{ value: '', label: 'Keine Kategorie' }, ...(categories.data?.filter((item) => item.is_active).map((item) => ({ value: String(item.id), label: item.name })) ?? [])]} />
         <Select label="Einheit" required value={form.unit_code} onValueChange={(value) => update('unit_code', value)} options={[{ value: '', label: 'Einheit auswählen' }, ...(units.data?.filter((item) => item.is_active).map((item) => ({ value: item.code, label: item.label })) ?? [])]} />
         <Select label="Lagerort" value={String(form.location_id ?? '')} onValueChange={(value) => update('location_id', value ? Number(value) : null)} options={[{ value: '', label: 'Kein Lagerort' }, ...(locations.data?.map((item) => ({ value: String(item.id), label: item.name })) ?? [])]} />
-        <NumberField label="Meldebestand" min="0" step="0.01" value={form.minimum_stock} onValueChange={(value) => update('minimum_stock', value)} className={inputClass} />
+        <NumberField label="Meldebestand" min="0" step="0.01" value={form.minimum_stock} onValueChange={(value) => { setMinimumStockTouched(true); update('minimum_stock', value); }} className={inputClass} />
         <NumberField label="Einzelpreis €" min="0" step="0.01" value={form.unit_cost} onValueChange={(value) => update('unit_cost', value)} className={inputClass} />
         <TextField label="Lieferantenreferenz" value={form.supplier_reference ?? ''} onValueChange={(value) => update('supplier_reference', value)} className={inputClass} />
         <TextField label="Suchbegriffe" value={form.search_terms ?? ''} onValueChange={(value) => update('search_terms', value)} className={`${inputClass} sm:col-span-2`} />

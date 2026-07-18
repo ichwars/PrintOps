@@ -1,4 +1,5 @@
 import shutil
+from decimal import Decimal
 from io import BytesIO
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -8,6 +9,8 @@ from backend.app.core.config import settings as app_settings
 from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.calculation import Calculation
 from backend.app.models.calculation_project import CalculationProjectFile
+from backend.app.models.calculation_slice import CalculationSliceResult
+from backend.app.services.calculation_slicing import build_cache_key
 
 
 def _project_file() -> bytes:
@@ -91,6 +94,62 @@ async def test_project_file_upload_persists_revisions_and_plate_preview(
     )
     assert preview.status_code == 200
     assert preview.headers["content-type"] == "image/png"
+
+
+@pytest.mark.asyncio
+async def test_slice_cache_result_is_mapped_to_requested_plate(async_client, db_session, tmp_path, monkeypatch):
+    monkeypatch.setattr(app_settings, "base_dir", tmp_path)
+    profile = BusinessProfile(
+        name="Slice cache",
+        legal_name="Slice cache GmbH",
+        country_code="DE",
+        default_currency="EUR",
+    )
+    calculation = Calculation(business_profile=profile, title="Cache plates", currency="EUR")
+    db_session.add(calculation)
+    await db_session.commit()
+    first = await async_client.post(
+        f"/api/v1/calculations/{calculation.id}/project-files",
+        files={"file": ("first.3mf", _project_file(), "application/vnd.ms-package.3dmanufacturing-3dmodel+xml")},
+    )
+    second = await async_client.post(
+        f"/api/v1/calculations/{calculation.id}/project-files",
+        files={"file": ("second.3mf", _project_file(), "application/vnd.ms-package.3dmanufacturing-3dmodel+xml")},
+    )
+    first_plate = first.json()["plates"][0]
+    second_plate = second.json()["plates"][0]
+    key = build_cache_key(
+        file_sha256=first.json()["sha256"],
+        plate_index=first_plate["plate_index"],
+        profiles={
+            "slicer": "bambu_studio",
+            "mode": "embedded",
+            "printer": None,
+            "process": None,
+            "filament": None,
+        },
+    )
+    db_session.add(
+        CalculationSliceResult(
+            project_plate_id=first_plate["id"],
+            cache_key=key,
+            status="completed",
+            source="slicer",
+            print_hours=Decimal("1"),
+            material_grams=Decimal("10"),
+            warnings=[],
+            profile_snapshot={},
+        )
+    )
+    await db_session.commit()
+
+    response = await async_client.post(
+        f"/api/v1/calculations/project-files/{second.json()['id']}/slice",
+        json={"plate_ids": [second_plate["id"]]},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()[0]["project_plate_id"] == second_plate["id"]
 
 
 @pytest.mark.asyncio

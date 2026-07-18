@@ -367,6 +367,20 @@ async def approve_calculation(
     operation_inputs: list[VariantCostInputs] = []
     for selected_plate in preferred[0].plates:
         plate = selected_plate.project_plate
+        provenance = selected_plate.provenance or {}
+        printer_id = provenance.get("printer_id") if "printer_id" in provenance else defaults.get("defaultPrinterId")
+        dryer_id = provenance.get("dryer_id") if "dryer_id" in provenance else defaults.get("defaultDryerId")
+        printer = await session.get(Printer, int(printer_id)) if printer_id else None
+        dryer = await session.get(Equipment, int(dryer_id)) if dryer_id else None
+        printer_rate = printer.hourly_rate if printer is not None else None
+        dryer_rate = (
+            calculate_hourly_rate(
+                dryer.acquisition_value, dryer.service_years, dryer.annual_hours, dryer.maintenance_rate
+            )
+            if dryer is not None
+            else Decimal("0")
+        )
+        drying_hours = _decimal_value(provenance.get("drying_hours") or defaults.get("dryingHours", 0))
         operation_inputs.append(
             VariantCostInputs(
                 good_parts=selected_plate.good_parts,
@@ -381,6 +395,18 @@ async def approve_calculation(
                 )
                 / (Decimal("100") if "material_markup_rate" not in overrides else Decimal("1")),
                 print_hours_per_run=selected_plate.hours_per_print or plate.detected_hours or Decimal("0"),
+                machine_cost_per_hour=_decimal_value(provenance.get("printer_hourly_rate") or printer_rate or "0"),
+                printer_power_kw=_decimal_value(
+                    provenance.get("printer_power_watts") or getattr(printer, "nominal_power_watts", 0) or "0"
+                )
+                / Decimal("1000"),
+                electricity_price_per_kwh=Decimal(str(defaults["electricityPricePerKwh"])),
+                drying_hours=drying_hours,
+                dryer_power_kw=_decimal_value(
+                    provenance.get("dryer_power_watts") or getattr(dryer, "nominal_power_watts", 0) or "0"
+                )
+                / Decimal("1000"),
+                additional_costs=dryer_rate * drying_hours,
                 labor=default_labor,
             )
         )
@@ -735,6 +761,28 @@ async def instantiate_template(
                 for labor_index, labor in enumerate(operation.get("labor", []))
             ]
             variant.operations.append(created_operation)
+        variant.plates = [
+            CalculationVariantPlate(
+                project_plate_id=plate["project_plate_id"],
+                good_parts=plate.get("good_parts", 1),
+                parts_per_print=plate.get("parts_per_print", 1),
+                scrap_prints=plate.get("scrap_prints", 0),
+                material_code=plate.get("material_code"),
+                grams_per_print=(
+                    Decimal(str(plate["grams_per_print"])) if plate.get("grams_per_print") is not None else None
+                ),
+                hours_per_print=(
+                    Decimal(str(plate["hours_per_print"])) if plate.get("hours_per_print") is not None else None
+                ),
+                provenance={
+                    **(plate.get("provenance") or {}),
+                    "template_id": template.id,
+                    "template_version": template.version,
+                },
+                sort_order=index,
+            )
+            for index, plate in enumerate(source_variant.get("plates", []))
+        ]
         calculation.variants.append(variant)
     session.add(calculation)
     await session.flush()

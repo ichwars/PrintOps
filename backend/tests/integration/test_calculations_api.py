@@ -6,6 +6,7 @@ from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.calculation import Calculation
 from backend.app.models.printer import Printer
 from backend.app.models.settings import Settings
+from backend.tests.integration.test_calculation_project_files_api import _project_file
 
 
 def _payload(profile_id: int) -> dict:
@@ -203,6 +204,98 @@ async def test_approval_uses_configured_default_printer_costs(async_client, db_s
     )
     assert approved.status_code == 200, approved.text
     assert float(approved.json()["production_cost"]) > 20
+
+
+async def test_plate_approval_uses_selected_printer_costs(async_client, db_session, tmp_path, monkeypatch):
+    from backend.app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "base_dir", tmp_path)
+    profile = await _profile(db_session)
+    printer = Printer(
+        name="Plate printer",
+        serial_number="PLATE-COST-1",
+        ip_address="127.0.0.1",
+        access_code="",
+        acquisition_date=date.today(),
+        acquisition_value="1000",
+        service_years="1",
+        annual_hours="100",
+        maintenance_rate="0",
+        nominal_power_watts="1000",
+    )
+    db_session.add(printer)
+    await db_session.commit()
+    created = await async_client.post("/api/v1/calculations/", json=_payload(profile.id))
+    uploaded = await async_client.post(
+        f"/api/v1/calculations/{created.json()['id']}/project-files",
+        files={"file": ("plate.3mf", _project_file(), "application/vnd.ms-package.3dmanufacturing-3dmodel+xml")},
+    )
+    plate_id = uploaded.json()["plates"][0]["id"]
+    payload = _payload(profile.id)
+    payload["expected_version"] = 1
+    payload["variants"][0]["operations"] = []
+    payload["variants"][0]["plates"] = [
+        {
+            "project_plate_id": plate_id,
+            "good_parts": 1,
+            "parts_per_print": 1,
+            "material_code": "PETG",
+            "grams_per_print": "1",
+            "hours_per_print": "2",
+            "provenance": {"source": "3mf", "printer_id": printer.id},
+        }
+    ]
+    updated = await async_client.put(f"/api/v1/calculations/{created.json()['id']}", json=payload)
+    approved = await async_client.post(
+        f"/api/v1/calculations/{created.json()['id']}/approve",
+        json={"expected_version": updated.json()["version"], "warning_reasons": {}},
+    )
+
+    assert approved.status_code == 200, approved.text
+    assert float(approved.json()["production_cost"]) > 20
+
+
+async def test_template_instantiation_restores_selected_plates(async_client, db_session, tmp_path, monkeypatch):
+    from backend.app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "base_dir", tmp_path)
+    profile = await _profile(db_session)
+    created = await async_client.post("/api/v1/calculations/", json=_payload(profile.id))
+    uploaded = await async_client.post(
+        f"/api/v1/calculations/{created.json()['id']}/project-files",
+        files={"file": ("plate.3mf", _project_file(), "application/vnd.ms-package.3dmanufacturing-3dmodel+xml")},
+    )
+    plate_id = uploaded.json()["plates"][0]["id"]
+    payload = _payload(profile.id)
+    payload["expected_version"] = 1
+    payload["variants"][0]["operations"] = []
+    payload["variants"][0]["plates"] = [
+        {
+            "project_plate_id": plate_id,
+            "good_parts": 8,
+            "parts_per_print": 4,
+            "scrap_prints": 1,
+            "material_code": "PETG",
+            "grams_per_print": "25",
+            "hours_per_print": "1.5",
+            "provenance": {"source": "3mf"},
+        }
+    ]
+    await async_client.put(f"/api/v1/calculations/{created.json()['id']}", json=payload)
+    template = await async_client.post(
+        f"/api/v1/calculations/{created.json()['id']}/templates",
+        json={"name": "Plate template"},
+    )
+    instantiated = await async_client.post(
+        f"/api/v1/calculations/templates/{template.json()['id']}/instantiate",
+        json={"title": "Plate copy"},
+    )
+
+    assert instantiated.status_code == 201, instantiated.text
+    plate = instantiated.json()["variants"][0]["plates"][0]
+    assert plate["project_plate_id"] == plate_id
+    assert plate["good_parts"] == 8
+    assert plate["parts_per_print"] == 4
 
 
 async def test_invalid_provenance_is_a_validation_blocker(async_client, db_session):

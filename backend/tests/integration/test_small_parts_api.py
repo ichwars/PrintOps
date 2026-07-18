@@ -90,3 +90,30 @@ async def test_inactive_small_parts_are_excluded_from_search_by_default(async_cl
 
     assert search.status_code == 200
     assert search.json() == []
+
+    listed = await async_client.get("/api/v1/small-parts")
+    assert listed.status_code == 200
+    assert [item["sku"] for item in listed.json()["items"]] == ["OLD-PART"]
+
+
+@pytest.mark.asyncio
+async def test_duplicate_sku_update_returns_conflict(async_client):
+    await async_client.post(
+        "/api/v1/small-parts/settings/units",
+        json={"code": "C62", "label": "Stück", "decimal_places": 0},
+    )
+    first = await async_client.post(
+        "/api/v1/small-parts",
+        json={"sku": "PART-A", "name": "Teil A", "unit_code": "C62"},
+    )
+    second = await async_client.post(
+        "/api/v1/small-parts",
+        json={"sku": "PART-B", "name": "Teil B", "unit_code": "C62"},
+    )
+
+    response = await async_client.patch(
+        f"/api/v1/small-parts/{second.json()['id']}",
+        json={"sku": first.json()["sku"]},
+    )
+
+    assert response.status_code == 409

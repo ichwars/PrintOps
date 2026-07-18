@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -76,6 +76,21 @@ async def _allocation(
     return reservation, allocation
 
 
+async def _complete_reservation_if_consumed(session: AsyncSession, reservation: StockReservation) -> None:
+    await session.flush()
+    outstanding = await session.scalar(
+        select(
+            func.coalesce(
+                func.sum(StockReservationAllocation.allocated_quantity - StockReservationAllocation.consumed_quantity),
+                0,
+            )
+        ).where(StockReservationAllocation.reservation_id == reservation.id)
+    )
+    if Decimal(outstanding or 0) <= 0:
+        reservation.status = "consumed"
+        reservation.released_at = datetime.now(timezone.utc)
+
+
 async def issue_small_part(
     session: AsyncSession,
     *,
@@ -110,8 +125,7 @@ async def issue_small_part(
         idempotency_key=f"issue:{idempotency_key}",
     )
     allocation.consumed_quantity += quantity
-    if allocation.consumed_quantity == allocation.allocated_quantity:
-        reservation.status = "consumed"
+    await _complete_reservation_if_consumed(session, reservation)
     session.add(
         StockReservationCommand(
             order_id=order.id,
@@ -149,8 +163,7 @@ async def reconcile_filament(
         raise ResourceNotFoundError(f"Spool {allocation.spool_id} was not found")
     spool.weight_used = float(Decimal(str(spool.weight_used or 0)) + quantity)
     allocation.consumed_quantity = min(allocation.allocated_quantity, quantity)
-    reservation.status = "consumed"
-    reservation.released_at = datetime.now(timezone.utc)
+    await _complete_reservation_if_consumed(session, reservation)
     session.add(
         StockReservationCommand(
             order_id=order.id,

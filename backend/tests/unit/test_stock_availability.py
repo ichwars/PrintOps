@@ -1,11 +1,16 @@
 from decimal import Decimal
+from unittest.mock import AsyncMock
 
 import pytest
 
+from backend.app.models.small_part import SmallPart, SmallPartLedgerEntry, SmallPartUnit
+from backend.app.models.spool import Spool
 from backend.app.services.stock_availability import (
     InsufficientStock,
     StockCandidate,
+    StockRequirement,
     allocate_candidates,
+    check_availability,
     requirements_from_snapshot,
 )
 
@@ -70,3 +75,69 @@ def test_requirements_are_derived_from_immutable_selected_variant():
     assert requirements[0].material_code == "PETG"
     assert requirements[1].small_part_id == 8
     assert requirements[1].quantity == Decimal("4")
+
+
+@pytest.mark.asyncio
+async def test_repeated_requirements_share_internal_filament_capacity(db_session):
+    db_session.add(Spool(material="PETG", label_weight=150, weight_used=0))
+    await db_session.commit()
+    requirements = tuple(
+        StockRequirement(f"plate:{index}", "filament", Decimal("100"), "GRM", material_code="PETG")
+        for index in range(2)
+    )
+
+    report = await check_availability(db_session, requirements)
+
+    assert [line.status for line in report.lines] == ["available", "short"]
+    assert report.lines[1].available == Decimal("50")
+
+
+@pytest.mark.asyncio
+async def test_repeated_requirements_share_small_part_capacity(db_session):
+    unit = SmallPartUnit(code="C62", label="Stück", decimal_places=0)
+    part = SmallPart(sku="SHARED", name="Shared part", unit_code="C62")
+    db_session.add_all([unit, part])
+    await db_session.flush()
+    db_session.add(
+        SmallPartLedgerEntry(
+            small_part_id=part.id,
+            entry_kind="opening",
+            physical_delta=Decimal("5"),
+            reserved_delta=Decimal("0"),
+            reason="Opening",
+            idempotency_key="shared-small-part-opening",
+        )
+    )
+    await db_session.commit()
+    requirements = tuple(
+        StockRequirement(f"part:{index}", "small_part", Decimal("3"), "C62", small_part_id=part.id)
+        for index in range(2)
+    )
+
+    report = await check_availability(db_session, requirements)
+
+    assert [line.status for line in report.lines] == ["available", "short"]
+    assert report.lines[1].available == Decimal("2")
+
+
+@pytest.mark.asyncio
+async def test_spoolman_mode_uses_external_spools(db_session, monkeypatch):
+    monkeypatch.setattr(
+        "backend.app.services.stock_availability.get_setting",
+        AsyncMock(return_value="true"),
+    )
+    client = AsyncMock()
+    client.get_spools.return_value = [
+        {"id": 42, "remaining_weight": 250, "filament": {"material": "PETG", "weight": 1000}}
+    ]
+    monkeypatch.setattr(
+        "backend.app.services.stock_availability.get_spoolman_client",
+        AsyncMock(return_value=client),
+    )
+    requirement = StockRequirement("plate:1", "filament", Decimal("200"), "GRM", material_code="PETG")
+
+    report = await check_availability(db_session, (requirement,))
+
+    assert report.lines[0].status == "available"
+    assert report.lines[0].allocations[0].candidate.backend == "spoolman"
+    assert report.lines[0].allocations[0].candidate.resource_id == "42"

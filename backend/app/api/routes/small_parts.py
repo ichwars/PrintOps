@@ -231,7 +231,7 @@ async def list_small_parts(
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ) -> SmallPartListResponse:
-    matches = await service.search_small_parts(db, query=q, active_only=active is not False, limit=10000)
+    matches = await service.search_small_parts(db, query=q, active_only=active is True, limit=10000)
     if active is not None:
         matches = [item for item in matches if item.part.is_active is active]
     reads = [await _read_part(db, item.part) for item in matches]
@@ -277,9 +277,14 @@ async def update_small_part(
     try:
         await service.update_small_part(db, part, data)
         await db.commit()
-    except service.SmallPartUnitChangeNotAllowed as exc:
+    except (service.SmallPartUnitChangeNotAllowed, IntegrityError) as exc:
         await db.rollback()
-        raise _conflict(str(exc)) from exc
+        message = (
+            str(exc)
+            if isinstance(exc, service.SmallPartUnitChangeNotAllowed)
+            else "Artikelnummer ist bereits vorhanden"
+        )
+        raise _conflict(message) from exc
     return await _read_part(db, await _load_part(db, small_part_id))
 
 
@@ -326,6 +331,12 @@ async def add_small_part_stock(
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             detail={"code": "insufficient_stock", "message": str(exc)},
+        ) from exc
+    except service.SmallPartIdempotencyConflict as exc:
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"code": "idempotency_conflict", "message": str(exc)},
         ) from exc
     await db.refresh(entry)
     await ws_manager.broadcast({"type": "inventory_changed", "resource": "small_part", "id": small_part_id})

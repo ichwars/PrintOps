@@ -9,10 +9,12 @@ from typing import Literal
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.api.routes.settings import get_setting
 from backend.app.models.small_part import SmallPart
 from backend.app.models.spool import Spool
 from backend.app.models.stock_reservation import StockReservation, StockReservationAllocation
 from backend.app.services.small_parts import get_balance
+from backend.app.services.spoolman import get_spoolman_client
 
 
 @dataclass(frozen=True)
@@ -156,6 +158,36 @@ async def _filament_reserved(session: AsyncSession, spool_id: int) -> Decimal:
     return Decimal(value or 0)
 
 
+async def _external_filament_reserved(session: AsyncSession, spool_id: str) -> Decimal:
+    value = await session.scalar(
+        select(
+            func.coalesce(
+                func.sum(StockReservationAllocation.allocated_quantity - StockReservationAllocation.consumed_quantity),
+                0,
+            )
+        )
+        .join(StockReservation, StockReservation.id == StockReservationAllocation.reservation_id)
+        .where(
+            StockReservationAllocation.external_spool_id == spool_id,
+            StockReservation.status == "active",
+        )
+    )
+    return Decimal(value or 0)
+
+
+def _spoolman_physical(spool: dict) -> Decimal:
+    remaining = spool.get("remaining_weight")
+    if remaining is not None:
+        return max(Decimal("0"), _decimal(remaining))
+    filament = spool.get("filament") or {}
+    return max(Decimal("0"), _decimal(filament.get("weight")) - _decimal(spool.get("used_weight")))
+
+
+def _spoolman_material(spool: dict) -> str:
+    filament = spool.get("filament") or {}
+    return str(filament.get("material") or spool.get("material") or filament.get("name") or "")
+
+
 async def check_availability(
     session: AsyncSession, requirements: tuple[StockRequirement, ...], *, lock: bool = False
 ) -> AvailabilityReport:
@@ -163,7 +195,14 @@ async def check_availability(
     if lock:
         statement = statement.with_for_update()
     spools = list(await session.scalars(statement))
+    spoolman_enabled = (await get_setting(session, "spoolman_enabled") or "").lower() == "true"
+    external_spools: list[dict] = []
+    if spoolman_enabled:
+        client = await get_spoolman_client()
+        if client is not None:
+            external_spools = list(await client.get_spools())
     lines: list[AvailabilityLine] = []
+    planned: dict[tuple[str, str], Decimal] = {}
     for requirement in requirements:
         if requirement.resource_kind == "small_part":
             part_statement = select(SmallPart).where(SmallPart.id == requirement.small_part_id)
@@ -178,31 +217,55 @@ async def check_availability(
                 )
                 continue
             balance = await get_balance(session, part.id)
-            candidate = StockCandidate("small_part", str(part.id), balance.available)
+            resource_id = str(part.id)
+            available = max(Decimal("0"), balance.available - planned.get(("small_part", resource_id), Decimal("0")))
+            candidate = StockCandidate("small_part", resource_id, available)
             try:
                 plans = allocate_candidates(requirement.source_key, requirement.quantity, [candidate])
                 status: Literal["available", "short", "unmapped"] = "available"
                 shortage = Decimal("0")
             except InsufficientStock as error:
                 plans, status, shortage = (), "short", error.shortage
-            lines.append(
-                AvailabilityLine(
-                    requirement, status, balance.physical, balance.reserved, balance.available, shortage, plans
+            if status == "available":
+                planned[("small_part", resource_id)] = (
+                    planned.get(("small_part", resource_id), Decimal("0")) + requirement.quantity
                 )
+            lines.append(
+                AvailabilityLine(requirement, status, balance.physical, balance.reserved, available, shortage, plans)
             )
             continue
         candidates: list[StockCandidate] = []
         physical = Decimal("0")
         reserved = Decimal("0")
-        for spool in spools:
-            if _material(spool.material) != _material(requirement.material_code):
-                continue
-            spool_physical = max(Decimal("0"), _decimal(spool.label_weight) - _decimal(spool.weight_used))
-            spool_reserved = await _filament_reserved(session, spool.id)
-            available = max(Decimal("0"), spool_physical - spool_reserved)
-            physical += spool_physical
-            reserved += spool_reserved
-            candidates.append(StockCandidate("internal", str(spool.id), available, spool.material))
+        if spoolman_enabled:
+            for spool in external_spools:
+                material = _spoolman_material(spool)
+                if _material(material) != _material(requirement.material_code):
+                    continue
+                resource_id = str(spool.get("id"))
+                spool_physical = _spoolman_physical(spool)
+                spool_reserved = await _external_filament_reserved(session, resource_id)
+                available = max(
+                    Decimal("0"),
+                    spool_physical - spool_reserved - planned.get(("spoolman", resource_id), Decimal("0")),
+                )
+                physical += spool_physical
+                reserved += spool_reserved
+                candidates.append(StockCandidate("spoolman", resource_id, available, material))
+        else:
+            for spool in spools:
+                if _material(spool.material) != _material(requirement.material_code):
+                    continue
+                resource_id = str(spool.id)
+                spool_physical = max(Decimal("0"), _decimal(spool.label_weight) - _decimal(spool.weight_used))
+                spool_reserved = await _filament_reserved(session, spool.id)
+                available = max(
+                    Decimal("0"),
+                    spool_physical - spool_reserved - planned.get(("internal", resource_id), Decimal("0")),
+                )
+                physical += spool_physical
+                reserved += spool_reserved
+                candidates.append(StockCandidate("internal", resource_id, available, spool.material))
         available = sum((candidate.available for candidate in candidates), Decimal("0"))
         if not candidates:
             lines.append(
@@ -215,6 +278,10 @@ async def check_availability(
             shortage = Decimal("0")
         except InsufficientStock as error:
             plans, status, shortage = (), "short", error.shortage
+        if status == "available":
+            for plan in plans:
+                key = (plan.candidate.backend, plan.candidate.resource_id)
+                planned[key] = planned.get(key, Decimal("0")) + plan.quantity
         lines.append(AvailabilityLine(requirement, status, physical, reserved, available, shortage, plans))
     return AvailabilityReport(tuple(lines), datetime.now(timezone.utc))
 

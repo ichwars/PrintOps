@@ -8,6 +8,7 @@ from backend.app.schemas.small_part import SmallPartUpdate
 from backend.app.services.small_parts import (
     InsufficientSmallPartStock,
     SmallPartBalance,
+    SmallPartIdempotencyConflict,
     SmallPartUnitChangeNotAllowed,
     append_ledger_entry,
     get_balance,
@@ -61,6 +62,32 @@ async def test_ledger_is_idempotent_and_never_overdraws(db_session: AsyncSession
             reserved_delta=Decimal("11"),
             reason="Order reservation",
             idempotency_key="reserve-order-11",
+        )
+
+
+@pytest.mark.asyncio
+async def test_ledger_rejects_idempotency_key_reuse_for_different_command(
+    db_session: AsyncSession, small_part: SmallPart
+):
+    await append_ledger_entry(
+        db_session,
+        small_part_id=small_part.id,
+        entry_kind="opening",
+        physical_delta=Decimal("10"),
+        reserved_delta=Decimal("0"),
+        reason="Opening stock",
+        idempotency_key="opening-conflict",
+    )
+
+    with pytest.raises(SmallPartIdempotencyConflict):
+        await append_ledger_entry(
+            db_session,
+            small_part_id=small_part.id,
+            entry_kind="receipt",
+            physical_delta=Decimal("5"),
+            reserved_delta=Decimal("0"),
+            reason="Different command",
+            idempotency_key="opening-conflict",
         )
 
 

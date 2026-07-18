@@ -229,7 +229,7 @@ async def slice_project_plates(
         api_url = (configured or app_settings.bambu_studio_api_url).strip()
     source = (Path(app_settings.base_dir) / project_file.stored_path).resolve()
     model_bytes = source.read_bytes()
-    results = []
+    results: list[tuple[CalculationSliceResult, int]] = []
     for plate in selected:
         profile_snapshot = {
             "slicer": preferred,
@@ -245,7 +245,7 @@ async def slice_project_plates(
         )
         cached = await db.scalar(select(CalculationSliceResult).where(CalculationSliceResult.cache_key == key))
         if cached is not None:
-            results.append(cached)
+            results.append((cached, plate.id))
             continue
         try:
             async with SlicerApiService(api_url) as slicer:
@@ -299,12 +299,12 @@ async def slice_project_plates(
             )
         db.add(result)
         await db.flush()
-        results.append(result)
+        results.append((result, plate.id))
     await db.commit()
     return [
         {
             "id": item.id,
-            "project_plate_id": item.project_plate_id,
+            "project_plate_id": requested_plate_id,
             "status": item.status,
             "source": item.source,
             "print_hours": str(item.print_hours) if item.print_hours is not None else None,
@@ -312,5 +312,5 @@ async def slice_project_plates(
             "fallback_reason": item.fallback_reason,
             "warnings": item.warnings,
         }
-        for item in results
+        for item, requested_plate_id in results
     ]
