@@ -18,6 +18,7 @@ describe('calculations API', () => {
         let body: unknown = null;
         if (request.method !== 'GET') body = await request.json().catch(() => null);
         calls.push({ path: `${url.pathname}${url.search}`, method: request.method, body });
+        if (request.method === 'DELETE') return new HttpResponse(null, { status: 204 });
         if (url.pathname.endsWith('/validation')) return HttpResponse.json({ blockers: [], warnings: [] });
         if (url.pathname.endsWith('/revisions') || url.pathname.endsWith('/templates')) return HttpResponse.json([]);
         return HttpResponse.json({ id: 7 });
@@ -31,6 +32,7 @@ describe('calculations API', () => {
     await calculationsApi.get(7);
     await calculationsApi.create({} as never);
     await calculationsApi.update(7, {} as never);
+    await calculationsApi.remove(7, 3);
     await calculationsApi.validate(7);
     await calculationsApi.approve(7, 3, { manual_source_values: 'Checked' });
     await calculationsApi.revise(7);
@@ -48,6 +50,7 @@ describe('calculations API', () => {
       'GET /api/v1/calculations/7',
       'POST /api/v1/calculations/',
       'PUT /api/v1/calculations/7',
+      'DELETE /api/v1/calculations/7?expected_version=3',
       'GET /api/v1/calculations/7/validation',
       'POST /api/v1/calculations/7/approve',
       'POST /api/v1/calculations/7/revise',
@@ -57,8 +60,8 @@ describe('calculations API', () => {
       'GET /api/v1/calculations/templates',
       'POST /api/v1/calculations/templates/4/instantiate',
     ]);
-    expect(calls[8].body).toEqual({ expected_version: 3, warning_reasons: { manual_source_values: 'Checked' } });
-    expect(calls[14].body).toEqual({ title: 'New quote', customer_id: null });
+    expect(calls[9].body).toEqual({ expected_version: 3, warning_reasons: { manual_source_values: 'Checked' } });
+    expect(calls[15].body).toEqual({ title: 'New quote', customer_id: null });
   });
 
   it('uploads a 3MF source and reports rejected uploads', async () => {

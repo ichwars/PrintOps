@@ -227,6 +227,7 @@ export const calculationsApi = {
   get: (id: number) => request<CalculationDetail>(`/calculations/${id}`),
   create: (input: CalculationCreate) => request<CalculationDetail>('/calculations/', { method: 'POST', body: JSON.stringify(input) }),
   update: (id: number, input: CalculationUpdate) => request<CalculationDetail>(`/calculations/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
+  remove: (id: number, expectedVersion: number) => request<void>(`/calculations/${id}?expected_version=${expectedVersion}`, { method: 'DELETE' }),
   validate: (id: number) => request<CalculationValidation>(`/calculations/${id}/validation`),
   approve: (id: number, expectedVersion: number, warningReasons: Record<string, string>) => request<CalculationRevision>(`/calculations/${id}/approve`, { method: 'POST', body: JSON.stringify({ expected_version: expectedVersion, warning_reasons: warningReasons }) }),
   revise: (id: number) => request<CalculationDetail>(`/calculations/${id}/revise`, { method: 'POST' }),
