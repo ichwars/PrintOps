@@ -96,7 +96,7 @@ export interface SmallPartPage {
   offset: number;
 }
 
-function queryString(params: Record<string, string | number | boolean | undefined>): string {
+function queryString<T extends object>(params: T): string {
   const result = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined) result.set(key, String(value));
