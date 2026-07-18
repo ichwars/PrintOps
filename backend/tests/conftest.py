@@ -143,10 +143,9 @@ async def test_engine():
         project_bom,
         settings,
         slot_preset,
+        small_part,
         smart_plug,
         smart_plug_energy_snapshot,  # noqa: F401
-        small_part,
-        stock_reservation,
         sponsor_toast_state,  # noqa: F401
         spool,
         spool_assignment,
@@ -156,6 +155,7 @@ async def test_engine():
         spoolbuddy_device,
         spoolman_k_profile,
         spoolman_slot_assignment,
+        stock_reservation,
         user,
         user_email_pref,
         user_otp_code,

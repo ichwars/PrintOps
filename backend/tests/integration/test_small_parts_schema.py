@@ -4,7 +4,6 @@ from sqlalchemy import inspect
 
 from backend.app.schemas.settings import AppSettings, AppSettingsUpdate
 
-
 EXPECTED_TABLES = {
     "small_part_categories",
     "small_part_units",
