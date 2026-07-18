@@ -9,6 +9,13 @@ import { ProjectPlateGrid } from './ProjectPlateGrid';
 
 const inputClass = 'mt-1 h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary px-3 text-white outline-none focus:border-bambu-green';
 
+function formatStepValue(value: string | null, fractionDigits: number): string {
+  if (value === null || value === '') return '';
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return value;
+  return numeric.toFixed(fractionDigits).replace(/\.?0+$/, '');
+}
+
 interface ProjectFileSectionProps {
   calculationId: number | null;
   plates: CalculationVariantPlate[];
@@ -115,14 +122,14 @@ export function ProjectFileSection({ calculationId, plates, printers, dryers, sp
         <FileInput ref={fileInput} accept=".3mf,model/3mf" className="sr-only" onChange={(event) => void upload(event.target.files?.[0])} />
       </div>
       {files.map((file) => <div key={file.id} className="space-y-2"><div className="flex items-center justify-between text-sm"><strong className="text-white">{file.original_filename}</strong><span className="text-bambu-gray">Revision {file.revision_number} · {file.plates.length} {de ? 'Platten' : 'plates'}</span></div><ProjectPlateGrid plates={file.plates} selectedIds={selectedIds} focusedId={focusedId} locale={locale} onSelectionChange={select} onFocusChange={setFocusedId} /></div>)}
-      {focusedPlate && focusedSelection && <div className="grid gap-3 rounded-lg border border-bambu-green/30 bg-bambu-dark p-4 sm:grid-cols-2 lg:grid-cols-6">
-        <div className="lg:col-span-6 flex items-center justify-between"><strong className="text-white">{focusedPlate.name}</strong><span className="rounded-full bg-bambu-green/10 px-2 py-1 text-xs text-bambu-green">{String(focusedSelection.provenance.source ?? '3mf') === 'estimate' ? (de ? 'Schätzung' : 'Estimate') : String(focusedSelection.provenance.source ?? '3MF/Slicer')}</span></div>
+      {focusedPlate && focusedSelection && <div role="group" aria-label={de ? `Details für ${focusedPlate.name}` : `Details for ${focusedPlate.name}`} className="grid gap-3 rounded-lg border border-bambu-green/30 bg-bambu-dark p-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+        <div className="col-span-full flex items-center justify-between"><strong className="text-white">{focusedPlate.name}</strong><span className="rounded-full bg-bambu-green/10 px-2 py-1 text-xs text-bambu-green">{String(focusedSelection.provenance.source ?? '3mf') === 'estimate' ? (de ? 'Schätzung' : 'Estimate') : String(focusedSelection.provenance.source ?? '3MF/Slicer')}</span></div>
         <label className="text-xs text-bambu-gray">{de ? 'Benötigte Teile' : 'Required parts'}<NumberField min="0" step="1" value={focusedSelection.good_parts} onChange={(event) => updateFocused({ good_parts: Number(event.target.value) })} containerClassName="mt-1" className={inputClass} /></label>
         <label className="text-xs text-bambu-gray">{de ? 'Teile je Druck' : 'Parts per print'}<NumberField min="1" step="1" value={focusedSelection.parts_per_print} onChange={(event) => updateFocused({ parts_per_print: Number(event.target.value) })} containerClassName="mt-1" className={inputClass} /></label>
         <label className="text-xs text-bambu-gray">{de ? 'Ausschussdrucke' : 'Scrap prints'}<NumberField min="0" step="1" value={focusedSelection.scrap_prints} onChange={(event) => updateFocused({ scrap_prints: Number(event.target.value) })} containerClassName="mt-1" className={inputClass} /></label>
         <label className="text-xs text-bambu-gray">{de ? 'Material' : 'Material'}<TextField value={focusedSelection.material_code ?? ''} onChange={(event) => updateFocused({ material_code: event.target.value || null })} className={inputClass} /><span className="mt-1 flex items-center gap-1"><Database className="h-3 w-3" />{de ? 'verfügbar' : 'available'}: {formatGrams(materialAvailable, locale)}</span></label>
-        <label className="text-xs text-bambu-gray">{de ? 'g je Druck' : 'g per print'}<NumberField min="0" step="0.1" value={focusedSelection.grams_per_print ?? ''} onChange={(event) => updateFocused({ grams_per_print: event.target.value || null, provenance: { ...focusedSelection.provenance, source: 'manual' } })} containerClassName="mt-1" className={inputClass} /></label>
-        <label className="text-xs text-bambu-gray">{de ? 'h je Druck' : 'h per print'}<NumberField min="0" step="0.01" value={focusedSelection.hours_per_print ?? ''} onChange={(event) => updateFocused({ hours_per_print: event.target.value || null, provenance: { ...focusedSelection.provenance, source: 'manual' } })} containerClassName="mt-1" className={inputClass} /></label>
+        <label className="text-xs text-bambu-gray">{de ? 'g je Druck' : 'g per print'}<NumberField min="0" step="0.1" value={formatStepValue(focusedSelection.grams_per_print, 1)} onChange={(event) => updateFocused({ grams_per_print: event.target.value || null, provenance: { ...focusedSelection.provenance, source: 'manual' } })} containerClassName="mt-1" className={inputClass} /></label>
+        <label className="text-xs text-bambu-gray">{de ? 'h je Druck' : 'h per print'}<NumberField min="0" step="0.01" value={formatStepValue(focusedSelection.hours_per_print, 2)} onChange={(event) => updateFocused({ hours_per_print: event.target.value || null, provenance: { ...focusedSelection.provenance, source: 'manual' } })} containerClassName="mt-1" className={inputClass} /></label>
       </div>}
       <div className="flex items-center justify-between gap-3"><span className="text-sm text-bambu-gray">{message}</span><button type="button" disabled={!selectedIds.size || slicing} onClick={() => void slice()} className="inline-flex items-center gap-2 rounded-lg border border-bambu-green px-4 py-2 text-sm text-bambu-green disabled:opacity-50">{slicing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}{de ? '3MF slicen & kalkulieren' : 'Slice & calculate 3MF'}</button></div>
     </section>
