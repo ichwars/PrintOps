@@ -1161,6 +1161,8 @@ export interface AppSettings {
   energy_cost_per_kwh: number;
   energy_tracking_mode: 'print' | 'total';
   calculation_defaults: string;
+  small_parts_default_minimum_stock: string;
+  small_parts_low_stock_warning: boolean;
   check_updates: boolean;
   check_printer_firmware: boolean;
   include_beta_updates: boolean;

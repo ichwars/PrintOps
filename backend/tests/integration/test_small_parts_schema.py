@@ -1,4 +1,8 @@
+from decimal import Decimal
+
 from sqlalchemy import inspect
+
+from backend.app.schemas.settings import AppSettings, AppSettingsUpdate
 
 
 EXPECTED_TABLES = {
@@ -32,3 +36,11 @@ async def test_small_parts_schema_contract(test_engine):
         "ck_small_part_ledger_nonzero",
         "ck_small_part_ledger_kind",
     }
+
+
+def test_small_parts_settings_defaults_are_typed():
+    settings = AppSettings()
+
+    assert settings.small_parts_default_minimum_stock == Decimal("0")
+    assert settings.small_parts_low_stock_warning is True
+    assert AppSettingsUpdate(small_parts_default_minimum_stock="2.5").small_parts_default_minimum_stock == Decimal("2.5")

@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -28,6 +29,8 @@ class AppSettings(BaseModel):
         default="{}",
         description="Versioned JSON defaults for commercial calculation previews and revisions",
     )
+    small_parts_default_minimum_stock: Decimal = Field(default=Decimal("0"), ge=0)
+    small_parts_low_stock_warning: bool = Field(default=True)
 
     # Spoolman integration
     spoolman_enabled: bool = Field(default=False, description="Enable Spoolman integration for filament tracking")
@@ -478,6 +481,8 @@ class AppSettingsUpdate(BaseModel):
     energy_cost_per_kwh: float | None = None
     energy_tracking_mode: str | None = None
     calculation_defaults: str | None = None
+    small_parts_default_minimum_stock: Decimal | None = Field(default=None, ge=0)
+    small_parts_low_stock_warning: bool | None = None
     spoolman_enabled: bool | None = None
     spoolman_url: str | None = None
     spoolman_sync_mode: str | None = None
