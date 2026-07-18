@@ -1,7 +1,7 @@
 # PrintOps
 
 <p align="center">
-  <img src="static/img/printops_logo.svg" alt="PrintOps Logo" width="360">
+  <img src="static/img/printops_logo.png" alt="PrintOps Logo" width="360">
 </p>
 
 PrintOps is being evolved into a local, self-hosted operations platform for 3D printing businesses. The technical foundation intentionally preserves the proven printer-control workflows from the original project, while the product direction adds warehouse, order, costing, quotation, and invoicing workflows step by step.
