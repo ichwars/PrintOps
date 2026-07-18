@@ -117,6 +117,7 @@ async def _cost_defaults(session: AsyncSession) -> dict:
         "laborRate": 20,
         "setupHours": 0.3,
         "postProcessingHours": 0.25,
+        "cadHours": 0,
         "qaHours": 0.05,
         "consumables": 0.75,
         "packaging": 2.5,
@@ -347,10 +348,16 @@ async def approve_calculation(
     defaults = await _cost_defaults(session)
     overrides = calculation.commercial_overrides or {}
     effective = {**defaults, **overrides}
+    labor_rate = Decimal(str(effective.get("labor_rate", defaults["laborRate"])))
     default_labor = (
-        LaborCostInput(Decimal(str(defaults["setupHours"])), Decimal(str(defaults["laborRate"])), "request"),
-        LaborCostInput(Decimal(str(defaults["postProcessingHours"])), Decimal(str(defaults["laborRate"])), "unit"),
-        LaborCostInput(Decimal(str(defaults["qaHours"])), Decimal(str(defaults["laborRate"])), "request"),
+        LaborCostInput(Decimal(str(effective.get("setup_hours", defaults["setupHours"]))), labor_rate, "request"),
+        LaborCostInput(
+            Decimal(str(effective.get("post_processing_hours_per_unit", defaults["postProcessingHours"]))),
+            labor_rate,
+            "unit",
+        ),
+        LaborCostInput(Decimal(str(effective.get("cad_hours", defaults["cadHours"]))), labor_rate, "request"),
+        LaborCostInput(Decimal(str(effective.get("qa_hours", defaults["qaHours"]))), labor_rate, "request"),
     )
     operation_inputs: list[VariantCostInputs] = []
     for selected_plate in preferred[0].plates:

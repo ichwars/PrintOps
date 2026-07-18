@@ -114,7 +114,7 @@ export function SmallPartCombobox({
             >
               <div className="font-medium">{option.sku} · {option.name}</div>
               <div className="text-xs opacity-75">
-                {new Intl.NumberFormat(locale, { maximumFractionDigits: 6 }).format(Number(option.available))} verfügbar
+                {new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(Number(option.available))} verfügbar
               </div>
             </li>
           ))}

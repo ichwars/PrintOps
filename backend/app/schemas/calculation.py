@@ -109,6 +109,10 @@ class CalculationCreate(CalculationSchema):
         allowed = percentage_keys | {
             "material_price_per_kg",
             "labor_rate",
+            "setup_hours",
+            "post_processing_hours_per_unit",
+            "cad_hours",
+            "qa_hours",
             "consumables",
             "packaging",
             "shipping",
