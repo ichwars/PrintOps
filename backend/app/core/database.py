@@ -174,6 +174,7 @@ async def init_db():
         bug_report,
         business_profile,
         calculation_project,
+        calculation_slice,
         color_catalog,
         customer,
         equipment,

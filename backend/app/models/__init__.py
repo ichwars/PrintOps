@@ -24,6 +24,7 @@ from backend.app.models.calculation_project import (
     CalculationVariantPlate,
     CalculationVariantSmallPart,
 )
+from backend.app.models.calculation_slice import CalculationSliceResult
 from backend.app.models.color_catalog import ColorCatalogEntry
 from backend.app.models.customer import (
     Customer,
@@ -135,6 +136,7 @@ __all__ = [
     "CalculationProjectPlate",
     "CalculationVariantPlate",
     "CalculationVariantSmallPart",
+    "CalculationSliceResult",
     "Customer",
     "CustomerAccount",
     "CustomerAddress",

@@ -123,6 +123,7 @@ async def test_engine():
         auth_ephemeral,
         business_profile,
         calculation_project,
+        calculation_slice,
         color_catalog,
         customer,
         external_link,

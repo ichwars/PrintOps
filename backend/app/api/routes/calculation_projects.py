@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from decimal import Decimal
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -9,15 +10,24 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from backend.app.api.routes.settings import get_setting
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.config import settings as app_settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.models.calculation import Calculation
 from backend.app.models.calculation_project import CalculationProjectFile, CalculationProjectPlate
+from backend.app.models.calculation_slice import CalculationSliceResult
 from backend.app.models.user import User
-from backend.app.schemas.calculation_project import CalculationProjectFileRead, CalculationProjectPlateRead
+from backend.app.schemas.calculation_project import (
+    CalculationProjectFileRead,
+    CalculationProjectPlateRead,
+    CalculationSliceRequest,
+)
+from backend.app.services.calculation_estimator import BoundsMm, EstimatorSettings, PlateGeometry, estimate_plate
 from backend.app.services.calculation_project import InvalidProjectFile, analyze_project_file
+from backend.app.services.calculation_slicing import build_cache_key
+from backend.app.services.slicer_api import SlicerApiError, SlicerApiService
 
 router = APIRouter(prefix="/calculations", tags=["calculation-project-files"])
 
@@ -197,3 +207,110 @@ async def get_project_plate_thumbnail(
     if not target.is_relative_to(base) or not target.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail={"code": "not_found", "message": "Vorschau fehlt"})
     return FileResponse(target, media_type="image/png")
+
+
+@router.post("/project-files/{file_id}/slice")
+async def slice_project_plates(
+    file_id: int,
+    request: CalculationSliceRequest,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_UPDATE),
+):
+    project_file = await _load_file(db, file_id)
+    selected = [plate for plate in project_file.plates if plate.id in set(request.plate_ids)]
+    if len(selected) != len(set(request.plate_ids)):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail={"code": "plate_not_found", "message": "Platte fehlt"})
+    preferred = (await get_setting(db, "preferred_slicer")) or "bambu_studio"
+    if preferred == "orcaslicer":
+        configured = await get_setting(db, "orcaslicer_api_url")
+        api_url = (configured or app_settings.slicer_api_url).strip()
+    else:
+        configured = await get_setting(db, "bambu_studio_api_url")
+        api_url = (configured or app_settings.bambu_studio_api_url).strip()
+    source = (Path(app_settings.base_dir) / project_file.stored_path).resolve()
+    model_bytes = source.read_bytes()
+    results = []
+    for plate in selected:
+        profile_snapshot = {
+            "slicer": preferred,
+            "mode": "embedded",
+            "printer": request.printer_preset,
+            "process": request.process_preset,
+            "filament": request.filament_preset,
+        }
+        key = build_cache_key(
+            file_sha256=project_file.sha256,
+            plate_index=plate.plate_index,
+            profiles=profile_snapshot,
+        )
+        cached = await db.scalar(select(CalculationSliceResult).where(CalculationSliceResult.cache_key == key))
+        if cached is not None:
+            results.append(cached)
+            continue
+        try:
+            async with SlicerApiService(api_url) as slicer:
+                sliced = await slicer.slice_without_profiles(
+                    model_bytes=model_bytes,
+                    model_filename=project_file.original_filename,
+                    plate=plate.plate_index,
+                    export_3mf=False,
+                )
+            result = CalculationSliceResult(
+                project_plate_id=plate.id,
+                cache_key=key,
+                status="completed",
+                source="slicer",
+                print_hours=Decimal(sliced.print_time_seconds) / Decimal("3600"),
+                material_grams=Decimal(str(sliced.filament_used_g)),
+                warnings=[],
+                profile_snapshot=profile_snapshot,
+            )
+        except SlicerApiError as exc:
+            if not request.allow_estimate_fallback:
+                raise HTTPException(
+                    status.HTTP_502_BAD_GATEWAY, detail={"code": "slicing_failed", "message": str(exc)}
+                ) from exc
+            geometry_data = plate.geometry or {}
+            bounds_data = geometry_data.get("bounds_mm") or {}
+            estimate = estimate_plate(
+                PlateGeometry(
+                    object_count=plate.object_count,
+                    triangle_count=int(geometry_data.get("triangle_count", 0)),
+                    volume_cm3=Decimal(str(geometry_data.get("volume_cm3", 0))),
+                    bounds_mm=BoundsMm(
+                        Decimal(str(bounds_data.get("width", 0))),
+                        Decimal(str(bounds_data.get("depth", 0))),
+                        Decimal(str(bounds_data.get("height", 0))),
+                    ),
+                ),
+                EstimatorSettings(None, Decimal("20"), Decimal("0.2"), Decimal("0.4"), Decimal("60"), 2),
+                (plate.detected_materials[0].get("type") if plate.detected_materials else "PLA"),
+            )
+            result = CalculationSliceResult(
+                project_plate_id=plate.id,
+                cache_key=key,
+                status="completed",
+                source="estimate",
+                print_hours=estimate.print_hours,
+                material_grams=estimate.material_grams,
+                fallback_reason=str(exc),
+                warnings=list(estimate.warnings),
+                profile_snapshot=profile_snapshot,
+            )
+        db.add(result)
+        await db.flush()
+        results.append(result)
+    await db.commit()
+    return [
+        {
+            "id": item.id,
+            "project_plate_id": item.project_plate_id,
+            "status": item.status,
+            "source": item.source,
+            "print_hours": str(item.print_hours) if item.print_hours is not None else None,
+            "material_grams": str(item.material_grams) if item.material_grams is not None else None,
+            "fallback_reason": item.fallback_reason,
+            "warnings": item.warnings,
+        }
+        for item in results
+    ]
