@@ -47,15 +47,11 @@ class StockReservationAllocation(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    reservation_id: Mapped[int] = mapped_column(
-        ForeignKey("stock_reservations.id", ondelete="CASCADE"), index=True
-    )
+    reservation_id: Mapped[int] = mapped_column(ForeignKey("stock_reservations.id", ondelete="CASCADE"), index=True)
     inventory_backend: Mapped[str] = mapped_column(String(16), nullable=False)
     spool_id: Mapped[int | None] = mapped_column(ForeignKey("spool.id", ondelete="RESTRICT"), index=True)
     external_spool_id: Mapped[str | None] = mapped_column(String(120), index=True)
-    small_part_id: Mapped[int | None] = mapped_column(
-        ForeignKey("small_parts.id", ondelete="RESTRICT"), index=True
-    )
+    small_part_id: Mapped[int | None] = mapped_column(ForeignKey("small_parts.id", ondelete="RESTRICT"), index=True)
     allocated_quantity: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
     consumed_quantity: Mapped[Decimal] = mapped_column(Numeric(18, 6), default=Decimal("0"))
 

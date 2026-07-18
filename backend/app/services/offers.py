@@ -148,7 +148,9 @@ async def transition_offer(session: AsyncSession, offer_id: int, target: str, ex
 
 def _project_targets(snapshot: dict, sort_order: int) -> tuple[int, int]:
     variants = snapshot.get("variants") or []
-    variant = next((item for index, item in enumerate(variants) if int(item.get("sort_order", index)) == sort_order), {})
+    variant = next(
+        (item for index, item in enumerate(variants) if int(item.get("sort_order", index)) == sort_order), {}
+    )
     runs = 0
     parts = 0
     for plate in variant.get("plates") or []:
@@ -227,9 +229,7 @@ async def accept_offer(
     idempotency_key: str,
     actor_id: int | None,
 ) -> AcceptanceResult:
-    replay = await session.scalar(
-        select(OfferAcceptance).where(OfferAcceptance.idempotency_key == idempotency_key)
-    )
+    replay = await session.scalar(select(OfferAcceptance).where(OfferAcceptance.idempotency_key == idempotency_key))
     if replay is not None:
         if replay.offer_id != offer_id:
             raise ResourceInUseError("Idempotency key belongs to a different offer")
@@ -291,4 +291,12 @@ async def accept_offer(
     return await _acceptance_result(session, acceptance)
 
 
-__all__ = ["AcceptanceResult", "InsufficientStock", "accept_offer", "create_offer", "get_offer", "list_offers", "transition_offer"]
+__all__ = [
+    "AcceptanceResult",
+    "InsufficientStock",
+    "accept_offer",
+    "create_offer",
+    "get_offer",
+    "list_offers",
+    "transition_offer",
+]

@@ -70,9 +70,7 @@ async def preview_calculation_availability(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> AvailabilityReportRead:
     try:
-        requirements = requirements_from_snapshot(
-            {"variants": [{**variant.model_dump(), "sort_order": 0}]}, 0
-        )
+        requirements = requirements_from_snapshot({"variants": [{**variant.model_dump(), "sort_order": 0}]}, 0)
     except ValueError as exc:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -97,31 +95,33 @@ async def get_calculation_availability(
         next((item for item in calculation.variants if item.is_preferred), calculation.variants[0]),
     )
     snapshot = {
-        "variants": [{
-            "sort_order": variant.sort_order,
-            "plates": [
-                {
-                    "project_plate_id": item.project_plate_id,
-                    "stable_key": item.project_plate.stable_key,
-                    "plate_name": item.project_plate.name,
-                    "good_parts": item.good_parts,
-                    "parts_per_print": item.parts_per_print,
-                    "scrap_prints": item.scrap_prints,
-                    "material_code": item.material_code,
-                    "grams_per_print": item.grams_per_print or item.project_plate.detected_grams,
-                }
-                for item in variant.plates
-            ],
-            "small_parts": [
-                {
-                    "small_part_id": item.small_part_id,
-                    "quantity": item.quantity,
-                    "unit_code": item.unit_code_snapshot,
-                    "description": item.description_snapshot,
-                }
-                for item in variant.small_parts
-            ],
-        }],
+        "variants": [
+            {
+                "sort_order": variant.sort_order,
+                "plates": [
+                    {
+                        "project_plate_id": item.project_plate_id,
+                        "stable_key": item.project_plate.stable_key,
+                        "plate_name": item.project_plate.name,
+                        "good_parts": item.good_parts,
+                        "parts_per_print": item.parts_per_print,
+                        "scrap_prints": item.scrap_prints,
+                        "material_code": item.material_code,
+                        "grams_per_print": item.grams_per_print or item.project_plate.detected_grams,
+                    }
+                    for item in variant.plates
+                ],
+                "small_parts": [
+                    {
+                        "small_part_id": item.small_part_id,
+                        "quantity": item.quantity,
+                        "unit_code": item.unit_code_snapshot,
+                        "description": item.description_snapshot,
+                    }
+                    for item in variant.small_parts
+                ],
+            }
+        ],
     }
     try:
         requirements = requirements_from_snapshot(snapshot, variant.sort_order)

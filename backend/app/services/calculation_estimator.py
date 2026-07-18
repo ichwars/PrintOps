@@ -64,9 +64,7 @@ def _travel_seconds(bounds: BoundsMm, layer_height: Decimal) -> Decimal:
 def estimate_plate(geometry: PlateGeometry, settings: EstimatorSettings, material_type: str) -> EstimateResult:
     if geometry.volume_cm3 <= 0:
         return EstimateResult(None, None, ("Model volume unavailable",))
-    density = settings.density_g_cm3 or DENSITY_BY_MATERIAL.get(
-        _normalize_material(material_type), Decimal("1.24")
-    )
+    density = settings.density_g_cm3 or DENSITY_BY_MATERIAL.get(_normalize_material(material_type), Decimal("1.24"))
     infill = _clamp(settings.infill_percent / Decimal("100"), Decimal("0"), Decimal("1"))
     solid_share = min(Decimal("0.92"), Decimal("0.18") + Decimal(settings.wall_lines) * Decimal("0.055"))
     effective_cm3 = geometry.volume_cm3 * _clamp(
@@ -78,9 +76,7 @@ def estimate_plate(geometry: PlateGeometry, settings: EstimatorSettings, materia
     flow = settings.nozzle_mm * Decimal("1.12") * settings.layer_height_mm * settings.speed_mm_s * Decimal("0.58")
     if flow <= 0:
         return EstimateResult(grams, None, ("Geometry estimate", "Invalid flow settings"))
-    seconds = effective_cm3 * Decimal("1000") / flow + _travel_seconds(
-        geometry.bounds_mm, settings.layer_height_mm
-    )
+    seconds = effective_cm3 * Decimal("1000") / flow + _travel_seconds(geometry.bounds_mm, settings.layer_height_mm)
     return EstimateResult(
         grams,
         (seconds / Decimal("3600")).quantize(Decimal("0.01")),

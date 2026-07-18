@@ -37,25 +37,31 @@ def test_allocation_reports_shortage_without_partial_success():
 
 def test_requirements_are_derived_from_immutable_selected_variant():
     snapshot = {
-        "variants": [{
-            "sort_order": 0,
-            "is_preferred": True,
-            "plates": [{
-                "project_plate_id": 12,
-                "stable_key": "plate-a",
-                "good_parts": 7,
-                "parts_per_print": 3,
-                "scrap_prints": 1,
-                "material_code": "PETG",
-                "grams_per_print": "100",
-            }],
-            "small_parts": [{
-                "small_part_id": 8,
-                "quantity": "4",
-                "unit_code": "C62",
-                "description": "M3 screw",
-            }],
-        }],
+        "variants": [
+            {
+                "sort_order": 0,
+                "is_preferred": True,
+                "plates": [
+                    {
+                        "project_plate_id": 12,
+                        "stable_key": "plate-a",
+                        "good_parts": 7,
+                        "parts_per_print": 3,
+                        "scrap_prints": 1,
+                        "material_code": "PETG",
+                        "grams_per_print": "100",
+                    }
+                ],
+                "small_parts": [
+                    {
+                        "small_part_id": 8,
+                        "quantity": "4",
+                        "unit_code": "C62",
+                        "description": "M3 screw",
+                    }
+                ],
+            }
+        ],
     }
 
     requirements = requirements_from_snapshot(snapshot, 0)

@@ -373,8 +373,13 @@ async def approve_calculation(
                 parts_per_run=selected_plate.parts_per_print,
                 scrap_runs=selected_plate.scrap_prints,
                 material_grams_per_run=selected_plate.grams_per_print or plate.detected_grams or Decimal("0"),
-                material_price_per_kg=Decimal(str(effective.get("material_price_per_kg", defaults["materialPricePerKg"]))),
-                material_markup_rate=Decimal(str(effective.get("material_markup_rate", defaults.get("materialMarkupPercent", 0)))) / (Decimal("100") if "material_markup_rate" not in overrides else Decimal("1")),
+                material_price_per_kg=Decimal(
+                    str(effective.get("material_price_per_kg", defaults["materialPricePerKg"]))
+                ),
+                material_markup_rate=Decimal(
+                    str(effective.get("material_markup_rate", defaults.get("materialMarkupPercent", 0)))
+                )
+                / (Decimal("100") if "material_markup_rate" not in overrides else Decimal("1")),
                 print_hours_per_run=selected_plate.hours_per_print or plate.detected_hours or Decimal("0"),
                 labor=default_labor,
             )
@@ -427,7 +432,11 @@ async def approve_calculation(
                 labor=labor,
             )
         )
-    total_units = max(1, int(sum((line.quantity for line in preferred[0].lines), Decimal("0"))) or sum(item.good_parts for item in preferred[0].plates))
+    total_units = max(
+        1,
+        int(sum((line.quantity for line in preferred[0].lines), Decimal("0")))
+        or sum(item.good_parts for item in preferred[0].plates),
+    )
     additive_materials = sum(
         (line.quantity * (line.unit_price or Decimal("0")) for line in preferred[0].lines if line.kind == "material"),
         Decimal("0"),

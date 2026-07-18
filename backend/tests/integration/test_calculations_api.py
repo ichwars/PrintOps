@@ -304,23 +304,17 @@ async def test_delete_calculation_enforces_version_and_not_found(async_client, d
     created = await async_client.post("/api/v1/calculations/", json=_payload(profile.id))
     calculation = created.json()
 
-    stale = await async_client.delete(
-        f"/api/v1/calculations/{calculation['id']}", params={"expected_version": 99}
-    )
+    stale = await async_client.delete(f"/api/v1/calculations/{calculation['id']}", params={"expected_version": 99})
     assert stale.status_code == 409
     assert stale.json()["detail"]["code"] == "version_conflict"
 
-    missing = await async_client.delete(
-        "/api/v1/calculations/999999", params={"expected_version": 1}
-    )
+    missing = await async_client.delete("/api/v1/calculations/999999", params={"expected_version": 1})
     assert missing.status_code == 404
     assert missing.json()["detail"]["code"] == "not_found"
 
 
 @pytest.mark.parametrize("blocked_status", ["approved", "superseded", "archived"])
-async def test_delete_calculation_rejects_every_non_draft_status(
-    async_client, db_session, blocked_status
-):
+async def test_delete_calculation_rejects_every_non_draft_status(async_client, db_session, blocked_status):
     profile = await _profile(db_session)
     created = await async_client.post("/api/v1/calculations/", json=_payload(profile.id))
     calculation_id = created.json()["id"]
@@ -328,9 +322,7 @@ async def test_delete_calculation_rejects_every_non_draft_status(
     calculation.status = blocked_status
     await db_session.commit()
 
-    response = await async_client.delete(
-        f"/api/v1/calculations/{calculation_id}", params={"expected_version": 1}
-    )
+    response = await async_client.delete(f"/api/v1/calculations/{calculation_id}", params={"expected_version": 1})
 
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "invalid_state"

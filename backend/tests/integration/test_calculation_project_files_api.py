@@ -94,9 +94,7 @@ async def test_project_file_upload_persists_revisions_and_plate_preview(
 
 
 @pytest.mark.asyncio
-async def test_delete_draft_removes_project_file_rows_and_storage(
-    async_client, db_session, tmp_path, monkeypatch
-):
+async def test_delete_draft_removes_project_file_rows_and_storage(async_client, db_session, tmp_path, monkeypatch):
     monkeypatch.setattr(app_settings, "base_dir", tmp_path)
     profile = BusinessProfile(
         name="Delete draft issuer",
@@ -132,9 +130,7 @@ async def test_delete_draft_removes_project_file_rows_and_storage(
     storage_dir = tmp_path / "calculations" / str(calculation_id)
     assert storage_dir.is_dir()
 
-    deleted = await async_client.delete(
-        f"/api/v1/calculations/{calculation_id}", params={"expected_version": 1}
-    )
+    deleted = await async_client.delete(f"/api/v1/calculations/{calculation_id}", params={"expected_version": 1})
 
     assert deleted.status_code == 204
     db_session.expire_all()
@@ -174,9 +170,7 @@ async def test_delete_draft_keeps_database_result_when_storage_cleanup_fails(
         raise OSError("filesystem busy")
 
     monkeypatch.setattr(shutil, "rmtree", fail_cleanup)
-    deleted = await async_client.delete(
-        f"/api/v1/calculations/{calculation_id}", params={"expected_version": 1}
-    )
+    deleted = await async_client.delete(f"/api/v1/calculations/{calculation_id}", params={"expected_version": 1})
 
     assert deleted.status_code == 204
     db_session.expire_all()

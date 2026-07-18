@@ -13,7 +13,9 @@ class Offer(Base):
     __table_args__ = (UniqueConstraint("business_profile_id", "number", name="uq_offer_profile_number"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    business_profile_id: Mapped[int] = mapped_column(ForeignKey("business_profiles.id", ondelete="RESTRICT"), index=True)
+    business_profile_id: Mapped[int] = mapped_column(
+        ForeignKey("business_profiles.id", ondelete="RESTRICT"), index=True
+    )
     customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id", ondelete="RESTRICT"), index=True)
     calculation_revision_id: Mapped[int] = mapped_column(
         ForeignKey("calculation_revisions.id", ondelete="RESTRICT"), index=True
@@ -46,7 +48,9 @@ class CustomerOrder(Base):
     __table_args__ = (UniqueConstraint("business_profile_id", "number", name="uq_order_profile_number"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    business_profile_id: Mapped[int] = mapped_column(ForeignKey("business_profiles.id", ondelete="RESTRICT"), index=True)
+    business_profile_id: Mapped[int] = mapped_column(
+        ForeignKey("business_profiles.id", ondelete="RESTRICT"), index=True
+    )
     customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id", ondelete="RESTRICT"), index=True)
     offer_id: Mapped[int] = mapped_column(ForeignKey("offers.id", ondelete="RESTRICT"), unique=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"), unique=True)

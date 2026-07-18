@@ -42,4 +42,6 @@ def test_small_parts_settings_defaults_are_typed():
 
     assert settings.small_parts_default_minimum_stock == Decimal("0")
     assert settings.small_parts_low_stock_warning is True
-    assert AppSettingsUpdate(small_parts_default_minimum_stock="2.5").small_parts_default_minimum_stock == Decimal("2.5")
+    assert AppSettingsUpdate(small_parts_default_minimum_stock="2.5").small_parts_default_minimum_stock == Decimal(
+        "2.5"
+    )

@@ -15,10 +15,24 @@ async def _approved_revision(db_session, *, with_requirements: bool = False) -> 
     profile = BusinessProfile(name="Commerce", legal_name="Commerce GmbH", country_code="DE", default_currency="EUR")
     db_session.add(profile)
     await db_session.flush()
-    db_session.add_all([
-        NumberSequence(business_profile_id=profile.id, key="offer", prefix="ANG", pattern="{PREFIX}-{YYYY}-{#####}", reset_policy="yearly"),
-        NumberSequence(business_profile_id=profile.id, key="order", prefix="AUF", pattern="{PREFIX}-{YYYY}-{#####}", reset_policy="yearly"),
-    ])
+    db_session.add_all(
+        [
+            NumberSequence(
+                business_profile_id=profile.id,
+                key="offer",
+                prefix="ANG",
+                pattern="{PREFIX}-{YYYY}-{#####}",
+                reset_policy="yearly",
+            ),
+            NumberSequence(
+                business_profile_id=profile.id,
+                key="order",
+                prefix="AUF",
+                pattern="{PREFIX}-{YYYY}-{#####}",
+                reset_policy="yearly",
+            ),
+        ]
+    )
     calculation = Calculation(business_profile_id=profile.id, title="Mounting set", status="approved")
     calculation.variants.append(CalculationVariant(name="Standard", is_preferred=True, sort_order=0))
     db_session.add(calculation)
@@ -26,23 +40,39 @@ async def _approved_revision(db_session, *, with_requirements: bool = False) -> 
     plates = []
     small_parts = []
     if with_requirements:
-        plates = [{
-            "project_plate_id": 1,
-            "stable_key": "plate-one",
-            "plate_name": "Plate 1",
-            "good_parts": 2,
-            "parts_per_print": 2,
-            "scrap_prints": 0,
-            "material_code": "PETG",
-            "grams_per_print": "120",
-        }]
+        plates = [
+            {
+                "project_plate_id": 1,
+                "stable_key": "plate-one",
+                "plate_name": "Plate 1",
+                "good_parts": 2,
+                "parts_per_print": 2,
+                "scrap_prints": 0,
+                "material_code": "PETG",
+                "grams_per_print": "120",
+            }
+        ]
         small_parts = [{"small_part_id": 1, "quantity": "3", "unit_code": "C62", "description": "M3 screw"}]
     revision = CalculationRevision(
         calculation_id=calculation.id,
         revision_number=1,
         snapshot={
-            "calculation": {"id": calculation.id, "title": calculation.title, "business_profile_id": profile.id, "customer_id": None, "currency": "EUR"},
-            "variants": [{"name": "Standard", "sort_order": 0, "is_preferred": True, "plates": plates, "small_parts": small_parts}],
+            "calculation": {
+                "id": calculation.id,
+                "title": calculation.title,
+                "business_profile_id": profile.id,
+                "customer_id": None,
+                "currency": "EUR",
+            },
+            "variants": [
+                {
+                    "name": "Standard",
+                    "sort_order": 0,
+                    "is_preferred": True,
+                    "plates": plates,
+                    "small_parts": small_parts,
+                }
+            ],
         },
         production_cost=Decimal("15"),
         selling_price=Decimal("25"),
@@ -75,7 +105,16 @@ async def test_accepting_sent_offer_creates_order_project_and_reservations_once(
     db_session.add_all([unit, part, Spool(material="PETG", label_weight=500, weight_used=100)])
     await db_session.flush()
     assert part.id == 1
-    db_session.add(SmallPartLedgerEntry(small_part_id=part.id, entry_kind="opening", physical_delta=10, reserved_delta=0, reason="Opening", idempotency_key="opening-m3"))
+    db_session.add(
+        SmallPartLedgerEntry(
+            small_part_id=part.id,
+            entry_kind="opening",
+            physical_delta=10,
+            reserved_delta=0,
+            reason="Opening",
+            idempotency_key="opening-m3",
+        )
+    )
     await db_session.commit()
     revision = await _approved_revision(db_session, with_requirements=True)
     created = await async_client.post("/api/v1/offers", json={"calculation_revision_id": revision.id})

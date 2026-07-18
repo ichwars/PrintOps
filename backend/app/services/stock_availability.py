@@ -82,7 +82,10 @@ def allocate_candidates(
 ) -> tuple[AllocationPlan, ...]:
     remaining = Decimal(quantity)
     plans: list[AllocationPlan] = []
-    for candidate in sorted(candidates, key=lambda item: (item.backend, int(item.resource_id) if item.resource_id.isdigit() else item.resource_id)):
+    for candidate in sorted(
+        candidates,
+        key=lambda item: (item.backend, int(item.resource_id) if item.resource_id.isdigit() else item.resource_id),
+    ):
         if remaining <= 0:
             break
         allocated = min(remaining, candidate.available)
@@ -141,7 +144,12 @@ def requirements_from_snapshot(snapshot: dict, variant_sort_order: int) -> tuple
 
 async def _filament_reserved(session: AsyncSession, spool_id: int) -> Decimal:
     value = await session.scalar(
-        select(func.coalesce(func.sum(StockReservationAllocation.allocated_quantity - StockReservationAllocation.consumed_quantity), 0))
+        select(
+            func.coalesce(
+                func.sum(StockReservationAllocation.allocated_quantity - StockReservationAllocation.consumed_quantity),
+                0,
+            )
+        )
         .join(StockReservation, StockReservation.id == StockReservationAllocation.reservation_id)
         .where(StockReservationAllocation.spool_id == spool_id, StockReservation.status == "active")
     )
@@ -163,7 +171,11 @@ async def check_availability(
                 part_statement = part_statement.with_for_update()
             part = await session.scalar(part_statement)
             if part is None or not part.is_active:
-                lines.append(AvailabilityLine(requirement, "unmapped", Decimal("0"), Decimal("0"), Decimal("0"), requirement.quantity, ()))
+                lines.append(
+                    AvailabilityLine(
+                        requirement, "unmapped", Decimal("0"), Decimal("0"), Decimal("0"), requirement.quantity, ()
+                    )
+                )
                 continue
             balance = await get_balance(session, part.id)
             candidate = StockCandidate("small_part", str(part.id), balance.available)
@@ -193,7 +205,9 @@ async def check_availability(
             candidates.append(StockCandidate("internal", str(spool.id), available, spool.material))
         available = sum((candidate.available for candidate in candidates), Decimal("0"))
         if not candidates:
-            lines.append(AvailabilityLine(requirement, "unmapped", physical, reserved, available, requirement.quantity, ()))
+            lines.append(
+                AvailabilityLine(requirement, "unmapped", physical, reserved, available, requirement.quantity, ())
+            )
             continue
         try:
             plans = allocate_candidates(requirement.source_key, requirement.quantity, candidates)

@@ -39,7 +39,9 @@ async def get_order(session: AsyncSession, order_id: int, *, lock: bool = False)
 
 async def list_orders(session: AsyncSession) -> list[CustomerOrder]:
     return list(
-        (await session.scalars(select(CustomerOrder).options(*_ORDER_LOAD).order_by(CustomerOrder.created_at.desc()))).unique()
+        (
+            await session.scalars(select(CustomerOrder).options(*_ORDER_LOAD).order_by(CustomerOrder.created_at.desc()))
+        ).unique()
     )
 
 
