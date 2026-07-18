@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 import { api } from '../../api/client';
 import { smallPartsApi, type SmallPart, type SmallPartInput } from '../../api/smallParts';
-import { Modal } from '../ui/Modal';
+import { Checkbox, Modal, NumberField, Select, TextField } from '../ui';
 
 interface SmallPartEditorProps {
   part: SmallPart | null;
@@ -44,54 +44,16 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
   return (
     <Modal open onClose={onClose} title={part ? 'Kleinteil bearbeiten' : 'Kleinteil anlegen'} closeLabel="Schließen">
       <form className="grid gap-4 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); mutation.mutate(); }}>
-        <label className="space-y-1 text-sm text-gray-300">
-          <span>Artikelnummer</span>
-          <input required value={form.sku} onChange={(event) => update('sku', event.target.value)} className={inputClass} />
-        </label>
-        <label className="space-y-1 text-sm text-gray-300">
-          <span>Bezeichnung</span>
-          <input required value={form.name} onChange={(event) => update('name', event.target.value)} className={inputClass} />
-        </label>
-        <label className="space-y-1 text-sm text-gray-300">
-          <span>Kategorie</span>
-          <select value={form.category_id ?? ''} onChange={(event) => update('category_id', event.target.value ? Number(event.target.value) : null)} className={inputClass}>
-            <option value="">Keine Kategorie</option>
-            {categories.data?.filter((item) => item.is_active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
-        </label>
-        <label className="space-y-1 text-sm text-gray-300">
-          <span>Einheit</span>
-          <select required value={form.unit_code} onChange={(event) => update('unit_code', event.target.value)} className={inputClass}>
-            <option value="">Einheit auswählen</option>
-            {units.data?.filter((item) => item.is_active).map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}
-          </select>
-        </label>
-        <label className="space-y-1 text-sm text-gray-300">
-          <span>Lagerort</span>
-          <select value={form.location_id ?? ''} onChange={(event) => update('location_id', event.target.value ? Number(event.target.value) : null)} className={inputClass}>
-            <option value="">Kein Lagerort</option>
-            {locations.data?.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
-        </label>
-        <label className="space-y-1 text-sm text-gray-300">
-          <span>Meldebestand</span>
-          <input type="number" min="0" step="any" value={form.minimum_stock} onChange={(event) => update('minimum_stock', event.target.value)} className={inputClass} />
-        </label>
-        <label className="space-y-1 text-sm text-gray-300">
-          <span>Einzelpreis €</span>
-          <input type="number" min="0" step="0.01" value={form.unit_cost} onChange={(event) => update('unit_cost', event.target.value)} className={inputClass} />
-        </label>
-        <label className="space-y-1 text-sm text-gray-300">
-          <span>Lieferantenreferenz</span>
-          <input value={form.supplier_reference ?? ''} onChange={(event) => update('supplier_reference', event.target.value)} className={inputClass} />
-        </label>
-        <label className="space-y-1 text-sm text-gray-300 sm:col-span-2">
-          <span>Suchbegriffe</span>
-          <input value={form.search_terms ?? ''} onChange={(event) => update('search_terms', event.target.value)} className={inputClass} />
-        </label>
-        <label className="flex items-center gap-2 text-sm text-gray-300 sm:col-span-2">
-          <input type="checkbox" checked={form.is_active} onChange={(event) => update('is_active', event.target.checked)} /> Aktiv
-        </label>
+        <TextField label="Artikelnummer" required value={form.sku} onValueChange={(value) => update('sku', value)} className={inputClass} />
+        <TextField label="Bezeichnung" required value={form.name} onValueChange={(value) => update('name', value)} className={inputClass} />
+        <Select label="Kategorie" value={String(form.category_id ?? '')} onValueChange={(value) => update('category_id', value ? Number(value) : null)} options={[{ value: '', label: 'Keine Kategorie' }, ...(categories.data?.filter((item) => item.is_active).map((item) => ({ value: String(item.id), label: item.name })) ?? [])]} />
+        <Select label="Einheit" required value={form.unit_code} onValueChange={(value) => update('unit_code', value)} options={[{ value: '', label: 'Einheit auswählen' }, ...(units.data?.filter((item) => item.is_active).map((item) => ({ value: item.code, label: item.label })) ?? [])]} />
+        <Select label="Lagerort" value={String(form.location_id ?? '')} onValueChange={(value) => update('location_id', value ? Number(value) : null)} options={[{ value: '', label: 'Kein Lagerort' }, ...(locations.data?.map((item) => ({ value: String(item.id), label: item.name })) ?? [])]} />
+        <NumberField label="Meldebestand" min="0" step="0.01" value={form.minimum_stock} onValueChange={(value) => update('minimum_stock', value)} className={inputClass} />
+        <NumberField label="Einzelpreis €" min="0" step="0.01" value={form.unit_cost} onValueChange={(value) => update('unit_cost', value)} className={inputClass} />
+        <TextField label="Lieferantenreferenz" value={form.supplier_reference ?? ''} onValueChange={(value) => update('supplier_reference', value)} className={inputClass} />
+        <TextField label="Suchbegriffe" value={form.search_terms ?? ''} onValueChange={(value) => update('search_terms', value)} className={`${inputClass} sm:col-span-2`} />
+        <Checkbox checked={form.is_active} onCheckedChange={(checked) => update('is_active', checked)} label="Aktiv" className="sm:col-span-2" />
         {error && <p role="alert" className="text-sm text-red-300 sm:col-span-2">{error}</p>}
         <div className="flex justify-end gap-2 sm:col-span-2">
           <button type="button" onClick={onClose} className="rounded-lg border border-gray-600 px-4 py-2 text-sm text-gray-200">Abbrechen</button>

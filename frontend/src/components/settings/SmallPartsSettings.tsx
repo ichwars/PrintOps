@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { api } from '../../api/client';
 import { smallPartsApi } from '../../api/smallParts';
 import { Card, CardContent, CardHeader } from '../Card';
+import { Checkbox, NumberField, TextField } from '../ui';
 
 interface SmallPartsSettingsProps {
   defaultMinimumStock: string;
@@ -51,7 +52,7 @@ export function SmallPartsSettings({ defaultMinimumStock, lowStockWarning, onDef
           <CardHeader><h3 className="font-semibold text-white">Kategorien</h3></CardHeader>
           <CardContent className="space-y-3">
             <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); addCategory.mutate(); }}>
-              <input aria-label="Neue Kategorie" required value={categoryName} onChange={(event) => setCategoryName(event.target.value)} className={`${inputClass} min-w-0 flex-1`} />
+              <TextField aria-label="Neue Kategorie" required value={categoryName} onValueChange={setCategoryName} className={`${inputClass} min-w-0 flex-1`} />
               <button aria-label="Kategorie hinzufügen" className="rounded-lg bg-green-600 p-2 text-white"><Plus className="h-5 w-5" /></button>
             </form>
             {categories.data?.map((category) => (
@@ -67,9 +68,9 @@ export function SmallPartsSettings({ defaultMinimumStock, lowStockWarning, onDef
           <CardHeader><h3 className="font-semibold text-white">Einheiten</h3></CardHeader>
           <CardContent className="space-y-3">
             <form className="grid grid-cols-[1fr_2fr_auto_auto] gap-2" onSubmit={(event) => { event.preventDefault(); addUnit.mutate(); }}>
-              <input aria-label="Einheit Code" placeholder="C62" required value={unitCode} onChange={(event) => setUnitCode(event.target.value)} className={inputClass} />
-              <input aria-label="Einheit Bezeichnung" placeholder="Stück" required value={unitLabel} onChange={(event) => setUnitLabel(event.target.value)} className={inputClass} />
-              <input aria-label="Nachkommastellen" type="number" min="0" max="6" value={unitDecimals} onChange={(event) => setUnitDecimals(Number(event.target.value))} className={`${inputClass} w-20`} />
+              <TextField aria-label="Einheit Code" placeholder="C62" required value={unitCode} onValueChange={setUnitCode} className={inputClass} />
+              <TextField aria-label="Einheit Bezeichnung" placeholder="Stück" required value={unitLabel} onValueChange={setUnitLabel} className={inputClass} />
+              <NumberField aria-label="Nachkommastellen" min="0" max="6" value={unitDecimals} onValueChange={(value) => setUnitDecimals(Number(value))} className={`${inputClass} w-20`} />
               <button aria-label="Einheit hinzufügen" className="rounded-lg bg-green-600 p-2 text-white"><Plus className="h-5 w-5" /></button>
             </form>
             {units.data?.map((unit) => (
@@ -85,7 +86,7 @@ export function SmallPartsSettings({ defaultMinimumStock, lowStockWarning, onDef
           <CardHeader><h3 className="font-semibold text-white">Lagerorte</h3></CardHeader>
           <CardContent className="space-y-3">
             <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); addLocation.mutate(); }}>
-              <input aria-label="Neuer Lagerort" required value={locationName} onChange={(event) => setLocationName(event.target.value)} className={`${inputClass} min-w-0 flex-1`} />
+              <TextField aria-label="Neuer Lagerort" required value={locationName} onValueChange={setLocationName} className={`${inputClass} min-w-0 flex-1`} />
               <button aria-label="Lagerort hinzufügen" className="rounded-lg bg-green-600 p-2 text-white"><Plus className="h-5 w-5" /></button>
             </form>
             {locations.data?.map((location) => (
@@ -100,13 +101,8 @@ export function SmallPartsSettings({ defaultMinimumStock, lowStockWarning, onDef
         <Card>
           <CardHeader><h3 className="font-semibold text-white">Standardwerte</h3></CardHeader>
           <CardContent className="space-y-4">
-            <label className="block space-y-1 text-sm text-gray-300">
-              <span>Standard-Meldebestand</span>
-              <input type="number" min="0" step="any" value={defaultMinimumStock} onChange={(event) => onDefaultsChange({ defaultMinimumStock: event.target.value, lowStockWarning })} className={`${inputClass} w-full`} />
-            </label>
-            <label className="flex items-center gap-2 text-sm text-gray-300">
-              <input type="checkbox" checked={lowStockWarning} onChange={(event) => onDefaultsChange({ defaultMinimumStock, lowStockWarning: event.target.checked })} /> Warnung bei niedrigem Bestand
-            </label>
+            <NumberField label="Standard-Meldebestand" min="0" step="0.01" value={defaultMinimumStock} onValueChange={(value) => onDefaultsChange({ defaultMinimumStock: value, lowStockWarning })} className={`${inputClass} w-full`} />
+            <Checkbox checked={lowStockWarning} onCheckedChange={(checked) => onDefaultsChange({ defaultMinimumStock, lowStockWarning: checked })} label="Warnung bei niedrigem Bestand" />
           </CardContent>
         </Card>
       </div>

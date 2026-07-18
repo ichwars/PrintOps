@@ -2,11 +2,10 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
-from backend.app.models.small_part import SmallPartLedgerEntry
+from backend.app.models.small_part import SmallPart, SmallPartLedgerEntry, SmallPartUnit
 from backend.app.models.spool import Spool
 from backend.app.services.small_parts import get_balance
 from backend.tests.integration.test_offers_api import _approved_revision
-from backend.app.models.small_part import SmallPart, SmallPartUnit
 
 
 async def _accepted_order(async_client, db_session):

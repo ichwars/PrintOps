@@ -2,7 +2,6 @@ from sqlalchemy import inspect
 
 from backend.app.models.calculation_project import CalculationVariantPlate
 
-
 EXPECTED_TABLES = {
     "calculation_project_files",
     "calculation_project_plates",

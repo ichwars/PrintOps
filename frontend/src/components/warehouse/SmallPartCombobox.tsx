@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { smallPartsApi, type SmallPartOption } from '../../api/smallParts';
+import { TextField } from '../ui';
 
 interface SmallPartComboboxProps {
   value: SmallPartOption | null;
@@ -57,8 +58,7 @@ export function SmallPartCombobox({
 
   return (
     <div ref={rootRef} className="relative">
-      <input
-        type="text"
+      <TextField
         role="combobox"
         aria-label={label}
         aria-expanded={open}

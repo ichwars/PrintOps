@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { smallPartsApi, type SmallPart } from '../api/smallParts';
 import { Card, CardContent } from '../components/Card';
+import { Checkbox, TextField } from '../components/ui';
 import { SmallPartEditor } from '../components/warehouse/SmallPartEditor';
 import { SmallPartStockDialog } from '../components/warehouse/SmallPartStockDialog';
 
@@ -52,9 +53,9 @@ export function SmallPartsPage() {
       <Card>
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center">
-            <label className="relative flex-1">
+            <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-              <input
+              <TextField
                 type="search"
                 aria-label="Kleinteile durchsuchen"
                 value={query}
@@ -62,10 +63,8 @@ export function SmallPartsPage() {
                 placeholder="Artikelnummer, Bezeichnung, Kategorie …"
                 className="w-full rounded-lg border border-gray-600 bg-gray-800 py-2 pl-9 pr-3 text-white outline-none focus:border-bambu-green"
               />
-            </label>
-            <label className="flex min-h-10 items-center gap-2 rounded-lg border border-gray-700 px-3 text-sm text-gray-200">
-              <input type="checkbox" checked={lowStock} onChange={(event) => setLowStock(event.target.checked)} /> Nur niedriger Bestand
-            </label>
+            </div>
+            <Checkbox checked={lowStock} onCheckedChange={setLowStock} label="Nur niedriger Bestand" className="rounded-lg border border-gray-700 px-3 text-gray-200" />
           </div>
 
           {parts.isLoading && <p className="py-10 text-center text-bambu-gray">Kleinteile werden geladen …</p>}

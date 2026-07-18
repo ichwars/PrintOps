@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 import { ApiError } from '../../api/client';
 import { smallPartsApi, type SmallPart } from '../../api/smallParts';
-import { Modal } from '../ui/Modal';
+import { Modal, NumberField, Select, TextArea } from '../ui';
 
 interface SmallPartStockDialogProps {
   part: SmallPart;
@@ -57,40 +57,10 @@ export function SmallPartStockDialog({ part, onClose }: SmallPartStockDialogProp
         }}
       >
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="space-y-1 text-sm text-gray-300">
-            <span>Buchungsart</span>
-            <select
-              value={entryKind}
-              onChange={(event) => setEntryKind(event.target.value as 'receipt' | 'correction')}
-              className="w-full rounded-lg border border-gray-600 bg-gray-800 px-3 py-2 text-white"
-            >
-              <option value="receipt">Zugang</option>
-              <option value="correction">Korrektur</option>
-            </select>
-          </label>
-          <label className="space-y-1 text-sm text-gray-300">
-            <span>Menge</span>
-            <input
-              aria-label="Menge"
-              type="number"
-              step="any"
-              required
-              value={quantity}
-              onChange={(event) => setQuantity(event.target.value)}
-              className="w-full rounded-lg border border-gray-600 bg-gray-800 px-3 py-2 text-white"
-            />
-          </label>
+          <Select label="Buchungsart" value={entryKind} onValueChange={(value) => setEntryKind(value)} options={[{ value: 'receipt', label: 'Zugang' }, { value: 'correction', label: 'Korrektur' }]} />
+          <NumberField label="Menge" aria-label="Menge" step="0.01" required value={quantity} onValueChange={setQuantity} className="w-full rounded-lg border border-gray-600 bg-gray-800 px-3 py-2 text-white" />
         </div>
-        <label className="block space-y-1 text-sm text-gray-300">
-          <span>Grund</span>
-          <textarea
-            aria-label="Grund"
-            required
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            className="min-h-20 w-full rounded-lg border border-gray-600 bg-gray-800 px-3 py-2 text-white"
-          />
-        </label>
+        <TextArea label="Grund" aria-label="Grund" required value={reason} onValueChange={setReason} className="min-h-20 w-full rounded-lg border border-gray-600 bg-gray-800 px-3 py-2 text-white" />
         {error && <p role="alert" className="rounded-lg bg-red-950/60 px-3 py-2 text-sm text-red-300">{error}</p>}
         <button
           type="submit"

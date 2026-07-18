@@ -4,7 +4,7 @@ import { Cpu, Database, FileUp, LoaderCircle, Wind } from 'lucide-react';
 import type { Equipment, InventorySpool, Printer } from '../../../api/client';
 import { calculationsApi, type CalculationProjectFile, type CalculationProjectPlate, type CalculationVariantPlate } from '../../../api/calculations';
 import { formatGrams } from '../../../utils/calculationFormatting';
-import { LegacySelect, NumberField, TextField } from '../../ui';
+import { FileInput, LegacySelect, NumberField, TextField } from '../../ui';
 import { ProjectPlateGrid } from './ProjectPlateGrid';
 
 const inputClass = 'mt-1 h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary px-3 text-white outline-none focus:border-bambu-green';
@@ -110,7 +110,7 @@ export function ProjectFileSection({ calculationId, plates, printers, dryers, sp
       <div onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void upload(event.dataTransfer.files[0]); }} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-bambu-dark-tertiary bg-bambu-dark/50 p-4">
         <div><strong className="text-sm text-white">{de ? '3MF hier ablegen' : 'Drop 3MF here'}</strong><p className="text-xs text-bambu-gray">{calculationId ? (de ? 'oder über den Dateiexplorer auswählen' : 'or select it using the file browser') : (de ? 'Kalkulation zuerst speichern, danach kann die 3MF hochgeladen werden.' : 'Save the calculation before uploading the 3MF.')}</p></div>
         <button type="button" disabled={!calculationId || uploading} onClick={() => fileInput.current?.click()} className="inline-flex items-center gap-2 rounded-lg bg-bambu-dark px-3 py-2 text-sm text-white disabled:opacity-50">{uploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}{de ? 'Datei auswählen' : 'Choose file'}</button>
-        <input ref={fileInput} type="file" accept=".3mf,model/3mf" className="sr-only" onChange={(event) => void upload(event.target.files?.[0])} />
+        <FileInput ref={fileInput} accept=".3mf,model/3mf" className="sr-only" onChange={(event) => void upload(event.target.files?.[0])} />
       </div>
       {files.map((file) => <div key={file.id} className="space-y-2"><div className="flex items-center justify-between text-sm"><strong className="text-white">{file.original_filename}</strong><span className="text-bambu-gray">Revision {file.revision_number} · {file.plates.length} {de ? 'Platten' : 'plates'}</span></div><ProjectPlateGrid plates={file.plates} selectedIds={selectedIds} focusedId={focusedId} locale={locale} onSelectionChange={select} onFocusChange={setFocusedId} /></div>)}
       {focusedPlate && focusedSelection && <div className="grid gap-3 rounded-lg border border-bambu-green/30 bg-bambu-dark p-4 sm:grid-cols-2 lg:grid-cols-6">
