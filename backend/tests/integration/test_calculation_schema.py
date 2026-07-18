@@ -4,6 +4,27 @@ from sqlalchemy import Numeric, inspect
 
 from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.calculation import Calculation, CalculationRevision, CalculationVariant
+from backend.app.schemas.calculation import CalculationCreate
+
+
+def test_calculation_accepts_all_visible_labor_overrides():
+    payload = {
+        "business_profile_id": 1,
+        "title": "Configured labor",
+        "currency": "EUR",
+        "commercial_overrides": {
+            "setup_hours": "0.5",
+            "post_processing_hours_per_unit": "0.25",
+            "cad_hours": "1.5",
+            "qa_hours": "0.1",
+            "labor_rate": "42",
+        },
+        "variants": [{"name": "Standard", "is_preferred": True}],
+    }
+
+    calculation = CalculationCreate.model_validate(payload)
+
+    assert calculation.commercial_overrides["cad_hours"] == Decimal("1.5")
 
 
 async def test_calculation_supports_request_without_customer(db_session):

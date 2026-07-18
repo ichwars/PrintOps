@@ -131,16 +131,36 @@ async def create_business_profile(
     session.add(profile)
     await session.flush()
 
-    session.add(
-        NumberSequence(
-            business_profile_id=profile.id,
-            key="customer",
-            prefix="CUST",
-            pattern="{PREFIX}-{#####}",
-            next_value=1,
-            reset_policy="none",
-            current_period=None,
-        )
+    session.add_all(
+        [
+            NumberSequence(
+                business_profile_id=profile.id,
+                key="customer",
+                prefix="CUST",
+                pattern="{PREFIX}-{#####}",
+                next_value=1,
+                reset_policy="none",
+                current_period=None,
+            ),
+            NumberSequence(
+                business_profile_id=profile.id,
+                key="offer",
+                prefix="ANG",
+                pattern="{PREFIX}-{YYYY}-{#####}",
+                next_value=1,
+                reset_policy="yearly",
+                current_period=None,
+            ),
+            NumberSequence(
+                business_profile_id=profile.id,
+                key="order",
+                prefix="AUF",
+                pattern="{PREFIX}-{YYYY}-{#####}",
+                next_value=1,
+                reset_policy="yearly",
+                current_period=None,
+            ),
+        ]
     )
     await session.flush()
     return profile

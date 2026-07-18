@@ -12,7 +12,7 @@ vi.mock('../../api/client', () => ({
 }));
 
 vi.mock('../../api/calculations', () => ({
-  calculationsApi: { previewBatch: vi.fn(), create: vi.fn(), revisions: vi.fn() },
+  calculationsApi: { previewBatch: vi.fn(), create: vi.fn(), revisions: vi.fn(), effectiveDefaults: vi.fn(), availabilityPreview: vi.fn() },
 }));
 
 describe('CalculationWorkspace', () => {
@@ -24,6 +24,8 @@ describe('CalculationWorkspace', () => {
     vi.mocked(api.getCustomers).mockResolvedValue({ items: [], total: 0, limit: 200, offset: 0 });
     vi.mocked(api.getProjects).mockResolvedValue([]);
     vi.mocked(api.getSpools).mockResolvedValue([]);
+    vi.mocked(calculationsApi.effectiveDefaults).mockResolvedValue({ setup_hours: { value: '0.3', source: 'setting' } });
+    vi.mocked(calculationsApi.availabilityPreview).mockResolvedValue({ lines: [], reservation_state: 'not_reserved', checked_at: '2026-07-18T12:00:00Z' });
     vi.mocked(calculationsApi.previewBatch).mockResolvedValue({ total_runs: 1, material_cost: '0', material_markup: '0', machine_cost: '0', energy_cost: '0', labor_cost: '0', consumables: '0', packaging: '0', additional_costs: '0', additive_materials: '0', scrap_cost: '0', risk_cost: '0', production_cost: '0', shipping: '0', selling_price: '0', net_price: '0', contribution: '0', effective_margin: '0', tax: '0', gross_price: '0', unit_price: '0', breakdown: [] });
 
     const onSaved = vi.fn();
@@ -42,9 +44,12 @@ describe('CalculationWorkspace', () => {
     expect(dialog.querySelector('header')).not.toHaveClass('sticky');
     await waitFor(() => expect(api.getCustomers).toHaveBeenCalledWith({ businessProfileId: 2, status: 'active', limit: 200, offset: 0 }));
     expect(screen.getByRole('heading', { name: '1. Request' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '5. Cost & price' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '3. Project file' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '4. Small parts' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '5. Labor & post-processing' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '6. Costs & prices' })).toBeInTheDocument();
     expect(screen.getByText('Project')).toBeInTheDocument();
-    expect(screen.getByText('Small parts & additional material')).toBeInTheDocument();
+    expect(screen.getByText('No small parts selected.')).toBeInTheDocument();
     expect(screen.getByText('Cost breakdown')).toBeInTheDocument();
     expect(screen.getByText('Price decision')).toBeInTheDocument();
     expect(screen.getByLabelText('Create offer draft')).toBeDisabled();
@@ -53,12 +58,10 @@ describe('CalculationWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(calculationsApi.create).toHaveBeenCalled());
     expect(onSaved).toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Material' }));
-    expect(screen.getByLabelText('Material description')).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Material markup %'), { target: { value: '12' } });
+    fireEvent.change(screen.getByLabelText(/Material markup %/), { target: { value: '12' } });
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
     expect(confirm).toHaveBeenCalled();
-    await waitFor(() => expect(calculationsApi.previewBatch).toHaveBeenCalled());
+    expect(calculationsApi.previewBatch).not.toHaveBeenCalled();
   });
 });

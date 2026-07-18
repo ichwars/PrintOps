@@ -43,6 +43,13 @@ class Calculation(Base):
     revisions: Mapped[list[CalculationRevision]] = relationship(
         lazy="selectin", order_by="CalculationRevision.revision_number"
     )
+    project_files = relationship(
+        "CalculationProjectFile",
+        back_populates="calculation",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="CalculationProjectFile.revision_number",
+    )
     business_profile = relationship("BusinessProfile", lazy="selectin")
     customer = relationship("Customer", lazy="selectin")
     project = relationship("Project", lazy="selectin")
@@ -65,6 +72,20 @@ class CalculationVariant(Base):
     )
     operations: Mapped[list[CalculationOperation]] = relationship(
         cascade="all, delete-orphan", lazy="selectin", order_by="CalculationOperation.sort_order"
+    )
+    plates = relationship(
+        "CalculationVariantPlate",
+        back_populates="variant",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="CalculationVariantPlate.sort_order",
+    )
+    small_parts = relationship(
+        "CalculationVariantSmallPart",
+        back_populates="variant",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="CalculationVariantSmallPart.sort_order",
     )
 
 

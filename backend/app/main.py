@@ -25,6 +25,7 @@ from backend.app.api.routes import (
     auth,
     bug_report,
     business_profiles,
+    calculation_projects,
     calculations,
     camera,
     cloud,
@@ -51,7 +52,9 @@ from backend.app.api.routes import (
     notification_templates,
     notifications,
     obico,
+    offers,
     orca_cloud,
+    orders,
     pending_uploads,
     pipeline_runs,
     print_log,
@@ -63,6 +66,7 @@ from backend.app.api.routes import (
     slice_jobs,
     slicer_pipelines,
     slicer_presets,
+    small_parts,
     smart_plugs,
     sponsor_prompt,
     spoolbuddy,
@@ -6722,6 +6726,9 @@ app.include_router(mfa.router, prefix=app_settings.api_prefix)
 app.include_router(bug_report.router, prefix=app_settings.api_prefix)
 app.include_router(business_profiles.router, prefix=app_settings.api_prefix)
 app.include_router(calculations.router, prefix=app_settings.api_prefix)
+app.include_router(calculation_projects.router, prefix=app_settings.api_prefix)
+app.include_router(offers.router, prefix=app_settings.api_prefix)
+app.include_router(orders.router, prefix=app_settings.api_prefix)
 app.include_router(customers.router, prefix=app_settings.api_prefix)
 app.include_router(users.router, prefix=app_settings.api_prefix)
 app.include_router(groups.router, prefix=app_settings.api_prefix)
@@ -6730,6 +6737,7 @@ app.include_router(equipment.router, prefix=app_settings.api_prefix)
 app.include_router(archives.router, prefix=app_settings.api_prefix)
 app.include_router(filaments.router, prefix=app_settings.api_prefix)
 app.include_router(inventory.router, prefix=app_settings.api_prefix)
+app.include_router(small_parts.router, prefix=app_settings.api_prefix)
 app.include_router(labels.router, prefix=app_settings.api_prefix)
 app.include_router(settings_routes.router, prefix=app_settings.api_prefix)
 app.include_router(cloud.router, prefix=app_settings.api_prefix)

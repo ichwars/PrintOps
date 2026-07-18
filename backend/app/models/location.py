@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.app.core.database import Base
 
 if TYPE_CHECKING:
+    from backend.app.models.small_part import SmallPart
     from backend.app.models.spool import Spool
 
 
@@ -25,3 +26,4 @@ class Location(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     spools: Mapped[list["Spool"]] = relationship(back_populates="location")
+    small_parts: Mapped[list["SmallPart"]] = relationship(back_populates="location")

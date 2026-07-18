@@ -104,3 +104,6 @@ test_pipeline_run_1.3mf
 
 # Local visual brainstorming previews
 .superpowers/
+
+# Local Git worktrees used for isolated Codex implementation branches
+.worktrees/
