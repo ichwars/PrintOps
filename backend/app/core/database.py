@@ -207,6 +207,7 @@ async def init_db():
         slot_preset,
         smart_plug,
         smart_plug_energy_snapshot,
+        small_part,
         spool,
         spool_assignment,
         spool_catalog,
