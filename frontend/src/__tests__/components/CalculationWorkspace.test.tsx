@@ -12,7 +12,7 @@ vi.mock('../../api/client', () => ({
 }));
 
 vi.mock('../../api/calculations', () => ({
-  calculationsApi: { previewBatch: vi.fn(), create: vi.fn(), revisions: vi.fn(), effectiveDefaults: vi.fn(), availabilityPreview: vi.fn() },
+  calculationsApi: { previewBatch: vi.fn(), create: vi.fn(), revisions: vi.fn(), effectiveDefaults: vi.fn(), availabilityPreview: vi.fn(), uploadProjectFile: vi.fn(), projectFiles: vi.fn() },
 }));
 
 describe('CalculationWorkspace', () => {
@@ -63,5 +63,33 @@ describe('CalculationWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
     expect(confirm).toHaveBeenCalled();
     expect(calculationsApi.previewBatch).not.toHaveBeenCalled();
+  });
+
+  it('auto-saves a new draft before uploading its first 3MF project file', async () => {
+    vi.mocked(api.getBusinessProfileOptions).mockResolvedValue([{ id: 2, name: 'Main', legal_name: 'Main GmbH', country_code: 'DE', default_currency: 'EUR', is_active: true, is_default: true, version: 1 }]);
+    vi.mocked(api.getSettings).mockResolvedValue({ calculation_defaults: '{}', default_filament_cost: 25, energy_cost_per_kwh: 0.3 } as never);
+    vi.mocked(api.getPrinters).mockResolvedValue([]);
+    vi.mocked(api.getEquipment).mockResolvedValue([]);
+    vi.mocked(api.getCustomers).mockResolvedValue({ items: [], total: 0, limit: 200, offset: 0 });
+    vi.mocked(api.getProjects).mockResolvedValue([]);
+    vi.mocked(api.getSpools).mockResolvedValue([]);
+    vi.mocked(calculationsApi.effectiveDefaults).mockResolvedValue({});
+    vi.mocked(calculationsApi.availabilityPreview).mockResolvedValue({ lines: [], reservation_state: 'not_reserved', checked_at: '2026-07-18T12:00:00Z' });
+    vi.mocked(calculationsApi.projectFiles).mockResolvedValue([]);
+    vi.mocked(calculationsApi.revisions).mockResolvedValue([]);
+    vi.mocked(calculationsApi.create).mockResolvedValue({ id: 42, status: 'draft', version: 1, title: 'bracket' } as never);
+    vi.mocked(calculationsApi.uploadProjectFile).mockResolvedValue({ id: 7, calculation_id: 42, revision_number: 1, original_filename: 'bracket.3mf', sha256: 'abc', size_bytes: 3, analysis_status: 'completed', analysis_error: null, printer_metadata: {}, created_at: '2026-07-18T12:00:00Z', plates: [] });
+
+    render(<CalculationWorkspace calculation={null} locale="en-US" onClose={vi.fn()} onSaved={vi.fn()} />);
+    await waitFor(() => expect(api.getCustomers).toHaveBeenCalledWith({ businessProfileId: 2, status: 'active', limit: 200, offset: 0 }));
+
+    expect(screen.getByRole('button', { name: 'Choose file' })).toBeEnabled();
+    const file = new File(['3mf'], 'bracket.3mf', { type: 'model/3mf' });
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(input).not.toBeNull();
+    fireEvent.change(input!, { target: { files: [file] } });
+
+    await waitFor(() => expect(calculationsApi.create).toHaveBeenCalledWith(expect.objectContaining({ business_profile_id: 2, title: 'bracket' })));
+    expect(calculationsApi.uploadProjectFile).toHaveBeenCalledWith(42, file);
   });
 });

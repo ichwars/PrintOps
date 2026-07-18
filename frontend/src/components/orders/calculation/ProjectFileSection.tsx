@@ -16,6 +16,7 @@ interface ProjectFileSectionProps {
   dryers: Equipment[];
   spools: InventorySpool[];
   locale: string;
+  onEnsureCalculation: (file: File) => Promise<number>;
   onChange: (plates: CalculationVariantPlate[]) => void;
 }
 
@@ -35,7 +36,7 @@ function newSelection(plate: CalculationProjectPlate, sortOrder: number): Calcul
   };
 }
 
-export function ProjectFileSection({ calculationId, plates, printers, dryers, spools, locale, onChange }: ProjectFileSectionProps) {
+export function ProjectFileSection({ calculationId, plates, printers, dryers, spools, locale, onEnsureCalculation, onChange }: ProjectFileSectionProps) {
   const de = locale.startsWith('de');
   const fileInput = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<CalculationProjectFile[]>([]);
@@ -65,10 +66,11 @@ export function ProjectFileSection({ calculationId, plates, printers, dryers, sp
     onChange(plates.map((item) => item.project_plate_id === focusedId ? { ...item, ...values } : item));
   };
   const upload = async (file?: File) => {
-    if (!file || !calculationId) return;
+    if (!file) return;
     setUploading(true); setMessage(null);
     try {
-      const created = await calculationsApi.uploadProjectFile(calculationId, file);
+      const targetCalculationId = calculationId ?? await onEnsureCalculation(file);
+      const created = await calculationsApi.uploadProjectFile(targetCalculationId, file);
       setFiles((current) => [...current, created]);
       const additions = created.plates.map((item, index) => newSelection(item, plates.length + index));
       onChange([...plates, ...additions]);
@@ -108,8 +110,8 @@ export function ProjectFileSection({ calculationId, plates, printers, dryers, sp
         <label className="text-xs text-bambu-gray">{de ? 'Trocknungsdauer h' : 'Drying hours'}<NumberField min="0" step="0.05" value={String(focusedSelection?.provenance.drying_hours ?? 0)} onChange={(event) => setProvenance('drying_hours', Number(event.target.value))} containerClassName="mt-1" className={inputClass} /></label>
       </div>
       <div onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void upload(event.dataTransfer.files[0]); }} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-bambu-dark-tertiary bg-bambu-dark/50 p-4">
-        <div><strong className="text-sm text-white">{de ? '3MF hier ablegen' : 'Drop 3MF here'}</strong><p className="text-xs text-bambu-gray">{calculationId ? (de ? 'oder über den Dateiexplorer auswählen' : 'or select it using the file browser') : (de ? 'Kalkulation zuerst speichern, danach kann die 3MF hochgeladen werden.' : 'Save the calculation before uploading the 3MF.')}</p></div>
-        <button type="button" disabled={!calculationId || uploading} onClick={() => fileInput.current?.click()} className="inline-flex items-center gap-2 rounded-lg bg-bambu-dark px-3 py-2 text-sm text-white disabled:opacity-50">{uploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}{de ? 'Datei auswählen' : 'Choose file'}</button>
+        <div><strong className="text-sm text-white">{de ? '3MF hier ablegen' : 'Drop 3MF here'}</strong><p className="text-xs text-bambu-gray">{calculationId ? (de ? 'oder über den Dateiexplorer auswählen' : 'or select it using the file browser') : (de ? 'Der Entwurf wird beim ersten Upload automatisch gespeichert.' : 'The draft is saved automatically with the first upload.')}</p></div>
+        <button type="button" disabled={uploading} onClick={() => fileInput.current?.click()} className="inline-flex items-center gap-2 rounded-lg bg-bambu-dark px-3 py-2 text-sm text-white disabled:opacity-50">{uploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}{de ? 'Datei auswählen' : 'Choose file'}</button>
         <FileInput ref={fileInput} accept=".3mf,model/3mf" className="sr-only" onChange={(event) => void upload(event.target.files?.[0])} />
       </div>
       {files.map((file) => <div key={file.id} className="space-y-2"><div className="flex items-center justify-between text-sm"><strong className="text-white">{file.original_filename}</strong><span className="text-bambu-gray">Revision {file.revision_number} · {file.plates.length} {de ? 'Platten' : 'plates'}</span></div><ProjectPlateGrid plates={file.plates} selectedIds={selectedIds} focusedId={focusedId} locale={locale} onSelectionChange={select} onFocusChange={setFocusedId} /></div>)}
