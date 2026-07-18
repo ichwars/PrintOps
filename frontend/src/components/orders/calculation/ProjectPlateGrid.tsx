@@ -1,6 +1,7 @@
 import { Image as ImageIcon } from 'lucide-react';
 
 import type { CalculationProjectPlate } from '../../../api/calculations';
+import { withStreamToken } from '../../../api/client';
 import { formatGrams, formatHours } from '../../../utils/calculationFormatting';
 import { Checkbox } from '../../ui';
 
@@ -30,7 +31,7 @@ export function ProjectPlateGrid({ plates, selectedIds, focusedId, locale, onSel
           </div>
           <button type="button" aria-label={de ? `Details von ${plate.name} öffnen` : `Open details for ${plate.name}`} onClick={() => onFocusChange(plate.id)} className="block w-full text-left">
             <div className="flex aspect-[4/3] items-center justify-center bg-bambu-dark-secondary">
-              {plate.thumbnail_url ? <img src={plate.thumbnail_url} alt="" className="h-full w-full object-contain" /> : <ImageIcon className="h-10 w-10 text-bambu-gray" />}
+              {plate.thumbnail_url ? <img src={withStreamToken(plate.thumbnail_url)} alt="" className="h-full w-full object-contain" /> : <ImageIcon className="h-10 w-10 text-bambu-gray" />}
             </div>
             <div className="flex justify-between px-3 py-2 text-xs text-bambu-gray">
               <span>{formatGrams(plate.detected_grams ?? 0, locale)}</span>

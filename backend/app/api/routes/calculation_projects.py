@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.app.api.routes.settings import get_setting
-from backend.app.core.auth import RequirePermissionIfAuthEnabled
+from backend.app.core.auth import RequireCameraStreamTokenIfAuthEnabled, RequirePermissionIfAuthEnabled
 from backend.app.core.config import settings as app_settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
@@ -192,7 +192,7 @@ async def get_project_plate_thumbnail(
     file_id: int,
     plate_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
+    _: None = RequireCameraStreamTokenIfAuthEnabled,
 ):
     plate = await db.scalar(
         select(CalculationProjectPlate).where(

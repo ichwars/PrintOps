@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CalculationProjectPlate, CalculationVariant } from '../../api/calculations';
+import { setStreamToken } from '../../api/client';
 import { ProjectPlateGrid } from '../../components/orders/calculation/ProjectPlateGrid';
 import { VariantStrip } from '../../components/orders/calculation/VariantStrip';
 
@@ -31,6 +32,8 @@ const plate = (id: number): CalculationProjectPlate => ({
 });
 
 describe('calculation project-file controls', () => {
+  afterEach(() => setStreamToken(null));
+
   it('separates active variant editing from preferred variant selection', () => {
     const onActiveChange = vi.fn();
     const onPreferredChange = vi.fn();
@@ -53,5 +56,14 @@ describe('calculation project-file controls', () => {
     expect(onSelectionChange).toHaveBeenCalledWith(new Set([1, 2]));
     fireEvent.click(screen.getByRole('button', { name: 'Details von Platte 2 öffnen' }));
     expect(onFocusChange).toHaveBeenCalledWith(2);
+  });
+
+  it('adds the stream token to project plate thumbnail URLs', () => {
+    setStreamToken('preview-token');
+    render(<ProjectPlateGrid plates={[{ ...plate(1), thumbnail_url: '/api/v1/calculations/project-files/7/plates/11/thumbnail' }]} selectedIds={new Set([1])} focusedId={1} locale="de-DE" onSelectionChange={vi.fn()} onFocusChange={vi.fn()} />);
+
+    const image = document.querySelector<HTMLImageElement>('img');
+    expect(image).not.toBeNull();
+    expect(new URL(image!.src).searchParams.get('token')).toBe('preview-token');
   });
 });
