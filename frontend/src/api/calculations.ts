@@ -118,6 +118,28 @@ export interface CalculationSliceResult {
 
 export type EffectiveCalculationDefaults = Record<string, { value: string; source: 'setting' | 'override' }>;
 
+export interface AvailabilityLine {
+  source_key: string;
+  resource_kind: 'filament' | 'small_part';
+  description: string | null;
+  material_code: string | null;
+  small_part_id: number | null;
+  unit_code: string;
+  required: string;
+  physical: string;
+  reserved: string;
+  available: string;
+  shortage: string;
+  status: 'available' | 'short' | 'unmapped';
+  allocations: Array<{ backend: string; resource_id: string; quantity: string }>;
+}
+
+export interface AvailabilityReport {
+  lines: AvailabilityLine[];
+  reservation_state: 'not_reserved';
+  checked_at: string;
+}
+
 export interface CalculationVariant {
   name: string;
   is_preferred: boolean;
@@ -191,6 +213,8 @@ export const calculationsApi = {
   projectFiles: (calculationId: number) => request<CalculationProjectFile[]>(`/calculations/${calculationId}/project-files`),
   sliceProjectFile: (fileId: number, plateIds: number[]) => request<CalculationSliceResult[]>(`/calculations/project-files/${fileId}/slice`, { method: 'POST', body: JSON.stringify({ plate_ids: plateIds, allow_estimate_fallback: true }) }),
   effectiveDefaults: () => request<EffectiveCalculationDefaults>('/calculations/effective-defaults'),
+  availability: (calculationId: number, variantId?: number) => request<AvailabilityReport>(`/calculations/${calculationId}/availability${variantId ? `?variant_id=${variantId}` : ''}`),
+  availabilityPreview: (variant: CalculationVariant) => request<AvailabilityReport>('/calculations/availability-preview', { method: 'POST', body: JSON.stringify(variant) }),
   preview: (input: CalculationPreviewInput) => request<CalculationPreview>('/calculations/preview', { method: 'POST', body: JSON.stringify(input) }),
   previewBatch: (operations: CalculationPreviewInput[], commercial: CalculationPreviewInput) => request<CalculationPreview>('/calculations/preview-batch', { method: 'POST', body: JSON.stringify({ operations, commercial }) }),
   list: (params: { status?: CalculationStatus; limit?: number; offset?: number } = {}) => {

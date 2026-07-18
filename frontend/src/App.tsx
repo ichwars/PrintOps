@@ -25,6 +25,9 @@ const LibraryTrashPage = lazy(() => import('./pages/LibraryTrashPage').then(({ L
 const WarehousePage = lazy(() => import('./pages/WarehousePage').then(({ WarehousePage }) => ({ default: WarehousePage })));
 const SmallPartsPage = lazy(() => import('./pages/SmallPartsPage').then(({ SmallPartsPage }) => ({ default: SmallPartsPage })));
 const OrdersPage = lazy(() => import('./pages/OrdersPage').then(({ OrdersPage }) => ({ default: OrdersPage })));
+const OrdersOverviewPage = lazy(() => import('./pages/OrdersOverviewPage').then(({ OrdersOverviewPage }) => ({ default: OrdersOverviewPage })));
+const OffersPage = lazy(() => import('./pages/OffersPage').then(({ OffersPage }) => ({ default: OffersPage })));
+const OrderDetailPage = lazy(() => import('./pages/OrderDetailPage').then(({ OrderDetailPage }) => ({ default: OrderDetailPage })));
 const OrdersCustomersPage = lazy(() => import('./pages/OrdersCustomersPage').then(({ OrdersCustomersPage }) => ({ default: OrdersCustomersPage })));
 const CalculationsPage = lazy(() => import('./pages/CalculationsPage').then(({ CalculationsPage }) => ({ default: CalculationsPage })));
 const CameraPage = lazy(() => import('./pages/CameraPage').then(({ CameraPage }) => ({ default: CameraPage })));
@@ -230,10 +233,11 @@ function App() {
                   <Route path="warehouse/material" element={<Navigate to="/warehouse/parts" replace />} />
                   <Route path="warehouse/goods" element={<Navigate to="/warehouse/stock" replace />} />
                   <Route path="inventory" element={<Navigate to="/warehouse/filament" replace />} />
-                  <Route path="orders" element={<OrdersPage />} />
+                  <Route path="orders" element={<OrdersOverviewPage />} />
+                  <Route path="orders/:id" element={<OrderDetailPage />} />
                   <Route path="orders/customers" element={<OrdersCustomersPage />} />
                   <Route path="orders/calculation" element={<CalculationsPage />} />
-                  <Route path="orders/offers" element={<OrdersPage />} />
+                  <Route path="orders/offers" element={<OffersPage />} />
                   <Route path="orders/invoices" element={<OrdersPage />} />
                   <Route path="files" element={<FileManagerPage />} />
                   <Route path="files/trash" element={<LibraryTrashPage />} />

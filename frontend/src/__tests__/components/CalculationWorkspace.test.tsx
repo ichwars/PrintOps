@@ -12,7 +12,7 @@ vi.mock('../../api/client', () => ({
 }));
 
 vi.mock('../../api/calculations', () => ({
-  calculationsApi: { previewBatch: vi.fn(), create: vi.fn(), revisions: vi.fn(), effectiveDefaults: vi.fn() },
+  calculationsApi: { previewBatch: vi.fn(), create: vi.fn(), revisions: vi.fn(), effectiveDefaults: vi.fn(), availabilityPreview: vi.fn() },
 }));
 
 describe('CalculationWorkspace', () => {
@@ -25,6 +25,7 @@ describe('CalculationWorkspace', () => {
     vi.mocked(api.getProjects).mockResolvedValue([]);
     vi.mocked(api.getSpools).mockResolvedValue([]);
     vi.mocked(calculationsApi.effectiveDefaults).mockResolvedValue({ setup_hours: { value: '0.3', source: 'setting' } });
+    vi.mocked(calculationsApi.availabilityPreview).mockResolvedValue({ lines: [], reservation_state: 'not_reserved', checked_at: '2026-07-18T12:00:00Z' });
     vi.mocked(calculationsApi.previewBatch).mockResolvedValue({ total_runs: 1, material_cost: '0', material_markup: '0', machine_cost: '0', energy_cost: '0', labor_cost: '0', consumables: '0', packaging: '0', additional_costs: '0', additive_materials: '0', scrap_cost: '0', risk_cost: '0', production_cost: '0', shipping: '0', selling_price: '0', net_price: '0', contribution: '0', effective_margin: '0', tax: '0', gross_price: '0', unit_price: '0', breakdown: [] });
 
     const onSaved = vi.fn();
