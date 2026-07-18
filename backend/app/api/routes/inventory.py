@@ -23,6 +23,7 @@ from backend.app.models.ams_label import AmsLabel
 from backend.app.models.color_catalog import ColorCatalogEntry
 from backend.app.models.location import Location
 from backend.app.models.settings import Settings
+from backend.app.models.small_part import SmallPart
 from backend.app.models.spool import Spool
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spool_catalog import SpoolCatalogEntry
@@ -684,7 +685,7 @@ async def delete_location(
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
-    """Delete a storage location when no spools are assigned."""
+    """Delete a storage location when no inventory is assigned."""
     location = await get_location_by_id(db, location_id)
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
@@ -693,6 +694,10 @@ async def delete_location(
     counts = await _spool_counts_for_locations(db, [location], settings)
     if counts.get(location.id, 0) > 0:
         raise HTTPException(status_code=409, detail="Location has spools assigned and cannot be deleted")
+
+    small_part_count = await db.scalar(select(func.count(SmallPart.id)).where(SmallPart.location_id == location.id))
+    if small_part_count:
+        raise HTTPException(status_code=409, detail="Location has small parts assigned and cannot be deleted")
 
     await db.delete(location)
     await db.commit()

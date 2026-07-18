@@ -5,6 +5,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.location import Location
+from backend.app.models.small_part import SmallPart, SmallPartUnit
 from backend.app.services.location_service import assign_location_name
 
 
@@ -135,6 +136,21 @@ async def test_delete_location_404_on_unknown_id(async_client: AsyncClient):
     resp = await async_client.delete("/api/v1/inventory/locations/99999")
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Location not found"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_delete_location_rejects_assigned_small_parts(async_client: AsyncClient, db_session: AsyncSession):
+    created = await async_client.post("/api/v1/inventory/locations", json={"name": "Parts shelf"})
+    location_id = created.json()["id"]
+    db_session.add(SmallPartUnit(code="C62", label="Stück", decimal_places=0))
+    db_session.add(SmallPart(sku="LOC-PART", name="Stored part", unit_code="C62", location_id=location_id))
+    await db_session.commit()
+
+    response = await async_client.delete(f"/api/v1/inventory/locations/{location_id}")
+
+    assert response.status_code == 409
+    assert "small parts" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio

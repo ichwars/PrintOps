@@ -10,6 +10,10 @@ class VersionConflictError(OrderDomainError):
     pass
 
 
+class InvalidStateConflictError(OrderDomainError):
+    pass
+
+
 class ResourceInUseError(OrderDomainError):
     pass
 

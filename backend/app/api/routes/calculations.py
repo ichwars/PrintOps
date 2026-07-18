@@ -1,9 +1,11 @@
+import logging
+import shutil
 from decimal import Decimal
 from pathlib import Path
 from typing import NoReturn
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
@@ -25,6 +27,12 @@ from backend.app.schemas.calculation import (
     CalculationTemplateRead,
     CalculationUpdate,
     CalculationValidationRead,
+    CalculationVariantInput,
+)
+from backend.app.schemas.stock_reservation import (
+    AvailabilityAllocationRead,
+    AvailabilityLineRead,
+    AvailabilityReportRead,
 )
 from backend.app.services import calculation as calculation_service
 from backend.app.services.calculation_engine import (
@@ -33,11 +41,96 @@ from backend.app.services.calculation_engine import (
     calculate_combined,
     calculate_variant,
 )
-from backend.app.services.order_errors import OrderDomainError, ResourceNotFoundError, VersionConflictError
+from backend.app.services.order_errors import (
+    InvalidStateConflictError,
+    OrderDomainError,
+    ResourceNotFoundError,
+    VersionConflictError,
+)
 from backend.app.services.slicer_3mf_convert import count_plates_in_3mf
+from backend.app.services.stock_availability import check_availability, requirements_from_snapshot
 from backend.app.utils.threemf_tools import extract_filament_usage_from_3mf, extract_print_time_from_3mf
 
 router = APIRouter(prefix="/calculations", tags=["calculations"])
+logger = logging.getLogger(__name__)
+
+
+@router.get("/effective-defaults")
+async def get_effective_defaults(
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
+) -> dict:
+    return await calculation_service.effective_defaults(db)
+
+
+@router.post("/availability-preview", response_model=AvailabilityReportRead)
+async def preview_calculation_availability(
+    variant: CalculationVariantInput,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
+) -> AvailabilityReportRead:
+    try:
+        requirements = requirements_from_snapshot({"variants": [{**variant.model_dump(), "sort_order": 0}]}, 0)
+    except ValueError as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"code": "invalid_requirements", "message": str(exc)},
+        ) from exc
+    return _availability_read(await check_availability(db, requirements, lock=False))
+
+
+@router.get("/{calculation_id}/availability", response_model=AvailabilityReportRead)
+async def get_calculation_availability(
+    calculation_id: int,
+    variant_id: int | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
+) -> AvailabilityReportRead:
+    try:
+        calculation = await calculation_service.get_calculation(db, calculation_id)
+    except OrderDomainError as exc:
+        _raise_http(exc)
+    variant = next(
+        (item for item in calculation.variants if item.id == variant_id),
+        next((item for item in calculation.variants if item.is_preferred), calculation.variants[0]),
+    )
+    snapshot = {
+        "variants": [
+            {
+                "sort_order": variant.sort_order,
+                "plates": [
+                    {
+                        "project_plate_id": item.project_plate_id,
+                        "stable_key": item.project_plate.stable_key,
+                        "plate_name": item.project_plate.name,
+                        "good_parts": item.good_parts,
+                        "parts_per_print": item.parts_per_print,
+                        "scrap_prints": item.scrap_prints,
+                        "material_code": item.material_code,
+                        "grams_per_print": item.grams_per_print or item.project_plate.detected_grams,
+                    }
+                    for item in variant.plates
+                ],
+                "small_parts": [
+                    {
+                        "small_part_id": item.small_part_id,
+                        "quantity": item.quantity,
+                        "unit_code": item.unit_code_snapshot,
+                        "description": item.description_snapshot,
+                    }
+                    for item in variant.small_parts
+                ],
+            }
+        ],
+    }
+    try:
+        requirements = requirements_from_snapshot(snapshot, variant.sort_order)
+    except ValueError as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"code": "invalid_requirements", "message": str(exc)},
+        ) from exc
+    return _availability_read(await check_availability(db, requirements, lock=False))
 
 
 def _preview_inputs(data: CalculationPreviewInput) -> VariantCostInputs:
@@ -60,9 +153,42 @@ def _raise_http(error: OrderDomainError) -> NoReturn:
         code, status_code = "not_found", status.HTTP_404_NOT_FOUND
     elif isinstance(error, VersionConflictError):
         code, status_code = "version_conflict", status.HTTP_409_CONFLICT
+    elif isinstance(error, InvalidStateConflictError):
+        code, status_code = "invalid_state", status.HTTP_409_CONFLICT
     else:
         code, status_code = "invalid_calculation", status.HTTP_422_UNPROCESSABLE_CONTENT
     raise HTTPException(status_code=status_code, detail={"code": code, "message": str(error)})
+
+
+def _availability_read(report) -> AvailabilityReportRead:
+    return AvailabilityReportRead(
+        checked_at=report.checked_at,
+        lines=[
+            AvailabilityLineRead(
+                source_key=line.requirement.source_key,
+                resource_kind=line.requirement.resource_kind,
+                description=line.requirement.description,
+                material_code=line.requirement.material_code,
+                small_part_id=line.requirement.small_part_id,
+                unit_code=line.requirement.unit_code,
+                required=line.requirement.quantity,
+                physical=line.physical,
+                reserved=line.reserved,
+                available=line.available,
+                shortage=line.shortage,
+                status=line.status,
+                allocations=[
+                    AvailabilityAllocationRead(
+                        backend=plan.candidate.backend,
+                        resource_id=plan.candidate.resource_id,
+                        quantity=plan.quantity,
+                    )
+                    for plan in line.allocations
+                ],
+            )
+            for line in report.lines
+        ],
+    )
 
 
 def _detail(calculation) -> CalculationDetail:
@@ -275,6 +401,30 @@ async def list_calculation_revisions(
         CalculationRevisionRead.model_validate(revision)
         for revision in sorted(calculation.revisions, key=lambda item: item.revision_number, reverse=True)
     ]
+
+
+@router.delete("/{calculation_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_calculation(
+    calculation_id: int,
+    expected_version: int = Query(gt=0),
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_UPDATE),
+) -> Response:
+    try:
+        await calculation_service.delete_calculation(db, calculation_id, expected_version)
+        await db.commit()
+    except OrderDomainError as exc:
+        await db.rollback()
+        _raise_http(exc)
+
+    calculations_root = (Path(app_settings.base_dir) / "calculations").resolve()
+    storage_dir = (calculations_root / str(calculation_id)).resolve()
+    if storage_dir.is_relative_to(calculations_root) and storage_dir.exists():
+        try:
+            shutil.rmtree(storage_dir)
+        except OSError:
+            logger.exception("Failed to remove calculation storage directory %s", storage_dir)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{calculation_id}/archive", response_model=CalculationDetail)

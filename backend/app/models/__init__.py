@@ -18,7 +18,15 @@ from backend.app.models.calculation import (
     CalculationTemplate,
     CalculationVariant,
 )
+from backend.app.models.calculation_project import (
+    CalculationProjectFile,
+    CalculationProjectPlate,
+    CalculationVariantPlate,
+    CalculationVariantSmallPart,
+)
+from backend.app.models.calculation_slice import CalculationSliceResult
 from backend.app.models.color_catalog import ColorCatalogEntry
+from backend.app.models.commerce import CustomerOrder, Offer, OfferAcceptance
 from backend.app.models.customer import (
     Customer,
     CustomerAccount,
@@ -50,6 +58,7 @@ from backend.app.models.printer_sensor_history import PrinterSensorHistory
 from backend.app.models.project import Project
 from backend.app.models.settings import Settings
 from backend.app.models.slicer_pipeline import SlicerPipeline
+from backend.app.models.small_part import SmallPart, SmallPartCategory, SmallPartLedgerEntry, SmallPartUnit
 from backend.app.models.smart_plug import SmartPlug
 from backend.app.models.smart_plug_energy_snapshot import SmartPlugEnergySnapshot
 from backend.app.models.sponsor_toast_state import SponsorToastState
@@ -59,6 +68,12 @@ from backend.app.models.spool_catalog import SpoolCatalogEntry
 from backend.app.models.spool_k_profile import SpoolKProfile
 from backend.app.models.spool_usage_history import SpoolUsageHistory
 from backend.app.models.spoolbuddy_device import SpoolBuddyDevice
+from backend.app.models.stock_reservation import (
+    StockReservation,
+    StockReservationAllocation,
+    StockReservationCommand,
+    StockResourceLock,
+)
 from backend.app.models.user import User
 from backend.app.models.user_email_pref import UserEmailPreference
 from backend.app.models.user_otp_code import UserOTPCode
@@ -124,6 +139,14 @@ __all__ = [
     "CalculationLabor",
     "CalculationRevision",
     "CalculationTemplate",
+    "CalculationProjectFile",
+    "CalculationProjectPlate",
+    "CalculationVariantPlate",
+    "CalculationVariantSmallPart",
+    "CalculationSliceResult",
+    "Offer",
+    "CustomerOrder",
+    "OfferAcceptance",
     "Customer",
     "CustomerAccount",
     "CustomerAddress",
@@ -132,4 +155,12 @@ __all__ = [
     "CustomerTaxIdentifier",
     "NumberSequence",
     "Equipment",
+    "SmallPartCategory",
+    "SmallPartUnit",
+    "SmallPart",
+    "SmallPartLedgerEntry",
+    "StockReservation",
+    "StockReservationAllocation",
+    "StockReservationCommand",
+    "StockResourceLock",
 ]

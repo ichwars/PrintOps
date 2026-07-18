@@ -114,6 +114,7 @@ async def _build_settings_response(db: AsyncSession, is_api_key: bool = False) -
             "auto_add_unknown_rfid",
             "disable_filament_warnings",
             "prefer_lowest_filament",
+            "small_parts_low_stock_warning",
             "check_updates",
             "check_printer_firmware",
             "include_beta_updates",
@@ -150,6 +151,7 @@ async def _build_settings_response(db: AsyncSession, is_api_key: bool = False) -
             "ams_temp_fair",
             "library_disk_warning_gb",
             "low_stock_threshold",
+            "small_parts_default_minimum_stock",
         ]:
             settings_dict[setting.key] = float(setting.value)
         elif setting.key in [

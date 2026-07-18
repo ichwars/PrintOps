@@ -18,6 +18,7 @@ from backend.app.models.calculation import (
     CalculationTemplate,
     CalculationVariant,
 )
+from backend.app.models.calculation_project import CalculationVariantPlate, CalculationVariantSmallPart
 from backend.app.models.customer import Customer
 from backend.app.models.equipment import Equipment
 from backend.app.models.printer import Printer
@@ -26,13 +27,22 @@ from backend.app.models.settings import Settings
 from backend.app.schemas.calculation import CalculationCreate, CalculationUpdate
 from backend.app.services.calculation_engine import LaborCostInput, VariantCostInputs, calculate_combined
 from backend.app.services.equipment_costs import calculate_hourly_rate
-from backend.app.services.order_errors import ResourceInUseError, ResourceNotFoundError, VersionConflictError
+from backend.app.services.order_errors import (
+    InvalidStateConflictError,
+    ResourceInUseError,
+    ResourceNotFoundError,
+    VersionConflictError,
+)
 
 _LOAD = (
     selectinload(Calculation.variants).selectinload(CalculationVariant.lines),
     selectinload(Calculation.variants)
     .selectinload(CalculationVariant.operations)
     .selectinload(CalculationOperation.labor),
+    selectinload(Calculation.variants)
+    .selectinload(CalculationVariant.plates)
+    .selectinload(CalculationVariantPlate.project_plate),
+    selectinload(Calculation.variants).selectinload(CalculationVariant.small_parts),
     selectinload(Calculation.revisions),
     selectinload(Calculation.business_profile),
     selectinload(Calculation.customer),
@@ -112,6 +122,7 @@ async def _cost_defaults(session: AsyncSession) -> dict:
         "laborRate": 20,
         "setupHours": 0.3,
         "postProcessingHours": 0.25,
+        "cadHours": 0,
         "qaHours": 0.05,
         "consumables": 0.75,
         "packaging": 2.5,
@@ -136,6 +147,28 @@ async def _cost_defaults(session: AsyncSession) -> dict:
     return defaults
 
 
+async def effective_defaults(session: AsyncSession) -> dict[str, dict[str, str]]:
+    defaults = await _cost_defaults(session)
+    mapping = {
+        "setup_hours": "setupHours",
+        "post_processing_hours_per_unit": "postProcessingHours",
+        "cad_hours": "cadHours",
+        "qa_hours": "qaHours",
+        "filament_price_per_kg": "materialPricePerKg",
+        "material_markup_percent": "materialMarkupPercent",
+        "scrap_percent": "scrapPercent",
+        "hourly_rate": "laborRate",
+        "consumables": "consumables",
+        "packaging": "packaging",
+        "shipping": "shipping",
+        "discount_percent": "discountPercent",
+    }
+    return {
+        public_key: {"value": str(defaults.get(source_key, 0)), "source": "setting"}
+        for public_key, source_key in mapping.items()
+    }
+
+
 def _variant(data) -> CalculationVariant:
     variant = CalculationVariant(
         name=data.name,
@@ -150,6 +183,8 @@ def _variant(data) -> CalculationVariant:
         operation = CalculationOperation(**values)
         operation.labor = [CalculationLabor(**labor.model_dump()) for labor in operation_data.labor]
         variant.operations.append(operation)
+    variant.plates = [CalculationVariantPlate(**plate.model_dump()) for plate in data.plates]
+    variant.small_parts = [CalculationVariantSmallPart(**part.model_dump()) for part in data.small_parts]
     return variant
 
 
@@ -262,6 +297,31 @@ def _snapshot(calculation: Calculation, warning_reasons: dict[str, str]) -> dict
                     }
                     for operation in variant.operations
                 ],
+                "plates": [
+                    {
+                        "project_plate_id": item.project_plate_id,
+                        "plate_name": item.project_plate.name,
+                        "stable_key": item.project_plate.stable_key,
+                        "good_parts": item.good_parts,
+                        "parts_per_print": item.parts_per_print,
+                        "scrap_prints": item.scrap_prints,
+                        "material_code": item.material_code,
+                        "grams_per_print": str(item.grams_per_print) if item.grams_per_print is not None else None,
+                        "hours_per_print": str(item.hours_per_print) if item.hours_per_print is not None else None,
+                        "provenance": item.provenance,
+                    }
+                    for item in variant.plates
+                ],
+                "small_parts": [
+                    {
+                        "small_part_id": item.small_part_id,
+                        "quantity": str(item.quantity),
+                        "description": item.description_snapshot,
+                        "unit_code": item.unit_code_snapshot,
+                        "unit_cost": str(item.unit_cost_snapshot),
+                    }
+                    for item in variant.small_parts
+                ],
             }
             for variant in calculation.variants
         ],
@@ -282,7 +342,7 @@ async def approve_calculation(
     preferred = [variant for variant in calculation.variants if variant.is_preferred]
     if len(preferred) != 1:
         raise ResourceInUseError("Exactly one preferred variant is required")
-    if not preferred[0].lines:
+    if not preferred[0].lines and not preferred[0].plates:
         raise ResourceInUseError("At least one sellable line is required")
     validation = validate_for_approval(calculation)
     if validation["blockers"]:
@@ -293,13 +353,64 @@ async def approve_calculation(
     defaults = await _cost_defaults(session)
     overrides = calculation.commercial_overrides or {}
     effective = {**defaults, **overrides}
+    labor_rate = Decimal(str(effective.get("labor_rate", defaults["laborRate"])))
     default_labor = (
-        LaborCostInput(Decimal(str(defaults["setupHours"])), Decimal(str(defaults["laborRate"])), "request"),
-        LaborCostInput(Decimal(str(defaults["postProcessingHours"])), Decimal(str(defaults["laborRate"])), "unit"),
-        LaborCostInput(Decimal(str(defaults["qaHours"])), Decimal(str(defaults["laborRate"])), "request"),
+        LaborCostInput(Decimal(str(effective.get("setup_hours", defaults["setupHours"]))), labor_rate, "request"),
+        LaborCostInput(
+            Decimal(str(effective.get("post_processing_hours_per_unit", defaults["postProcessingHours"]))),
+            labor_rate,
+            "unit",
+        ),
+        LaborCostInput(Decimal(str(effective.get("cad_hours", defaults["cadHours"]))), labor_rate, "request"),
+        LaborCostInput(Decimal(str(effective.get("qa_hours", defaults["qaHours"]))), labor_rate, "request"),
     )
     operation_inputs: list[VariantCostInputs] = []
-    for operation in preferred[0].operations:
+    for selected_plate in preferred[0].plates:
+        plate = selected_plate.project_plate
+        provenance = selected_plate.provenance or {}
+        printer_id = provenance.get("printer_id") if "printer_id" in provenance else defaults.get("defaultPrinterId")
+        dryer_id = provenance.get("dryer_id") if "dryer_id" in provenance else defaults.get("defaultDryerId")
+        printer = await session.get(Printer, int(printer_id)) if printer_id else None
+        dryer = await session.get(Equipment, int(dryer_id)) if dryer_id else None
+        printer_rate = printer.hourly_rate if printer is not None else None
+        dryer_rate = (
+            calculate_hourly_rate(
+                dryer.acquisition_value, dryer.service_years, dryer.annual_hours, dryer.maintenance_rate
+            )
+            if dryer is not None
+            else Decimal("0")
+        )
+        drying_hours = _decimal_value(provenance.get("drying_hours") or defaults.get("dryingHours", 0))
+        operation_inputs.append(
+            VariantCostInputs(
+                good_parts=selected_plate.good_parts,
+                parts_per_run=selected_plate.parts_per_print,
+                scrap_runs=selected_plate.scrap_prints,
+                material_grams_per_run=selected_plate.grams_per_print or plate.detected_grams or Decimal("0"),
+                material_price_per_kg=Decimal(
+                    str(effective.get("material_price_per_kg", defaults["materialPricePerKg"]))
+                ),
+                material_markup_rate=Decimal(
+                    str(effective.get("material_markup_rate", defaults.get("materialMarkupPercent", 0)))
+                )
+                / (Decimal("100") if "material_markup_rate" not in overrides else Decimal("1")),
+                print_hours_per_run=selected_plate.hours_per_print or plate.detected_hours or Decimal("0"),
+                machine_cost_per_hour=_decimal_value(provenance.get("printer_hourly_rate") or printer_rate or "0"),
+                printer_power_kw=_decimal_value(
+                    provenance.get("printer_power_watts") or getattr(printer, "nominal_power_watts", 0) or "0"
+                )
+                / Decimal("1000"),
+                electricity_price_per_kwh=Decimal(str(defaults["electricityPricePerKwh"])),
+                drying_hours=drying_hours,
+                dryer_power_kw=_decimal_value(
+                    provenance.get("dryer_power_watts") or getattr(dryer, "nominal_power_watts", 0) or "0"
+                )
+                / Decimal("1000"),
+                additional_costs=dryer_rate * drying_hours,
+                labor=default_labor,
+            )
+        )
+    for operation in preferred[0].operations if not preferred[0].plates else []:
         labor = (
             tuple(LaborCostInput(item.hours, item.hourly_rate, item.allocation_basis) for item in operation.labor)
             or default_labor
@@ -347,9 +458,17 @@ async def approve_calculation(
                 labor=labor,
             )
         )
-    total_units = max(1, int(sum((line.quantity for line in preferred[0].lines), Decimal("0"))))
+    total_units = max(
+        1,
+        int(sum((line.quantity for line in preferred[0].lines), Decimal("0")))
+        or sum(item.good_parts for item in preferred[0].plates),
+    )
     additive_materials = sum(
         (line.quantity * (line.unit_price or Decimal("0")) for line in preferred[0].lines if line.kind == "material"),
+        Decimal("0"),
+    )
+    additive_materials += sum(
+        (item.quantity * item.unit_cost_snapshot for item in preferred[0].small_parts),
         Decimal("0"),
     )
     result = calculate_combined(
@@ -407,9 +526,9 @@ def validate_for_approval(calculation: Calculation) -> dict[str, list[str]]:
         blockers.append("preferred_variant")
         return {"blockers": blockers, "warnings": warnings}
     variant = preferred[0]
-    if not variant.lines:
+    if not variant.lines and not variant.plates:
         blockers.append("sellable_line")
-    if not variant.operations:
+    if not variant.operations and not variant.plates:
         blockers.append("production_operation")
     for operation in variant.operations:
         provenance = operation.provenance or {}
@@ -423,6 +542,11 @@ def validate_for_approval(calculation: Calculation) -> dict[str, list[str]]:
         if machine_rate <= 0 and not provenance.get("printer_id"):
             warnings.append("missing_machine_rate")
         if operation.material_grams_per_run <= 0 or operation.print_hours_per_run <= 0:
+            warnings.append("incomplete_production_values")
+    for item in variant.plates:
+        if (item.grams_per_print or item.project_plate.detected_grams or Decimal("0")) <= 0:
+            warnings.append("incomplete_production_values")
+        if (item.hours_per_print or item.project_plate.detected_hours or Decimal("0")) <= 0:
             warnings.append("incomplete_production_values")
     return {"blockers": list(dict.fromkeys(blockers)), "warnings": list(dict.fromkeys(warnings))}
 
@@ -488,12 +612,51 @@ async def revise_calculation(session: AsyncSession, calculation_id: int) -> Calc
                 for labor in source_operation.labor
             ]
             variant.operations.append(operation)
+        variant.plates = [
+            CalculationVariantPlate(
+                project_plate_id=plate.project_plate_id,
+                good_parts=plate.good_parts,
+                parts_per_print=plate.parts_per_print,
+                scrap_prints=plate.scrap_prints,
+                material_code=plate.material_code,
+                grams_per_print=plate.grams_per_print,
+                hours_per_print=plate.hours_per_print,
+                provenance={**(plate.provenance or {}), "revised_from": source.id},
+                sort_order=plate.sort_order,
+            )
+            for plate in source_variant.plates
+        ]
+        variant.small_parts = [
+            CalculationVariantSmallPart(
+                small_part_id=part.small_part_id,
+                quantity=part.quantity,
+                description_snapshot=part.description_snapshot,
+                unit_code_snapshot=part.unit_code_snapshot,
+                unit_cost_snapshot=part.unit_cost_snapshot,
+                sort_order=part.sort_order,
+            )
+            for part in source_variant.small_parts
+        ]
         revised.variants.append(variant)
     source.status = "superseded"
     source.version += 1
     session.add(revised)
     await session.flush()
     return await _load(session, revised.id)
+
+
+async def delete_calculation(
+    session: AsyncSession,
+    calculation_id: int,
+    expected_version: int,
+) -> None:
+    calculation = await _load(session, calculation_id, for_update=True)
+    if calculation.version != expected_version:
+        raise VersionConflictError(f"Calculation {calculation_id} has changed")
+    if calculation.status != "draft":
+        raise InvalidStateConflictError(f"Calculation {calculation_id} is not a draft")
+    await session.delete(calculation)
+    await session.flush()
 
 
 async def archive_calculation(session: AsyncSession, calculation_id: int, expected_version: int) -> Calculation:
@@ -598,6 +761,28 @@ async def instantiate_template(
                 for labor_index, labor in enumerate(operation.get("labor", []))
             ]
             variant.operations.append(created_operation)
+        variant.plates = [
+            CalculationVariantPlate(
+                project_plate_id=plate["project_plate_id"],
+                good_parts=plate.get("good_parts", 1),
+                parts_per_print=plate.get("parts_per_print", 1),
+                scrap_prints=plate.get("scrap_prints", 0),
+                material_code=plate.get("material_code"),
+                grams_per_print=(
+                    Decimal(str(plate["grams_per_print"])) if plate.get("grams_per_print") is not None else None
+                ),
+                hours_per_print=(
+                    Decimal(str(plate["hours_per_print"])) if plate.get("hours_per_print") is not None else None
+                ),
+                provenance={
+                    **(plate.get("provenance") or {}),
+                    "template_id": template.id,
+                    "template_version": template.version,
+                },
+                sort_order=index,
+            )
+            for index, plate in enumerate(source_variant.get("plates", []))
+        ]
         calculation.variants.append(variant)
     session.add(calculation)
     await session.flush()
