@@ -1,6 +1,9 @@
 from datetime import date
 
+import pytest
+
 from backend.app.models.business_profile import BusinessProfile
+from backend.app.models.calculation import Calculation
 from backend.app.models.printer import Printer
 from backend.app.models.settings import Settings
 
@@ -294,3 +297,41 @@ async def test_batch_preview_aggregates_operations_before_pricing(async_client):
     assert response.json()["additional_costs"] == "2.00"
     assert response.json()["production_cost"] == "11.00"
     assert response.json()["net_price"] == "13.75"
+
+
+async def test_delete_calculation_enforces_version_and_not_found(async_client, db_session):
+    profile = await _profile(db_session)
+    created = await async_client.post("/api/v1/calculations/", json=_payload(profile.id))
+    calculation = created.json()
+
+    stale = await async_client.delete(
+        f"/api/v1/calculations/{calculation['id']}", params={"expected_version": 99}
+    )
+    assert stale.status_code == 409
+    assert stale.json()["detail"]["code"] == "version_conflict"
+
+    missing = await async_client.delete(
+        "/api/v1/calculations/999999", params={"expected_version": 1}
+    )
+    assert missing.status_code == 404
+    assert missing.json()["detail"]["code"] == "not_found"
+
+
+@pytest.mark.parametrize("blocked_status", ["approved", "superseded", "archived"])
+async def test_delete_calculation_rejects_every_non_draft_status(
+    async_client, db_session, blocked_status
+):
+    profile = await _profile(db_session)
+    created = await async_client.post("/api/v1/calculations/", json=_payload(profile.id))
+    calculation_id = created.json()["id"]
+    calculation = await db_session.get(Calculation, calculation_id)
+    calculation.status = blocked_status
+    await db_session.commit()
+
+    response = await async_client.delete(
+        f"/api/v1/calculations/{calculation_id}", params={"expected_version": 1}
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "invalid_state"
+    assert await db_session.get(Calculation, calculation_id) is not None

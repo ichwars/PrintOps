@@ -1,9 +1,11 @@
+import logging
+import shutil
 from decimal import Decimal
 from pathlib import Path
 from typing import NoReturn
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
@@ -39,12 +41,18 @@ from backend.app.services.calculation_engine import (
     calculate_combined,
     calculate_variant,
 )
-from backend.app.services.order_errors import OrderDomainError, ResourceNotFoundError, VersionConflictError
+from backend.app.services.order_errors import (
+    InvalidStateConflictError,
+    OrderDomainError,
+    ResourceNotFoundError,
+    VersionConflictError,
+)
 from backend.app.services.slicer_3mf_convert import count_plates_in_3mf
 from backend.app.services.stock_availability import check_availability, requirements_from_snapshot
 from backend.app.utils.threemf_tools import extract_filament_usage_from_3mf, extract_print_time_from_3mf
 
 router = APIRouter(prefix="/calculations", tags=["calculations"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/effective-defaults")
@@ -145,6 +153,8 @@ def _raise_http(error: OrderDomainError) -> NoReturn:
         code, status_code = "not_found", status.HTTP_404_NOT_FOUND
     elif isinstance(error, VersionConflictError):
         code, status_code = "version_conflict", status.HTTP_409_CONFLICT
+    elif isinstance(error, InvalidStateConflictError):
+        code, status_code = "invalid_state", status.HTTP_409_CONFLICT
     else:
         code, status_code = "invalid_calculation", status.HTTP_422_UNPROCESSABLE_CONTENT
     raise HTTPException(status_code=status_code, detail={"code": code, "message": str(error)})
@@ -391,6 +401,30 @@ async def list_calculation_revisions(
         CalculationRevisionRead.model_validate(revision)
         for revision in sorted(calculation.revisions, key=lambda item: item.revision_number, reverse=True)
     ]
+
+
+@router.delete("/{calculation_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_calculation(
+    calculation_id: int,
+    expected_version: int = Query(gt=0),
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_UPDATE),
+) -> Response:
+    try:
+        await calculation_service.delete_calculation(db, calculation_id, expected_version)
+        await db.commit()
+    except OrderDomainError as exc:
+        await db.rollback()
+        _raise_http(exc)
+
+    calculations_root = (Path(app_settings.base_dir) / "calculations").resolve()
+    storage_dir = (calculations_root / str(calculation_id)).resolve()
+    if storage_dir.is_relative_to(calculations_root) and storage_dir.exists():
+        try:
+            shutil.rmtree(storage_dir)
+        except OSError:
+            logger.exception("Failed to remove calculation storage directory %s", storage_dir)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{calculation_id}/archive", response_model=CalculationDetail)

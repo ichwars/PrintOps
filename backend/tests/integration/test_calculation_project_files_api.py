@@ -1,4 +1,5 @@
 from io import BytesIO
+import shutil
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
@@ -6,6 +7,7 @@ import pytest
 from backend.app.core.config import settings as app_settings
 from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.calculation import Calculation
+from backend.app.models.calculation_project import CalculationProjectFile
 
 
 def _project_file() -> bytes:
@@ -89,3 +91,95 @@ async def test_project_file_upload_persists_revisions_and_plate_preview(
     )
     assert preview.status_code == 200
     assert preview.headers["content-type"] == "image/png"
+
+
+@pytest.mark.asyncio
+async def test_delete_draft_removes_project_file_rows_and_storage(
+    async_client, db_session, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(app_settings, "base_dir", tmp_path)
+    profile = BusinessProfile(
+        name="Delete draft issuer",
+        legal_name="Delete draft issuer GmbH",
+        country_code="DE",
+        default_currency="EUR",
+    )
+    db_session.add(profile)
+    await db_session.flush()
+    calculation = Calculation(
+        business_profile_id=profile.id,
+        title="Temporary 3MF draft",
+        request_kind="single",
+        quantity=1,
+        currency="EUR",
+    )
+    db_session.add(calculation)
+    await db_session.commit()
+    calculation_id = calculation.id
+
+    uploaded = await async_client.post(
+        f"/api/v1/calculations/{calculation_id}/project-files",
+        files={
+            "file": (
+                "project.3mf",
+                _project_file(),
+                "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
+            )
+        },
+    )
+    assert uploaded.status_code == 201
+    project_file_id = uploaded.json()["id"]
+    storage_dir = tmp_path / "calculations" / str(calculation_id)
+    assert storage_dir.is_dir()
+
+    deleted = await async_client.delete(
+        f"/api/v1/calculations/{calculation_id}", params={"expected_version": 1}
+    )
+
+    assert deleted.status_code == 204
+    db_session.expire_all()
+    assert await db_session.get(Calculation, calculation_id) is None
+    assert await db_session.get(CalculationProjectFile, project_file_id) is None
+    assert not storage_dir.exists()
+
+
+@pytest.mark.asyncio
+async def test_delete_draft_keeps_database_result_when_storage_cleanup_fails(
+    async_client, db_session, tmp_path, monkeypatch, caplog
+):
+    monkeypatch.setattr(app_settings, "base_dir", tmp_path)
+    profile = BusinessProfile(
+        name="Cleanup failure issuer",
+        legal_name="Cleanup failure issuer GmbH",
+        country_code="DE",
+        default_currency="EUR",
+    )
+    db_session.add(profile)
+    await db_session.flush()
+    calculation = Calculation(
+        business_profile_id=profile.id,
+        title="Cleanup failure draft",
+        request_kind="single",
+        quantity=1,
+        currency="EUR",
+    )
+    db_session.add(calculation)
+    await db_session.commit()
+    calculation_id = calculation.id
+    storage_dir = tmp_path / "calculations" / str(calculation_id)
+    storage_dir.mkdir(parents=True)
+    (storage_dir / "leftover.3mf").write_bytes(b"3mf")
+
+    def fail_cleanup(_path):
+        raise OSError("filesystem busy")
+
+    monkeypatch.setattr(shutil, "rmtree", fail_cleanup)
+    deleted = await async_client.delete(
+        f"/api/v1/calculations/{calculation_id}", params={"expected_version": 1}
+    )
+
+    assert deleted.status_code == 204
+    db_session.expire_all()
+    assert await db_session.get(Calculation, calculation_id) is None
+    assert storage_dir.exists()
+    assert "Failed to remove calculation storage directory" in caplog.text

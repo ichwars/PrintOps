@@ -27,7 +27,12 @@ from backend.app.models.settings import Settings
 from backend.app.schemas.calculation import CalculationCreate, CalculationUpdate
 from backend.app.services.calculation_engine import LaborCostInput, VariantCostInputs, calculate_combined
 from backend.app.services.equipment_costs import calculate_hourly_rate
-from backend.app.services.order_errors import ResourceInUseError, ResourceNotFoundError, VersionConflictError
+from backend.app.services.order_errors import (
+    InvalidStateConflictError,
+    ResourceInUseError,
+    ResourceNotFoundError,
+    VersionConflictError,
+)
 
 _LOAD = (
     selectinload(Calculation.variants).selectinload(CalculationVariant.lines),
@@ -603,6 +608,20 @@ async def revise_calculation(session: AsyncSession, calculation_id: int) -> Calc
     session.add(revised)
     await session.flush()
     return await _load(session, revised.id)
+
+
+async def delete_calculation(
+    session: AsyncSession,
+    calculation_id: int,
+    expected_version: int,
+) -> None:
+    calculation = await _load(session, calculation_id, for_update=True)
+    if calculation.version != expected_version:
+        raise VersionConflictError(f"Calculation {calculation_id} has changed")
+    if calculation.status != "draft":
+        raise InvalidStateConflictError(f"Calculation {calculation_id} is not a draft")
+    await session.delete(calculation)
+    await session.flush()
 
 
 async def archive_calculation(session: AsyncSession, calculation_id: int, expected_version: int) -> Calculation:
