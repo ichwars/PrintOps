@@ -68,7 +68,7 @@ export function SmallPartCombobox({
         value={query}
         disabled={disabled}
         placeholder="Artikelnummer oder Bezeichnung"
-        className="w-full rounded-lg border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white outline-none focus:border-green-500"
+        className="text-sm"
         onFocus={() => setOpen(true)}
         onChange={(event) => {
           setQuery(event.target.value);
@@ -95,11 +95,11 @@ export function SmallPartCombobox({
         <ul
           id={listboxId}
           role="listbox"
-          className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-gray-600 bg-gray-900 p-1 shadow-xl"
+          className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary p-1 shadow-xl"
         >
-          {loading && <li className="px-3 py-2 text-sm text-gray-400">Suche …</li>}
+          {loading && <li className="px-3 py-2 text-sm text-bambu-gray">Suche …</li>}
           {!loading && options.length === 0 && (
-            <li className="px-3 py-2 text-sm text-gray-400">Keine passenden Kleinteile</li>
+            <li className="px-3 py-2 text-sm text-bambu-gray">Keine passenden Kleinteile</li>
           )}
           {options.map((option, index) => (
             <li
@@ -107,7 +107,7 @@ export function SmallPartCombobox({
               key={option.id}
               role="option"
               aria-selected={index === activeIndex}
-              className={`cursor-pointer rounded-md px-3 py-2 text-sm ${index === activeIndex ? 'bg-green-600 text-white' : 'text-gray-100 hover:bg-gray-700'}`}
+              className={`cursor-pointer rounded-md px-3 py-2 text-sm ${index === activeIndex ? 'bg-bambu-green/20 text-white' : 'text-bambu-gray-light hover:bg-bambu-dark-tertiary hover:text-white'}`}
               onMouseDown={(event) => event.preventDefault()}
               onMouseEnter={() => setActiveIndex(index)}
               onClick={() => selectOption(option)}

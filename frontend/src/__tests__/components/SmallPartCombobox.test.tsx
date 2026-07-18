@@ -8,6 +8,20 @@ import { server } from '../mocks/server';
 
 
 describe('SmallPartCombobox', () => {
+  it('uses the PrintOps theme colors for the input and result menu', async () => {
+    server.use(http.get('/api/v1/small-parts/search', () => HttpResponse.json([])));
+    const user = userEvent.setup();
+    render(<SmallPartCombobox value={null} onChange={vi.fn()} locale="de-DE" />);
+
+    const input = screen.getByRole('combobox');
+    await user.click(input);
+
+    expect(input).toHaveClass('bg-bambu-dark');
+    expect(input).not.toHaveClass('bg-gray-800');
+    expect(screen.getByRole('listbox')).toHaveClass('border-bambu-dark-tertiary', 'bg-bambu-dark-secondary');
+    expect(screen.getByRole('listbox')).not.toHaveClass('border-gray-600', 'bg-gray-900');
+  });
+
   it('searches by keyboard and selects the highlighted article', async () => {
     server.use(
       http.get('/api/v1/small-parts/search', ({ request }) => {
