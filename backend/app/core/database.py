@@ -173,6 +173,7 @@ async def init_db():
         auth_ephemeral,
         bug_report,
         business_profile,
+        calculation_project,
         color_catalog,
         customer,
         equipment,

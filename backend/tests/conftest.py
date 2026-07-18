@@ -122,6 +122,7 @@ async def test_engine():
         archive,
         auth_ephemeral,
         business_profile,
+        calculation_project,
         color_catalog,
         customer,
         external_link,

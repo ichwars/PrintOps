@@ -7,6 +7,11 @@ from typing import Literal, Self
 import pycountry
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 
+from backend.app.schemas.calculation_project import (
+    CalculationVariantPlateInput,
+    CalculationVariantSmallPartInput,
+)
+
 CalculationStatus = Literal["draft", "approved", "superseded", "archived"]
 RequestKind = Literal["single", "series", "prototype", "service"]
 PriceMethod = Literal["markup", "target_margin", "explicit_price"]
@@ -65,6 +70,8 @@ class CalculationVariantInput(CalculationSchema):
     price_rate: Decimal = Field(default=Decimal("0"), ge=0)
     lines: list[CalculationLineInput] = Field(default_factory=list)
     operations: list[CalculationOperationInput] = Field(default_factory=list)
+    plates: list[CalculationVariantPlateInput] = Field(default_factory=list)
+    small_parts: list[CalculationVariantSmallPartInput] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_margin(self) -> Self:

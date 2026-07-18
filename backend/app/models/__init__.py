@@ -18,6 +18,12 @@ from backend.app.models.calculation import (
     CalculationTemplate,
     CalculationVariant,
 )
+from backend.app.models.calculation_project import (
+    CalculationProjectFile,
+    CalculationProjectPlate,
+    CalculationVariantPlate,
+    CalculationVariantSmallPart,
+)
 from backend.app.models.color_catalog import ColorCatalogEntry
 from backend.app.models.customer import (
     Customer,
@@ -125,6 +131,10 @@ __all__ = [
     "CalculationLabor",
     "CalculationRevision",
     "CalculationTemplate",
+    "CalculationProjectFile",
+    "CalculationProjectPlate",
+    "CalculationVariantPlate",
+    "CalculationVariantSmallPart",
     "Customer",
     "CustomerAccount",
     "CustomerAddress",
