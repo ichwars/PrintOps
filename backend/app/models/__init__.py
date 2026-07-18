@@ -25,6 +25,7 @@ from backend.app.models.calculation_project import (
     CalculationVariantSmallPart,
 )
 from backend.app.models.calculation_slice import CalculationSliceResult
+from backend.app.models.commerce import CustomerOrder, Offer, OfferAcceptance
 from backend.app.models.color_catalog import ColorCatalogEntry
 from backend.app.models.customer import (
     Customer,
@@ -60,6 +61,12 @@ from backend.app.models.slicer_pipeline import SlicerPipeline
 from backend.app.models.smart_plug import SmartPlug
 from backend.app.models.smart_plug_energy_snapshot import SmartPlugEnergySnapshot
 from backend.app.models.small_part import SmallPart, SmallPartCategory, SmallPartLedgerEntry, SmallPartUnit
+from backend.app.models.stock_reservation import (
+    StockReservation,
+    StockReservationAllocation,
+    StockReservationCommand,
+    StockResourceLock,
+)
 from backend.app.models.sponsor_toast_state import SponsorToastState
 from backend.app.models.spool import Spool
 from backend.app.models.spool_assignment import SpoolAssignment
@@ -137,6 +144,9 @@ __all__ = [
     "CalculationVariantPlate",
     "CalculationVariantSmallPart",
     "CalculationSliceResult",
+    "Offer",
+    "CustomerOrder",
+    "OfferAcceptance",
     "Customer",
     "CustomerAccount",
     "CustomerAddress",
@@ -149,4 +159,8 @@ __all__ = [
     "SmallPartUnit",
     "SmallPart",
     "SmallPartLedgerEntry",
+    "StockReservation",
+    "StockReservationAllocation",
+    "StockReservationCommand",
+    "StockResourceLock",
 ]

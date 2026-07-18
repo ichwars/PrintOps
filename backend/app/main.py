@@ -25,8 +25,8 @@ from backend.app.api.routes import (
     auth,
     bug_report,
     business_profiles,
-    calculations,
     calculation_projects,
+    calculations,
     camera,
     cloud,
     customers,
@@ -52,7 +52,9 @@ from backend.app.api.routes import (
     notification_templates,
     notifications,
     obico,
+    offers,
     orca_cloud,
+    orders,
     pending_uploads,
     pipeline_runs,
     print_log,
@@ -6725,6 +6727,8 @@ app.include_router(bug_report.router, prefix=app_settings.api_prefix)
 app.include_router(business_profiles.router, prefix=app_settings.api_prefix)
 app.include_router(calculations.router, prefix=app_settings.api_prefix)
 app.include_router(calculation_projects.router, prefix=app_settings.api_prefix)
+app.include_router(offers.router, prefix=app_settings.api_prefix)
+app.include_router(orders.router, prefix=app_settings.api_prefix)
 app.include_router(customers.router, prefix=app_settings.api_prefix)
 app.include_router(users.router, prefix=app_settings.api_prefix)
 app.include_router(groups.router, prefix=app_settings.api_prefix)
