@@ -49,3 +49,30 @@ The spool form keeps its existing modal width and vertical flow. Its `g` and `%`
 No actionable P0, P1, or P2 differences remain for the reported defects.
 
 final result: passed
+
+---
+
+# Material, Lieferanten und Beschaffung - Design QA
+
+- Referenz: gelieferte ForgeDesk-Aufnahmen fuer `Material hinzufuegen` und die markierte PrintOps-Materialliste.
+- Geprueft: `Lager > Material`, `Lager > Lieferanten` und Filament-Bestandsprognose auf Desktop und 390 px Mobilbreite.
+- Umgebung: `http://127.0.0.1:8000` mit isolierter QA-Datenbank.
+- Screenshots: `output/playwright/task10-suppliers-desktop.png`, `task10-material-dialog-desktop.png`, `task10-material-overview-desktop.png`, `task10-filament-procurement-desktop.png`, `task10-material-dialog-mobile.png`, `task10-supplier-dialog-mobile.png` und `task10-filament-mobile.png`.
+
+## Vergleich und Interaktionen
+
+- Sichtbare Terminologie ist systemweit `Material`; interne Bezeichner bleiben kompatibel.
+- Der Materialdialog uebernimmt Artikel, Bestand, Beschaffung, Verbrauchsgrund und interne Notiz. Mobil ist das Raster einspaltig; Dialog und Aktionen bleiben erreichbar.
+- Die Materialsuche folgt den gemeinsamen Feldregeln. `Nur niedriger Bestand` hat genau eine visuelle Umrandung.
+- Lieferanten dienen als bevorzugte oder alternative Bezugsquelle fuer Material und Filament. Standardlieferzeit und Angebotswerte wurden geprueft.
+- Ein Material wurde vollstaendig angelegt, gespeichert und nach Neuladen kontrolliert. In der leeren QA-Konfiguration wurde zuvor einmalig `Stueck` ueber die vorhandene API angelegt.
+- Fokus, Dialogschliessen, Suche, Speichern, erneutes Oeffnen und responsive Darstellung wurden ausgefuehrt. Die Browserkonsole meldete 0 Fehler und 0 Warnungen.
+
+## Vergleichshistorie
+
+1. P1 - Der mobil nur als Icon sichtbare Prognose-Button hatte keinen zugaenglichen Namen. Ein Regressionstest reproduzierte den Fehler; ein explizites `aria-label` behebt ihn. Beide Bezugsquellen sind mobil erreichbar.
+2. P2 - Keine offenen Abweichungen. Dialogbegrenzung, Aktionsbereich, Abstaende, Farben, Typografie und Feldtokens entsprechen den PrintOps-Designregeln.
+
+Keine offenen P0-, P1- oder P2-Befunde.
+
+final result: passed

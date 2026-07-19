@@ -227,6 +227,17 @@ describe('InventoryPage — forecast tab button permission', () => {
     });
   });
 
+  it('keeps a stable accessible forecast label when the visible text is hidden on mobile', async () => {
+    mockReadOnlyAccess();
+    inventoryApis();
+    render(<InventoryPageRouter />);
+
+    await screen.findByText(/spool inventory/i);
+
+    const forecastButton = await screen.findByRole('button', { name: /forecast/i });
+    expect(forecastButton).toHaveAttribute('aria-label', 'Forecast');
+  });
+
   it('clicking disabled forecast tab does not navigate to forecast view', async () => {
     mockNoReadAccess();
     inventoryApis();

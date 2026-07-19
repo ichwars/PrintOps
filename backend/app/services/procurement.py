@@ -73,11 +73,7 @@ async def list_suppliers(
     total = await session.scalar(select(func.count(Supplier.id)).where(*filters))
     items = list(
         await session.scalars(
-            select(Supplier)
-            .where(*filters)
-            .order_by(Supplier.name_key, Supplier.id)
-            .limit(limit)
-            .offset(offset)
+            select(Supplier).where(*filters).order_by(Supplier.name_key, Supplier.id).limit(limit).offset(offset)
         )
     )
     return SupplierPage(items=items, total=total or 0, limit=limit, offset=offset)
@@ -242,9 +238,7 @@ async def replace_offers(
     for offer_id in submitted_ids:
         if offer_id not in existing_by_id:
             resource_key = resolved.resource_key if resolved is not None else "the missing resource"
-            raise InvalidProcurementReplacement(
-                f"Offer {offer_id} does not belong to {resource_key}"
-            )
+            raise InvalidProcurementReplacement(f"Offer {offer_id} does not belong to {resource_key}")
 
     supplier_ids = {draft.supplier_id for draft in drafts}
     suppliers = {

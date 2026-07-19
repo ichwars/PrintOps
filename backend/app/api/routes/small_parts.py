@@ -255,12 +255,8 @@ async def list_small_parts(
     matches = await service.search_small_parts(db, query=q, active_only=active is True, limit=10000)
     if active is not None:
         matches = [item for item in matches if item.part.is_active is active]
-    preferred_offers = await procurement_service.preferred_offers_for_materials(
-        db, [item.part.id for item in matches]
-    )
-    reads = [
-        await _read_part(db, item.part, preferred_offers.get(item.part.id)) for item in matches
-    ]
+    preferred_offers = await procurement_service.preferred_offers_for_materials(db, [item.part.id for item in matches])
+    reads = [await _read_part(db, item.part, preferred_offers.get(item.part.id)) for item in matches]
     if low_stock:
         reads = [item for item in reads if item.balance.is_low_stock]
     total = len(reads)

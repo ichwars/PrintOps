@@ -1566,6 +1566,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
             <button
               onClick={() => canViewForecast && setViewMode('forecast')}
               disabled={!canViewForecast}
+              aria-label={t('forecast.title')}
               title={canViewForecast ? undefined : t('forecast.noReadAccess')}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                 viewMode === 'forecast'

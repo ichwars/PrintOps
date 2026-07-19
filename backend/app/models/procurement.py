@@ -57,9 +57,7 @@ class ProcurementOffer(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     supplier_id: Mapped[int] = mapped_column(ForeignKey("suppliers.id", ondelete="RESTRICT"), index=True)
-    small_part_id: Mapped[int | None] = mapped_column(
-        ForeignKey("small_parts.id", ondelete="RESTRICT"), index=True
-    )
+    small_part_id: Mapped[int | None] = mapped_column(ForeignKey("small_parts.id", ondelete="RESTRICT"), index=True)
     filament_sku_settings_id: Mapped[int | None] = mapped_column(
         ForeignKey("filament_sku_settings.id", ondelete="RESTRICT"), index=True
     )

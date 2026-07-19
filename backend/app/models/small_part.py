@@ -61,9 +61,7 @@ class SmallPart(Base):
     minimum_stock: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=Decimal("0"))
     unit_cost: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=Decimal("0"))
     supplier_reference: Mapped[str | None] = mapped_column(String(255))
-    default_consumption_reason: Mapped[str] = mapped_column(
-        String(120), nullable=False, default="Produktion"
-    )
+    default_consumption_reason: Mapped[str] = mapped_column(String(120), nullable=False, default="Produktion")
     internal_notes: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
