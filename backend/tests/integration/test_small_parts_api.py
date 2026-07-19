@@ -1,4 +1,165 @@
+from decimal import Decimal
+
 import pytest
+from sqlalchemy import event, func, select
+
+from backend.app.models.procurement import ProcurementOffer, Supplier
+from backend.app.models.small_part import SmallPart, SmallPartLedgerEntry
+
+
+@pytest.mark.asyncio
+async def test_material_create_books_opening_stock_atomically(async_client):
+    await async_client.post(
+        "/api/v1/small-parts/settings/units",
+        json={"code": "C62", "label": "Stück"},
+    )
+
+    created = await async_client.post(
+        "/api/v1/small-parts",
+        json={
+            "sku": "MAT-1",
+            "name": "Magnet",
+            "unit_code": "C62",
+            "opening_quantity": "25",
+            "default_consumption_reason": "Produktion",
+            "internal_notes": "Nur trocken lagern",
+        },
+    )
+
+    assert created.status_code == 201, created.text
+    body = created.json()
+    ledger = await async_client.get(f"/api/v1/small-parts/{body['id']}/ledger")
+    assert body["balance"]["physical"] == "25.000000"
+    assert body["default_consumption_reason"] == "Produktion"
+    assert body["internal_notes"] == "Nur trocken lagern"
+    assert "opening_quantity" not in body
+    assert ledger.json()[0]["entry_kind"] == "opening"
+    assert ledger.json()[0]["reason"] == "Anfangsbestand"
+
+
+@pytest.mark.asyncio
+async def test_material_create_rolls_back_when_opening_entry_fails(
+    async_client,
+    db_session,
+    monkeypatch,
+):
+    await async_client.post(
+        "/api/v1/small-parts/settings/units",
+        json={"code": "C62", "label": "Stück"},
+    )
+
+    async def fail_opening_entry(*args, **kwargs):
+        raise RuntimeError("opening ledger failed")
+
+    monkeypatch.setattr(
+        "backend.app.api.routes.small_parts.service.append_ledger_entry",
+        fail_opening_entry,
+    )
+
+    failed = await async_client.post(
+        "/api/v1/small-parts",
+        json={
+            "sku": "MAT-ROLLBACK",
+            "name": "Rollback material",
+            "unit_code": "C62",
+            "opening_quantity": "2",
+        },
+    )
+
+    assert failed.status_code == 503
+    stored_count = await db_session.scalar(
+        select(func.count(SmallPart.id)).where(SmallPart.sku == "MAT-ROLLBACK")
+    )
+    ledger_count = await db_session.scalar(
+        select(func.count(SmallPartLedgerEntry.id)).where(
+            SmallPartLedgerEntry.idempotency_key.like("material-opening:%")
+        )
+    )
+    assert stored_count == 0
+    assert ledger_count == 0
+
+
+@pytest.mark.asyncio
+async def test_material_metadata_defaults_and_opening_quantity_is_create_only(async_client):
+    await async_client.post(
+        "/api/v1/small-parts/settings/units",
+        json={"code": "C62", "label": "Stück"},
+    )
+    created = await async_client.post(
+        "/api/v1/small-parts",
+        json={"sku": "MAT-DEFAULTS", "name": "Default material", "unit_code": "C62"},
+    )
+
+    assert created.status_code == 201, created.text
+    assert created.json()["default_consumption_reason"] == "Produktion"
+    assert created.json()["internal_notes"] is None
+    rejected = await async_client.patch(
+        f"/api/v1/small-parts/{created.json()['id']}",
+        json={"opening_quantity": "5"},
+    )
+    assert rejected.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_material_list_batches_nested_preferred_offers(
+    async_client,
+    db_session,
+    test_engine,
+):
+    await async_client.post(
+        "/api/v1/small-parts/settings/units",
+        json={"code": "C62", "label": "Stück"},
+    )
+    parts = []
+    for index in range(2):
+        response = await async_client.post(
+            "/api/v1/small-parts",
+            json={
+                "sku": f"MAT-OFFER-{index}",
+                "name": f"Offer material {index}",
+                "unit_code": "C62",
+            },
+        )
+        assert response.status_code == 201, response.text
+        parts.append(response.json())
+
+    supplier = Supplier(name="Batch Supplier", name_key="batch supplier")
+    db_session.add(supplier)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            ProcurementOffer(
+                supplier_id=supplier.id,
+                small_part_id=part["id"],
+                filament_sku_settings_id=None,
+                resource_key=f"material:{part['id']}",
+                net_price=Decimal(str(index + 1)),
+                gross_price=Decimal(str(index + 1)),
+                is_preferred=True,
+            )
+            for index, part in enumerate(parts)
+        ]
+    )
+    await db_session.commit()
+
+    offer_selects: list[str] = []
+
+    def capture_offer_selects(connection, cursor, statement, parameters, context, executemany):
+        normalized = statement.lstrip().lower()
+        if normalized.startswith("select") and "procurement_offers" in normalized:
+            offer_selects.append(statement)
+
+    event.listen(test_engine.sync_engine, "before_cursor_execute", capture_offer_selects)
+    try:
+        listed = await async_client.get("/api/v1/small-parts")
+    finally:
+        event.remove(test_engine.sync_engine, "before_cursor_execute", capture_offer_selects)
+
+    assert listed.status_code == 200, listed.text
+    by_sku = {item["sku"]: item for item in listed.json()["items"]}
+    assert by_sku["MAT-OFFER-0"]["preferred_offer"]["supplier"]["name"] == "Batch Supplier"
+    assert by_sku["MAT-OFFER-1"]["preferred_offer"]["net_price"] == "2.000000"
+    assert len(offer_selects) == 1
 
 
 @pytest.mark.asyncio

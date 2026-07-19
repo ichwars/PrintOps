@@ -14,6 +14,7 @@ from backend.app.core.permissions import Permission
 from backend.app.core.websocket import ws_manager
 from backend.app.models.small_part import SmallPart, SmallPartCategory, SmallPartLedgerEntry, SmallPartUnit
 from backend.app.models.user import User
+from backend.app.schemas.procurement import ProcurementOfferRead, SupplierRead
 from backend.app.schemas.small_part import (
     SmallPartCategoryCreate,
     SmallPartCategoryRead,
@@ -29,7 +30,7 @@ from backend.app.schemas.small_part import (
     SmallPartUnitUpdate,
     SmallPartUpdate,
 )
-from backend.app.services import small_parts as service
+from backend.app.services import procurement as procurement_service, small_parts as service
 
 router = APIRouter(prefix="/small-parts", tags=["small-parts"])
 
@@ -45,7 +46,19 @@ async def _load_part(db: AsyncSession, small_part_id: int) -> SmallPart:
     return part
 
 
-async def _read_part(db: AsyncSession, part: SmallPart) -> SmallPartRead:
+def _offer_read(result: procurement_service.ProcurementOfferResult) -> ProcurementOfferRead:
+    offer = result.offer
+    return ProcurementOfferRead(
+        **{column.name: getattr(offer, column.name) for column in offer.__table__.columns},
+        supplier=SupplierRead.model_validate(result.supplier),
+    )
+
+
+async def _read_part(
+    db: AsyncSession,
+    part: SmallPart,
+    preferred_offer: procurement_service.ProcurementOfferResult | None,
+) -> SmallPartRead:
     balance = await service.get_balance(db, part.id)
     return SmallPartRead.model_validate(
         {
@@ -60,7 +73,10 @@ async def _read_part(db: AsyncSession, part: SmallPart) -> SmallPartRead:
             "minimum_stock": part.minimum_stock,
             "unit_cost": part.unit_cost,
             "supplier_reference": part.supplier_reference,
+            "default_consumption_reason": part.default_consumption_reason,
+            "internal_notes": part.internal_notes,
             "is_active": part.is_active,
+            "preferred_offer": _offer_read(preferred_offer) if preferred_offer is not None else None,
             "category": part.category,
             "unit": part.unit,
             "balance": {
@@ -73,6 +89,11 @@ async def _read_part(db: AsyncSession, part: SmallPart) -> SmallPartRead:
             "updated_at": part.updated_at,
         }
     )
+
+
+async def _read_single_part(db: AsyncSession, part: SmallPart) -> SmallPartRead:
+    preferred_offers = await procurement_service.preferred_offers_for_materials(db, [part.id])
+    return await _read_part(db, part, preferred_offers.get(part.id))
 
 
 def _conflict(message: str) -> HTTPException:
@@ -234,7 +255,12 @@ async def list_small_parts(
     matches = await service.search_small_parts(db, query=q, active_only=active is True, limit=10000)
     if active is not None:
         matches = [item for item in matches if item.part.is_active is active]
-    reads = [await _read_part(db, item.part) for item in matches]
+    preferred_offers = await procurement_service.preferred_offers_for_materials(
+        db, [item.part.id for item in matches]
+    )
+    reads = [
+        await _read_part(db, item.part, preferred_offers.get(item.part.id)) for item in matches
+    ]
     if low_stock:
         reads = [item for item in reads if item.balance.is_low_stock]
     total = len(reads)
@@ -247,14 +273,28 @@ async def create_small_part(
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_CREATE),
 ) -> SmallPartRead:
-    part = SmallPart(**data.model_dump())
-    db.add(part)
+    part = SmallPart(**data.model_dump(exclude={"opening_quantity"}))
     try:
+        db.add(part)
+        await db.flush()
+        if data.opening_quantity > 0:
+            await service.append_ledger_entry(
+                db,
+                small_part_id=part.id,
+                entry_kind="opening",
+                physical_delta=data.opening_quantity,
+                reserved_delta=Decimal("0"),
+                reason="Anfangsbestand",
+                idempotency_key=f"material-opening:{part.id}",
+            )
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
         raise _conflict("Artikelnummer ist bereits vorhanden oder ein Katalogwert fehlt") from exc
-    return await _read_part(db, await _load_part(db, part.id))
+    except Exception:
+        await db.rollback()
+        raise
+    return await _read_single_part(db, await _load_part(db, part.id))
 
 
 @router.get("/{small_part_id}", response_model=SmallPartRead)
@@ -263,7 +303,7 @@ async def get_small_part(
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ) -> SmallPartRead:
-    return await _read_part(db, await _load_part(db, small_part_id))
+    return await _read_single_part(db, await _load_part(db, small_part_id))
 
 
 @router.patch("/{small_part_id}", response_model=SmallPartRead)
@@ -285,7 +325,7 @@ async def update_small_part(
             else "Artikelnummer ist bereits vorhanden"
         )
         raise _conflict(message) from exc
-    return await _read_part(db, await _load_part(db, small_part_id))
+    return await _read_single_part(db, await _load_part(db, small_part_id))
 
 
 @router.get("/{small_part_id}/ledger", response_model=list[SmallPartLedgerRead])

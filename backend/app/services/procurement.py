@@ -192,6 +192,30 @@ async def _offers_for_resource(
     return [ProcurementOfferResult(offer=offer, supplier=supplier) for offer, supplier in rows]
 
 
+async def preferred_offers_for_materials(
+    session: AsyncSession,
+    material_ids: list[int],
+) -> dict[int, ProcurementOfferResult]:
+    if not material_ids:
+        return {}
+    rows = (
+        await session.execute(
+            select(ProcurementOffer, Supplier)
+            .join(Supplier, Supplier.id == ProcurementOffer.supplier_id)
+            .where(
+                ProcurementOffer.small_part_id.in_(set(material_ids)),
+                ProcurementOffer.is_active.is_(True),
+                ProcurementOffer.is_preferred.is_(True),
+            )
+        )
+    ).all()
+    return {
+        offer.small_part_id: ProcurementOfferResult(offer=offer, supplier=supplier)
+        for offer, supplier in rows
+        if offer.small_part_id is not None
+    }
+
+
 async def replace_offers(
     session: AsyncSession,
     resource: MaterialResource | FilamentResource,
