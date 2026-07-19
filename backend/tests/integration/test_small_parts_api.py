@@ -3,6 +3,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import event, func, select
 
+from backend.app.api.routes import small_parts as small_parts_route
 from backend.app.models.procurement import ProcurementOffer, Supplier
 from backend.app.models.small_part import SmallPart, SmallPartLedgerEntry
 
@@ -48,12 +49,16 @@ async def test_material_create_rolls_back_when_opening_entry_fails(
         json={"code": "C62", "label": "Stück"},
     )
 
-    async def fail_opening_entry(*args, **kwargs):
+    real_append_ledger_entry = small_parts_route.service.append_ledger_entry
+
+    async def fail_after_opening_entry(*args, **kwargs):
+        await real_append_ledger_entry(*args, **kwargs)
         raise RuntimeError("opening ledger failed")
 
     monkeypatch.setattr(
-        "backend.app.api.routes.small_parts.service.append_ledger_entry",
-        fail_opening_entry,
+        small_parts_route.service,
+        "append_ledger_entry",
+        fail_after_opening_entry,
     )
 
     failed = await async_client.post(
