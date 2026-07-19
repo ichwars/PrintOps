@@ -208,6 +208,8 @@ export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
 
   const canRead = hasPermission('inventory:forecast_read');
   const canWrite = hasAnyPermission('inventory:forecast_write', 'inventory:update');
+  const canReadProcurement = hasPermission('inventory:read');
+  const canWriteProcurement = canReadProcurement && hasPermission('inventory:update');
 
   // All hooks must run unconditionally — guard render is deferred until after hooks
   const [alertsOpen, setAlertsOpen] = useState(false);
@@ -552,6 +554,8 @@ export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
                     forecast={f}
                     globalLeadTime={globalLeadTime}
                     canWrite={canWrite}
+                    canReadProcurement={canReadProcurement}
+                    canWriteProcurement={canWriteProcurement}
                     onSaved={() => queryClient.invalidateQueries({ queryKey: ['sku-settings'] })}
                     onCart={() => setCartModal(f)}
                     showToast={showToast}
@@ -852,11 +856,14 @@ function GlobalLeadTimeSetting({ value, onSave }: { value: number; onSave: (v: n
 // ── Forecast Row ──────────────────────────────────────────────────────────────
 
 function ForecastRow({
-  forecast: f, globalLeadTime, canWrite, onSaved, onCart, showToast,
+  forecast: f, globalLeadTime, canWrite, canReadProcurement, canWriteProcurement,
+  onSaved, onCart, showToast,
 }: {
   forecast: SkuForecast;
   globalLeadTime: number;
   canWrite: boolean;
+  canReadProcurement: boolean;
+  canWriteProcurement: boolean;
   onSaved: () => void;
   onCart: () => void;
   showToast: (msg: string, type: 'success' | 'error') => void;
@@ -1091,7 +1098,12 @@ function ForecastRow({
                 )}
               </div>
 
-              <FilamentProcurementSection resource={procurementResource} readOnly={!canWrite} />
+              {canReadProcurement ? (
+                <FilamentProcurementSection
+                  resource={procurementResource}
+                  readOnly={!canWriteProcurement}
+                />
+              ) : null}
 
               {/* Individual spools — shown when group has >1 spool */}
               {f.group.spools.length > 1 && (
@@ -1190,7 +1202,7 @@ function FilamentProcurementSection({
   const canEditOffers = !readOnly && suppliersQuery.isSuccess;
 
   return (
-    <section className="space-y-4 border-t border-bambu-dark-tertiary pt-4" aria-labelledby={headingId}>
+    <section className="space-y-4 pt-4" aria-labelledby={headingId}>
       <div className="flex items-center gap-3">
         <h3
           id={headingId}
@@ -1218,7 +1230,7 @@ function FilamentProcurementSection({
           suppliers={suppliersQuery.data ?? []}
           offers={offers}
           onChange={setOffers}
-          readOnly={!canEditOffers}
+          readOnly={!canEditOffers || saveMutation.isPending}
         />
       ) : null}
 

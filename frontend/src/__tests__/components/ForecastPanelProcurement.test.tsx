@@ -94,7 +94,7 @@ function mockForecastApis() {
   );
 }
 
-function mockReadOnlyAccess() {
+function mockPermissions(permissions: string[]) {
   setAuthToken('test-token', 'session');
   server.use(
     http.get('*/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })),
@@ -102,7 +102,7 @@ function mockReadOnlyAccess() {
       id: 1,
       username: 'viewer',
       is_admin: false,
-      permissions: ['inventory:forecast_read'],
+      permissions,
     })),
   );
 }
@@ -114,6 +114,7 @@ afterEach(() => {
 
 describe('ForecastPanel filament procurement', () => {
   it('loads and saves offers with the complete four-field SKU identity', async () => {
+    mockPermissions(['inventory:forecast_read', 'inventory:read', 'inventory:update']);
     mockForecastApis();
     let listedIdentity: Record<string, string | null> | undefined;
     let replacement: unknown;
@@ -155,7 +156,11 @@ describe('ForecastPanel filament procurement', () => {
     render(<ForecastPanel spools={[spool]} />);
     await user.click(await screen.findByRole('button', { name: 'Poly PLA Matte Black expand' }));
 
-    expect(await screen.findByRole('heading', { name: 'Procurement' })).toBeInTheDocument();
+    const procurementHeading = await screen.findByRole('heading', { name: 'Procurement' });
+    expect(procurementHeading).toBeInTheDocument();
+    const procurementSection = procurementHeading.closest('section');
+    expect(procurementSection).not.toHaveClass('border-t');
+    expect(procurementSection?.querySelectorAll('.h-px')).toHaveLength(1);
     expect(await screen.findByText('Filament World')).toBeInTheDocument();
     expect(supplierOffsets).toEqual([0, 50]);
     expect(listedIdentity).toEqual({
@@ -173,7 +178,7 @@ describe('ForecastPanel filament procurement', () => {
   });
 
   it('shows saved offers without supplier or mutation requests for read-only users', async () => {
-    mockReadOnlyAccess();
+    mockPermissions(['inventory:forecast_read', 'inventory:read']);
     mockForecastApis();
     let supplierRequests = 0;
     let replacements = 0;
@@ -201,6 +206,7 @@ describe('ForecastPanel filament procurement', () => {
   });
 
   it('keeps loaded offers visible and disables saving while suppliers are unavailable', async () => {
+    mockPermissions(['inventory:forecast_read', 'inventory:read', 'inventory:update']);
     mockForecastApis();
     server.use(
       http.get('*/api/v1/procurement-offers', () => HttpResponse.json([preferredOffer])),
@@ -215,5 +221,72 @@ describe('ForecastPanel filament procurement', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Suppliers could not be loaded');
     expect(screen.queryByRole('button', { name: 'Save procurement sources' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry suppliers' })).toBeInTheDocument();
+  });
+
+  it('does not expose procurement or call its APIs with forecast-write permission alone', async () => {
+    mockPermissions(['inventory:forecast_read', 'inventory:forecast_write']);
+    mockForecastApis();
+    let offerRequests = 0;
+    let supplierRequests = 0;
+    let replacements = 0;
+    server.use(
+      http.get('*/api/v1/procurement-offers', () => {
+        offerRequests += 1;
+        return HttpResponse.json([preferredOffer]);
+      }),
+      http.get('*/api/v1/suppliers', () => {
+        supplierRequests += 1;
+        return HttpResponse.json({ items: [supplier], total: 1, limit: 50, offset: 0 });
+      }),
+      http.put('*/api/v1/procurement-offers/resource', () => {
+        replacements += 1;
+        return HttpResponse.json([preferredOffer]);
+      }),
+    );
+
+    const user = userEvent.setup();
+    render(<ForecastPanel spools={[spool]} />);
+    await user.click(await screen.findByRole('button', { name: 'Poly PLA Matte Black expand' }));
+    expect(await screen.findByText('Effective Lead Time')).toBeInTheDocument();
+
+    expect(screen.queryByRole('heading', { name: 'Procurement' })).not.toBeInTheDocument();
+    expect(offerRequests).toBe(0);
+    expect(supplierRequests).toBe(0);
+    expect(replacements).toBe(0);
+  });
+
+  it('locks procurement drafts while a replacement is pending', async () => {
+    mockPermissions(['inventory:forecast_read', 'inventory:read', 'inventory:update']);
+    mockForecastApis();
+    let releaseSave: (() => void) | undefined;
+    let saveStarted = false;
+    const saveGate = new Promise<void>((resolve) => {
+      releaseSave = resolve;
+    });
+    server.use(
+      http.get('*/api/v1/procurement-offers', () => HttpResponse.json([preferredOffer])),
+      http.get('*/api/v1/suppliers', () => HttpResponse.json({
+        items: [supplier], total: 1, limit: 50, offset: 0,
+      })),
+      http.put('*/api/v1/procurement-offers/resource', async () => {
+        saveStarted = true;
+        await saveGate;
+        return HttpResponse.json([preferredOffer]);
+      }),
+    );
+
+    const user = userEvent.setup();
+    render(<ForecastPanel spools={[spool]} />);
+    await user.click(await screen.findByRole('button', { name: 'Poly PLA Matte Black expand' }));
+    const supplierSku = await screen.findByRole('textbox', { name: 'Lieferantenartikelnummer' });
+    await user.click(screen.getByRole('button', { name: 'Save procurement sources' }));
+    await waitFor(() => expect(saveStarted).toBe(true));
+
+    expect(supplierSku).toBeDisabled();
+    await user.type(supplierSku, '-CHANGED');
+    expect(supplierSku).toHaveValue('PLA-MATTE-BLK');
+
+    releaseSave?.();
+    await waitFor(() => expect(screen.getByText('Procurement sources saved')).toBeInTheDocument());
   });
 });
