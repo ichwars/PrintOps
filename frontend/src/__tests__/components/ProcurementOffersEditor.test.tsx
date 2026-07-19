@@ -236,6 +236,46 @@ describe('ProcurementOffersEditor', () => {
     ]);
   });
 
+  it('makes a new offer preferred after the only persisted offer is deactivated', async () => {
+    render(<Harness initial={[readOffer()]} />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Deaktivieren' }));
+    await user.click(screen.getByRole('button', { name: 'Alternative Bezugsquelle hinzufügen' }));
+
+    expect(currentOffers()).toEqual([
+      expect.objectContaining({ id: 41, is_active: false, is_preferred: false }),
+      expect.objectContaining({ is_active: true, is_preferred: true }),
+    ]);
+  });
+
+  it('ignores an already-open supplier option after switching to read-only', async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <ProcurementOffersEditor
+        suppliers={[supplierA, supplierB]}
+        offers={[draft()]}
+        onChange={onChange}
+      />,
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('combobox', { name: 'Lieferant' }));
+    const betaOption = screen.getByRole('option', { name: 'Beta Supply' });
+    rerender(
+      <ProcurementOffersEditor
+        suppliers={[supplierA, supplierB]}
+        offers={[draft()]}
+        onChange={onChange}
+        readOnly
+      />,
+    );
+    await user.click(betaOption);
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('combobox', { name: 'Lieferant' })).toHaveTextContent('Alpha Supply');
+  });
+
   it('renders every shared field disabled and hides mutation actions in read-only mode', () => {
     render(
       <ProcurementOffersEditor

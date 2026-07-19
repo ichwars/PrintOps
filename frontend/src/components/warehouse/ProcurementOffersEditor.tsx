@@ -58,6 +58,7 @@ export function ProcurementOffersEditor({
   useEffect(() => setVisibleOffers(offers), [offers]);
 
   const commit = (next: OfferWithSnapshot[]) => {
+    if (readOnly) return;
     setVisibleOffers(next);
     onChange(next);
   };
@@ -116,7 +117,7 @@ export function ProcurementOffersEditor({
   const additionalIndices = visibleOffers
     .map((_, index) => index)
     .filter((index) => index !== preferredIndex && index !== alternativeIndex);
-  const addOffer = () => commit([...visibleOffers, emptyOffer(visibleOffers.length === 0)]);
+  const addOffer = () => commit(ensurePreferred([...visibleOffers, emptyOffer(false)]));
 
   const section = (index: number, title: string) => (
     <OfferSection
