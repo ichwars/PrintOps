@@ -38,7 +38,7 @@ export default {
     nav: {
       dashboard: 'Gösterge Paneli',
       warehouse: 'Depo',
-      parts: 'Küçük parçalar',
+      parts: 'Malzeme',
       stock: 'Stok durumu',
       orders: 'Siparişler',
       offers: 'Teklifler',

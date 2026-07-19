@@ -42,7 +42,7 @@ async def _load_part(db: AsyncSession, small_part_id: int) -> SmallPart:
         .options(selectinload(SmallPart.category), selectinload(SmallPart.unit), selectinload(SmallPart.location))
     )
     if part is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail={"code": "not_found", "message": "Kleinteil fehlt"})
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail={"code": "not_found", "message": "Material fehlt"})
     return part
 
 

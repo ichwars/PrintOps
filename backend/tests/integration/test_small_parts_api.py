@@ -9,6 +9,14 @@ from backend.app.models.small_part import SmallPart, SmallPartLedgerEntry
 
 
 @pytest.mark.asyncio
+async def test_missing_material_uses_visible_material_terminology(async_client):
+    response = await async_client.get("/api/v1/small-parts/999999")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == {"code": "not_found", "message": "Material fehlt"}
+
+
+@pytest.mark.asyncio
 async def test_material_create_books_opening_stock_atomically(async_client):
     await async_client.post(
         "/api/v1/small-parts/settings/units",

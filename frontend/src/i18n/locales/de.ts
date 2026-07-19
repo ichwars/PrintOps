@@ -38,7 +38,7 @@ export default {
     nav: {
       dashboard: 'Übersicht',
       warehouse: 'Lager',
-      parts: 'Kleinteile',
+      parts: 'Material',
       stock: 'Warenlage',
       orders: 'Aufträge',
       offers: 'Angebote',

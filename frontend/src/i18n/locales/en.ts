@@ -38,7 +38,7 @@ export default {
     nav: {
       dashboard: 'Dashboard',
       warehouse: 'Warehouse',
-      parts: 'Small parts',
+      parts: 'Material',
       stock: 'Stock position',
       orders: 'Orders',
       offers: 'Offers',

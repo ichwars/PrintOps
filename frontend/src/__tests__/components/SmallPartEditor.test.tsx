@@ -116,7 +116,7 @@ describe('SmallPartEditor', () => {
     expect(screen.getByLabelText('Anfangsmenge')).toBeInTheDocument();
     expect(screen.getByLabelText('Beschreibung')).toBeInTheDocument();
     expect(screen.getByLabelText('Interne Notiz')).toBeInTheDocument();
-    expect(screen.queryByText('Kleinteil anlegen')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Material speichern' })).toBeInTheDocument();
   });
 
   it('uses the configured default minimum stock for new material', async () => {

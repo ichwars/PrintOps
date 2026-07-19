@@ -38,7 +38,7 @@ export default {
     nav: {
       dashboard: 'Cruscotto',
       warehouse: 'Magazzino',
-      parts: 'Piccoli componenti',
+      parts: 'Materiali',
       stock: 'Posizione stock',
       orders: 'Ordini',
       offers: 'Offerte',

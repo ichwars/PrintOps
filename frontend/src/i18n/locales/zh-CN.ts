@@ -38,7 +38,7 @@ export default {
     nav: {
       dashboard: '仪表盘',
       warehouse: '仓库',
-      parts: '小零件',
+      parts: '材料',
       stock: '库存状况',
       orders: '订单',
       offers: '报价',

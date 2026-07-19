@@ -53,7 +53,7 @@ export const defaultNavItems: NavItem[] = [
   { id: 'makerworld', to: '/makerworld', icon: Globe, labelKey: 'nav.makerworld', parentId: 'projects' },
   { id: 'inventory', to: '/warehouse', icon: Warehouse, labelKey: 'printops.nav.warehouse', defaultLabel: 'Warehouse', defaultLabelDe: 'Lager' },
   { id: 'warehouse-filament', to: '/warehouse/filament', icon: Package, labelKey: 'nav.inventory', parentId: 'inventory' },
-  { id: 'warehouse-parts', to: '/warehouse/parts', icon: Boxes, labelKey: 'printops.nav.parts', defaultLabel: 'Small parts', defaultLabelDe: 'Kleinteile', parentId: 'inventory' },
+  { id: 'warehouse-parts', to: '/warehouse/parts', icon: Boxes, labelKey: 'printops.nav.parts', defaultLabel: 'Material', defaultLabelDe: 'Material', parentId: 'inventory' },
   { id: 'warehouse-stock', to: '/warehouse/stock', icon: PackageCheck, labelKey: 'printops.nav.stock', defaultLabel: 'Stock position', defaultLabelDe: 'Warenlage', parentId: 'inventory' },
   { id: 'warehouse-suppliers', to: '/warehouse/suppliers', icon: Truck, labelKey: 'suppliers.navTitle', defaultLabel: 'Suppliers', defaultLabelDe: 'Lieferanten', parentId: 'inventory' },
   { id: 'orders', to: '/orders', icon: ClipboardList, labelKey: 'printops.nav.orders', defaultLabel: 'Orders', defaultLabelDe: 'Aufträge' },

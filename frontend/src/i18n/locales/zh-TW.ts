@@ -38,7 +38,7 @@ export default {
     nav: {
       dashboard: '儀表板',
       warehouse: '倉庫',
-      parts: '小零件',
+      parts: '材料',
       stock: '庫存狀態',
       orders: '訂單',
       offers: '報價',

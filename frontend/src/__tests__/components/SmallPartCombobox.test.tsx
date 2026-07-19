@@ -13,13 +13,14 @@ describe('SmallPartCombobox', () => {
     const user = userEvent.setup();
     render(<SmallPartCombobox value={null} onChange={vi.fn()} locale="de-DE" />);
 
-    const input = screen.getByRole('combobox');
+    const input = screen.getByRole('combobox', { name: 'Material suchen' });
     await user.click(input);
 
     expect(input).toHaveClass('bg-bambu-dark');
     expect(input).not.toHaveClass('bg-gray-800');
     expect(screen.getByRole('listbox')).toHaveClass('border-bambu-dark-tertiary', 'bg-bambu-dark-secondary');
     expect(screen.getByRole('listbox')).not.toHaveClass('border-gray-600', 'bg-gray-900');
+    expect(screen.getByText('Keine passenden Materialien')).toBeInTheDocument();
   });
 
   it('searches by keyboard and selects the highlighted article', async () => {

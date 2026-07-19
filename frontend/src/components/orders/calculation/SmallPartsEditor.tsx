@@ -33,11 +33,11 @@ export function SmallPartsEditor({ parts, locale, currency, onChange }: SmallPar
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
-        <div><h3 className="font-semibold text-white">4. {de ? 'Kleinteile' : 'Small parts'}</h3><p className="text-xs text-bambu-gray">{de ? 'Verfügbarkeit wird geprüft; reserviert wird erst nach Angebotsannahme.' : 'Availability is checked; stock is reserved only after offer acceptance.'}</p></div>
-        <button type="button" onClick={() => setAdding(true)} className="inline-flex items-center gap-2 rounded bg-bambu-dark px-3 py-2 text-sm text-white"><Plus className="h-4 w-4" />{de ? 'Kleinteil' : 'Small part'}</button>
+        <div><h3 className="font-semibold text-white">4. {de ? 'Material' : 'Materials'}</h3><p className="text-xs text-bambu-gray">{de ? 'Verfügbarkeit wird geprüft; reserviert wird erst nach Angebotsannahme.' : 'Availability is checked; stock is reserved only after offer acceptance.'}</p></div>
+        <button type="button" onClick={() => setAdding(true)} className="inline-flex items-center gap-2 rounded bg-bambu-dark px-3 py-2 text-sm text-white"><Plus className="h-4 w-4" />{de ? 'Material' : 'Material'}</button>
       </div>
-      {adding && <div className="rounded-lg border border-bambu-green/30 bg-bambu-dark p-3"><SmallPartCombobox value={null} onChange={add} locale={locale} label={de ? 'Kleinteil hinzufügen' : 'Add small part'} /></div>}
-      {parts.length === 0 ? <p className="rounded-lg bg-bambu-dark p-3 text-sm text-bambu-gray">{de ? 'Keine Kleinteile hinterlegt.' : 'No small parts selected.'}</p> : <div className="space-y-2">{parts.map((part, index) => {
+      {adding && <div className="rounded-lg border border-bambu-green/30 bg-bambu-dark p-3"><SmallPartCombobox value={null} onChange={add} locale={locale} label={de ? 'Material hinzufügen' : 'Add material'} /></div>}
+      {parts.length === 0 ? <p className="rounded-lg bg-bambu-dark p-3 text-sm text-bambu-gray">{de ? 'Kein Material hinterlegt.' : 'No materials selected.'}</p> : <div className="space-y-2">{parts.map((part, index) => {
         const option = options[part.small_part_id];
         const available = Number(option?.available ?? 0);
         const enough = available >= Number(part.quantity);

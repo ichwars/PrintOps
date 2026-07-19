@@ -38,7 +38,7 @@ export default {
     nav: {
       dashboard: 'Tableau de bord',
       warehouse: 'Entrepôt',
-      parts: 'Petites pièces',
+      parts: 'Matériaux',
       stock: 'État du stock',
       orders: 'Commandes',
       offers: 'Offres',

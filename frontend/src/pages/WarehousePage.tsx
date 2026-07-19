@@ -10,7 +10,7 @@ type WarehouseSectionId = 'overview' | 'parts' | 'stock';
 const COPY = {
   en: {
     title: 'Warehouse',
-    subtitle: 'Inventory overview for filament, small parts, and stock position.',
+    subtitle: 'Inventory overview for filament, materials, and stock position.',
     openFilament: 'Open filament',
     open: 'Open',
     planned: 'Planned',
@@ -28,7 +28,7 @@ const COPY = {
         body: 'Uses the existing PrintOps inventory as the first warehouse area.',
       },
       parts: {
-        title: 'Small parts',
+        title: 'Material',
         body: 'Reserved for purchased parts, packaging, hardware, and consumables.',
       },
       stock: {
@@ -43,7 +43,7 @@ const COPY = {
         columns: ['Area', 'Status', 'Next step'],
       },
       parts: {
-        title: 'Small parts',
+        title: 'Material',
         subtitle: 'Hardware, packaging, magnets, inserts, and consumables.',
         columns: ['Item', 'Location', 'Status'],
       },
@@ -56,7 +56,7 @@ const COPY = {
   },
   de: {
     title: 'Lager',
-    subtitle: 'Bestandsübersicht für Filament, Kleinteile und Warenlage.',
+    subtitle: 'Bestandsübersicht für Filament, Materialien und Warenlage.',
     openFilament: 'Filament öffnen',
     open: 'Öffnen',
     planned: 'Geplant',
@@ -74,7 +74,7 @@ const COPY = {
         body: 'Nutzt das vorhandene PrintOps-Inventar als ersten Lagerbereich.',
       },
       parts: {
-        title: 'Kleinteile',
+        title: 'Material',
         body: 'Vorgesehen für Zukaufteile, Verpackung, Hardware und Verbrauchsmaterial.',
       },
       stock: {
@@ -89,7 +89,7 @@ const COPY = {
         columns: ['Bereich', 'Status', 'Nächster Schritt'],
       },
       parts: {
-        title: 'Kleinteile',
+        title: 'Material',
         subtitle: 'Hardware, Verpackung, Magnete, Einsätze und Verbrauchsmaterial.',
         columns: ['Artikel', 'Lagerort', 'Status'],
       },

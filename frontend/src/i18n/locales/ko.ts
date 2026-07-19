@@ -36,7 +36,7 @@ export default {
     nav: {
       dashboard: '대시보드',
       warehouse: '창고',
-      parts: '소형 부품',
+      parts: '자재',
       stock: '재고 현황',
       orders: '주문',
       offers: '견적',
