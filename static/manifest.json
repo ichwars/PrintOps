@@ -11,38 +11,16 @@
   "scope": "/",
   "icons": [
     {
-      "src": "/img/printops_icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
-    },
-    {
-      "src": "/img/printops_icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
-    },
-    {
-      "src": "/img/printops_icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/img/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/img/printops_icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/img/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any"
-    },
-    {
-      "src": "/img/printops_icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "maskable"
-    },
-    {
-      "src": "/img/printops_icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "maskable"
     }
   ],
   "screenshots": [
@@ -68,28 +46,28 @@
       "short_name": "Printers",
       "description": "View your printers",
       "url": "/",
-      "icons": [{ "src": "/img/printops_icon.svg", "sizes": "any" }]
+      "icons": [{ "src": "/img/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Archives",
       "short_name": "Archives",
       "description": "View print archives",
       "url": "/archives",
-      "icons": [{ "src": "/img/printops_icon.svg", "sizes": "any" }]
+      "icons": [{ "src": "/img/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Queue",
       "short_name": "Queue",
       "description": "View print queue",
       "url": "/queue",
-      "icons": [{ "src": "/img/printops_icon.svg", "sizes": "any" }]
+      "icons": [{ "src": "/img/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Projects",
       "short_name": "Projects",
       "description": "View print projects",
       "url": "/projects",
-      "icons": [{ "src": "/img/printops_icon.svg", "sizes": "any" }]
+      "icons": [{ "src": "/img/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }
