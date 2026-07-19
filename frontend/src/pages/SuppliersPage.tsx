@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pencil, Plus, Search, Truck } from 'lucide-react';
+import { Pencil, Plus, Search, Trash2, Truck } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -11,13 +11,18 @@ import { useAuth } from '../contexts/AuthContext';
 
 type ActiveFilter = 'active' | 'inactive' | 'all';
 
+interface EditorState {
+  supplier: Supplier | null;
+  canEdit: boolean;
+}
+
 export function SuppliersPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { hasPermission, loading: authLoading } = useAuth();
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('active');
-  const [editorSupplier, setEditorSupplier] = useState<Supplier | null | undefined>(undefined);
+  const [editor, setEditor] = useState<EditorState | null>(null);
   const canRead = hasPermission('inventory:read');
   const canCreate = hasPermission('inventory:create');
   const canUpdate = hasPermission('inventory:update');
@@ -32,13 +37,18 @@ export function SuppliersPage() {
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['suppliers'] });
   const save = async (input: SupplierInput) => {
-    if (editorSupplier) await suppliersApi.update(editorSupplier.id, input);
-    else await suppliersApi.create(input);
+    if (editor?.supplier) {
+      if (!canUpdate) return;
+      await suppliersApi.update(editor.supplier.id, input);
+    } else {
+      if (!canCreate) return;
+      await suppliersApi.create(input);
+    }
     await refresh();
   };
   const remove = async () => {
-    if (!editorSupplier) return;
-    await suppliersApi.remove(editorSupplier.id);
+    if (!editor?.supplier || !canDelete) return;
+    await suppliersApi.remove(editor.supplier.id);
     await refresh();
   };
 
@@ -53,7 +63,7 @@ export function SuppliersPage() {
           <h1 className="flex items-center gap-3 text-2xl font-bold text-white"><Truck className="h-7 w-7 text-bambu-green" />{t('suppliers.title')}</h1>
           <p className="mt-1 text-bambu-gray">{t('suppliers.subtitle')}</p>
         </div>
-        {canCreate ? <Button type="button" onClick={() => setEditorSupplier(null)}><Plus aria-hidden="true" className="h-4 w-4" />{t('suppliers.actions.create')}</Button> : null}
+        {canCreate ? <Button type="button" onClick={() => setEditor({ supplier: null, canEdit: true })}><Plus aria-hidden="true" className="h-4 w-4" />{t('suppliers.actions.create')}</Button> : null}
       </header>
 
       <Card>
@@ -79,7 +89,10 @@ export function SuppliersPage() {
                     <p className="mt-1 text-sm text-bambu-gray">{[supplier.contact_name, supplier.email, supplier.city].filter(Boolean).join(' · ') || t('suppliers.noContact')}</p>
                     <p className="mt-3 text-sm text-bambu-gray-light">{t('suppliers.leadTime', { count: supplier.default_lead_time_days })}</p>
                   </div>
-                  {canUpdate ? <Button type="button" variant="ghost" size="sm" aria-label={t('suppliers.actions.edit', { name: supplier.name })} onClick={() => setEditorSupplier(supplier)}><Pencil aria-hidden="true" className="h-4 w-4" /></Button> : null}
+                  <div className="flex items-center gap-1">
+                    {canUpdate ? <Button type="button" variant="ghost" size="sm" aria-label={t('suppliers.actions.edit', { name: supplier.name })} onClick={() => setEditor({ supplier, canEdit: true })}><Pencil aria-hidden="true" className="h-4 w-4" /></Button> : null}
+                    {canDelete ? <Button type="button" variant="ghost" size="sm" aria-label={`${t('suppliers.actions.delete')}: ${supplier.name}`} onClick={() => setEditor({ supplier, canEdit: false })}><Trash2 aria-hidden="true" className="h-4 w-4 text-red-400" /></Button> : null}
+                  </div>
                 </div>
               </article>
             ))}
@@ -87,7 +100,7 @@ export function SuppliersPage() {
         </CardContent>
       </Card>
 
-      {editorSupplier !== undefined ? <SupplierEditor supplier={editorSupplier} onClose={() => setEditorSupplier(undefined)} onSubmit={save} onDelete={editorSupplier && canDelete ? remove : undefined} canDelete={canDelete} /> : null}
+      {editor ? <SupplierEditor supplier={editor.supplier} onClose={() => setEditor(null)} onSubmit={save} onDelete={editor.supplier && canDelete ? remove : undefined} canEdit={editor.canEdit && (editor.supplier ? canUpdate : canCreate)} canDelete={canDelete} /> : null}
     </div>
   );
 }

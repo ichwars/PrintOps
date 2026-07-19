@@ -11,6 +11,7 @@ interface SupplierEditorProps {
   onClose: () => void;
   onSubmit: (input: SupplierInput) => Promise<void>;
   onDelete?: () => Promise<void>;
+  canEdit: boolean;
   canDelete: boolean;
 }
 
@@ -65,7 +66,7 @@ function asInput(draft: SupplierDraft): SupplierInput {
   };
 }
 
-export function SupplierEditor({ supplier, onClose, onSubmit, onDelete, canDelete }: SupplierEditorProps) {
+export function SupplierEditor({ supplier, onClose, onSubmit, onDelete, canEdit, canDelete }: SupplierEditorProps) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState<SupplierDraft>(() => asDraft(supplier));
   const [submitting, setSubmitting] = useState(false);
@@ -82,6 +83,7 @@ export function SupplierEditor({ supplier, onClose, onSubmit, onDelete, canDelet
   };
 
   const submit = async () => {
+    if (!canEdit) return;
     const input = asInput(draft);
     if (!input.name) {
       setActionError(t('suppliers.validation.nameRequired'));
@@ -119,7 +121,7 @@ export function SupplierEditor({ supplier, onClose, onSubmit, onDelete, canDelet
       onClose={() => { if (!submitting) onClose(); }}
       closeDisabled={submitting}
       closeLabel={t('common.close')}
-      title={editing ? t('suppliers.editTitle') : t('suppliers.createTitle')}
+      title={editing ? (canEdit ? t('suppliers.editTitle') : t('suppliers.actions.delete')) : t('suppliers.createTitle')}
       className="max-w-3xl"
     >
       <div className="space-y-8">
@@ -128,38 +130,38 @@ export function SupplierEditor({ supplier, onClose, onSubmit, onDelete, canDelet
         <section className="space-y-4">
           <h3 className="text-base font-semibold text-white">{t('suppliers.sections.masterData')}</h3>
           <div className="grid gap-4 md:grid-cols-2">
-            <TextField label={t('suppliers.fields.name')} required value={draft.name} onValueChange={(value) => update('name', value)} disabled={submitting} />
-            <TextField label={t('suppliers.fields.customerNumber')} value={draft.customer_number} onValueChange={(value) => update('customer_number', value)} disabled={submitting} />
+            <TextField label={t('suppliers.fields.name')} required value={draft.name} onValueChange={(value) => update('name', value)} disabled={submitting || !canEdit} />
+            <TextField label={t('suppliers.fields.customerNumber')} value={draft.customer_number} onValueChange={(value) => update('customer_number', value)} disabled={submitting || !canEdit} />
           </div>
-          <Checkbox checked={draft.is_active} onCheckedChange={(value) => update('is_active', value)} label={t('suppliers.fields.active')} disabled={submitting} />
+          <Checkbox checked={draft.is_active} onCheckedChange={(value) => update('is_active', value)} label={t('suppliers.fields.active')} disabled={submitting || !canEdit} />
         </section>
 
         <section className="space-y-4">
           <h3 className="text-base font-semibold text-white">{t('suppliers.sections.contactAddress')}</h3>
           <div className="grid gap-4 md:grid-cols-2">
-            <TextField label={t('suppliers.fields.contactName')} value={draft.contact_name} onValueChange={(value) => update('contact_name', value)} disabled={submitting} />
-            <TextField type="email" label={t('suppliers.fields.email')} value={draft.email} onValueChange={(value) => update('email', value)} disabled={submitting} />
-            <TextField type="tel" label={t('suppliers.fields.phone')} value={draft.phone} onValueChange={(value) => update('phone', value)} disabled={submitting} />
-            <TextField type="url" label={t('suppliers.fields.website')} value={draft.website} onValueChange={(value) => update('website', value)} disabled={submitting} />
-            <TextField label={t('suppliers.fields.addressLine1')} value={draft.address_line1} onValueChange={(value) => update('address_line1', value)} disabled={submitting} />
-            <TextField label={t('suppliers.fields.addressLine2')} value={draft.address_line2} onValueChange={(value) => update('address_line2', value)} disabled={submitting} />
-            <TextField label={t('suppliers.fields.postalCode')} value={draft.postal_code} onValueChange={(value) => update('postal_code', value)} disabled={submitting} />
-            <TextField label={t('suppliers.fields.city')} value={draft.city} onValueChange={(value) => update('city', value)} disabled={submitting} />
-            <TextField label={t('suppliers.fields.countryCode')} maxLength={2} value={draft.country_code} onValueChange={(value) => update('country_code', value)} disabled={submitting} />
+            <TextField label={t('suppliers.fields.contactName')} value={draft.contact_name} onValueChange={(value) => update('contact_name', value)} disabled={submitting || !canEdit} />
+            <TextField type="email" label={t('suppliers.fields.email')} value={draft.email} onValueChange={(value) => update('email', value)} disabled={submitting || !canEdit} />
+            <TextField type="tel" label={t('suppliers.fields.phone')} value={draft.phone} onValueChange={(value) => update('phone', value)} disabled={submitting || !canEdit} />
+            <TextField type="url" label={t('suppliers.fields.website')} value={draft.website} onValueChange={(value) => update('website', value)} disabled={submitting || !canEdit} />
+            <TextField label={t('suppliers.fields.addressLine1')} value={draft.address_line1} onValueChange={(value) => update('address_line1', value)} disabled={submitting || !canEdit} />
+            <TextField label={t('suppliers.fields.addressLine2')} value={draft.address_line2} onValueChange={(value) => update('address_line2', value)} disabled={submitting || !canEdit} />
+            <TextField label={t('suppliers.fields.postalCode')} value={draft.postal_code} onValueChange={(value) => update('postal_code', value)} disabled={submitting || !canEdit} />
+            <TextField label={t('suppliers.fields.city')} value={draft.city} onValueChange={(value) => update('city', value)} disabled={submitting || !canEdit} />
+            <TextField label={t('suppliers.fields.countryCode')} maxLength={2} value={draft.country_code} onValueChange={(value) => update('country_code', value)} disabled={submitting || !canEdit} />
           </div>
         </section>
 
         <section className="space-y-4">
           <h3 className="text-base font-semibold text-white">{t('suppliers.sections.procurement')}</h3>
           <div className="grid gap-4 md:grid-cols-2">
-            <TextField label={t('suppliers.fields.paymentTerms')} value={draft.payment_terms} onValueChange={(value) => update('payment_terms', value)} disabled={submitting} />
-            <NumberField label={t('suppliers.fields.defaultLeadTime')} min={0} max={3650} value={draft.default_lead_time_days} onValueChange={(value) => update('default_lead_time_days', value)} disabled={submitting} />
+            <TextField label={t('suppliers.fields.paymentTerms')} value={draft.payment_terms} onValueChange={(value) => update('payment_terms', value)} disabled={submitting || !canEdit} />
+            <NumberField label={t('suppliers.fields.defaultLeadTime')} min={0} max={3650} value={draft.default_lead_time_days} onValueChange={(value) => update('default_lead_time_days', value)} disabled={submitting || !canEdit} />
           </div>
         </section>
 
         <section className="space-y-4">
           <h3 className="text-base font-semibold text-white">{t('suppliers.sections.internalNotes')}</h3>
-          <TextArea label={t('suppliers.fields.internalNotes')} value={draft.internal_notes} onValueChange={(value) => update('internal_notes', value)} disabled={submitting} />
+          <TextArea label={t('suppliers.fields.internalNotes')} value={draft.internal_notes} onValueChange={(value) => update('internal_notes', value)} disabled={submitting || !canEdit} />
         </section>
 
         <div className="flex flex-col-reverse gap-3 border-t border-bambu-dark-tertiary pt-5 sm:flex-row sm:items-center sm:justify-between">
@@ -168,7 +170,7 @@ export function SupplierEditor({ supplier, onClose, onSubmit, onDelete, canDelet
           </div>
           <div className="flex flex-col-reverse gap-3 sm:flex-row">
             <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>{t('common.cancel')}</Button>
-            <Button type="button" onClick={submit} loading={submitting}>{t('suppliers.actions.save')}</Button>
+            {canEdit ? <Button type="button" onClick={submit} loading={submitting}>{t('suppliers.actions.save')}</Button> : null}
           </div>
         </div>
       </div>
