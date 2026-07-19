@@ -63,6 +63,13 @@ class SupplierUpdate(ProcurementSchema):
     internal_notes: str | None = None
     is_active: bool | None = None
 
+    @field_validator("name", mode="before")
+    @classmethod
+    def reject_null_name(cls, value: str | None) -> str:
+        if value is None:
+            raise ValueError("name must not be null")
+        return value
+
     @field_validator("country_code")
     @classmethod
     def uppercase_country_code(cls, value: str | None) -> str | None:

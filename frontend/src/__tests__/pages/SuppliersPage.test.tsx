@@ -78,6 +78,31 @@ describe('SuppliersPage', () => {
     await waitFor(() => expect(requests.some((url) => url.searchParams.get('active') === 'false')).toBe(true));
   });
 
+  it('loads suppliers beyond the first API page', async () => {
+    const offsets: number[] = [];
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({
+      ...supplier,
+      id: index + 1,
+      name: `Supplier ${index + 1}`,
+    }));
+    const lastSupplier = { ...supplier, id: 51, name: 'Supplier 51' };
+    server.use(http.get('/api/v1/suppliers', ({ request }) => {
+      const offset = Number(new URL(request.url).searchParams.get('offset') ?? 0);
+      offsets.push(offset);
+      return HttpResponse.json({
+        items: offset === 0 ? firstPage : [lastSupplier],
+        total: 51,
+        limit: 50,
+        offset,
+      });
+    }));
+
+    render(<SuppliersPage />);
+
+    expect(await screen.findByText('Supplier 51')).toBeInTheDocument();
+    expect(offsets).toEqual([0, 50]);
+  });
+
   it('opens the create editor when create permission is present', async () => {
     const user = userEvent.setup();
     render(<SuppliersPage />);

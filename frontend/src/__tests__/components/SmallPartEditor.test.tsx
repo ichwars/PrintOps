@@ -126,6 +126,23 @@ describe('SmallPartEditor', () => {
     expect(screen.getByLabelText(/^Standard-Verbrauchsgrund/)).toHaveValue('Produktion');
   });
 
+  it('preserves manual unit-cost editing without supplier offers', async () => {
+    vi.mocked(smallPartsApi.update).mockResolvedValue(part);
+    renderEditor(part);
+    const user = userEvent.setup();
+
+    const unitCost = screen.getByLabelText('Einzelpreis €');
+    expect(unitCost).toHaveValue(0.15);
+    await user.clear(unitCost);
+    await user.type(unitCost, '0.42');
+    await user.click(screen.getByRole('button', { name: 'Material speichern' }));
+
+    await waitFor(() => expect(smallPartsApi.update).toHaveBeenCalledWith(
+      part.id,
+      expect.objectContaining({ unit_cost: '0.42' }),
+    ));
+  });
+
   it('creates material with opening stock and then persists offers', async () => {
     const created = { ...part, id: 42, sku: 'MAT-0042', supplier_reference: null };
     vi.mocked(smallPartsApi.create).mockResolvedValue(created);

@@ -117,6 +117,25 @@ async def test_get_missing_filament_resource_returns_empty_without_creating_sett
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("material", ""),
+        ("material", "x" * 51),
+        ("subtype", "x" * 51),
+        ("brand", "x" * 101),
+        ("color_name", "x" * 101),
+    ],
+)
+async def test_filament_query_rejects_invalid_descriptor_values(async_client, field: str, value: str):
+    params = {"kind": "filament", "material": "PLA", field: value}
+
+    response = await async_client.get("/api/v1/procurement-offers", params=params)
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_replacement_soft_deactivates_omitted_offer(async_client, procurement_resources):
     material_id = procurement_resources["material_ids"][0]
     created = await replace_material_offers(async_client, material_id, procurement_resources["supplier_ids"])

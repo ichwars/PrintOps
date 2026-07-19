@@ -165,6 +165,15 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
         </FormSection>
 
         <FormSection id="material-section-procurement" title="Beschaffung">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <NumberField
+              label="Einzelpreis €"
+              min="0"
+              step="0.01"
+              value={form.unit_cost}
+              onValueChange={(value) => update('unit_cost', value)}
+            />
+          </div>
           {part?.supplier_reference ? (
             <TextField
               label="Bisherige Lieferantenreferenz"

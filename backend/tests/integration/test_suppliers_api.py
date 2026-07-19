@@ -31,6 +31,19 @@ async def test_supplier_lifecycle_and_normalized_conflict(async_client: AsyncCli
 
 
 @pytest.mark.asyncio
+async def test_supplier_patch_rejects_explicit_null_name(async_client: AsyncClient):
+    created = await async_client.post("/api/v1/suppliers", json={"name": "Nullable Name"})
+    assert created.status_code == 201
+
+    response = await async_client.patch(
+        f"/api/v1/suppliers/{created.json()['id']}",
+        json={"name": None},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("offer_active", [True, False])
 async def test_supplier_referenced_by_any_offer_cannot_be_deleted(
     async_client: AsyncClient, db_session, offer_active: bool

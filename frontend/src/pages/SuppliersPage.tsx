@@ -16,6 +16,24 @@ interface EditorState {
   canEdit: boolean;
 }
 
+const SUPPLIER_PAGE_SIZE = 50;
+
+async function loadAllSuppliers(q: string, active: boolean | undefined): Promise<Supplier[]> {
+  const items: Supplier[] = [];
+  let offset = 0;
+  while (true) {
+    const page = await suppliersApi.list({
+      q: q || undefined,
+      active,
+      limit: SUPPLIER_PAGE_SIZE,
+      offset,
+    });
+    items.push(...page.items);
+    if (page.items.length === 0 || items.length >= page.total) return items;
+    offset = page.offset + page.items.length;
+  }
+}
+
 export function SuppliersPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -30,10 +48,10 @@ export function SuppliersPage() {
   const active = activeFilter === 'all' ? undefined : activeFilter === 'active';
   const suppliers = useQuery({
     queryKey: ['suppliers', { q: query, active }],
-    queryFn: () => suppliersApi.list({ q: query || undefined, active }),
+    queryFn: () => loadAllSuppliers(query, active),
     enabled: !authLoading && canRead,
   });
-  const items = suppliers.data?.items ?? [];
+  const items = suppliers.data ?? [];
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['suppliers'] });
   const save = async (input: SupplierInput) => {
