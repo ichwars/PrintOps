@@ -31,6 +31,13 @@ export interface SupplierPage {
   offset: number;
 }
 
+export interface SupplierListParams {
+  q?: string;
+  active?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
 export type ProcurementResource =
   | { kind: 'material'; small_part_id: number }
   | {
@@ -67,7 +74,7 @@ export interface ProcurementOffer extends ProcurementOfferDraft {
   supplier: Supplier;
 }
 
-function queryString(params: Record<string, string | number | boolean | undefined>): string {
+function queryString<T extends object>(params: T): string {
   const result = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined) result.set(key, String(value));
@@ -106,7 +113,7 @@ function writableOffer(offer: ProcurementOfferDraft): ProcurementOfferDraft {
 }
 
 export const suppliersApi = {
-  list: (params: { q?: string; active?: boolean } = {}) =>
+  list: (params: SupplierListParams = {}) =>
     request<SupplierPage>(`/suppliers?${queryString(params)}`),
   create: (input: SupplierInput) =>
     request<Supplier>('/suppliers', { method: 'POST', body: JSON.stringify(input) }),

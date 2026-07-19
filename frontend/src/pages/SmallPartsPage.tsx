@@ -69,7 +69,7 @@ export function SmallPartsPage() {
 
           {parts.isLoading && <p className="py-10 text-center text-bambu-gray">Material wird geladen …</p>}
           {parts.isError && <p role="alert" className="rounded-lg bg-red-950/50 p-3 text-red-300">Material konnte nicht geladen werden.</p>}
-          {!parts.isLoading && !items.length && <p className="py-10 text-center text-bambu-gray">Noch kein passendes Material vorhanden.</p>}
+          {!parts.isLoading && !parts.isError && !items.length && <p className="py-10 text-center text-bambu-gray">Noch kein passendes Material vorhanden.</p>}
           <div className="grid gap-3 xl:grid-cols-2">
             {items.map((part) => (
               <article key={part.id} className={`rounded-xl border p-4 ${part.balance.is_low_stock ? 'border-amber-500/60 bg-amber-950/10' : 'border-bambu-dark-tertiary bg-bambu-dark/30'}`}>

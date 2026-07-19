@@ -21,6 +21,19 @@ interface SmallPartEditorProps {
   onClose: () => void;
 }
 
+const SUPPLIER_PAGE_SIZE = 50;
+
+async function loadAllSuppliers() {
+  const items = [];
+  let offset = 0;
+  while (true) {
+    const page = await suppliersApi.list({ limit: SUPPLIER_PAGE_SIZE, offset });
+    items.push(...page.items);
+    if (page.items.length === 0 || items.length >= page.total) return items;
+    offset = page.offset + page.items.length;
+  }
+}
+
 function FormSection({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
     <section className="space-y-4" aria-labelledby={id}>
@@ -55,7 +68,10 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
   const units = useQuery({ queryKey: ['small-parts', 'units'], queryFn: smallPartsApi.units.list });
   const locations = useQuery({ queryKey: ['warehouse', 'locations'], queryFn: api.getLocations });
   const settings = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
-  const suppliers = useQuery({ queryKey: ['suppliers', 'material-editor'], queryFn: () => suppliersApi.list() });
+  const suppliers = useQuery({
+    queryKey: ['suppliers', 'material-editor', 'all'],
+    queryFn: loadAllSuppliers,
+  });
   const offersQuery = useQuery({
     queryKey: ['procurement-offers', 'material', part?.id],
     queryFn: () => procurementOffersApi.list({ kind: 'material', small_part_id: part!.id }),
@@ -94,7 +110,10 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
       } else {
         await smallPartsApi.update(materialId, form);
       }
-      await procurementOffersApi.replace({ kind: 'material', small_part_id: materialId }, offers);
+      const offersReady = !part || offersQuery.isSuccess;
+      if (suppliers.isSuccess && offersReady) {
+        await procurementOffersApi.replace({ kind: 'material', small_part_id: materialId }, offers);
+      }
     },
     onSuccess: async () => {
       await Promise.all([
@@ -108,8 +127,6 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
 
   const update = <K extends keyof SmallPartInput>(key: K, value: SmallPartInput[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
-  const offersUnavailable = part !== null && (offersQuery.isPending || offersQuery.isError);
-
   return (
     <Modal
       open
@@ -161,13 +178,26 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
           {offersQuery.isError ? <p role="alert" className="text-sm text-red-400">Bezugsquellen konnten nicht geladen werden.</p> : null}
           {!part || offersQuery.isSuccess ? (
             <ProcurementOffersEditor
-              suppliers={suppliers.data?.items ?? []}
+              suppliers={suppliers.data ?? []}
               offers={offers}
               onChange={setOffers}
-              readOnly={suppliers.isError}
+              readOnly={!suppliers.isSuccess}
             />
           ) : null}
-          {suppliers.isError ? <p role="alert" className="text-sm text-red-400">Lieferanten konnten nicht geladen werden.</p> : null}
+          {suppliers.isError ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p role="alert" className="text-sm text-red-400">Lieferanten konnten nicht geladen werden. Material kann weiterhin ohne Änderung der Bezugsquellen gespeichert werden.</p>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                loading={suppliers.isFetching}
+                onClick={() => suppliers.refetch()}
+              >
+                Lieferanten erneut laden
+              </Button>
+            </div>
+          ) : null}
         </FormSection>
 
         <FormSection id="material-section-consumption" title="Verbrauchsgrund">
@@ -181,7 +211,7 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
         {error ? <p role="alert" className="rounded-lg bg-red-950/40 px-3 py-2 text-sm text-red-300">{error}</p> : null}
         <div className="sticky bottom-0 flex justify-end gap-3 border-t border-bambu-dark-tertiary bg-bambu-dark-secondary pt-4">
           <Button type="button" variant="secondary" onClick={onClose} disabled={mutation.isPending}>Abbrechen</Button>
-          <Button type="submit" loading={mutation.isPending} disabled={offersUnavailable || suppliers.isError}>Material speichern</Button>
+          <Button type="submit" loading={mutation.isPending}>Material speichern</Button>
         </div>
       </form>
     </Modal>

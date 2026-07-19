@@ -211,6 +211,65 @@ describe('SmallPartEditor', () => {
     expect(procurementOffersApi.list).toHaveBeenCalledWith({ kind: 'material', small_part_id: 7 });
   });
 
+  it('saves core material without replacing loaded offers when suppliers are unavailable', async () => {
+    const existingOffer = {
+      id: 9,
+      supplier_id: supplier.id,
+      small_part_id: part.id,
+      filament_sku_settings_id: null,
+      resource_key: `material:${part.id}`,
+      supplier_sku: 'NEU-7',
+      purchase_url: '',
+      package_quantity: '1',
+      package_unit_code: 'C62',
+      minimum_order_quantity: '1',
+      lead_time_days: 4,
+      net_price: '1.2',
+      gross_price: '1.43',
+      is_preferred: true,
+      is_active: true,
+      created_at: '2026-07-18T10:00:00Z',
+      updated_at: '2026-07-18T10:00:00Z',
+      supplier,
+    };
+    vi.mocked(suppliersApi.list).mockRejectedValue(new Error('Lieferanten offline'));
+    vi.mocked(procurementOffersApi.list).mockResolvedValue([existingOffer]);
+    vi.mocked(smallPartsApi.update).mockResolvedValue(part);
+    const { onClose } = renderEditor(part);
+    const user = userEvent.setup();
+
+    expect(await screen.findByText('Schrauben GmbH')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Lieferanten erneut laden' })).toBeInTheDocument();
+    await user.clear(screen.getByLabelText(/^Bezeichnung/));
+    await user.type(screen.getByLabelText(/^Bezeichnung/), 'M3 Schraube offline');
+    await user.click(screen.getByRole('button', { name: 'Material speichern' }));
+
+    await waitFor(() => expect(smallPartsApi.update).toHaveBeenCalledWith(7, expect.objectContaining({ name: 'M3 Schraube offline' })));
+    expect(procurementOffersApi.replace).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('loads every supplier page so suppliers beyond the first 50 remain selectable', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({
+      ...supplier,
+      id: index + 1,
+      name: `Lieferant ${index + 1}`,
+    }));
+    const lastSupplier = { ...supplier, id: 51, name: 'Lieferant 51' };
+    vi.mocked(suppliersApi.list)
+      .mockResolvedValueOnce({ items: firstPage, total: 51, limit: 50, offset: 0 })
+      .mockResolvedValueOnce({ items: [lastSupplier], total: 51, limit: 50, offset: 50 });
+    renderEditor(null);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Bezugsquelle hinzufügen' }));
+    await user.click(screen.getByRole('combobox', { name: 'Lieferant' }));
+
+    expect(screen.getByRole('option', { name: 'Lieferant 51' })).toBeInTheDocument();
+    expect(suppliersApi.list).toHaveBeenNthCalledWith(1, { limit: 50, offset: 0 });
+    expect(suppliersApi.list).toHaveBeenNthCalledWith(2, { limit: 50, offset: 50 });
+  });
+
   it('updates the material before replacing its edited offers', async () => {
     vi.mocked(smallPartsApi.update).mockResolvedValue(part);
     renderEditor(part);

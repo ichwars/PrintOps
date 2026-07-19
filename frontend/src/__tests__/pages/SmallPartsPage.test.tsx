@@ -102,6 +102,19 @@ describe('SmallPartsPage', () => {
     await waitFor(() => expect(seenQueries).toContain('M3'));
   });
 
+  it('shows only the error state when the material list fails', async () => {
+    server.use(
+      http.get('/api/v1/small-parts', () => HttpResponse.json(
+        { detail: 'offline' },
+        { status: 503 },
+      )),
+    );
+    renderPage();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Material konnte nicht geladen werden.');
+    expect(screen.queryByText('Noch kein passendes Material vorhanden.')).not.toBeInTheDocument();
+  });
+
   it('prefills a stock receipt with the material default consumption reason', async () => {
     const posted = vi.fn();
     server.use(

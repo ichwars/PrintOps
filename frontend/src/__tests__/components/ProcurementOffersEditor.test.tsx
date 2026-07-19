@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   procurementOffersApi,
+  suppliersApi,
   type ProcurementOffer,
   type ProcurementOfferDraft,
   type Supplier,
@@ -310,6 +311,22 @@ describe('ProcurementOffersEditor', () => {
 });
 
 describe('procurementOffersApi', () => {
+  it('serializes supplier pagination parameters', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ items: [], total: 0, limit: 50, offset: 50 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await suppliersApi.list({ q: 'Schraube', active: true, limit: 50, offset: 50 });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      '/api/v1/suppliers?q=Schraube&active=true&limit=50&offset=50',
+    );
+    fetchMock.mockRestore();
+  });
+
   it('serializes only writable offer fields for replacement', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify([]), {
