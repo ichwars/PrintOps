@@ -174,10 +174,10 @@ folgen in den dort beschriebenen Dokument- und Integrationsinkrementen.
 ## Material, Lieferanten und Beschaffung
 
 Unter `Lager > Lieferanten` werden Bezugsquellen zentral gepflegt. Neben Firma,
-Kontakt- und Adressdaten koennen Standardlieferzeit, Waehrung, Zahlungs- und
-Versandbedingungen sowie interne Notizen hinterlegt werden. Verwendete
-Lieferanten werden deaktiviert statt geloescht, damit bestehende Bezuege
-nachvollziehbar bleiben.
+Kontakt- und Adressdaten koennen Kundennummer, Zahlungsbedingungen,
+Standardlieferzeit und interne Notizen hinterlegt werden. Nicht verwendete
+Lieferanten koennen geloescht werden. Lieferanten mit Beschaffungsangeboten sind
+vor dem Loeschen geschuetzt und koennen stattdessen deaktiviert werden.
 
 Material und Filament verwenden dieselben Beschaffungsangebote. Je Artikel ist
 eine bevorzugte Bezugsquelle moeglich; weitere Angebote dienen als Alternativen.
