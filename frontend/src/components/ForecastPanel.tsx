@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useId } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { NumberField , LegacySelect, TextField} from './ui';
+import { Button, NumberField, LegacySelect, TextField } from './ui';
 import {
   AlertTriangle, TrendingDown, ShoppingCart, Check, BellOff,
   ChevronDown, ChevronUp, Info, Edit2, X, Lock,
@@ -17,6 +17,13 @@ import type { InventorySpool, SpoolUsageRecord, FilamentSkuSettings, ShoppingLis
 import { getSwatchStyle } from '../utils/colors';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
+import {
+  procurementOffersApi,
+  suppliersApi,
+  type ProcurementOfferDraft,
+  type ProcurementResource,
+} from '../api/procurement';
+import { ProcurementOffersEditor } from './warehouse/ProcurementOffersEditor';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,6 +65,18 @@ type ChartDays = 7 | 30 | 180;
 
 const Z_95 = 1.65;
 const CHART_COLORS = ['#1DB954', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'];
+const SUPPLIER_PAGE_SIZE = 50;
+
+async function loadAllSuppliers() {
+  const items = [];
+  let offset = 0;
+  while (true) {
+    const page = await suppliersApi.list({ limit: SUPPLIER_PAGE_SIZE, offset });
+    items.push(...page.items);
+    if (page.items.length === 0 || items.length >= page.total) return items;
+    offset = page.offset + page.items.length;
+  }
+}
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -870,6 +889,13 @@ function ForecastRow({
   const snoozed = f.settings?.alerts_snoozed ?? false;
 
   const label = [f.group.brand, f.group.material, f.group.subtype, f.group.colorName].filter(Boolean).join(' ');
+  const procurementResource: ProcurementResource = {
+    kind: 'filament',
+    material: f.group.material,
+    subtype: f.group.subtype,
+    brand: f.group.brand,
+    color_name: f.group.colorName,
+  };
   // Use getSwatchStyle so a Clear (alpha=00) lead spool renders as a
   // checkerboard rather than collapsing to solid black (#1545).
   const colorStyle = f.group.spools[0]?.rgba ? getSwatchStyle(f.group.spools[0].rgba) : { backgroundColor: '#4B5563' };
@@ -995,6 +1021,7 @@ function ForecastRow({
             )}
             <button
               onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+              aria-label={t(expanded ? 'forecast.collapseSku' : 'forecast.expandSku', { label })}
               className="p-1.5 text-bambu-gray hover:text-white rounded transition-colors"
             >
               {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -1064,6 +1091,8 @@ function ForecastRow({
                 )}
               </div>
 
+              <FilamentProcurementSection resource={procurementResource} readOnly={!canWrite} />
+
               {/* Individual spools — shown when group has >1 spool */}
               {f.group.spools.length > 1 && (
                 <div className="border-t border-bambu-dark-tertiary pt-3">
@@ -1117,6 +1146,99 @@ function ForecastRow({
         </tr>
       )}
     </>
+  );
+}
+
+// ── Filament procurement ────────────────────────────────────────────────────
+
+function FilamentProcurementSection({
+  resource,
+  readOnly,
+}: {
+  resource: Extract<ProcurementResource, { kind: 'filament' }>;
+  readOnly: boolean;
+}) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+  const headingId = useId();
+  const offersQuery = useQuery({
+    queryKey: ['procurement-offers', resource],
+    queryFn: () => procurementOffersApi.list(resource),
+  });
+  const suppliersQuery = useQuery({
+    queryKey: ['suppliers', 'filament-procurement', 'all'],
+    queryFn: loadAllSuppliers,
+    enabled: !readOnly,
+  });
+  const [offers, setOffers] = useState<ProcurementOfferDraft[]>([]);
+
+  useEffect(() => {
+    if (offersQuery.data) setOffers(offersQuery.data);
+  }, [offersQuery.data]);
+
+  const saveMutation = useMutation({
+    mutationFn: () => procurementOffersApi.replace(resource, offers),
+    onSuccess: async (saved) => {
+      setOffers(saved);
+      await queryClient.invalidateQueries({ queryKey: ['procurement-offers', resource] });
+      showToast(t('forecast.procurementSaved'), 'success');
+    },
+    onError: () => showToast(t('forecast.procurementSaveFailed'), 'error'),
+  });
+
+  const canEditOffers = !readOnly && suppliersQuery.isSuccess;
+
+  return (
+    <section className="space-y-4 border-t border-bambu-dark-tertiary pt-4" aria-labelledby={headingId}>
+      <div className="flex items-center gap-3">
+        <h3
+          id={headingId}
+          className="shrink-0 text-sm font-semibold text-white"
+        >
+          {t('forecast.procurementTitle')}
+        </h3>
+        <div className="h-px flex-1 bg-bambu-dark-tertiary" />
+      </div>
+
+      {offersQuery.isPending ? (
+        <p className="text-sm text-bambu-gray">{t('forecast.procurementLoadingOffers')}</p>
+      ) : null}
+      {offersQuery.isError ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p role="alert" className="text-sm text-red-400">{t('forecast.procurementOffersLoadError')}</p>
+          <Button type="button" variant="secondary" size="sm" loading={offersQuery.isFetching} onClick={() => offersQuery.refetch()}>
+            {t('forecast.procurementRetryOffers')}
+          </Button>
+        </div>
+      ) : null}
+
+      {offersQuery.isSuccess ? (
+        <ProcurementOffersEditor
+          suppliers={suppliersQuery.data ?? []}
+          offers={offers}
+          onChange={setOffers}
+          readOnly={!canEditOffers}
+        />
+      ) : null}
+
+      {!readOnly && suppliersQuery.isError ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p role="alert" className="text-sm text-red-400">{t('forecast.procurementSuppliersLoadError')}</p>
+          <Button type="button" variant="secondary" size="sm" loading={suppliersQuery.isFetching} onClick={() => suppliersQuery.refetch()}>
+            {t('forecast.procurementRetrySuppliers')}
+          </Button>
+        </div>
+      ) : null}
+
+      {canEditOffers && offersQuery.isSuccess ? (
+        <div className="flex justify-end">
+          <Button type="button" loading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
+            {t('forecast.procurementSave')}
+          </Button>
+        </div>
+      ) : null}
+    </section>
   );
 }
 
