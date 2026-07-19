@@ -5,10 +5,13 @@ from decimal import Decimal
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
 from backend.app.models.filament_sku_settings import FilamentSkuSettings
 from backend.app.models.procurement import ProcurementOffer, Supplier
 from backend.app.models.small_part import SmallPart, SmallPartUnit
+from backend.app.schemas.procurement import FilamentResource, ProcurementOfferWrite
+from backend.app.services import procurement as procurement_service
 
 
 @pytest.fixture
@@ -321,3 +324,111 @@ async def test_procurement_offer_routes_require_matching_inventory_permissions(
             f"/api/v1/procurement-offers/{offer_id}", headers=headers["deleter"]
         )
     ).status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_database_integrity_conflict_is_http_409(
+    async_client,
+    monkeypatch,
+    procurement_resources,
+):
+    async def raise_integrity_error(*_args, **_kwargs):
+        raise IntegrityError("preferred resource conflict", {}, RuntimeError("unique index"))
+
+    monkeypatch.setattr(procurement_service, "replace_offers", raise_integrity_error)
+    response = await async_client.put(
+        "/api/v1/procurement-offers/resource",
+        json={
+            "resource": material_resource(procurement_resources["material_ids"][0]),
+            "offers": [
+                {
+                    "supplier_id": procurement_resources["supplier_ids"][0],
+                    "is_preferred": True,
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": {
+            "code": "procurement_offer_conflict",
+            "message": "Procurement offers conflict with current database state",
+        }
+    }
+
+
+async def assert_invalid_filament_draft_does_not_flush(
+    db_session,
+    monkeypatch,
+    *,
+    descriptor: FilamentResource,
+    draft: ProcurementOfferWrite,
+) -> None:
+    original_flush = db_session.flush
+    flush_calls: list[None] = []
+
+    async def tracked_flush(*args, **kwargs):
+        flush_calls.append(None)
+        return await original_flush(*args, **kwargs)
+
+    monkeypatch.setattr(db_session, "flush", tracked_flush)
+
+    with pytest.raises(procurement_service.InvalidProcurementReplacement):
+        await procurement_service.replace_offers(db_session, descriptor, [draft])
+
+    assert flush_calls == []
+
+
+@pytest.mark.asyncio
+async def test_missing_supplier_is_validated_before_missing_filament_creation(
+    db_session,
+    monkeypatch,
+):
+    await assert_invalid_filament_draft_does_not_flush(
+        db_session,
+        monkeypatch,
+        descriptor=FilamentResource(kind="filament", material="ABS", brand="No Create Missing"),
+        draft=ProcurementOfferWrite(supplier_id=999_999),
+    )
+
+
+@pytest.mark.asyncio
+async def test_inactive_supplier_is_validated_before_missing_filament_creation(
+    db_session,
+    monkeypatch,
+):
+    supplier = Supplier(name="Inactive Supply", name_key="inactive supply", is_active=False)
+    db_session.add(supplier)
+    await db_session.commit()
+
+    await assert_invalid_filament_draft_does_not_flush(
+        db_session,
+        monkeypatch,
+        descriptor=FilamentResource(kind="filament", material="ASA", brand="No Create Inactive"),
+        draft=ProcurementOfferWrite(supplier_id=supplier.id),
+    )
+
+
+@pytest.mark.asyncio
+async def test_cross_resource_id_is_validated_before_missing_filament_creation(
+    async_client,
+    db_session,
+    monkeypatch,
+    procurement_resources,
+):
+    material_offers = await replace_material_offers(
+        async_client,
+        procurement_resources["material_ids"][0],
+        procurement_resources["supplier_ids"],
+    )
+
+    await assert_invalid_filament_draft_does_not_flush(
+        db_session,
+        monkeypatch,
+        descriptor=FilamentResource(kind="filament", material="TPU", brand="No Create Cross Resource"),
+        draft=ProcurementOfferWrite(
+            id=material_offers[0]["id"],
+            supplier_id=procurement_resources["supplier_ids"][0],
+        ),
+    )

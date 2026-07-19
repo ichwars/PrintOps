@@ -204,19 +204,22 @@ async def replace_offers(
     if len(submitted_ids) != len(set(submitted_ids)):
         raise InvalidProcurementReplacement("An offer ID may only be submitted once")
 
-    resolved = await resolve_resource(session, resource, create_filament=True)
-    assert resolved is not None
-
-    existing = list(
-        await session.scalars(
-            select(ProcurementOffer).where(ProcurementOffer.resource_key == resolved.resource_key)
+    resolved = await resolve_resource(session, resource, create_filament=False)
+    existing = (
+        list(
+            await session.scalars(
+                select(ProcurementOffer).where(ProcurementOffer.resource_key == resolved.resource_key)
+            )
         )
+        if resolved is not None
+        else []
     )
     existing_by_id = {offer.id: offer for offer in existing}
     for offer_id in submitted_ids:
         if offer_id not in existing_by_id:
+            resource_key = resolved.resource_key if resolved is not None else "the missing resource"
             raise InvalidProcurementReplacement(
-                f"Offer {offer_id} does not belong to resource {resolved.resource_key}"
+                f"Offer {offer_id} does not belong to {resource_key}"
             )
 
     supplier_ids = {draft.supplier_id for draft in drafts}
@@ -228,6 +231,14 @@ async def replace_offers(
     if missing_supplier_ids:
         missing = min(missing_supplier_ids)
         raise InvalidProcurementReplacement(f"Supplier {missing} was not found")
+    inactive_supplier_ids = {supplier_id for supplier_id, supplier in suppliers.items() if not supplier.is_active}
+    if inactive_supplier_ids:
+        inactive = min(inactive_supplier_ids)
+        raise InvalidProcurementReplacement(f"Supplier {inactive} is inactive")
+
+    if resolved is None:
+        resolved = await resolve_resource(session, resource, create_filament=True)
+        assert resolved is not None
 
     for offer in existing:
         if offer.is_preferred:

@@ -192,8 +192,11 @@ async def replace_procurement_offers(
     except IntegrityError as exc:
         await db.rollback()
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Procurement offers violate a resource constraint",
+            status.HTTP_409_CONFLICT,
+            detail={
+                "code": "procurement_offer_conflict",
+                "message": "Procurement offers conflict with current database state",
+            },
         ) from exc
     return [_offer_read(result) for result in results]
 
