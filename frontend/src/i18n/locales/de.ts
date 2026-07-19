@@ -38,7 +38,7 @@ export default {
     nav: {
       dashboard: 'Übersicht',
       warehouse: 'Lager',
-      parts: 'Kleinteile',
+      parts: 'Material',
       stock: 'Warenlage',
       orders: 'Aufträge',
       offers: 'Angebote',
@@ -6787,6 +6787,17 @@ export default {
     title: 'Bestandsprognose',
     noSpools: 'Keine aktiven Spulen gefunden. Fügen Sie Spulen zu Ihrem Inventar hinzu, um Prognosedaten zu sehen.',
     noUsageData: 'Keine Verbrauchsdaten verfügbar — die Bestandszeitlinie kann nicht projiziert werden.',
+    expandSku: '{{label}} erweitern',
+    collapseSku: '{{label}} reduzieren',
+    procurementTitle: 'Beschaffung',
+    procurementLoadingOffers: 'Bezugsquellen werden geladen …',
+    procurementOffersLoadError: 'Bezugsquellen konnten nicht geladen werden.',
+    procurementRetryOffers: 'Bezugsquellen erneut laden',
+    procurementSuppliersLoadError: 'Lieferanten konnten nicht geladen werden.',
+    procurementRetrySuppliers: 'Lieferanten erneut laden',
+    procurementSave: 'Bezugsquellen speichern',
+    procurementSaved: 'Bezugsquellen gespeichert',
+    procurementSaveFailed: 'Bezugsquellen konnten nicht gespeichert werden',
     sku: 'SKU',
     // Table headers
     material: 'Material',
@@ -6899,4 +6910,5 @@ export default {
     noReadAccess: 'Sie haben keine Berechtigung, Bestandsprognosen anzuzeigen.',
     noWriteAccess: 'Sie haben keine Berechtigung, Prognoseeinstellungen zu ändern.',
   },
+  suppliers: { navTitle: 'Lieferanten', title: 'Lieferanten', subtitle: 'Beschaffungskontakte und Einkaufsbedingungen verwalten.', createTitle: 'Lieferant anlegen', editTitle: 'Lieferant bearbeiten', searchLabel: 'Lieferanten durchsuchen', searchPlaceholder: 'Firma, Kontakt, E-Mail, Kundennummer …', activeFilter: 'Status', loading: 'Lieferanten werden geladen …', empty: 'Noch keine passenden Lieferanten vorhanden.', noContact: 'Keine Kontaktdaten', leadTime: '{{count}} Tage Standard-Lieferzeit', sections: { masterData: 'Stammdaten', contactAddress: 'Kontakt & Adresse', procurement: 'Beschaffung', internalNotes: 'Notiz intern' }, fields: { name: 'Firma', customerNumber: 'Kundennummer', active: 'Lieferant aktiv', contactName: 'Ansprechperson', email: 'E-Mail', phone: 'Telefon', website: 'Webseite', addressLine1: 'Adresszeile 1', addressLine2: 'Adresszeile 2', postalCode: 'Postleitzahl', city: 'Ort', countryCode: 'Ländercode', paymentTerms: 'Zahlungsbedingungen', defaultLeadTime: 'Standard-Lieferzeit', internalNotes: 'Interne Notizen' }, filters: { active: 'Aktiv', inactive: 'Inaktiv', all: 'Alle Lieferanten' }, actions: { create: 'Lieferant anlegen', save: 'Lieferant speichern', edit: '{{name}} bearbeiten', delete: 'Lieferant löschen' }, validation: { nameRequired: 'Firma ist erforderlich.' }, errors: { load: 'Lieferanten konnten nicht geladen werden.', save: 'Lieferant konnte nicht gespeichert werden.', delete: 'Lieferant konnte nicht gelöscht werden.', noReadPermission: 'Sie haben keine Berechtigung, Lieferanten anzuzeigen.' } },
 };

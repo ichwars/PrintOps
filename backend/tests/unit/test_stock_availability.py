@@ -77,6 +77,19 @@ def test_requirements_are_derived_from_immutable_selected_variant():
     assert requirements[1].quantity == Decimal("4")
 
 
+def test_material_requirement_errors_and_fallback_use_material_terminology():
+    invalid = {"variants": [{"sort_order": 0, "small_parts": [{"small_part_id": 0, "quantity": "1"}]}]}
+    with pytest.raises(ValueError, match="A material requirement is incomplete"):
+        requirements_from_snapshot(invalid, 0)
+
+    valid = {"variants": [{"sort_order": 0, "small_parts": [{"small_part_id": 8, "quantity": "1"}]}]}
+    requirement = requirements_from_snapshot(valid, 0)[0]
+
+    assert requirement.source_key == "small-part:8:0"
+    assert requirement.resource_kind == "small_part"
+    assert requirement.description == "Material 8"
+
+
 @pytest.mark.asyncio
 async def test_repeated_requirements_share_internal_filament_capacity(db_session):
     db_session.add(Spool(material="PETG", label_weight=150, weight_used=0))

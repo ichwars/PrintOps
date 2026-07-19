@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 import { smallPartsApi, type SmallPart } from '../api/smallParts';
 import { Card, CardContent } from '../components/Card';
-import { Checkbox, TextField } from '../components/ui';
+import { Button, Checkbox, IconButton, TextField } from '../components/ui';
 import { SmallPartEditor } from '../components/warehouse/SmallPartEditor';
 import { SmallPartStockDialog } from '../components/warehouse/SmallPartStockDialog';
 
@@ -13,6 +13,10 @@ function quantity(value: string, part: SmallPart): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: part.unit.decimal_places,
   }).format(Number(value));
+}
+
+function netPrice(value: string): string {
+  return `${Number(value).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € netto`;
 }
 
 export function SmallPartsPage() {
@@ -31,17 +35,13 @@ export function SmallPartsPage() {
       <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="flex items-center gap-3 text-2xl font-bold text-white">
-            <Boxes className="h-7 w-7 text-bambu-green" /> Kleinteile
+            <Boxes className="h-7 w-7 text-bambu-green" /> Material
           </h1>
           <p className="mt-1 text-bambu-gray">Zukaufteile, Hardware und Verbrauchsmaterial mit geprüftem Bestand.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setEditorPart(null)}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-bambu-green px-4 py-2 text-sm font-medium text-white"
-        >
-          <Plus className="h-4 w-4" /> Kleinteil anlegen
-        </button>
+        <Button type="button" onClick={() => setEditorPart(null)}>
+          <Plus className="h-4 w-4" /> Material hinzufügen
+        </Button>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -54,47 +54,56 @@ export function SmallPartsPage() {
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center">
             <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-bambu-gray" />
               <TextField
                 type="search"
-                aria-label="Kleinteile durchsuchen"
+                aria-label="Material durchsuchen"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Artikelnummer, Bezeichnung, Kategorie …"
-                className="w-full rounded-lg border border-gray-600 bg-gray-800 py-2 pl-9 pr-3 text-white outline-none focus:border-bambu-green"
+                className="pl-9"
               />
             </div>
-            <Checkbox checked={lowStock} onCheckedChange={setLowStock} label="Nur niedriger Bestand" className="rounded-lg border border-gray-700 px-3 text-gray-200" />
+            <Checkbox checked={lowStock} onCheckedChange={setLowStock} label="Nur niedriger Bestand" />
           </div>
 
-          {parts.isLoading && <p className="py-10 text-center text-bambu-gray">Kleinteile werden geladen …</p>}
-          {parts.isError && <p role="alert" className="rounded-lg bg-red-950/50 p-3 text-red-300">Kleinteile konnten nicht geladen werden.</p>}
-          {!parts.isLoading && !items.length && <p className="py-10 text-center text-bambu-gray">Noch keine passenden Kleinteile vorhanden.</p>}
+          {parts.isLoading && <p className="py-10 text-center text-bambu-gray">Material wird geladen …</p>}
+          {parts.isError && <p role="alert" className="rounded-lg bg-red-950/50 p-3 text-red-300">Material konnte nicht geladen werden.</p>}
+          {!parts.isLoading && !parts.isError && !items.length && <p className="py-10 text-center text-bambu-gray">Noch kein passendes Material vorhanden.</p>}
           <div className="grid gap-3 xl:grid-cols-2">
             {items.map((part) => (
-              <article key={part.id} className={`rounded-xl border p-4 ${part.balance.is_low_stock ? 'border-amber-500/60 bg-amber-950/10' : 'border-gray-700 bg-gray-900/30'}`}>
+              <article key={part.id} className={`rounded-xl border p-4 ${part.balance.is_low_stock ? 'border-amber-500/60 bg-amber-950/10' : 'border-bambu-dark-tertiary bg-bambu-dark/30'}`}>
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-xs text-bambu-green">{part.sku}</span>
-                      {!part.is_active && <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs text-gray-300">Inaktiv</span>}
+                      {!part.is_active && <span className="rounded-full bg-bambu-dark-tertiary px-2 py-0.5 text-xs text-bambu-gray-light">Inaktiv</span>}
                       {part.balance.is_low_stock && <span className="rounded-full bg-amber-900/70 px-2 py-0.5 text-xs text-amber-200">Meldebestand</span>}
                     </div>
                     <h2 className="mt-1 font-semibold text-white">{part.name}</h2>
-                    <p className="mt-1 text-sm text-gray-400">{part.category?.name ?? 'Ohne Kategorie'} · {part.location_id ? `Lagerort #${part.location_id}` : 'Kein Lagerort'}</p>
+                    <p className="mt-1 text-sm text-bambu-gray">{part.category?.name ?? 'Ohne Kategorie'} · {part.location_id ? `Lagerort #${part.location_id}` : 'Kein Lagerort'}</p>
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" aria-label="Kleinteil bearbeiten" onClick={() => setEditorPart(part)} className="rounded-lg border border-gray-600 p-2 text-gray-200 hover:bg-gray-700"><Pencil className="h-4 w-4" /></button>
-                    <button type="button" aria-label="Bestand buchen" onClick={() => setStockPart(part)} className="inline-flex items-center gap-2 rounded-lg bg-green-700 px-3 py-2 text-sm font-medium text-white"><PackagePlus className="h-4 w-4" /> Bestand buchen</button>
+                    <IconButton label="Material bearbeiten" icon={Pencil} onClick={() => setEditorPart(part)} />
+                    <Button type="button" size="sm" onClick={() => setStockPart(part)}>
+                      <PackagePlus className="h-4 w-4" /> Bestand buchen
+                    </Button>
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
-                  <div><p className="text-gray-500">Physisch</p><p className="text-white">{quantity(part.balance.physical, part)}</p></div>
-                  <div><p className="text-gray-500">Reserviert</p><p className="text-white">{quantity(part.balance.reserved, part)}</p></div>
-                  <div className="col-span-2 sm:col-span-1"><p className="text-gray-500">Verfügbar</p><p className="font-semibold text-green-300">{quantity(part.balance.available, part)} {part.unit.label} verfügbar</p></div>
-                  <div><p className="text-gray-500">Meldebestand</p><p className="text-white">{quantity(part.minimum_stock, part)}</p></div>
-                  <div><p className="text-gray-500">Preis</p><p className="text-white">{Number(part.unit_cost).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</p></div>
+                  <div><p className="text-bambu-gray">Physisch</p><p className="text-white">{quantity(part.balance.physical, part)}</p></div>
+                  <div><p className="text-bambu-gray">Reserviert</p><p className="text-white">{quantity(part.balance.reserved, part)}</p></div>
+                  <div className="col-span-2 sm:col-span-1"><p className="text-bambu-gray">Verfügbar</p><p className="font-semibold text-bambu-green-light">{quantity(part.balance.available, part)} {part.unit.label} verfügbar</p></div>
+                  <div><p className="text-bambu-gray">Mindestbestand</p><p className="text-white">{quantity(part.minimum_stock, part)}</p></div>
+                  <div><p className="text-bambu-gray">Standardpreis</p><p className="text-white">{Number(part.unit_cost).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</p></div>
                 </div>
+                {part.preferred_offer ? (
+                  <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 border-t border-bambu-dark-tertiary pt-3 text-sm">
+                    <span className="font-medium text-white">{part.preferred_offer.supplier.name}</span>
+                    <span className="text-bambu-gray-light">{netPrice(part.preferred_offer.net_price)}</span>
+                    <span className="text-bambu-gray-light">{part.preferred_offer.lead_time_days} Tage Lieferzeit</span>
+                  </div>
+                ) : null}
               </article>
             ))}
           </div>

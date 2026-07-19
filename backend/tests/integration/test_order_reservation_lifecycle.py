@@ -50,6 +50,13 @@ async def test_issue_reconcile_and_cancel_release_remaining_reservations(async_c
         for item in reservation["allocations"]
     )
 
+    wrong_resource = await async_client.post(
+        f"/api/v1/orders/{order['id']}/small-parts/{filament_allocation['id']}/issue",
+        json={"quantity": "1", "idempotency_key": "issue-wrong-resource"},
+    )
+    assert wrong_resource.status_code == 409
+    assert wrong_resource.json()["detail"]["message"] == "Allocation is not an active material reservation"
+
     issued = await async_client.post(
         f"/api/v1/orders/{order['id']}/small-parts/{small_allocation['id']}/issue",
         json={"quantity": "2", "idempotency_key": "issue-order-1"},
@@ -71,6 +78,12 @@ async def test_issue_reconcile_and_cancel_release_remaining_reservations(async_c
     )
     assert cancelled.status_code == 200, cancelled.text
     assert cancelled.json()["status"] == "cancelled"
+    inactive = await async_client.post(
+        f"/api/v1/orders/{order['id']}/small-parts/{small_allocation['id']}/issue",
+        json={"quantity": "1", "idempotency_key": "issue-inactive-order"},
+    )
+    assert inactive.status_code == 409
+    assert inactive.json()["detail"]["message"] == "Only an active order can issue materials"
     balance = await get_balance(db_session, part.id)
     await db_session.refresh(spool)
     assert balance.physical == Decimal("8")

@@ -16,7 +16,7 @@ export function SmallPartCombobox({
   onChange,
   disabled = false,
   locale = 'de-DE',
-  label = 'Kleinteil suchen',
+  label = 'Material suchen',
 }: SmallPartComboboxProps) {
   const listboxId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -99,7 +99,7 @@ export function SmallPartCombobox({
         >
           {loading && <li className="px-3 py-2 text-sm text-bambu-gray">Suche …</li>}
           {!loading && options.length === 0 && (
-            <li className="px-3 py-2 text-sm text-bambu-gray">Keine passenden Kleinteile</li>
+            <li className="px-3 py-2 text-sm text-bambu-gray">Keine passenden Materialien</li>
           )}
           {options.map((option, index) => (
             <li

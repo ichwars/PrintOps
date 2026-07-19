@@ -130,7 +130,7 @@ def requirements_from_snapshot(snapshot: dict, variant_sort_order: int) -> tuple
         part_id = int(part.get("small_part_id", 0))
         quantity = _decimal(part.get("quantity"))
         if part_id <= 0 or quantity <= 0:
-            raise ValueError("A small-part requirement is incomplete")
+            raise ValueError("A material requirement is incomplete")
         requirements.append(
             StockRequirement(
                 source_key=f"small-part:{part_id}:{index}",
@@ -138,7 +138,7 @@ def requirements_from_snapshot(snapshot: dict, variant_sort_order: int) -> tuple
                 quantity=quantity,
                 unit_code=str(part.get("unit_code") or part.get("unit_code_snapshot") or "C62"),
                 small_part_id=part_id,
-                description=str(part.get("description") or part.get("description_snapshot") or f"Small part {part_id}"),
+                description=str(part.get("description") or part.get("description_snapshot") or f"Material {part_id}"),
             )
         )
     return tuple(requirements)

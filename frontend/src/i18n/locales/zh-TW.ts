@@ -38,7 +38,7 @@ export default {
     nav: {
       dashboard: '儀表板',
       warehouse: '倉庫',
-      parts: '小零件',
+      parts: '材料',
       stock: '庫存狀態',
       orders: '訂單',
       offers: '報價',
@@ -6736,6 +6736,17 @@ export default {
     title: '庫存預測',
     noSpools: '未找到活躍的料卷。請將料卷新增至庫存以查看預測資料。',
     noUsageData: '無可用使用資料 — 無法預測庫存時間線。',
+    expandSku: '展開 {{label}}',
+    collapseSku: '收合 {{label}}',
+    procurementTitle: '採購',
+    procurementLoadingOffers: '正在載入採購來源 …',
+    procurementOffersLoadError: '無法載入採購來源。',
+    procurementRetryOffers: '重試採購來源',
+    procurementSuppliersLoadError: '無法載入供應商。',
+    procurementRetrySuppliers: '重試供應商',
+    procurementSave: '儲存採購來源',
+    procurementSaved: '採購來源已儲存',
+    procurementSaveFailed: '無法儲存採購來源',
     sku: 'SKU',
     // Table headers
     material: '材料',
@@ -6848,4 +6859,5 @@ export default {
     noReadAccess: '您沒有查看庫存預測的權限。',
     noWriteAccess: '您沒有修改預測設定的權限。',
   },
+  suppliers: { navTitle: '供應商', title: '供應商', subtitle: '管理採購聯絡人和採購條款。', createTitle: '新增供應商', editTitle: '編輯供應商', searchLabel: '搜尋供應商', searchPlaceholder: '公司、聯絡人、電子郵件、客戶編號 …', activeFilter: '狀態', loading: '正在載入供應商 …', empty: '找不到相符的供應商。', noContact: '無聯絡資訊', leadTime: '預設交貨期：{{count}} 天', sections: { masterData: '基本資料', contactAddress: '聯絡方式與地址', procurement: '採購', internalNotes: '內部備註' }, fields: { name: '公司名稱', customerNumber: '客戶編號', active: '啟用供應商', contactName: '聯絡人', email: '電子郵件', phone: '電話', website: '網站', addressLine1: '地址行 1', addressLine2: '地址行 2', postalCode: '郵遞區號', city: '城市', countryCode: '國家代碼', paymentTerms: '付款條件', defaultLeadTime: '預設交貨期', internalNotes: '內部備註' }, filters: { active: '已啟用', inactive: '已停用', all: '全部供應商' }, actions: { create: '新增供應商', save: '儲存供應商', edit: '編輯 {{name}}', delete: '刪除供應商' }, validation: { nameRequired: '公司名稱為必填欄位。' }, errors: { load: '無法載入供應商。', save: '無法儲存供應商。', delete: '無法刪除供應商。', noReadPermission: '您沒有檢視供應商的權限。' } },
 };

@@ -202,6 +202,7 @@ async def init_db():
         print_queue,
         printer,
         printer_sensor_history,
+        procurement,
         project,
         project_bom,
         settings,
@@ -678,6 +679,13 @@ async def run_migrations(conn):
     swallowed.
     """
     from sqlalchemy import text
+
+    # Migration: Add procurement metadata to technical materials.
+    await _safe_execute(
+        conn,
+        "ALTER TABLE small_parts ADD COLUMN default_consumption_reason VARCHAR(120) NOT NULL DEFAULT 'Produktion'",
+    )
+    await _safe_execute(conn, "ALTER TABLE small_parts ADD COLUMN internal_notes TEXT")
 
     # Migration: Add parent_run_id column to pipeline_runs (#1425 PR C).
     # Links a retry-failed run back to its parent so the dashboard can show

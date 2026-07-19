@@ -105,10 +105,10 @@ async def issue_small_part(
         return replay
     order = await get_order(session, order_id, lock=True)
     if order.status != "active":
-        raise ResourceInUseError("Only an active order can issue small parts")
+        raise ResourceInUseError("Only an active order can issue materials")
     reservation, allocation = await _allocation(session, order_id, allocation_id)
     if allocation.small_part_id is None or reservation.status != "active":
-        raise ResourceInUseError("Allocation is not an active small-part reservation")
+        raise ResourceInUseError("Allocation is not an active material reservation")
     outstanding = allocation.allocated_quantity - allocation.consumed_quantity
     if quantity <= 0 or quantity > outstanding:
         raise ResourceInUseError(f"Issue quantity exceeds reserved remainder {outstanding}")

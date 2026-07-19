@@ -170,3 +170,32 @@ PDF-Layouts werden als strukturierte Einstellungen nach Unternehmensprofil,
 Dokumentart und Sprache umgesetzt, sobald die kanonischen Dokumente in
 Ausbaustufe 4 eingefuehrt werden. EN 16931, UBL/CII, CSV und Lexware Office
 folgen in den dort beschriebenen Dokument- und Integrationsinkrementen.
+
+## Material, Lieferanten und Beschaffung
+
+Unter `Lager > Lieferanten` werden Bezugsquellen zentral gepflegt. Neben Firma,
+Kontakt- und Adressdaten koennen Kundennummer, Zahlungsbedingungen,
+Standardlieferzeit und interne Notizen hinterlegt werden. Nicht verwendete
+Lieferanten koennen geloescht werden. Lieferanten mit Beschaffungsangeboten sind
+vor dem Loeschen geschuetzt und koennen stattdessen deaktiviert werden.
+
+Material und Filament verwenden dieselben Beschaffungsangebote. Je Artikel ist
+eine bevorzugte Bezugsquelle moeglich; weitere Angebote dienen als Alternativen.
+Ein Angebot umfasst Lieferanten-Artikelnummer, Bezugslink, Verpackungsmenge,
+Mindestbestellmenge, Lieferzeit sowie Netto- und Bruttopreis. Beim Anlegen eines
+Angebots wird die Standardlieferzeit des Lieferanten vorbelegt und kann je
+Angebot angepasst werden. Hersteller und Lieferant bleiben bei Filament bewusst
+getrennte Angaben.
+
+`Lager > Material` ersetzt in der sichtbaren Oberflaeche die bisherige
+Bezeichnung Kleinteile. Beim Anlegen kann ein einmaliger Anfangsbestand erfasst
+werden. Spaetere Mengenbewegungen erfolgen ausschliesslich ueber die
+Bestandsaktionen und bleiben dadurch nachvollziehbar. Mindestbestand, Einheit,
+Lagerort, Suchbegriffe, Verbrauchsgrund und interne Notiz werden am Material
+gepflegt. Die bisherige freie Lieferantenreferenz bleibt fuer Altdaten lesbar;
+neue Beschaffungsdaten werden ueber die zentrale Lieferantenverwaltung erfasst.
+
+In der Filament-Bestandsprognose werden bevorzugtes Angebot und Alternativen
+direkt am betroffenen Bestand angezeigt. So koennen Material- und
+Filamentbeschaffung dieselbe Lieferantenbasis nutzen, ohne Bestands- und
+Stammdaten zu vermischen.

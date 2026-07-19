@@ -46,7 +46,7 @@ export function SmallPartsSettings({ defaultMinimumStock, lowStockWarning, onDef
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold text-white">Kleinteile-Kataloge</h2>
+      <h2 className="text-xl font-semibold text-white">Materialkataloge</h2>
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
           <CardHeader><h3 className="font-semibold text-white">Kategorien</h3></CardHeader>

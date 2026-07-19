@@ -38,7 +38,7 @@ export default {
     nav: {
       dashboard: 'Cruscotto',
       warehouse: 'Magazzino',
-      parts: 'Piccoli componenti',
+      parts: 'Materiali',
       stock: 'Posizione stock',
       orders: 'Ordini',
       offers: 'Offerte',
@@ -6737,6 +6737,17 @@ export default {
     title: 'Previsione scorte',
     noSpools: 'Nessuna bobina attiva trovata. Aggiungi bobine al tuo inventario per vedere i dati di previsione.',
     noUsageData: 'Nessun dato di utilizzo disponibile — impossibile proiettare la timeline delle scorte.',
+    expandSku: 'Espandi {{label}}',
+    collapseSku: 'Riduci {{label}}',
+    procurementTitle: 'Approvvigionamento',
+    procurementLoadingOffers: 'Caricamento fonti di approvvigionamento …',
+    procurementOffersLoadError: 'Impossibile caricare le fonti di approvvigionamento.',
+    procurementRetryOffers: 'Riprova fonti di approvvigionamento',
+    procurementSuppliersLoadError: 'Impossibile caricare i fornitori.',
+    procurementRetrySuppliers: 'Riprova fornitori',
+    procurementSave: 'Salva fonti di approvvigionamento',
+    procurementSaved: 'Fonti di approvvigionamento salvate',
+    procurementSaveFailed: 'Impossibile salvare le fonti di approvvigionamento',
     sku: 'SKU',
     // Table headers
     material: 'Materiale',
@@ -6849,4 +6860,5 @@ export default {
     noReadAccess: 'Non hai il permesso di visualizzare le previsioni di inventario.',
     noWriteAccess: 'Non hai il permesso di modificare le impostazioni di previsione.',
   },
+  suppliers: { navTitle: 'Fornitori', title: 'Fornitori', subtitle: 'Gestisci i contatti e le condizioni di acquisto.', createTitle: 'Aggiungi fornitore', editTitle: 'Modifica fornitore', searchLabel: 'Cerca fornitori', searchPlaceholder: 'Azienda, referente, e-mail, numero cliente …', activeFilter: 'Stato', loading: 'Caricamento fornitori …', empty: 'Nessun fornitore corrispondente.', noContact: 'Nessun dato di contatto', leadTime: '{{count}} giorni di tempo di consegna standard', sections: { masterData: 'Dati anagrafici', contactAddress: 'Contatti e indirizzo', procurement: 'Approvvigionamento', internalNotes: 'Nota interna' }, fields: { name: 'Azienda', customerNumber: 'Numero cliente', active: 'Fornitore attivo', contactName: 'Referente', email: 'E-mail', phone: 'Telefono', website: 'Sito web', addressLine1: 'Riga indirizzo 1', addressLine2: 'Riga indirizzo 2', postalCode: 'CAP', city: 'Città', countryCode: 'Codice paese', paymentTerms: 'Condizioni di pagamento', defaultLeadTime: 'Tempo di consegna standard', internalNotes: 'Note interne' }, filters: { active: 'Attivi', inactive: 'Inattivi', all: 'Tutti i fornitori' }, actions: { create: 'Aggiungi fornitore', save: 'Salva fornitore', edit: 'Modifica {{name}}', delete: 'Elimina fornitore' }, validation: { nameRequired: 'Il nome dell’azienda è obbligatorio.' }, errors: { load: 'Impossibile caricare i fornitori.', save: 'Impossibile salvare il fornitore.', delete: 'Impossibile eliminare il fornitore.', noReadPermission: 'Non hai il permesso di visualizzare i fornitori.' } },
 };

@@ -9,6 +9,7 @@ from backend.app.services.small_parts import (
     InsufficientSmallPartStock,
     SmallPartBalance,
     SmallPartIdempotencyConflict,
+    SmallPartNotFound,
     SmallPartUnitChangeNotAllowed,
     append_ledger_entry,
     get_balance,
@@ -53,7 +54,7 @@ async def test_ledger_is_idempotent_and_never_overdraws(db_session: AsyncSession
         physical=Decimal("10"), reserved=Decimal("0"), available=Decimal("10")
     )
 
-    with pytest.raises(InsufficientSmallPartStock):
+    with pytest.raises(InsufficientSmallPartStock, match=rf"Material {small_part.id} has insufficient stock"):
         await append_ledger_entry(
             db_session,
             small_part_id=small_part.id,
@@ -62,6 +63,20 @@ async def test_ledger_is_idempotent_and_never_overdraws(db_session: AsyncSession
             reserved_delta=Decimal("11"),
             reason="Order reservation",
             idempotency_key="reserve-order-11",
+        )
+
+
+@pytest.mark.asyncio
+async def test_missing_ledger_material_uses_visible_material_terminology(db_session: AsyncSession):
+    with pytest.raises(SmallPartNotFound, match="Material 999999 was not found"):
+        await append_ledger_entry(
+            db_session,
+            small_part_id=999999,
+            entry_kind="receipt",
+            physical_delta=Decimal("1"),
+            reserved_delta=Decimal("0"),
+            reason="Purchase",
+            idempotency_key="missing-material",
         )
 
 

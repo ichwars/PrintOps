@@ -28,7 +28,7 @@ describe('SmallPartsSettings', () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByRole('heading', { name: 'Kleinteile-Kataloge' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Materialkataloge' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Einheiten' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Lagerorte' })).toBeInTheDocument();
     expect(screen.getByDisplayValue('5')).toBeInTheDocument();

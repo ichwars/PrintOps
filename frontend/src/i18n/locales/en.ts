@@ -38,7 +38,7 @@ export default {
     nav: {
       dashboard: 'Dashboard',
       warehouse: 'Warehouse',
-      parts: 'Small parts',
+      parts: 'Material',
       stock: 'Stock position',
       orders: 'Orders',
       offers: 'Offers',
@@ -6830,6 +6830,17 @@ export default {
     title: 'Forecast',
     noSpools: 'No active spools found. Add spools to your inventory to see forecast data.',
     noUsageData: 'No usage data available — cannot project stock timeline.',
+    expandSku: '{{label}} expand',
+    collapseSku: '{{label}} collapse',
+    procurementTitle: 'Procurement',
+    procurementLoadingOffers: 'Loading procurement sources …',
+    procurementOffersLoadError: 'Procurement sources could not be loaded.',
+    procurementRetryOffers: 'Retry procurement sources',
+    procurementSuppliersLoadError: 'Suppliers could not be loaded.',
+    procurementRetrySuppliers: 'Retry suppliers',
+    procurementSave: 'Save procurement sources',
+    procurementSaved: 'Procurement sources saved',
+    procurementSaveFailed: 'Procurement sources could not be saved',
     // Table headers
     sku: 'SKU',
     material: 'Material',
@@ -6942,5 +6953,13 @@ export default {
     // Permissions
     noReadAccess: 'You do not have permission to view inventory forecasts.',
     noWriteAccess: 'You do not have permission to modify forecast settings.',
+  },
+  suppliers: {
+    navTitle: 'Suppliers', title: 'Suppliers', subtitle: 'Manage procurement contacts and purchasing terms.',
+    createTitle: 'Add supplier', editTitle: 'Edit supplier', searchLabel: 'Search suppliers', searchPlaceholder: 'Company, contact, email, customer number …', activeFilter: 'Status', loading: 'Loading suppliers …', empty: 'No matching suppliers yet.', noContact: 'No contact details', leadTime: '{{count}} day default lead time',
+    sections: { masterData: 'Master data', contactAddress: 'Contact & address', procurement: 'Procurement', internalNotes: 'Internal note' },
+    fields: { name: 'Company', customerNumber: 'Customer number', active: 'Active supplier', contactName: 'Contact name', email: 'Email', phone: 'Phone', website: 'Website', addressLine1: 'Address line 1', addressLine2: 'Address line 2', postalCode: 'Postal code', city: 'City', countryCode: 'Country code', paymentTerms: 'Payment terms', defaultLeadTime: 'Default lead time', internalNotes: 'Internal notes' },
+    filters: { active: 'Active', inactive: 'Inactive', all: 'All suppliers' }, actions: { create: 'Add supplier', save: 'Save supplier', edit: 'Edit {{name}}', delete: 'Delete supplier' }, validation: { nameRequired: 'Company is required.' },
+    errors: { load: 'Suppliers could not be loaded.', save: 'Supplier could not be saved.', delete: 'Supplier could not be deleted.', noReadPermission: 'You do not have permission to view suppliers.' },
   },
 };

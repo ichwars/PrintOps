@@ -36,7 +36,7 @@ export default {
     nav: {
       dashboard: '대시보드',
       warehouse: '창고',
-      parts: '소형 부품',
+      parts: '자재',
       stock: '재고 현황',
       orders: '주문',
       offers: '견적',
@@ -6214,6 +6214,17 @@ export default {
     title: '예측',
     noSpools: '활성 스풀을 찾을 수 없습니다. 예측 데이터를 보려면 재고에 스풀을 추가하세요.',
     noUsageData: '사용 데이터를 사용할 수 없습니다 — 재고 타임라인을 예측할 수 없습니다.',
+    expandSku: '{{label}} 펼치기',
+    collapseSku: '{{label}} 접기',
+    procurementTitle: '조달',
+    procurementLoadingOffers: '조달처를 불러오는 중 …',
+    procurementOffersLoadError: '조달처를 불러오지 못했습니다.',
+    procurementRetryOffers: '조달처 다시 불러오기',
+    procurementSuppliersLoadError: '공급업체를 불러오지 못했습니다.',
+    procurementRetrySuppliers: '공급업체 다시 불러오기',
+    procurementSave: '조달처 저장',
+    procurementSaved: '조달처가 저장되었습니다',
+    procurementSaveFailed: '조달처를 저장하지 못했습니다',
     sku: 'SKU',
     material: '재료',
     stock: '재고',
@@ -6483,5 +6494,6 @@ export default {
         fail: '이 가상 프린터의 TLS 인증서가 없습니다. PrintOps 데이터 디렉터리가 쓰기 가능한지 확인하세요.'
       }
     }
-  }
+  },
+  suppliers: { navTitle: '공급업체', title: '공급업체', subtitle: '조달 연락처와 구매 조건을 관리합니다.', createTitle: '공급업체 추가', editTitle: '공급업체 편집', searchLabel: '공급업체 검색', searchPlaceholder: '회사, 담당자, 이메일, 고객 번호 …', activeFilter: '상태', loading: '공급업체 불러오는 중 …', empty: '일치하는 공급업체가 없습니다.', noContact: '연락처 정보 없음', leadTime: '기본 리드 타임 {{count}}일', sections: { masterData: '기본 정보', contactAddress: '연락처 및 주소', procurement: '조달', internalNotes: '내부 메모' }, fields: { name: '회사명', customerNumber: '고객 번호', active: '활성 공급업체', contactName: '담당자 이름', email: '이메일 주소', phone: '전화번호', website: '웹사이트', addressLine1: '주소 1', addressLine2: '주소 2', postalCode: '우편번호', city: '시/군/구', countryCode: '국가 코드', paymentTerms: '결제 조건', defaultLeadTime: '기본 리드 타임', internalNotes: '내부 메모' }, filters: { active: '활성', inactive: '비활성', all: '모든 공급업체' }, actions: { create: '공급업체 추가', save: '공급업체 저장', edit: '{{name}} 편집', delete: '공급업체 삭제' }, validation: { nameRequired: '회사명은 필수입니다.' }, errors: { load: '공급업체를 불러올 수 없습니다.', save: '공급업체를 저장할 수 없습니다.', delete: '공급업체를 삭제할 수 없습니다.', noReadPermission: '공급업체를 볼 권한이 없습니다.' } },
 };

@@ -131,7 +131,7 @@ registerSettingsSearch({ labelKey: 'settings.tabs.backup', tab: 'operations', op
 registerSettingsSearch({ labelKey: 'externalLinks.sidebarLayout', labelFallback: 'Sidebar', tab: 'general', keywords: 'sidebar layout links pages hide show external custom navigation url add', anchor: 'card-sidebar-links' });
 // Filament tab — integrations
 registerSettingsSearch({ labelKey: 'settings.filamentTracking', tab: 'warehouse-material', warehouseMaterialSubTab: 'filament', keywords: 'spoolman filament tracking inventory sync remote integration', anchor: 'card-spoolman' });
-registerSettingsSearch({ labelKey: 'settings.tabs.warehouseSmallParts', labelFallback: 'Small parts', tab: 'warehouse-material', warehouseMaterialSubTab: 'small-parts', keywords: 'kleinteile small parts category unit location stock meldebestand', anchor: 'card-small-parts' });
+registerSettingsSearch({ labelKey: 'settings.tabs.warehouseSmallParts', labelFallback: 'Material', tab: 'warehouse-material', warehouseMaterialSubTab: 'small-parts', keywords: 'material materials category unit location stock meldebestand', anchor: 'card-small-parts' });
 registerSettingsSearch({ labelKey: 'settings.catalog.spoolCatalog', labelFallback: 'Spool Catalog', tab: 'warehouse-material', warehouseMaterialSubTab: 'catalogs', keywords: 'spool catalog entries brand material reset import export', anchor: 'card-spool-catalog' });
 registerSettingsSearch({ labelKey: 'settings.colorCatalog.title', labelFallback: 'Color Catalog', tab: 'warehouse-material', warehouseMaterialSubTab: 'catalogs', keywords: 'color catalog hex swatch palette sync reset', anchor: 'card-color-catalog' });
 // Failure detection sub-cards
@@ -396,11 +396,11 @@ const WAREHOUSE_MATERIAL_SUB_TABS: Record<WarehouseMaterialSubTab, SettingsHeade
   },
   'small-parts': {
     labelKey: 'settings.tabs.warehouseSmallParts',
-    fallback: 'Small parts',
-    fallbackDe: 'Kleinteile',
+    fallback: 'Material',
+    fallbackDe: 'Material',
     descriptionKey: 'settings.warehouseMaterialSubTabDescriptions.smallParts',
-    descriptionFallback: 'Manage small-part categories, units, shared locations, and stock defaults.',
-    descriptionFallbackDe: 'Kleinteile-Kategorien, Einheiten, gemeinsame Lagerorte und Bestandsstandards verwalten.',
+    descriptionFallback: 'Manage material categories, units, shared locations, and stock defaults.',
+    descriptionFallbackDe: 'Materialkategorien, Einheiten, gemeinsame Lagerorte und Bestandsstandards verwalten.',
     icon: Database,
   },
   catalogs: {

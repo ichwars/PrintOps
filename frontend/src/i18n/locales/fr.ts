@@ -38,7 +38,7 @@ export default {
     nav: {
       dashboard: 'Tableau de bord',
       warehouse: 'Entrepôt',
-      parts: 'Petites pièces',
+      parts: 'Matériaux',
       stock: 'État du stock',
       orders: 'Commandes',
       offers: 'Offres',
@@ -6738,6 +6738,17 @@ export default {
     title: 'Prévision des stocks',
     noSpools: 'Aucune bobine active trouvée. Ajoutez des bobines à votre inventaire pour voir les données de prévision.',
     noUsageData: 'Aucune donnée d\'utilisation disponible — impossible de projeter la chronologie des stocks.',
+    expandSku: 'Développer {{label}}',
+    collapseSku: 'Réduire {{label}}',
+    procurementTitle: 'Approvisionnement',
+    procurementLoadingOffers: 'Chargement des sources d\'approvisionnement …',
+    procurementOffersLoadError: 'Impossible de charger les sources d\'approvisionnement.',
+    procurementRetryOffers: 'Réessayer les sources d\'approvisionnement',
+    procurementSuppliersLoadError: 'Impossible de charger les fournisseurs.',
+    procurementRetrySuppliers: 'Réessayer les fournisseurs',
+    procurementSave: 'Enregistrer les sources d\'approvisionnement',
+    procurementSaved: 'Sources d\'approvisionnement enregistrées',
+    procurementSaveFailed: 'Impossible d\'enregistrer les sources d\'approvisionnement',
     sku: 'SKU',
     // Table headers
     material: 'Matériau',
@@ -6850,4 +6861,5 @@ export default {
     noReadAccess: 'Vous n\'avez pas la permission de consulter les prévisions de stock.',
     noWriteAccess: 'Vous n\'avez pas la permission de modifier les paramètres de prévision.',
   },
+  suppliers: { navTitle: 'Fournisseurs', title: 'Fournisseurs', subtitle: 'Gérez les contacts et les conditions d’achat.', createTitle: 'Ajouter un fournisseur', editTitle: 'Modifier le fournisseur', searchLabel: 'Rechercher des fournisseurs', searchPlaceholder: 'Entreprise, contact, e-mail, numéro client …', activeFilter: 'Statut', loading: 'Chargement des fournisseurs …', empty: 'Aucun fournisseur correspondant.', noContact: 'Aucune coordonnée', leadTime: '{{count}} jours de délai de livraison standard', sections: { masterData: 'Données de base', contactAddress: 'Contact et adresse', procurement: 'Approvisionnement', internalNotes: 'Note interne' }, fields: { name: 'Entreprise', customerNumber: 'Numéro client', active: 'Fournisseur actif', contactName: 'Personne de contact', email: 'Adresse e-mail', phone: 'Téléphone', website: 'Site web', addressLine1: 'Ligne d’adresse 1', addressLine2: 'Ligne d’adresse 2', postalCode: 'Code postal', city: 'Ville', countryCode: 'Code pays', paymentTerms: 'Conditions de paiement', defaultLeadTime: 'Délai de livraison standard', internalNotes: 'Notes internes' }, filters: { active: 'Actifs', inactive: 'Inactifs', all: 'Tous les fournisseurs' }, actions: { create: 'Ajouter un fournisseur', save: 'Enregistrer le fournisseur', edit: 'Modifier {{name}}', delete: 'Supprimer le fournisseur' }, validation: { nameRequired: 'Le nom de l’entreprise est obligatoire.' }, errors: { load: 'Impossible de charger les fournisseurs.', save: 'Impossible d’enregistrer le fournisseur.', delete: 'Impossible de supprimer le fournisseur.', noReadPermission: 'Vous n’avez pas l’autorisation d’afficher les fournisseurs.' } },
 };

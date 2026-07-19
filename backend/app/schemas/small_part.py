@@ -6,6 +6,8 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 
+from backend.app.schemas.procurement import ProcurementOfferRead
+
 
 class SmallPartSchema(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True, str_strip_whitespace=True)
@@ -67,6 +69,8 @@ class SmallPartBase(SmallPartSchema):
     minimum_stock: Decimal = Field(default=Decimal("0"), ge=0)
     unit_cost: Decimal = Field(default=Decimal("0"), ge=0)
     supplier_reference: str | None = Field(default=None, max_length=255)
+    default_consumption_reason: str = Field(default="Produktion", min_length=1, max_length=120)
+    internal_notes: str | None = None
     is_active: bool = True
 
     @field_validator("unit_code")
@@ -76,7 +80,7 @@ class SmallPartBase(SmallPartSchema):
 
 
 class SmallPartCreate(SmallPartBase):
-    pass
+    opening_quantity: Decimal = Field(default=Decimal("0"), ge=0)
 
 
 class SmallPartUpdate(SmallPartSchema):
@@ -90,6 +94,8 @@ class SmallPartUpdate(SmallPartSchema):
     minimum_stock: Decimal | None = Field(default=None, ge=0)
     unit_cost: Decimal | None = Field(default=None, ge=0)
     supplier_reference: str | None = Field(default=None, max_length=255)
+    default_consumption_reason: str | None = Field(default=None, min_length=1, max_length=120)
+    internal_notes: str | None = None
     is_active: bool | None = None
 
     @field_validator("unit_code")
@@ -107,6 +113,7 @@ class SmallPartBalanceRead(SmallPartSchema):
 
 class SmallPartRead(SmallPartBase):
     id: int
+    preferred_offer: ProcurementOfferRead | None = None
     category: SmallPartCategoryRead | None = None
     unit: SmallPartUnitRead
     balance: SmallPartBalanceRead

@@ -38,7 +38,7 @@ export default {
     nav: {
       dashboard: 'ダッシュボード',
       warehouse: '倉庫',
-      parts: '小物部品',
+      parts: '材料',
       stock: '在庫状況',
       orders: '注文',
       offers: '見積',
@@ -6749,6 +6749,17 @@ export default {
     title: '在庫予測',
     noSpools: 'アクティブなスプールが見つかりません。予測データを表示するには、在庫にスプールを追加してください。',
     noUsageData: '使用データがありません — 在庫のタイムラインを予測できません。',
+    expandSku: '{{label}}を展開',
+    collapseSku: '{{label}}を折りたたむ',
+    procurementTitle: '調達',
+    procurementLoadingOffers: '調達先を読み込んでいます …',
+    procurementOffersLoadError: '調達先を読み込めませんでした。',
+    procurementRetryOffers: '調達先を再読み込み',
+    procurementSuppliersLoadError: '仕入先を読み込めませんでした。',
+    procurementRetrySuppliers: '仕入先を再読み込み',
+    procurementSave: '調達先を保存',
+    procurementSaved: '調達先を保存しました',
+    procurementSaveFailed: '調達先を保存できませんでした',
     sku: 'SKU',
     // Table headers
     material: '素材',
@@ -6861,4 +6872,5 @@ export default {
     noReadAccess: '在庫予測を閲覧する権限がありません。',
     noWriteAccess: '予測設定を変更する権限がありません。',
   },
+  suppliers: { navTitle: '仕入先', title: '仕入先', subtitle: '調達先の連絡先と取引条件を管理します。', createTitle: '仕入先を追加', editTitle: '仕入先を編集', searchLabel: '仕入先を検索', searchPlaceholder: '会社名、担当者、メールアドレス、顧客番号 …', activeFilter: 'ステータス', loading: '仕入先を読み込み中 …', empty: '一致する仕入先がありません。', noContact: '連絡先情報なし', leadTime: '標準リードタイム：{{count}}日', sections: { masterData: '基本情報', contactAddress: '連絡先と住所', procurement: '調達条件', internalNotes: '社内メモ' }, fields: { name: '会社名', customerNumber: '顧客番号', active: '有効な仕入先', contactName: '担当者名', email: 'メールアドレス', phone: '電話番号', website: 'ウェブサイト', addressLine1: '住所1', addressLine2: '住所2', postalCode: '郵便番号', city: '市区町村', countryCode: '国コード', paymentTerms: '支払条件', defaultLeadTime: '標準リードタイム', internalNotes: '社内メモ' }, filters: { active: '有効', inactive: '無効', all: 'すべての仕入先' }, actions: { create: '仕入先を追加', save: '仕入先を保存', edit: '{{name}}を編集', delete: '仕入先を削除' }, validation: { nameRequired: '会社名は必須です。' }, errors: { load: '仕入先を読み込めませんでした。', save: '仕入先を保存できませんでした。', delete: '仕入先を削除できませんでした。', noReadPermission: '仕入先を表示する権限がありません。' } },
 };
