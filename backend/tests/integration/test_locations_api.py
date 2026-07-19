@@ -150,7 +150,7 @@ async def test_delete_location_rejects_assigned_small_parts(async_client: AsyncC
     response = await async_client.delete(f"/api/v1/inventory/locations/{location_id}")
 
     assert response.status_code == 409
-    assert "small parts" in response.json()["detail"].lower()
+    assert response.json()["detail"] == "Location has materials assigned and cannot be deleted"
 
 
 @pytest.mark.asyncio

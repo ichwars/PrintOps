@@ -697,7 +697,7 @@ async def delete_location(
 
     small_part_count = await db.scalar(select(func.count(SmallPart.id)).where(SmallPart.location_id == location.id))
     if small_part_count:
-        raise HTTPException(status_code=409, detail="Location has small parts assigned and cannot be deleted")
+        raise HTTPException(status_code=409, detail="Location has materials assigned and cannot be deleted")
 
     await db.delete(location)
     await db.commit()

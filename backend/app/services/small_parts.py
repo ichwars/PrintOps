@@ -14,14 +14,14 @@ from backend.app.schemas.small_part import SmallPartUpdate
 class SmallPartNotFound(LookupError):
     def __init__(self, small_part_id: int):
         self.small_part_id = small_part_id
-        super().__init__(f"Small part {small_part_id} was not found")
+        super().__init__(f"Material {small_part_id} was not found")
 
 
 class InsufficientSmallPartStock(ValueError):
     def __init__(self, small_part_id: int, available: Decimal):
         self.small_part_id = small_part_id
         self.available = available
-        super().__init__(f"Small part {small_part_id} has insufficient stock ({available} available)")
+        super().__init__(f"Material {small_part_id} has insufficient stock ({available} available)")
 
 
 class SmallPartUnitChangeNotAllowed(ValueError):
