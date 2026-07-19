@@ -671,9 +671,9 @@ export function Layout() {
         {/* Logo */}
         <div className={`border-b border-bambu-dark-tertiary flex items-center justify-center ${isSidebarCompact || sidebarExpanded ? 'p-4' : 'p-2'}`}>
           <img
-            src={isSidebarCompact || sidebarExpanded ? '/img/printops_logo.svg' : '/img/printops_icon.svg'}
+            src={isSidebarCompact || sidebarExpanded ? '/img/printops_logo.svg' : '/img/printops_icon.png'}
             alt="PrintOps"
-            className={isSidebarCompact || sidebarExpanded ? 'h-16 w-auto' : 'h-8 w-8 object-contain'}
+            className={isSidebarCompact || sidebarExpanded ? 'h-16 w-auto' : 'h-10 w-10 object-contain'}
           />
         </div>
 

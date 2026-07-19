@@ -6,8 +6,14 @@ const STATIC_CACHE = 'printops-static-v3';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
-  '/img/printops_icon.svg',
   '/img/printops_logo.svg',
+  '/img/printops_icon.png',
+  '/img/favicon-16x16.png',
+  '/img/favicon-32x32.png',
+  '/img/favicon.png',
+  '/img/apple-touch-icon.png',
+  '/img/android-chrome-192x192.png',
+  '/img/android-chrome-512x512.png',
   // Self-hosted Inter font (#1460) - cached so the UI renders offline.
   '/fonts/inter-latin.woff2',
   '/fonts/inter-latin-ext.woff2',
@@ -200,8 +206,8 @@ self.addEventListener('push', (event) => {
   const data = event.data.json();
   const options = {
     body: data.body || 'New notification from PrintOps',
-    icon: '/img/printops_icon.svg',
-    badge: '/img/printops_icon.svg',
+    icon: '/img/android-chrome-192x192.png',
+    badge: '/img/favicon-32x32.png',
     vibrate: [100, 50, 100],
     data: {
       url: data.url || '/',
