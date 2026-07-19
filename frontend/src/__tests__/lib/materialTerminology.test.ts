@@ -14,8 +14,8 @@ describe('visible material terminology', () => {
   const legacyCopy = /Kleinteil(?:e|en|s)?|small(?:\s+|-)parts?/i;
   const technicalValue = /^(?:small-parts?|\/[^\s]*\/small-parts?(?:\/[^\s]*)?|\/small-parts?(?:\/[^\s]*)?|small-part:[^\s]+)$/;
   const stringValues = (source: string) => [
-    ...[...source.matchAll(/(['"])((?:\\.|(?!\1).)*)\1/gs)].map((match) => match[2]),
-    ...[...source.matchAll(/`((?:\\.|[^`])*)`/gs)].map((match) => match[1]),
+    ...[...source.matchAll(/(['"])((?:\\.|(?!\1|\\).)*)\1/gs)].map((match) => match[2]),
+    ...[...source.matchAll(/`((?:\\.|[^`\\])*)`/gs)].map((match) => match[1]),
   ];
 
   it('allows exact technical values but rejects visible prefixed copy', () => {
@@ -29,6 +29,11 @@ describe('visible material terminology', () => {
 
   it('extracts interpolated template literals as visible copy', () => {
     expect(stringValues('const label = `Small part ${id}`;')).toContain('Small part ${id}');
+  });
+
+  it('handles long unterminated escaped template content in linear time', () => {
+    const source = `${String.fromCharCode(96)}${'\\_'.repeat(256)}`;
+    expect(stringValues(source)).toEqual([]);
   });
 
   it('does not expose legacy small-part terminology in frontend source', () => {
