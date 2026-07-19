@@ -80,9 +80,7 @@ async def test_material_create_rolls_back_when_opening_entry_fails(
     )
 
     assert failed.status_code == 503
-    stored_count = await db_session.scalar(
-        select(func.count(SmallPart.id)).where(SmallPart.sku == "MAT-ROLLBACK")
-    )
+    stored_count = await db_session.scalar(select(func.count(SmallPart.id)).where(SmallPart.sku == "MAT-ROLLBACK"))
     ledger_count = await db_session.scalar(
         select(func.count(SmallPartLedgerEntry.id)).where(
             SmallPartLedgerEntry.idempotency_key.like("material-opening:%")

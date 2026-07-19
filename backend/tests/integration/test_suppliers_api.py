@@ -32,7 +32,9 @@ async def test_supplier_lifecycle_and_normalized_conflict(async_client: AsyncCli
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("offer_active", [True, False])
-async def test_supplier_referenced_by_any_offer_cannot_be_deleted(async_client: AsyncClient, db_session, offer_active: bool):
+async def test_supplier_referenced_by_any_offer_cannot_be_deleted(
+    async_client: AsyncClient, db_session, offer_active: bool
+):
     from backend.app.models.procurement import ProcurementOffer
     from backend.app.models.small_part import SmallPart, SmallPartUnit
 
@@ -90,10 +92,7 @@ async def supplier_permission_tokens(db_session):
 async def test_supplier_routes_require_matching_inventory_permissions(
     async_client: AsyncClient, supplier_permission_tokens: dict[str, str]
 ):
-    headers = {
-        name: {"Authorization": f"Bearer {token}"}
-        for name, token in supplier_permission_tokens.items()
-    }
+    headers = {name: {"Authorization": f"Bearer {token}"} for name, token in supplier_permission_tokens.items()}
     payload = {"name": "Permission Supplier"}
 
     assert (await async_client.get("/api/v1/suppliers", headers=headers["reader"])).status_code == 200
@@ -114,5 +113,9 @@ async def test_supplier_routes_require_matching_inventory_permissions(
             f"/api/v1/suppliers/{supplier_id}", json={"is_active": False}, headers=headers["updater"]
         )
     ).status_code == 200
-    assert (await async_client.delete(f"/api/v1/suppliers/{supplier_id}", headers=headers["updater"])).status_code == 403
-    assert (await async_client.delete(f"/api/v1/suppliers/{supplier_id}", headers=headers["deleter"])).status_code == 204
+    assert (
+        await async_client.delete(f"/api/v1/suppliers/{supplier_id}", headers=headers["updater"])
+    ).status_code == 403
+    assert (
+        await async_client.delete(f"/api/v1/suppliers/{supplier_id}", headers=headers["deleter"])
+    ).status_code == 204

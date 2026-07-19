@@ -8,9 +8,7 @@ from backend.app.core.database import run_migrations
 
 async def column_names(connection, table_name: str) -> set[str]:
     return await connection.run_sync(
-        lambda sync_connection: {
-            column["name"] for column in inspect(sync_connection).get_columns(table_name)
-        }
+        lambda sync_connection: {column["name"] for column in inspect(sync_connection).get_columns(table_name)}
     )
 
 
@@ -42,11 +40,7 @@ async def test_material_procurement_columns_migrate_idempotently(test_engine):
             "minimum_stock, unit_cost, supplier_reference, is_active, created_at, updated_at"
         )
         original_row = dict(
-            (
-                await connection.execute(
-                    text(f"SELECT {legacy_columns} FROM small_parts WHERE id = 401")
-                )
-            )
+            (await connection.execute(text(f"SELECT {legacy_columns} FROM small_parts WHERE id = 401")))
             .mappings()
             .one()
         )

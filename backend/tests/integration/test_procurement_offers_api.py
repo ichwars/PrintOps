@@ -105,9 +105,7 @@ async def test_filament_descriptor_reuses_sku_identity(async_client, procurement
 
 
 @pytest.mark.asyncio
-async def test_get_missing_filament_resource_returns_empty_without_creating_settings(
-    async_client, db_session
-):
+async def test_get_missing_filament_resource_returns_empty_without_creating_settings(async_client, db_session):
     response = await async_client.get(
         "/api/v1/procurement-offers",
         params={"kind": "filament", "material": "PETG", "brand": "None Yet"},
@@ -121,9 +119,7 @@ async def test_get_missing_filament_resource_returns_empty_without_creating_sett
 @pytest.mark.asyncio
 async def test_replacement_soft_deactivates_omitted_offer(async_client, procurement_resources):
     material_id = procurement_resources["material_ids"][0]
-    created = await replace_material_offers(
-        async_client, material_id, procurement_resources["supplier_ids"]
-    )
+    created = await replace_material_offers(async_client, material_id, procurement_resources["supplier_ids"])
 
     replaced = await async_client.put(
         "/api/v1/procurement-offers/resource",
@@ -141,9 +137,7 @@ async def test_replacement_soft_deactivates_omitted_offer(async_client, procurem
 
 
 @pytest.mark.asyncio
-async def test_replacement_rejects_offer_id_from_another_resource_transactionally(
-    async_client, procurement_resources
-):
+async def test_replacement_rejects_offer_id_from_another_resource_transactionally(async_client, procurement_resources):
     first_id, second_id = procurement_resources["material_ids"]
     supplier_id = procurement_resources["supplier_ids"][0]
     first = await async_client.put(
@@ -279,10 +273,7 @@ async def test_procurement_offer_routes_require_matching_inventory_permissions(
     procurement_resources,
     procurement_permission_tokens,
 ):
-    headers = {
-        name: {"Authorization": f"Bearer {token}"}
-        for name, token in procurement_permission_tokens.items()
-    }
+    headers = {name: {"Authorization": f"Bearer {token}"} for name, token in procurement_permission_tokens.items()}
     material_id = procurement_resources["material_ids"][0]
     payload = {
         "resource": material_resource(material_id),
@@ -304,25 +295,17 @@ async def test_procurement_offer_routes_require_matching_inventory_permissions(
         )
     ).status_code == 403
     assert (
-        await async_client.put(
-            "/api/v1/procurement-offers/resource", json=payload, headers=headers["reader"]
-        )
+        await async_client.put("/api/v1/procurement-offers/resource", json=payload, headers=headers["reader"])
     ).status_code == 403
 
-    created = await async_client.put(
-        "/api/v1/procurement-offers/resource", json=payload, headers=headers["updater"]
-    )
+    created = await async_client.put("/api/v1/procurement-offers/resource", json=payload, headers=headers["updater"])
     assert created.status_code == 200, created.text
     offer_id = created.json()[0]["id"]
     assert (
-        await async_client.delete(
-            f"/api/v1/procurement-offers/{offer_id}", headers=headers["updater"]
-        )
+        await async_client.delete(f"/api/v1/procurement-offers/{offer_id}", headers=headers["updater"])
     ).status_code == 403
     assert (
-        await async_client.delete(
-            f"/api/v1/procurement-offers/{offer_id}", headers=headers["deleter"]
-        )
+        await async_client.delete(f"/api/v1/procurement-offers/{offer_id}", headers=headers["deleter"])
     ).status_code == 204
 
 

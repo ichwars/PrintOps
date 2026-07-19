@@ -683,8 +683,7 @@ async def run_migrations(conn):
     # Migration: Add procurement metadata to technical materials.
     await _safe_execute(
         conn,
-        "ALTER TABLE small_parts ADD COLUMN default_consumption_reason "
-        "VARCHAR(120) NOT NULL DEFAULT 'Produktion'",
+        "ALTER TABLE small_parts ADD COLUMN default_consumption_reason VARCHAR(120) NOT NULL DEFAULT 'Produktion'",
     )
     await _safe_execute(conn, "ALTER TABLE small_parts ADD COLUMN internal_notes TEXT")
 
