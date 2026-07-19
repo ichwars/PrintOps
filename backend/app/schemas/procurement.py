@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
@@ -79,3 +80,60 @@ class SupplierListResponse(ProcurementSchema):
     total: int
     limit: int
     offset: int
+
+
+class MaterialResource(ProcurementSchema):
+    kind: Literal["material"]
+    small_part_id: int = Field(gt=0)
+
+
+class FilamentResource(ProcurementSchema):
+    kind: Literal["filament"]
+    material: str = Field(min_length=1, max_length=50)
+    subtype: str | None = Field(default=None, max_length=50)
+    brand: str | None = Field(default=None, max_length=100)
+    color_name: str | None = Field(default=None, max_length=100)
+
+
+ProcurementResource = Annotated[MaterialResource | FilamentResource, Field(discriminator="kind")]
+
+
+class ProcurementOfferWrite(ProcurementSchema):
+    id: int | None = Field(default=None, gt=0)
+    supplier_id: int = Field(gt=0)
+    supplier_sku: str | None = Field(default=None, max_length=255)
+    purchase_url: str | None = Field(default=None, max_length=2048)
+    package_quantity: Decimal = Field(default=Decimal("1"), gt=0)
+    package_unit_code: str = Field(default="C62", min_length=1, max_length=16)
+    minimum_order_quantity: Decimal = Field(default=Decimal("1"), gt=0)
+    lead_time_days: int | None = Field(default=None, ge=0, le=3650)
+    net_price: Decimal = Field(default=Decimal("0"), ge=0)
+    gross_price: Decimal = Field(default=Decimal("0"), ge=0)
+    is_preferred: bool = False
+    is_active: bool = True
+
+
+class ProcurementOffersReplace(ProcurementSchema):
+    resource: ProcurementResource
+    offers: list[ProcurementOfferWrite]
+
+
+class ProcurementOfferRead(ProcurementSchema):
+    id: int
+    supplier_id: int
+    small_part_id: int | None
+    filament_sku_settings_id: int | None
+    resource_key: str
+    supplier_sku: str | None
+    purchase_url: str | None
+    package_quantity: Decimal
+    package_unit_code: str
+    minimum_order_quantity: Decimal
+    lead_time_days: int
+    net_price: Decimal
+    gross_price: Decimal
+    is_preferred: bool
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    supplier: SupplierRead
