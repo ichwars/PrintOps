@@ -1,4 +1,5 @@
 import { request } from './client';
+import type { ProcurementOffer } from './procurement';
 
 export interface SmallPartBalance {
   physical: string;
@@ -36,7 +37,10 @@ export interface SmallPart extends SmallPartOption {
   location_id: number | null;
   minimum_stock: string;
   supplier_reference: string | null;
+  default_consumption_reason: string;
+  internal_notes: string | null;
   is_active: boolean;
+  preferred_offer: ProcurementOffer | null;
   category: SmallPartCategory | null;
   unit: SmallPartUnit;
   balance: SmallPartBalance;
@@ -55,7 +59,13 @@ export interface SmallPartInput {
   minimum_stock: string;
   unit_cost: string;
   supplier_reference?: string | null;
+  default_consumption_reason: string;
+  internal_notes?: string | null;
   is_active: boolean;
+}
+
+export interface SmallPartCreateInput extends SmallPartInput {
+  opening_quantity: string;
 }
 
 export type SmallPartUpdate = Partial<SmallPartInput>;
@@ -110,7 +120,7 @@ export const smallPartsApi = {
   list: (params: SmallPartListParams = {}) =>
     request<SmallPartPage>(`/small-parts?${queryString(params)}`),
   get: (id: number) => request<SmallPart>(`/small-parts/${id}`),
-  create: (input: SmallPartInput) =>
+  create: (input: SmallPartCreateInput) =>
     request<SmallPart>('/small-parts', { method: 'POST', body: JSON.stringify(input) }),
   update: (id: number, input: SmallPartUpdate) =>
     request<SmallPart>(`/small-parts/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
