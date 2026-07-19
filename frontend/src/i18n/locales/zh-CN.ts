@@ -6848,4 +6848,5 @@ export default {
     noReadAccess: '您没有查看库存预测的权限。',
     noWriteAccess: '您没有修改预测设置的权限。',
   },
+  suppliers: { navTitle: '供应商', title: '供应商', subtitle: '管理采购联系人和采购条款。', createTitle: '新建供应商', editTitle: '编辑供应商', searchLabel: '搜索供应商', searchPlaceholder: '公司、联系人、电子邮件、客户编号 …', activeFilter: '状态', loading: '正在加载供应商 …', empty: '没有找到匹配的供应商。', noContact: '无联系信息', leadTime: '默认交货期：{{count}} 天', sections: { masterData: '基本资料', contactAddress: '联系方式与地址', procurement: '采购', internalNotes: '内部备注' }, fields: { name: '公司名称', customerNumber: '客户编号', active: '启用供应商', contactName: '联系人', email: '电子邮件', phone: '电话', website: '网站', addressLine1: '地址行 1', addressLine2: '地址行 2', postalCode: '邮政编码', city: '城市', countryCode: '国家代码', paymentTerms: '付款条件', defaultLeadTime: '默认交货期', internalNotes: '内部备注' }, filters: { active: '已启用', inactive: '已停用', all: '全部供应商' }, actions: { create: '新建供应商', save: '保存供应商', edit: '编辑 {{name}}', delete: '删除供应商' }, validation: { nameRequired: '公司名称为必填项。' }, errors: { load: '无法加载供应商。', save: '无法保存供应商。', delete: '无法删除供应商。', noReadPermission: '您没有查看供应商的权限。' } },
 };

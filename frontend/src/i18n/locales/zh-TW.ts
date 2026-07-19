@@ -6848,4 +6848,5 @@ export default {
     noReadAccess: '您沒有查看庫存預測的權限。',
     noWriteAccess: '您沒有修改預測設定的權限。',
   },
+  suppliers: { navTitle: '供應商', title: '供應商', subtitle: '管理採購聯絡人和採購條款。', createTitle: '新增供應商', editTitle: '編輯供應商', searchLabel: '搜尋供應商', searchPlaceholder: '公司、聯絡人、電子郵件、客戶編號 …', activeFilter: '狀態', loading: '正在載入供應商 …', empty: '找不到相符的供應商。', noContact: '無聯絡資訊', leadTime: '預設交貨期：{{count}} 天', sections: { masterData: '基本資料', contactAddress: '聯絡方式與地址', procurement: '採購', internalNotes: '內部備註' }, fields: { name: '公司名稱', customerNumber: '客戶編號', active: '啟用供應商', contactName: '聯絡人', email: '電子郵件', phone: '電話', website: '網站', addressLine1: '地址行 1', addressLine2: '地址行 2', postalCode: '郵遞區號', city: '城市', countryCode: '國家代碼', paymentTerms: '付款條件', defaultLeadTime: '預設交貨期', internalNotes: '內部備註' }, filters: { active: '已啟用', inactive: '已停用', all: '全部供應商' }, actions: { create: '新增供應商', save: '儲存供應商', edit: '編輯 {{name}}', delete: '刪除供應商' }, validation: { nameRequired: '公司名稱為必填欄位。' }, errors: { load: '無法載入供應商。', save: '無法儲存供應商。', delete: '無法刪除供應商。', noReadPermission: '您沒有檢視供應商的權限。' } },
 };

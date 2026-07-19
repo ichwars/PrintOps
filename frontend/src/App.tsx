@@ -24,6 +24,7 @@ const FileManagerPage = lazy(() => import('./pages/FileManagerPage').then(({ Fil
 const LibraryTrashPage = lazy(() => import('./pages/LibraryTrashPage').then(({ LibraryTrashPage }) => ({ default: LibraryTrashPage })));
 const WarehousePage = lazy(() => import('./pages/WarehousePage').then(({ WarehousePage }) => ({ default: WarehousePage })));
 const SmallPartsPage = lazy(() => import('./pages/SmallPartsPage').then(({ SmallPartsPage }) => ({ default: SmallPartsPage })));
+const SuppliersPage = lazy(() => import('./pages/SuppliersPage').then(({ SuppliersPage }) => ({ default: SuppliersPage })));
 const OrdersPage = lazy(() => import('./pages/OrdersPage').then(({ OrdersPage }) => ({ default: OrdersPage })));
 const OrdersOverviewPage = lazy(() => import('./pages/OrdersOverviewPage').then(({ OrdersOverviewPage }) => ({ default: OrdersOverviewPage })));
 const OffersPage = lazy(() => import('./pages/OffersPage').then(({ OffersPage }) => ({ default: OffersPage })));
@@ -230,6 +231,7 @@ function App() {
                   <Route path="warehouse/filament" element={<InventoryPage />} />
                   <Route path="warehouse/parts" element={<SmallPartsPage />} />
                   <Route path="warehouse/stock" element={<WarehousePage />} />
+                  <Route path="warehouse/suppliers" element={<PermissionRoute permission="inventory:read"><SuppliersPage /></PermissionRoute>} />
                   <Route path="warehouse/material" element={<Navigate to="/warehouse/parts" replace />} />
                   <Route path="warehouse/goods" element={<Navigate to="/warehouse/stock" replace />} />
                   <Route path="inventory" element={<Navigate to="/warehouse/filament" replace />} />
