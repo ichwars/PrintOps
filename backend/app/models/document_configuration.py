@@ -273,30 +273,36 @@ class EInvoicePolicy(Base):
 class CustomerDocumentPreference(Base):
     __tablename__ = "customer_document_preferences"
     __table_args__ = (
-        UniqueConstraint(
-            "customer_id",
-            "business_profile_id",
-            "document_type",
-            "language",
-            name="uq_customer_document_preference",
+        CheckConstraint(
+            "einvoice_requirement IN ('inherit', 'optional', 'required')",
+            name="ck_customer_document_preference_requirement",
+        ),
+        CheckConstraint(
+            "vat_validation_result IN ('unchecked', 'valid', 'invalid', 'error')",
+            name="ck_customer_document_preference_vat_result",
         ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"), index=True)
-    business_profile_id: Mapped[int] = mapped_column(
-        ForeignKey("business_profiles.id", ondelete="RESTRICT"),
+    customer_account_id: Mapped[int] = mapped_column(
+        ForeignKey("customer_accounts.id", ondelete="CASCADE"),
+        unique=True,
         index=True,
     )
-    document_type: Mapped[str] = mapped_column(String(32))
-    language: Mapped[str] = mapped_column(String(16), default="de")
-    einvoice_preference: Mapped[str] = mapped_column(String(32), default="inherit")
-    endpoint_identifier: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    endpoint_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     endpoint_scheme: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    buyer_reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
     leitweg_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    routing_data: Mapped[dict] = mapped_column(JSON, default=dict)
+    buyer_reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    purchase_order_reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    supplier_reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    einvoice_requirement: Mapped[str] = mapped_column(String(32), default="inherit")
+    vat_validation_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    vat_validation_result: Mapped[str] = mapped_column(String(32), default="unchecked")
+    vat_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    vat_validation_reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
     lock_version: Mapped[int] = mapped_column(Integer, default=1)
+
+    account = relationship("CustomerAccount", back_populates="document_preference")
 
 
 class ConfigurationPublication(Base):
