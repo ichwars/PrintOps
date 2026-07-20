@@ -79,6 +79,10 @@ async def _load_configuration(
     return configuration
 
 
+async def load_configuration(session: AsyncSession, configuration_id: int) -> DocumentConfiguration:
+    return await _load_configuration(session, configuration_id)
+
+
 def _copy_child(child: Any, model_type: type, excluded: set[str]) -> Any:
     if child is None:
         return None
@@ -93,7 +97,7 @@ def _copy_child(child: Any, model_type: type, excluded: set[str]) -> Any:
 async def create_draft(
     session: AsyncSession,
     command: CreateConfigurationCommand,
-    actor_id: int,
+    actor_id: int | None,
 ) -> DocumentConfiguration:
     profile = await session.get(BusinessProfile, command.business_profile_id)
     if profile is None:
@@ -156,7 +160,7 @@ async def create_draft(
     return configuration
 
 
-async def clone_version(session: AsyncSession, configuration_id: int, actor_id: int) -> DocumentConfiguration:
+async def clone_version(session: AsyncSession, configuration_id: int, actor_id: int | None) -> DocumentConfiguration:
     source = await _load_configuration(session, configuration_id)
     highest_version = await session.scalar(
         select(func.max(DocumentConfiguration.version)).where(
@@ -198,7 +202,7 @@ async def update_draft(
     configuration_id: int,
     expected_version: int,
     patch: dict[str, Any],
-    actor_id: int,
+    actor_id: int | None,
 ) -> DocumentConfiguration:
     result = await session.execute(
         update(DocumentConfiguration)
@@ -279,7 +283,7 @@ async def publish(
     expected_version: int,
     effective_from: date,
     reason: str,
-    actor_id: int,
+    actor_id: int | None,
     rule_versions: dict[str, str],
 ) -> DocumentConfiguration:
     target = await _load_configuration(session, configuration_id)
@@ -340,6 +344,45 @@ async def publish(
     return target
 
 
+async def withdraw_scheduled(
+    session: AsyncSession,
+    configuration_id: int,
+    expected_version: int,
+    reason: str,
+    actor_id: int | None,
+) -> DocumentConfiguration:
+    result = await session.execute(
+        update(DocumentConfiguration)
+        .where(
+            DocumentConfiguration.id == configuration_id,
+            DocumentConfiguration.status == "scheduled",
+            DocumentConfiguration.lock_version == expected_version,
+        )
+        .values(
+            status="draft",
+            effective_from=None,
+            change_reason=reason,
+            published_by_id=None,
+            published_at=None,
+            lock_version=expected_version + 1,
+        )
+        .returning(DocumentConfiguration.id)
+    )
+    if result.scalar_one_or_none() is None:
+        existing = await session.get(DocumentConfiguration, configuration_id)
+        if existing is None:
+            raise ResourceNotFoundError(f"Document configuration {configuration_id} was not found")
+        if existing.status != "scheduled":
+            raise InvalidStateConflictError("Only scheduled configurations can be withdrawn")
+        raise VersionConflictError(f"Document configuration {configuration_id} changed concurrently")
+    configuration = await _load_configuration(session, configuration_id, populate_existing=True)
+    if configuration.publication is not None:
+        await session.delete(configuration.publication)
+        configuration.publication = None
+    await session.flush()
+    return configuration
+
+
 def _as_policy_draft(configuration: DocumentConfiguration) -> DocumentConfigurationDraft:
     payment = configuration.payment_policy
     dunning = configuration.dunning_policy
@@ -390,6 +433,10 @@ def _as_policy_draft(configuration: DocumentConfiguration) -> DocumentConfigurat
             for block in configuration.text_blocks
         ],
     )
+
+
+def to_draft_schema(configuration: DocumentConfiguration) -> DocumentConfigurationDraft:
+    return _as_policy_draft(configuration)
 
 
 def _value(value: Any, source: str, *, overridable: bool = True) -> SourcedValue:

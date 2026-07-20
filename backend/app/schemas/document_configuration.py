@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Generic, Literal, TypeVar
 
@@ -149,3 +149,61 @@ class EffectiveDocumentPolicy(StrictModel):
     tax: EffectiveTaxPolicy
     einvoice: EffectiveEInvoicePolicy
     text_blocks: list[EffectiveTextBlock]
+
+
+class UpdateConfigurationCommand(StrictModel):
+    expected_version: int = Field(gt=0)
+    patch: dict
+
+
+class PublishConfigurationRequest(PublishConfigurationCommand):
+    rule_versions: dict[str, str]
+
+
+class WithdrawConfigurationCommand(StrictModel):
+    expected_version: int = Field(gt=0)
+    reason: str = Field(min_length=3, max_length=1000)
+
+
+class EffectivePolicyRequest(StrictModel):
+    business_profile_id: int = Field(gt=0)
+    customer_id: int | None = Field(default=None, gt=0)
+    document_type: DocumentType
+    language: str = Field(pattern=r"^[a-z]{2}(?:-[A-Z]{2})?$", max_length=16)
+    document_overrides: dict = Field(default_factory=dict)
+
+
+class DocumentConfigurationSummary(StrictModel):
+    id: int
+    business_profile_id: int
+    document_type: str
+    language: str
+    version: int
+    status: str
+    effective_from: date | None
+    lock_version: int
+    change_reason: str | None
+    published_at: datetime | None
+
+
+class DocumentConfigurationDetail(DocumentConfigurationSummary):
+    policy: DocumentConfigurationDraft | None
+    validation_findings: list[dict] = Field(default_factory=list)
+
+
+class DocumentCatalogItem(StrictModel):
+    key: str
+    einvoice: bool
+    issuer_role: Literal["seller", "buyer"]
+    has_payment_terms: bool
+    has_tax: bool
+    allowed_successors: list[str]
+
+
+class DocumentCatalogResponse(StrictModel):
+    document_types: list[DocumentCatalogItem]
+
+
+class PlaceholderCatalogResponse(StrictModel):
+    placeholders: list[str]
+    text_block_purposes: list[str]
