@@ -103,7 +103,7 @@ primary need is printer control and automation.
 - Business profiles, customer records, and permissions.
 - Costing workspaces that connect project, material, machine, labor, and overhead
   data.
-- Foundations for quotations, orders, reservations, invoices, and related
+- Foundations for quotations, orders, reservations, and related
   commercial workflows.
 
 ### Platform
