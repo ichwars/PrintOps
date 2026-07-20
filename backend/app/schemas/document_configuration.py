@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -34,6 +35,57 @@ class PublishConfigurationCommand(StrictModel):
     expected_version: int = Field(gt=0)
     effective_from: date
     reason: str = Field(min_length=3, max_length=1000)
+
+
+class BankAssignmentDraft(StrictModel):
+    bank_account_id: int
+    is_default: bool = False
+
+
+class InstallmentDraft(StrictModel):
+    percent: Decimal
+    due_days: int
+
+
+class PaymentPolicyDraft(StrictModel):
+    payment_term_days: int
+    currency: str
+    discount_days: int = 0
+    discount_percent: Decimal = Decimal("0")
+    installments: list[InstallmentDraft] = Field(default_factory=list)
+    bank_assignments: list[BankAssignmentDraft] = Field(default_factory=list)
+
+
+class DunningStageDraft(StrictModel):
+    level: int
+    wait_days: int
+    fee: Decimal = Decimal("0")
+    charge_interest: bool = False
+    new_due_days: int = 7
+    body: str = ""
+    escalation_hint: str | None = None
+
+
+class DunningPolicyDraft(StrictModel):
+    enabled: bool = False
+    annual_interest_rate: Decimal = Decimal("0")
+    flat_fee: Decimal = Decimal("0")
+    stages: list[DunningStageDraft] = Field(default_factory=list)
+
+
+class DocumentTextBlockDraft(StrictModel):
+    purpose: str
+    body: str
+    condition: dict | None = None
+    position: int = 0
+
+
+class DocumentConfigurationDraft(StrictModel):
+    document_type: DocumentType
+    language: str
+    payment: PaymentPolicyDraft
+    dunning: DunningPolicyDraft
+    text_blocks: list[DocumentTextBlockDraft]
 
 
 class EffectiveBasicPolicy(StrictModel):

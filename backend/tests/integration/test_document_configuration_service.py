@@ -4,18 +4,20 @@ from datetime import date
 
 import pytest
 
-from backend.app.models.business_profile import BusinessProfile
+from backend.app.models.business_profile import BusinessProfile, BusinessProfileBankAccount
 from backend.app.models.customer import Customer, CustomerAccount
 from backend.app.models.document_configuration import (
     DocumentBasicPolicy,
     DocumentConfiguration,
     DocumentContentPolicy,
     DocumentTextBlock,
+    DunningPolicy,
     EInvoicePolicy,
     PaymentPolicy,
     TaxPolicy,
 )
 from backend.app.services.document_configuration import clone_version, publish, resolve_effective, update_draft
+from backend.app.services.document_policy_validation import ConfigurationNotReady
 from backend.app.services.order_errors import VersionConflictError
 
 
@@ -28,6 +30,16 @@ async def _configuration_fixture(db_session):
     )
     customer = Customer(kind="company", display_name="Example Customer", status="active", preferred_locale="de")
     db_session.add_all([profile, customer])
+    await db_session.flush()
+    bank_account = BusinessProfileBankAccount(
+        business_profile_id=profile.id,
+        label="Geschäftskonto",
+        account_holder="Lifecycle GmbH",
+        currency="EUR",
+        iban="DE02120300000000202051",
+        is_default=True,
+    )
+    db_session.add(bank_account)
     await db_session.flush()
     db_session.add(
         CustomerAccount(
@@ -48,11 +60,20 @@ async def _configuration_fixture(db_session):
         lock_version=1,
     )
     configuration.basic_policy = DocumentBasicPolicy(subject="Rechnung {DOCUMENT_NUMBER}")
-    configuration.payment_policy = PaymentPolicy(payment_term_days=14, currency="USD")
+    configuration.payment_policy = PaymentPolicy(
+        payment_term_days=14,
+        currency="USD",
+        bank_account_id=bank_account.id,
+    )
     configuration.content_policy = DocumentContentPolicy(include_calculation_data=True)
+    configuration.dunning_policy = DunningPolicy(enabled=False, annual_interest_rate=0, flat_fee=0)
     configuration.tax_policy = TaxPolicy(allowed_cases=["domestic"], allow_override=False)
     configuration.einvoice_policy = EInvoicePolicy(requirement="rule_required", syntax="ubl_2_1")
-    configuration.text_blocks = [DocumentTextBlock(purpose="closing", body="Vielen Dank.", position=0)]
+    configuration.text_blocks = [
+        DocumentTextBlock(purpose="intro", body="Rechnung {DOCUMENT_NUMBER}", position=0),
+        DocumentTextBlock(purpose="closing", body="Vielen Dank.", position=1),
+        DocumentTextBlock(purpose="payment_terms", body="Zahlbar bis {DUE_DATE}.", position=2),
+    ]
     db_session.add(configuration)
     await db_session.flush()
     return profile, customer, configuration
@@ -133,3 +154,58 @@ async def test_update_draft_uses_compare_and_swap(db_session):
             patch={"payment": {"payment_term_days": 28}},
             actor_id=7,
         )
+
+
+@pytest.mark.asyncio
+async def test_publish_rejects_policy_blockers(db_session):
+    _profile, _customer, active = await _configuration_fixture(db_session)
+    draft = await clone_version(db_session, active.id, actor_id=7)
+    draft = await update_draft(
+        db_session,
+        draft.id,
+        expected_version=1,
+        patch={"payment": {"payment_term_days": -1}},
+        actor_id=7,
+    )
+
+    with pytest.raises(ConfigurationNotReady) as error:
+        await publish(
+            db_session,
+            draft.id,
+            expected_version=draft.lock_version,
+            effective_from=date.today(),
+            reason="Invalid payment policy",
+            actor_id=7,
+            rule_versions={"tax": "2026.1", "en16931": "1.3.16"},
+        )
+
+    assert any(finding.code == "payment_term_negative" for finding in error.value.findings)
+
+
+@pytest.mark.asyncio
+async def test_update_draft_persists_discount_and_installment_rules(db_session):
+    _profile, _customer, active = await _configuration_fixture(db_session)
+    draft = await clone_version(db_session, active.id, actor_id=7)
+
+    updated = await update_draft(
+        db_session,
+        draft.id,
+        expected_version=1,
+        patch={
+            "payment": {
+                "discount_days": 7,
+                "discount_percent": "2.00",
+                "installments": [
+                    {"percent": "40.00", "due_days": 7},
+                    {"percent": "60.00", "due_days": 30},
+                ],
+            }
+        },
+        actor_id=7,
+    )
+
+    assert updated.payment_policy.early_payment_rules == [{"days": 7, "percent": "2.00"}]
+    assert updated.payment_policy.installments == [
+        {"percent": "40.00", "due_days": 7},
+        {"percent": "60.00", "due_days": 30},
+    ]

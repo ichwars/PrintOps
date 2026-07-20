@@ -25,7 +25,12 @@ from backend.app.models.document_configuration import (
     TaxPolicy,
 )
 from backend.app.schemas.document_configuration import (
+    BankAssignmentDraft,
     CreateConfigurationCommand,
+    DocumentConfigurationDraft,
+    DocumentTextBlockDraft,
+    DunningPolicyDraft,
+    DunningStageDraft,
     EffectiveBasicPolicy,
     EffectiveContentPolicy,
     EffectiveDocumentPolicy,
@@ -33,10 +38,13 @@ from backend.app.schemas.document_configuration import (
     EffectivePaymentPolicy,
     EffectiveTaxPolicy,
     EffectiveTextBlock,
+    InstallmentDraft,
+    PaymentPolicyDraft,
     SourcedValue,
 )
 from backend.app.services.document_catalog import DOCUMENT_CAPABILITIES, DocumentType, EInvoiceRequirement
 from backend.app.services.document_defaults import load_document_defaults
+from backend.app.services.document_policy_validation import ConfigurationNotReady, validate_policy
 from backend.app.services.order_errors import InvalidStateConflictError, ResourceNotFoundError, VersionConflictError
 
 
@@ -228,6 +236,32 @@ async def update_draft(
         target = section_targets.get(section)
         if target is None or not isinstance(values, dict):
             raise InvalidStateConflictError(f"Unsupported document configuration patch section: {section}")
+        values = deepcopy(values)
+        if section == "payment":
+            discount_days = values.pop("discount_days", None)
+            discount_percent = values.pop("discount_percent", None)
+            if discount_days is not None or discount_percent is not None:
+                current_rule = target.early_payment_rules[0] if target.early_payment_rules else {}
+                target.early_payment_rules = [
+                    {
+                        "days": discount_days if discount_days is not None else current_rule.get("days", 0),
+                        "percent": str(
+                            discount_percent if discount_percent is not None else current_rule.get("percent", "0")
+                        ),
+                    }
+                ]
+            if "installments" in values:
+                target.installments = [
+                    {
+                        "percent": str(InstallmentDraft.model_validate(item).percent),
+                        "due_days": InstallmentDraft.model_validate(item).due_days,
+                    }
+                    for item in values.pop("installments")
+                ]
+            if "bank_assignments" in values:
+                assignments = [BankAssignmentDraft.model_validate(item) for item in values.pop("bank_assignments")]
+                defaults = [assignment for assignment in assignments if assignment.is_default]
+                target.bank_account_id = defaults[0].bank_account_id if len(defaults) == 1 else None
         column_names = {column.name for column in target.__table__.columns}
         for field, value in values.items():
             if field not in column_names or field in {"configuration_id", "id"}:
@@ -235,6 +269,7 @@ async def update_draft(
             setattr(target, field, deepcopy(value))
 
     await session.flush()
+    configuration.validation_findings = validate_policy(_as_policy_draft(configuration))
     return configuration
 
 
@@ -248,6 +283,10 @@ async def publish(
     rule_versions: dict[str, str],
 ) -> DocumentConfiguration:
     target = await _load_configuration(session, configuration_id)
+    findings = validate_policy(_as_policy_draft(target))
+    blockers = tuple(finding for finding in findings if finding.severity == "blocker")
+    if blockers:
+        raise ConfigurationNotReady(blockers)
     versions = (
         await session.scalars(
             select(DocumentConfiguration)
@@ -299,6 +338,58 @@ async def publish(
     )
     await session.flush()
     return target
+
+
+def _as_policy_draft(configuration: DocumentConfiguration) -> DocumentConfigurationDraft:
+    payment = configuration.payment_policy
+    dunning = configuration.dunning_policy
+    if payment is None or dunning is None:
+        raise InvalidStateConflictError(f"Document configuration {configuration.id} has incomplete policy rows")
+
+    discount_rule = payment.early_payment_rules[0] if payment.early_payment_rules else {}
+    installments = payment.installments or []
+    return DocumentConfigurationDraft(
+        document_type=DocumentType(configuration.document_type),
+        language=configuration.language,
+        payment=PaymentPolicyDraft(
+            payment_term_days=payment.payment_term_days,
+            currency=payment.currency,
+            discount_days=discount_rule.get("days", 0),
+            discount_percent=discount_rule.get("percent", "0"),
+            installments=[InstallmentDraft.model_validate(item) for item in installments],
+            bank_assignments=(
+                [BankAssignmentDraft(bank_account_id=payment.bank_account_id, is_default=True)]
+                if payment.bank_account_id is not None
+                else []
+            ),
+        ),
+        dunning=DunningPolicyDraft(
+            enabled=dunning.enabled,
+            annual_interest_rate=dunning.annual_interest_rate,
+            flat_fee=dunning.flat_fee,
+            stages=[
+                DunningStageDraft(
+                    level=stage.level,
+                    wait_days=stage.wait_days,
+                    fee=stage.fee,
+                    charge_interest=stage.charge_interest,
+                    new_due_days=stage.new_due_days,
+                    body=stage.body,
+                    escalation_hint=stage.escalation_hint,
+                )
+                for stage in dunning.stages
+            ],
+        ),
+        text_blocks=[
+            DocumentTextBlockDraft(
+                purpose=block.purpose,
+                body=block.body,
+                condition=deepcopy(block.condition),
+                position=block.position,
+            )
+            for block in configuration.text_blocks
+        ],
+    )
 
 
 def _value(value: Any, source: str, *, overridable: bool = True) -> SourcedValue:

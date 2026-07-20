@@ -211,6 +211,7 @@ async def seed_document_configurations(conn) -> None:
                         due_date_basis="issue_date",
                         payment_methods=[],
                         early_payment_rules=[],
+                        installments=[],
                         prepayment_percent=0,
                         installment_enabled=False,
                         use_term_in_invoice_text=use_payment_term_in_invoice_text,

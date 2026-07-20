@@ -144,6 +144,7 @@ class PaymentPolicy(Base):
     due_date_basis: Mapped[str] = mapped_column(String(32), default="issue_date")
     payment_methods: Mapped[list] = mapped_column(JSON, default=list)
     early_payment_rules: Mapped[list] = mapped_column(JSON, default=list)
+    installments: Mapped[list] = mapped_column(JSON, default=list)
     prepayment_percent: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("0"))
     installment_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     bank_account_id: Mapped[int | None] = mapped_column(
