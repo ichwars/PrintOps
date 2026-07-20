@@ -27,6 +27,14 @@ from backend.app.models.calculation_project import (
 from backend.app.models.calculation_slice import CalculationSliceResult
 from backend.app.models.color_catalog import ColorCatalogEntry
 from backend.app.models.commerce import CustomerOrder, Offer, OfferAcceptance
+from backend.app.models.commercial_document import (
+    CommercialDocument,
+    CommercialDocumentLine,
+    DocumentArtifact,
+    DocumentNumberReservation,
+    DocumentRelation,
+    DocumentSnapshot,
+)
 from backend.app.models.customer import (
     Customer,
     CustomerAccount,
@@ -35,6 +43,7 @@ from backend.app.models.customer import (
     CustomerTag,
     CustomerTaxIdentifier,
 )
+from backend.app.models.document_audit import DocumentAuditEvent
 from backend.app.models.document_configuration import (
     ConfigurationPublication,
     CustomerDocumentPreference,
@@ -161,6 +170,13 @@ __all__ = [
     "Offer",
     "CustomerOrder",
     "OfferAcceptance",
+    "CommercialDocument",
+    "CommercialDocumentLine",
+    "DocumentRelation",
+    "DocumentSnapshot",
+    "DocumentArtifact",
+    "DocumentNumberReservation",
+    "DocumentAuditEvent",
     "Customer",
     "CustomerAccount",
     "CustomerAddress",
