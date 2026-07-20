@@ -162,9 +162,7 @@ jeweiligen Folgeinkrement sichtbar deaktiviert und lösen keine Datenänderung
 aus.
 
 Angebote werden im folgenden Ausbau aus einer freigegebenen Kalkulationsrevision
-erzeugt. Die vollstaendige Reihenfolge steht im Abschnitt
-[`Delivery Shape`](superpowers/specs/2026-07-10-order-management-design.md#delivery-shape)
-des freigegebenen Designs.
+erzeugt.
 
 PDF-Layouts werden als strukturierte Einstellungen nach Unternehmensprofil,
 Dokumentart und Sprache umgesetzt, sobald die kanonischen Dokumente in

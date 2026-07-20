@@ -14,16 +14,10 @@ on:
       - 'requirements.txt'
       - 'frontend/package*.json'
       - '.github/workflows/security.yml'
+  # These jobs are required by branch protection, so every pull request must
+  # create their check contexts. Path filtering here would leave docs-only and
+  # other non-code pull requests permanently blocked as "expected".
   pull_request:
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'spoolbuddy/**'
-      - 'Dockerfile'
-      - 'docker-compose*.yml'
-      - 'requirements.txt'
-      - 'frontend/package*.json'
-      - '.github/workflows/security.yml'
   workflow_dispatch:
     # Allow manual trigger
 
