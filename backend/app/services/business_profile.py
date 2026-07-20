@@ -16,6 +16,7 @@ from backend.app.models.business_profile import (
 from backend.app.models.customer import CustomerAccount
 from backend.app.models.number_sequence import NumberSequence
 from backend.app.schemas.business_profile import BusinessProfileCreate, BusinessProfileUpdate
+from backend.app.schemas.number_sequence import NumberSequenceCreate, NumberSequenceUpdate
 from backend.app.services.order_errors import ResourceInUseError, ResourceNotFoundError, VersionConflictError
 
 _PROFILE_LOAD_OPTIONS = (
@@ -73,6 +74,66 @@ async def _load_business_profile(
 
 async def get_business_profile(session: AsyncSession, profile_id: int) -> BusinessProfile:
     return await _load_business_profile(session, profile_id)
+
+
+async def list_number_sequences(session: AsyncSession, profile_id: int) -> list[NumberSequence]:
+    await _load_business_profile(session, profile_id)
+    result = await session.execute(
+        select(NumberSequence)
+        .where(NumberSequence.business_profile_id == profile_id)
+        .order_by(NumberSequence.key)
+    )
+    return list(result.scalars().all())
+
+
+async def create_number_sequence(
+    session: AsyncSession,
+    profile_id: int,
+    data: NumberSequenceCreate,
+) -> NumberSequence:
+    await _load_business_profile(session, profile_id)
+    sequence = NumberSequence(
+        business_profile_id=profile_id,
+        **data.model_dump(),
+        current_period=None,
+    )
+    session.add(sequence)
+    await session.flush()
+    return sequence
+
+
+async def update_number_sequence(
+    session: AsyncSession,
+    profile_id: int,
+    sequence_id: int,
+    data: NumberSequenceUpdate,
+) -> NumberSequence:
+    values = data.model_dump(exclude={"version"})
+    if data.reset_policy == "none":
+        values["current_period"] = None
+    result = await session.execute(
+        update(NumberSequence)
+        .where(
+            NumberSequence.id == sequence_id,
+            NumberSequence.business_profile_id == profile_id,
+            NumberSequence.version == data.version,
+        )
+        .values(**values, version=NumberSequence.version + 1)
+        .returning(NumberSequence.id)
+    )
+    if result.scalar_one_or_none() is None:
+        exists = await session.scalar(
+            select(NumberSequence.id).where(
+                NumberSequence.id == sequence_id,
+                NumberSequence.business_profile_id == profile_id,
+            )
+        )
+        if exists is None:
+            raise ResourceNotFoundError(f"Number sequence {sequence_id} was not found")
+        raise VersionConflictError(f"Number sequence {sequence_id} changed concurrently; reload it and retry")
+    sequence = await session.scalar(select(NumberSequence).where(NumberSequence.id == sequence_id))
+    assert sequence is not None
+    return sequence
 
 
 async def get_default_business_profile(session: AsyncSession) -> BusinessProfile:

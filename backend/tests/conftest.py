@@ -163,6 +163,7 @@ async def test_engine():
         user_otp_code,
         user_totp,
         virtual_printer,
+        warehouse_number_sequence,
     )
 
     async with engine.begin() as conn:

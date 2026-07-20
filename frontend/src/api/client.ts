@@ -3287,6 +3287,51 @@ export interface BusinessProfileOption {
   is_active: boolean;
 }
 
+export type NumberSequenceKey = 'customer' | 'offer' | 'order' | 'invoice';
+export type NumberSequenceResetPolicy = 'none' | 'yearly';
+
+export interface NumberSequenceValues {
+  prefix: string;
+  pattern: string;
+  next_value: number;
+  reset_policy: NumberSequenceResetPolicy;
+}
+
+export interface NumberSequenceCreate extends NumberSequenceValues {
+  key: NumberSequenceKey;
+}
+
+export interface NumberSequenceUpdate extends NumberSequenceValues {
+  version: number;
+}
+
+export interface NumberSequence extends NumberSequenceCreate {
+  id: number;
+  business_profile_id: number;
+  current_period: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type WarehouseNumberSequenceKey = 'material' | 'spool' | 'purchase_order' | 'goods_receipt';
+
+export interface WarehouseNumberSequenceCreate extends NumberSequenceValues {
+  key: WarehouseNumberSequenceKey;
+}
+
+export interface WarehouseNumberSequenceUpdate extends NumberSequenceValues {
+  version: number;
+}
+
+export interface WarehouseNumberSequence extends WarehouseNumberSequenceCreate {
+  id: number;
+  current_period: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CustomerAccount {
   business_profile_id: number;
   number?: string | null;
@@ -6086,6 +6131,30 @@ export const api = {
       `/business-profiles/${includeInactive ? '?includeInactive=true' : ''}`,
     ),
   getBusinessProfileOptions: () => request<BusinessProfileOption[]>('/business-profiles/options'),
+  getNumberSequences: (profileId: number) =>
+    request<NumberSequence[]>(`/business-profiles/${profileId}/number-sequences`),
+  createNumberSequence: (profileId: number, data: NumberSequenceCreate) =>
+    request<NumberSequence>(`/business-profiles/${profileId}/number-sequences`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateNumberSequence: (profileId: number, sequenceId: number, data: NumberSequenceUpdate) =>
+    request<NumberSequence>(`/business-profiles/${profileId}/number-sequences/${sequenceId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  getWarehouseNumberSequences: () =>
+    request<WarehouseNumberSequence[]>('/inventory/number-sequences'),
+  createWarehouseNumberSequence: (data: WarehouseNumberSequenceCreate) =>
+    request<WarehouseNumberSequence>('/inventory/number-sequences', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateWarehouseNumberSequence: (sequenceId: number, data: WarehouseNumberSequenceUpdate) =>
+    request<WarehouseNumberSequence>(`/inventory/number-sequences/${sequenceId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
   createBusinessProfile: (data: BusinessProfileCreate) =>
     request<BusinessProfile>('/business-profiles/', {
       method: 'POST',

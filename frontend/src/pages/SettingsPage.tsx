@@ -44,6 +44,7 @@ import { SpoolBuddySettings } from '../components/SpoolBuddySettings';
 import { BusinessProfileSettings } from '../components/settings/BusinessProfileSettings';
 import { CalculationSettings } from '../components/orders/calculation/CalculationSettings';
 import { SmallPartsSettings } from '../components/settings/SmallPartsSettings';
+import { WarehouseNumberSequenceSettings } from '../components/settings/WarehouseNumberSequenceSettings';
 import {
   DryerManagementCard,
   PrinterManagementCard,
@@ -131,6 +132,7 @@ registerSettingsSearch({ labelKey: 'settings.tabs.backup', tab: 'operations', op
 registerSettingsSearch({ labelKey: 'externalLinks.sidebarLayout', labelFallback: 'Sidebar', tab: 'general', keywords: 'sidebar layout links pages hide show external custom navigation url add', anchor: 'card-sidebar-links' });
 // Filament tab — integrations
 registerSettingsSearch({ labelKey: 'settings.filamentTracking', tab: 'warehouse-material', warehouseMaterialSubTab: 'filament', keywords: 'spoolman filament tracking inventory sync remote integration', anchor: 'card-spoolman' });
+registerSettingsSearch({ labelKey: 'settings.tabs.warehouseNumberSequences', labelFallback: 'Number sequences', tab: 'warehouse-material', warehouseMaterialSubTab: 'number-sequences', keywords: 'number sequence prefix material spool purchase order goods receipt nummernkreis präfix material spule bestellung wareneingang', anchor: 'card-warehouse-number-sequences' });
 registerSettingsSearch({ labelKey: 'settings.tabs.warehouseSmallParts', labelFallback: 'Material', tab: 'warehouse-material', warehouseMaterialSubTab: 'small-parts', keywords: 'material materials category unit location stock meldebestand', anchor: 'card-small-parts' });
 registerSettingsSearch({ labelKey: 'settings.catalog.spoolCatalog', labelFallback: 'Spool Catalog', tab: 'warehouse-material', warehouseMaterialSubTab: 'catalogs', keywords: 'spool catalog entries brand material reset import export', anchor: 'card-spool-catalog' });
 registerSettingsSearch({ labelKey: 'settings.colorCatalog.title', labelFallback: 'Color Catalog', tab: 'warehouse-material', warehouseMaterialSubTab: 'catalogs', keywords: 'color catalog hex swatch palette sync reset', anchor: 'card-color-catalog' });
@@ -386,6 +388,15 @@ const PROJECT_MANAGEMENT_SUB_TAB_ITEMS: Array<{ id: ProjectManagementSubTab; met
 ];
 
 const WAREHOUSE_MATERIAL_SUB_TABS: Record<WarehouseMaterialSubTab, SettingsHeaderMeta> = {
+  'number-sequences': {
+    labelKey: 'settings.tabs.warehouseNumberSequences',
+    fallback: 'Number sequences',
+    fallbackDe: 'Nummernkreise',
+    descriptionKey: 'settings.warehouseMaterialSubTabDescriptions.numberSequences',
+    descriptionFallback: 'Manage global number sequences for materials, spools, purchase orders, and goods receipts.',
+    descriptionFallbackDe: 'Globale Nummernkreise für Material, Spulen, Bestellungen und Wareneingänge verwalten.',
+    icon: ListOrdered,
+  },
   filament: {
     labelKey: 'settings.tabs.warehouseFilament',
     fallback: 'Filament',
@@ -423,6 +434,7 @@ const WAREHOUSE_MATERIAL_SUB_TABS: Record<WarehouseMaterialSubTab, SettingsHeade
 };
 
 const WAREHOUSE_MATERIAL_SUB_TAB_ITEMS: Array<{ id: WarehouseMaterialSubTab; meta: SettingsHeaderMeta }> = [
+  { id: 'number-sequences', meta: WAREHOUSE_MATERIAL_SUB_TABS['number-sequences'] },
   { id: 'filament', meta: WAREHOUSE_MATERIAL_SUB_TABS.filament },
   { id: 'small-parts', meta: WAREHOUSE_MATERIAL_SUB_TABS['small-parts'] },
   { id: 'catalogs', meta: WAREHOUSE_MATERIAL_SUB_TABS.catalogs },
@@ -486,6 +498,7 @@ const legacySearchTabByAnchor: Record<string, string> = {
   'card-gcode': 'queue',
   'card-slicer': 'queue',
   'card-drying': 'warehouse-material',
+  'card-warehouse-number-sequences': 'warehouse-material',
   'card-preheat': 'queue',
   'card-pipelines': 'queue',
   'card-filamentchecks': 'filament',
@@ -5871,6 +5884,10 @@ export function SettingsPage() {
         </div>
       )}
 
+      {activeTab === 'warehouse-material' && warehouseMaterialSubTab === 'number-sequences' && (
+        <WarehouseNumberSequenceSettings />
+      )}
+
       {activeTab === 'warehouse-material' && warehouseMaterialSubTab === 'small-parts' && localSettings && (
         <SmallPartsSettings
           defaultMinimumStock={String(localSettings.small_parts_default_minimum_stock ?? '0')}
@@ -5884,10 +5901,9 @@ export function SettingsPage() {
 
       {activeTab === 'warehouse-material' && warehouseMaterialSubTab === 'filament' && localSettings && (
         <>
-        <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-          {/* Left Column (1/3) - Mode Selector + AMS Thresholds */}
-          <div className="lg:w-1/3 space-y-3">
-            {queueDryingCard}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+          {/* Left Column - Filament and AMS settings */}
+          <div className="space-y-3">
             <SpoolmanSettings />
 
             <Card id="card-filamentchecks">
@@ -6080,6 +6096,11 @@ export function SettingsPage() {
 
               </CardContent>
             </Card>
+          </div>
+
+          {/* Right Column - Automatic drying and humidity thresholds */}
+          <div className="space-y-3">
+            {queueDryingCard}
           </div>
 
         </div>

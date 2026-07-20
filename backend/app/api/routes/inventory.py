@@ -2,7 +2,7 @@ import json
 import logging
 
 import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import delete, func, select
@@ -43,6 +43,12 @@ from backend.app.schemas.spool import (
     normalize_extra_colors,
 )
 from backend.app.schemas.spool_usage import SpoolUsageHistoryResponse
+from backend.app.schemas.warehouse_number_sequence import (
+    WarehouseNumberSequenceCreate,
+    WarehouseNumberSequenceResponse,
+    WarehouseNumberSequenceUpdate,
+)
+from backend.app.services import warehouse_number_sequence as warehouse_number_sequence_service
 from backend.app.services.location_service import (
     DUPLICATE_LOCATION_NAME,
     assign_location_name,
@@ -53,6 +59,7 @@ from backend.app.services.location_service import (
     prepare_internal_spool_payload,
     rename_location as rename_location_record,
 )
+from backend.app.services.order_errors import ResourceNotFoundError, VersionConflictError
 from backend.app.services.slicer_filament_resolver import resolve_slicer_filament
 from backend.app.services.spool_csv import (
     MAX_CSV_IMPORT_BYTES,
@@ -82,6 +89,54 @@ _CSV_UPLOAD_CHUNK_BYTES = 64 * 1024
 
 # FilamentColors.xyz API
 FILAMENT_COLORS_API = "https://filamentcolors.xyz/api"
+
+
+@router.get("/number-sequences", response_model=list[WarehouseNumberSequenceResponse])
+async def list_warehouse_number_sequences(
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
+):
+    return await warehouse_number_sequence_service.list_number_sequences(db)
+
+
+@router.post(
+    "/number-sequences",
+    response_model=WarehouseNumberSequenceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_warehouse_number_sequence(
+    data: WarehouseNumberSequenceCreate,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+):
+    try:
+        sequence = await warehouse_number_sequence_service.create_number_sequence(db, data)
+        await db.commit()
+        return sequence
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "duplicate_sequence", "message": "Warehouse number sequence already exists"},
+        ) from exc
+
+
+@router.put("/number-sequences/{sequence_id}", response_model=WarehouseNumberSequenceResponse)
+async def update_warehouse_number_sequence(
+    sequence_id: int,
+    data: WarehouseNumberSequenceUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+):
+    try:
+        sequence = await warehouse_number_sequence_service.update_number_sequence(db, sequence_id, data)
+        await db.commit()
+        return sequence
+    except (ResourceNotFoundError, VersionConflictError) as exc:
+        await db.rollback()
+        code = "not_found" if isinstance(exc, ResourceNotFoundError) else "version_conflict"
+        status_code = status.HTTP_404_NOT_FOUND if code == "not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=status_code, detail={"code": code, "message": str(exc)}) from exc
 
 
 async def apply_spool_to_slot_via_mqtt(

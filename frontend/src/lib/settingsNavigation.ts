@@ -30,7 +30,7 @@ export type PrinterProductionSubTab = 'devices' | 'print-process' | 'pipelines' 
 
 export type ProjectManagementSubTab = 'files';
 
-export type WarehouseMaterialSubTab = 'filament' | 'small-parts' | 'catalogs' | 'spoolbuddy';
+export type WarehouseMaterialSubTab = 'number-sequences' | 'filament' | 'small-parts' | 'catalogs' | 'spoolbuddy';
 
 export type OrderManagementSubTab = 'business-profile' | 'calculation';
 

@@ -394,6 +394,87 @@ async def test_create_normalizes_nested_codes_and_creates_customer_sequence(
 
 
 @pytest.mark.asyncio
+async def test_number_sequences_can_be_listed_and_invoice_sequence_created(async_client: AsyncClient):
+    profile = await create_profile(async_client)
+
+    listed = await async_client.get(f"{BASE_URL}/{profile['id']}/number-sequences")
+
+    assert listed.status_code == 200, listed.text
+    assert {item["key"] for item in listed.json()} == {"customer", "offer", "order"}
+
+    created = await async_client.post(
+        f"{BASE_URL}/{profile['id']}/number-sequences",
+        json={
+            "key": "invoice",
+            "prefix": "RE",
+            "pattern": "{PREFIX}-{YYYY}-{####}",
+            "next_value": 1003,
+            "reset_policy": "yearly",
+        },
+    )
+
+    assert created.status_code == 201, created.text
+    assert {
+        "key": "invoice",
+        "prefix": "RE",
+        "pattern": "{PREFIX}-{YYYY}-{####}",
+        "next_value": 1003,
+        "reset_policy": "yearly",
+        "current_period": None,
+        "version": 1,
+    }.items() <= created.json().items()
+
+
+@pytest.mark.asyncio
+async def test_number_sequence_update_validates_pattern_and_version(async_client: AsyncClient):
+    profile = await create_profile(async_client)
+    sequences = (await async_client.get(f"{BASE_URL}/{profile['id']}/number-sequences")).json()
+    offer = next(item for item in sequences if item["key"] == "offer")
+
+    updated = await async_client.put(
+        f"{BASE_URL}/{profile['id']}/number-sequences/{offer['id']}",
+        json={
+            "prefix": "AG",
+            "pattern": "{PREFIX}-{YY}-{####}",
+            "next_value": 1011,
+            "reset_policy": "yearly",
+            "version": offer["version"],
+        },
+    )
+
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["prefix"] == "AG"
+    assert updated.json()["pattern"] == "{PREFIX}-{YY}-{####}"
+    assert updated.json()["next_value"] == 1011
+    assert updated.json()["version"] == offer["version"] + 1
+
+    stale = await async_client.put(
+        f"{BASE_URL}/{profile['id']}/number-sequences/{offer['id']}",
+        json={
+            "prefix": "ALT",
+            "pattern": "{PREFIX}-{#####}",
+            "next_value": 1,
+            "reset_policy": "none",
+            "version": offer["version"],
+        },
+    )
+    assert stale.status_code == 409
+    assert stale.json()["detail"]["code"] == "version_conflict"
+
+    invalid = await async_client.post(
+        f"{BASE_URL}/{profile['id']}/number-sequences",
+        json={
+            "key": "invoice",
+            "prefix": "RE",
+            "pattern": "{PREFIX}-{UNKNOWN}-{####}",
+            "next_value": 1,
+            "reset_policy": "none",
+        },
+    )
+    assert invalid.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_default_switching_and_explicit_default_endpoint(async_client: AsyncClient):
     first = await create_profile(async_client, name="EU Operations", is_default=False)
     second = await create_profile(async_client, name="Nordic Operations", is_default=True)

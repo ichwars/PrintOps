@@ -47,7 +47,10 @@ function profile(overrides: Record<string, unknown> = {}) {
 }
 
 function useProfiles(profiles: Record<string, unknown>[]) {
-  server.use(http.get('/api/v1/business-profiles/', () => HttpResponse.json(profiles)));
+  server.use(
+    http.get('/api/v1/business-profiles/', () => HttpResponse.json(profiles)),
+    http.get('/api/v1/business-profiles/:profileId/number-sequences', () => HttpResponse.json([])),
+  );
 }
 
 function usePermissions(permissions: string[]) {
@@ -93,6 +96,57 @@ describe('BusinessProfileSettings', () => {
     expect(screen.getByText('Loading business profiles...')).toBeInTheDocument();
     expect(await screen.findByText('No business profiles yet.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add business profile' })).toBeInTheDocument();
+  });
+
+  it('shows editable number sequences for the selected business profile', async () => {
+    await i18n.changeLanguage('de');
+    useProfiles([profile()]);
+    server.use(http.get('/api/v1/business-profiles/7/number-sequences', () => HttpResponse.json([
+      {
+        id: 21,
+        business_profile_id: 7,
+        key: 'offer',
+        prefix: 'ANG',
+        pattern: '{PREFIX}-{YYYY}-{#####}',
+        next_value: 12,
+        reset_policy: 'yearly',
+        current_period: '2026',
+        version: 3,
+        created_at: '2026-07-01T10:00:00Z',
+        updated_at: '2026-07-01T10:00:00Z',
+      },
+    ])));
+
+    render(<BusinessProfileSettings />);
+
+    expect(await screen.findByRole('heading', { name: 'Nummernkreise' })).toBeInTheDocument();
+    expect(await screen.findByLabelText('Unternehmensprofil für Nummernkreise')).toHaveTextContent('EU Operations');
+    expect(await screen.findByLabelText('Angebots-Präfix')).toHaveValue('ANG');
+    expect(screen.getByLabelText('Nächste Angebotsnummer')).toHaveValue(12);
+    expect(screen.getByLabelText('Angebots-Nummernformat')).toHaveValue('{PREFIX}-{YYYY}-{#####}');
+    expect(screen.getByRole('checkbox', { name: 'Angebotsnummer jährlich zurücksetzen' })).toBeChecked();
+  });
+
+  it('creates a missing invoice number sequence', async () => {
+    const user = userEvent.setup();
+    let submitted: Record<string, unknown> | undefined;
+    await i18n.changeLanguage('de');
+    useProfiles([profile()]);
+    server.use(http.post('/api/v1/business-profiles/7/number-sequences', async ({ request }) => {
+      submitted = await request.json() as Record<string, unknown>;
+      return HttpResponse.json({ id: 24, business_profile_id: 7, ...submitted, current_period: null, version: 1 }, { status: 201 });
+    }));
+
+    render(<BusinessProfileSettings />);
+    await user.click(await screen.findByRole('button', { name: 'Rechnungsnummernkreis anlegen' }));
+
+    await waitFor(() => expect(submitted).toEqual({
+      key: 'invoice',
+      prefix: 'RE',
+      pattern: '{PREFIX}-{YYYY}-{#####}',
+      next_value: 1,
+      reset_policy: 'yearly',
+    }));
   });
 
   it('creates a valid profile with a registered address', async () => {
@@ -169,7 +223,8 @@ describe('BusinessProfileSettings', () => {
     useProfiles([profile()]);
     render(<BusinessProfileSettings />);
 
-    const section = (await screen.findByText('EU Operations')).closest('#card-business-profile');
+    const section = (await screen.findByRole('heading', { name: 'Business Profile' })).closest('#card-business-profile');
+    expect(await within(section as HTMLElement).findByText('EU Operations')).toBeInTheDocument();
     expect(section).toHaveClass('w-full');
     expect(section).not.toHaveClass('max-w-5xl');
     expect(within(section as HTMLElement).getByRole('table')).toHaveClass('table-fixed');
@@ -444,7 +499,7 @@ describe('BusinessProfileSettings', () => {
     useProfiles([profile()]);
 
     render(<BusinessProfileSettings />);
-    expect(await screen.findByText('EU Operations')).toBeInTheDocument();
+    expect((await screen.findAllByText('EU Operations')).length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Add business profile' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit EU Operations' })).not.toBeInTheDocument();
   });
@@ -807,7 +862,7 @@ describe('BusinessProfileSettings', () => {
     }));
 
     render(<BusinessProfileSettings />);
-    expect(await screen.findByText('EU Operations')).toBeInTheDocument();
+    expect((await screen.findAllByText('EU Operations')).length).toBeGreaterThan(0);
     expect(screen.queryByText('Legacy EU')).not.toBeInTheDocument();
     await user.click(screen.getByRole('checkbox', { name: 'Include inactive profiles' }));
     expect(await screen.findByText('Legacy EU')).toBeInTheDocument();
@@ -817,7 +872,7 @@ describe('BusinessProfileSettings', () => {
     useProfiles([profile(), profile({ id: 8, name: 'North America', legal_name: 'North America LLC', is_default: false })]);
     render(<BusinessProfileSettings />);
 
-    expect(await screen.findByText('EU Operations')).toBeInTheDocument();
+    expect((await screen.findAllByText('EU Operations')).length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Delete EU Operations' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete North America' })).toBeInTheDocument();
   });

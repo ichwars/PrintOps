@@ -42,7 +42,10 @@ export function SmallPartsSettings({ defaultMinimumStock, lowStockWarning, onDef
     onSuccess: async () => { setLocationName(''); await invalidate(['warehouse', 'locations']); },
   });
   const deleteLocation = useMutation({ mutationFn: api.deleteLocation, onSuccess: () => invalidate(['warehouse', 'locations']) });
-  const inputClass = 'rounded-lg border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white';
+  const inputClass = 'rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 py-2 text-sm text-white placeholder:text-bambu-gray focus:border-bambu-green focus:outline-none focus:ring-2 focus:ring-bambu-green/30';
+  const addButtonClass = 'shrink-0 rounded-lg bg-bambu-green p-2 text-white transition-colors hover:bg-bambu-green-light focus:outline-none focus:ring-2 focus:ring-bambu-green';
+  const listItemClass = 'flex items-center justify-between rounded-lg border border-bambu-dark-tertiary px-3 py-2 text-sm text-bambu-gray-light';
+  const deleteButtonClass = 'rounded p-1 text-red-300 transition-colors hover:bg-red-500/10 hover:text-red-200 focus:outline-none focus:ring-2 focus:ring-red-500/50';
 
   return (
     <div className="space-y-4">
@@ -51,14 +54,17 @@ export function SmallPartsSettings({ defaultMinimumStock, lowStockWarning, onDef
         <Card>
           <CardHeader><h3 className="font-semibold text-white">Kategorien</h3></CardHeader>
           <CardContent className="space-y-3">
-            <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); addCategory.mutate(); }}>
-              <TextField aria-label="Neue Kategorie" required value={categoryName} onValueChange={setCategoryName} className={`${inputClass} min-w-0 flex-1`} />
-              <button aria-label="Kategorie hinzufügen" className="rounded-lg bg-green-600 p-2 text-white"><Plus className="h-5 w-5" /></button>
+            <form className="flex items-end gap-2" onSubmit={(event) => { event.preventDefault(); addCategory.mutate(); }}>
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="text-sm text-bambu-gray-light">Bezeichnung der Materialkategorie</p>
+                <TextField aria-label="Neue Kategorie" required value={categoryName} onValueChange={setCategoryName} className={inputClass} />
+              </div>
+              <button aria-label="Kategorie hinzufügen" className={addButtonClass}><Plus className="h-5 w-5" /></button>
             </form>
             {categories.data?.map((category) => (
-              <div key={category.id} className="flex items-center justify-between rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200">
+              <div key={category.id} className={listItemClass}>
                 <span>{category.name}</span>
-                <button aria-label={`${category.name} löschen`} onClick={() => deleteCategory.mutate(category.id)} className="text-red-300"><Trash2 className="h-4 w-4" /></button>
+                <button aria-label={`${category.name} löschen`} onClick={() => deleteCategory.mutate(category.id)} className={deleteButtonClass}><Trash2 className="h-4 w-4" /></button>
               </div>
             ))}
           </CardContent>
@@ -67,16 +73,25 @@ export function SmallPartsSettings({ defaultMinimumStock, lowStockWarning, onDef
         <Card>
           <CardHeader><h3 className="font-semibold text-white">Einheiten</h3></CardHeader>
           <CardContent className="space-y-3">
-            <form className="grid grid-cols-[1fr_2fr_auto_auto] gap-2" onSubmit={(event) => { event.preventDefault(); addUnit.mutate(); }}>
-              <TextField aria-label="Einheit Code" placeholder="C62" required value={unitCode} onValueChange={setUnitCode} className={inputClass} />
-              <TextField aria-label="Einheit Bezeichnung" placeholder="Stück" required value={unitLabel} onValueChange={setUnitLabel} className={inputClass} />
-              <NumberField aria-label="Nachkommastellen" min="0" max="6" value={unitDecimals} onValueChange={(value) => setUnitDecimals(Number(value))} className={`${inputClass} w-20`} />
-              <button aria-label="Einheit hinzufügen" className="rounded-lg bg-green-600 p-2 text-white"><Plus className="h-5 w-5" /></button>
+            <form className="grid grid-cols-[1fr_2fr_auto_auto] items-end gap-2" onSubmit={(event) => { event.preventDefault(); addUnit.mutate(); }}>
+              <div className="space-y-1">
+                <p className="text-sm text-bambu-gray-light">Einheitencode, z. B. C62</p>
+                <TextField aria-label="Einheit Code" placeholder="C62" required value={unitCode} onValueChange={setUnitCode} className={inputClass} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-bambu-gray-light">Anzeigename, z. B. Stück</p>
+                <TextField aria-label="Einheit Bezeichnung" placeholder="Stück" required value={unitLabel} onValueChange={setUnitLabel} className={inputClass} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-bambu-gray-light">Nachkommastellen</p>
+                <NumberField aria-label="Nachkommastellen" min="0" max="6" value={unitDecimals} onValueChange={(value) => setUnitDecimals(Number(value))} className={`${inputClass} w-20`} />
+              </div>
+              <button aria-label="Einheit hinzufügen" className={addButtonClass}><Plus className="h-5 w-5" /></button>
             </form>
             {units.data?.map((unit) => (
-              <div key={unit.code} className="flex items-center justify-between rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200">
-                <span>{unit.label} <span className="text-gray-500">({unit.code}, {unit.decimal_places} Stellen)</span></span>
-                <button aria-label={`${unit.label} löschen`} onClick={() => deleteUnit.mutate(unit.code)} className="text-red-300"><Trash2 className="h-4 w-4" /></button>
+              <div key={unit.code} className={listItemClass}>
+                <span>{unit.label} <span className="text-bambu-gray">({unit.code}, {unit.decimal_places} Stellen)</span></span>
+                <button aria-label={`${unit.label} löschen`} onClick={() => deleteUnit.mutate(unit.code)} className={deleteButtonClass}><Trash2 className="h-4 w-4" /></button>
               </div>
             ))}
           </CardContent>
@@ -85,14 +100,17 @@ export function SmallPartsSettings({ defaultMinimumStock, lowStockWarning, onDef
         <Card>
           <CardHeader><h3 className="font-semibold text-white">Lagerorte</h3></CardHeader>
           <CardContent className="space-y-3">
-            <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); addLocation.mutate(); }}>
-              <TextField aria-label="Neuer Lagerort" required value={locationName} onValueChange={setLocationName} className={`${inputClass} min-w-0 flex-1`} />
-              <button aria-label="Lagerort hinzufügen" className="rounded-lg bg-green-600 p-2 text-white"><Plus className="h-5 w-5" /></button>
-            </form>
+            <div className="space-y-1">
+              <p className="text-sm text-bambu-gray-light">Lagerorte gelten gemeinsam für Filament und Material.</p>
+              <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); addLocation.mutate(); }}>
+                <TextField aria-label="Neuer Lagerort" required value={locationName} onValueChange={setLocationName} className={`${inputClass} min-w-0 flex-1`} />
+                <button aria-label="Lagerort hinzufügen" className={addButtonClass}><Plus className="h-5 w-5" /></button>
+              </form>
+            </div>
             {locations.data?.map((location) => (
-              <div key={location.id} className="flex items-center justify-between rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200">
+              <div key={location.id} className={listItemClass}>
                 <span>{location.name}</span>
-                <button aria-label={`${location.name} löschen`} onClick={() => deleteLocation.mutate(location.id)} className="text-red-300"><Trash2 className="h-4 w-4" /></button>
+                <button aria-label={`${location.name} löschen`} onClick={() => deleteLocation.mutate(location.id)} className={deleteButtonClass}><Trash2 className="h-4 w-4" /></button>
               </div>
             ))}
           </CardContent>

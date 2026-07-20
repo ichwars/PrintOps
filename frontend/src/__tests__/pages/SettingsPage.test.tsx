@@ -194,7 +194,7 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       expect(await screen.findByRole('button', { name: 'Business Profile' })).toHaveClass('text-bambu-green');
-      expect(await screen.findByText('Berlin Print Works')).toBeInTheDocument();
+      expect((await screen.findAllByText('Berlin Print Works')).length).toBeGreaterThan(0);
       expect(screen.getByText('Default')).toBeInTheDocument();
       expect(requestCount).toBe(1);
     });
@@ -550,6 +550,26 @@ describe('SettingsPage', () => {
         expect(document.getElementById('card-spoolbuddy')).toBeNull();
         expect(within(filamentChecksCard as HTMLElement).getByText('Filament checks')).toBeInTheDocument();
       });
+    });
+
+    it('shows warehouse number sequences as a dedicated subpage before Filament', async () => {
+      server.use(
+        http.get('/api/v1/inventory/number-sequences', () => HttpResponse.json([])),
+      );
+      setSettingsTabUrl('warehouse-material', '&sub=number-sequences');
+      render(<SettingsPage />);
+
+      const numberSequencesTab = await screen.findByRole('button', { name: 'Number sequences' });
+      const filamentTab = screen.getByRole('button', { name: 'Filament' });
+      const tabButtons = screen.getAllByRole('button');
+
+      expect(tabButtons.indexOf(numberSequencesTab)).toBeLessThan(tabButtons.indexOf(filamentTab));
+      expect(numberSequencesTab).toHaveClass('text-bambu-green');
+      expect(await screen.findByRole('heading', { name: 'Warehouse number sequences' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Material number sequence' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Spool number sequence' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Purchase order number sequence' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Goods receipt number sequence' })).toBeInTheDocument();
     });
 
     it('shows SpoolBuddy under its Warehouse & Material subpage', async () => {

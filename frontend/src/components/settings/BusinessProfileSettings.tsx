@@ -6,6 +6,7 @@ import { ApiError, api, type BusinessProfile, type BusinessProfileCreate, type B
 import { useAuth } from '../../contexts/AuthContext';
 import { Checkbox, IconButton, ScrollArea } from '../ui';
 import { BusinessProfileEditorModal } from './BusinessProfileEditorModal';
+import { NumberSequenceSettings } from './NumberSequenceSettings';
 
 function withoutResponseId<T extends { id: number }>(value: T): Omit<T, 'id'> {
   const result: Partial<T> = { ...value };
@@ -155,6 +156,7 @@ export function BusinessProfileSettings() {
   }
 
   return (
+    <div className="w-full space-y-3">
     <section id="card-business-profile" className="w-full overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary card-shadow" aria-labelledby="business-profile-heading">
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4">
         <div className="flex min-w-0 items-center gap-2">
@@ -217,5 +219,7 @@ export function BusinessProfileSettings() {
 
       {editorProfile !== undefined && <BusinessProfileEditorModal profile={editorProfile} isSubmitting={isMutating} onClose={() => setEditorProfile(undefined)} onSubmit={submitEditor} />}
     </section>
+    <NumberSequenceSettings profiles={profilesQuery.data ?? []} canManage={canManage} />
+    </div>
   );
 }
