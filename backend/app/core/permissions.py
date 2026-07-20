@@ -87,6 +87,9 @@ class Permission(StrEnum):
     COMMERCIAL_DOCUMENTS_ISSUE = "commercial_documents:issue"
     COMMERCIAL_DOCUMENTS_CORRECT = "commercial_documents:correct"
     COMMERCIAL_DOCUMENTS_EXPORT = "commercial_documents:export"
+    COMMERCIAL_DOCUMENTS_TAX_OVERRIDE = "commercial_documents:tax_override"
+    DOCUMENT_TEMPLATES_READ = "document_templates:read"
+    DOCUMENT_TEMPLATES_MANAGE = "document_templates:manage"
     PAYMENTS_READ = "payments:read"
     PAYMENTS_MANAGE = "payments:manage"
     ORDER_AUDIT_READ = "order_audit:read"
@@ -279,6 +282,9 @@ PERMISSION_CATEGORIES = {
         Permission.COMMERCIAL_DOCUMENTS_ISSUE,
         Permission.COMMERCIAL_DOCUMENTS_CORRECT,
         Permission.COMMERCIAL_DOCUMENTS_EXPORT,
+        Permission.COMMERCIAL_DOCUMENTS_TAX_OVERRIDE,
+        Permission.DOCUMENT_TEMPLATES_READ,
+        Permission.DOCUMENT_TEMPLATES_MANAGE,
         Permission.PAYMENTS_READ,
         Permission.PAYMENTS_MANAGE,
         Permission.ORDER_AUDIT_READ,

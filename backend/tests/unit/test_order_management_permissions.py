@@ -20,6 +20,9 @@ ORDER_PERMISSIONS = {
     "COMMERCIAL_DOCUMENTS_ISSUE": "commercial_documents:issue",
     "COMMERCIAL_DOCUMENTS_CORRECT": "commercial_documents:correct",
     "COMMERCIAL_DOCUMENTS_EXPORT": "commercial_documents:export",
+    "COMMERCIAL_DOCUMENTS_TAX_OVERRIDE": "commercial_documents:tax_override",
+    "DOCUMENT_TEMPLATES_READ": "document_templates:read",
+    "DOCUMENT_TEMPLATES_MANAGE": "document_templates:manage",
     "PAYMENTS_READ": "payments:read",
     "PAYMENTS_MANAGE": "payments:manage",
     "ORDER_AUDIT_READ": "order_audit:read",
@@ -82,6 +85,9 @@ def test_operator_order_defaults_are_least_privilege():
     assert "commercial_documents:issue" not in operator_permissions
     assert "commercial_documents:correct" not in operator_permissions
     assert "commercial_documents:export" not in operator_permissions
+    assert "commercial_documents:tax_override" not in operator_permissions
+    assert "document_templates:read" not in operator_permissions
+    assert "document_templates:manage" not in operator_permissions
     assert "payments:manage" not in operator_permissions
     assert "order_settings:read" not in operator_permissions
     assert "order_settings:manage" not in operator_permissions
@@ -105,3 +111,35 @@ def test_order_settings_defaults_are_administrator_only():
         assert permission in DEFAULT_GROUPS["Administrators"]["permissions"]
         assert permission not in DEFAULT_GROUPS["Operators"]["permissions"]
         assert permission not in DEFAULT_GROUPS["Viewers"]["permissions"]
+
+
+def test_document_template_and_tax_override_permissions_are_administrator_only():
+    administrator_permissions = set(DEFAULT_GROUPS["Administrators"]["permissions"])
+    operator_permissions = set(DEFAULT_GROUPS["Operators"]["permissions"])
+    viewer_permissions = set(DEFAULT_GROUPS["Viewers"]["permissions"])
+
+    protected_permissions = {
+        "document_templates:read",
+        "document_templates:manage",
+        "commercial_documents:tax_override",
+    }
+
+    assert protected_permissions <= administrator_permissions
+    assert protected_permissions.isdisjoint(operator_permissions)
+    assert protected_permissions.isdisjoint(viewer_permissions)
+
+
+def test_document_template_and_tax_override_permissions_are_administrator_only():
+    administrator_permissions = set(DEFAULT_GROUPS["Administrators"]["permissions"])
+    operator_permissions = set(DEFAULT_GROUPS["Operators"]["permissions"])
+    viewer_permissions = set(DEFAULT_GROUPS["Viewers"]["permissions"])
+
+    protected_permissions = {
+        "document_templates:read",
+        "document_templates:manage",
+        "commercial_documents:tax_override",
+    }
+
+    assert protected_permissions <= administrator_permissions
+    assert protected_permissions.isdisjoint(operator_permissions)
+    assert protected_permissions.isdisjoint(viewer_permissions)
