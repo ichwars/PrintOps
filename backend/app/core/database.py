@@ -178,6 +178,7 @@ async def init_db():
         color_catalog,
         commerce,
         customer,
+        document_configuration,
         equipment,
         external_link,
         filament,
@@ -3412,6 +3413,15 @@ async def run_migrations(conn):
     # Migration: Disambiguate the four ``user_print_*`` notification template
     # names by appending " Email" (#1792). See ``_migrate_rename_user_print_template_names``.
     await _migrate_rename_user_print_template_names(conn)
+    await _migrate_document_configurations(conn)
+
+
+async def _migrate_document_configurations(conn) -> None:
+    """Create missing bilingual document drafts from validated committed defaults."""
+
+    from backend.app.services.document_defaults import seed_document_configurations
+
+    await seed_document_configurations(conn)
 
 
 _USER_PRINT_TEMPLATE_RENAMES: tuple[tuple[str, str, str], ...] = (

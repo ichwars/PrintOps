@@ -195,4 +195,13 @@ PLACEHOLDERS = (
     "dunning.stage",
     "dunning.fee",
     "dunning.new_due_date",
+    "DOCUMENT_NUMBER",
+    "VALID_UNTIL",
+    "ORDER_REFERENCE",
+    "DUE_DATE",
+    "SERVICE_DATE",
+    "ORIGINAL_DOCUMENT_NUMBER",
+    "OPEN_AMOUNT",
+    "CURRENCY",
+    "DUNNING_LEVEL",
 )

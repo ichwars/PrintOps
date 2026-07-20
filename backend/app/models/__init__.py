@@ -35,6 +35,19 @@ from backend.app.models.customer import (
     CustomerTag,
     CustomerTaxIdentifier,
 )
+from backend.app.models.document_configuration import (
+    ConfigurationPublication,
+    CustomerDocumentPreference,
+    DocumentBasicPolicy,
+    DocumentConfiguration,
+    DocumentContentPolicy,
+    DocumentTextBlock,
+    DunningPolicy,
+    DunningStage,
+    EInvoicePolicy,
+    PaymentPolicy,
+    TaxPolicy,
+)
 from backend.app.models.equipment import Equipment
 from backend.app.models.filament import Filament
 from backend.app.models.github_backup import GitHubBackupConfig, GitHubBackupLog
@@ -154,6 +167,17 @@ __all__ = [
     "CustomerContact",
     "CustomerTag",
     "CustomerTaxIdentifier",
+    "DocumentConfiguration",
+    "DocumentBasicPolicy",
+    "PaymentPolicy",
+    "DunningPolicy",
+    "DunningStage",
+    "DocumentTextBlock",
+    "DocumentContentPolicy",
+    "TaxPolicy",
+    "EInvoicePolicy",
+    "CustomerDocumentPreference",
+    "ConfigurationPublication",
     "NumberSequence",
     "Equipment",
     "SmallPartCategory",
