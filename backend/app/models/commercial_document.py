@@ -63,6 +63,7 @@ class CommercialDocument(Base):
     source_offer_id: Mapped[int | None] = mapped_column(
         ForeignKey("offers.id", ondelete="SET NULL"),
         nullable=True,
+        unique=True,
         index=True,
     )
     source_order_id: Mapped[int | None] = mapped_column(
@@ -131,6 +132,16 @@ class CommercialDocument(Base):
         back_populates="document",
         cascade="all, delete-orphan",
         lazy="selectin",
+    )
+    source_offer = relationship(
+        "Offer",
+        foreign_keys=[source_offer_id],
+        back_populates="commercial_document",
+    )
+    source_order = relationship(
+        "CustomerOrder",
+        foreign_keys=[source_order_id],
+        back_populates="commercial_documents",
     )
 
 

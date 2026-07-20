@@ -37,6 +37,12 @@ class Offer(Base):
     customer = relationship("Customer", lazy="selectin")
     business_profile = relationship("BusinessProfile", lazy="selectin")
     order: Mapped[CustomerOrder | None] = relationship(back_populates="offer", uselist=False, lazy="selectin")
+    commercial_document = relationship(
+        "CommercialDocument",
+        back_populates="source_offer",
+        uselist=False,
+        lazy="selectin",
+    )
 
     @property
     def order_id(self) -> int | None:
@@ -65,6 +71,11 @@ class CustomerOrder(Base):
     offer: Mapped[Offer] = relationship(back_populates="order", lazy="selectin")
     project = relationship("Project", lazy="selectin")
     reservations = relationship("StockReservation", back_populates="order", lazy="selectin")
+    commercial_documents = relationship(
+        "CommercialDocument",
+        back_populates="source_order",
+        lazy="selectin",
+    )
 
 
 class OfferAcceptance(Base):

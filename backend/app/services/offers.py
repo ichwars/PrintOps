@@ -3,14 +3,21 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from math import ceil
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.calculation import Calculation, CalculationRevision
 from backend.app.models.commerce import CustomerOrder, Offer, OfferAcceptance
+from backend.app.models.commercial_document import (
+    CommercialDocument,
+    CommercialDocumentLine,
+    DocumentRelation,
+)
 from backend.app.models.number_sequence import NumberSequence
 from backend.app.models.project import Project
 from backend.app.models.stock_reservation import StockReservation, StockReservationAllocation
@@ -123,6 +130,44 @@ async def create_offer(session: AsyncSession, calculation_revision_id: int) -> O
         snapshot=snapshot,
     )
     session.add(offer)
+    await session.flush()
+    profile = await session.get(BusinessProfile, offer.business_profile_id)
+    if profile is None:
+        raise ResourceNotFoundError(f"Business profile {offer.business_profile_id} was not found")
+    tax_rate = Decimal(profile.default_tax_rate) if profile.tax_mode == "standard" else Decimal("0.00")
+    tax_category_code = "S" if tax_rate else "E"
+    net_amount = Decimal(revision.selling_price)
+    tax_amount = (net_amount * tax_rate / Decimal("100")).quantize(Decimal("0.01"))
+    quotation = CommercialDocument(
+        document_type="quotation",
+        business_profile_id=offer.business_profile_id,
+        customer_id=offer.customer_id,
+        source_offer_id=offer.id,
+        number=offer.number,
+        technical_status="draft",
+        language="de-DE",
+        currency=revision.currency,
+        subtotal_amount=net_amount,
+        tax_amount=tax_amount,
+        total_amount=net_amount + tax_amount,
+        open_amount=net_amount + tax_amount,
+        content_options={"legacy_offer_snapshot": True},
+    )
+    quotation.lines = [
+        CommercialDocumentLine(
+            position=1,
+            description=str((snapshot.get("calculation") or {}).get("title") or offer.number),
+            quantity=Decimal("1"),
+            unit_code="C62",
+            unit_price=net_amount,
+            net_amount=net_amount,
+            tax_category_code=tax_category_code,
+            tax_rate=tax_rate,
+            source_data={"calculation_revision_id": revision.id},
+            internal_calculation={"production_cost": str(revision.production_cost)},
+        )
+    ]
+    session.add(quotation)
     await session.flush()
     return await _load_offer(session, offer.id)
 
@@ -268,6 +313,49 @@ async def accept_offer(
         accepted_snapshot=offer.snapshot,
     )
     session.add(order)
+    await session.flush()
+    quotation = await session.scalar(
+        select(CommercialDocument)
+        .where(CommercialDocument.source_offer_id == offer.id)
+        .options(selectinload(CommercialDocument.lines))
+    )
+    if quotation is None:
+        raise ResourceNotFoundError("Accepted offer has no linked quotation document")
+    confirmation = CommercialDocument(
+        document_type="order_confirmation",
+        business_profile_id=order.business_profile_id,
+        customer_id=order.customer_id,
+        source_order_id=order.id,
+        number=order.number,
+        technical_status="draft",
+        language=quotation.language,
+        currency=quotation.currency,
+        subtotal_amount=quotation.subtotal_amount,
+        tax_amount=quotation.tax_amount,
+        total_amount=quotation.total_amount,
+        open_amount=quotation.open_amount,
+        content_options={"legacy_offer_id": offer.id},
+    )
+    confirmation.lines = [
+        CommercialDocumentLine(
+            position=line.position,
+            description=line.description,
+            quantity=line.quantity,
+            unit_code=line.unit_code,
+            unit_price=line.unit_price,
+            net_amount=line.net_amount,
+            tax_category_code=line.tax_category_code,
+            tax_rate=line.tax_rate,
+            product_identifier=line.product_identifier,
+            source_data=dict(line.source_data or {}),
+            internal_calculation=dict(line.internal_calculation or {}),
+        )
+        for line in quotation.lines
+    ]
+    confirmation.incoming_relations = [
+        DocumentRelation(source_document_id=quotation.id, relation_type="successor")
+    ]
+    session.add(confirmation)
     await session.flush()
     await _persist_reservations(
         session,
