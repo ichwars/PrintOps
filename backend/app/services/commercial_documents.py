@@ -1,24 +1,39 @@
 from __future__ import annotations
 
+import asyncio
+import json
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from decimal import Decimal
+from hashlib import sha256
 from typing import Literal
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
+from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.commercial_document import (
     CommercialDocument,
     CommercialDocumentLine,
+    DocumentArtifact,
+    DocumentNumberReservation,
     DocumentRelation,
 )
+from backend.app.models.customer import Customer
+from backend.app.models.document_configuration import DocumentConfiguration
 from backend.app.schemas.commercial_document import (
     CommercialDocumentDraft,
     CommercialDocumentLineDraft,
+    IssuedDocumentSnapshot,
+    SnapshotLine,
 )
 from backend.app.services.document_audit import append_audit
 from backend.app.services.document_catalog import DOCUMENT_CAPABILITIES, DocumentType
+from backend.app.services.document_numbering import reserve_document_number
+from backend.app.services.document_readiness import check_configuration
+from backend.app.services.document_snapshot import attach_issued_snapshot
 from backend.app.services.order_errors import ResourceInUseError, ResourceNotFoundError, VersionConflictError
 
 
@@ -30,6 +45,35 @@ class DocumentValidationFailed(ResourceInUseError):
     def __init__(self, findings: tuple[DocumentFinding, ...]):
         super().__init__("The commercial document is not ready")
         self.findings = findings
+
+
+class EInvoiceValidationFailed(ResourceInUseError):
+    failure_code = "einvoice_invalid"
+
+
+class IssuanceConflict(ResourceInUseError):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class GeneratedArtifact:
+    kind: str
+    content_type: str
+    content: bytes
+    sha256: str
+    validation_status: str
+    validation_report: dict
+    rule_versions: dict
+
+
+async def generate_required_artifact(
+    session: AsyncSession,
+    document: CommercialDocument,
+    snapshot: IssuedDocumentSnapshot,
+) -> GeneratedArtifact | None:
+    """Task-12 hook for standards-compliant electronic invoice generation."""
+    del session, document, snapshot
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -487,15 +531,523 @@ async def correct_document(
     return correction
 
 
+@dataclass(frozen=True, slots=True)
+class _IssuanceContext:
+    configuration_id: int
+    configuration_version: int
+    tax_rule_version: str
+    einvoice_rule_versions: dict[str, str]
+    intent_sha256: str
+    issue_date: date
+
+
+def _document_intent_sha256(document: CommercialDocument) -> str:
+    payload = _to_draft(document).model_dump(mode="json")
+    canonical = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return sha256(canonical).hexdigest()
+
+
+async def _issuance_configuration(
+    session: AsyncSession,
+    document: CommercialDocument,
+) -> DocumentConfiguration | None:
+    base = select(DocumentConfiguration).where(
+        DocumentConfiguration.business_profile_id == document.business_profile_id,
+        DocumentConfiguration.document_type == document.document_type,
+        DocumentConfiguration.language == document.language,
+    )
+    if document.issue_date is not None:
+        active = await session.scalar(
+            base.where(
+                DocumentConfiguration.status == "active",
+                DocumentConfiguration.effective_from <= document.issue_date,
+            ).order_by(
+                DocumentConfiguration.effective_from.desc(),
+                DocumentConfiguration.version.desc(),
+            )
+        )
+        if active is not None:
+            return active
+    return await session.scalar(
+        base.where(DocumentConfiguration.status == "draft").order_by(
+            DocumentConfiguration.version.desc()
+        )
+    )
+
+
+async def _prepare_issuance(
+    session: AsyncSession,
+    document_id: int,
+    expected_version: int,
+) -> _IssuanceContext:
+    document = await _load_document(session, document_id)
+    if document.technical_status == "issued":
+        raise IssuanceConflict(f"Commercial document {document_id} is already issued")
+    if document.technical_status != "ready":
+        raise InvalidDocumentTransition("Only ready commercial documents can be issued")
+    if document.lock_version != expected_version:
+        raise VersionConflictError(f"Commercial document {document_id} has changed")
+    if document.issue_date is None:
+        raise DocumentValidationFailed(
+            (_finding("issue_date_missing", "issue_date", "An issue date is required"),)
+        )
+    document_findings = tuple(
+        finding for finding in validate_document(_to_draft(document)) if finding.severity == "blocker"
+    )
+    if document_findings:
+        raise DocumentValidationFailed(document_findings)
+
+    configuration = await _issuance_configuration(session, document)
+    if configuration is None:
+        raise DocumentValidationFailed(
+            (
+                _finding(
+                    "configuration_missing",
+                    "configuration",
+                    "No effective document configuration exists",
+                ),
+            )
+        )
+    readiness = await check_configuration(session, configuration.id)
+    blockers = tuple(
+        _finding(item.code, item.field_path, item.correction)
+        for item in readiness.findings
+        if item.severity == "blocker"
+    )
+    if blockers:
+        raise DocumentValidationFailed(blockers)
+
+    einvoice = configuration.einvoice_policy
+    einvoice_versions = {}
+    if einvoice is not None:
+        einvoice_versions = {
+            "en16931": einvoice.en16931_version,
+            "cius": einvoice.cius_version,
+            "cius_name": einvoice.cius_name,
+        }
+    return _IssuanceContext(
+        configuration_id=configuration.id,
+        configuration_version=configuration.version,
+        tax_rule_version=str((document.tax_decision or {}).get("rule_version") or "2026.1"),
+        einvoice_rule_versions=einvoice_versions,
+        intent_sha256=_document_intent_sha256(document),
+        issue_date=document.issue_date,
+    )
+
+
+def _evidence_sessions(session: AsyncSession) -> async_sessionmaker[AsyncSession]:
+    if session.bind is None:
+        raise RuntimeError("Issuance session has no database bind")
+    return async_sessionmaker(session.bind, expire_on_commit=False)
+
+
+def _assert_reservation_binding(
+    reservation: DocumentNumberReservation,
+    *,
+    document_id: int,
+    intent_sha256: str,
+) -> None:
+    if reservation.document_id != document_id:
+        raise IssuanceConflict("The idempotency key belongs to a different document")
+    if reservation.intent_sha256 != intent_sha256:
+        raise IssuanceConflict("The idempotency key belongs to a different document intent")
+
+
+async def _existing_reservation(
+    session: AsyncSession,
+    idempotency_key: str,
+) -> DocumentNumberReservation | None:
+    return await session.scalar(
+        select(DocumentNumberReservation).where(
+            DocumentNumberReservation.idempotency_key == idempotency_key
+        )
+    )
+
+
+async def _reserve_issue_evidence(
+    session: AsyncSession,
+    *,
+    document_id: int,
+    effective_date: date,
+    idempotency_key: str,
+    intent_sha256: str,
+) -> tuple[DocumentNumberReservation, bool]:
+    sessions = _evidence_sessions(session)
+    async with sessions() as evidence_session:
+        existing = await _existing_reservation(evidence_session, idempotency_key)
+        if existing is not None:
+            _assert_reservation_binding(
+                existing,
+                document_id=document_id,
+                intent_sha256=intent_sha256,
+            )
+            return existing, False
+        evidence_document = await evidence_session.get(CommercialDocument, document_id)
+        if evidence_document is None:
+            raise ResourceNotFoundError(f"Commercial document {document_id} was not found")
+        try:
+            reservation = await reserve_document_number(
+                evidence_session,
+                evidence_document,
+                effective_date,
+                idempotency_key=idempotency_key,
+                intent_sha256=intent_sha256,
+            )
+            await evidence_session.flush()
+            await evidence_session.commit()
+            return reservation, True
+        except IntegrityError:
+            await evidence_session.rollback()
+            existing = await _existing_reservation(evidence_session, idempotency_key)
+            if existing is None:
+                raise
+            _assert_reservation_binding(
+                existing,
+                document_id=document_id,
+                intent_sha256=intent_sha256,
+            )
+            return existing, False
+
+
+async def _mark_reservation(
+    session: AsyncSession,
+    reservation_id: int,
+    status: Literal["consumed", "voided"],
+    *,
+    failure_code: str | None = None,
+    failure_detail: str | None = None,
+) -> None:
+    sessions = _evidence_sessions(session)
+    async with sessions() as evidence_session:
+        reservation = await evidence_session.get(DocumentNumberReservation, reservation_id)
+        if reservation is None:
+            raise ResourceNotFoundError(f"Document number reservation {reservation_id} was not found")
+        reservation.status = status
+        reservation.failure_code = failure_code
+        reservation.failure_detail = failure_detail[:2000] if failure_detail else None
+        reservation.finalized_at = datetime.now(UTC)
+        await evidence_session.commit()
+
+
+async def _wait_for_issue_replay(
+    session: AsyncSession,
+    reservation_id: int,
+) -> None:
+    sessions = _evidence_sessions(session)
+    for _attempt in range(200):
+        async with sessions() as evidence_session:
+            reservation = await evidence_session.get(DocumentNumberReservation, reservation_id)
+            if reservation is None:
+                raise ResourceNotFoundError(
+                    f"Document number reservation {reservation_id} was not found"
+                )
+            if reservation.status == "consumed":
+                return
+            if reservation.status == "voided":
+                raise IssuanceConflict(
+                    f"The prior issuance attempt failed with {reservation.failure_code or 'unknown'}"
+                )
+            document_status = await evidence_session.scalar(
+                select(CommercialDocument.technical_status).where(
+                    CommercialDocument.id == reservation.document_id
+                )
+            )
+            if document_status == "issued":
+                reservation.status = "consumed"
+                reservation.finalized_at = datetime.now(UTC)
+                await evidence_session.commit()
+                return
+        await asyncio.sleep(0.025)
+    raise IssuanceConflict("The concurrent issuance attempt did not complete in time")
+
+
+async def _reload_issued_document(
+    session: AsyncSession,
+    document_id: int,
+) -> CommercialDocument:
+    statement = (
+        select(CommercialDocument)
+        .where(CommercialDocument.id == document_id)
+        .options(*_LOAD_OPTIONS)
+        .execution_options(populate_existing=True)
+    )
+    document = await session.scalar(statement)
+    if document is None:
+        raise ResourceNotFoundError(f"Commercial document {document_id} was not found")
+    if document.technical_status != "issued" or document.snapshot is None:
+        raise IssuanceConflict("Idempotent issuance evidence is incomplete")
+    return document
+
+
+async def _lock_ready_document(
+    session: AsyncSession,
+    document_id: int,
+    expected_version: int,
+) -> CommercialDocument:
+    dialect = session.get_bind().dialect.name
+    if dialect == "sqlite":
+        result = await session.execute(
+            update(CommercialDocument)
+            .where(
+                CommercialDocument.id == document_id,
+                CommercialDocument.technical_status == "ready",
+                CommercialDocument.lock_version == expected_version,
+            )
+            .values(lock_version=CommercialDocument.lock_version)
+            .returning(CommercialDocument.id)
+        )
+        if result.scalar_one_or_none() is None:
+            raise IssuanceConflict("The commercial document was issued or changed concurrently")
+        return await _load_document(session, document_id)
+
+    document = await _load_document(session, document_id, lock=True)
+    if document.technical_status != "ready" or document.lock_version != expected_version:
+        raise IssuanceConflict("The commercial document was issued or changed concurrently")
+    return document
+
+
+async def _snapshot_payload(
+    session: AsyncSession,
+    document: CommercialDocument,
+    number: str,
+    configuration_id: int,
+) -> IssuedDocumentSnapshot:
+    profile = await session.scalar(
+        select(BusinessProfile)
+        .where(BusinessProfile.id == document.business_profile_id)
+        .options(
+            selectinload(BusinessProfile.addresses),
+            selectinload(BusinessProfile.tax_identifiers),
+            selectinload(BusinessProfile.bank_accounts),
+        )
+    )
+    if profile is None:
+        raise ResourceNotFoundError(f"Business profile {document.business_profile_id} was not found")
+    buyer = await session.scalar(
+        select(Customer).where(Customer.id == document.customer_id)
+    ) if document.customer_id is not None else None
+    configuration = await session.scalar(
+        select(DocumentConfiguration)
+        .where(DocumentConfiguration.id == configuration_id)
+        .options(
+            selectinload(DocumentConfiguration.text_blocks),
+            selectinload(DocumentConfiguration.payment_policy),
+        )
+    )
+    if configuration is None:
+        raise ResourceNotFoundError(f"Document configuration {configuration_id} was not found")
+    assert document.issue_date is not None
+    return IssuedDocumentSnapshot(
+        document_type=document.document_type,
+        number=number,
+        issue_date=document.issue_date,
+        service_date=document.service_date,
+        due_date=document.due_date,
+        language=document.language,
+        currency=document.currency,
+        seller={
+            "id": profile.id,
+            "name": profile.legal_name,
+            "country_code": profile.country_code,
+            "addresses": [
+                {
+                    "kind": item.kind,
+                    "street": item.street,
+                    "postal_code": item.postal_code,
+                    "city": item.city,
+                    "country_code": item.country_code,
+                }
+                for item in profile.addresses
+            ],
+            "tax_identifiers": [
+                {"kind": item.kind, "value": item.value, "country_code": item.country_code}
+                for item in profile.tax_identifiers
+            ],
+        },
+        buyer={
+            "id": buyer.id if buyer is not None else None,
+            "name": buyer.display_name if buyer is not None else "",
+        },
+        lines=tuple(
+            SnapshotLine(
+                position=line.position,
+                description=line.description,
+                quantity=line.quantity,
+                unit_code=line.unit_code,
+                unit_price=line.unit_price,
+                net_amount=line.net_amount,
+                tax_category_code=line.tax_category_code,
+                tax_rate=line.tax_rate,
+                product_identifier=line.product_identifier,
+                metadata=dict(line.source_data or {}),
+            )
+            for line in document.lines
+        ),
+        totals={
+            "line_net": document.subtotal_amount,
+            "tax": document.tax_amount,
+            "payable": document.total_amount,
+            "open": document.open_amount,
+        },
+        payment={
+            "due_date": document.due_date,
+            "term_days": (
+                configuration.payment_policy.payment_term_days
+                if configuration.payment_policy is not None
+                else None
+            ),
+        },
+        references=tuple(
+            {
+                "relation_type": relation.relation_type,
+                "document_id": relation.source_document_id,
+            }
+            for relation in document.incoming_relations
+        ),
+        text_blocks=tuple(
+            {
+                "purpose": block.purpose,
+                "body": block.body,
+                "position": block.position,
+            }
+            for block in configuration.text_blocks
+        ),
+        metadata={"tax_decision": dict(document.tax_decision or {})},
+    )
+
+
+async def issue_document(
+    session: AsyncSession,
+    document_id: int,
+    expected_version: int,
+    actor_id: int | None,
+    idempotency_key: str,
+    correlation_id: str,
+) -> CommercialDocument:
+    if not idempotency_key.strip():
+        raise ValueError("An idempotency key is required")
+    if not correlation_id.strip():
+        raise ValueError("A correlation ID is required")
+
+    context = await _prepare_issuance(session, document_id, expected_version)
+    existing = await _existing_reservation(session, idempotency_key)
+    if existing is not None:
+        _assert_reservation_binding(
+            existing,
+            document_id=document_id,
+            intent_sha256=context.intent_sha256,
+        )
+        await session.rollback()
+        await _wait_for_issue_replay(session, existing.id)
+        return await _reload_issued_document(session, document_id)
+
+    await session.rollback()
+    reservation, created = await _reserve_issue_evidence(
+        session,
+        document_id=document_id,
+        effective_date=context.issue_date,
+        idempotency_key=idempotency_key.strip(),
+        intent_sha256=context.intent_sha256,
+    )
+    if not created:
+        await _wait_for_issue_replay(session, reservation.id)
+        return await _reload_issued_document(session, document_id)
+
+    try:
+        document = await _lock_ready_document(session, document_id, expected_version)
+        if _document_intent_sha256(document) != context.intent_sha256:
+            raise IssuanceConflict("Document content changed after number reservation")
+        snapshot = await _snapshot_payload(
+            session,
+            document,
+            reservation.number,
+            context.configuration_id,
+        )
+        artifact = await generate_required_artifact(session, document, snapshot)
+        if artifact is not None:
+            if artifact.sha256 != sha256(artifact.content).hexdigest():
+                raise EInvoiceValidationFailed("Generated artifact hash does not match its content")
+            if artifact.validation_status != "valid":
+                raise EInvoiceValidationFailed("Generated electronic invoice is invalid")
+
+        document.number = reservation.number
+        document.technical_status = "issued"
+        document.lock_version += 1
+        evidence = await attach_issued_snapshot(
+            session,
+            document,
+            snapshot,
+            configuration_id=context.configuration_id,
+            configuration_version=context.configuration_version,
+            tax_rule_version=context.tax_rule_version,
+            einvoice_rule_versions=context.einvoice_rule_versions,
+            actor_id=actor_id,
+        )
+        if artifact is not None:
+            session.add(
+                DocumentArtifact(
+                    document_id=document.id,
+                    kind=artifact.kind,
+                    content_type=artifact.content_type,
+                    content=artifact.content,
+                    sha256=artifact.sha256,
+                    validation_status=artifact.validation_status,
+                    validation_report=artifact.validation_report,
+                    rule_versions=artifact.rule_versions,
+                )
+            )
+        await append_audit(
+            session,
+            action="issue",
+            object_type="commercial_document",
+            object_id=document.id,
+            actor_id=actor_id,
+            reason="Document approved and issued",
+            before={"technical_status": "ready", "lock_version": expected_version},
+            after={
+                "technical_status": "issued",
+                "number": reservation.number,
+                "snapshot_sha256": evidence.sha256,
+            },
+            correlation_id=correlation_id.strip(),
+        )
+        await session.flush()
+        await session.commit()
+    except Exception as exc:
+        await session.rollback()
+        failure_code = getattr(exc, "failure_code", "issuance_failed")
+        await _mark_reservation(
+            session,
+            reservation.id,
+            "voided",
+            failure_code=str(failure_code),
+            failure_detail=str(exc),
+        )
+        raise
+
+    await _mark_reservation(session, reservation.id, "consumed")
+    return await _reload_issued_document(session, document_id)
+
+
 __all__ = [
     "DocumentFinding",
     "DocumentValidationFailed",
+    "EInvoiceValidationFailed",
+    "GeneratedArtifact",
     "InvalidDocumentTransition",
+    "IssuanceConflict",
     "TECHNICAL_TRANSITIONS",
     "cancel_document",
     "correct_document",
     "create_draft",
     "create_successor",
+    "generate_required_artifact",
+    "issue_document",
     "mark_ready",
     "transition_document",
     "update_draft",

@@ -289,6 +289,7 @@ class DocumentNumberReservation(Base):
     )
     number: Mapped[str] = mapped_column(String(100))
     idempotency_key: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
+    intent_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="reserved", index=True)
     failure_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     failure_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
