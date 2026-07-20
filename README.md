@@ -18,8 +18,8 @@
 </p>
 
 <p align="center">
-  <a href="#built-on-bambubuddy">Origin</a> ·
-  <a href="#bambubuddy-and-printops">Comparison</a> ·
+  <a href="#built-on-bambuddy">Origin</a> ·
+  <a href="#bambuddy-and-printops">Comparison</a> ·
   <a href="#available-today">Capabilities</a> ·
   <a href="#where-printops-is-going">Direction</a> ·
   <a href="#quick-start">Quick start</a> ·
@@ -32,15 +32,15 @@ procurement, costing, customer, order, and document workflows. You can start
 with one printer at home and keep the same platform as the work grows into a
 farm or a business.
 
-## Built on BambuBuddy
+## Built on bambuddy
 
 **PrintOps stands on the foundation created by
 [maziggy](https://github.com/maziggy). His idea, creativity, and sustained work
 turned Bambu printer management into a capable self-hosted platform with
-[BambuBuddy](https://github.com/maziggy/bambuddy). We are sincerely grateful for
+[bambuddy](https://github.com/maziggy/bambuddy). We are sincerely grateful for
 that foundation.**
 
-**PrintOps is an independent fork. It preserves BambuBuddy's proven
+**PrintOps is an independent fork. It preserves bambuddy's proven
 printer-management core while pursuing a broader goal: connecting printing with
 materials, costing, customers, orders, and business documents in one coherent
 operations platform.**
@@ -48,12 +48,12 @@ operations platform.**
 The repositories now evolve independently, so their releases, migrations,
 interfaces, and feature compatibility can diverge over time.
 
-## BambuBuddy and PrintOps
+## bambuddy and PrintOps
 
 The projects share a technical lineage but follow different product directions.
 This comparison is about focus, not about declaring a winner.
 
-| Area | BambuBuddy | PrintOps |
+| Area | bambuddy | PrintOps |
 | --- | --- | --- |
 | **Core purpose** | A self-hosted command center for Bambu printers and print farms | A broader operations platform built around 3D-print production |
 | **Code lineage** | The original project and upstream foundation | An independent fork whose domain models, migrations, APIs, and workflows evolve separately |
@@ -63,8 +63,8 @@ This comparison is about focus, not about declaring a winner.
 | **Best fit** | Users primarily seeking deep Bambu printer control and automation | Hobbyists, farms, businesses, and developers who want production connected to the work around it |
 | **Direction** | Continued depth in printer management and automation | An end-to-end flow from model and material to production, delivery, and compliant documents |
 
-PrintOps is more than a visual rebrand, but that does not make BambuBuddy the
-wrong choice. BambuBuddy remains a strong, focused project for users whose
+PrintOps is more than a visual rebrand, but that does not make bambuddy the
+wrong choice. bambuddy remains a strong, focused project for users whose
 primary need is printer control and automation.
 
 ## Who PrintOps is for
@@ -87,7 +87,7 @@ primary need is printer control and automation.
 - Projects and file-library workflows, including optional server-side slicing
   and reusable slicing pipelines.
 - Multi-printer and print-farm workflows carried forward from the shared
-  BambuBuddy foundation and adapted as PrintOps evolves.
+  bambuddy foundation and adapted as PrintOps evolves.
 
 ### Warehouse and procurement
 
@@ -206,6 +206,6 @@ PrintOps is licensed under the [GNU Affero General Public License v3.0](LICENSE)
 When you distribute a modified version or provide access to it over a network,
 the corresponding source must be made available under the terms of the AGPL.
 
-PrintOps is an independent fork of BambuBuddy. It is not affiliated with,
+PrintOps is an independent fork of bambuddy. It is not affiliated with,
 maintained by, or endorsed by Bambu Lab. Bambu Lab, Bambu Studio, MakerWorld,
 and related names are trademarks of their respective owners.
