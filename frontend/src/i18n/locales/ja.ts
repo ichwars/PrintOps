@@ -1651,6 +1651,7 @@ export default {
       warehouseCatalogs: 'カタログ',
       orderManagementCalculation: '計算',
       orderManagementBusinessProfile: 'Business Profile',
+      orderManagementDocuments: 'Documents',
       filament: 'フィラメント',
       network: 'ネットワーク',
       apiKeys: 'APIキー',
@@ -1680,8 +1681,14 @@ export default {
       spoolbuddy: 'SpoolBuddyキオスク、NFCリーダー、スケール、校正、デバイス登録を管理します。',
     },
     orderManagementSubTabDescriptions: {
+      documents: 'Configure versioned document rules, payment terms, tax handling, and electronic invoices.',
       businessProfile: 'Manage the company details used to issue commercial documents.',
       calculation: '商用ワークフロー向けの通貨、コスト追跡、計算既定値を設定します。',
+    },
+    documents: {
+      title: 'Document settings',
+      description: 'Manage versioned rules for commercial documents and electronic invoices.',
+      contextHint: 'Select a business profile, document type, and language to manage its approved configuration.',
     },
     spoolbuddy: {
       infoTitle: 'SpoolBuddy デバイス',

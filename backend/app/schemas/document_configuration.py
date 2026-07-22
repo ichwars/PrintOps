@@ -157,7 +157,7 @@ class UpdateConfigurationCommand(StrictModel):
 
 
 class PublishConfigurationRequest(PublishConfigurationCommand):
-    rule_versions: dict[str, str]
+    pass
 
 
 class WithdrawConfigurationCommand(StrictModel):

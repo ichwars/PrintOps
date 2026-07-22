@@ -42,6 +42,7 @@ import { ExternalLinksSettings } from '../components/ExternalLinksSettings';
 import { VirtualPrinterList } from '../components/VirtualPrinterList';
 import { SpoolBuddySettings } from '../components/SpoolBuddySettings';
 import { BusinessProfileSettings } from '../components/settings/BusinessProfileSettings';
+import { DocumentSettings } from '../components/settings/documents/DocumentSettings';
 import { CalculationSettings } from '../components/orders/calculation/CalculationSettings';
 import { SmallPartsSettings } from '../components/settings/SmallPartsSettings';
 import { WarehouseNumberSequenceSettings } from '../components/settings/WarehouseNumberSequenceSettings';
@@ -94,6 +95,7 @@ registerSettingsSearch({ labelKey: 'settings.camera', tab: 'printers-production'
 registerSettingsSearch({ labelKey: 'settings.defaultPrinter', labelFallback: 'Default Printer', tab: 'printers-production', printerProductionSubTab: 'devices', keywords: 'default printer preferred printer fallback printer selection', anchor: 'card-default-printer' });
 registerSettingsSearch({ labelKey: 'settings.costTracking', tab: 'orders-calculation', orderManagementSubTab: 'calculation', keywords: 'currency filament cost energy kwh price', anchor: 'card-cost' });
 registerSettingsSearch({ labelKey: 'orders.businessProfile.title', tab: 'orders-calculation', orderManagementSubTab: 'business-profile', keywords: 'business company seller issuer tax bank country currency', anchor: 'card-business-profile' });
+registerSettingsSearch({ labelKey: 'settings.documents.title', labelFallback: 'Document settings', tab: 'orders-calculation', orderManagementSubTab: 'documents', keywords: 'documents templates invoice quotation payment tax e-invoice xrechnung zugferd', anchor: 'card-document-settings' });
 registerSettingsSearch({ labelKey: 'settings.fileManager', tab: 'projects-files', projectManagementSubTab: 'files', keywords: 'file manager archive mode disk warning storage', anchor: 'card-filemanager' });
 registerSettingsSearch({ labelKey: 'settings.updates', tab: 'operations', operationSubTab: 'updates', keywords: 'updates version firmware beta check', anchor: 'card-updates' });
 registerSettingsSearch({ labelKey: 'settings.dataManagement', tab: 'operations', operationSubTab: 'data-management', keywords: 'data clear logs notifications storage backup restore', anchor: 'card-data' });
@@ -451,6 +453,15 @@ const ORDER_MANAGEMENT_SUB_TABS: Record<OrderManagementSubTab, SettingsHeaderMet
     descriptionFallbackDe: 'Unternehmensdaten für die Ausstellung kaufmännischer Dokumente verwalten.',
     icon: Building2,
   },
+  documents: {
+    labelKey: 'settings.tabs.orderManagementDocuments',
+    fallback: 'Documents',
+    fallbackDe: 'Dokumente',
+    descriptionKey: 'settings.orderManagementSubTabDescriptions.documents',
+    descriptionFallback: 'Configure versioned document rules, payment terms, tax handling, and electronic invoices.',
+    descriptionFallbackDe: 'Versionierte Dokumentregeln, Zahlungsbedingungen, Steuerbehandlung und E-Rechnungen konfigurieren.',
+    icon: FileText,
+  },
   calculation: {
     labelKey: 'settings.tabs.orderManagementCalculation',
     fallback: 'Calculation',
@@ -464,6 +475,7 @@ const ORDER_MANAGEMENT_SUB_TABS: Record<OrderManagementSubTab, SettingsHeaderMet
 
 const ORDER_MANAGEMENT_SUB_TAB_ITEMS: Array<{ id: OrderManagementSubTab; meta: SettingsHeaderMeta }> = [
   { id: 'business-profile', meta: ORDER_MANAGEMENT_SUB_TABS['business-profile'] },
+  { id: 'documents', meta: ORDER_MANAGEMENT_SUB_TABS.documents },
   { id: 'calculation', meta: ORDER_MANAGEMENT_SUB_TABS.calculation },
 ];
 
@@ -485,6 +497,7 @@ const legacySearchTabByAnchor: Record<string, string> = {
   'card-archive': 'printers-production',
   'card-camera': 'printers-production',
   'card-cost': 'orders-calculation',
+  'card-document-settings': 'orders-calculation',
   'card-filemanager': 'projects-files',
   'card-updates': 'operations',
   'card-data': 'operations',
@@ -4011,6 +4024,12 @@ export function SettingsPage() {
       {activeTab === 'orders-calculation' && orderManagementSubTab === 'business-profile' && (
         <div className="w-full">
           <BusinessProfileSettings />
+        </div>
+      )}
+
+      {activeTab === 'orders-calculation' && orderManagementSubTab === 'documents' && (
+        <div className="w-full">
+          <DocumentSettings />
         </div>
       )}
 

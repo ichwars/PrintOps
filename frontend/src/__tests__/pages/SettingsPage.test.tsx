@@ -215,6 +215,17 @@ describe('SettingsPage', () => {
       expect(window.location.search).toContain('sub=business-profile');
     });
 
+    it('opens the document settings URL as its own order-management subtab', async () => {
+      setSettingsTabUrl('orders-calculation', '&sub=documents');
+
+      render(<SettingsPage />);
+
+      expect(await screen.findByRole('button', { name: 'Documents' })).toHaveClass('text-bambu-green');
+      expect(document.getElementById('card-document-settings')).not.toBeNull();
+      expect(screen.getByRole('heading', { name: 'Document settings' })).toBeInTheDocument();
+      expect(window.location.search).toContain('sub=documents');
+    });
+
     it('renders the page title', async () => {
       render(<SettingsPage />);
 

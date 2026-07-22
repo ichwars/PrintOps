@@ -1706,6 +1706,7 @@ export default {
       warehouseCatalogs: 'Catalogs',
       orderManagementCalculation: 'Calculation',
       orderManagementBusinessProfile: 'Business Profile',
+      orderManagementDocuments: 'Documents',
       filament: 'Filament',
       network: 'Network',
       apiKeys: 'API Keys',
@@ -1735,8 +1736,14 @@ export default {
       spoolbuddy: 'Manage SpoolBuddy kiosks, NFC readers, scales, calibration, and device registration.',
     },
     orderManagementSubTabDescriptions: {
+      documents: 'Configure versioned document rules, payment terms, tax handling, and electronic invoices.',
       businessProfile: 'Manage the company details used to issue commercial documents.',
       calculation: 'Configure currency, cost tracking, and calculation defaults for commercial workflows.',
+    },
+    documents: {
+      title: 'Document settings',
+      description: 'Manage versioned rules for commercial documents and electronic invoices.',
+      contextHint: 'Select a business profile, document type, and language to manage its approved configuration.',
     },
     spoolbuddy: {
       infoTitle: 'SpoolBuddy devices',

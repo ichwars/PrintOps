@@ -72,6 +72,12 @@ _RULE_VERSIONS = MappingProxyType(
     }
 )
 
+
+def pinned_rule_versions() -> dict[str, str]:
+    """Return the immutable validator bundle versions used by this build."""
+
+    return dict(_RULE_VERSIONS)
+
 _TARGETS: Mapping[tuple[str, str, str], _ValidationTarget] = MappingProxyType(
     {
         ("xrechnung", "ubl-2.1", "xrechnung"): _ValidationTarget(
@@ -332,5 +338,6 @@ __all__ = [
     "EInvoiceValidationFinding",
     "EInvoiceValidationReport",
     "MAX_XML_BYTES",
+    "pinned_rule_versions",
     "validate_xml",
 ]

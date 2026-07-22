@@ -1565,6 +1565,7 @@ export default {
       warehouseCatalogs: '카탈로그',
       orderManagementCalculation: '계산',
       orderManagementBusinessProfile: 'Business Profile',
+      orderManagementDocuments: 'Documents',
       filament: '필라멘트',
       network: '네트워크',
       apiKeys: 'API 키',
@@ -1594,8 +1595,14 @@ export default {
       spoolbuddy: 'SpoolBuddy 키오스크, NFC 리더, 저울, 보정, 장치 등록을 관리합니다.',
     },
     orderManagementSubTabDescriptions: {
+      documents: 'Configure versioned document rules, payment terms, tax handling, and electronic invoices.',
       businessProfile: 'Manage the company details used to issue commercial documents.',
       calculation: '상업용 흐름을 위한 통화, 비용 추적, 계산 기본값을 설정합니다.',
+    },
+    documents: {
+      title: 'Document settings',
+      description: 'Manage versioned rules for commercial documents and electronic invoices.',
+      contextHint: 'Select a business profile, document type, and language to manage its approved configuration.',
     },
     spoolbuddy: {
       infoTitle: 'SpoolBuddy 기기',

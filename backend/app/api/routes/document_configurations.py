@@ -41,12 +41,14 @@ from backend.app.services.document_configuration import (
 )
 from backend.app.services.document_policy_validation import ConfigurationNotReady, validate_policy
 from backend.app.services.document_readiness import ReadinessReport, check_configuration
+from backend.app.services.einvoice.validator import pinned_rule_versions
 from backend.app.services.order_errors import (
     InvalidStateConflictError,
     OrderDomainError,
     ResourceNotFoundError,
     VersionConflictError,
 )
+from backend.app.services.tax_decision import TAX_RULES_2026_1
 
 router = APIRouter(prefix="/document-configurations", tags=["document-configurations"])
 
@@ -289,7 +291,7 @@ async def publish_configuration(
                 command.effective_from,
                 command.reason,
                 _actor_id(actor),
-                command.rule_versions,
+                {"tax": TAX_RULES_2026_1.version, **pinned_rule_versions()},
             )
         )
     except ConfigurationNotReady as error:

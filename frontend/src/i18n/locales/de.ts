@@ -1689,6 +1689,7 @@ export default {
       warehouseCatalogs: 'Kataloge',
       orderManagementCalculation: 'Kalkulation',
       orderManagementBusinessProfile: 'Unternehmensprofil',
+      orderManagementDocuments: 'Dokumente',
       filament: 'Filament',
       network: 'Netzwerk',
       apiKeys: 'API-Schlüssel',
@@ -1718,8 +1719,14 @@ export default {
       spoolbuddy: 'SpoolBuddy-Kioske, NFC-Leser, Waagen, Kalibrierung und Geräteregistrierung verwalten.',
     },
     orderManagementSubTabDescriptions: {
+      documents: 'Versionierte Dokumentregeln, Zahlungsbedingungen, Steuerbehandlung und E-Rechnungen konfigurieren.',
       businessProfile: 'Unternehmensdaten für die Ausstellung kaufmännischer Dokumente verwalten.',
       calculation: 'Währung, Kostenverfolgung und Kalkulationsstandards für kaufmännische Abläufe konfigurieren.',
+    },
+    documents: {
+      title: 'Dokumenteinstellungen',
+      description: 'Versionierte Regeln für kaufmännische Dokumente und E-Rechnungen verwalten.',
+      contextHint: 'Unternehmensprofil, Dokumenttyp und Sprache auswählen, um die freigegebene Konfiguration zu verwalten.',
     },
     spoolbuddy: {
       infoTitle: 'SpoolBuddy-Geräte',

@@ -1652,6 +1652,7 @@ export default {
       warehouseCatalogs: 'Catálogos',
       orderManagementCalculation: 'Cálculo',
       orderManagementBusinessProfile: 'Business Profile',
+      orderManagementDocuments: 'Documents',
       filament: 'Filamento',
       network: 'Rede',
       apiKeys: 'Chaves API',
@@ -1681,6 +1682,7 @@ export default {
       spoolbuddy: 'Gerencie kiosks SpoolBuddy, leitores NFC, balanças, calibração e registro.',
     },
     orderManagementSubTabDescriptions: {
+      documents: 'Configure versioned document rules, payment terms, tax handling, and electronic invoices.',
       businessProfile: 'Manage the company details used to issue commercial documents.',
       calculation: 'Configure moeda, rastreamento de custos e padrões de cálculo para fluxos comerciais.',
     },
@@ -2635,6 +2637,11 @@ export default {
     },
 
 
+    documents: {
+      title: 'Document settings',
+      description: 'Manage versioned rules for commercial documents and electronic invoices.',
+      contextHint: 'Select a business profile, document type, and language to manage its approved configuration.',
+    },
     spoolbuddy: {
       infoTitle: 'Dispositivos SpoolBuddy',
       infoBody: 'Os kiosks SpoolBuddy se registram automaticamente via heartbeat. Cancele o registro de um dispositivo aqui se não estiver mais em uso ou se um duplicado obsoleto foi deixado por uma falha do daemon.',

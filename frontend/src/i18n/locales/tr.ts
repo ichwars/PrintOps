@@ -1653,6 +1653,7 @@ export default {
       warehouseCatalogs: 'Kataloglar',
       orderManagementCalculation: 'Hesaplama',
       orderManagementBusinessProfile: 'Business Profile',
+      orderManagementDocuments: 'Documents',
       filament: 'Filament',
       network: 'Ağ',
       apiKeys: 'API Anahtarları',
@@ -1682,8 +1683,14 @@ export default {
       spoolbuddy: 'SpoolBuddy kiosklarını, NFC okuyucuları, terazileri, kalibrasyonu ve cihaz kaydını yönetin.',
     },
     orderManagementSubTabDescriptions: {
+      documents: 'Configure versioned document rules, payment terms, tax handling, and electronic invoices.',
       businessProfile: 'Manage the company details used to issue commercial documents.',
       calculation: 'Ticari akışlar için para birimi, maliyet takibi ve hesaplama varsayılanlarını ayarlayın.',
+    },
+    documents: {
+      title: 'Document settings',
+      description: 'Manage versioned rules for commercial documents and electronic invoices.',
+      contextHint: 'Select a business profile, document type, and language to manage its approved configuration.',
     },
     spoolbuddy: {
       infoTitle: 'SpoolBuddy cihazları',

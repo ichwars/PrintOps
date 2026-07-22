@@ -190,6 +190,11 @@ const ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS = new Set([
   'orders.status.blocked',
   'settings.tabs.orderManagementBusinessProfile',
   'settings.orderManagementSubTabDescriptions.businessProfile',
+  'settings.tabs.orderManagementDocuments',
+  'settings.orderManagementSubTabDescriptions.documents',
+  'settings.documents.title',
+  'settings.documents.description',
+  'settings.documents.contextHint',
 ]);
 
 // Task 8 extends the same deliberately narrow English-fallback contract.

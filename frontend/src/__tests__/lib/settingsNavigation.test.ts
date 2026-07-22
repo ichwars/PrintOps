@@ -12,6 +12,7 @@ import {
 describe('settingsNavigation', () => {
   it('resolves the canonical business profile order-management subtab', () => {
     expect(resolveOrderManagementSubTab('business-profile')).toBe('business-profile');
+    expect(resolveOrderManagementSubTab('documents')).toBe('documents');
     expect(resolveOrderManagementSubTab('calculation')).toBe('calculation');
     expect(resolveOrderManagementSubTab('unknown')).toBeNull();
   });

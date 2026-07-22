@@ -1652,6 +1652,7 @@ export default {
       warehouseCatalogs: '目錄',
       orderManagementCalculation: '計算',
       orderManagementBusinessProfile: 'Business Profile',
+      orderManagementDocuments: 'Documents',
       filament: '耗材',
       network: '網路',
       apiKeys: 'API 金鑰',
@@ -1681,8 +1682,14 @@ export default {
       spoolbuddy: '管理 SpoolBuddy kiosk、NFC 讀卡機、電子秤、校正與裝置註冊。',
     },
     orderManagementSubTabDescriptions: {
+      documents: 'Configure versioned document rules, payment terms, tax handling, and electronic invoices.',
       businessProfile: 'Manage the company details used to issue commercial documents.',
       calculation: '設定商務流程的貨幣、成本追蹤與計算預設值。',
+    },
+    documents: {
+      title: 'Document settings',
+      description: 'Manage versioned rules for commercial documents and electronic invoices.',
+      contextHint: 'Select a business profile, document type, and language to manage its approved configuration.',
     },
     spoolbuddy: {
       infoTitle: 'SpoolBuddy 裝置',
