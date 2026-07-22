@@ -15,7 +15,7 @@ RAM = "urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationE
 QDT = "urn:un:unece:uncefact:data:standard:QualifiedDataType:100"
 UDT = "urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100"
 
-EN16931_CONTEXT = "urn:factur-x.eu:1p0:en16931"
+EN16931_CONTEXT = "urn:cen.eu:en16931:2017"
 XRECHNUNG_CONTEXT = "urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0"
 
 

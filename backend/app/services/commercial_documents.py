@@ -17,11 +17,10 @@ from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.commercial_document import (
     CommercialDocument,
     CommercialDocumentLine,
-    DocumentArtifact,
     DocumentNumberReservation,
     DocumentRelation,
 )
-from backend.app.models.customer import Customer
+from backend.app.models.customer import Customer, CustomerAccount
 from backend.app.models.document_configuration import DocumentConfiguration
 from backend.app.schemas.commercial_document import (
     CommercialDocumentDraft,
@@ -34,6 +33,14 @@ from backend.app.services.document_catalog import DOCUMENT_CAPABILITIES, Documen
 from backend.app.services.document_numbering import reserve_document_number
 from backend.app.services.document_readiness import check_configuration
 from backend.app.services.document_snapshot import attach_issued_snapshot
+from backend.app.services.einvoice.artifacts import store_artifact
+from backend.app.services.einvoice.canonical import from_snapshot, validate_math
+from backend.app.services.einvoice.validator import (
+    EInvoiceValidationReport,
+    validate_xml,
+)
+from backend.app.services.einvoice.xrechnung import render_xrechnung
+from backend.app.services.einvoice.zugferd import render_zugferd
 from backend.app.services.order_errors import ResourceInUseError, ResourceNotFoundError, VersionConflictError
 
 
@@ -61,9 +68,19 @@ class GeneratedArtifact:
     content_type: str
     content: bytes
     sha256: str
-    validation_status: str
-    validation_report: dict
-    rule_versions: dict
+    report: EInvoiceValidationReport
+
+    @property
+    def validation_status(self) -> str:
+        return "valid" if self.report.valid else "invalid"
+
+    @property
+    def validation_report(self) -> dict:
+        return self.report.to_dict()
+
+    @property
+    def rule_versions(self) -> dict:
+        return dict(self.report.rule_versions)
 
 
 async def generate_required_artifact(
@@ -71,9 +88,64 @@ async def generate_required_artifact(
     document: CommercialDocument,
     snapshot: IssuedDocumentSnapshot,
 ) -> GeneratedArtifact | None:
-    """Task-12 hook for standards-compliant electronic invoice generation."""
-    del session, document, snapshot
-    return None
+    """Render and officially validate the E-invoice required by the frozen snapshot."""
+    del session
+    policy = dict(snapshot.metadata.get("einvoice") or {})
+    if document.customer_id is None or not policy.get("required"):
+        return None
+
+    standard = str(policy.get("standard") or "xrechnung").lower()
+    syntax = str(policy.get("syntax") or "ubl_2_1").lower()
+    profile = str(policy.get("profile") or "xrechnung").lower()
+    try:
+        invoice = from_snapshot(snapshot)
+        math_findings = validate_math(invoice)
+        if math_findings:
+            details = ", ".join(f"{item.code} ({item.path})" for item in math_findings)
+            raise EInvoiceValidationFailed(f"E-invoice totals are inconsistent: {details}")
+
+        if standard == "xrechnung":
+            if syntax in {"ubl", "ubl_2_1", "ubl-2.1"}:
+                renderer_syntax = "ubl"
+            elif syntax in {"cii", "cii_d16b", "cii-d16b"}:
+                renderer_syntax = "cii"
+            else:
+                raise ValueError(f"Unsupported XRechnung syntax {syntax!r}")
+            normalized_syntax = "ubl-2.1" if renderer_syntax == "ubl" else "cii-d16b"
+            xml = render_xrechnung(invoice, renderer_syntax)
+            kind = "xrechnung_xml"
+            profile = "xrechnung"
+        elif standard == "zugferd":
+            if profile not in {"en16931", "xrechnung"}:
+                raise ValueError(f"Unsupported ZUGFeRD profile {profile!r}")
+            xml = render_zugferd(invoice, profile)
+            normalized_syntax = "cii-d22b"
+            kind = "zugferd_xml"
+        else:
+            raise ValueError(f"Unsupported E-invoice standard {standard!r}")
+    except EInvoiceValidationFailed:
+        raise
+    except (TypeError, ValueError) as exc:
+        raise EInvoiceValidationFailed(f"E-invoice source data is incomplete: {exc}") from exc
+
+    report = validate_xml(
+        xml,
+        standard=standard,
+        syntax=normalized_syntax,
+        profile=profile,
+    )
+    if not report.valid:
+        detail = report.processing_error or "; ".join(
+            f"{item.rule_id} {item.field_path}: {item.message}" for item in report.blockers[:10]
+        )
+        raise EInvoiceValidationFailed(f"Generated electronic invoice is invalid: {detail}")
+    return GeneratedArtifact(
+        kind=kind,
+        content_type="application/xml",
+        content=xml,
+        sha256=sha256(xml).hexdigest(),
+        report=report,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +171,7 @@ _LOAD_OPTIONS = (
     selectinload(CommercialDocument.incoming_relations),
     selectinload(CommercialDocument.outgoing_relations),
     selectinload(CommercialDocument.snapshot),
+    selectinload(CommercialDocument.artifacts),
 )
 
 
@@ -829,7 +902,14 @@ async def _snapshot_payload(
     if profile is None:
         raise ResourceNotFoundError(f"Business profile {document.business_profile_id} was not found")
     buyer = await session.scalar(
-        select(Customer).where(Customer.id == document.customer_id)
+        select(Customer)
+        .where(Customer.id == document.customer_id)
+        .options(
+            selectinload(Customer.addresses),
+            selectinload(Customer.contacts),
+            selectinload(Customer.tax_identifiers),
+            selectinload(Customer.accounts).selectinload(CustomerAccount.document_preference),
+        )
     ) if document.customer_id is not None else None
     configuration = await session.scalar(
         select(DocumentConfiguration)
@@ -837,11 +917,147 @@ async def _snapshot_payload(
         .options(
             selectinload(DocumentConfiguration.text_blocks),
             selectinload(DocumentConfiguration.payment_policy),
+            selectinload(DocumentConfiguration.einvoice_policy),
         )
     )
     if configuration is None:
         raise ResourceNotFoundError(f"Document configuration {configuration_id} was not found")
     assert document.issue_date is not None
+
+    seller_address = next(
+        (item for item in profile.addresses if item.is_default),
+        next((item for item in profile.addresses if item.kind == "registered"), None),
+    )
+    seller_vat = next(
+        (item.value for item in profile.tax_identifiers if item.kind == "vat" and item.is_primary),
+        next((item.value for item in profile.tax_identifiers if item.kind == "vat"), None),
+    )
+    seller_tax = next(
+        (item.value for item in profile.tax_identifiers if item.kind != "vat" and item.is_primary),
+        next((item.value for item in profile.tax_identifiers if item.kind != "vat"), None),
+    )
+    customer_address = None
+    customer_contact = None
+    customer_vat = None
+    customer_tax = None
+    customer_account = None
+    preference = None
+    if buyer is not None:
+        customer_address = next(
+            (item for item in buyer.addresses if item.is_default),
+            next((item for item in buyer.addresses if item.kind == "billing"), None),
+        )
+        customer_contact = next(
+            (item for item in buyer.contacts if item.include_on_documents and item.is_primary),
+            next((item for item in buyer.contacts if item.include_on_documents), None),
+        )
+        customer_vat = next(
+            (item.value for item in buyer.tax_identifiers if item.kind == "vat"),
+            None,
+        )
+        customer_tax = next(
+            (item.value for item in buyer.tax_identifiers if item.kind != "vat"),
+            None,
+        )
+        customer_account = next(
+            (
+                item
+                for item in buyer.accounts
+                if item.business_profile_id == document.business_profile_id and item.is_active
+            ),
+            None,
+        )
+        preference = customer_account.document_preference if customer_account is not None else None
+
+    einvoice_policy = configuration.einvoice_policy
+    customer_requirement = preference.einvoice_requirement if preference is not None else "inherit"
+    einvoice_required = bool(
+        buyer is not None
+        and einvoice_policy is not None
+        and (
+            customer_requirement == "required"
+            or (
+                customer_requirement == "inherit"
+                and einvoice_policy.requirement == "rule_required"
+            )
+        )
+    )
+    seller_endpoint = einvoice_policy.seller_identifier if einvoice_policy is not None else None
+    seller_endpoint_scheme = (
+        einvoice_policy.seller_identifier_scheme if einvoice_policy is not None else None
+    )
+    if (
+        seller_endpoint
+        and seller_endpoint_scheme
+        and seller_endpoint.startswith(f"{seller_endpoint_scheme}:")
+    ):
+        seller_endpoint = seller_endpoint.split(":", 1)[1]
+    policy_requirements = (
+        dict(einvoice_policy.recipient_requirements or {})
+        if einvoice_policy is not None
+        else {}
+    )
+    buyer_endpoint = preference.endpoint_id if preference is not None else None
+    buyer_endpoint_scheme = preference.endpoint_scheme if preference is not None else None
+    if not buyer_endpoint and customer_contact is not None and customer_contact.email:
+        buyer_endpoint = customer_contact.email
+        buyer_endpoint_scheme = "EM"
+    buyer_reference = None
+    if preference is not None:
+        buyer_reference = preference.buyer_reference or preference.leitweg_id
+    buyer_reference = buyer_reference or (document.content_options or {}).get("buyer_reference")
+
+    bank_account_id = None
+    if einvoice_policy is not None and einvoice_policy.bank_account_id is not None:
+        bank_account_id = einvoice_policy.bank_account_id
+    elif configuration.payment_policy is not None:
+        bank_account_id = configuration.payment_policy.bank_account_id
+    bank_account = next(
+        (item for item in profile.bank_accounts if item.id == bank_account_id),
+        next((item for item in profile.bank_accounts if item.is_default), None),
+    )
+    payment_method = (
+        einvoice_policy.default_payment_method if einvoice_policy is not None else None
+    )
+    payment_means_code = {
+        "bank_transfer": "58",
+        "credit_transfer": "58",
+        "sepa_transfer": "58",
+        "direct_debit": "59",
+        "card": "48",
+        "cash": "10",
+    }.get(str(payment_method or "").lower(), "58" if bank_account and bank_account.iban else "30")
+    payment_terms = next(
+        (item.body for item in configuration.text_blocks if item.purpose == "payment_terms"),
+        None,
+    )
+    if payment_terms:
+        payment_terms = payment_terms.replace("{DOCUMENT_NUMBER}", number)
+        payment_terms = payment_terms.replace(
+            "{DUE_DATE}", document.due_date.isoformat() if document.due_date else ""
+        )
+
+    references: list[dict] = []
+    if preference is not None and preference.purchase_order_reference:
+        references.append(
+            {"kind": "order", "identifier": preference.purchase_order_reference}
+        )
+    for relation in document.incoming_relations:
+        relation_number = (relation.relation_data or {}).get("document_number")
+        if relation_number:
+            references.append(
+                {
+                    "kind": relation.relation_type,
+                    "identifier": str(relation_number),
+                }
+            )
+
+    standard = "xrechnung"
+    syntax = einvoice_policy.syntax if einvoice_policy is not None else "ubl_2_1"
+    profile_name = "xrechnung"
+    if str(syntax).lower() in {"cii_d22b", "cii-d22b", "zugferd"}:
+        standard = "zugferd"
+        profile_name = str(einvoice_policy.zugferd_profile or "EN16931").lower()
     return IssuedDocumentSnapshot(
         document_type=document.document_type,
         number=number,
@@ -854,6 +1070,26 @@ async def _snapshot_payload(
             "id": profile.id,
             "name": profile.legal_name,
             "country_code": profile.country_code,
+            "address": (
+                {
+                    "line1": seller_address.street,
+                    "line2": seller_address.street_2 or seller_address.additional,
+                    "postal_code": seller_address.postal_code,
+                    "city": seller_address.city,
+                    "country_code": seller_address.country_code,
+                }
+                if seller_address is not None
+                else {}
+            ),
+            "vat_id": seller_vat,
+            "tax_id": seller_tax,
+            "electronic_address": seller_endpoint,
+            "electronic_address_scheme": seller_endpoint_scheme,
+            "contact": {
+                "name": policy_requirements.get("seller_contact_name"),
+                "email": policy_requirements.get("seller_contact_email"),
+                "phone": policy_requirements.get("seller_contact_phone"),
+            },
             "addresses": [
                 {
                     "kind": item.kind,
@@ -872,6 +1108,36 @@ async def _snapshot_payload(
         buyer={
             "id": buyer.id if buyer is not None else None,
             "name": buyer.display_name if buyer is not None else "",
+            "address": (
+                {
+                    "line1": customer_address.street,
+                    "line2": customer_address.street_2 or customer_address.additional,
+                    "postal_code": customer_address.postal_code,
+                    "city": customer_address.city,
+                    "country_code": customer_address.country_code,
+                }
+                if customer_address is not None
+                else {}
+            ),
+            "contact": (
+                {
+                    "name": " ".join(
+                        part
+                        for part in (customer_contact.first_name, customer_contact.last_name)
+                        if part
+                    ),
+                    "email": customer_contact.email,
+                    "phone": customer_contact.phone,
+                }
+                if customer_contact is not None
+                else {}
+            ),
+            "vat_id": customer_vat,
+            "tax_id": customer_tax,
+            "registration_id": customer_account.number if customer_account is not None else None,
+            "electronic_address": buyer_endpoint,
+            "electronic_address_scheme": buyer_endpoint_scheme,
+            "buyer_reference": buyer_reference,
         },
         lines=tuple(
             SnapshotLine(
@@ -901,14 +1167,13 @@ async def _snapshot_payload(
                 if configuration.payment_policy is not None
                 else None
             ),
+            "means_code": payment_means_code,
+            "terms": payment_terms,
+            "iban": bank_account.iban if bank_account is not None else None,
+            "bic": bank_account.bic if bank_account is not None else None,
+            "account_name": bank_account.account_holder if bank_account is not None else None,
         },
-        references=tuple(
-            {
-                "relation_type": relation.relation_type,
-                "document_id": relation.source_document_id,
-            }
-            for relation in document.incoming_relations
-        ),
+        references=tuple(references),
         text_blocks=tuple(
             {
                 "purpose": block.purpose,
@@ -917,7 +1182,22 @@ async def _snapshot_payload(
             }
             for block in configuration.text_blocks
         ),
-        metadata={"tax_decision": dict(document.tax_decision or {})},
+        metadata={
+            "tax_decision": dict(document.tax_decision or {}),
+            "einvoice": {
+                "required": einvoice_required,
+                "standard": standard,
+                "syntax": syntax,
+                "profile": profile_name,
+                "en16931_version": (
+                    einvoice_policy.en16931_version if einvoice_policy is not None else None
+                ),
+                "cius_name": einvoice_policy.cius_name if einvoice_policy is not None else None,
+                "cius_version": (
+                    einvoice_policy.cius_version if einvoice_policy is not None else None
+                ),
+            },
+        },
     )
 
 
@@ -989,17 +1269,12 @@ async def issue_document(
             actor_id=actor_id,
         )
         if artifact is not None:
-            session.add(
-                DocumentArtifact(
-                    document_id=document.id,
-                    kind=artifact.kind,
-                    content_type=artifact.content_type,
-                    content=artifact.content,
-                    sha256=artifact.sha256,
-                    validation_status=artifact.validation_status,
-                    validation_report=artifact.validation_report,
-                    rule_versions=artifact.rule_versions,
-                )
+            await store_artifact(
+                session,
+                document,
+                artifact.content,
+                artifact.report,
+                artifact.rule_versions,
             )
         await append_audit(
             session,

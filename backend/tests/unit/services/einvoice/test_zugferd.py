@@ -16,7 +16,7 @@ def test_zugferd_25_uses_d22b_context_and_has_no_empty_elements(
     xml = render_zugferd(canonical_invoice, "en16931")
     root = etree.fromstring(xml)
 
-    assert b"urn:factur-x.eu:1p0:en16931" in xml
+    assert b"urn:cen.eu:en16931:2017" in xml
     assert b"CrossIndustryInvoice:100" in xml
     assert (
         root.xpath(

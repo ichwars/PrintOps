@@ -85,6 +85,9 @@ fast-simplification>=0.1.0
 # ("No module named 'networkx'" / "No module named 'lxml'") if absent.
 networkx>=3.0
 lxml>=5.0
+# Official EN 16931, XRechnung and Factur-X validation stylesheets require
+# XSLT 2.0/3.0. SaxonC-HE is the vendor-supported, license-free processor.
+saxonche>=13.0.0,<14
 
 # System monitoring
 psutil>=6.0.0

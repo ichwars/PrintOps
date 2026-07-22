@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import AsyncIterator
 from datetime import date
 from decimal import Decimal
+from hashlib import sha256
 
 import pytest
 import pytest_asyncio
@@ -21,9 +22,18 @@ from backend.app.models.business_profile import (
 from backend.app.models.commercial_document import (
     CommercialDocument,
     CommercialDocumentLine,
+    DocumentArtifact,
     DocumentNumberReservation,
 )
+from backend.app.models.customer import (
+    Customer,
+    CustomerAccount,
+    CustomerAddress,
+    CustomerContact,
+    CustomerTaxIdentifier,
+)
 from backend.app.models.document_configuration import (
+    CustomerDocumentPreference,
     DocumentBasicPolicy,
     DocumentConfiguration,
     DocumentContentPolicy,
@@ -55,6 +65,7 @@ async def _ready_invoice(
     sessions: async_sessionmaker[AsyncSession],
     *,
     issue_date: date = date(2026, 7, 20),
+    with_einvoice_customer: bool = False,
 ) -> tuple[int, int]:
     async with sessions() as session:
         profile = BusinessProfile(
@@ -128,15 +139,74 @@ async def _ready_invoice(
             seller_identifier="0088:1234567890123",
             seller_identifier_scheme="0088",
             bank_account_id=bank.id,
+            recipient_requirements={
+                "seller_contact_name": "Buchhaltung",
+                "seller_contact_email": "rechnung@issuance.example",
+                "seller_contact_phone": "+49 30 123456",
+            },
         )
         configuration.text_blocks = [
             DocumentTextBlock(purpose="intro", body="Rechnung {DOCUMENT_NUMBER}", position=0),
             DocumentTextBlock(purpose="closing", body="Vielen Dank.", position=1),
             DocumentTextBlock(purpose="payment_terms", body="Zahlbar bis {DUE_DATE}.", position=2),
         ]
+        customer_id = None
+        if with_einvoice_customer:
+            customer = Customer(
+                kind="company",
+                display_name="Atelier Nord GmbH",
+                company_name="Atelier Nord GmbH",
+                status="active",
+                preferred_locale="de-DE",
+            )
+            customer.addresses = [
+                CustomerAddress(
+                    kind="billing",
+                    street="Hafenweg 3",
+                    postal_code="20457",
+                    city="Hamburg",
+                    country_code="DE",
+                    is_default=True,
+                )
+            ]
+            customer.contacts = [
+                CustomerContact(
+                    first_name="Ada",
+                    last_name="Nord",
+                    email="rechnung@atelier-nord.example",
+                    is_primary=True,
+                    include_on_documents=True,
+                )
+            ]
+            customer.tax_identifiers = [
+                CustomerTaxIdentifier(
+                    kind="vat",
+                    value="DE987654321",
+                    country_code="DE",
+                )
+            ]
+            account = CustomerAccount(
+                business_profile_id=profile.id,
+                number="KD-1001",
+                preferred_currency="EUR",
+                is_active=True,
+            )
+            account.document_preference = CustomerDocumentPreference(
+                endpoint_id="04011000-12345-34",
+                endpoint_scheme="0204",
+                leitweg_id="04011000-12345-34",
+                buyer_reference="04011000-12345-34",
+                purchase_order_reference="PO-4711",
+                einvoice_requirement="required",
+            )
+            customer.accounts = [account]
+            session.add(customer)
+            await session.flush()
+            customer_id = customer.id
         document = CommercialDocument(
             document_type="invoice",
             business_profile_id=profile.id,
+            customer_id=customer_id,
             technical_status="ready",
             payment_status="unpaid",
             issue_date=issue_date,
@@ -262,3 +332,31 @@ async def test_issuance_number_uses_document_issue_date(issuance_sessions):
     )
 
     assert number == "RE-2025-0001"
+
+
+@pytest.mark.asyncio
+async def test_required_einvoice_is_validated_and_stored_outside_database(
+    issuance_sessions,
+):
+    document_id, version = await _ready_invoice(
+        issuance_sessions,
+        with_einvoice_customer=True,
+    )
+
+    await _issue_once(issuance_sessions, document_id, version, "issue-key-einvoice")
+
+    async with issuance_sessions() as session:
+        artifact = await session.scalar(
+            select(DocumentArtifact).where(DocumentArtifact.document_id == document_id)
+        )
+        assert artifact is not None
+        assert artifact.validation_status == "valid"
+        assert artifact.content is None
+        assert artifact.validation_report["valid"] is True
+        assert artifact.rule_versions["xrechnung"] == "3.0.2-2026-01-31"
+        assert artifact.storage_path is not None
+        from backend.app.core.paths import resolve_data_dir
+
+        stored = resolve_data_dir() / artifact.storage_path
+        assert stored.is_file()
+        assert sha256(stored.read_bytes()).hexdigest() == artifact.sha256
