@@ -471,6 +471,15 @@ Jeder Bericht speichert die verwendeten Regelversionen. Regelwerksupdates
 erfolgen kontrolliert mit einer Anwendungsversion und verändern historische
 Berichte nicht.
 
+Der fest eingebundene Regelstand dieser Umsetzung besteht aus EN-16931
+Validation Artefacts `1.3.16` vom 10. April 2026, der KoSIT-
+Validator-Konfiguration für XRechnung `3.0.2` im Bundle vom 31. Januar 2026
+sowie ZUGFeRD `2.5` / Factur-X `1.09` vom 10. Juni 2026. Für ZUGFeRD wird das
+Profil `EN 16931` auf Basis von CII D22B eingebunden; das ZUGFeRD-Profil
+`XRECHNUNG` verwendet zusätzlich die genannten deutschen CIUS-Regeln. Herkunft,
+Lizenz, Syntax, Profil und SHA-256 jeder ausgelieferten Regeldatei sind im
+E-Rechnungs-Assetmanifest festgehalten.
+
 ## Nummern und Referenzen
 
 - Jeder ausstellbare Dokumenttyp besitzt einen zugeordneten Nummernkreis.
