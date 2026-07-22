@@ -71,10 +71,30 @@ export interface DocumentAuditEvent {
 export interface PaymentPolicyDraft {
   payment_term_days: number;
   currency: string;
+  due_date_basis: string;
+  payment_methods: string[];
   discount_days: number;
   discount_percent: string;
   installments: Array<{ percent: string; due_days: number }>;
+  prepayment_percent: string;
+  installment_enabled: boolean;
+  bank_account_id: number | null;
   bank_assignments: Array<{ bank_account_id: number; is_default: boolean }>;
+  use_term_in_invoice_text: boolean;
+}
+
+export interface BasicPolicyDraft {
+  subject: string;
+  validity_days: number | null;
+  date_rule: string;
+  rounding_mode: string;
+  reference_requirements: Record<string, boolean>;
+  allowed_successors: DocumentType[];
+}
+
+export interface ContentPolicyDraft {
+  include_calculation_data: boolean;
+  visible_content: Record<string, boolean>;
 }
 
 export interface DunningPolicyDraft {
@@ -95,8 +115,10 @@ export interface DunningPolicyDraft {
 export interface DocumentConfigurationDraft {
   document_type: DocumentType;
   language: string;
+  basic: BasicPolicyDraft;
   payment: PaymentPolicyDraft;
   dunning: DunningPolicyDraft;
+  content: ContentPolicyDraft;
   text_blocks: Array<{
     purpose: string;
     body: string;

@@ -16,7 +16,13 @@ from backend.app.models.document_configuration import (
     PaymentPolicy,
     TaxPolicy,
 )
-from backend.app.services.document_configuration import clone_version, publish, resolve_effective, update_draft
+from backend.app.services.document_configuration import (
+    clone_version,
+    publish,
+    resolve_effective,
+    to_draft_schema,
+    update_draft,
+)
 from backend.app.services.document_policy_validation import ConfigurationNotReady
 from backend.app.services.order_errors import VersionConflictError
 
@@ -209,3 +215,35 @@ async def test_update_draft_persists_discount_and_installment_rules(db_session):
         {"percent": "40.00", "due_days": 7},
         {"percent": "60.00", "due_days": 30},
     ]
+
+
+@pytest.mark.asyncio
+async def test_update_draft_round_trips_basic_content_payment_and_dunning(db_session):
+    _profile, _customer, active = await _configuration_fixture(db_session)
+    draft = await clone_version(db_session, active.id, actor_id=7)
+
+    updated = await update_draft(
+        db_session,
+        draft.id,
+        expected_version=1,
+        patch={
+            "basic": {"subject": "Rechnung {DOCUMENT_NUMBER}", "reference_requirements": {"order_reference": True}},
+            "content": {"include_calculation_data": False, "visible_content": {"material": True}},
+            "payment": {"due_date_basis": "service_date", "payment_methods": ["bank_transfer"]},
+            "dunning": {
+                "enabled": True,
+                "annual_interest_rate": "5.0000",
+                "flat_fee": "2.50",
+                "stages": [
+                    {"level": 1, "wait_days": 7, "fee": "2.50", "charge_interest": True, "new_due_days": 7, "body": "Bitte zahlen.", "escalation_hint": None}
+                ],
+            },
+        },
+        actor_id=7,
+    )
+
+    policy = to_draft_schema(updated)
+    assert policy.basic.reference_requirements == {"order_reference": True}
+    assert policy.content.visible_content == {"material": True}
+    assert policy.payment.due_date_basis == "service_date"
+    assert policy.dunning.stages[0].body == "Bitte zahlen."

@@ -26,6 +26,8 @@ from backend.app.models.document_configuration import (
 )
 from backend.app.schemas.document_configuration import (
     BankAssignmentDraft,
+    BasicPolicyDraft,
+    ContentPolicyDraft,
     CreateConfigurationCommand,
     DocumentConfigurationDraft,
     DocumentTextBlockDraft,
@@ -226,6 +228,7 @@ async def update_draft(
     section_targets = {
         "basic": configuration.basic_policy,
         "payment": configuration.payment_policy,
+        "dunning": configuration.dunning_policy,
         "content": configuration.content_policy,
         "tax": configuration.tax_policy,
         "einvoice": configuration.einvoice_policy,
@@ -241,6 +244,8 @@ async def update_draft(
         if target is None or not isinstance(values, dict):
             raise InvalidStateConflictError(f"Unsupported document configuration patch section: {section}")
         values = deepcopy(values)
+        if section == "dunning" and "stages" in values:
+            target.stages = [DunningStage(**DunningStageDraft.model_validate(item).model_dump()) for item in values.pop("stages")]
         if section == "payment":
             discount_days = values.pop("discount_days", None)
             discount_percent = values.pop("discount_percent", None)
@@ -384,9 +389,11 @@ async def withdraw_scheduled(
 
 
 def _as_policy_draft(configuration: DocumentConfiguration) -> DocumentConfigurationDraft:
+    basic = configuration.basic_policy
     payment = configuration.payment_policy
     dunning = configuration.dunning_policy
-    if payment is None or dunning is None:
+    content = configuration.content_policy
+    if basic is None or payment is None or dunning is None or content is None:
         raise InvalidStateConflictError(f"Document configuration {configuration.id} has incomplete policy rows")
 
     discount_rule = payment.early_payment_rules[0] if payment.early_payment_rules else {}
@@ -394,17 +401,31 @@ def _as_policy_draft(configuration: DocumentConfiguration) -> DocumentConfigurat
     return DocumentConfigurationDraft(
         document_type=DocumentType(configuration.document_type),
         language=configuration.language,
+        basic=BasicPolicyDraft(
+            subject=basic.subject,
+            validity_days=basic.validity_days,
+            date_rule=basic.date_rule,
+            rounding_mode=basic.rounding_mode,
+            reference_requirements=deepcopy(basic.reference_requirements),
+            allowed_successors=[DocumentType(item) for item in basic.allowed_successors],
+        ),
         payment=PaymentPolicyDraft(
             payment_term_days=payment.payment_term_days,
             currency=payment.currency,
+            due_date_basis=payment.due_date_basis,
+            payment_methods=deepcopy(payment.payment_methods),
             discount_days=discount_rule.get("days", 0),
             discount_percent=discount_rule.get("percent", "0"),
             installments=[InstallmentDraft.model_validate(item) for item in installments],
+            prepayment_percent=payment.prepayment_percent,
+            installment_enabled=payment.installment_enabled,
+            bank_account_id=payment.bank_account_id,
             bank_assignments=(
                 [BankAssignmentDraft(bank_account_id=payment.bank_account_id, is_default=True)]
                 if payment.bank_account_id is not None
                 else []
             ),
+            use_term_in_invoice_text=payment.use_term_in_invoice_text,
         ),
         dunning=DunningPolicyDraft(
             enabled=dunning.enabled,
@@ -422,6 +443,10 @@ def _as_policy_draft(configuration: DocumentConfiguration) -> DocumentConfigurat
                 )
                 for stage in dunning.stages
             ],
+        ),
+        content=ContentPolicyDraft(
+            include_calculation_data=content.include_calculation_data,
+            visible_content=deepcopy(content.visible_content),
         ),
         text_blocks=[
             DocumentTextBlockDraft(

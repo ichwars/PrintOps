@@ -19,7 +19,11 @@ import {
   initialDocumentContext,
   stableStringify,
   type DocumentContext,
+  updateDocumentDraft,
 } from './documentSettingsState';
+import { BasicPolicySection } from './BasicPolicySection';
+import { PaymentPolicySection } from './PaymentPolicySection';
+import { TextBlocksSection } from './TextBlocksSection';
 import { VersionHistoryPanel } from './VersionHistoryPanel';
 
 function todayKey(): string {
@@ -58,6 +62,11 @@ export function DocumentSettings() {
     queryFn: documentManagementApi.getCatalog,
     enabled: !authLoading && canRead,
   });
+  const placeholdersQuery = useQuery({
+    queryKey: ['document-configuration-placeholders'],
+    queryFn: documentManagementApi.getPlaceholders,
+    enabled: !authLoading && canRead,
+  });
 
   useEffect(() => {
     if (context.profileId === 0 && profilesQuery.data?.length) {
@@ -94,6 +103,15 @@ export function DocumentSettings() {
     queryFn: () => documentManagementApi.getConfigurationAudit(configuration!.id),
     enabled: Boolean(configuration?.id),
   });
+  const effectivePolicyQuery = useQuery({
+    queryKey: ['document-effective-policy', context.profileId, context.documentType, context.language, configuration?.lock_version],
+    queryFn: () => documentManagementApi.getEffectivePolicy({
+      business_profile_id: context.profileId,
+      document_type: context.documentType,
+      language: context.language,
+    }),
+    enabled: Boolean(configuration?.id),
+  });
 
   useEffect(() => {
     setDraft(configuration?.policy ?? null);
@@ -119,6 +137,7 @@ export function DocumentSettings() {
       queryClient.invalidateQueries({ queryKey: ['document-configuration-readiness'] }),
       queryClient.invalidateQueries({ queryKey: ['document-configuration-history'] }),
       queryClient.invalidateQueries({ queryKey: ['document-configuration-audit'] }),
+      queryClient.invalidateQueries({ queryKey: ['document-effective-policy'] }),
     ]);
   };
 
@@ -147,7 +166,10 @@ export function DocumentSettings() {
   const saveMutation = useMutation({
     mutationFn: () => documentManagementApi.updateConfiguration(configuration!.id, configuration!.lock_version, {
       change_reason: changeReason.trim(),
+      basic: draft!.basic,
       payment: draft!.payment,
+      dunning: draft!.dunning,
+      content: draft!.content,
       text_blocks: draft!.text_blocks,
     }),
   });
@@ -188,8 +210,11 @@ export function DocumentSettings() {
     return <section id="card-document-settings" className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">{t('settings.documents.permissionDenied', 'You do not have permission to view document settings.')}</section>;
   }
 
-  const initialLoading = profilesQuery.isPending || catalogQuery.isPending || (context.profileId > 0 && configurationQuery.isPending);
-  const queryError = profilesQuery.error ?? catalogQuery.error ?? configurationQuery.error;
+  const initialLoading = profilesQuery.isPending || catalogQuery.isPending || placeholdersQuery.isPending || (context.profileId > 0 && configurationQuery.isPending);
+  const queryError = profilesQuery.error ?? catalogQuery.error ?? placeholdersQuery.error ?? configurationQuery.error;
+  const capability = catalogQuery.data?.document_types.find((item) => item.key === context.documentType);
+  const readOnly = !canManage || configuration?.status !== 'draft' || pendingAction !== null;
+  const changePolicy = (path: string, value: unknown) => setDraft((current) => current ? updateDocumentDraft(current, path, value) : current);
 
   return (
     <section id="card-document-settings" className="w-full space-y-4" aria-labelledby="document-settings-heading">
@@ -240,10 +265,46 @@ export function DocumentSettings() {
           />
 
           {configuration ? (
-            <div className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4 text-sm text-gray-300">
-              <p className="font-medium text-white">{t('settings.documents.policy.title', 'Configuration')}</p>
-              <p className="mt-1 text-gray-400">{t('settings.documents.policy.hint', 'The policy sections below are saved as a versioned draft. Published versions remain immutable.')}</p>
-            </div>
+            <>
+              <div className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4 text-sm text-gray-300">
+                <p className="font-medium text-white">{t('settings.documents.policy.title', 'Configuration')}</p>
+                <p className="mt-1 text-gray-400">{t('settings.documents.policy.hint', 'The policy sections below are saved as a versioned draft. Published versions remain immutable.')}</p>
+              </div>
+              {draft && capability && placeholdersQuery.data ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                    <BasicPolicySection
+                      basic={draft.basic}
+                      content={draft.content}
+                      capability={capability}
+                      effectiveBasic={effectivePolicyQuery.data?.basic}
+                      effectiveContent={effectivePolicyQuery.data?.content}
+                      findings={configuration.validation_findings}
+                      disabled={readOnly}
+                      onChange={changePolicy}
+                    />
+                    {capability.has_payment_terms ? (
+                      <PaymentPolicySection
+                        payment={draft.payment}
+                        dunning={draft.dunning}
+                        effectivePayment={effectivePolicyQuery.data?.payment}
+                        findings={configuration.validation_findings}
+                        disabled={readOnly}
+                        onChange={changePolicy}
+                      />
+                    ) : null}
+                  </div>
+                  <TextBlocksSection
+                    documentType={context.documentType}
+                    blocks={draft.text_blocks}
+                    catalog={placeholdersQuery.data}
+                    findings={configuration.validation_findings}
+                    disabled={readOnly}
+                    onChange={(blocks) => setDraft((current) => current ? { ...current, text_blocks: blocks } : current)}
+                  />
+                </div>
+              ) : null}
+            </>
           ) : (
             <div className="rounded-xl border border-dashed border-bambu-dark-tertiary bg-bambu-dark-secondary p-6 text-center">
               <p className="font-medium text-white">{t('settings.documents.empty.title', 'No configuration for this context')}</p>

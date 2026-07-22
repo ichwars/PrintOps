@@ -271,6 +271,32 @@ const ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS = new Set([
   'settings.documents.documentTypes.self_billing',
 ].forEach((key) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(key));
 
+// Task 17 policy-editor terminology intentionally falls back to English
+// outside the complete German translation.
+[
+  'inheritance.system', 'inheritance.businessProfile', 'inheritance.customer', 'inheritance.configuration', 'inheritance.document', 'inheritance.reset',
+  'basic.title', 'basic.description', 'basic.subject', 'basic.validityDays', 'basic.dateRule', 'basic.dates.issue', 'basic.dates.service', 'basic.dates.delivery',
+  'basic.rounding', 'basic.roundingModes.commercial', 'basic.roundingModes.bankers', 'basic.roundingModes.down', 'basic.references',
+  'basic.reference.customer_reference', 'basic.reference.order_reference', 'basic.reference.service_period', 'basic.successors', 'basic.technicalContent',
+  'basic.includeCalculation', 'basic.content.print_time', 'basic.content.material', 'basic.content.plate_notes',
+  'payment.title', 'payment.description', 'payment.termDays', 'payment.currency', 'payment.dueBasis', 'payment.bankAccount', 'payment.discountDays',
+  'payment.discountPercent', 'payment.prepayment', 'payment.methods.bank_transfer', 'payment.methods.cash', 'payment.methods.card',
+  'payment.methods.direct_debit', 'payment.methods.paypal', 'payment.useTermInText', 'payment.installments', 'payment.installmentPercent',
+  'payment.installmentDue', 'payment.removeInstallment', 'payment.installmentTotalError', 'payment.addInstallment', 'payment.dunningEnabled',
+  'payment.interest', 'payment.flatFee', 'payment.stage', 'payment.removeStage', 'payment.waitDays', 'payment.stageFee', 'payment.newDueDays',
+  'payment.stageText', 'payment.chargeInterest', 'payment.addStage',
+  'textBlocks.title', 'textBlocks.description', 'textBlocks.insertPlaceholder', 'textBlocks.choosePlaceholder', 'textBlocks.purposes.intro',
+  'textBlocks.purposes.closing', 'textBlocks.purposes.payment_terms', 'textBlocks.purposes.delivery_terms', 'textBlocks.purposes.tax_note',
+  'textBlocks.purposes.footer', 'textBlocks.purposes.dunning_notice',
+  'placeholders.company_name', 'placeholders.company_address', 'placeholders.company_tax_id', 'placeholders.company_vat_id',
+  'placeholders.customer_name', 'placeholders.customer_number', 'placeholders.customer_address', 'placeholders.customer_email',
+  'placeholders.customer_vat_id', 'placeholders.document_number', 'placeholders.document_issue_date', 'placeholders.document_due_date',
+  'placeholders.document_service_date', 'placeholders.document_currency', 'placeholders.payment_term_days', 'placeholders.payment_discount_deadline',
+  'placeholders.payment_discount_percent', 'placeholders.dunning_stage', 'placeholders.dunning_fee', 'placeholders.dunning_new_due_date',
+  'placeholders.DOCUMENT_NUMBER', 'placeholders.VALID_UNTIL', 'placeholders.ORDER_REFERENCE', 'placeholders.DUE_DATE',
+  'placeholders.SERVICE_DATE', 'placeholders.ORIGINAL_DOCUMENT_NUMBER', 'placeholders.OPEN_AMOUNT', 'placeholders.CURRENCY', 'placeholders.DUNNING_LEVEL',
+].forEach((suffix) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(`settings.documents.${suffix}`));
+
 // Task 8 extends the same deliberately narrow English-fallback contract.
 [
   'orders.customers.permissionDenied', 'orders.customers.configureProfiles', 'orders.customers.add',
@@ -397,7 +423,7 @@ function isAlwaysAllowedIdentical(value) {
 // German loanwords / cognates from English are extensive. Most short technical
 // UI labels are identical in DE. List below curates the legitimate ones.
 const DE_COGNATES = [
-  'Name', 'Status', 'Tag', 'Tags', 'Online', 'Offline', 'Standard', 'Modus',
+  'Name', 'Status', 'Tag', 'Tags', 'Online', 'Offline', 'Standard', 'Modus', 'PayPal',
   'Stop', 'Reset', 'Test', 'Code', 'Token', 'Server', 'Port', 'Bug', 'Job',
   'Bambu Cloud', 'Orca Cloud',  // brand names — same in every locale
   'AMS Filament Backup',  // Bambu Lab product/firmware feature name

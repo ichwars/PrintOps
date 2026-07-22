@@ -47,13 +47,28 @@ class InstallmentDraft(StrictModel):
     due_days: int
 
 
+class BasicPolicyDraft(StrictModel):
+    subject: str
+    validity_days: int | None = None
+    date_rule: str = "issue_date"
+    rounding_mode: str = "half_up"
+    reference_requirements: dict[str, bool] = Field(default_factory=dict)
+    allowed_successors: list[DocumentType] = Field(default_factory=list)
+
+
 class PaymentPolicyDraft(StrictModel):
     payment_term_days: int
     currency: str
+    due_date_basis: str = "issue_date"
+    payment_methods: list[str] = Field(default_factory=list)
     discount_days: int = 0
     discount_percent: Decimal = Decimal("0")
     installments: list[InstallmentDraft] = Field(default_factory=list)
+    prepayment_percent: Decimal = Decimal("0")
+    installment_enabled: bool = False
+    bank_account_id: int | None = None
     bank_assignments: list[BankAssignmentDraft] = Field(default_factory=list)
+    use_term_in_invoice_text: bool = True
 
 
 class DunningStageDraft(StrictModel):
@@ -80,11 +95,18 @@ class DocumentTextBlockDraft(StrictModel):
     position: int = 0
 
 
+class ContentPolicyDraft(StrictModel):
+    include_calculation_data: bool = True
+    visible_content: dict[str, bool] = Field(default_factory=dict)
+
+
 class DocumentConfigurationDraft(StrictModel):
     document_type: DocumentType
     language: str
+    basic: BasicPolicyDraft
     payment: PaymentPolicyDraft
     dunning: DunningPolicyDraft
+    content: ContentPolicyDraft
     text_blocks: list[DocumentTextBlockDraft]
 
 
