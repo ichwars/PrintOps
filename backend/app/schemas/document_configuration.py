@@ -100,6 +100,27 @@ class ContentPolicyDraft(StrictModel):
     visible_content: dict[str, bool] = Field(default_factory=dict)
 
 
+class TaxPolicyDraft(StrictModel):
+    allowed_cases: list[str] = Field(default_factory=list)
+    decision_rules: dict = Field(default_factory=dict)
+    allow_override: bool = False
+
+
+class EInvoicePolicyDraft(StrictModel):
+    requirement: str = "rule_required"
+    en16931_version: str = "1.3.16"
+    cius_name: str = "XRechnung"
+    cius_version: str = "3.0.2"
+    syntax: str = "ubl_2_1"
+    zugferd_profile: str = "EN16931"
+    process_identifier: str | None = None
+    seller_identifier: str | None = None
+    seller_identifier_scheme: str | None = None
+    default_payment_method: str | None = None
+    bank_account_id: int | None = None
+    recipient_requirements: dict = Field(default_factory=dict)
+
+
 class DocumentConfigurationDraft(StrictModel):
     document_type: DocumentType
     language: str
@@ -107,6 +128,8 @@ class DocumentConfigurationDraft(StrictModel):
     payment: PaymentPolicyDraft
     dunning: DunningPolicyDraft
     content: ContentPolicyDraft
+    tax: TaxPolicyDraft
+    einvoice: EInvoicePolicyDraft
     text_blocks: list[DocumentTextBlockDraft]
 
 
@@ -230,6 +253,8 @@ class DocumentCatalogItem(StrictModel):
 
 class DocumentCatalogResponse(StrictModel):
     document_types: list[DocumentCatalogItem]
+    tax_rule_version: str
+    einvoice_rule_versions: dict[str, str]
 
 
 class PlaceholderCatalogResponse(StrictModel):

@@ -170,6 +170,8 @@ async def get_catalog(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_READ),
 ) -> DocumentCatalogResponse:
     return DocumentCatalogResponse(
+        tax_rule_version=TAX_RULES_2026_1.version,
+        einvoice_rule_versions=pinned_rule_versions(),
         document_types=[
             DocumentCatalogItem(
                 key=document_type.value,

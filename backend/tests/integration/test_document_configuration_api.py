@@ -55,6 +55,8 @@ async def test_catalog_list_detail_and_readiness_resources_are_exposed(async_cli
 
     assert catalog.status_code == 200
     assert len(catalog.json()["document_types"]) == 13
+    assert catalog.json()["tax_rule_version"] == "2026.1"
+    assert catalog.json()["einvoice_rule_versions"]["en16931"] == "1.3.16"
     assert listing.status_code == 200
     assert listing.json()[0]["id"] == draft.id
     assert detail.status_code == 200

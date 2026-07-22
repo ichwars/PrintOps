@@ -61,6 +61,12 @@ const detail = {
     },
     dunning: { enabled: false, annual_interest_rate: '0', flat_fee: '0', stages: [] },
     content: { include_calculation_data: true, visible_content: {} },
+    tax: { allowed_cases: ['domestic_standard'], decision_rules: {}, allow_override: false },
+    einvoice: {
+      requirement: 'rule_required', en16931_version: '1.3.16', cius_name: 'XRechnung', cius_version: '3.0.2',
+      syntax: 'ubl_2_1', zugferd_profile: 'EN16931', process_identifier: null, seller_identifier: null,
+      seller_identifier_scheme: null, default_payment_method: null, bank_account_id: null, recipient_requirements: {},
+    },
     text_blocks: [],
   },
   validation_findings: [],
@@ -70,6 +76,8 @@ function useDocumentSettingsApi() {
   server.use(
     http.get('/api/v1/business-profiles/options', () => HttpResponse.json([profile])),
     http.get('/api/v1/document-configurations/catalog', () => HttpResponse.json({
+      tax_rule_version: '2026.1',
+      einvoice_rule_versions: { en16931: '1.3.16', xrechnung: '3.0.2-2026-01-31' },
       document_types: [
         { key: 'invoice', einvoice: true, issuer_role: 'seller', has_payment_terms: true, has_tax: true, allowed_successors: [] },
         { key: 'quotation', einvoice: false, issuer_role: 'seller', has_payment_terms: true, has_tax: true, allowed_successors: ['invoice'] },

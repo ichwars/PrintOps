@@ -40,9 +40,11 @@ from backend.app.schemas.document_configuration import (
     EffectivePaymentPolicy,
     EffectiveTaxPolicy,
     EffectiveTextBlock,
+    EInvoicePolicyDraft,
     InstallmentDraft,
     PaymentPolicyDraft,
     SourcedValue,
+    TaxPolicyDraft,
 )
 from backend.app.services.document_catalog import DOCUMENT_CAPABILITIES, DocumentType, EInvoiceRequirement
 from backend.app.services.document_defaults import load_document_defaults
@@ -393,7 +395,9 @@ def _as_policy_draft(configuration: DocumentConfiguration) -> DocumentConfigurat
     payment = configuration.payment_policy
     dunning = configuration.dunning_policy
     content = configuration.content_policy
-    if basic is None or payment is None or dunning is None or content is None:
+    tax = configuration.tax_policy
+    einvoice = configuration.einvoice_policy
+    if basic is None or payment is None or dunning is None or content is None or tax is None or einvoice is None:
         raise InvalidStateConflictError(f"Document configuration {configuration.id} has incomplete policy rows")
 
     discount_rule = payment.early_payment_rules[0] if payment.early_payment_rules else {}
@@ -447,6 +451,25 @@ def _as_policy_draft(configuration: DocumentConfiguration) -> DocumentConfigurat
         content=ContentPolicyDraft(
             include_calculation_data=content.include_calculation_data,
             visible_content=deepcopy(content.visible_content),
+        ),
+        tax=TaxPolicyDraft(
+            allowed_cases=deepcopy(tax.allowed_cases),
+            decision_rules=deepcopy(tax.decision_rules),
+            allow_override=tax.allow_override,
+        ),
+        einvoice=EInvoicePolicyDraft(
+            requirement=einvoice.requirement,
+            en16931_version=einvoice.en16931_version,
+            cius_name=einvoice.cius_name,
+            cius_version=einvoice.cius_version,
+            syntax=einvoice.syntax,
+            zugferd_profile=einvoice.zugferd_profile,
+            process_identifier=einvoice.process_identifier,
+            seller_identifier=einvoice.seller_identifier,
+            seller_identifier_scheme=einvoice.seller_identifier_scheme,
+            default_payment_method=einvoice.default_payment_method,
+            bank_account_id=einvoice.bank_account_id,
+            recipient_requirements=deepcopy(einvoice.recipient_requirements),
         ),
         text_blocks=[
             DocumentTextBlockDraft(

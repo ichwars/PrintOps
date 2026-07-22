@@ -24,6 +24,9 @@ import {
 import { BasicPolicySection } from './BasicPolicySection';
 import { PaymentPolicySection } from './PaymentPolicySection';
 import { TextBlocksSection } from './TextBlocksSection';
+import { TaxPolicySection } from './TaxPolicySection';
+import { EInvoicePolicySection } from './EInvoicePolicySection';
+import { ReadinessPanel } from './ReadinessPanel';
 import { VersionHistoryPanel } from './VersionHistoryPanel';
 
 function todayKey(): string {
@@ -44,6 +47,8 @@ export function DocumentSettings() {
   const queryClient = useQueryClient();
   const canRead = hasPermission('document_templates:read');
   const canManage = hasPermission('document_templates:manage');
+  const canOverrideTax = hasPermission('commercial_documents:tax_override');
+  const canExportDocuments = hasPermission('commercial_documents:export');
   const [context, setContext] = useState<DocumentContext>(() => initialDocumentContext([]));
   const [pendingContext, setPendingContext] = useState<DocumentContext | null>(null);
   const [draft, setDraft] = useState<DocumentConfigurationDraft | null>(null);
@@ -51,6 +56,7 @@ export function DocumentSettings() {
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
   const [effectiveFrom, setEffectiveFrom] = useState(todayKey);
+  const [actionError, setActionError] = useState<unknown>(null);
 
   const profilesQuery = useQuery({
     queryKey: ['business-profile-options'],
@@ -143,12 +149,14 @@ export function DocumentSettings() {
 
   const runAction = async (name: string, action: () => Promise<DocumentConfigurationDetail | void>) => {
     setPendingAction(name);
+    setActionError(null);
     try {
       await action();
       await refresh();
       setChangeReason('');
       showToast(t(`settings.documents.messages.${name}Success`, `${name} completed.`), 'success');
     } catch (error) {
+      setActionError(error);
       showToast(errorMessage(error, t('settings.documents.messages.actionFailed', 'The action failed.')), 'error');
     } finally {
       setPendingAction(null);
@@ -170,6 +178,8 @@ export function DocumentSettings() {
       payment: draft!.payment,
       dunning: draft!.dunning,
       content: draft!.content,
+      tax: draft!.tax,
+      einvoice: draft!.einvoice,
       text_blocks: draft!.text_blocks,
     }),
   });
@@ -302,6 +312,28 @@ export function DocumentSettings() {
                     disabled={readOnly}
                     onChange={(blocks) => setDraft((current) => current ? { ...current, text_blocks: blocks } : current)}
                   />
+                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                    {capability.has_tax ? (
+                      <TaxPolicySection
+                        tax={draft.tax}
+                        ruleVersion={catalogQuery.data?.tax_rule_version ?? configuration.rule_versions.tax ?? '—'}
+                        canOverride={canOverrideTax}
+                        disabled={readOnly}
+                        findings={configuration.validation_findings}
+                        onChange={changePolicy}
+                      />
+                    ) : null}
+                    {capability.einvoice ? (
+                      <EInvoicePolicySection
+                        policy={draft.einvoice}
+                        ruleVersions={catalogQuery.data?.einvoice_rule_versions ?? configuration.rule_versions}
+                        disabled={readOnly}
+                        findings={configuration.validation_findings}
+                        canExport={canExportDocuments}
+                        onChange={changePolicy}
+                      />
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
             </>
@@ -311,6 +343,15 @@ export function DocumentSettings() {
               <p className="mt-1 text-sm text-gray-400">{t('settings.documents.empty.description', 'Create a draft from the system defaults, then review it before publication.')}</p>
             </div>
           )}
+
+          {configuration ? (
+            <ReadinessPanel
+              report={readinessQuery.data}
+              error={actionError ?? readinessQuery.error}
+              loading={readinessQuery.isPending}
+              onReload={() => { setActionError(null); void refresh(); }}
+            />
+          ) : null}
 
           <VersionHistoryPanel
             items={historyQuery.data ?? []}

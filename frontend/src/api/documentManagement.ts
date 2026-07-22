@@ -29,6 +29,8 @@ export interface DocumentCatalogItem {
 
 export interface DocumentCatalogResponse {
   document_types: DocumentCatalogItem[];
+  tax_rule_version: string;
+  einvoice_rule_versions: Record<string, string>;
 }
 
 export interface PlaceholderCatalogResponse {
@@ -97,6 +99,27 @@ export interface ContentPolicyDraft {
   visible_content: Record<string, boolean>;
 }
 
+export interface TaxPolicyDraft {
+  allowed_cases: string[];
+  decision_rules: Record<string, unknown>;
+  allow_override: boolean;
+}
+
+export interface EInvoicePolicyDraft {
+  requirement: string;
+  en16931_version: string;
+  cius_name: string;
+  cius_version: string;
+  syntax: string;
+  zugferd_profile: string;
+  process_identifier: string | null;
+  seller_identifier: string | null;
+  seller_identifier_scheme: string | null;
+  default_payment_method: string | null;
+  bank_account_id: number | null;
+  recipient_requirements: Record<string, unknown>;
+}
+
 export interface DunningPolicyDraft {
   enabled: boolean;
   annual_interest_rate: string;
@@ -119,6 +142,8 @@ export interface DocumentConfigurationDraft {
   payment: PaymentPolicyDraft;
   dunning: DunningPolicyDraft;
   content: ContentPolicyDraft;
+  tax: TaxPolicyDraft;
+  einvoice: EInvoicePolicyDraft;
   text_blocks: Array<{
     purpose: string;
     body: string;

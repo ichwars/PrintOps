@@ -297,6 +297,22 @@ const ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS = new Set([
   'placeholders.SERVICE_DATE', 'placeholders.ORIGINAL_DOCUMENT_NUMBER', 'placeholders.OPEN_AMOUNT', 'placeholders.CURRENCY', 'placeholders.DUNNING_LEVEL',
 ].forEach((suffix) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(`settings.documents.${suffix}`));
 
+// Task 18 compliance terminology uses the same explicit English fallback.
+[
+  'readiness.loading', 'readiness.versionConflict', 'readiness.checkFailed', 'readiness.ruleId', 'readiness.correlationId',
+  'readiness.unknownError', 'readiness.reloadCompare', 'readiness.title', 'readiness.noFindings', 'readiness.findings.buyer_endpoint_missing',
+  'tax.title', 'tax.description', 'tax.ruleVersion', 'tax.allowedCases', 'tax.allowOverride', 'tax.recordedOverride', 'tax.manualOverride',
+  'tax.treatment', 'tax.taxCountry', 'tax.placeOfSupply', 'tax.category', 'tax.rate', 'tax.legalReasonCode', 'tax.legalReasonText',
+  'tax.sellerVatId', 'tax.buyerVatId', 'tax.evidence', 'tax.overrideReason', 'tax.applyOverride',
+  'tax.cases.domestic_standard', 'tax.cases.small_business_exempt', 'tax.cases.intra_community_supply',
+  'tax.cases.eu_reverse_charge', 'tax.cases.eu_b2c_oss', 'tax.cases.third_country', 'tax.cases.explicit_exemption',
+  'einvoice.title', 'einvoice.description', 'einvoice.requirement', 'einvoice.optional', 'einvoice.ruleRequired', 'einvoice.syntax',
+  'einvoice.pinned', 'einvoice.zugferdProfile', 'einvoice.processId', 'einvoice.sellerEndpoint', 'einvoice.endpointScheme',
+  'einvoice.buyerEndpoint', 'einvoice.buyerReference', 'einvoice.defaultPaymentMethod', 'einvoice.bankAccount',
+  'einvoice.validationLayers', 'einvoice.layers.xsd', 'einvoice.layers.en16931', 'einvoice.layers.cius',
+  'einvoice.validationStatus', 'einvoice.downloadXml', 'einvoice.downloadReport', 'einvoice.findingCount',
+].forEach((suffix) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(`settings.documents.${suffix}`));
+
 // Task 8 extends the same deliberately narrow English-fallback contract.
 [
   'orders.customers.permissionDenied', 'orders.customers.configureProfiles', 'orders.customers.add',
@@ -423,7 +439,8 @@ function isAlwaysAllowedIdentical(value) {
 // German loanwords / cognates from English are extensive. Most short technical
 // UI labels are identical in DE. List below curates the legitimate ones.
 const DE_COGNATES = [
-  'Name', 'Status', 'Tag', 'Tags', 'Online', 'Offline', 'Standard', 'Modus', 'PayPal',
+  'Name', 'Status', 'Tag', 'Tags', 'Online', 'Offline', 'Standard', 'Modus', 'PayPal', 'Syntax',
+  'EU B2C / OSS', 'CIUS / XRechnung',
   'Stop', 'Reset', 'Test', 'Code', 'Token', 'Server', 'Port', 'Bug', 'Job',
   'Bambu Cloud', 'Orca Cloud',  // brand names — same in every locale
   'AMS Filament Backup',  // Bambu Lab product/firmware feature name

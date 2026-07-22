@@ -238,6 +238,17 @@ async def test_update_draft_round_trips_basic_content_payment_and_dunning(db_ses
                     {"level": 1, "wait_days": 7, "fee": "2.50", "charge_interest": True, "new_due_days": 7, "body": "Bitte zahlen.", "escalation_hint": None}
                 ],
             },
+            "tax": {
+                "allowed_cases": ["domestic_standard", "eu_reverse_charge"],
+                "allow_override": True,
+                "decision_rules": {"manual_override_requires_reason": True},
+            },
+            "einvoice": {
+                "syntax": "cii",
+                "seller_identifier": "0204:9930123456789",
+                "seller_identifier_scheme": "0204",
+                "recipient_requirements": {"buyer_reference_required": True},
+            },
         },
         actor_id=7,
     )
@@ -247,3 +258,6 @@ async def test_update_draft_round_trips_basic_content_payment_and_dunning(db_ses
     assert policy.content.visible_content == {"material": True}
     assert policy.payment.due_date_basis == "service_date"
     assert policy.dunning.stages[0].body == "Bitte zahlen."
+    assert policy.tax.allow_override is True
+    assert policy.einvoice.seller_identifier == "0204:9930123456789"
+    assert policy.einvoice.recipient_requirements == {"buyer_reference_required": True}
