@@ -305,3 +305,5 @@ def _reject_evidence_change(_mapper, _connection, target) -> None:
 
 event.listen(DocumentSnapshot, "before_update", _reject_evidence_change)
 event.listen(DocumentSnapshot, "before_delete", _reject_evidence_change)
+event.listen(DocumentArtifact, "before_update", _reject_evidence_change)
+event.listen(DocumentArtifact, "before_delete", _reject_evidence_change)

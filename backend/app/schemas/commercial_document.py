@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -92,3 +92,106 @@ class IssuedDocumentSnapshot(BaseModel):
     @classmethod
     def normalize_currency(cls, value: str) -> str:
         return value.upper()
+
+
+class UpdateCommercialDocumentCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    expected_version: int = Field(ge=1)
+    document: CommercialDocumentDraft
+
+
+class VersionedDocumentCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    expected_version: int = Field(ge=1)
+
+
+class IssueDocumentCommand(VersionedDocumentCommand):
+    idempotency_key: str = Field(min_length=8, max_length=128)
+
+
+class SuccessorDocumentCommand(VersionedDocumentCommand):
+    successor_type: str = Field(min_length=1, max_length=32)
+    relation_type: str = Field(default="successor", min_length=1, max_length=32)
+
+
+class ReasonedDocumentCommand(VersionedDocumentCommand):
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class TaxOverrideDocumentCommand(ReasonedDocumentCommand):
+    tax_decision: dict[str, Any]
+
+
+class CommercialDocumentLineRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    position: int
+    description: str
+    quantity: Decimal
+    unit_code: str
+    unit_price: Decimal
+    net_amount: Decimal
+    tax_category_code: str
+    tax_rate: Decimal
+    product_identifier: str | None
+
+
+class CommercialDocumentArtifactRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    kind: str
+    content_type: str
+    sha256: str
+    validation_status: str
+    rule_versions: dict[str, Any]
+    created_at: datetime
+
+
+class CommercialDocumentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    document_type: str
+    business_profile_id: int
+    customer_id: int | None
+    number: str | None
+    external_issuer_number: str | None
+    technical_status: str
+    business_status: str
+    payment_status: str
+    issue_date: date | None
+    service_date: date | None
+    due_date: date | None
+    language: str
+    currency: str
+    subtotal_amount: Decimal
+    tax_amount: Decimal
+    total_amount: Decimal
+    open_amount: Decimal
+    content_options: dict[str, Any]
+    tax_decision: dict[str, Any]
+    lock_version: int
+    created_at: datetime
+    updated_at: datetime
+    lines: list[CommercialDocumentLineRead]
+    artifacts: list[CommercialDocumentArtifactRead]
+    snapshot_sha256: str | None = None
+
+
+class DocumentAuditEventRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    action: str
+    object_type: str
+    object_id: int
+    actor_id: int | None
+    reason: str | None
+    before: dict[str, Any] | None
+    after: dict[str, Any] | None
+    correlation_id: str
+    created_at: datetime

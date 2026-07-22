@@ -29,9 +29,11 @@ from backend.app.api.routes import (
     calculations,
     camera,
     cloud,
+    commercial_documents,
     customers,
     discovery,
     document_configurations,
+    einvoices,
     equipment,
     external_links,
     filaments,
@@ -6728,6 +6730,8 @@ app.include_router(mfa.router, prefix=app_settings.api_prefix)
 app.include_router(bug_report.router, prefix=app_settings.api_prefix)
 app.include_router(business_profiles.router, prefix=app_settings.api_prefix)
 app.include_router(document_configurations.router, prefix=app_settings.api_prefix)
+app.include_router(commercial_documents.router, prefix=app_settings.api_prefix)
+app.include_router(einvoices.router, prefix=app_settings.api_prefix)
 app.include_router(calculations.router, prefix=app_settings.api_prefix)
 app.include_router(calculation_projects.router, prefix=app_settings.api_prefix)
 app.include_router(offers.router, prefix=app_settings.api_prefix)
