@@ -46,7 +46,26 @@ export interface DocumentConfigurationSummary {
   effective_from: string | null;
   lock_version: number;
   change_reason: string | null;
+  created_by_id: number | null;
+  published_by_id: number | null;
+  created_at: string;
+  updated_at: string;
   published_at: string | null;
+  publication_validation_status: string | null;
+  rule_versions: Record<string, string>;
+}
+
+export interface DocumentAuditEvent {
+  id: number;
+  action: string;
+  object_type: string;
+  object_id: number;
+  actor_id: number | null;
+  reason: string | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  correlation_id: string;
+  created_at: string;
 }
 
 export interface PaymentPolicyDraft {
@@ -227,6 +246,8 @@ export const documentManagementApi = {
     }),
   getConfigurationHistory: (configurationId: number) =>
     request<DocumentConfigurationSummary[]>(`/document-configurations/${configurationId}/history`),
+  getConfigurationAudit: (configurationId: number) =>
+    request<DocumentAuditEvent[]>(`/document-configurations/${configurationId}/audit`),
   getSelectedConfiguration: async (filters: ConfigurationFilters) => {
     const configurations = await request<DocumentConfigurationSummary[]>(
       `/document-configurations/${queryString(filters)}`,

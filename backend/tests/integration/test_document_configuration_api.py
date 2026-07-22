@@ -88,3 +88,36 @@ async def test_publish_endpoint_requires_template_manage_permission(async_client
 
     assert denied.status_code == 403
     assert read_denied.status_code == 403
+
+
+async def test_create_and_history_expose_version_metadata_and_audit(async_client, db_session):
+    profile = BusinessProfile(
+        name="History profile",
+        legal_name="History Documents GmbH",
+        country_code="DE",
+        default_currency="EUR",
+    )
+    db_session.add(profile)
+    await db_session.commit()
+
+    created = await async_client.post(
+        BASE_URL + "/",
+        json={
+            "business_profile_id": profile.id,
+            "document_type": "invoice",
+            "language": "de",
+            "change_reason": "Initial document policy",
+        },
+    )
+
+    assert created.status_code == 201
+    configuration_id = created.json()["id"]
+    history = await async_client.get(f"{BASE_URL}/{configuration_id}/history")
+    audit = await async_client.get(f"{BASE_URL}/{configuration_id}/audit")
+
+    assert history.status_code == 200
+    assert history.json()[0]["created_at"]
+    assert history.json()[0]["rule_versions"] == {}
+    assert audit.status_code == 200
+    assert audit.json()[0]["action"] == "create"
+    assert audit.json()[0]["reason"] == "Initial document policy"

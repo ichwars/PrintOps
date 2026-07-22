@@ -6,15 +6,18 @@ from dataclasses import asdict
 from typing import NoReturn
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
+from backend.app.models.document_audit import DocumentAuditEvent
 from backend.app.models.document_configuration import DocumentConfiguration
 from backend.app.models.user import User
+from backend.app.schemas.commercial_document import DocumentAuditEventRead
 from backend.app.schemas.document_configuration import (
     CreateConfigurationCommand,
     DocumentCatalogItem,
@@ -28,6 +31,7 @@ from backend.app.schemas.document_configuration import (
     UpdateConfigurationCommand,
     WithdrawConfigurationCommand,
 )
+from backend.app.services.document_audit import append_audit
 from backend.app.services.document_catalog import DOCUMENT_CAPABILITIES, PLACEHOLDERS, TEXT_BLOCK_PURPOSES, DocumentType
 from backend.app.services.document_configuration import (
     clone_version,
@@ -58,6 +62,7 @@ def _actor_id(actor: User | None) -> int | None:
 
 
 def _summary(configuration: DocumentConfiguration) -> DocumentConfigurationSummary:
+    publication = configuration.publication
     return DocumentConfigurationSummary(
         id=configuration.id,
         business_profile_id=configuration.business_profile_id,
@@ -68,7 +73,13 @@ def _summary(configuration: DocumentConfiguration) -> DocumentConfigurationSumma
         effective_from=configuration.effective_from,
         lock_version=configuration.lock_version,
         change_reason=configuration.change_reason,
+        created_by_id=configuration.created_by_id,
+        published_by_id=configuration.published_by_id,
+        created_at=configuration.created_at,
+        updated_at=configuration.updated_at,
         published_at=configuration.published_at,
+        publication_validation_status=(publication.validation_status if publication is not None else None),
+        rule_versions=(dict(publication.rule_versions or {}) if publication is not None else {}),
     )
 
 
@@ -121,6 +132,37 @@ def _raise_not_ready(findings) -> NoReturn:
             "findings": [item.model_dump() if hasattr(item, "model_dump") else asdict(item) for item in findings],
         },
     )
+
+
+def _correlation_id(request: Request) -> str:
+    existing = getattr(request.state, "correlation_id", None) or request.headers.get("X-Correlation-ID")
+    if existing and 1 <= len(str(existing)) <= 128:
+        return str(existing)
+    return str(uuid4())
+
+
+async def _append_configuration_audit(
+    db: AsyncSession,
+    request: Request,
+    *,
+    action: str,
+    configuration: DocumentConfiguration,
+    actor_id: int | None,
+    reason: str | None,
+    before: dict | None,
+) -> None:
+    await append_audit(
+        db,
+        action=action,
+        object_type="document_configuration",
+        object_id=configuration.id,
+        actor_id=actor_id,
+        reason=reason,
+        before=before,
+        after=_summary(configuration).model_dump(mode="json"),
+        correlation_id=_correlation_id(request),
+    )
+    await db.flush()
 
 
 @router.get("/catalog", response_model=DocumentCatalogResponse)
@@ -205,11 +247,23 @@ async def list_configurations(
 @router.post("/", response_model=DocumentConfigurationDetail, status_code=status.HTTP_201_CREATED)
 async def create_configuration(
     command: CreateConfigurationCommand,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_MANAGE),
 ) -> DocumentConfigurationDetail:
     try:
-        return _detail(await create_draft(db, command, _actor_id(actor)))
+        configuration = await create_draft(db, command, _actor_id(actor))
+        await _append_configuration_audit(
+            db,
+            request,
+            action="create",
+            configuration=configuration,
+            actor_id=_actor_id(actor),
+            reason=command.change_reason,
+            before=None,
+        )
+        await db.commit()
+        return _detail(configuration)
     except OrderDomainError as error:
         _raise_domain_error(error)
 
@@ -230,19 +284,29 @@ async def get_configuration(
 async def patch_configuration(
     configuration_id: int,
     command: UpdateConfigurationCommand,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_MANAGE),
 ) -> DocumentConfigurationDetail:
     try:
-        return _detail(
-            await update_draft(
-                db,
-                configuration_id,
-                command.expected_version,
-                command.patch,
-                _actor_id(actor),
-            )
+        configuration = await update_draft(
+            db,
+            configuration_id,
+            command.expected_version,
+            command.patch,
+            _actor_id(actor),
         )
+        await _append_configuration_audit(
+            db,
+            request,
+            action="update",
+            configuration=configuration,
+            actor_id=_actor_id(actor),
+            reason=str(command.patch.get("change_reason") or "") or None,
+            before={"lock_version": command.expected_version},
+        )
+        await db.commit()
+        return _detail(configuration)
     except OrderDomainError as error:
         _raise_domain_error(error)
 
@@ -250,11 +314,23 @@ async def patch_configuration(
 @router.post("/{configuration_id}/clone", response_model=DocumentConfigurationDetail, status_code=status.HTTP_201_CREATED)
 async def clone_configuration(
     configuration_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_MANAGE),
 ) -> DocumentConfigurationDetail:
     try:
-        return _detail(await clone_version(db, configuration_id, _actor_id(actor)))
+        configuration = await clone_version(db, configuration_id, _actor_id(actor))
+        await _append_configuration_audit(
+            db,
+            request,
+            action="clone",
+            configuration=configuration,
+            actor_id=_actor_id(actor),
+            reason=None,
+            before={"source_configuration_id": configuration_id},
+        )
+        await db.commit()
+        return _detail(configuration)
     except OrderDomainError as error:
         _raise_domain_error(error)
 
@@ -275,6 +351,7 @@ async def get_readiness(
 async def publish_configuration(
     configuration_id: int,
     command: PublishConfigurationRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_MANAGE),
 ) -> DocumentConfigurationDetail:
@@ -283,17 +360,26 @@ async def publish_configuration(
         blockers = [item for item in report.findings if item.severity == "blocker"]
         if blockers:
             _raise_not_ready(blockers)
-        return _detail(
-            await publish(
-                db,
-                configuration_id,
-                command.expected_version,
-                command.effective_from,
-                command.reason,
-                _actor_id(actor),
-                {"tax": TAX_RULES_2026_1.version, **pinned_rule_versions()},
-            )
+        configuration = await publish(
+            db,
+            configuration_id,
+            command.expected_version,
+            command.effective_from,
+            command.reason,
+            _actor_id(actor),
+            {"tax": TAX_RULES_2026_1.version, **pinned_rule_versions()},
         )
+        await _append_configuration_audit(
+            db,
+            request,
+            action="publication",
+            configuration=configuration,
+            actor_id=_actor_id(actor),
+            reason=command.reason,
+            before={"status": "draft", "lock_version": command.expected_version},
+        )
+        await db.commit()
+        return _detail(configuration)
     except ConfigurationNotReady as error:
         _raise_not_ready(error.findings)
     except OrderDomainError as error:
@@ -304,19 +390,29 @@ async def publish_configuration(
 async def withdraw_configuration(
     configuration_id: int,
     command: WithdrawConfigurationCommand,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_MANAGE),
 ) -> DocumentConfigurationDetail:
     try:
-        return _detail(
-            await withdraw_scheduled(
-                db,
-                configuration_id,
-                command.expected_version,
-                command.reason,
-                _actor_id(actor),
-            )
+        configuration = await withdraw_scheduled(
+            db,
+            configuration_id,
+            command.expected_version,
+            command.reason,
+            _actor_id(actor),
         )
+        await _append_configuration_audit(
+            db,
+            request,
+            action="withdraw",
+            configuration=configuration,
+            actor_id=_actor_id(actor),
+            reason=command.reason,
+            before={"status": "scheduled", "lock_version": command.expected_version},
+        )
+        await db.commit()
+        return _detail(configuration)
     except OrderDomainError as error:
         _raise_domain_error(error)
 
@@ -339,7 +435,36 @@ async def get_history(
                 DocumentConfiguration.document_type == configuration.document_type,
                 DocumentConfiguration.language == configuration.language,
             )
+            .options(selectinload(DocumentConfiguration.publication))
             .order_by(DocumentConfiguration.version.desc())
         )
     ).all()
     return [_summary(row) for row in rows]
+
+
+@router.get("/{configuration_id}/audit", response_model=list[DocumentAuditEventRead])
+async def get_configuration_audit(
+    configuration_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_READ),
+) -> list[DocumentAuditEventRead]:
+    try:
+        configuration = await load_configuration(db, configuration_id)
+    except OrderDomainError as error:
+        _raise_domain_error(error)
+    version_ids = select(DocumentConfiguration.id).where(
+        DocumentConfiguration.business_profile_id == configuration.business_profile_id,
+        DocumentConfiguration.document_type == configuration.document_type,
+        DocumentConfiguration.language == configuration.language,
+    )
+    rows = (
+        await db.scalars(
+            select(DocumentAuditEvent)
+            .where(
+                DocumentAuditEvent.object_type == "document_configuration",
+                DocumentAuditEvent.object_id.in_(version_ids),
+            )
+            .order_by(DocumentAuditEvent.created_at.desc(), DocumentAuditEvent.id.desc())
+        )
+    ).all()
+    return [DocumentAuditEventRead.model_validate(row) for row in rows]

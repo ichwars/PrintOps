@@ -157,7 +157,7 @@ async def create_draft(
     ]
     session.add(configuration)
     await session.flush()
-    return configuration
+    return await _load_configuration(session, configuration.id, populate_existing=True)
 
 
 async def clone_version(session: AsyncSession, configuration_id: int, actor_id: int | None) -> DocumentConfiguration:

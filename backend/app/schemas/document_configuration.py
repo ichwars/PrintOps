@@ -183,7 +183,13 @@ class DocumentConfigurationSummary(StrictModel):
     effective_from: date | None
     lock_version: int
     change_reason: str | None
+    created_by_id: int | None
+    published_by_id: int | None
+    created_at: datetime
+    updated_at: datetime
     published_at: datetime | None
+    publication_validation_status: str | None
+    rule_versions: dict[str, str] = Field(default_factory=dict)
 
 
 class DocumentConfigurationDetail(DocumentConfigurationSummary):
