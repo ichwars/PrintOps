@@ -663,6 +663,14 @@ async def create_backup_zip(output_path: Path | None = None) -> tuple[Path, str]
                 )
                 raise
 
+        # Commercial document rows, immutable snapshots, audit entries and
+        # number reservations are already contained in printops.db. Stage the
+        # externally stored XML artifacts and the exact validation ruleset
+        # receipt alongside it so the evidence set is complete.
+        from backend.app.services.local_backup import stage_document_evidence
+
+        stage_document_evidence(temp_path, resolve_data_dir())
+
         # Create ZIP
         if output_path is not None:
             zip_file = (
@@ -965,6 +973,13 @@ async def restore_backup(
         if not backup_db.exists():
             raise HTTPException(400, "Invalid backup: missing printops.db")
 
+        # Validate immutable external document evidence before replacing live
+        # data. Broken artifacts remain restorable for audit/recovery purposes,
+        # but are explicitly downgraded in the restored database and reported.
+        from backend.app.services.local_backup import verify_restored_document_artifacts
+
+        document_integrity_issues = verify_restored_document_artifacts(temp_path, backup_db)
+
         try:
             import asyncio
 
@@ -1105,6 +1120,7 @@ async def restore_backup(
                 ("plate_calibration", app_settings.plate_calibration_dir),
                 ("icons", base_dir / "icons"),
                 ("projects", base_dir / "projects"),
+                ("document-artifacts", resolve_data_dir() / "document-artifacts"),
             ]
 
             skipped_dirs = []
@@ -1158,9 +1174,15 @@ async def restore_backup(
             message = "Backup restored successfully. Please restart PrintOps for changes to take effect."
             if skipped_dirs:
                 message += f" Note: Some directories could not be restored ({', '.join(skipped_dirs)})."
+            if document_integrity_issues:
+                message += (
+                    f" Warning: {len(document_integrity_issues)} document artifact(s) were missing or corrupt "
+                    "and have been marked invalid; regenerate or re-import them before export."
+                )
             return {
                 "success": True,
                 "message": message,
+                "document_integrity_issues": document_integrity_issues,
             }
 
         except HTTPException:

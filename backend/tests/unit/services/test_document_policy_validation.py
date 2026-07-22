@@ -2,12 +2,16 @@
 
 from backend.app.schemas.document_configuration import (
     BankAssignmentDraft,
+    BasicPolicyDraft,
+    ContentPolicyDraft,
     DocumentConfigurationDraft,
     DocumentTextBlockDraft,
     DunningPolicyDraft,
     DunningStageDraft,
+    EInvoicePolicyDraft,
     InstallmentDraft,
     PaymentPolicyDraft,
+    TaxPolicyDraft,
 )
 from backend.app.services.document_policy_validation import render_text_blocks, validate_policy
 
@@ -29,8 +33,12 @@ def policy(**overrides) -> DocumentConfigurationDraft:
     data = {
         "document_type": "invoice",
         "language": "de",
+        "basic": BasicPolicyDraft(subject="Invoice {DOCUMENT_NUMBER}"),
         "payment": payment,
         "dunning": DunningPolicyDraft(enabled=False, annual_interest_rate="0", flat_fee="0", stages=[]),
+        "content": ContentPolicyDraft(),
+        "tax": TaxPolicyDraft(),
+        "einvoice": EInvoicePolicyDraft(),
         "text_blocks": text_blocks,
     }
     data.update(overrides)

@@ -5,9 +5,13 @@ on a configurable schedule with retention management.
 """
 
 import asyncio
+import json
 import logging
 import os
+import shutil
+import sqlite3
 from datetime import datetime, timedelta, timezone, tzinfo
+from hashlib import sha256
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -18,6 +22,109 @@ from backend.app.core.database import async_session
 from backend.app.models.settings import Settings
 
 logger = logging.getLogger(__name__)
+
+
+def _ruleset_manifest() -> dict:
+    """Return the small, stable ruleset receipt stored with every full backup."""
+    from backend.app.services.einvoice.validator import pinned_rule_versions
+
+    versions = pinned_rule_versions()
+    return {
+        "schema_version": 1,
+        "en16931": {"version": versions["en16931"]},
+        "xrechnung": {"version": "3.0.2", "bundle_date": "2026-01-31"},
+        "zugferd": {
+            "version": versions["zugferd"],
+            "factur_x_version": versions["factur_x"],
+        },
+    }
+
+
+def stage_document_evidence(staging_dir: Path, data_dir: Path) -> None:
+    """Stage external document evidence next to the database backup.
+
+    Relational configuration, snapshots, audit events, reservations and validation
+    reports live in ``printops.db``. E-invoice XML is intentionally stored outside
+    the database, so it must be copied explicitly together with a ruleset receipt.
+    """
+    artifact_source = data_dir / "document-artifacts"
+    artifact_target = staging_dir / "document-artifacts"
+    if artifact_source.is_dir() and any(artifact_source.iterdir()):
+        shutil.copytree(artifact_source, artifact_target, dirs_exist_ok=True)
+
+    evidence_dir = staging_dir / "document-evidence"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    (evidence_dir / "ruleset-manifest.json").write_text(
+        json.dumps(_ruleset_manifest(), indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def verify_restored_document_artifacts(backup_root: Path, backup_db: Path) -> list[dict]:
+    """Verify artifact bytes before restore and downgrade broken evidence.
+
+    Older backups may predate the document tables and remain restorable. For a
+    document-aware backup, every external artifact is hash checked. A missing,
+    unsafe or corrupt artifact is recorded in its validation report and can never
+    remain marked ``valid`` after restore.
+    """
+    issues: list[dict] = []
+    root = backup_root.resolve()
+    connection = sqlite3.connect(str(backup_db))
+    try:
+        table_exists = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'document_artifacts'"
+        ).fetchone()
+        if table_exists is None:
+            return []
+        rows = connection.execute(
+            "SELECT id, storage_path, content, sha256, validation_report "
+            "FROM document_artifacts ORDER BY id"
+        ).fetchall()
+        for artifact_id, storage_path, content, expected_hash, raw_report in rows:
+            code = None
+            actual_hash = None
+            if storage_path:
+                candidate = (backup_root / storage_path).resolve()
+                if not candidate.is_relative_to(root):
+                    code = "artifact_path_unsafe"
+                elif not candidate.is_file():
+                    code = "artifact_file_missing"
+                else:
+                    actual_hash = sha256(candidate.read_bytes()).hexdigest()
+                    if actual_hash != expected_hash:
+                        code = "artifact_hash_mismatch"
+            elif content is not None:
+                actual_hash = sha256(content).hexdigest()
+                if actual_hash != expected_hash:
+                    code = "artifact_hash_mismatch"
+            else:
+                code = "artifact_content_missing"
+
+            if code is None:
+                continue
+            issue = {
+                "artifact_id": artifact_id,
+                "code": code,
+                "storage_path": storage_path,
+                "expected_sha256": expected_hash,
+                "actual_sha256": actual_hash,
+            }
+            issues.append(issue)
+            try:
+                report = json.loads(raw_report) if isinstance(raw_report, str) else dict(raw_report or {})
+            except (TypeError, ValueError):
+                report = {}
+            report["valid"] = False
+            report["restore_integrity"] = issue
+            connection.execute(
+                "UPDATE document_artifacts SET validation_status = 'invalid', validation_report = ? WHERE id = ?",
+                (json.dumps(report, ensure_ascii=False), artifact_id),
+            )
+        connection.commit()
+    finally:
+        connection.close()
+    return issues
 
 
 def _local_zone() -> tzinfo:

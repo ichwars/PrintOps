@@ -4,16 +4,43 @@ Handles scheduled and on-demand backups of K-profiles and cloud profiles to GitH
 """
 
 import asyncio
+import base64
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
+from pathlib import Path
 
 import httpx
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.database import async_session
+from backend.app.core.paths import resolve_data_dir
 from backend.app.models.archive import PrintArchive
+from backend.app.models.commercial_document import (
+    CommercialDocument,
+    CommercialDocumentLine,
+    DocumentArtifact,
+    DocumentNumberReservation,
+    DocumentRelation,
+    DocumentSnapshot,
+)
+from backend.app.models.document_audit import DocumentAuditEvent
+from backend.app.models.document_configuration import (
+    ConfigurationPublication,
+    CustomerDocumentPreference,
+    DocumentBasicPolicy,
+    DocumentConfiguration,
+    DocumentContentPolicy,
+    DocumentTextBlock,
+    DunningPolicy,
+    DunningStage,
+    EInvoicePolicy,
+    PaymentPolicy,
+    TaxPolicy,
+)
 from backend.app.models.github_backup import GitHubBackupConfig, GitHubBackupLog
+from backend.app.models.number_sequence import NumberSequence
 from backend.app.models.printer import Printer
 from backend.app.models.settings import Settings
 from backend.app.models.spool import Spool
@@ -295,6 +322,7 @@ class GitHubBackupService:
                 "kprofiles": config.backup_kprofiles,
                 "cloud_profiles": config.backup_cloud_profiles,
                 "settings": config.backup_settings,
+                "commercial_documents": config.backup_settings,
                 "spools": config.backup_spools,
                 "archives": config.backup_archives,
             },
@@ -315,6 +343,8 @@ class GitHubBackupService:
         if config.backup_settings:
             self._backup_progress = "Collecting app settings..."
             await self._collect_settings(db, files)
+            self._backup_progress = "Collecting commercial document evidence..."
+            await self._collect_commercial_evidence(db, files)
 
         # Collect spool inventory
         if config.backup_spools:
@@ -450,6 +480,80 @@ class GitHubBackupService:
             "version": "1.0",
             "settings": settings_data,
         }
+
+    @staticmethod
+    def _evidence_value(value):
+        if isinstance(value, (datetime, date)):
+            return value.isoformat()
+        if isinstance(value, Decimal):
+            return str(value)
+        if isinstance(value, bytes):
+            return {"encoding": "base64", "content": base64.b64encode(value).decode("ascii")}
+        return value
+
+    async def _collect_commercial_evidence(self, db: AsyncSession, files: dict) -> None:
+        """Collect complete, portable commercial evidence for private Git backups."""
+        models = (
+            NumberSequence,
+            DocumentConfiguration,
+            DocumentBasicPolicy,
+            PaymentPolicy,
+            DunningPolicy,
+            DunningStage,
+            DocumentTextBlock,
+            DocumentContentPolicy,
+            TaxPolicy,
+            EInvoicePolicy,
+            CustomerDocumentPreference,
+            ConfigurationPublication,
+            CommercialDocument,
+            CommercialDocumentLine,
+            DocumentRelation,
+            DocumentSnapshot,
+            DocumentArtifact,
+            DocumentNumberReservation,
+            DocumentAuditEvent,
+        )
+        table_counts: dict[str, int] = {}
+        for model in models:
+            rows = list((await db.execute(select(model))).scalars().all())
+            table_counts[model.__tablename__] = len(rows)
+            files[f"documents/tables/{model.__tablename__}.json"] = {
+                "schema_version": 1,
+                "table": model.__tablename__,
+                "rows": [
+                    {
+                        column.name: self._evidence_value(getattr(row, column.name))
+                        for column in model.__table__.columns
+                    }
+                    for row in rows
+                ],
+            }
+
+        from backend.app.services.local_backup import _ruleset_manifest
+
+        files["documents/ruleset-manifest.json"] = _ruleset_manifest()
+        files["documents/evidence-manifest.json"] = {
+            "schema_version": 1,
+            "tables": table_counts,
+            "artifact_storage": "content-addressed/base64",
+        }
+
+        data_root = resolve_data_dir().resolve()
+        for artifact in list((await db.execute(select(DocumentArtifact))).scalars().all()):
+            if not artifact.storage_path:
+                continue
+            source = (data_root / artifact.storage_path).resolve()
+            if not source.is_relative_to(data_root) or not source.is_file():
+                continue
+            files[f"documents/artifacts/{artifact.id}-{artifact.sha256}.json"] = {
+                "artifact_id": artifact.id,
+                "sha256": artifact.sha256,
+                "content_type": artifact.content_type,
+                "original_suffix": Path(artifact.storage_path).suffix,
+                "encoding": "base64",
+                "content": base64.b64encode(source.read_bytes()).decode("ascii"),
+            }
 
     async def _collect_spools(self, db: AsyncSession, files: dict):
         """Collect spool inventory data."""

@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import userEvent from '@testing-library/user-event';
 
 import { setAuthToken } from '../../../../api/client';
+import { DocumentActionBar } from '../../../../components/settings/documents/DocumentActionBar';
 import { DocumentSettings } from '../../../../components/settings/documents/DocumentSettings';
 import i18n from '../../../../i18n';
 import { server } from '../../../mocks/server';
@@ -139,5 +140,33 @@ describe('DocumentSettings', () => {
 
     expect(screen.getByRole('dialog', { name: 'Ungespeicherte Änderungen' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Änderungen verwerfen' })).toBeInTheDocument();
+  });
+
+  it('explains read-only access and disables editing actions', async () => {
+    await i18n.changeLanguage('de');
+
+    render(
+      <DocumentActionBar
+        canManage={false}
+        hasConfiguration
+        status="draft"
+        readiness="ready"
+        dirty
+        policyDirty={false}
+        changeReason="Geprüfte Änderung"
+        pendingAction={null}
+        onChangeReason={vi.fn()}
+        onCreate={vi.fn()}
+        onSave={vi.fn()}
+        onCheck={vi.fn()}
+        onPublish={vi.fn()}
+        onClone={vi.fn()}
+        onWithdraw={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Sie haben Lesezugriff. Bearbeitungsaktionen sind deaktiviert.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Entwurf speichern' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Freigeben' })).toBeDisabled();
   });
 });

@@ -12,7 +12,7 @@ import {
 import { useAuth } from '../../../contexts/AuthContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { ConfirmModal } from '../../ConfirmModal';
-import { Button, Modal, TextField } from '../../ui';
+import { Button, DatePicker, Modal } from '../../ui';
 import { DocumentActionBar } from './DocumentActionBar';
 import { DocumentContextHeader } from './DocumentContextHeader';
 import {
@@ -41,7 +41,7 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 export function DocumentSettings() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { hasPermission, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
@@ -379,9 +379,9 @@ export function DocumentSettings() {
         description={t('settings.documents.publish.description', 'The published version becomes immutable and applies from the selected date.')}
       >
         <div className="space-y-4">
-          <TextField
-            type="date"
+          <DatePicker
             value={effectiveFrom}
+            locale={i18n.language}
             label={t('settings.documents.publish.effectiveFrom', 'Effective from')}
             onValueChange={setEffectiveFrom}
           />
