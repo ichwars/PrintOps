@@ -17,6 +17,18 @@ UDT = "urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100"
 
 EN16931_CONTEXT = "urn:cen.eu:en16931:2017"
 XRECHNUNG_CONTEXT = "urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0"
+FACTUR_X_FILENAME = "factur-x.xml"
+FACTUR_X_XMP_NAMESPACE = "urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#"
+
+
+def factur_x_metadata(profile: Literal["en16931", "xrechnung"]) -> dict[str, str]:
+    """Return the normative XMP claims for the embedded CII-D22B artifact."""
+    return {
+        "ConformanceLevel": "EN16931" if profile == "en16931" else "XRECHNUNG",
+        "DocumentFileName": FACTUR_X_FILENAME,
+        "DocumentType": "INVOICE",
+        "Version": "1.0",
+    }
 
 
 def _q(namespace: str, local_name: str) -> str:

@@ -270,6 +270,18 @@ class DocumentArtifact(Base):
 
     document: Mapped[CommercialDocument] = relationship(back_populates="artifacts")
 
+    @property
+    def einvoice_profile(self) -> str | None:
+        if self.kind not in {"zugferd_xml", "xrechnung_xml"}:
+            return None
+        value = (self.validation_report or {}).get("profile")
+        return str(value) if value else None
+
+    @property
+    def source_snapshot_sha256(self) -> str | None:
+        value = (self.render_receipt or {}).get("source_snapshot_sha256")
+        return str(value) if value else None
+
 
 class DocumentNumberReservation(Base):
     __tablename__ = "document_number_reservations"

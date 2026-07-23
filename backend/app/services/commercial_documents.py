@@ -1275,6 +1275,7 @@ async def issue_document(
                 artifact.content,
                 artifact.report,
                 artifact.rule_versions,
+                snapshot_sha256=evidence.sha256,
             )
         await append_audit(
             session,

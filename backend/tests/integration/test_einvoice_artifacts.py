@@ -62,6 +62,8 @@ async def test_artifact_is_server_named_outside_database_and_hash_verified(
     assert stored.read_bytes() == xml
     assert artifact.validation_report["byte_size"] == len(xml)
     assert artifact.validation_report["standard"] == "xrechnung"
+    assert artifact.render_receipt["source_document_id"] == document.id
+    assert artifact.render_receipt["einvoice_profile"] == "xrechnung"
 
     await db_session.commit()
     artifact.sha256 = "0" * 64

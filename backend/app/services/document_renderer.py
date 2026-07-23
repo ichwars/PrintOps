@@ -21,7 +21,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 
 import pikepdf
 import psutil
@@ -31,7 +31,18 @@ from backend.app.schemas.document_layout import EffectiveDocumentLayout
 from backend.app.services.document_snapshot import canonicalize_payload
 from backend.app.services.document_templates import render_document_html
 from backend.app.services.document_view_model import DocumentViewModel, canonicalize_view_model
-from backend.app.services.pdfa import PdfaError, canonical_source_sha256, prepare_pdfa3u
+from backend.app.services.einvoice.artifacts import (
+    EInvoiceArtifactError,
+    ResolvedEInvoiceArtifact,
+    export_manifest,
+)
+from backend.app.services.einvoice.validator import validate_xml
+from backend.app.services.pdfa import (
+    PdfaError,
+    attach_zugferd_xml,
+    canonical_source_sha256,
+    prepare_pdfa3u,
+)
 from backend.app.services.verapdf import (
     PdfaValidationReport,
     VeraPdfExecutionError,
@@ -45,6 +56,37 @@ RenderMode = Literal["preview", "final"]
 Engine = Callable[[str, Path, RenderMode], bytes]
 CacheAuthorizer = Callable[[str], bool]
 FinalAuthorizer = Callable[["RenderInput"], bool]
+
+
+@dataclass(frozen=True, slots=True)
+class ZugferdArtifactReference:
+    zugferd_artifact_id: int
+    kind: Literal["zugferd"] = "zugferd"
+
+    def __post_init__(self) -> None:
+        if self.zugferd_artifact_id <= 0:
+            raise ValueError("zugferd_artifact_id must be positive")
+
+
+@dataclass(frozen=True, slots=True)
+class XrechnungArtifactReference:
+    xrechnung_artifact_id: int
+    kind: Literal["xrechnung"] = "xrechnung"
+
+    def __post_init__(self) -> None:
+        if self.xrechnung_artifact_id <= 0:
+            raise ValueError("xrechnung_artifact_id must be positive")
+
+
+EInvoiceArtifactReference = ZugferdArtifactReference | XrechnungArtifactReference
+
+
+class EInvoiceArtifactResolver(Protocol):
+    def __call__(
+        self,
+        reference: EInvoiceArtifactReference,
+        render_input: RenderInput,
+    ) -> ResolvedEInvoiceArtifact: ...
 
 _RESOURCE_PATTERN = re.compile(
     r"(?:\b(?:src|href)\s*=\s*[\"']([^\"']+)[\"']|url\(\s*[\"']?([^\"')]+))",
@@ -79,6 +121,8 @@ class RenderInput:
     cache_scope: str
     assets: Mapping[str, bytes] = field(default_factory=dict)
     asset_roles: Mapping[str, str] = field(default_factory=dict)
+    source_document_id: int | None = None
+    source_snapshot_sha256: str | None = None
 
     def __post_init__(self) -> None:
         if not self.correlation_id.strip() or not self.cache_scope.strip():
@@ -103,6 +147,14 @@ class RenderInput:
             raise ValueError("unknown document asset role")
         if any(digest not in self.assets for digest in self.asset_roles.values()):
             raise ValueError("asset role references an unavailable handle")
+        if (self.source_document_id is None) != (self.source_snapshot_sha256 is None):
+            raise ValueError("document and snapshot source identifiers must be supplied together")
+        if self.source_document_id is not None and self.source_document_id <= 0:
+            raise ValueError("source_document_id must be positive")
+        if self.source_snapshot_sha256 is not None and not re.fullmatch(
+            r"[0-9a-f]{64}", self.source_snapshot_sha256
+        ):
+            raise ValueError("source_snapshot_sha256 must be a lowercase SHA-256 value")
 
 
 # Public naming retained for the preview-facing API contract.
@@ -124,6 +176,8 @@ class RenderedPdf:
     )
     validation_report: PdfaValidationReport | None = None
     warnings: tuple[str, ...] = ()
+    render_receipt: Mapping[str, object] = field(default_factory=dict)
+    export_manifest: Mapping[str, object] = field(default_factory=dict)
 
 
 class DocumentRenderer:
@@ -140,6 +194,7 @@ class DocumentRenderer:
         final_authorizer: FinalAuthorizer | None = None,
         engine: Engine | None = None,
         validator: VeraPdfRunner | Literal[False] | None = None,
+        einvoice_artifact_resolver: EInvoiceArtifactResolver | None = None,
     ) -> None:
         configured_cli = engine_cli or settings.weasyprint_cli
         discovered = shutil.which("weasyprint") if configured_cli is None else None
@@ -155,6 +210,7 @@ class DocumentRenderer:
         self._cache_authorizer = cache_authorizer or (lambda _scope: True)
         self._final_authorizer = final_authorizer or (lambda _request: True)
         self._engine = engine or self._run_weasyprint
+        self._einvoice_artifact_resolver = einvoice_artifact_resolver
         if validator is False:
             self._validator: VeraPdfRunner | None = None
         elif validator is not None:
@@ -174,17 +230,42 @@ class DocumentRenderer:
     def render_final(
         self,
         render_input: RenderInput,
-        einvoice_artifact: object | None = None,
+        einvoice_artifact: EInvoiceArtifactReference | None = None,
     ) -> RenderedPdf:
-        # The artifact is integrated in the PDF/A/e-invoice tasks.  It is part
-        # of this signature now so no second renderer path can emerge later.
-        if einvoice_artifact is not None:
-            raise DocumentRendererError("RENDER_INPUT_INVALID")
         if not self._final_authorizer(render_input):
             raise DocumentRendererError("RENDER_INPUT_INVALID")
-        return self._render(render_input, "final")
+        resolved = None
+        if einvoice_artifact is not None:
+            if (
+                self._einvoice_artifact_resolver is None
+                or render_input.source_document_id is None
+                or render_input.source_snapshot_sha256 is None
+            ):
+                raise DocumentRendererError("RENDER_INPUT_INVALID")
+            try:
+                resolved = self._einvoice_artifact_resolver(einvoice_artifact, render_input)
+                expected_id = (
+                    einvoice_artifact.zugferd_artifact_id
+                    if isinstance(einvoice_artifact, ZugferdArtifactReference)
+                    else einvoice_artifact.xrechnung_artifact_id
+                )
+                expected_kind = (
+                    "zugferd_xml"
+                    if isinstance(einvoice_artifact, ZugferdArtifactReference)
+                    else "xrechnung_xml"
+                )
+                if resolved.artifact_id != expected_id or resolved.kind != expected_kind:
+                    raise EInvoiceArtifactError("EINVOICE_ARTIFACT_KIND_INVALID")
+            except EInvoiceArtifactError as exc:
+                raise DocumentRendererError(exc.code) from None
+        return self._render(render_input, "final", resolved)
 
-    def _render(self, request: RenderInput, mode: RenderMode) -> RenderedPdf:
+    def _render(
+        self,
+        request: RenderInput,
+        mode: RenderMode,
+        einvoice_artifact: ResolvedEInvoiceArtifact | None = None,
+    ) -> RenderedPdf:
         started = time.perf_counter()
         try:
             cache_key = self._cache_key(request)
@@ -209,6 +290,31 @@ class DocumentRenderer:
                 raw_pdf = self._engine(worker_html, workspace, mode)
 
             normalized, page_count = self._normalize_pdf(raw_pdf, request)
+            if einvoice_artifact is not None:
+                report = validate_xml(
+                    einvoice_artifact.content,
+                    einvoice_artifact.standard,
+                    einvoice_artifact.syntax,
+                    einvoice_artifact.profile,
+                )
+                if not report.valid:
+                    raise EInvoiceArtifactError("EINVOICE_ARTIFACT_NOT_VALID")
+                if einvoice_artifact.kind == "zugferd_xml":
+                    normalized = attach_zugferd_xml(
+                        normalized,
+                        einvoice_artifact.content,
+                        xml_sha256=einvoice_artifact.sha256,
+                        profile=einvoice_artifact.profile,
+                        timestamp=request.document_timestamp,
+                    )
+                    post_attachment_report = validate_xml(
+                        einvoice_artifact.content,
+                        einvoice_artifact.standard,
+                        einvoice_artifact.syntax,
+                        einvoice_artifact.profile,
+                    )
+                    if not post_attachment_report.valid:
+                        raise EInvoiceArtifactError("EINVOICE_ARTIFACT_NOT_VALID")
             if page_count > self._limits.max_pages:
                 raise DocumentRendererError("RENDER_PAGE_LIMIT")
             if len(normalized) > self._limits.max_output_bytes:
@@ -225,6 +331,25 @@ class DocumentRenderer:
                 self._write_cache(cache_key, normalized, page_count, request.layout.page.page_format)
             else:
                 artifact_path = self._persist_artifact(digest, normalized)
+            receipt: dict[str, object] = {
+                "pdf_sha256": digest,
+                "pdfa_report": (
+                    validation_report.model_dump(mode="json")
+                    if validation_report is not None
+                    else None
+                ),
+            }
+            manifest: dict[str, object] = {}
+            if einvoice_artifact is not None:
+                receipt["einvoice"] = {
+                    "artifact_id": einvoice_artifact.artifact_id,
+                    "xml_sha256": einvoice_artifact.sha256,
+                    "standard": einvoice_artifact.standard,
+                    "syntax": einvoice_artifact.syntax,
+                    "profile": einvoice_artifact.profile,
+                    "source_snapshot_sha256": einvoice_artifact.source_snapshot_sha256,
+                }
+                manifest = export_manifest(einvoice_artifact, pdf_sha256=digest)
             return RenderedPdf(
                 content=normalized,
                 sha256=digest,
@@ -237,6 +362,8 @@ class DocumentRenderer:
                 validation_status=validation_status,
                 validation_report=validation_report,
                 warnings=warnings,
+                render_receipt=receipt,
+                export_manifest=manifest,
             )
         except DocumentRendererError:
             raise
@@ -250,7 +377,11 @@ class DocumentRenderer:
             logger.warning("PDF/A preparation failed with %s", exc.code)
             if exc.code.startswith("PDFA_LETTERHEAD"):
                 raise DocumentRendererError("RENDER_ASSET_UNAVAILABLE") from None
+            if exc.code.startswith("ZUGFERD_"):
+                raise DocumentRendererError(exc.code) from None
             raise DocumentRendererError("RENDER_ENGINE_FAILED") from None
+        except EInvoiceArtifactError as exc:
+            raise DocumentRendererError(exc.code) from None
         except (ValueError, TypeError) as exc:
             logger.warning("invalid document render input", exc_info=exc)
             raise DocumentRendererError("RENDER_INPUT_INVALID") from None
@@ -516,6 +647,8 @@ class DocumentRenderer:
                 b"\n".join(
                     digest.encode("ascii") for digest in sorted(request.assets)
                 ),
+                str(request.source_document_id or "").encode("ascii"),
+                (request.source_snapshot_sha256 or "").encode("ascii"),
             )
         )
         return hashlib.sha256(material).hexdigest()

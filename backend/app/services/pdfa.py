@@ -7,13 +7,25 @@ import io
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from importlib import resources
+from typing import Literal
 
 import pikepdf
+from lxml import etree
+
+from backend.app.services.einvoice.zugferd import (
+    FACTUR_X_FILENAME,
+    FACTUR_X_XMP_NAMESPACE,
+    factur_x_metadata,
+)
 
 _ICC_PACKAGE = "backend.app.resources.pdf"
 _ICC_FILENAME = "sRGB.icc"
 _PRODUCER = "PrintOps document renderer / WeasyPrint 69.0 / pikepdf 10.10.0"
 _BOX_TOLERANCE_PT = 0.1
+_RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+_PDFA_EXTENSION_NS = "http://www.aiim.org/pdfa/ns/extension/"
+_PDFA_SCHEMA_NS = "http://www.aiim.org/pdfa/ns/schema#"
+_PDFA_PROPERTY_NS = "http://www.aiim.org/pdfa/ns/property#"
 
 
 class PdfaError(RuntimeError):
@@ -250,6 +262,144 @@ def prepare_pdfa3u(
     except (pikepdf.PdfError, ValueError, KeyError) as exc:
         raise PdfaError("PDFA_PREPARATION_FAILED") from exc
     return output.getvalue()
+
+
+def _factur_x_property(
+    sequence: etree._Element,
+    name: str,
+    description: str,
+) -> None:
+    item = etree.SubElement(
+        sequence,
+        etree.QName(_RDF_NS, "li"),
+        {etree.QName(_RDF_NS, "parseType"): "Resource"},
+    )
+    etree.SubElement(item, etree.QName(_PDFA_PROPERTY_NS, "name")).text = name
+    etree.SubElement(item, etree.QName(_PDFA_PROPERTY_NS, "valueType")).text = "Text"
+    etree.SubElement(item, etree.QName(_PDFA_PROPERTY_NS, "category")).text = "external"
+    etree.SubElement(item, etree.QName(_PDFA_PROPERTY_NS, "description")).text = description
+
+
+def _apply_factur_x_metadata(
+    pdf: pikepdf.Pdf,
+    *,
+    profile: Literal["en16931", "xrechnung"],
+) -> None:
+    try:
+        root = etree.fromstring(bytes(pdf.Root.Metadata))
+        rdf = root.find(f".//{{{_RDF_NS}}}RDF")
+        if rdf is None:
+            raise ValueError("XMP RDF container is missing")
+
+        values = etree.SubElement(
+            rdf,
+            etree.QName(_RDF_NS, "Description"),
+            nsmap={"fx": FACTUR_X_XMP_NAMESPACE},
+        )
+        values.set(etree.QName(_RDF_NS, "about"), "")
+        metadata = factur_x_metadata(profile)
+        for name, value in metadata.items():
+            etree.SubElement(values, etree.QName(FACTUR_X_XMP_NAMESPACE, name)).text = value
+
+        extension = etree.SubElement(
+            rdf,
+            etree.QName(_RDF_NS, "Description"),
+            nsmap={
+                "pdfaExtension": _PDFA_EXTENSION_NS,
+                "pdfaSchema": _PDFA_SCHEMA_NS,
+                "pdfaProperty": _PDFA_PROPERTY_NS,
+            },
+        )
+        extension.set(etree.QName(_RDF_NS, "about"), "")
+        schemas = etree.SubElement(extension, etree.QName(_PDFA_EXTENSION_NS, "schemas"))
+        bag = etree.SubElement(schemas, etree.QName(_RDF_NS, "Bag"))
+        schema = etree.SubElement(
+            bag,
+            etree.QName(_RDF_NS, "li"),
+            {etree.QName(_RDF_NS, "parseType"): "Resource"},
+        )
+        etree.SubElement(schema, etree.QName(_PDFA_SCHEMA_NS, "schema")).text = (
+            "Factur-X PDFA Extension Schema"
+        )
+        etree.SubElement(schema, etree.QName(_PDFA_SCHEMA_NS, "namespaceURI")).text = (
+            FACTUR_X_XMP_NAMESPACE
+        )
+        etree.SubElement(schema, etree.QName(_PDFA_SCHEMA_NS, "prefix")).text = "fx"
+        properties = etree.SubElement(schema, etree.QName(_PDFA_SCHEMA_NS, "property"))
+        sequence = etree.SubElement(properties, etree.QName(_RDF_NS, "Seq"))
+        _factur_x_property(sequence, "DocumentFileName", "name of the embedded XML invoice file")
+        _factur_x_property(sequence, "DocumentType", "INVOICE")
+        _factur_x_property(
+            sequence,
+            "Version",
+            "The actual version of the Factur-X XML schema",
+        )
+        _factur_x_property(
+            sequence,
+            "ConformanceLevel",
+            "The conformance level of the embedded Factur-X data",
+        )
+        packet = (
+            b'<?xpacket begin="\xef\xbb\xbf" id="W5M0MpCehiHzreSzNTczkc9d"?>\n'
+            + etree.tostring(root, encoding="UTF-8", xml_declaration=False)
+            + b'\n<?xpacket end="w"?>'
+        )
+        pdf.Root.Metadata.write(packet)
+    except (AttributeError, KeyError, TypeError, ValueError, etree.XMLSyntaxError) as exc:
+        raise PdfaError("ZUGFERD_XMP_FAILED") from exc
+
+
+def attach_zugferd_xml(
+    content: bytes,
+    xml: bytes,
+    *,
+    xml_sha256: str,
+    profile: Literal["en16931", "xrechnung"],
+    timestamp: datetime,
+) -> bytes:
+    """Embed the byte-identical validated CII artifact in a PDF/A-3u envelope."""
+    if timestamp.tzinfo is None or hashlib.sha256(xml).hexdigest() != xml_sha256:
+        raise PdfaError("ZUGFERD_XML_HASH_MISMATCH")
+    output = io.BytesIO()
+    try:
+        with pikepdf.open(io.BytesIO(content)) as pdf:
+            if FACTUR_X_FILENAME in pdf.attachments:
+                raise PdfaError("ZUGFERD_ATTACHMENT_EXISTS")
+            pdf.attachments[FACTUR_X_FILENAME] = xml
+            specification = pdf.attachments[FACTUR_X_FILENAME]
+            specification.relationship = pikepdf.Name.Alternative
+            embedded = specification.get_file()
+            embedded.mime_type = "text/xml"
+            embedded.creation_date = timestamp.astimezone(timezone.utc)
+            embedded.mod_date = timestamp.astimezone(timezone.utc)
+            pdf.Root["/AF"] = pikepdf.Array([specification.obj])
+            _apply_factur_x_metadata(pdf, profile=profile)
+            if hashlib.sha256(embedded.read_bytes()).hexdigest() != xml_sha256:
+                raise PdfaError("ZUGFERD_XML_HASH_MISMATCH")
+            pdf.save(
+                output,
+                min_version="1.7",
+                force_version="1.7",
+                preserve_pdfa=True,
+                deterministic_id=True,
+                compress_streams=True,
+            )
+    except PdfaError:
+        raise
+    except (pikepdf.PdfError, ValueError, KeyError) as exc:
+        raise PdfaError("ZUGFERD_ATTACHMENT_FAILED") from exc
+    result = output.getvalue()
+    try:
+        with pikepdf.open(io.BytesIO(result)) as pdf:
+            if hashlib.sha256(
+                pdf.attachments[FACTUR_X_FILENAME].get_file().read_bytes()
+            ).hexdigest() != xml_sha256:
+                raise PdfaError("ZUGFERD_XML_HASH_MISMATCH")
+    except PdfaError:
+        raise
+    except (pikepdf.PdfError, KeyError) as exc:
+        raise PdfaError("ZUGFERD_ATTACHMENT_FAILED") from exc
+    return result
 
 
 def _font_objects(pdf: pikepdf.Pdf):
