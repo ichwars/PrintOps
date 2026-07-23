@@ -3,6 +3,12 @@ name: "PrintOps CodeQL Configuration"
 # Uses the default query suite with accepted-risk exclusions.
 # Each exclusion is reviewed and documented below.
 
+# Vite output is generated from frontend/src and includes vendored Three.js
+# internals. Scan the authored source instead of reporting duplicate findings
+# in minified bundles such as static/assets/FileUploadModal-*.js.
+paths-ignore:
+  - static/assets/**
+
 query-filters:
   # ── Python Accepted Risk ─────────────────────────────────────
 

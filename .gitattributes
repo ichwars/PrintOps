@@ -1,3 +1,7 @@
 # Force CRLF line endings for Windows batch files so cmd.exe can parse them
 # regardless of the user's core.autocrlf setting.
 *.bat text eol=crlf
+
+# Vite preserves source line endings while injecting generated tags. Force the
+# committed build entry point to LF so Windows builds do not become mixed-EOL.
+static/index.html text eol=lf
