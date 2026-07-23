@@ -2,15 +2,14 @@
 
 ## Reporting a Vulnerability
 
-The PrintOps team takes security seriously. We appreciate your efforts to responsibly disclose your findings.
+The PrintOps team takes security seriously. We appreciate your efforts to
+responsibly disclose findings.
 
-### How to Report
-
-**Please DO NOT report security vulnerabilities through public GitHub.**
-
-Instead, please report them via email to:
-
-**security@github.com/ichwars/PrintOps**
+**Do not report vulnerabilities in a public issue, discussion, or pull
+request.** Submit a private report through
+[GitHub Private Vulnerability Reporting](https://github.com/ichwars/PrintOps/security/advisories/new).
+The repository maintainers use that private advisory to discuss the report,
+coordinate a fix, request a CVE when appropriate, and credit the reporter.
 
 ### What to Include
 
@@ -21,21 +20,42 @@ Please include the following information in your report:
 - **Affected versions** of PrintOps
 - **Potential impact** of the vulnerability
 - **Any suggested fixes** (if you have them)
+- **Whether and when you plan to disclose the issue publicly**
 
 ### What to Expect
 
-- **Acknowledgment**: We will acknowledge receipt of your report within 48 hours
-- **Assessment**: We will investigate and validate the issue within 7 days
-- **Updates**: We will keep you informed of our progress
-- **Resolution**: We aim to release a fix within 30 days for critical issues
-- **Credit**: We will credit you in our release notes (unless you prefer to remain anonymous)
+- **Acknowledgment**: We aim to acknowledge the report within 48 hours.
+- **Assessment**: We aim to provide an initial validation and severity
+  assessment within 7 days.
+- **Updates**: We will provide a status update at least every 7 days while a
+  confirmed issue remains open.
+- **Resolution**: We aim to release a fix within 30 days for critical issues.
+  Complex or ecosystem-dependent fixes may require a mutually agreed timeline.
+- **Credit**: We will credit you in the advisory and release notes unless you
+  prefer to remain anonymous.
+
+Please allow us to coordinate publication through the private advisory. We
+will not pursue legal action against good-faith research that avoids privacy
+violations, data destruction, service disruption, social engineering, and
+access beyond what is necessary to demonstrate the issue.
+
+### Maintainer Process
+
+1. A maintainer acknowledges and privately triages the report.
+2. Confirmed issues receive a severity, affected-version range, remediation
+   owner, and target release.
+3. Fixes are developed without exposing exploit details and receive
+   security-focused review.
+4. The fix and advisory are published together when practical. Reporters are
+   notified before coordinated disclosure.
+5. Follow-up actions are tracked after release, including dependency or
+   configuration hardening where relevant.
 
 ## Supported Versions
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
-| 0.2.x   | :white_check_mark: |
+The latest published PrintOps release receives security fixes. Older releases
+are supported on a best-effort basis; reporters should still include every
+version they have confirmed as affected.
 
 ## Security Considerations
 
@@ -72,14 +92,16 @@ The following are **in scope** for security reports:
 - Cross-site request forgery (CSRF)
 - Sensitive data exposure
 - Insecure direct object references
+- Vulnerabilities in dependencies shipped by PrintOps when they affect a
+  supported PrintOps artifact or configuration
 
 The following are **out of scope**:
 
-- Issues in dependencies (report to the upstream project)
 - Social engineering attacks
 - Physical attacks
-- Denial of service (DoS) attacks
+- Denial of service claims that rely only on unrealistic traffic volumes
 - Issues requiring physical access to the server
+- Automated scanner output without a reproducible impact on PrintOps
 
 ## PrintOps Security Stance
 

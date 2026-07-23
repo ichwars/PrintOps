@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { fireEvent, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { render } from '../utils';
 import { Layout } from '../../components/Layout';
 import { http, HttpResponse } from 'msw';
@@ -85,6 +85,25 @@ describe('Layout', () => {
   });
 
   describe('rendering', () => {
+    it('renders the global encryption warning above page content', async () => {
+      server.use(
+        http.get('/api/v1/auth/encryption-status', () =>
+          HttpResponse.json({
+            key_configured: false,
+            key_source: 'none',
+            legacy_plaintext_rows: { oidc_providers: 0, user_totp: 0 },
+            encrypted_rows: { oidc_providers: 0, user_totp: 0 },
+            decryption_broken: false,
+            migration_error_count: 0,
+          }),
+        ),
+      );
+
+      render(<Layout />);
+
+      expect(await screen.findByTestId('encryption-warning-banner')).toBeInTheDocument();
+    });
+
     it('renders the sidebar', async () => {
       render(<Layout />);
 

@@ -20,6 +20,7 @@ import { Card, CardHeader, CardContent } from './Card';
 import { parseUTCDate } from '../utils/date';
 import { Button } from './Button';
 import { BugReportBubble } from './BugReportBubble';
+import { EncryptionWarningBanner } from './EncryptionWarningBanner';
 import {
   getHiddenSidebarSystemItemIds,
   getSidebarOrder,
@@ -1069,6 +1070,7 @@ export function Layout() {
       <main className={`flex-1 bg-bambu-dark overflow-auto transition-all duration-300 ${
         isSidebarCompact ? 'mt-14' : sidebarExpanded ? 'ml-64' : 'ml-16'
       }`}>
+        <EncryptionWarningBanner />
         {/* Debug logging indicator */}
         {debugLoggingState?.enabled && (
           <div className="bg-amber-100 dark:bg-amber-500/20 border-b border-amber-300 dark:border-amber-500/30 px-4 py-2 flex items-center justify-between">
