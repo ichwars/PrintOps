@@ -215,8 +215,8 @@ export interface LayoutCatalog {
 }
 
 export interface LayoutSample {
-  id: string;
-  label: string;
+  key: string;
+  title: string;
   document_type: string;
   language: string;
   [key: string]: unknown;

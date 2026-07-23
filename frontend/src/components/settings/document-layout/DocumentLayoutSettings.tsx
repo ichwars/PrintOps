@@ -251,7 +251,7 @@ export function DocumentLayoutSettings() {
   const sourceOptions = useMemo<LayoutPreviewSourceOption[]>(() => {
     const samples = (samplesQuery.data ?? [])
       .filter((sample) => sample.document_type === documentType && sample.language === language)
-      .map((sample) => ({ value: { kind: 'sample' as const, id: sample.id }, label: sample.label, detail: t('settings.documentLayout.context.sampleData', 'Sample data') }));
+      .map((sample) => ({ value: { kind: 'sample' as const, id: sample.key }, label: sample.title, detail: t('settings.documentLayout.context.sampleData', 'Sample data') }));
     const documents = (documentsQuery.data ?? [])
       .filter((document) => document.language === language)
       .map((document) => ({

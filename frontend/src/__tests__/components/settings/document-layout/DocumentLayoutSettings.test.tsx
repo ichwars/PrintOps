@@ -59,7 +59,9 @@ vi.mock('../../../../contexts/AuthContext', () => ({
 }));
 
 vi.mock('../../../../components/settings/document-layout/PdfPreviewPane', () => ({
-  PdfPreviewPane: ({ layoutId, confirmedLockVersion }: { layoutId: number; confirmedLockVersion: number }) => <div data-testid="pdf-preview">Preview {layoutId}:{confirmedLockVersion}</div>,
+  PdfPreviewPane: ({ layoutId, confirmedLockVersion, source }: { layoutId: number; confirmedLockVersion: number; source: { kind: string; id: string } | null }) => (
+    <div data-testid="pdf-preview">Preview {layoutId}:{confirmedLockVersion}:{source?.kind}:{source?.id}</div>
+  ),
 }));
 
 import { DocumentLayoutSettings } from '../../../../components/settings/document-layout/DocumentLayoutSettings';
@@ -83,7 +85,7 @@ beforeEach(() => {
     languages: ['de', 'en'],
     document_types: ['invoice'],
   });
-  mocks.getSamples.mockResolvedValue([{ id: 'invoice-standard', label: 'Standard invoice', document_type: 'invoice', language: 'en' }]);
+  mocks.getSamples.mockResolvedValue([{ key: 'invoice-standard', title: 'Standard invoice', document_type: 'invoice', language: 'en' }]);
   mocks.listLayouts.mockResolvedValue([layoutSummary()]);
   mocks.getLayout.mockResolvedValue(layoutDetail());
   mocks.getReadiness.mockResolvedValue({ ready: true, findings: [], renderer_version: '1', validator_version: '1' });
@@ -100,7 +102,7 @@ describe('DocumentLayoutSettings', () => {
     const { container } = renderSettings();
 
     expect(await screen.findByRole('heading', { name: 'Format & Preview' })).toBeInTheDocument();
-    expect(await screen.findByTestId('pdf-preview')).toHaveTextContent('Preview 17:3');
+    expect(await screen.findByTestId('pdf-preview')).toHaveTextContent('Preview 17:3:sample:invoice-standard');
     expect(screen.getByRole('combobox', { name: 'Business profile' })).toHaveTextContent('Main GmbH');
     expect(screen.getByRole('combobox', { name: 'Document type' })).toHaveTextContent('Invoice');
     expect(screen.getByRole('combobox', { name: 'Preview source' })).toHaveTextContent('Standard invoice');
@@ -130,5 +132,20 @@ describe('DocumentLayoutSettings', () => {
     await screen.findByTestId('pdf-preview');
     expect(mocks.getPreviewDocuments).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.getByRole('combobox', { name: 'Preview source' })).toHaveTextContent('Standard invoice'));
+  });
+
+  it('uses the backend key and title fields for sample preview sources', async () => {
+    mocks.getSamples.mockResolvedValue([{
+      key: 'invoice-en-standard',
+      title: 'Invoice En',
+      document_type: 'invoice',
+      language: 'en',
+    }]);
+
+    renderSettings();
+
+    expect(await screen.findByTestId('pdf-preview')).toHaveTextContent('Preview 17:3:sample:invoice-en-standard');
+    expect(screen.getByRole('combobox', { name: 'Preview source' })).toHaveTextContent('Invoice En');
+    expect(screen.getByRole('combobox', { name: 'Preview source' })).not.toHaveTextContent('undefined');
   });
 });
