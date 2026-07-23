@@ -5013,10 +5013,11 @@ export const api = {
       chamber_temp_presets?: string;
       fan_speed_presets?: string;
     }>('/settings/ui-preferences'),
-  updateSettings: (data: AppSettingsUpdate) =>
+  updateSettings: (data: AppSettingsUpdate, signal?: AbortSignal) =>
     request<AppSettings>('/settings/', {
       method: 'PUT',
       body: JSON.stringify(data),
+      signal,
     }),
   getMQTTStatus: () => request<MQTTStatus>('/settings/mqtt/status'),
   resetSettings: () =>
