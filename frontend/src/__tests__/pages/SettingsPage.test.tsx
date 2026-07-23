@@ -263,6 +263,21 @@ describe('SettingsPage', () => {
       expect(window.location.search).toContain('sub=documents');
     });
 
+    it('opens Format & Preview between Documents and Calculation via its canonical URL', async () => {
+      setSettingsTabUrl('orders-calculation', '&sub=format-preview');
+
+      render(<SettingsPage />);
+
+      const documents = await screen.findByRole('button', { name: 'Documents' });
+      const formatPreview = await screen.findByRole('button', { name: 'Format & Preview' });
+      const calculation = await screen.findByRole('button', { name: 'Calculation' });
+      expect(formatPreview).toHaveClass('text-bambu-green');
+      expect(documents.compareDocumentPosition(formatPreview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(formatPreview.compareDocumentPosition(calculation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(document.getElementById('card-document-layout-settings')).not.toBeNull();
+      expect(window.location.search).toContain('sub=format-preview');
+    });
+
     it('renders the page title', async () => {
       render(<SettingsPage />);
 
@@ -910,6 +925,17 @@ describe('SettingsPage', () => {
       expect(await screen.findByText('File Manager')).toBeInTheDocument();
       expect(window.location.search).toContain('tab=projects-files');
       expect(document.getElementById('card-filemanager')).not.toBeNull();
+    });
+
+    it('opens Format & Preview from the settings search registry', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Format & Preview');
+
+      expect(await screen.findByRole('button', { name: 'Format & Preview' })).toHaveClass('text-bambu-green');
+      expect(window.location.search).toContain('tab=orders-calculation');
+      expect(window.location.search).toContain('sub=format-preview');
+      expect(document.getElementById('card-document-layout-settings')).not.toBeNull();
     });
 
     it('opens Cost Tracking from search results on its canonical tab', async () => {

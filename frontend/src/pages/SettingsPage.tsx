@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Settings as SettingsIcon, Cog, QrCode, Heart, Workflow, Info, Building2 } from 'lucide-react';
+import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Settings as SettingsIcon, Cog, QrCode, Heart, Workflow, Info, Building2, PanelsTopLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
@@ -97,6 +97,7 @@ registerSettingsSearch({ labelKey: 'settings.defaultPrinter', labelFallback: 'De
 registerSettingsSearch({ labelKey: 'settings.costTracking', tab: 'orders-calculation', orderManagementSubTab: 'calculation', keywords: 'currency filament cost energy kwh price', anchor: 'card-cost' });
 registerSettingsSearch({ labelKey: 'orders.businessProfile.title', tab: 'orders-calculation', orderManagementSubTab: 'business-profile', keywords: 'business company seller issuer tax bank country currency', anchor: 'card-business-profile' });
 registerSettingsSearch({ labelKey: 'settings.documents.title', labelFallback: 'Document settings', tab: 'orders-calculation', orderManagementSubTab: 'documents', keywords: 'documents templates invoice quotation payment tax e-invoice xrechnung zugferd', anchor: 'card-document-settings' });
+registerSettingsSearch({ labelKey: 'settings.documentLayout.title', labelFallback: 'Format & Preview', tab: 'orders-calculation', orderManagementSubTab: 'format-preview', keywords: 'format preview layout pdf a4 letter logo letterhead typography footer zugferd xrechnung', anchor: 'card-document-layout-settings' });
 registerSettingsSearch({ labelKey: 'settings.fileManager', tab: 'projects-files', projectManagementSubTab: 'files', keywords: 'file manager archive mode disk warning storage', anchor: 'card-filemanager' });
 registerSettingsSearch({ labelKey: 'settings.updates', tab: 'operations', operationSubTab: 'updates', keywords: 'updates version firmware beta check', anchor: 'card-updates' });
 registerSettingsSearch({ labelKey: 'settings.dataManagement', tab: 'operations', operationSubTab: 'data-management', keywords: 'data clear logs notifications storage backup restore', anchor: 'card-data' });
@@ -463,6 +464,15 @@ const ORDER_MANAGEMENT_SUB_TABS: Record<OrderManagementSubTab, SettingsHeaderMet
     descriptionFallbackDe: 'Versionierte Dokumentregeln, Zahlungsbedingungen, Steuerbehandlung und E-Rechnungen konfigurieren.',
     icon: FileText,
   },
+  'format-preview': {
+    labelKey: 'settings.tabs.orderManagementFormatPreview',
+    fallback: 'Format & Preview',
+    fallbackDe: 'Format & Vorschau',
+    descriptionKey: 'settings.orderManagementSubTabDescriptions.formatPreview',
+    descriptionFallback: 'Design versioned PDF layouts, verify real previews, and control publishing readiness.',
+    descriptionFallbackDe: 'Versionierte PDF-Layouts gestalten, echte Vorschauen prüfen und die Freigabebereitschaft steuern.',
+    icon: PanelsTopLeft,
+  },
   calculation: {
     labelKey: 'settings.tabs.orderManagementCalculation',
     fallback: 'Calculation',
@@ -477,6 +487,7 @@ const ORDER_MANAGEMENT_SUB_TABS: Record<OrderManagementSubTab, SettingsHeaderMet
 const ORDER_MANAGEMENT_SUB_TAB_ITEMS: Array<{ id: OrderManagementSubTab; meta: SettingsHeaderMeta }> = [
   { id: 'business-profile', meta: ORDER_MANAGEMENT_SUB_TABS['business-profile'] },
   { id: 'documents', meta: ORDER_MANAGEMENT_SUB_TABS.documents },
+  { id: 'format-preview', meta: ORDER_MANAGEMENT_SUB_TABS['format-preview'] },
   { id: 'calculation', meta: ORDER_MANAGEMENT_SUB_TABS.calculation },
 ];
 
@@ -499,6 +510,7 @@ const legacySearchTabByAnchor: Record<string, string> = {
   'card-camera': 'printers-production',
   'card-cost': 'orders-calculation',
   'card-document-settings': 'orders-calculation',
+  'card-document-layout-settings': 'orders-calculation',
   'card-filemanager': 'projects-files',
   'card-updates': 'operations',
   'card-data': 'operations',
@@ -4018,6 +4030,24 @@ export function SettingsPage() {
         <div className="w-full">
           <DocumentSettings />
         </div>
+      )}
+
+      {activeTab === 'orders-calculation' && orderManagementSubTab === 'format-preview' && (
+        <section
+          id="card-document-layout-settings"
+          aria-labelledby="document-layout-settings-title"
+          className="w-full rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-5"
+        >
+          <h2 id="document-layout-settings-title" className="text-lg font-semibold text-white">
+            {t('settings.documentLayout.title', 'Format & Preview')}
+          </h2>
+          <p className="mt-1 text-sm text-bambu-gray">
+            {t(
+              'settings.documentLayout.loadingDescription',
+              'The versioned layout workspace is loading its catalog, permissions, and document context.',
+            )}
+          </p>
+        </section>
       )}
 
       {activeTab === 'orders-calculation' && orderManagementSubTab === 'calculation' && localSettings && (

@@ -400,9 +400,15 @@ const ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS = new Set([
   'orderUi.billingModes.hybrid',
 ].forEach((key) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(key));
 
+// Task 16 deliberately provides the complete English layout-editor fallback
+// outside German. The exception is constrained to the new namespace and its
+// two navigation leaves; unrelated copied English strings still fail.
 function isAllowedOrderManagementEnglishFallback(locale, key) {
+  const isDocumentLayoutFallback = key === 'settings.tabs.orderManagementFormatPreview'
+    || key === 'settings.orderManagementSubTabDescriptions.formatPreview'
+    || key.startsWith('settings.documentLayout.');
   return ORDER_MANAGEMENT_ENGLISH_FALLBACK_LOCALES.has(locale)
-    && ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.has(key);
+    && (ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.has(key) || isDocumentLayoutFallback);
 }
 
 // Heuristic: values that are ALWAYS allowed to match en, regardless of locale.
