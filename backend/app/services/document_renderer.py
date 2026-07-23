@@ -31,6 +31,7 @@ from backend.app.schemas.document_layout import EffectiveDocumentLayout
 from backend.app.services.document_snapshot import canonicalize_payload
 from backend.app.services.document_templates import render_document_html
 from backend.app.services.document_view_model import DocumentViewModel, canonicalize_view_model
+from backend.app.services.pdfa import PdfaError, canonical_source_sha256, prepare_pdfa3u
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ _RESOURCE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _SAFE_CORRELATION = re.compile(r"[^A-Za-z0-9_.-]+")
-_PRODUCER = "PrintOps document renderer / WeasyPrint 69.0 / pikepdf 10.10.0"
+_ICC_PROFILE = Path(__file__).parents[1] / "resources" / "pdf" / "sRGB.icc"
 
 
 class DocumentRendererError(RuntimeError):
@@ -71,6 +72,7 @@ class RenderInput:
     correlation_id: str
     cache_scope: str
     assets: Mapping[str, bytes] = field(default_factory=dict)
+    asset_roles: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.correlation_id.strip() or not self.cache_scope.strip():
@@ -82,6 +84,19 @@ class RenderInput:
                 raise ValueError("asset handles must be lowercase SHA-256 values")
             if hashlib.sha256(content).hexdigest() != digest:
                 raise ValueError("asset content does not match its handle")
+        allowed_roles = {
+            "logo",
+            "letterhead_first",
+            "letterhead_following",
+            "font_regular",
+            "font_bold",
+            "font_italic",
+            "font_bold_italic",
+        }
+        if set(self.asset_roles) - allowed_roles:
+            raise ValueError("unknown document asset role")
+        if any(digest not in self.assets for digest in self.asset_roles.values()):
+            raise ValueError("asset role references an unavailable handle")
 
 
 # Public naming retained for the preview-facing API contract.
@@ -160,6 +175,7 @@ class DocumentRenderer:
                     return cached
 
             html = render_document_html(request.view_model, request.layout)
+            html = self._add_asset_styles(html, request)
             if mode == "preview":
                 html = self._add_preview_mark(html)
             self._validate_resource_access(html, request.assets)
@@ -170,9 +186,10 @@ class DocumentRenderer:
                 ignore_cleanup_errors=True,
             ) as workspace_name:
                 workspace = Path(workspace_name)
-                raw_pdf = self._engine(html, workspace, mode)
+                worker_html = self._materialize_assets(html, workspace, request.assets)
+                raw_pdf = self._engine(worker_html, workspace, mode)
 
-            normalized, page_count = self._normalize_pdf(raw_pdf, request.document_timestamp)
+            normalized, page_count = self._normalize_pdf(raw_pdf, request)
             if page_count > self._limits.max_pages:
                 raise DocumentRendererError("RENDER_PAGE_LIMIT")
             if len(normalized) > self._limits.max_output_bytes:
@@ -202,6 +219,11 @@ class DocumentRenderer:
         except MemoryError as exc:
             logger.warning("document renderer exceeded memory limit", exc_info=exc)
             raise DocumentRendererError("RENDER_MEMORY_LIMIT") from None
+        except PdfaError as exc:
+            logger.warning("PDF/A preparation failed with %s", exc.code)
+            if exc.code.startswith("PDFA_LETTERHEAD"):
+                raise DocumentRendererError("RENDER_ASSET_UNAVAILABLE") from None
+            raise DocumentRendererError("RENDER_ENGINE_FAILED") from None
         except (ValueError, TypeError) as exc:
             logger.warning("invalid document render input", exc_info=exc)
             raise DocumentRendererError("RENDER_INPUT_INVALID") from None
@@ -221,9 +243,14 @@ class DocumentRenderer:
             "--media-type",
             "print",
             "--allowed-protocols",
-            "asset",
+            "file",
             "--no-http-redirects",
             "--fail-on-http-errors",
+            "--pdf-variant",
+            "pdf/a-3u",
+            "--pdf-tags",
+            "--output-intent",
+            str(_ICC_PROFILE),
             "--full-fonts",
             "--timeout",
             "2",
@@ -311,6 +338,56 @@ class DocumentRenderer:
             raise DocumentRendererError("RENDER_ASSET_UNAVAILABLE")
 
     @staticmethod
+    def _add_asset_styles(html: str, request: RenderInput) -> str:
+        font_rules: list[str] = []
+        roles = (
+            ("font_regular", "normal", "400"),
+            ("font_bold", "normal", "700"),
+            ("font_italic", "italic", "400"),
+            ("font_bold_italic", "italic", "700"),
+        )
+        family = request.layout.typography.font_family
+        for role, style, weight in roles:
+            digest = request.asset_roles.get(role)
+            if digest:
+                font_rules.append(
+                    "@font-face{"
+                    f"font-family:'{family}';src:url('asset://{digest}');"
+                    f"font-style:{style};font-weight:{weight};font-display:block"
+                    "}"
+                )
+        if not font_rules:
+            return html
+        return html.replace("</head>", f"<style>{''.join(font_rules)}</style></head>", 1)
+
+    @staticmethod
+    def _materialize_assets(html: str, workspace: Path, assets: Mapping[str, bytes]) -> str:
+        if not assets:
+            return html
+        asset_dir = workspace / "assets"
+        asset_dir.mkdir(mode=0o700)
+        result = html
+        for digest, content in assets.items():
+            if content.startswith(b"%PDF-"):
+                suffix = ".pdf"
+            elif content.startswith(b"\x89PNG"):
+                suffix = ".png"
+            elif content.startswith(b"OTTO"):
+                suffix = ".otf"
+            else:
+                suffix = ".ttf"
+            target = asset_dir / f"{digest}{suffix}"
+            target.write_bytes(content)
+            try:
+                target.chmod(0o600)
+            except OSError:
+                pass
+            result = result.replace(f"asset://{digest}", target.resolve().as_uri())
+        if "asset://" in result:
+            raise DocumentRendererError("RENDER_ASSET_UNAVAILABLE")
+        return result
+
+    @staticmethod
     def _add_preview_mark(html: str) -> str:
         mark = (
             '<div aria-hidden="true" style="position:fixed;inset:42% 0 auto;'
@@ -319,38 +396,39 @@ class DocumentRenderer:
         )
         return html.replace("</body>", f"{mark}</body>", 1)
 
-    @staticmethod
-    def _pdf_date(value: datetime) -> str:
-        utc = value.astimezone(timezone.utc)
-        return utc.strftime("D:%Y%m%d%H%M%S+00'00'")
-
-    def _normalize_pdf(self, raw_pdf: bytes, timestamp: datetime) -> tuple[bytes, int]:
+    def _normalize_pdf(self, raw_pdf: bytes, request: RenderInput) -> tuple[bytes, int]:
         if not raw_pdf.startswith(b"%PDF-"):
             raise OSError("renderer output is not a PDF")
-        first_pass = io.BytesIO()
         with pikepdf.open(io.BytesIO(raw_pdf)) as pdf:
             page_count = len(pdf.pages)
             if page_count > self._limits.max_pages:
                 raise DocumentRendererError("RENDER_PAGE_LIMIT")
-            created = self._pdf_date(timestamp)
-            with pdf.open_metadata(set_pikepdf_as_editor=False, update_docinfo=False) as metadata:
-                iso_time = timestamp.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
-                metadata["xmp:CreateDate"] = iso_time
-                metadata["xmp:ModifyDate"] = iso_time
-                metadata["pdf:Producer"] = _PRODUCER
-            pdf.docinfo["/CreationDate"] = created
-            pdf.docinfo["/ModDate"] = created
-            pdf.docinfo["/Producer"] = _PRODUCER
-            pdf.save(first_pass, deterministic_id=True, compress_streams=True)
-
-        render_id = hashlib.sha256(first_pass.getvalue()).hexdigest()
-        final = io.BytesIO()
-        with pikepdf.open(io.BytesIO(first_pass.getvalue())) as pdf:
-            with pdf.open_metadata(set_pikepdf_as_editor=False, update_docinfo=False) as metadata:
-                metadata["xmpMM:DocumentID"] = f"urn:sha256:{render_id}"
-                metadata["xmpMM:InstanceID"] = f"urn:sha256:{render_id}"
-            pdf.save(final, deterministic_id=True, compress_streams=True)
-        return final.getvalue(), page_count
+        first_digest = request.asset_roles.get("letterhead_first")
+        following_digest = request.asset_roles.get("letterhead_following")
+        if request.layout.page.use_first_page_letterhead and not first_digest:
+            raise PdfaError("PDFA_LETTERHEAD_MISSING")
+        if request.layout.page.use_following_page_letterhead and not following_digest:
+            if request.layout.page.reuse_first_letterhead:
+                following_digest = first_digest
+            else:
+                raise PdfaError("PDFA_LETTERHEAD_MISSING")
+        prepared = prepare_pdfa3u(
+            raw_pdf,
+            language=request.view_model.language,
+            timestamp=request.document_timestamp,
+            document_id=canonical_source_sha256(raw_pdf),
+            letterhead_first=(
+                request.assets[first_digest]
+                if request.layout.page.use_first_page_letterhead and first_digest
+                else None
+            ),
+            letterhead_following=(
+                request.assets[following_digest]
+                if request.layout.page.use_following_page_letterhead and following_digest
+                else None
+            ),
+        )
+        return prepared, page_count
 
     def _cache_key(self, request: RenderInput) -> str:
         material = b"\x00".join(
@@ -359,6 +437,11 @@ class DocumentRenderer:
                 canonicalize_payload(request.layout),
                 request.cache_scope.encode("utf-8"),
                 request.document_timestamp.astimezone(timezone.utc).isoformat().encode("ascii"),
+                json.dumps(
+                    dict(sorted(request.asset_roles.items())),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8"),
                 b"\n".join(
                     digest.encode("ascii") for digest in sorted(request.assets)
                 ),

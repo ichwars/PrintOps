@@ -50,7 +50,7 @@
       <tbody>
       {% for position in document.positions %}
         <tr class="position-row">
-          {% if layout.positions.show_position_number %}<td>{{ position.position }}</td>{% endif %}
+          {% if layout.positions.show_position_number %}<td class="number">{{ position.position }}</td>{% endif %}
           <td class="description">
             <strong>{{ position.description }}</strong>
             {% if layout.technical.enabled and position.technical %}
@@ -64,7 +64,7 @@
             {% endif %}
           </td>
           {% if layout.positions.show_quantity %}<td class="quantity">{{ position.quantity }}</td>{% endif %}
-          {% if layout.positions.show_unit %}<td>{{ position.unit }}</td>{% endif %}
+          {% if layout.positions.show_unit %}<td class="unit">{{ position.unit }}</td>{% endif %}
           {% if document.capabilities.show_amounts and layout.positions.show_unit_price %}<td class="money">{{ position.unit_price }}</td>{% endif %}
           {% if document.capabilities.show_amounts and layout.positions.show_total %}<td class="money">{{ position.net_amount }}</td>{% endif %}
         </tr>
