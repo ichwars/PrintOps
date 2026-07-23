@@ -5,6 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SmallPartsPage } from '../../pages/SmallPartsPage';
+import { cryptoRandomUuid } from '../../utils/random';
 import { server } from '../mocks/server';
 
 const part = {
@@ -66,6 +67,17 @@ function renderPage() {
 describe('SmallPartsPage', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('creates a cryptographic UUID when randomUUID is unavailable over plain HTTP', () => {
+    const cryptoApi = {
+      getRandomValues: (target: Uint8Array) => {
+        target.set(Array.from({ length: 16 }, (_, index) => index));
+        return target;
+      },
+    } as unknown as Crypto;
+
+    expect(cryptoRandomUuid(cryptoApi)).toBe('00010203-0405-4607-8809-0a0b0c0d0e0f');
   });
 
   it('uses Material wording and the shared field styling without a duplicate filter border', async () => {

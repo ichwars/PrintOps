@@ -18,7 +18,9 @@ export function EncryptionWarningBanner() {
     retry: 1,
   });
 
-  if (!data) return null;
+  // `enabled: false` does not hide data already cached under this query key.
+  // Re-check permission at render time so a later viewer session cannot see it.
+  if (!canReadEncryptionStatus || !data) return null;
 
   const legacyRows = data.legacy_plaintext_rows.oidc_providers + data.legacy_plaintext_rows.user_totp;
   const encryptedRows = data.encrypted_rows.oidc_providers + data.encrypted_rows.user_totp;
