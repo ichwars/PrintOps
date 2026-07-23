@@ -178,6 +178,14 @@ _APIKEY_SCOPE_BY_PERMISSION: dict[Permission, str] = {
     Permission.PROJECTS_CREATE: "can_manage_projects",
     Permission.PROJECTS_UPDATE: "can_manage_projects",
     Permission.PROJECTS_DELETE: "can_manage_projects",
+    # can_render_documents deliberately excludes draft/approve/issue/correct
+    # and tax mutation. External systems may maintain layouts, render an
+    # immutable snapshot, download it and inspect its audit evidence.
+    Permission.DOCUMENT_LAYOUTS_READ: "can_render_documents",
+    Permission.DOCUMENT_LAYOUTS_MANAGE: "can_render_documents",
+    Permission.COMMERCIAL_DOCUMENTS_READ: "can_render_documents",
+    Permission.COMMERCIAL_DOCUMENTS_EXPORT: "can_render_documents",
+    Permission.ORDER_AUDIT_READ: "can_render_documents",
     # can_access_cloud — narrow opt-in scope, gated by the router-level
     # ``_cloud_api_key_gate`` and additionally enforced here so the route-
     # level ``cloud_caller(Permission.CLOUD_AUTH)`` dep also fails closed
@@ -262,8 +270,8 @@ _APIKEY_DENIED_PERMISSIONS: frozenset[Permission] = frozenset(
         Permission.SMART_PLUGS_CREATE,
         Permission.SMART_PLUGS_UPDATE,
         Permission.SMART_PLUGS_DELETE,
-        # Order management is unavailable to API keys. Keep all permissions
-        # explicitly denied until dedicated API-key capabilities are designed.
+        # Order mutation remains unavailable to API keys. A dedicated,
+        # opt-in render scope above grants only immutable document rendering.
         Permission.CUSTOMERS_READ,
         Permission.CUSTOMERS_MANAGE,
         Permission.CALCULATIONS_READ,
@@ -273,18 +281,15 @@ _APIKEY_DENIED_PERMISSIONS: frozenset[Permission] = frozenset(
         Permission.ORDERS_UPDATE,
         Permission.ORDERS_CANCEL,
         Permission.ORDERS_MANAGE_PRODUCTION,
-        Permission.COMMERCIAL_DOCUMENTS_READ,
         Permission.COMMERCIAL_DOCUMENTS_DRAFT,
         Permission.COMMERCIAL_DOCUMENTS_APPROVE,
         Permission.COMMERCIAL_DOCUMENTS_ISSUE,
         Permission.COMMERCIAL_DOCUMENTS_CORRECT,
-        Permission.COMMERCIAL_DOCUMENTS_EXPORT,
         Permission.COMMERCIAL_DOCUMENTS_TAX_OVERRIDE,
         Permission.DOCUMENT_TEMPLATES_READ,
         Permission.DOCUMENT_TEMPLATES_MANAGE,
         Permission.PAYMENTS_READ,
         Permission.PAYMENTS_MANAGE,
-        Permission.ORDER_AUDIT_READ,
         Permission.ORDER_SETTINGS_READ,
         Permission.ORDER_SETTINGS_MANAGE,
         Permission.ACCOUNTING_INTEGRATIONS_MANAGE,

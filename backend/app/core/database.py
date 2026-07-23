@@ -2636,6 +2636,17 @@ async def run_migrations(conn):
         async with conn.begin_nested():
             await conn.execute(text("UPDATE api_keys SET can_manage_projects = FALSE"))
 
+    # Rendering can expose commercial data and is therefore opt-in. Existing
+    # and newly created keys remain disabled until an operator enables it.
+    column_existed = await _api_keys_column_exists(conn, "can_render_documents")
+    await _safe_execute(
+        conn,
+        "ALTER TABLE api_keys ADD COLUMN can_render_documents BOOLEAN DEFAULT FALSE",
+    )
+    if not column_existed:
+        async with conn.begin_nested():
+            await conn.execute(text("UPDATE api_keys SET can_render_documents = FALSE"))
+
     # Migration: Soft-delete column for trash bin (Issue #1008). Indexed so the
     # sweeper's "SELECT ... WHERE deleted_at < cutoff" and the trash list's
     # "WHERE deleted_at IS NOT NULL" stay cheap as the table grows.

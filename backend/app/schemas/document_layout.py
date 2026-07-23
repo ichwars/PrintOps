@@ -627,18 +627,18 @@ class AssetLinkRequest(StrictModel):
 
 class PreviewRequest(StrictModel):
     layout_id: int = Field(gt=0)
-    lock_version: int = Field(ge=1)
-    source: Literal["sample", "document"]
-    source_id: int | None = Field(default=None, gt=0)
-    zoom: float = Field(default=1.0, ge=0.25, le=3)
-    page_limit: int = Field(default=20, ge=1, le=50)
+    layout_lock_version: int = Field(gt=0)
+    source_kind: Literal["sample", "document"]
+    source_id: str = Field(min_length=1, max_length=128)
 
     @model_validator(mode="after")
     def validate_source_reference(self) -> PreviewRequest:
-        if self.source == "document" and self.source_id is None:
-            raise ValueError("document preview requires source_id")
-        if self.source == "sample" and self.source_id is not None:
-            raise ValueError("sample preview must not include source_id")
+        if self.source_kind == "document" and (
+            not self.source_id.isascii()
+            or not self.source_id.isdecimal()
+            or int(self.source_id) <= 0
+        ):
+            raise ValueError("document source_id must be a positive decimal identifier")
         return self
 
 
@@ -681,11 +681,17 @@ class LayoutAuditReceiptSchema(ImmutableModel):
 
 
 class ExternalRenderRequest(StrictModel):
-    document_id: int = Field(gt=0)
-    layout_id: int | None = Field(default=None, gt=0)
-    language: Literal["de", "en"] | None = None
-    output: Literal["pdf", "zugferd", "xrechnung"] = "pdf"
-    idempotency_key: str = Field(min_length=8, max_length=128)
+    document_snapshot_id: int = Field(gt=0)
+    published_layout_id: int | None = Field(default=None, gt=0)
+    zugferd_artifact_id: int | None = Field(default=None, gt=0)
+    xrechnung_artifact_id: int | None = Field(default=None, gt=0)
+    idempotency_id: str = Field(min_length=8, max_length=128)
+
+    @model_validator(mode="after")
+    def one_einvoice_reference(self) -> ExternalRenderRequest:
+        if self.zugferd_artifact_id is not None and self.xrechnung_artifact_id is not None:
+            raise ValueError("ZUGFeRD and XRechnung artifact references are mutually exclusive")
+        return self
 
 
 class ExternalRenderResponse(ImmutableModel):
@@ -693,3 +699,4 @@ class ExternalRenderResponse(ImmutableModel):
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     validation_status: Literal["valid", "invalid", "unvalidated"]
     content_type: str
+    correlation_id: str

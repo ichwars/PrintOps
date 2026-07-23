@@ -85,12 +85,18 @@ def test_public_contracts_reject_unknown_fields_and_preview_payloads():
     with pytest.raises(ValidationError):
         PreviewRequest(
             layout_id=1,
-            lock_version=2,
-            source="sample",
+            layout_lock_version=2,
+            source_kind="sample",
+            source_id="invoice-de-standard",
             document_content={"unsafe": "payload"},
         )
     with pytest.raises(ValidationError):
-        PreviewRequest(layout_id=1, lock_version=2, source="document")
+        PreviewRequest(
+            layout_id=1,
+            layout_lock_version=2,
+            source_kind="document",
+            source_id="not-an-id",
+        )
 
 
 def test_every_template_default_is_complete_and_contains_no_css_keys():
