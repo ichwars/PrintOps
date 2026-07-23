@@ -26,6 +26,7 @@ to produce the final installer .exe under ``build/output/``.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import shutil
 import subprocess
@@ -74,6 +75,20 @@ GET_PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
 # them app-locally next to python.exe (where vcruntime140.dll already lives).
 VCRUNTIME_DLLS = ("vcruntime140_1.dll", "msvcp140.dll")
 
+# Official, immutable Windows runtimes used by the commercial-document
+# pipeline.  The WeasyPrint standalone binary contains its matching native
+# Pango/GTK stack; Temurin supplies the Java runtime required by veraPDF.
+WEASYPRINT_RUNTIME_URL = (
+    "https://github.com/Kozea/WeasyPrint/releases/download/v69.0/"
+    "weasyprint-windows.zip"
+)
+WEASYPRINT_RUNTIME_SHA256 = "330101ff3ea50ebde4abf805283b6d703d5f3d71c77c983db94357ec4524a3ef"
+TEMURIN_JRE_URL = (
+    "https://github.com/adoptium/temurin21-binaries/releases/download/"
+    "jdk-21.0.10%2B7/OpenJDK21U-jre_x64_windows_hotspot_21.0.10_7.zip"
+)
+TEMURIN_JRE_SHA256 = "a6ac6789e51a2c245f41430c42e72b39ec706a449812fc5e4cbfc55ceed1e5ae"
+
 
 def log(msg: str) -> None:
     print(f"[build] {msg}", flush=True)
@@ -89,6 +104,26 @@ def download(url: str, dest: Path) -> Path:
     with urllib.request.urlopen(url) as resp, open(dest, "wb") as f:  # noqa: S310 — pinned URLs
         shutil.copyfileobj(resp, f)
     return dest
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def download_verified(url: str, dest: Path, expected_sha256: str) -> Path:
+    """Download an immutable build dependency and enforce its receipt."""
+    path = download(url, dest)
+    actual = _sha256(path)
+    if actual.lower() != expected_sha256.lower():
+        path.unlink(missing_ok=True)
+        raise RuntimeError(
+            f"SHA-256 mismatch for {dest.name}: expected {expected_sha256}, got {actual}"
+        )
+    return path
 
 
 def unzip(zip_path: Path, dest: Path) -> None:
@@ -300,6 +335,66 @@ def stage_ffmpeg() -> None:
         shutil.copy(ffprobe, target / "ffprobe.exe")
 
 
+def stage_document_runtimes(python_dir: Path, *, verify_only: bool = False) -> None:
+    """Stage pinned WeasyPrint/Pango, Java and signed veraPDF runtimes."""
+    runtime = STAGING / "runtime"
+    runtime.mkdir(parents=True, exist_ok=True)
+
+    weasy_zip = download_verified(
+        WEASYPRINT_RUNTIME_URL,
+        DOWNLOADS / "weasyprint-69.0-windows.zip",
+        WEASYPRINT_RUNTIME_SHA256,
+    )
+    jre_zip = download_verified(
+        TEMURIN_JRE_URL,
+        DOWNLOADS / "temurin-jre-21.0.10+7-windows-x64.zip",
+        TEMURIN_JRE_SHA256,
+    )
+    if verify_only:
+        log("verified WeasyPrint/Pango and Temurin JRE archives")
+        return
+
+    weasy_target = runtime / "weasyprint"
+    if weasy_target.exists():
+        shutil.rmtree(weasy_target)
+    unzip(weasy_zip, weasy_target)
+    weasy_exe = weasy_target / "dist" / "weasyprint.exe"
+    if not weasy_exe.exists():
+        raise RuntimeError(f"official WeasyPrint executable missing at {weasy_exe}")
+
+    jre_extract = DOWNLOADS / "temurin-jre-extracted"
+    if jre_extract.exists():
+        shutil.rmtree(jre_extract)
+    unzip(jre_zip, jre_extract)
+    roots = [path for path in jre_extract.iterdir() if path.is_dir()]
+    if len(roots) != 1:
+        raise RuntimeError(f"expected one Temurin JRE root, found {len(roots)}")
+    jre_target = runtime / "java"
+    if jre_target.exists():
+        shutil.rmtree(jre_target)
+    shutil.copytree(roots[0], jre_target)
+    java = jre_target / "bin" / "java.exe"
+    if not java.exists():
+        raise RuntimeError(f"Temurin java.exe missing at {java}")
+
+    vendor = REPO_ROOT / "scripts" / "vendor_pdf_runtime.py"
+    environment = os.environ.copy()
+    environment["PATH"] = f"{java.parent}{os.pathsep}{environment.get('PATH', '')}"
+    log("verifying and staging signed veraPDF CLI")
+    subprocess.run(
+        [
+            str(python_dir / "python.exe"),
+            str(vendor),
+            "--destination",
+            str(runtime / "verapdf"),
+            "--cache-dir",
+            str(DOWNLOADS / "verapdf"),
+        ],
+        check=True,
+        env=environment,
+    )
+
+
 def stage_service_scripts() -> None:
     """Copy the service install/uninstall .bat files into staging."""
     service_src = INSTALLER_DIR / "service"
@@ -373,6 +468,11 @@ def main() -> int:
         help="Skip frontend build (use existing frontend/dist/)",
     )
     parser.add_argument(
+        "--verify-runtime-only",
+        action="store_true",
+        help="Download and hash-check Windows PDF runtimes, then exit",
+    )
+    parser.add_argument(
         "--skip-pip",
         action="store_true",
         help="Skip pip install (use existing staged Python)",
@@ -410,10 +510,15 @@ def main() -> int:
     DOWNLOADS.mkdir(parents=True, exist_ok=True)
     STAGING.mkdir(parents=True, exist_ok=True)
 
+    if args.verify_runtime_only:
+        stage_document_runtimes(STAGING / "python", verify_only=True)
+        return 0
+
     python_dir = stage_embedded_python()
     stage_vcruntime(python_dir)
     if not args.skip_pip:
         install_requirements(python_dir)
+    stage_document_runtimes(python_dir)
 
     if args.skip_frontend:
         frontend_dist = REPO_ROOT / "frontend" / "dist"

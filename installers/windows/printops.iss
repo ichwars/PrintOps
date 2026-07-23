@@ -76,6 +76,8 @@ Source: "build\staging\python\*"; DestDir: "{app}\python"; Flags: recursesubdirs
 Source: "build\staging\app\*"; DestDir: "{app}\app"; Flags: recursesubdirs ignoreversion
 ; NSSM, ffmpeg, ffprobe
 Source: "build\staging\bin\*"; DestDir: "{app}\bin"; Flags: recursesubdirs ignoreversion
+; Signed PDF/A validation + rendering runtimes (veraPDF, Java, WeasyPrint/Pango)
+Source: "build\staging\runtime\*"; DestDir: "{app}\runtime"; Flags: recursesubdirs ignoreversion
 ; Service install/uninstall scripts
 Source: "build\staging\service\*"; DestDir: "{app}\service"; Flags: recursesubdirs ignoreversion
 ; Version stamp

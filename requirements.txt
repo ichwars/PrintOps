@@ -73,6 +73,14 @@ qrcode[pil]>=7.4.0
 # PDF generation (spool label printing — #809)
 reportlab>=4.0.0
 
+# Commercial document rendering. These exact versions form part of the
+# immutable render receipt stored with issued PDFs; do not loosen them without
+# a renderer-version migration and fresh PDF/A conformance fixtures.
+weasyprint==69.0
+pikepdf==10.10.0
+fonttools==4.63.0
+jinja2==3.1.6
+
 # STL Thumbnail Generation
 trimesh>=4.0.0
 matplotlib>=3.8.0
