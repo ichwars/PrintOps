@@ -224,6 +224,14 @@ async def create_business_profile(
         ]
     )
     await session.flush()
+
+    from backend.app.services.document_layouts import ensure_profile_default_layout_draft
+
+    await ensure_profile_default_layout_draft(
+        session,
+        profile.id,
+        migration_event=False,
+    )
     return profile
 
 

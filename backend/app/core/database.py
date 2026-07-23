@@ -245,6 +245,7 @@ async def init_db():
     # doesn't share a transaction with the schema-DDL block above — required to
     # avoid SQLite "database is locked" contention on the WAL writer.
     await _migrate_encrypt_legacy_secrets()
+    await _migrate_default_document_layouts()
 
     # Seed default notification templates
     await seed_notification_templates()
@@ -255,6 +256,17 @@ async def init_db():
     # Seed default catalog entries
     await seed_spool_catalog()
     await seed_color_catalog()
+
+async def _migrate_default_document_layouts() -> None:
+    """Idempotently backfill unpublished classic drafts for existing profiles."""
+    from backend.app.services.document_layouts import ensure_default_layout_drafts
+
+    async with async_session() as session:
+        created = await ensure_default_layout_drafts(session, migration_event=True)
+        await session.commit()
+    if created:
+        logger.info("Created %d missing default document layout draft(s)", created)
+
 
 
 # B2: Module-level counter exposing the number of rows skipped during the last

@@ -1,7 +1,6 @@
 """GitHub backend — implements GitProviderBackend using the GitHub Git Data API."""
 
 import base64
-import json
 import logging
 import re
 from datetime import datetime, timezone
@@ -204,8 +203,7 @@ class GitHubBackend(GitProviderBackend):
             files_changed = 0
 
             for path, content in files.items():
-                content_str = json.dumps(content, indent=2, default=str)
-                content_bytes = content_str.encode("utf-8")
+                content_bytes = self._content_bytes(content)
                 content_sha = self._blob_sha(content_bytes)
 
                 if path in existing_files and existing_files[path] == content_sha:
@@ -359,11 +357,11 @@ class GitHubBackend(GitProviderBackend):
         try:
             tree_items = []
             for path, content in files.items():
-                content_str = json.dumps(content, indent=2, default=str)
+                content_bytes = self._content_bytes(content)
                 blob_response = await client.post(
                     f"{api_base}/repos/{owner}/{repo}/git/blobs",
                     headers=headers,
-                    json={"content": base64.b64encode(content_str.encode()).decode(), "encoding": "base64"},
+                    json={"content": base64.b64encode(content_bytes).decode(), "encoding": "base64"},
                 )
                 if blob_response.status_code == 404:
                     msg = "GitHub API returned 404 for POST /git/blobs — check repository visibility and token scope"

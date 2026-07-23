@@ -1,7 +1,6 @@
 """GitLab backend — implements GitProviderBackend using the GitLab REST API v4."""
 
 import base64
-import json
 import logging
 import re
 import urllib.parse
@@ -180,8 +179,7 @@ class GitLabBackend(GitProviderBackend):
 
             actions = []
             for path, content in files.items():
-                content_str = json.dumps(content, indent=2, default=str)
-                content_bytes = content_str.encode("utf-8")
+                content_bytes = self._content_bytes(content)
                 content_sha = self._blob_sha(content_bytes)
 
                 if path in existing_blobs and existing_blobs[path] == content_sha:
@@ -234,12 +232,12 @@ class GitLabBackend(GitProviderBackend):
         try:
             actions = []
             for path, content in files.items():
-                content_str = json.dumps(content, indent=2, default=str)
+                content_bytes = self._content_bytes(content)
                 actions.append(
                     {
                         "action": "create",
                         "file_path": path,
-                        "content": base64.b64encode(content_str.encode()).decode(),
+                        "content": base64.b64encode(content_bytes).decode(),
                         "encoding": "base64",
                     }
                 )

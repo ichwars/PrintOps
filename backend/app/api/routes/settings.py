@@ -976,9 +976,20 @@ async def restore_backup(
         # Validate immutable external document evidence before replacing live
         # data. Broken artifacts remain restorable for audit/recovery purposes,
         # but are explicitly downgraded in the restored database and reported.
-        from backend.app.services.local_backup import verify_restored_document_artifacts
+        from backend.app.core.paths import resolve_data_dir
+        from backend.app.services.local_backup import (
+            restore_document_evidence_files,
+            verify_restored_document_artifacts,
+        )
 
-        document_integrity_issues = verify_restored_document_artifacts(temp_path, backup_db)
+        document_manifest_present = (
+            temp_path / "document-evidence" / "document-layout-manifest.json"
+        ).is_file()
+        document_integrity_issues = verify_restored_document_artifacts(
+            temp_path,
+            backup_db,
+            destination_root=resolve_data_dir(),
+        )
 
         try:
             import asyncio
@@ -1120,8 +1131,16 @@ async def restore_backup(
                 ("plate_calibration", app_settings.plate_calibration_dir),
                 ("icons", base_dir / "icons"),
                 ("projects", base_dir / "projects"),
-                ("document-artifacts", resolve_data_dir() / "document-artifacts"),
             ]
+            if not document_manifest_present:
+                dirs_to_restore.extend(
+                    [
+                        ("document-artifacts", resolve_data_dir() / "document-artifacts"),
+                        ("document-layout-assets", resolve_data_dir() / "document-layout-assets"),
+                        ("document-render-artifacts", resolve_data_dir() / "document-render-artifacts"),
+                        ("document-validation-reports", resolve_data_dir() / "document-validation-reports"),
+                    ]
+                )
 
             skipped_dirs = []
             for name, dest_dir in dirs_to_restore:
@@ -1154,6 +1173,12 @@ async def restore_backup(
                         logger.warning("Could not restore %s directory: %s", name, e)
                         skipped_dirs.append(name)
 
+            document_evidence_report = restore_document_evidence_files(
+                temp_path,
+                resolve_data_dir(),
+                document_integrity_issues,
+            )
+
             # 7. Reset the encryption singleton so the migration that runs
             # inside init_db() picks up the restored key file (if a new one
             # was written above). Without this reset, _get_fernet would
@@ -1183,6 +1208,7 @@ async def restore_backup(
                 "success": True,
                 "message": message,
                 "document_integrity_issues": document_integrity_issues,
+                "document_evidence_report": document_evidence_report,
             }
 
         except HTTPException:

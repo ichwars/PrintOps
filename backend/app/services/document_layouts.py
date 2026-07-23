@@ -244,6 +244,61 @@ async def create_draft(
     return layout
 
 
+async def ensure_profile_default_layout_draft(
+    session: AsyncSession,
+    business_profile_id: int,
+    *,
+    migration_event: bool = False,
+) -> orm.DocumentLayoutConfiguration | None:
+    """Create the unpublished profile-scope default exactly once."""
+    existing_id = await session.scalar(
+        select(orm.DocumentLayoutConfiguration.id).where(
+            orm.DocumentLayoutConfiguration.business_profile_id == business_profile_id,
+            orm.DocumentLayoutConfiguration.scope_key == _scope_key(None, None),
+        )
+    )
+    if existing_id is not None:
+        return None
+    layout = await create_draft(
+        session,
+        dto.CreateLayoutRequest(
+            scope=dto.LayoutScope(business_profile_id=business_profile_id),
+            template_key="classic",
+            reason="Automatisch angelegtes Standardlayout",
+        ),
+        actor_id=None,
+    )
+    if migration_event:
+        await _append_lifecycle_receipt(
+            session,
+            layout=layout,
+            event_type="migrated_as_draft",
+            actor_id=None,
+            reason="Bestehendes Unternehmensprofil erhielt ein unveroeffentlichtes Standardlayout",
+            evidence={"migration": "document-layout-default-v1"},
+        )
+        await session.flush()
+    return layout
+
+
+async def ensure_default_layout_drafts(
+    session: AsyncSession,
+    *,
+    migration_event: bool = True,
+) -> int:
+    """Backfill missing profile defaults without publishing or replacing layouts."""
+    profile_ids = list(await session.scalars(select(BusinessProfile.id).order_by(BusinessProfile.id)))
+    created = 0
+    for profile_id in profile_ids:
+        layout = await ensure_profile_default_layout_draft(
+            session,
+            profile_id,
+            migration_event=migration_event,
+        )
+        created += layout is not None
+    return created
+
+
 async def clone_layout(
     session: AsyncSession,
     command: dto.CloneLayoutRequest,

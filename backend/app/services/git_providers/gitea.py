@@ -1,7 +1,6 @@
 """Gitea backend — overrides GitHubBackend where Gitea's API diverges."""
 
 import base64
-import json
 import logging
 import re
 from datetime import datetime, timezone
@@ -180,8 +179,7 @@ class GiteaBackend(GitHubBackend):
             files_changed = 0
 
             for path, content in files.items():
-                content_str = json.dumps(content, indent=2, default=str)
-                content_bytes = content_str.encode("utf-8")
+                content_bytes = self._content_bytes(content)
                 content_b64 = base64.b64encode(content_bytes).decode()
                 content_sha = self._blob_sha(content_bytes)
 
@@ -322,8 +320,8 @@ class GiteaBackend(GitHubBackend):
 
             api_files = []
             for path, content in files.items():
-                content_str = json.dumps(content, indent=2, default=str)
-                content_b64 = base64.b64encode(content_str.encode("utf-8")).decode()
+                content_bytes = self._content_bytes(content)
+                content_b64 = base64.b64encode(content_bytes).decode()
                 api_files.append({"operation": "create", "path": path, "content": content_b64})
 
             commit_message = f"Initial PrintOps backup - {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"

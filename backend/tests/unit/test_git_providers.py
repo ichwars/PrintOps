@@ -14,6 +14,13 @@ from backend.app.services.git_providers.github import GitHubBackend
 from backend.app.services.git_providers.gitlab import GitLabBackend
 
 
+def test_provider_serialization_preserves_binary_bytes():
+    backend = GitHubBackend()
+
+    assert backend._content_bytes(b"\x00PDF\xff") == b"\x00PDF\xff"
+    assert json.loads(backend._content_bytes({"kind": "metadata"})) == {"kind": "metadata"}
+
+
 class TestFactory:
     def test_known_providers_return_correct_class(self):
         assert isinstance(get_provider_backend("github"), GitHubBackend)
