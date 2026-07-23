@@ -90,6 +90,8 @@ class Permission(StrEnum):
     COMMERCIAL_DOCUMENTS_TAX_OVERRIDE = "commercial_documents:tax_override"
     DOCUMENT_TEMPLATES_READ = "document_templates:read"
     DOCUMENT_TEMPLATES_MANAGE = "document_templates:manage"
+    DOCUMENT_LAYOUTS_READ = "document_layouts:read"
+    DOCUMENT_LAYOUTS_MANAGE = "document_layouts:manage"
     PAYMENTS_READ = "payments:read"
     PAYMENTS_MANAGE = "payments:manage"
     ORDER_AUDIT_READ = "order_audit:read"
@@ -285,6 +287,8 @@ PERMISSION_CATEGORIES = {
         Permission.COMMERCIAL_DOCUMENTS_TAX_OVERRIDE,
         Permission.DOCUMENT_TEMPLATES_READ,
         Permission.DOCUMENT_TEMPLATES_MANAGE,
+        Permission.DOCUMENT_LAYOUTS_READ,
+        Permission.DOCUMENT_LAYOUTS_MANAGE,
         Permission.PAYMENTS_READ,
         Permission.PAYMENTS_MANAGE,
         Permission.ORDER_AUDIT_READ,
@@ -474,6 +478,7 @@ DEFAULT_GROUPS = {
             Permission.COMMERCIAL_DOCUMENTS_APPROVE.value,
             Permission.PAYMENTS_READ.value,
             Permission.ORDER_AUDIT_READ.value,
+            Permission.DOCUMENT_LAYOUTS_READ.value,
             # Filaments - full access
             Permission.FILAMENTS_READ.value,
             Permission.FILAMENTS_CREATE.value,
@@ -554,6 +559,7 @@ DEFAULT_GROUPS = {
             Permission.COMMERCIAL_DOCUMENTS_READ.value,
             Permission.PAYMENTS_READ.value,
             Permission.ORDER_AUDIT_READ.value,
+            Permission.DOCUMENT_LAYOUTS_READ.value,
             Permission.FILAMENTS_READ.value,
             Permission.INVENTORY_READ.value,
             Permission.INVENTORY_VIEW_ASSIGNMENTS.value,

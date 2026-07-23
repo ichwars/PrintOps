@@ -30,6 +30,11 @@ class TestPermissionEnum:
         assert Permission.PRINTERS_CLEAR_PLATE != Permission.PRINTERS_CONTROL
         assert Permission.PRINTERS_CLEAR_PLATE.value != Permission.PRINTERS_CONTROL.value
 
+    def test_document_layout_permissions_are_distinct(self):
+        assert Permission.DOCUMENT_LAYOUTS_READ == "document_layouts:read"
+        assert Permission.DOCUMENT_LAYOUTS_MANAGE == "document_layouts:manage"
+        assert Permission.DOCUMENT_LAYOUTS_READ != Permission.DOCUMENT_LAYOUTS_MANAGE
+
 
 class TestDefaultGroups:
     """Test the default group definitions."""

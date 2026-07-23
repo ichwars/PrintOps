@@ -23,6 +23,8 @@ ORDER_PERMISSIONS = {
     "COMMERCIAL_DOCUMENTS_TAX_OVERRIDE": "commercial_documents:tax_override",
     "DOCUMENT_TEMPLATES_READ": "document_templates:read",
     "DOCUMENT_TEMPLATES_MANAGE": "document_templates:manage",
+    "DOCUMENT_LAYOUTS_READ": "document_layouts:read",
+    "DOCUMENT_LAYOUTS_MANAGE": "document_layouts:manage",
     "PAYMENTS_READ": "payments:read",
     "PAYMENTS_MANAGE": "payments:manage",
     "ORDER_AUDIT_READ": "order_audit:read",
@@ -45,6 +47,7 @@ OPERATOR_DEFAULTS = {
     "commercial_documents:approve",
     "payments:read",
     "order_audit:read",
+    "document_layouts:read",
 }
 
 VIEWER_DEFAULTS = {
@@ -54,6 +57,7 @@ VIEWER_DEFAULTS = {
     "commercial_documents:read",
     "payments:read",
     "order_audit:read",
+    "document_layouts:read",
 }
 
 
@@ -88,6 +92,7 @@ def test_operator_order_defaults_are_least_privilege():
     assert "commercial_documents:tax_override" not in operator_permissions
     assert "document_templates:read" not in operator_permissions
     assert "document_templates:manage" not in operator_permissions
+    assert "document_layouts:manage" not in operator_permissions
     assert "payments:manage" not in operator_permissions
     assert "order_settings:read" not in operator_permissions
     assert "order_settings:manage" not in operator_permissions
@@ -127,6 +132,18 @@ def test_document_template_and_tax_override_permissions_are_administrator_only()
     assert protected_permissions <= administrator_permissions
     assert protected_permissions.isdisjoint(operator_permissions)
     assert protected_permissions.isdisjoint(viewer_permissions)
+
+
+def test_document_layout_management_is_administrator_only_but_read_is_shared():
+    administrator_permissions = set(DEFAULT_GROUPS["Administrators"]["permissions"])
+    operator_permissions = set(DEFAULT_GROUPS["Operators"]["permissions"])
+    viewer_permissions = set(DEFAULT_GROUPS["Viewers"]["permissions"])
+
+    assert "document_layouts:manage" in administrator_permissions
+    assert "document_layouts:manage" not in operator_permissions
+    assert "document_layouts:manage" not in viewer_permissions
+    assert "document_layouts:read" in operator_permissions
+    assert "document_layouts:read" in viewer_permissions
 
 
 def test_document_template_and_tax_override_permissions_are_administrator_only():

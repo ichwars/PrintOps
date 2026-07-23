@@ -181,6 +181,7 @@ async def init_db():
         customer,
         document_audit,
         document_configuration,
+        document_layout,
         equipment,
         external_link,
         filament,
@@ -670,6 +671,32 @@ async def _migrate_widen_spoolman_slot_ams_id_range(conn) -> None:
         raise
 
 
+async def migrate_document_layout_schema(conn) -> None:
+    """Add layout receipts to legacy artifact tables, idempotently.
+
+    ``Base.metadata.create_all`` creates every new layout table on both fresh
+    and upgraded installations. Existing ``document_artifacts`` tables need
+    explicit nullable columns because create_all never alters a table.
+    """
+
+    columns = (
+        "layout_configuration_id INTEGER REFERENCES document_layout_configurations(id) ON DELETE RESTRICT",
+        "layout_version INTEGER",
+        "layout_effective_sha256 VARCHAR(64)",
+        "asset_receipts JSON",
+        "renderer_version VARCHAR(128)",
+        "validator_version VARCHAR(128)",
+        "render_receipt JSON",
+    )
+    for definition in columns:
+        await _safe_execute(conn, f"ALTER TABLE document_artifacts ADD COLUMN {definition}")
+    await _safe_execute(
+        conn,
+        "CREATE INDEX IF NOT EXISTS ix_document_artifacts_layout_configuration_id "
+        "ON document_artifacts (layout_configuration_id)",
+    )
+
+
 async def run_migrations(conn):
     """Run all schema migrations and data backfills on startup.
 
@@ -683,6 +710,8 @@ async def run_migrations(conn):
     swallowed.
     """
     from sqlalchemy import text
+
+    await migrate_document_layout_schema(conn)
 
     # Migration: Add procurement metadata to technical materials.
     await _safe_execute(
@@ -3718,6 +3747,7 @@ async def seed_default_groups():
                 "commercial_documents:approve",
                 "payments:read",
                 "order_audit:read",
+                "document_layouts:read",
             ],
             "Viewers": [
                 "customers:read",
@@ -3726,6 +3756,7 @@ async def seed_default_groups():
                 "commercial_documents:read",
                 "payments:read",
                 "order_audit:read",
+                "document_layouts:read",
             ],
         }
         for group_name, new_permissions in order_backfill.items():

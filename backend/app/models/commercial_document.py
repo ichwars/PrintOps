@@ -255,6 +255,17 @@ class DocumentArtifact(Base):
     validation_status: Mapped[str] = mapped_column(String(32), default="pending")
     validation_report: Mapped[dict] = mapped_column(JSON, default=dict)
     rule_versions: Mapped[dict] = mapped_column(JSON, default=dict)
+    layout_configuration_id: Mapped[int | None] = mapped_column(
+        ForeignKey("document_layout_configurations.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
+    layout_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    layout_effective_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    asset_receipts: Mapped[dict] = mapped_column(JSON, default=dict)
+    renderer_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    validator_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    render_receipt: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     document: Mapped[CommercialDocument] = relationship(back_populates="artifacts")
