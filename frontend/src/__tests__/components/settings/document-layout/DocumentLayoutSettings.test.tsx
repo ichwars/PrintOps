@@ -101,8 +101,8 @@ describe('DocumentLayoutSettings', () => {
   it('loads the complete workspace with real preview first and compact controls second', async () => {
     const { container } = renderSettings();
 
-    expect(await screen.findByRole('heading', { name: 'Format & Preview' })).toBeInTheDocument();
     expect(await screen.findByTestId('pdf-preview')).toHaveTextContent('Preview 17:3:sample:invoice-standard');
+    expect(screen.queryByRole('heading', { name: 'Format & Preview' })).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Business profile' })).toHaveTextContent('Main GmbH');
     expect(screen.getByRole('combobox', { name: 'Document type' })).toHaveTextContent('Invoice');
     expect(screen.getByRole('combobox', { name: 'Preview source' })).toHaveTextContent('Standard invoice');

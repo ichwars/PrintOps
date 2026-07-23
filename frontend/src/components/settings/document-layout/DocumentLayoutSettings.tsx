@@ -334,11 +334,6 @@ export function DocumentLayoutSettings() {
   const readOnly = !canManage || detail?.summary.status !== 'draft';
 
   return <div id="document-layout-workspace" className="w-full space-y-3">
-    <header>
-      <h1 className="text-xl font-semibold text-white">{t('settings.documentLayout.title', 'Format & Preview')}</h1>
-      <p className="mt-1 text-sm text-bambu-gray">{t('settings.documentLayout.description', 'Design versioned PDF layouts, inspect real documents and publish only validated configurations.')}</p>
-    </header>
-
     <LayoutContextBar
       businessProfileId={businessProfileId}
       businessProfiles={profiles.map((profile) => ({ value: profile.id, label: profile.name, disabled: !profile.is_active }))}

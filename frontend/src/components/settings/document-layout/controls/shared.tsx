@@ -72,7 +72,13 @@ export function NumberField<T extends object, K extends keyof T>({ field, label,
   const current = Number(fieldValue(props.value, props.overrides, field));
   const overridden = hasOverride(props.overrides, field);
   return <FieldShell label={label} unit={unit} help={help} source={sourceLabel(props.sources[field].level)} overridden={overridden} readOnly={props.readOnly} onReset={() => props.onReset(field)}>
-    <UiNumberField aria-label={label} value={Number.isFinite(current) ? current : 0} min={min} max={max} step={step} suffix={unit} disabled={props.readOnly} onValueChange={(value) => props.onChange(field, Number(value) as T[K])} />
+    <UiNumberField aria-label={label} value={Number.isFinite(current) ? current : 0} min={min} max={max} step={step} suffix={unit} disabled={props.readOnly} onValueChange={(value) => {
+      const numericValue = Number(value);
+      if (!Number.isFinite(numericValue)) return;
+      if (min !== undefined && numericValue < min) return;
+      if (max !== undefined && numericValue > max) return;
+      props.onChange(field, numericValue as T[K]);
+    }} />
   </FieldShell>;
 }
 

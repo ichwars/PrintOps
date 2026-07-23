@@ -66,6 +66,44 @@ describe('LayoutControlPanel', () => {
     expect(onChange).toHaveBeenCalledWith('typography', 'base_size_pt', 11.5);
   });
 
+  it('uses the backend validation bounds for every numeric layout control', () => {
+    const onChange = vi.fn() as LayoutRuleChange;
+    render(<LayoutControlPanel
+      detail={layoutDetail()}
+      patch={{}}
+      findings={[]}
+      readOnly={false}
+      onChange={onChange}
+      onReset={vi.fn() as LayoutRuleReset}
+      onAssetsChanged={vi.fn()}
+    />);
+
+    const expectBounds = (name: string, min: string, max: string) => {
+      expect(screen.getByRole('spinbutton', { name })).toHaveAttribute('min', min);
+      expect(screen.getByRole('spinbutton', { name })).toHaveAttribute('max', max);
+    };
+
+    expectBounds('Top margin', '4', '30');
+    expectBounds('Right margin', '4', '30');
+    expectBounds('Bottom margin', '4', '30');
+    expectBounds('Left margin', '4', '30');
+    expectBounds('Content start on first page', '10', '90');
+    expectBounds('Content start on following pages', '10', '60');
+    expectBounds('Logo width', '8', '80');
+    expectBounds('Recipient position from top', '30', '90');
+
+    fireEvent.click(screen.getByRole('button', { name: /Typography and colors/i }));
+    const tableSize = screen.getByRole('spinbutton', { name: 'Table font size' });
+    expectBounds('Table font size', '7', '14');
+    fireEvent.change(tableSize, { target: { value: '6.5' } });
+    expect(onChange).not.toHaveBeenCalledWith('typography', 'table_size_pt', 6.5);
+    expectBounds('Metadata font size', '7', '12');
+    expectBounds('Heading scale', '1.1', '2');
+    expectBounds('Paragraph spacing', '0', '12');
+
+    fireEvent.click(screen.getByRole('button', { name: /Title/i }));
+    expectBounds('Spacing below title', '0', '20');
+  });
   it('disables every interactive rule in read-only mode', () => {
     render(<LayoutControlPanel
       detail={layoutDetail()}

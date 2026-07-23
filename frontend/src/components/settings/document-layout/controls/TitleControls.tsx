@@ -13,7 +13,7 @@ export function TitleControls(props: LayoutSectionProps<TitleRules>) {
     <BooleanField field="show_customer_number" label={t('settings.documentLayout.titleBlock.showCustomerNumber', 'Show customer number')} props={props} />
     <div className="grid gap-3 sm:grid-cols-2">
       <SelectField field="metadata_alignment" label={t('settings.documentLayout.titleBlock.metadataAlignment', 'Metadata alignment')} options={[{ value: 'left', label: t('settings.documentLayout.header.left', 'Left') }, { value: 'right', label: t('settings.documentLayout.header.right', 'Right') }]} props={props} />
-      <NumberField field="title_spacing_mm" label={t('settings.documentLayout.titleBlock.titleSpacing', 'Title spacing')} unit="mm" min={0} max={30} props={props} />
+      <NumberField field="title_spacing_mm" label={t('settings.documentLayout.titleBlock.titleSpacing', 'Title spacing')} unit="mm" min={0} max={20} props={props} />
     </div>
   </div>;
 }
