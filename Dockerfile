@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     iproute2 \
     libcap2-bin \
+    libcairo2 \
     libharfbuzz-subset0 \
     libjpeg62-turbo \
     libopenjp2-7 \

@@ -24,3 +24,14 @@ def resolve_data_dir() -> Path:
     if data_dir_env:
         return Path(data_dir_env)
     return Path(__file__).parent.parent.parent.parent / "data"
+
+
+def safe_join(root: Path, relative_path: Path | str) -> Path:
+    """Resolve a relative storage key and reject traversal outside ``root``."""
+    resolved_root = root.resolve()
+    candidate = (resolved_root / Path(relative_path)).resolve()
+    try:
+        candidate.relative_to(resolved_root)
+    except ValueError as exc:
+        raise ValueError("storage path escapes its configured root") from exc
+    return candidate

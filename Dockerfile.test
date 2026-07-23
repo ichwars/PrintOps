@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     default-jre-headless \
     gnupg \
+    libcairo2 \
     libharfbuzz-subset0 \
     libjpeg62-turbo \
     libopenjp2-7 \

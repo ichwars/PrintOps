@@ -1,3 +1,8 @@
 # Force CRLF line endings for Windows batch files so cmd.exe can parse them
 # regardless of the user's core.autocrlf setting.
 *.bat text eol=crlf
+
+# Binary layout resources must never pass through line-ending conversion.
+*.pdf binary
+*.ttf binary
+*.otf binary

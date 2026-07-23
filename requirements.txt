@@ -80,6 +80,7 @@ weasyprint==69.0
 pikepdf==10.10.0
 fonttools==4.63.0
 jinja2==3.1.6
+cairosvg==2.9.0
 
 # STL Thumbnail Generation
 trimesh>=4.0.0
