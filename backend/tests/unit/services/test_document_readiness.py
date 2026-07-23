@@ -1,5 +1,9 @@
 """Readiness aggregation contracts for document configuration."""
 
+import subprocess
+from pathlib import Path
+from types import SimpleNamespace
+
 from backend.app.models.business_profile import BusinessProfile, BusinessProfileBankAccount
 from backend.app.models.document_configuration import (
     DocumentBasicPolicy,
@@ -11,7 +15,8 @@ from backend.app.models.document_configuration import (
     PaymentPolicy,
     TaxPolicy,
 )
-from backend.app.services.document_readiness import check_configuration
+from backend.app.services.document_readiness import check_configuration, probe_document_runtime
+from backend.app.services.verapdf import VeraPdfRunner
 
 
 async def test_configuration_readiness_reports_clickable_bank_blocker(db_session):
@@ -83,3 +88,38 @@ async def test_readiness_status_distinguishes_warnings_from_blockers():
     report = report_from_findings("configuration", [warning])
 
     assert report.status == "warnings"
+
+
+def test_runtime_readiness_reports_versions_without_sensitive_paths(tmp_path):
+    renderer = tmp_path / "weasyprint.exe"
+    renderer.write_bytes(b"runtime")
+
+    def execute(command, **_kwargs):
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            "WeasyPrint version: 69.0\nPango version: 15701\n",
+            "",
+        )
+
+    status = probe_document_runtime(
+        renderer_cli=renderer,
+        validator=SimpleNamespace(version=lambda: "1.30.2"),
+        process_runner=execute,
+    )
+    assert status.ready is True
+    assert status.renderer.version == "69.0"
+    assert status.pango.version == "15701"
+    assert status.validator.version == "1.30.2"
+    assert status.icc_profile_valid is True
+    assert str(tmp_path) not in status.model_dump_json()
+
+
+def test_runtime_readiness_has_concrete_missing_component_codes(tmp_path):
+    status = probe_document_runtime(
+        renderer_cli=tmp_path / "missing.exe",
+        validator=VeraPdfRunner(cli_path=None, report_dir=tmp_path / "reports"),
+    )
+    assert "PDF_RENDERER_UNAVAILABLE" in status.findings
+    assert "PDF_PANGO_UNAVAILABLE" in status.findings
+    assert "PDF_VALIDATOR_UNAVAILABLE" in status.findings

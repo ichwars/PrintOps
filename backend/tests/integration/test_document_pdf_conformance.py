@@ -15,6 +15,7 @@ from backend.app.services.document_layout_samples import load_sample
 from backend.app.services.document_renderer import DocumentRenderer, RenderInput
 from backend.app.services.document_view_model import build_document_view_model
 from backend.app.services.pdfa import inspect_pdfa3u
+from backend.app.services.verapdf import VeraPdfRunner
 
 ROOT = Path(__file__).parents[2]
 FIXTURES = ROOT / "tests" / "fixtures" / "document_layouts"
@@ -22,6 +23,7 @@ WEASYPRINT = (
     ROOT.parent / "installers" / "windows" / "build" / "staging" / "runtime"
     / "weasyprint" / "dist" / "weasyprint.exe"
 )
+VERAPDF = ROOT.parent / "installers" / "windows" / "build" / "staging" / "runtime" / "verapdf" / "verapdf.bat"
 
 
 def _renderer(tmp_path: Path) -> DocumentRenderer:
@@ -31,6 +33,7 @@ def _renderer(tmp_path: Path) -> DocumentRenderer:
         engine_cli=WEASYPRINT,
         cache_dir=tmp_path / "cache",
         artifact_dir=tmp_path / "artifacts",
+        validator=False,
     )
 
 
@@ -106,3 +109,29 @@ def test_first_and_following_letterhead_are_applied_as_backgrounds(tmp_path):
     )
     assert rendered.page_count >= 2
     assert inspect_pdfa3u(rendered.content).valid is True
+
+
+@pytest.mark.requires_verapdf
+def test_real_verapdf_accepts_final_pdfa3u_and_rejects_invalid_fixture(tmp_path):
+    if not VERAPDF.exists():
+        pytest.skip("pinned veraPDF runtime is not staged")
+    runner = VeraPdfRunner(cli_path=VERAPDF, report_dir=tmp_path / "reports")
+    renderer = DocumentRenderer(
+        engine_cli=WEASYPRINT,
+        cache_dir=tmp_path / "cache",
+        artifact_dir=tmp_path / "artifacts",
+        validator=runner,
+    )
+    rendered = renderer.render_final(_input())
+    assert rendered.validation_status == "valid"
+    assert rendered.validation_report is not None
+    assert rendered.validation_report.compliant is True
+    assert rendered.validation_report.findings == []
+
+    invalid = runner.validate(
+        (FIXTURES / "letterhead-a4.pdf").read_bytes(),
+        correlation_id="invalid-pdfa",
+    )
+    assert invalid.compliant is False
+    assert invalid.findings
+    assert invalid.findings[0].external_rule_id.startswith("ISO 19005-3:2012#")

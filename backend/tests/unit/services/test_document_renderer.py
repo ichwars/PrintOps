@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pikepdf
 import pytest
@@ -18,6 +19,7 @@ from backend.app.services.document_renderer import (
     RenderLimits,
 )
 from backend.app.services.document_view_model import build_document_view_model
+from backend.app.services.verapdf import PdfaValidationReport, VeraPdfUnavailable
 
 
 def _request(**changes) -> RenderInput:
@@ -52,6 +54,7 @@ def test_preview_and_final_use_same_pipeline(tmp_path):
         cache_dir=tmp_path / "cache",
         artifact_dir=tmp_path / "artifacts",
         engine=engine,
+        validator=False,
     )
     preview = renderer.render_preview(_request())
     final = renderer.render_final(_request())
@@ -141,3 +144,40 @@ def test_worker_workspace_is_removed_after_failure(tmp_path):
     with pytest.raises(DocumentRendererError):
         renderer.render_preview(_request())
     assert workspaces and not workspaces[0].exists()
+
+
+def test_preview_warns_but_final_blocks_when_validator_is_unavailable(tmp_path):
+    def unavailable(*_args, **_kwargs):
+        raise VeraPdfUnavailable("PDF_VALIDATOR_UNAVAILABLE")
+
+    renderer = DocumentRenderer(
+        cache_dir=tmp_path / "cache",
+        artifact_dir=tmp_path / "artifacts",
+        engine=lambda *_: _pdf(),
+        validator=SimpleNamespace(validate=unavailable),
+    )
+    preview = renderer.render_preview(_request())
+    assert preview.validation_status == "unvalidated"
+    assert preview.warnings == ("PDF_VALIDATOR_UNAVAILABLE",)
+    with pytest.raises(DocumentRendererError):
+        renderer.render_final(_request())
+    assert list((tmp_path / "artifacts").rglob("*.pdf")) == []
+
+
+def test_final_artifact_is_persisted_only_after_compliant_validation(tmp_path):
+    report = PdfaValidationReport(
+        compliant=True,
+        validator_version="1.30.2",
+        findings=[],
+        raw_report_sha256="a" * 64,
+    )
+    renderer = DocumentRenderer(
+        cache_dir=tmp_path / "cache",
+        artifact_dir=tmp_path / "artifacts",
+        engine=lambda *_: _pdf(),
+        validator=SimpleNamespace(validate=lambda *_args, **_kwargs: report),
+    )
+    rendered = renderer.render_final(_request())
+    assert rendered.validation_status == "valid"
+    assert rendered.validation_report == report
+    assert rendered.artifact_path and rendered.artifact_path.is_file()

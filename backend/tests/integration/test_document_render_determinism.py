@@ -29,6 +29,7 @@ def _renderer(tmp_path: Path) -> DocumentRenderer:
         engine_cli=STAGED_WEASYPRINT,
         cache_dir=tmp_path / "cache",
         artifact_dir=tmp_path / "artifacts",
+        validator=False,
     )
 
 
@@ -99,6 +100,7 @@ def test_ten_page_document_and_long_position_render_within_hard_limit(tmp_path):
         cache_dir=tmp_path / "cache",
         artifact_dir=tmp_path / "artifacts",
         limits=RenderLimits(timeout_seconds=60, max_pages=12),
+        validator=False,
     )
     rendered = renderer.render_final(request)
     assert rendered.page_count == 10

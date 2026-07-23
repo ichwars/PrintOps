@@ -78,6 +78,7 @@ filterwarnings = [
 ]
 markers = [
     "docker: marks tests that run in Docker integration environment",
+    "requires_verapdf: marks tests that execute the pinned veraPDF runtime",
 ]
 
 [dependency-groups]

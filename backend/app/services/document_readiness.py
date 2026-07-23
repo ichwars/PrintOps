@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import os
+import re
+import subprocess
+from collections.abc import Callable
+from importlib import resources
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -9,12 +17,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from backend.app.core.config import settings
 from backend.app.models.business_profile import BusinessProfile, BusinessProfileBankAccount
 from backend.app.models.number_sequence import NumberSequence
 from backend.app.services.document_catalog import DOCUMENT_CAPABILITIES, DocumentType
 from backend.app.services.document_configuration import load_configuration, to_draft_schema
 from backend.app.services.document_policy_validation import PolicyFinding, validate_policy
 from backend.app.services.order_errors import InvalidStateConflictError, ResourceNotFoundError
+from backend.app.services.verapdf import VeraPdfExecutionError, VeraPdfRunner, VeraPdfUnavailable
 
 _SEQUENCE_KEYS: dict[DocumentType, str] = {
     DocumentType.QUOTATION: "offer",
@@ -50,6 +60,115 @@ class ReadinessReport(BaseModel):
     context: Literal["configuration", "document"]
     status: Literal["ready", "warnings", "blocked"]
     findings: list[ReadinessFinding]
+
+
+class RuntimeComponent(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    available: bool
+    version: str | None = None
+
+
+class DocumentRuntimeReadiness(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    ready: bool
+    renderer: RuntimeComponent
+    pango: RuntimeComponent
+    icc_profile_sha256: str | None
+    icc_profile_valid: bool
+    validator: RuntimeComponent
+    findings: tuple[str, ...]
+
+
+def probe_document_runtime(
+    *,
+    renderer_cli: Path | None = None,
+    validator: VeraPdfRunner | None = None,
+    process_runner: Callable = subprocess.run,
+) -> DocumentRuntimeReadiness:
+    """Return version-only operational data; configured filesystem paths stay private."""
+    findings: list[str] = []
+    renderer_version = None
+    pango_version = None
+    cli = Path(renderer_cli) if renderer_cli is not None else None
+    if cli is None or not cli.is_file():
+        findings.extend(("PDF_RENDERER_UNAVAILABLE", "PDF_PANGO_UNAVAILABLE"))
+    else:
+        try:
+            result = process_runner(
+                [str(cli), "--info"],
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=5,
+                stdin=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
+            output = f"{result.stdout}\n{result.stderr}"
+            renderer_match = re.search(r"WeasyPrint version:\s*([^\s]+)", output)
+            pango_match = re.search(r"Pango version:\s*([^\s]+)", output)
+            if result.returncode == 0 and renderer_match:
+                renderer_version = renderer_match.group(1)
+                pango_version = pango_match.group(1) if pango_match else None
+            else:
+                findings.append("PDF_RENDERER_UNAVAILABLE")
+            if pango_version is None:
+                findings.append("PDF_PANGO_UNAVAILABLE")
+        except (OSError, subprocess.TimeoutExpired):
+            findings.extend(("PDF_RENDERER_UNAVAILABLE", "PDF_PANGO_UNAVAILABLE"))
+
+    manifest = json.loads(
+        resources.files("backend.app.resources.pdf")
+        .joinpath("runtime-manifest.json")
+        .read_text(encoding="utf-8")
+    )
+    icc = resources.files("backend.app.resources.pdf").joinpath(manifest["srgb"]["filename"])
+    icc_digest = hashlib.sha256(icc.read_bytes()).hexdigest() if icc.is_file() else None
+    icc_valid = icc_digest == manifest["srgb"]["sha256"]
+    if not icc_valid:
+        findings.append("PDF_ICC_PROFILE_INVALID")
+
+    active_validator = validator or VeraPdfRunner(
+        cli_path=settings.verapdf_cli,
+        report_dir=settings.document_validation_report_dir,
+        timeout_seconds=settings.document_validation_timeout_seconds,
+    )
+    try:
+        validator_version = active_validator.version()
+    except (VeraPdfUnavailable, VeraPdfExecutionError):
+        validator_version = None
+        findings.append("PDF_VALIDATOR_UNAVAILABLE")
+    unique_findings = tuple(dict.fromkeys(findings))
+    return DocumentRuntimeReadiness(
+        ready=not unique_findings,
+        renderer=RuntimeComponent(available=renderer_version is not None, version=renderer_version),
+        pango=RuntimeComponent(available=pango_version is not None, version=pango_version),
+        icc_profile_sha256=icc_digest,
+        icc_profile_valid=icc_valid,
+        validator=RuntimeComponent(
+            available=validator_version is not None,
+            version=validator_version,
+        ),
+        findings=unique_findings,
+    )
+
+
+def _configured_runtime_blockers() -> list[ReadinessFinding]:
+    if settings.weasyprint_cli is None and settings.verapdf_cli is None:
+        return []
+    status = probe_document_runtime(renderer_cli=settings.weasyprint_cli)
+    return [
+        _blocker(
+            code.lower(),
+            "runtime.pdf",
+            f"documents.errors.{code.lower()}",
+            "Installierte PDF-Laufzeit prüfen oder Anwendungspaket reparieren",
+        )
+        for code in status.findings
+    ]
 
 
 def report_from_findings(
@@ -92,6 +211,7 @@ async def check_configuration(session: AsyncSession, configuration_id: int) -> R
     document_type = DocumentType(configuration.document_type)
     capability = DOCUMENT_CAPABILITIES[document_type]
     findings: list[ReadinessFinding] = []
+    findings.extend(_configured_runtime_blockers())
 
     try:
         findings.extend(_from_policy_finding(item) for item in validate_policy(to_draft_schema(configuration)))

@@ -12,6 +12,7 @@ from sqlalchemy import Select, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from backend.app.core.config import settings
 from backend.app.models import document_layout as orm
 from backend.app.models.business_profile import BusinessProfile
 from backend.app.schemas import document_layout as dto
@@ -22,6 +23,7 @@ from backend.app.services.document_layout_catalog import (
     VALIDATOR_VERSION,
 )
 from backend.app.services.document_layout_defaults import SYSTEM_DEFAULT, TEMPLATE_DEFAULTS
+from backend.app.services.document_readiness import probe_document_runtime
 
 
 class LayoutNotFoundError(LookupError):
@@ -481,6 +483,19 @@ async def check_readiness(
     draft_layout_id: int | None = None,
 ) -> dto.LayoutReadinessReport:
     findings: list[dto.LayoutFinding] = []
+    if settings.weasyprint_cli is not None or settings.verapdf_cli is not None:
+        runtime = probe_document_runtime(renderer_cli=settings.weasyprint_cli)
+        findings.extend(
+            dto.LayoutFinding(
+                code=code.lower(),
+                severity="blocker",
+                field_path="runtime.pdf",
+                message_key=f"documents.layout.readiness.{code.lower()}",
+                message="Die produktive PDF-Laufzeit ist nicht vollständig verfügbar.",
+                correction_hint="Anwendungspaket reparieren und Runtime-Readiness erneut prüfen.",
+            )
+            for code in runtime.findings
+        )
     draft = await get_layout(session, draft_layout_id) if draft_layout_id is not None else None
     active_profile_defaults = (
         await session.scalars(

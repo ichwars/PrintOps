@@ -18,7 +18,7 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
@@ -32,6 +32,12 @@ from backend.app.services.document_snapshot import canonicalize_payload
 from backend.app.services.document_templates import render_document_html
 from backend.app.services.document_view_model import DocumentViewModel, canonicalize_view_model
 from backend.app.services.pdfa import PdfaError, canonical_source_sha256, prepare_pdfa3u
+from backend.app.services.verapdf import (
+    PdfaValidationReport,
+    VeraPdfExecutionError,
+    VeraPdfRunner,
+    VeraPdfUnavailable,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +122,8 @@ class RenderedPdf:
     validation_status: Literal["not_requested", "unvalidated", "valid", "invalid"] = (
         "not_requested"
     )
+    validation_report: PdfaValidationReport | None = None
+    warnings: tuple[str, ...] = ()
 
 
 class DocumentRenderer:
@@ -131,6 +139,7 @@ class DocumentRenderer:
         cache_authorizer: CacheAuthorizer | None = None,
         final_authorizer: FinalAuthorizer | None = None,
         engine: Engine | None = None,
+        validator: VeraPdfRunner | Literal[False] | None = None,
     ) -> None:
         configured_cli = engine_cli or settings.weasyprint_cli
         discovered = shutil.which("weasyprint") if configured_cli is None else None
@@ -146,6 +155,16 @@ class DocumentRenderer:
         self._cache_authorizer = cache_authorizer or (lambda _scope: True)
         self._final_authorizer = final_authorizer or (lambda _request: True)
         self._engine = engine or self._run_weasyprint
+        if validator is False:
+            self._validator: VeraPdfRunner | None = None
+        elif validator is not None:
+            self._validator = validator
+        else:
+            self._validator = VeraPdfRunner(
+                cli_path=settings.verapdf_cli,
+                report_dir=settings.document_validation_report_dir,
+                timeout_seconds=settings.document_validation_timeout_seconds,
+            )
         self._cache_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         self._artifact_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
 
@@ -172,7 +191,7 @@ class DocumentRenderer:
             if mode == "preview":
                 cached = self._read_cache(cache_key, request.cache_scope, request.layout.page.page_format)
                 if cached is not None:
-                    return cached
+                    return self._with_validation(cached, request.correlation_id)
 
             html = render_document_html(request.view_model, request.layout)
             html = self._add_asset_styles(html, request)
@@ -196,6 +215,11 @@ class DocumentRenderer:
                 raise DocumentRendererError("RENDER_ENGINE_FAILED")
             digest = hashlib.sha256(normalized).hexdigest()
             duration_ms = round((time.perf_counter() - started) * 1000)
+            validation_status, validation_report, warnings = self._validate_output(
+                normalized,
+                mode=mode,
+                correlation_id=request.correlation_id,
+            )
             artifact_path = None
             if mode == "preview":
                 self._write_cache(cache_key, normalized, page_count, request.layout.page.page_format)
@@ -210,6 +234,9 @@ class DocumentRenderer:
                 from_cache=False,
                 duration_ms=duration_ms,
                 artifact_path=artifact_path,
+                validation_status=validation_status,
+                validation_report=validation_report,
+                warnings=warnings,
             )
         except DocumentRendererError:
             raise
@@ -230,6 +257,50 @@ class DocumentRenderer:
         except Exception as exc:
             logger.exception("document renderer failed: %s", type(exc).__name__)
             raise DocumentRendererError("RENDER_ENGINE_FAILED") from None
+
+    def _validate_output(
+        self,
+        content: bytes,
+        *,
+        mode: RenderMode,
+        correlation_id: str,
+    ) -> tuple[
+        Literal["not_requested", "unvalidated", "valid", "invalid"],
+        PdfaValidationReport | None,
+        tuple[str, ...],
+    ]:
+        if self._validator is None:
+            return "not_requested", None, ()
+        try:
+            report = self._validator.validate(content, correlation_id=correlation_id)
+        except VeraPdfUnavailable:
+            if mode == "preview":
+                return "unvalidated", None, ("PDF_VALIDATOR_UNAVAILABLE",)
+            raise DocumentRendererError("RENDER_ENGINE_FAILED") from None
+        except VeraPdfExecutionError as exc:
+            if mode == "preview":
+                return "unvalidated", None, (exc.code,)
+            raise DocumentRendererError("RENDER_ENGINE_FAILED") from None
+        if report.compliant:
+            return "valid", report, ()
+        if mode == "preview":
+            return "invalid", report, tuple(
+                finding.external_rule_id or finding.code for finding in report.findings
+            )
+        raise DocumentRendererError("RENDER_ENGINE_FAILED")
+
+    def _with_validation(self, rendered: RenderedPdf, correlation_id: str) -> RenderedPdf:
+        status, report, warnings = self._validate_output(
+            rendered.content,
+            mode="preview",
+            correlation_id=correlation_id,
+        )
+        return replace(
+            rendered,
+            validation_status=status,
+            validation_report=report,
+            warnings=warnings,
+        )
 
     def _run_weasyprint(self, html: str, workspace: Path, _mode: RenderMode) -> bytes:
         if self._engine_cli is None or not self._engine_cli.is_file():
