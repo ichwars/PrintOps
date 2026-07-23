@@ -1,0 +1,43 @@
+@page {
+  size: var(--page-size) portrait;
+  margin: var(--margin-top) var(--margin-right) var(--margin-bottom) var(--margin-left);
+  @bottom-right { content: "Seite " counter(page) "/" counter(pages); font-size: 7pt; color: #666; }
+}
+* { box-sizing: border-box; }
+html { font-family: var(--font-family); font-size: var(--base-size); line-height: var(--line-height); color: var(--text-color); }
+body { margin: 0; }
+.document-header { min-height: var(--first-content-top); position: relative; }
+.company-header { display: flex; justify-content: space-between; border-bottom: 1px solid var(--accent); padding-bottom: 3mm; }
+.company-details, .recipient { display: flex; flex-direction: column; }
+.sender-line { margin: 6mm 0 2mm; color: var(--muted-color); font-size: var(--metadata-size); }
+.recipient { width: 90mm; min-height: 24mm; }
+.metadata { position: absolute; right: 0; bottom: 0; width: 70mm; margin: 0; font-size: var(--metadata-size); }
+.metadata div, .technical div, .totals div { display: flex; justify-content: space-between; gap: 4mm; }
+dt { color: var(--muted-color); } dd { margin: 0; text-align: right; }
+h1 { color: var(--accent); font-size: calc(var(--base-size) * var(--heading-scale)); margin: 7mm 0 4mm; }
+.intro, .closing, .payment-notes, .reference { white-space: pre-wrap; overflow-wrap: anywhere; }
+table { width: 100%; border-collapse: collapse; }
+thead { display: table-header-group; }
+tfoot { display: table-footer-group; }
+th { color: var(--accent); text-align: left; border-bottom: 1px solid var(--accent); }
+th, td { padding: 2mm 1.5mm; vertical-align: top; overflow-wrap: anywhere; }
+.money, .quantity { text-align: right; white-space: nowrap; }
+.position-row { break-inside: avoid; }
+.position-row .description { min-width: 55mm; }
+.technical { display: grid; grid-template-columns: 1fr 1fr; gap: 0 4mm; margin: 1mm 0 0; font-size: var(--metadata-size); font-weight: normal; }
+.totals-block { break-inside: avoid; margin: 7mm 0 4mm auto; width: 85mm; }
+.totals { margin: 0; }
+.grand-total { border-top: 1px solid var(--accent); padding-top: 1.5mm; font-weight: bold; }
+.taxes { margin-top: 2mm; font-size: var(--metadata-size); }
+.payment-notes, .closing { break-inside: avoid; }
+.document-footer { position: running(document-footer); display: grid; gap: 4mm; padding-top: 2mm; border-top: 1px solid var(--accent); font-size: 7pt; color: var(--muted-color); }
+.columns-one { grid-template-columns: 1fr; } .columns-two { grid-template-columns: 1fr 1fr; } .columns-three { grid-template-columns: 1fr 1fr 1fr; }
+.page-number::after { content: "Seite " counter(page) "/" counter(pages); }
+.template-modern .company-header { border-bottom-width: 3px; }
+.template-modern th { background: var(--accent); color: white; }
+.template-compact th, .template-compact td { padding: 1mm; }
+.template-compact .technical { display: block; }
+@media print {
+  a { color: inherit; text-decoration: none; }
+  .totals-block, .payment-notes, .closing, .note { break-inside: avoid; }
+}
