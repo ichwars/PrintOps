@@ -283,6 +283,13 @@ def stage_backend(frontend_dist: Path) -> None:
             ".pytest_cache",
         ),
     )
+    # The deterministic, privacy-safe preview catalog is a runtime resource even
+    # though its canonical fixture lives below backend/tests for contract tests.
+    preview_fixture_source = REPO_ROOT / "backend" / "tests" / "fixtures"
+    preview_fixture_target = app / "backend" / "tests" / "fixtures"
+    preview_fixture_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(REPO_ROOT / "backend" / "tests" / "__init__.py", preview_fixture_target.parent)
+    shutil.copytree(preview_fixture_source, preview_fixture_target)
 
     # Frontend bundle — FastAPI's StaticFiles mounts from app/static.
     # Strip macOS metadata files (.DS_Store, ._.*) that the dev box leaks

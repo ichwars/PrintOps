@@ -43,8 +43,13 @@ def _canonical_value(value: Any) -> Any:
 
 
 def canonicalize_snapshot(snapshot: IssuedDocumentSnapshot) -> bytes:
+    return canonicalize_payload(snapshot)
+
+
+def canonicalize_payload(payload: Any) -> bytes:
+    """Return stable UTF-8 JSON for an allowed document-domain payload."""
     return json.dumps(
-        _canonical_value(snapshot),
+        _canonical_value(payload),
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
