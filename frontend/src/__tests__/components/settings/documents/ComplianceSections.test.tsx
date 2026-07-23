@@ -75,4 +75,27 @@ describe('document compliance sections', () => {
     expect(screen.getByText('corr-123')).toBeInTheDocument();
     expect(screen.queryByText('Not found')).not.toBeInTheDocument();
   });
+
+  it('localizes readiness findings and their corrective actions in German', async () => {
+    await i18n.changeLanguage('de');
+    render(<ReadinessPanel report={{
+      context: 'configuration',
+      status: 'blocked',
+      findings: [
+        { severity: 'blocker', code: 'seller_endpoint_missing', field_path: 'einvoice.seller_identifier', message_key: 'documents.errors.sellerEndpointMissing', correction: 'Enter the seller electronic-address identifier and scheme', rule_id: null },
+        { severity: 'blocker', code: 'number_sequence_missing', field_path: 'number_sequence', message_key: 'documents.errors.numberSequenceMissing', correction: 'Configure the invoice number sequence for this business profile', rule_id: null },
+        { severity: 'blocker', code: 'bank_account_missing', field_path: 'payment.bank_account_id', message_key: 'documents.errors.bankAccountMissing', correction: 'Assign a business-profile bank account with an IBAN', rule_id: null },
+        { severity: 'blocker', code: 'default_bank_missing', field_path: 'payment.bank_assignments', message_key: 'documents.errors.defaultBankMissing', correction: 'Correct the highlighted configuration field', rule_id: null },
+      ],
+    }} />);
+
+    expect(screen.getByText('Elektronische Verkäuferadresse fehlt')).toBeInTheDocument();
+    expect(screen.getByText('Elektronische Adresse und zugehöriges Schema des Verkäufers eintragen.')).toBeInTheDocument();
+    expect(screen.getByText('Dokumentnummernkreis fehlt')).toBeInTheDocument();
+    expect(screen.getByText('Im Unternehmensprofil den erforderlichen Nummernkreis für diesen Dokumenttyp konfigurieren.')).toBeInTheDocument();
+    expect(screen.getByText('Bankkonto mit IBAN fehlt')).toBeInTheDocument();
+    expect(screen.getByText('Dem Unternehmensprofil ein Bankkonto mit gültiger IBAN zuordnen.')).toBeInTheDocument();
+    expect(screen.getByText('Standardbankverbindung fehlt')).toBeInTheDocument();
+    expect(screen.getByText('Genau eine Bankverbindung als Standard festlegen.')).toBeInTheDocument();
+  });
 });
