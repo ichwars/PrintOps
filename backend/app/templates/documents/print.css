@@ -20,14 +20,24 @@ h1 { color: var(--accent); font-size: calc(var(--base-size) * var(--heading-scal
 table { width: 100%; border-collapse: collapse; }
 .positions { font-size: var(--table-size); }
 .positions { table-layout: fixed; }
-.positions .number { width: 9mm; }
+.positions .number { width: 12mm; }
 .positions .quantity { width: 18mm; }
 .positions .unit { width: 17mm; overflow-wrap: normal; }
 .positions .money { width: 22mm; }
 thead { display: table-header-group; }
 tfoot { display: table-footer-group; }
-th { color: var(--accent); text-align: left; border-bottom: 1px solid var(--accent); }
-th, td { padding: 2mm 1.5mm; vertical-align: top; overflow-wrap: anywhere; }
+.positions thead th {
+  padding: 2.2mm 1.5mm;
+  vertical-align: middle;
+  overflow-wrap: normal;
+  white-space: nowrap;
+  color: var(--text-color);
+  background: #f2f4f3;
+  font-weight: 700;
+  text-align: left;
+  border-bottom: 1.5px solid var(--accent);
+}
+.positions td { padding: 2mm 1.5mm; vertical-align: top; overflow-wrap: anywhere; }
 .money, .quantity { text-align: right; white-space: nowrap; }
 .position-row { break-inside: avoid; }
 .position-row .description { min-width: 55mm; }
@@ -41,8 +51,8 @@ th, td { padding: 2mm 1.5mm; vertical-align: top; overflow-wrap: anywhere; }
 .columns-one { grid-template-columns: 1fr; } .columns-two { grid-template-columns: 1fr 1fr; } .columns-three { grid-template-columns: 1fr 1fr 1fr; }
 .page-number::after { content: "Seite " counter(page) "/" counter(pages); }
 .template-modern .company-header { border-bottom-width: 3px; }
-.template-modern th { background: var(--accent); color: white; }
-.template-compact th, .template-compact td { padding: 1mm; }
+.template-modern .positions thead th { background: var(--accent); color: white; }
+.template-compact .positions thead th, .template-compact .positions td { padding: 1mm; }
 .template-compact .technical { display: block; }
 @media print {
   a { color: inherit; text-decoration: none; }

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
-
 import hashlib
 import json
 import re
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -98,6 +97,19 @@ def test_typography_controls_change_the_rendered_pdf_css():
     assert "--paragraph-spacing:6mm" in html
     assert "font-size: var(--table-size)" in html
     assert "margin-bottom: var(--paragraph-spacing)" in html
+
+
+def test_position_table_header_is_single_line_and_visually_separated():
+    html = render_document_html(
+        build_document_view_model(load_sample("invoice-de-standard")),
+        TEMPLATE_DEFAULTS["classic"],
+    )
+
+    assert ".positions .number { width: 12mm; }" in html
+    assert ".positions thead th" in html
+    assert "white-space: nowrap" in html
+    assert "background: #f2f4f3" in html
+    assert "border-bottom: 1.5px solid var(--accent)" in html
 
 
 def test_normalized_html_snapshots_are_stable():
