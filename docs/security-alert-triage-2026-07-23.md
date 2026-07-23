@@ -129,6 +129,11 @@ all alerts together without suppressing real vulnerabilities.
 | ---: | --- | --- | --- | --- |
 | 1 | `brace-expansion` | `>=3.0.0, <5.0.7` | Confirmed | Override and lock `5.0.7` |
 
+During PR verification, npm audit also reported
+`GHSA-v245-v573-v5vm` in transitive `linkify-it` 5.0.1. The package is locked
+and overridden to the first patched release, 5.0.2. This advisory was not a
+Dependabot alert at the initial snapshot above.
+
 ## Closure criteria
 
 - False positives 568 and 582–594 are dismissed with a reference to this
