@@ -128,6 +128,7 @@ async def test_engine():
         commerce,
         customer,
         document_configuration,
+        document_layout,
         external_link,
         filament,
         filament_sku_settings,

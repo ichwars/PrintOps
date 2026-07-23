@@ -655,7 +655,10 @@ class LayoutFinding(ImmutableModel):
     code: str = Field(min_length=1, max_length=128)
     severity: Literal["info", "warning", "blocker"]
     field_path: str | None = None
+    message_key: str = Field(min_length=1, max_length=160)
     message: str
+    correction_hint: str | None = None
+    external_rule_id: str | None = Field(default=None, max_length=160)
 
 
 class LayoutReadinessReport(ImmutableModel):
