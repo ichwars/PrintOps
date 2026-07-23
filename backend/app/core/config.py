@@ -98,6 +98,13 @@ class Settings(BaseSettings):
     business_profile_logo_dir: Path = _data_dir / "business-profile-logos"
     document_layout_asset_dir: Path = _document_data_dir / "document-layout-assets"
     document_render_artifact_dir: Path = _document_data_dir / "document-render-artifacts"
+    document_render_cache_dir: Path = _document_data_dir / "document-render-cache"
+    document_render_timeout_seconds: float = 10.0
+    document_render_memory_limit_mb: int = 512
+    document_render_page_limit: int = 12
+    document_render_output_limit_mb: int = 25
+    document_render_cache_ttl_seconds: int = 30 * 60
+    document_render_cache_limit_mb: int = 250
     plate_calibration_dir: Path = _plate_cal_dir  # Plate detection references
     static_dir: Path = _app_dir / "static"  # Static files are part of app, not data
     log_dir: Path = _log_dir
@@ -179,5 +186,6 @@ def _ensure_private_directory(path: Path) -> None:
 
 _ensure_private_directory(settings.document_layout_asset_dir)
 _ensure_private_directory(settings.document_render_artifact_dir)
+_ensure_private_directory(settings.document_render_cache_dir)
 if settings.log_to_file:
     settings.log_dir.mkdir(exist_ok=True)
