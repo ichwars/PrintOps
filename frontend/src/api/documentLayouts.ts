@@ -303,9 +303,17 @@ export interface PreviewPollResult {
   notModified: boolean;
 }
 
+export interface PreviewEInvoiceEvidence {
+  kind: 'zugferd' | 'xrechnung';
+  original: 'pdf' | 'xml';
+  profile: string;
+  xml_sha256: string;
+  pdf_artifact_id: number | null;
+}
+
 export interface PreviewReport {
   status: PreviewJob['status'];
-  findings: Record<string, unknown>;
+  findings: Record<string, unknown> & { einvoice?: PreviewEInvoiceEvidence };
 }
 
 export interface RuntimeComponentStatus {

@@ -664,3 +664,33 @@ Der Schritt ist abgeschlossen, wenn:
   bleiben ausdrücklich außerhalb dieses Schritts.
 - **Offene Entscheidungen:** Es verbleiben keine fachlichen Produktentscheidungen,
   die einen Umsetzungsplan blockieren.
+
+
+## Implementierungsstand und Nachweise
+
+Die freigegebenen Entscheidungen sind vollständig umgesetzt. Die zentralen
+Referenzen sind:
+
+- Backend: backend/app/api/routes/document_layouts.py,
+  backend/app/api/routes/document_render.py und
+  backend/app/services/document_renderer.py;
+- Oberfläche: frontend/src/components/settings/document-layout/;
+- Browserabnahme: frontend/e2e/document-layout.spec.ts;
+- Conformance-Matrix:
+  backend/tests/integration/test_document_pdf_conformance.py;
+- Sicherheits-/Exportfälle:
+  backend/tests/integration/test_document_render_api.py;
+- Backupintegrität:
+  backend/tests/integration/test_document_layout_backup_restore.py.
+
+Die automatisierte Matrix umfasst jede der 13 unterstützten Dokumentarten in
+Deutsch und Englisch, A4 und Letter sowie Classic, Modern und Compact (156
+Kombinationen). Release- und Packaging-CI führen die Matrix mit dem gepinnten
+WeasyPrint-/veraPDF-Runtime aus. Browserprüfungen decken die 2:1-Desktopansicht,
+390 x 844 ohne horizontalen Überlauf, echte Canvas-PDF-Seiten, Autosave und
+Refresh-Persistenz, Assetpreflight, Freigabesperren, Historie, Beispieldaten,
+reale Dokumente sowie die getrennte ZUGFeRD-/XRechnung-Originalrolle ab.
+
+Damit sind die fachlichen Abnahmekriterien dieses Dokuments ohne verbleibende
+Produktentscheidung umgesetzt; Layoutformatierung und PDF-Vorschau bleiben
+bewusst der hier beschriebenen strukturierten Steuerung vorbehalten.

@@ -23,6 +23,27 @@ PrintOps is intended to bring the operational work around 3D printing orders int
 - Connect costing and reservations with the print workflow
 - Keep existing printer-control functionality usable without a hard migration
 
+## Document Layouts and PDF Evidence
+
+Settings -> Order Management -> Format & Preview provides a versioned,
+structured editor for all commercial-document layouts. It renders genuine
+multi-page A4 or Letter PDFs on the left and keeps the compact layout controls
+on the right. Draft changes autosave; only blocker-free, validated versions can
+be published.
+
+The same offline renderer is used for previews, final PDFs and external
+snapshot exports. Final commercial PDFs are PDF/A-3u. ZUGFeRD keeps the PDF as
+the original with validated XML attached; XRechnung keeps the XML as the
+original and labels its PDF as a separate visual copy. Layout assets, issued
+artifacts, XML evidence and validation reports are included in local and
+private-Git backups with SHA-256 receipts.
+
+WeasyPrint and veraPDF are pinned build/runtime components. Production and
+installer builds must stage them before startup; PrintOps never downloads a
+renderer or validator while processing a document. The readiness endpoint
+/api/v1/document-render/readiness reports the installed versions and blocks
+final release when a required component is unavailable.
+
 ## Development
 
 ```bash

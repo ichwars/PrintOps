@@ -170,3 +170,89 @@ async def test_external_render_rejects_mutable_or_guessed_inputs(async_client, d
 
     assert missing.status_code in {404, 424}
     assert forbidden_shape.status_code == 422
+
+
+async def test_external_render_schema_rejects_einvoice_ambiguity_and_remote_input(
+    async_client,
+    db_session,
+):
+    layout, snapshot = await _published_snapshot(db_session)
+    ambiguous = await async_client.post(
+        BASE_URL,
+        json={
+            "document_snapshot_id": snapshot.id,
+            "published_layout_id": layout.id,
+            "zugferd_artifact_id": 1,
+            "xrechnung_artifact_id": 2,
+            "idempotency_id": "external-render-ambiguous",
+        },
+    )
+    remote = await async_client.post(
+        BASE_URL,
+        json={
+            "document_snapshot_id": snapshot.id,
+            "published_layout_id": layout.id,
+            "idempotency_id": "external-render-remote",
+            "source_url": "http://169.254.169.254/latest/meta-data/",
+            "css": "@import url(https://attacker.invalid/layout.css)",
+        },
+    )
+
+    assert ambiguous.status_code == 422
+    assert remote.status_code == 422
+
+
+async def test_artifact_download_blocks_path_traversal_and_digest_mismatch(
+    async_client,
+    db_session,
+    tmp_path,
+    monkeypatch,
+):
+    _, snapshot = await _published_snapshot(db_session)
+    source_document = await db_session.get(CommercialDocument, snapshot.document_id)
+    assert source_document is not None
+    mismatch_document = CommercialDocument(
+        document_type="invoice",
+        business_profile_id=source_document.business_profile_id,
+        number="RE-INTEGRITY",
+        technical_status="issued",
+        payment_status="unpaid",
+        language="de-DE",
+        currency="EUR",
+    )
+    db_session.add(mismatch_document)
+    await db_session.flush()
+    outside = tmp_path.parent / "outside-render.pdf"
+    outside.write_bytes(b"%PDF-1.7\noutside")
+    traversal = DocumentArtifact(
+        document_id=snapshot.document_id,
+        kind="pdf",
+        content_type="application/pdf",
+        storage_path="../outside-render.pdf",
+        sha256=sha256(outside.read_bytes()).hexdigest(),
+        validation_status="valid",
+        validation_report={"valid": True},
+    )
+    stored = tmp_path / "document-render-artifacts" / "tampered.pdf"
+    stored.parent.mkdir(parents=True)
+    stored.write_bytes(b"%PDF-1.7\ntampered")
+    mismatch = DocumentArtifact(
+        document_id=mismatch_document.id,
+        kind="pdf",
+        content_type="application/pdf",
+        storage_path="document-render-artifacts/tampered.pdf",
+        sha256="0" * 64,
+        validation_status="valid",
+        validation_report={"valid": True},
+    )
+    db_session.add_all([traversal, mismatch])
+    await db_session.commit()
+    monkeypatch.setattr(render_routes, "resolve_data_dir", lambda: tmp_path)
+
+    escaped = await async_client.get(f"{BASE_URL}/artifacts/{traversal.id}")
+    corrupted = await async_client.get(f"{BASE_URL}/artifacts/{mismatch.id}")
+
+    assert escaped.status_code == 424
+    assert escaped.json()["detail"]["code"] == "render_artifact_unavailable"
+    assert corrupted.status_code == 424
+    assert corrupted.json()["detail"]["code"] == "render_artifact_integrity_failed"

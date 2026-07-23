@@ -247,6 +247,7 @@ export function PdfPreviewPane({
   const [currentPage, setCurrentPage] = useState(1);
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
   const [pdfError, setPdfError] = useState<Error | null>(null);
+  const [evidenceDownloadBusy, setEvidenceDownloadBusy] = useState(false);
   const paperRefs = useRef<Array<HTMLDivElement | null>>([]);
   const loadSequence = useRef(0);
   const enabled = Boolean(layoutId && confirmedLockVersion && source);
@@ -332,6 +333,23 @@ export function PdfPreviewPane({
   const ratio = pageFormat === 'Letter' ? '8.5 / 11' : '210 / 297';
   const queryError = previewQuery.error instanceof Error ? previewQuery.error : null;
   const visibleError = pdfError ?? queryError;
+  const einvoiceEvidence = preview?.report.findings.einvoice;
+
+  const downloadEvidencePdf = async () => {
+    if (!einvoiceEvidence?.pdf_artifact_id) return;
+    setEvidenceDownloadBusy(true);
+    try {
+      const { blob } = await documentLayoutsApi.downloadExternalArtifact(einvoiceEvidence.pdf_artifact_id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'document-' + einvoiceEvidence.pdf_artifact_id + '.pdf';
+      link.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setEvidenceDownloadBusy(false);
+    }
+  };
 
   const goToPage = (page: number) => {
     const next = Math.min(Math.max(page, 1), Math.max(numPages, 1));
@@ -453,6 +471,27 @@ export function PdfPreviewPane({
           </a>
         ) : null}
       </div>
+
+      {einvoiceEvidence ? (
+        <div
+          data-testid="einvoice-evidence"
+          className="flex flex-wrap items-center gap-2 border-b border-bambu-dark-tertiary bg-bambu-dark/60 px-3 py-2 text-xs"
+        >
+          <strong className="text-white">
+            {einvoiceEvidence.original === 'pdf'
+              ? t('settings.documentLayout.preview.pdfOriginal', 'PDF is original')
+              : t('settings.documentLayout.preview.xmlOriginal', 'XML is original')}
+          </strong>
+          <span className="text-bambu-gray">{einvoiceEvidence.kind === 'zugferd' ? 'ZUGFeRD' : 'XRechnung'} · {einvoiceEvidence.profile}</span>
+          <code className="min-w-0 break-all text-[10px] text-bambu-gray" title={einvoiceEvidence.xml_sha256}>XML SHA-256: {einvoiceEvidence.xml_sha256}</code>
+          {einvoiceEvidence.kind === 'xrechnung' && einvoiceEvidence.pdf_artifact_id ? (
+            <Button type="button" variant="ghost" size="sm" loading={evidenceDownloadBusy} onClick={() => void downloadEvidencePdf()}>
+              <Download className="h-4 w-4" />
+              {t('settings.documentLayout.preview.downloadVisualCopy', 'Download separate PDF visual copy')}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="relative min-h-0 flex-1">
         {previewQuery.isFetching && preview ? (

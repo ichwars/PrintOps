@@ -2,6 +2,16 @@
 
 All notable changes to PrintOps will be documented in this file.
 
+## Unreleased
+
+### Added
+- **Complete commercial-document format and PDF preview workspace** - Adds the dedicated Settings -> Order Management -> Format & Preview area with real multi-page PDF.js preview on the left, compact structured controls on the right, A4/Letter and Classic/Modern/Compact templates, profile/document/language inheritance, 500 ms autosave, assets and font preflight, readiness findings, auditable version history and guarded publication.
+- **Offline PDF/A-3u and electronic-invoice evidence pipeline** - Preview, final output and external immutable-snapshot export now share one pinned WeasyPrint/veraPDF pipeline. ZUGFeRD identifies the PDF as original and records the embedded XML profile/hash; XRechnung identifies XML as original and exposes a separately downloadable PDF visual copy.
+- **Immutable document evidence and backup coverage** - Published layouts, asset hashes, document snapshots, PDF/XML artifacts, renderer/validator receipts and validation reports are retained and included in local/private-Git backups with integrity manifests.
+
+### Security
+- **Hardened document rendering and assets** - Rejects arbitrary HTML/CSS, SSRF and unregistered file URLs, active PDF content, cross-profile assets, traversal paths, oversized uploads, stale layout versions and guessed preview jobs. Preview caches are actor/profile scoped and final export accepts only immutable snapshots plus published layouts.
+
 ## [0.2.4.9] - 2026-07-07
 
 ### Added

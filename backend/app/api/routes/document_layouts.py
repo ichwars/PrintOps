@@ -127,14 +127,17 @@ async def _layout_or_404(db: AsyncSession, request: Request, layout_id: int):
 async def _preview_source(
     db: AsyncSession,
     job: orm.DocumentPreviewJob,
-) -> IssuedDocumentSnapshot:
+) -> tuple[IssuedDocumentSnapshot, dict | None]:
     if job.source_type == "sample":
-        return load_sample(str(job.source_reference))
+        return load_sample(str(job.source_reference)), None
     document_id = int(str(job.source_reference))
     document = await db.scalar(
         select(CommercialDocument)
         .where(CommercialDocument.id == document_id)
-        .options(selectinload(CommercialDocument.snapshot))
+        .options(
+            selectinload(CommercialDocument.snapshot),
+            selectinload(CommercialDocument.artifacts),
+        )
     )
     if (
         document is None
@@ -142,7 +145,34 @@ async def _preview_source(
         or document.snapshot is None
     ):
         raise PreviewJobError("PREVIEW_SOURCE_NOT_FOUND")
-    return IssuedDocumentSnapshot.model_validate_json(document.snapshot.canonical_json)
+    einvoice = next(
+        (
+            artifact
+            for artifact in document.artifacts
+            if artifact.kind in {"zugferd_xml", "xrechnung_xml"}
+            and artifact.validation_status == "valid"
+        ),
+        None,
+    )
+    evidence = None
+    if einvoice is not None:
+        report = dict(einvoice.validation_report or {})
+        pdf = next(
+            (
+                artifact
+                for artifact in document.artifacts
+                if artifact.kind == "pdf" and artifact.validation_status == "valid"
+            ),
+            None,
+        )
+        evidence = {
+            "kind": "zugferd" if einvoice.kind == "zugferd_xml" else "xrechnung",
+            "original": "pdf" if einvoice.kind == "zugferd_xml" else "xml",
+            "profile": report.get("profile") or report.get("cius_name") or "EN16931",
+            "xml_sha256": einvoice.sha256,
+            "pdf_artifact_id": pdf.id if pdf is not None else None,
+        }
+    return IssuedDocumentSnapshot.model_validate_json(document.snapshot.canonical_json), evidence
 
 
 async def _run_preview(public_id: str) -> None:
@@ -155,7 +185,7 @@ async def _run_preview(public_id: str) -> None:
             layout = await get_layout(db, job.configuration_id)
             if layout.lock_version != job.layout_lock_version:
                 raise PreviewJobError("PREVIEW_LAYOUT_VERSION_CONFLICT")
-            snapshot = await _preview_source(db, job)
+            snapshot, einvoice_evidence = await _preview_source(db, job)
             resolved = await resolve_effective_layout(
                 db,
                 business_profile_id=job.business_profile_id,
@@ -183,6 +213,7 @@ async def _run_preview(public_id: str) -> None:
                 findings={
                     "validation_status": rendered.validation_status,
                     "warnings": list(rendered.warnings),
+                    **({"einvoice": einvoice_evidence} if einvoice_evidence else {}),
                 },
             )
             await db.commit()

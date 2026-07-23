@@ -210,3 +210,15 @@ async def test_private_git_backup_uses_binary_paths_for_layout_and_document_evid
         "layout_asset",
         "validation_report",
     }
+    assert manifest["integrity_status"] == "valid"
+    assert manifest["file_count"] == len(binary_files)
+    assert all(entry["integrity_status"] == "valid" for entry in manifest["files"])
+    assert all(
+        entry["sha256"] == sha256(binary_files[entry["path"]]).hexdigest()
+        and entry["size"] == len(binary_files[entry["path"]])
+        for entry in manifest["files"]
+    )
+    assert all(
+        ".." not in entry["path"].split("/") and entry["path"].startswith("documents/binary/")
+        for entry in manifest["files"]
+    )
