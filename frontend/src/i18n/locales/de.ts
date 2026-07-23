@@ -1827,6 +1827,10 @@ export default {
         title: 'Herkunft des Werts', system: 'Systemvorgabe', profile: 'Unternehmensprofil',
         documentType: 'Dokumenttyp', language: 'Sprache', override: 'Überschreibung',
         inheritedHint: 'Dieser Wert wird geerbt. Eine Überschreibung ist nur nötig, wenn dieser Geltungsbereich abweichen soll.',
+        booleanHint: 'Blendet „{{field}}“ in der erzeugten PDF ein oder aus.',
+        numberHint: 'Legt den Wert für „{{field}}“ in der erzeugten PDF fest.',
+        textHint: 'Legt Text bzw. Wert für „{{field}}“ in der erzeugten PDF fest.',
+        selectHint: 'Wählt aus, wie „{{field}}“ in der erzeugten PDF dargestellt wird.',
       },
       assets: {
         title: 'Layout-Assets', drop: 'Datei hier ablegen oder auswählen', choose: 'Datei auswählen',

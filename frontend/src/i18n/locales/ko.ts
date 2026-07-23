@@ -1703,6 +1703,10 @@ export default {
         title: 'Value origin', system: 'System default', profile: 'Business profile',
         documentType: 'Document type', language: 'Language', override: 'Override',
         inheritedHint: 'This value is inherited. Set an override only when this scope must differ.',
+        booleanHint: 'Shows or hides “{{field}}” in the generated PDF.',
+        numberHint: 'Sets the value for “{{field}}” in the generated PDF.',
+        textHint: 'Sets the text or value for “{{field}}” in the generated PDF.',
+        selectHint: 'Selects how “{{field}}” is displayed in the generated PDF.',
       },
       assets: {
         title: 'Layout assets', drop: 'Drop a file here or choose one', choose: 'Choose file',

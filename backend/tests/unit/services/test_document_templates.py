@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 import hashlib
 import json
 import re
@@ -77,6 +79,25 @@ def test_css_values_are_closed_and_invalid_font_falls_back():
     html = render_document_html(build_document_view_model(load_sample("invoice-de-standard")), layout)
     assert "font-family:'Noto Sans'" in html
     assert "file:///" not in html
+
+
+def test_typography_controls_change_the_rendered_pdf_css():
+    layout = TEMPLATE_DEFAULTS["classic"].model_copy(
+        update={
+            "typography": TEMPLATE_DEFAULTS["classic"].typography.model_copy(
+                update={"table_size_pt": Decimal("13"), "paragraph_spacing_mm": Decimal("6")}
+            )
+        }
+    )
+
+    html = render_document_html(
+        build_document_view_model(load_sample("invoice-de-standard")), layout
+    )
+
+    assert "--table-size:13pt" in html
+    assert "--paragraph-spacing:6mm" in html
+    assert "font-size: var(--table-size)" in html
+    assert "margin-bottom: var(--paragraph-spacing)" in html
 
 
 def test_normalized_html_snapshots_are_stable():

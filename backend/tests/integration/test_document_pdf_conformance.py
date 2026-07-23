@@ -6,6 +6,7 @@ import hashlib
 import io
 import time
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 
 import pikepdf
@@ -72,6 +73,23 @@ def test_renderer_produces_structurally_valid_pdfa3u_with_unicode_fonts(tmp_path
         assert len(pdf.pages) == rendered.page_count
         assert str(pdf.Root.Lang) == "de-DE"
 
+
+def test_maximum_typography_settings_render_in_preview(tmp_path):
+    layout = TEMPLATE_DEFAULTS["classic"].model_copy(
+        update={
+            "typography": TEMPLATE_DEFAULTS["classic"].typography.model_copy(
+                update={
+                    "table_size_pt": Decimal("14"),
+                    "paragraph_spacing_mm": Decimal("12"),
+                }
+            )
+        }
+    )
+
+    rendered = _renderer(tmp_path).render_preview(_input(layout))
+
+    assert rendered.page_count >= 1
+    assert rendered.content.startswith(b"%PDF-")
 
 def test_custom_font_is_resolved_only_from_registered_asset(tmp_path):
     font = (FIXTURES / "test-font.ttf").read_bytes()

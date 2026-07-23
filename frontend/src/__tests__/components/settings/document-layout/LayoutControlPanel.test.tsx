@@ -11,7 +11,7 @@ import { LayoutFindings } from '../../../../components/settings/document-layout/
 import { layoutDetail } from './layoutFixtures';
 
 describe('LayoutControlPanel', () => {
-  it('renders the complete grouped editor with compact closed sections and source badges', () => {
+  it('renders the complete grouped editor with compact closed sections and hover-only source badges', () => {
     render(<LayoutControlPanel
       detail={layoutDetail()}
       patch={{}}
@@ -30,7 +30,16 @@ describe('LayoutControlPanel', () => {
     expect(screen.getByRole('button', { name: /Totals, tax and payment/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Document notes and text blocks/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Assets and fonts/i })).toBeInTheDocument();
-    expect(screen.getAllByText('System').length).toBeGreaterThan(0);
+    const sourceBadges = screen.getAllByText('System');
+    expect(sourceBadges.length).toBeGreaterThan(0);
+    expect(sourceBadges[0]).toHaveClass('opacity-0', 'group-hover:opacity-100', 'group-focus-within:opacity-100');
+
+    const templateCard = screen.getByRole('combobox', { name: 'Template' }).closest('[data-layout-field]');
+    const formatCard = screen.getByRole('combobox', { name: 'Paper format' }).closest('[data-layout-field]');
+    expect(templateCard).toHaveClass('flex', 'h-full');
+    expect(formatCard).toHaveClass('flex', 'h-full');
+    expect(templateCard?.querySelector('[data-layout-help]')).toHaveTextContent('Selects how “Template” is displayed in the generated PDF.');
+    expect(formatCard?.querySelector('[data-layout-help]')).toHaveTextContent('Selects how “Paper format” is displayed in the generated PDF.');
   });
 
   it('edits typed fields, removes overrides and exposes blocker badges', () => {

@@ -6,6 +6,7 @@
 * { box-sizing: border-box; }
 html { font-family: var(--font-family); font-size: var(--base-size); line-height: var(--line-height); color: var(--text-color); }
 body { margin: 0; }
+p { margin-bottom: var(--paragraph-spacing); }
 .document-header { min-height: var(--first-content-top); position: relative; }
 .company-header { display: flex; justify-content: space-between; border-bottom: 1px solid var(--accent); padding-bottom: 3mm; }
 .company-details, .recipient { display: flex; flex-direction: column; }
@@ -17,6 +18,7 @@ dt { color: var(--muted-color); } dd { margin: 0; text-align: right; }
 h1 { color: var(--accent); font-size: calc(var(--base-size) * var(--heading-scale)); margin: 7mm 0 4mm; }
 .intro, .closing, .payment-notes, .reference { white-space: pre-wrap; overflow-wrap: anywhere; }
 table { width: 100%; border-collapse: collapse; }
+.positions { font-size: var(--table-size); }
 .positions { table-layout: fixed; }
 .positions .number { width: 9mm; }
 .positions .quantity { width: 18mm; }
