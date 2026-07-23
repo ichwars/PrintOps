@@ -43,6 +43,7 @@ import { VirtualPrinterList } from '../components/VirtualPrinterList';
 import { SpoolBuddySettings } from '../components/SpoolBuddySettings';
 import { BusinessProfileSettings } from '../components/settings/BusinessProfileSettings';
 import { DocumentSettings } from '../components/settings/documents/DocumentSettings';
+import { DocumentLayoutSettings } from '../components/settings/document-layout/DocumentLayoutSettings';
 import { CalculationSettings } from '../components/orders/calculation/CalculationSettings';
 import { SmallPartsSettings } from '../components/settings/SmallPartsSettings';
 import { WarehouseNumberSequenceSettings } from '../components/settings/WarehouseNumberSequenceSettings';
@@ -4033,21 +4034,9 @@ export function SettingsPage() {
       )}
 
       {activeTab === 'orders-calculation' && orderManagementSubTab === 'format-preview' && (
-        <section
-          id="card-document-layout-settings"
-          aria-labelledby="document-layout-settings-title"
-          className="w-full rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-5"
-        >
-          <h2 id="document-layout-settings-title" className="text-lg font-semibold text-white">
-            {t('settings.documentLayout.title', 'Format & Preview')}
-          </h2>
-          <p className="mt-1 text-sm text-bambu-gray">
-            {t(
-              'settings.documentLayout.loadingDescription',
-              'The versioned layout workspace is loading its catalog, permissions, and document context.',
-            )}
-          </p>
-        </section>
+        <div id="card-document-layout-settings" className="w-full">
+          <DocumentLayoutSettings />
+        </div>
       )}
 
       {activeTab === 'orders-calculation' && orderManagementSubTab === 'calculation' && localSettings && (

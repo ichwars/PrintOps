@@ -3479,6 +3479,7 @@ export type Permission =
   | 'commercial_documents:read' | 'commercial_documents:draft' | 'commercial_documents:approve'
   | 'commercial_documents:issue' | 'commercial_documents:correct' | 'commercial_documents:export'
   | 'commercial_documents:tax_override'
+  | 'document_layouts:read' | 'document_layouts:manage'
   | 'document_templates:read' | 'document_templates:manage'
   | 'payments:read' | 'payments:manage'
   | 'order_audit:read'

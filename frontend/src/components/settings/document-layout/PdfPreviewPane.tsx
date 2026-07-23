@@ -24,6 +24,7 @@ import {
   type PreviewReport,
 } from '../../../api/documentLayouts';
 import { Button } from '../../ui/Button';
+import { Select } from '../../ui/Select';
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -400,21 +401,19 @@ export function PdfPreviewPane({
           <ChevronRight className="h-4 w-4" />
         </Button>
 
-        <label className="flex items-center gap-1 text-xs text-bambu-gray">
-          {t('settings.documentLayout.preview.zoom', 'Zoom')}
-          <select
-            aria-label={t('settings.documentLayout.preview.zoom', 'Zoom')}
-            value={zoom}
-            onChange={(event) => setZoom(event.target.value as PreviewZoom)}
-            className="min-h-9 rounded-md border border-bambu-dark-tertiary bg-bambu-dark px-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-bambu-green"
-          >
-            <option value="fit">{t('settings.documentLayout.preview.fit', 'Fit page')}</option>
-            <option value="0.75">75%</option>
-            <option value="1">100%</option>
-            <option value="1.25">125%</option>
-            <option value="1.5">150%</option>
-          </select>
-        </label>
+        <Select<PreviewZoom>
+          ariaLabel={t('settings.documentLayout.preview.zoom', 'Zoom')}
+          value={zoom}
+          onValueChange={setZoom}
+          options={[
+            { value: 'fit', label: t('settings.documentLayout.preview.fit', 'Fit page') },
+            { value: '0.75', label: '75%' },
+            { value: '1', label: '100%' },
+            { value: '1.25', label: '125%' },
+            { value: '1.5', label: '150%' },
+          ]}
+          className="w-28"
+        />
 
         <span
           role="status"

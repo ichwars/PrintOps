@@ -222,6 +222,15 @@ export interface LayoutSample {
   [key: string]: unknown;
 }
 
+export interface LayoutPreviewDocument {
+  id: number;
+  document_type: string;
+  number: string | null;
+  language: string;
+  technical_status: string;
+  issue_date: string | null;
+}
+
 export interface LayoutEffectiveResponse {
   effective: EffectiveDocumentLayout;
   sourced: SourcedDocumentLayout;
@@ -412,6 +421,8 @@ export interface UploadLayoutAssetInput {
 export const documentLayoutsApi = {
   getCatalog: () => request<LayoutCatalog>('/document-layouts/catalog'),
   getSamples: () => request<LayoutSample[]>('/document-layouts/samples'),
+  getPreviewDocuments: (businessProfileId: number, documentType?: string | null) =>
+    request<LayoutPreviewDocument[]>(`/commercial-documents${queryString({ business_profile_id: businessProfileId, document_type: documentType })}`),
   listLayouts: (businessProfileId: number) =>
     request<LayoutSummary[]>(`/document-layouts${queryString({ business_profile_id: businessProfileId })}`),
   getEffectiveLayout: (scope: {
@@ -481,6 +492,10 @@ export const documentLayoutsApi = {
       `/document-layouts/${layoutId}/assets`,
       { method: 'POST', body: JSON.stringify({ asset_id: assetId, role }) },
     ),
+  downloadAsset: async (assetId: number, signal?: AbortSignal) => {
+    const response = await authorizedFetch(`/document-layouts/assets/${assetId}`, { signal });
+    return { blob: await response.blob(), contentType: response.headers.get('Content-Type') };
+  },
   deleteAsset: (assetId: number) =>
     request<void>(`/document-layouts/assets/${assetId}`, { method: 'DELETE' }),
   createPreview: (command: PreviewRequest, signal?: AbortSignal) =>
