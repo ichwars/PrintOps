@@ -330,7 +330,11 @@ class DocumentRenderer:
             if mode == "preview":
                 self._write_cache(cache_key, normalized, page_count, request.layout.page.page_format)
             else:
-                artifact_path = self._persist_artifact(digest, normalized)
+                artifact_path = self._persist_artifact(
+                    digest,
+                    normalized,
+                    document_id=request.source_document_id,
+                )
             receipt: dict[str, object] = {
                 "pdf_sha256": digest,
                 "pdfa_report": (
@@ -726,8 +730,15 @@ class DocumentRenderer:
             path.with_suffix(".json").unlink(missing_ok=True)
             total -= size
 
-    def _persist_artifact(self, digest: str, content: bytes) -> Path:
-        target = self._artifact_dir / digest[:2] / f"{digest}.pdf"
+    def _persist_artifact(
+        self,
+        digest: str,
+        content: bytes,
+        *,
+        document_id: int | None,
+    ) -> Path:
+        scope = str(document_id) if document_id is not None else digest[:2]
+        target = self._artifact_dir / scope / f"{digest}.pdf"
         if not target.exists():
             self._atomic_write(target, content)
         return target

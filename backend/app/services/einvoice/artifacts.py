@@ -110,6 +110,13 @@ async def store_artifact(
             "einvoice_standard": report.standard,
             "einvoice_syntax": report.syntax,
             "einvoice_profile": report.profile,
+            "original_role": "original" if kind == "xrechnung_xml" else "component",
+            "export_manifest": {
+                "original_role": "original" if kind == "xrechnung_xml" else "component",
+                "einvoice_kind": kind,
+                "xml_sha256": digest,
+                "document_snapshot_sha256": snapshot_sha256,
+            },
         },
     )
     session.add(artifact)

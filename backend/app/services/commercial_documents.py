@@ -31,8 +31,8 @@ from backend.app.schemas.commercial_document import (
 from backend.app.services.document_audit import append_audit
 from backend.app.services.document_catalog import DOCUMENT_CAPABILITIES, DocumentType
 from backend.app.services.document_numbering import reserve_document_number
-from backend.app.services.document_readiness import check_configuration
-from backend.app.services.document_snapshot import attach_issued_snapshot
+from backend.app.services.document_readiness import check_issuance_readiness
+from backend.app.services.document_snapshot import attach_issued_snapshot, render_issued_pdf
 from backend.app.services.einvoice.artifacts import store_artifact
 from backend.app.services.einvoice.canonical import from_snapshot, validate_math
 from backend.app.services.einvoice.validator import (
@@ -686,7 +686,14 @@ async def _prepare_issuance(
                 ),
             )
         )
-    readiness = await check_configuration(session, configuration.id)
+    readiness = await check_issuance_readiness(
+        session,
+        configuration.id,
+        business_profile_id=document.business_profile_id,
+        document_type=document.document_type,
+        language=document.language,
+        issue_date=document.issue_date,
+    )
     blockers = tuple(
         _finding(item.code, item.field_path, item.correction)
         for item in readiness.findings
@@ -1214,8 +1221,13 @@ async def issue_document(
     if not correlation_id.strip():
         raise ValueError("A correlation ID is required")
 
-    context = await _prepare_issuance(session, document_id, expected_version)
     existing = await _existing_reservation(session, idempotency_key)
+    if existing is not None and existing.document_id != document_id:
+        raise IssuanceConflict("The idempotency key belongs to a different document")
+    if existing is not None and existing.status == "consumed":
+        return await _reload_issued_document(session, document_id)
+
+    context = await _prepare_issuance(session, document_id, expected_version)
     if existing is not None:
         _assert_reservation_binding(
             existing,
@@ -1237,6 +1249,24 @@ async def issue_document(
     if not created:
         await _wait_for_issue_replay(session, reservation.id)
         return await _reload_issued_document(session, document_id)
+
+    sessions = _evidence_sessions(session)
+    async with sessions() as evidence_session:
+        await append_audit(
+            evidence_session,
+            action="render_start",
+            object_type="commercial_document",
+            object_id=document_id,
+            actor_id=actor_id,
+            reason=None,
+            before=None,
+            after={
+                "number_reservation_id": reservation.id,
+                "idempotency_key": idempotency_key.strip(),
+            },
+            correlation_id=correlation_id.strip(),
+        )
+        await evidence_session.commit()
 
     try:
         document = await _lock_ready_document(session, document_id, expected_version)
@@ -1268,8 +1298,9 @@ async def issue_document(
             einvoice_rule_versions=context.einvoice_rule_versions,
             actor_id=actor_id,
         )
+        stored_einvoice = None
         if artifact is not None:
-            await store_artifact(
+            stored_einvoice = await store_artifact(
                 session,
                 document,
                 artifact.content,
@@ -1277,6 +1308,17 @@ async def issue_document(
                 artifact.rule_versions,
                 snapshot_sha256=evidence.sha256,
             )
+        await session.flush()
+        await render_issued_pdf(
+            session,
+            document,
+            evidence,
+            snapshot,
+            actor_id=actor_id,
+            idempotency_key=idempotency_key.strip(),
+            correlation_id=correlation_id.strip(),
+            einvoice_artifact=stored_einvoice,
+        )
         await append_audit(
             session,
             action="issue",
@@ -1304,6 +1346,20 @@ async def issue_document(
             failure_code=str(failure_code),
             failure_detail=str(exc),
         )
+        failure_sessions = _evidence_sessions(session)
+        async with failure_sessions() as evidence_session:
+            await append_audit(
+                evidence_session,
+                action="render_failure",
+                object_type="commercial_document",
+                object_id=document_id,
+                actor_id=actor_id,
+                reason=None,
+                before=None,
+                after={"code": str(failure_code), "message": str(exc)[:1000]},
+                correlation_id=correlation_id.strip(),
+            )
+            await evidence_session.commit()
         raise
 
     await _mark_reservation(session, reservation.id, "consumed")

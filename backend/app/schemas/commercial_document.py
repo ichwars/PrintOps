@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -148,6 +148,13 @@ class CommercialDocumentArtifactRead(BaseModel):
     sha256: str
     validation_status: str
     rule_versions: dict[str, Any]
+    original_role: Literal["original", "visual_copy", "component"] = "component"
+    layout_configuration_id: int | None = None
+    layout_version: int | None = None
+    layout_effective_sha256: str | None = None
+    renderer_version: str | None = None
+    validator_version: str | None = None
+    export_manifest: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
 
 

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import asdict
+from hashlib import sha256
 from typing import NoReturn
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -16,8 +18,9 @@ from backend.app.core.auth import (
     RequirePermissionIfAuthEnabled,
 )
 from backend.app.core.database import get_db
+from backend.app.core.paths import resolve_data_dir, safe_join
 from backend.app.core.permissions import Permission
-from backend.app.models.commercial_document import CommercialDocument
+from backend.app.models.commercial_document import CommercialDocument, DocumentArtifact
 from backend.app.models.document_audit import DocumentAuditEvent
 from backend.app.models.user import User
 from backend.app.schemas.commercial_document import (
@@ -48,6 +51,7 @@ from backend.app.services.commercial_documents import (
     validate_draft,
 )
 from backend.app.services.document_audit import append_audit
+from backend.app.services.document_snapshot import IssuedPdfError
 from backend.app.services.order_errors import (
     OrderDomainError,
     ResourceNotFoundError,
@@ -102,10 +106,35 @@ def _read(document: CommercialDocument) -> CommercialDocumentRead:
         created_at=document.created_at,
         updated_at=document.updated_at,
         lines=[CommercialDocumentLineRead.model_validate(item) for item in document.lines],
-        artifacts=[
-            CommercialDocumentArtifactRead.model_validate(item) for item in document.artifacts
-        ],
+        artifacts=[_artifact_read(item) for item in document.artifacts],
         snapshot_sha256=document.snapshot.sha256 if document.snapshot is not None else None,
+    )
+
+
+def _artifact_role(artifact: DocumentArtifact) -> str:
+    if artifact.kind == "xrechnung_xml":
+        return "original"
+    if artifact.kind == "pdf":
+        return str((artifact.render_receipt or {}).get("original_role") or "original")
+    return "component"
+
+
+def _artifact_read(artifact: DocumentArtifact) -> CommercialDocumentArtifactRead:
+    return CommercialDocumentArtifactRead(
+        id=artifact.id,
+        kind=artifact.kind,
+        content_type=artifact.content_type,
+        sha256=artifact.sha256,
+        validation_status=artifact.validation_status,
+        rule_versions=dict(artifact.rule_versions or {}),
+        original_role=_artifact_role(artifact),
+        layout_configuration_id=artifact.layout_configuration_id,
+        layout_version=artifact.layout_version,
+        layout_effective_sha256=artifact.layout_effective_sha256,
+        renderer_version=artifact.renderer_version,
+        validator_version=artifact.validator_version,
+        export_manifest=dict((artifact.render_receipt or {}).get("export_manifest") or {}),
+        created_at=artifact.created_at,
     )
 
 
@@ -203,6 +232,19 @@ async def _raise_domain_error(
             message=str(error),
             correction="Correct the E-invoice master data and validate again",
         )
+    if isinstance(error, IssuedPdfError):
+        status_code = status.HTTP_424_FAILED_DEPENDENCY
+        if error.code == "RENDER_TIMEOUT":
+            status_code = status.HTTP_504_GATEWAY_TIMEOUT
+        elif error.code in {"RENDER_PAGE_LIMIT", "RENDER_MEMORY_LIMIT"}:
+            status_code = status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+        _error(
+            request,
+            status_code=status_code,
+            code=error.code,
+            message="The immutable PDF could not be produced",
+            correction="Correct the reported layout/runtime prerequisite and retry issuance",
+        )
     if isinstance(error, (InvalidDocumentTransition, IssuanceConflict, OrderDomainError)):
         _error(
             request,
@@ -297,6 +339,138 @@ async def get_document(
         return _read(await _load(db, document_id))
     except Exception as error:
         await _raise_domain_error(request, error)
+
+
+@router.get(
+    "/{document_id}/artifacts",
+    response_model=list[CommercialDocumentArtifactRead],
+)
+async def list_document_artifacts(
+    document_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
+) -> list[CommercialDocumentArtifactRead]:
+    try:
+        document = await _load(db, document_id)
+        return [_artifact_read(item) for item in document.artifacts]
+    except Exception as error:
+        await _raise_domain_error(request, error)
+
+
+async def _artifact_for_document(
+    db: AsyncSession,
+    request: Request,
+    document_id: int,
+    artifact_id: int,
+) -> DocumentArtifact:
+    artifact = await db.get(DocumentArtifact, artifact_id)
+    if artifact is None or artifact.document_id != document_id:
+        _error(
+            request,
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="document_artifact_not_found",
+            message="The document artifact was not found",
+            correction="Reload the document artifacts",
+        )
+    return artifact
+
+
+@router.get("/{document_id}/artifacts/{artifact_id}/manifest")
+async def get_document_artifact_manifest(
+    document_id: int,
+    artifact_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
+) -> dict:
+    artifact = await _artifact_for_document(db, request, document_id, artifact_id)
+    return {
+        "artifact": _artifact_read(artifact).model_dump(mode="json"),
+        "export_manifest": dict((artifact.render_receipt or {}).get("export_manifest") or {}),
+    }
+
+
+@router.get("/{document_id}/artifacts/{artifact_id}/download")
+async def download_document_artifact(
+    document_id: int,
+    artifact_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    actor: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_EXPORT),
+) -> Response:
+    artifact = await _artifact_for_document(db, request, document_id, artifact_id)
+    failure_code = None
+    content = b""
+    if artifact.validation_status != "valid":
+        failure_code = "artifact_not_valid"
+    else:
+        try:
+            if artifact.storage_path:
+                content = safe_join(resolve_data_dir(), artifact.storage_path).read_bytes()
+            elif artifact.content is not None:
+                content = artifact.content
+            else:
+                failure_code = "artifact_file_unavailable"
+        except (OSError, ValueError):
+            failure_code = "artifact_file_unavailable"
+    if failure_code is None:
+        expected_size = (artifact.validation_report or {}).get("byte_size")
+        try:
+            size_matches = expected_size is None or int(expected_size) == len(content)
+        except (TypeError, ValueError):
+            size_matches = False
+        if sha256(content).hexdigest() != artifact.sha256 or not size_matches:
+            failure_code = "artifact_integrity_failed"
+    if failure_code is not None:
+        await append_audit(
+            db,
+            action="integrity_failure",
+            object_type="commercial_document",
+            object_id=document_id,
+            actor_id=_actor_id(actor),
+            reason=None,
+            before=None,
+            after={"artifact_id": artifact.id, "code": failure_code},
+            correlation_id=_correlation_id(request),
+        )
+        await db.commit()
+        _error(
+            request,
+            status_code=status.HTTP_409_CONFLICT,
+            code=failure_code,
+            message="The immutable artifact failed its delivery integrity check",
+            correction="Restore the artifact from a verified backup",
+        )
+
+    await append_audit(
+        db,
+        action="export",
+        object_type="commercial_document",
+        object_id=document_id,
+        actor_id=_actor_id(actor),
+        reason="Immutable document artifact downloaded",
+        before=None,
+        after={"artifact_id": artifact.id, "sha256": artifact.sha256},
+        correlation_id=_correlation_id(request),
+    )
+    await db.commit()
+    number = await db.scalar(
+        select(CommercialDocument.number).where(CommercialDocument.id == document_id)
+    )
+    safe_number = re.sub(r"[^A-Za-z0-9._-]+", "-", number or str(document_id)).strip("-.")
+    extension = "pdf" if artifact.content_type == "application/pdf" else "xml"
+    return Response(
+        content,
+        media_type=artifact.content_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_number or document_id}.{extension}"',
+            "ETag": f'"{artifact.sha256}"',
+            "Cache-Control": "private, immutable",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+        },
+    )
 
 
 @router.patch("/{document_id}", response_model=CommercialDocumentRead)

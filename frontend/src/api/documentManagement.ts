@@ -214,6 +214,25 @@ export interface EInvoiceArtifact {
   sha256: string;
   validation_status: string;
   rule_versions: Record<string, unknown>;
+  original_role: 'original' | 'visual_copy' | 'component';
+  export_manifest: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface CommercialDocumentArtifact {
+  id: number;
+  kind: 'pdf' | 'xrechnung_xml' | 'zugferd_xml' | string;
+  content_type: string;
+  sha256: string;
+  validation_status: string;
+  rule_versions: Record<string, unknown>;
+  original_role: 'original' | 'visual_copy' | 'component';
+  layout_configuration_id: number | null;
+  layout_version: number | null;
+  layout_effective_sha256: string | null;
+  renderer_version: string | null;
+  validator_version: string | null;
+  export_manifest: Record<string, unknown>;
   created_at: string;
 }
 
@@ -313,6 +332,32 @@ export const documentManagementApi = {
   getEInvoiceArtifact: (artifactId: number) => request<EInvoiceArtifact>(`/einvoices/${artifactId}`),
   getEInvoiceValidation: (artifactId: number) =>
     request<EInvoiceValidationReport>(`/einvoices/${artifactId}/validation`),
+  getEInvoiceManifest: (artifactId: number) =>
+    request<{ artifact: EInvoiceArtifact; export_manifest: Record<string, unknown> }>(
+      `/einvoices/${artifactId}/manifest`,
+    ),
+  listDocumentArtifacts: (documentId: number) =>
+    request<CommercialDocumentArtifact[]>(`/commercial-documents/${documentId}/artifacts`),
+  getDocumentArtifactManifest: (documentId: number, artifactId: number) =>
+    request<{ artifact: CommercialDocumentArtifact; export_manifest: Record<string, unknown> }>(
+      `/commercial-documents/${documentId}/artifacts/${artifactId}/manifest`,
+    ),
+  downloadDocumentArtifact: async (
+    documentId: number,
+    artifactId: number,
+  ): Promise<{ blob: Blob; filename: string }> => {
+    const headers: Record<string, string> = {};
+    const token = getAuthToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch(
+      `/api/v1/commercial-documents/${documentId}/artifacts/${artifactId}/download`,
+      { headers, cache: 'no-store', credentials: 'include' },
+    );
+    if (!response.ok) throw await parseDownloadError(response);
+    const disposition = response.headers.get('Content-Disposition');
+    const filename = disposition?.match(/filename="?([^";]+)"?/i)?.[1] ?? `document-${artifactId}`;
+    return { blob: await response.blob(), filename };
+  },
   downloadEInvoice: async (artifactId: number): Promise<{ blob: Blob; filename: string }> => {
     const headers: Record<string, string> = {};
     const token = getAuthToken();

@@ -39,6 +39,8 @@ class EInvoiceArtifactRead(BaseModel):
     sha256: str
     validation_status: str
     rule_versions: dict
+    original_role: str
+    export_manifest: dict
     created_at: datetime
 
 
@@ -108,6 +110,8 @@ def _metadata(artifact: DocumentArtifact) -> EInvoiceArtifactRead:
         sha256=artifact.sha256,
         validation_status=artifact.validation_status,
         rule_versions=dict(artifact.rule_versions or {}),
+        original_role=("original" if artifact.kind == "xrechnung_xml" else "component"),
+        export_manifest=dict((artifact.render_receipt or {}).get("export_manifest") or {}),
         created_at=artifact.created_at,
     )
 
@@ -227,6 +231,20 @@ async def get_einvoice_validation(
         "artifact_id": artifact.id,
         "sha256": artifact.sha256,
         "rule_versions": dict(artifact.rule_versions or {}),
+    }
+
+
+@router.get("/{artifact_id}/manifest")
+async def get_einvoice_manifest(
+    artifact_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
+) -> dict:
+    artifact = await _load_artifact(db, artifact_id, request)
+    return {
+        "artifact": _metadata(artifact).model_dump(mode="json"),
+        "export_manifest": dict((artifact.render_receipt or {}).get("export_manifest") or {}),
     }
 
 

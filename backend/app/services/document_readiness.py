@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 from collections.abc import Callable
+from datetime import UTC, date, datetime, time
 from importlib import resources
 from pathlib import Path
 from typing import Literal
@@ -353,3 +354,84 @@ async def check_configuration(session: AsyncSession, configuration_id: int) -> R
                 )
 
     return report_from_findings("configuration", findings)
+
+
+async def check_issuance_readiness(
+    session: AsyncSession,
+    configuration_id: int,
+    *,
+    business_profile_id: int,
+    document_type: str,
+    language: str,
+    issue_date: date,
+) -> ReadinessReport:
+    """Aggregate every prerequisite that must pass before reserving a number."""
+    base = await check_configuration(session, configuration_id)
+    findings = list(base.findings)
+    runtime = probe_document_runtime(renderer_cli=settings.weasyprint_cli)
+    existing_codes = {item.code for item in findings}
+    for code in runtime.findings:
+        normalized = code.lower()
+        if normalized not in existing_codes:
+            findings.append(
+                _blocker(
+                    normalized,
+                    "runtime.pdf",
+                    f"documents.errors.{normalized}",
+                    "Install or repair the pinned PDF renderer and validator runtime",
+                )
+            )
+    from backend.app.models.document_layout import DocumentLayoutConfiguration
+    from backend.app.services.document_layout_assets import AssetError, read_asset
+    from backend.app.services.document_layouts import resolve_effective_layout
+
+    effective_at = datetime.combine(issue_date, time.max, tzinfo=UTC)
+    try:
+        resolved = await resolve_effective_layout(
+            session,
+            business_profile_id=business_profile_id,
+            document_type=document_type,
+            language="de" if language.lower().startswith("de") else "en",
+            now=effective_at,
+        )
+        layouts = list(
+            await session.scalars(
+                select(DocumentLayoutConfiguration).where(
+                    DocumentLayoutConfiguration.id.in_(resolved.configuration_ids)
+                )
+            )
+        )
+        if not any(item.document_type is None and item.language is None for item in layouts):
+            findings.append(
+                _blocker(
+                    "published_layout_missing",
+                    "layout_resolution",
+                    "documents.errors.publishedLayoutMissing",
+                    "Publish a profile-default document layout before issuing",
+                )
+            )
+        for layout in layouts:
+            for link in layout.asset_links:
+                try:
+                    if link.asset.preflight_status != "valid":
+                        raise AssetError("asset preflight is not valid")
+                    read_asset(link.asset)
+                except (AssetError, OSError):
+                    findings.append(
+                        _blocker(
+                            "layout_asset_invalid",
+                            f"layout.assets.{link.role}",
+                            "documents.errors.layoutAssetInvalid",
+                            "Replace or revalidate the referenced layout asset",
+                        )
+                    )
+    except (LookupError, ValueError, RuntimeError):
+        findings.append(
+            _blocker(
+                "layout_resolution_failed",
+                "layout_resolution",
+                "documents.errors.layoutResolutionFailed",
+                "Publish a valid layout for this profile, document type and language",
+            )
+        )
+    return report_from_findings("document", findings)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from hashlib import sha256
 
@@ -32,6 +32,7 @@ from backend.app.models.customer import (
     CustomerContact,
     CustomerTaxIdentifier,
 )
+from backend.app.models.document_audit import DocumentAuditEvent
 from backend.app.models.document_configuration import (
     CustomerDocumentPreference,
     DocumentBasicPolicy,
@@ -44,10 +45,52 @@ from backend.app.models.document_configuration import (
     TaxPolicy,
 )
 from backend.app.models.number_sequence import NumberSequence
+from backend.app.schemas.document_layout import CreateLayoutRequest, LayoutScope, PublishLayoutRequest
 from backend.app.services.commercial_documents import (
+    DocumentValidationFailed,
     EInvoiceValidationFailed,
     issue_document,
 )
+from backend.app.services.document_layouts import create_draft as create_layout_draft, publish_layout
+
+
+@pytest.fixture(autouse=True)
+def deterministic_final_renderer(monkeypatch, tmp_path):
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("DATA_DIR", str(data_dir))
+
+    class FakeDocumentRenderer:
+        def __init__(self, **_kwargs):
+            pass
+
+        def render_final(self, render_input, _reference=None):
+            content = b"%PDF-1.7\n% deterministic issued document\n"
+            digest = sha256(content).hexdigest()
+            target = data_dir / "document-render-artifacts" / str(render_input.source_document_id) / f"{digest}.pdf"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content)
+            return type(
+                "Rendered",
+                (),
+                {
+                    "content": content,
+                    "sha256": digest,
+                    "artifact_path": target,
+                    "validation_status": "valid",
+                    "validation_report": None,
+                    "render_receipt": {"pdf_sha256": digest},
+                    "export_manifest": {},
+                },
+            )()
+
+    monkeypatch.setattr(
+        "backend.app.services.document_renderer.DocumentRenderer",
+        FakeDocumentRenderer,
+    )
+    monkeypatch.setattr(
+        "backend.app.services.document_readiness.probe_document_runtime",
+        lambda **_kwargs: type("Runtime", (), {"findings": (), "ready": True})(),
+    )
 
 
 @pytest_asyncio.fixture
@@ -66,6 +109,7 @@ async def _ready_invoice(
     *,
     issue_date: date = date(2026, 7, 20),
     with_einvoice_customer: bool = False,
+    with_layout: bool = True,
 ) -> tuple[int, int]:
     async with sessions() as session:
         profile = BusinessProfile(
@@ -232,6 +276,25 @@ async def _ready_invoice(
             )
         ]
         session.add_all([configuration, document])
+        if with_layout:
+            layout = await create_layout_draft(
+                session,
+                CreateLayoutRequest(
+                    scope=LayoutScope(business_profile_id=profile.id),
+                    reason="Issued document profile default",
+                ),
+                actor_id=None,
+            )
+            await publish_layout(
+                session,
+                layout.id,
+                PublishLayoutRequest(
+                    expected_lock_version=layout.lock_version,
+                    reason="Approved for issuance tests",
+                    effective_from=datetime(2025, 1, 1, tzinfo=UTC),
+                ),
+                actor_id=None,
+            )
         await session.commit()
         return document.id, document.lock_version
 
@@ -262,8 +325,15 @@ async def test_concurrent_issuance_returns_one_document_and_one_idempotent_repla
         _issue_once(issuance_sessions, document_id, version, "issue-key-123"),
         _issue_once(issuance_sessions, document_id, version, "issue-key-123"),
     )
+    replay = await _issue_once(
+        issuance_sessions,
+        document_id,
+        version,
+        "issue-key-123",
+    )
 
     assert first == second
+    assert replay == first
     async with issuance_sessions() as session:
         document = await session.get(CommercialDocument, document_id)
         reservations = list(
@@ -274,6 +344,25 @@ async def test_concurrent_issuance_returns_one_document_and_one_idempotent_repla
             )
         )
         assert document.technical_status == "issued"
+        artifacts = list(
+            await session.scalars(
+                select(DocumentArtifact).where(DocumentArtifact.document_id == document_id)
+            )
+        )
+        pdfs = [item for item in artifacts if item.kind == "pdf"]
+        assert len(pdfs) == 1
+        assert pdfs[0].layout_configuration_id is not None
+        assert pdfs[0].layout_version == 1
+        assert pdfs[0].layout_effective_sha256
+        assert pdfs[0].render_receipt["idempotency_id"] == "issue-key-123"
+        actions = set(
+            await session.scalars(
+                select(DocumentAuditEvent.action).where(
+                    DocumentAuditEvent.object_id == document_id
+                )
+            )
+        )
+        assert {"render_start", "render_success", "issue"} <= actions
         assert len(reservations) == 1
         assert reservations[0].status == "consumed"
 
@@ -315,6 +404,14 @@ async def test_failed_artifact_validation_keeps_voided_number_evidence(
         assert reservation.status == "voided"
         assert reservation.number == "RE-2026-0001"
         assert reservation.failure_code == "einvoice_invalid"
+        actions = set(
+            await session.scalars(
+                select(DocumentAuditEvent.action).where(
+                    DocumentAuditEvent.object_id == document_id
+                )
+            )
+        )
+        assert {"render_start", "render_failure"} <= actions
 
 
 @pytest.mark.asyncio
@@ -335,6 +432,65 @@ async def test_issuance_number_uses_document_issue_date(issuance_sessions):
 
 
 @pytest.mark.asyncio
+async def test_missing_published_layout_blocks_before_number_reservation(issuance_sessions):
+    document_id, version = await _ready_invoice(issuance_sessions, with_layout=False)
+
+    async with issuance_sessions() as session:
+        with pytest.raises(DocumentValidationFailed) as captured:
+            await issue_document(
+                session,
+                document_id,
+                version,
+                None,
+                "issue-key-no-layout",
+                "corr-no-layout",
+            )
+        assert any(item.code == "published_layout_missing" for item in captured.value.findings)
+
+    async with issuance_sessions() as session:
+        assert await session.scalar(
+            select(DocumentNumberReservation.id).where(
+                DocumentNumberReservation.document_id == document_id
+            )
+        ) is None
+
+
+@pytest.mark.asyncio
+async def test_missing_pdf_validator_blocks_before_number_reservation(
+    issuance_sessions,
+    monkeypatch,
+):
+    document_id, version = await _ready_invoice(issuance_sessions)
+    monkeypatch.setattr(
+        "backend.app.services.document_readiness.probe_document_runtime",
+        lambda **_kwargs: type(
+            "Runtime",
+            (),
+            {"findings": ("PDF_VALIDATOR_UNAVAILABLE",), "ready": False},
+        )(),
+    )
+
+    async with issuance_sessions() as session:
+        with pytest.raises(DocumentValidationFailed) as captured:
+            await issue_document(
+                session,
+                document_id,
+                version,
+                None,
+                "issue-key-no-validator",
+                "corr-no-validator",
+            )
+        assert any(item.code == "pdf_validator_unavailable" for item in captured.value.findings)
+
+    async with issuance_sessions() as session:
+        assert await session.scalar(
+            select(DocumentNumberReservation.id).where(
+                DocumentNumberReservation.document_id == document_id
+            )
+        ) is None
+
+
+@pytest.mark.asyncio
 async def test_required_einvoice_is_validated_and_stored_outside_database(
     issuance_sessions,
 ):
@@ -347,7 +503,10 @@ async def test_required_einvoice_is_validated_and_stored_outside_database(
 
     async with issuance_sessions() as session:
         artifact = await session.scalar(
-            select(DocumentArtifact).where(DocumentArtifact.document_id == document_id)
+            select(DocumentArtifact).where(
+                DocumentArtifact.document_id == document_id,
+                DocumentArtifact.kind == "xrechnung_xml",
+            )
         )
         assert artifact is not None
         assert artifact.validation_status == "valid"
@@ -360,3 +519,12 @@ async def test_required_einvoice_is_validated_and_stored_outside_database(
         stored = resolve_data_dir() / artifact.storage_path
         assert stored.is_file()
         assert sha256(stored.read_bytes()).hexdigest() == artifact.sha256
+        pdf = await session.scalar(
+            select(DocumentArtifact).where(
+                DocumentArtifact.document_id == document_id,
+                DocumentArtifact.kind == "pdf",
+            )
+        )
+        assert pdf is not None
+        assert pdf.render_receipt["original_role"] == "visual_copy"
+        assert pdf.storage_path.startswith(f"document-render-artifacts/{document_id}/")
