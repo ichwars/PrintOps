@@ -48,3 +48,53 @@ vulnerabilities:
     paths: *verapdf_cli
     expired_at: 2026-10-31
     statement: *verapdf_statement
+  - id: CVE-2026-3184
+    expired_at: 2026-10-31
+    statement: >-
+      util-linux hostname canonicalization is not exploitable in the container
+      context and no Debian bookworm fix is available. Reassess on base-image
+      updates or before this exception expires.
+  - id: CVE-2025-61143
+    expired_at: 2026-10-31
+    statement: &libtiff_statement >-
+      libtiff is pulled in transitively by FFmpeg and is not directly used by
+      PrintOps. No Debian bookworm fix is available. Reassess on base-image
+      updates or before this exception expires.
+  - id: CVE-2025-61144
+    expired_at: 2026-10-31
+    statement: *libtiff_statement
+  - id: CVE-2025-61145
+    expired_at: 2026-10-31
+    statement: *libtiff_statement
+  - id: CVE-2012-2663
+    expired_at: 2026-10-31
+    statement: >-
+      The container does not use iptables, so the affected --syn handling is
+      unreachable. No supported fix is available. Reassess on base-image
+      updates or before this exception expires.
+  - id: CVE-2026-6385
+    expired_at: 2026-10-31
+    statement: >-
+      FFmpeg only ingests printer-camera RTSP and MJPEG, H.264, or H.265 streams;
+      it never processes the affected DVD/VOB subtitle format. Debian has no
+      fix available. Reassess on FFmpeg updates or before this exception expires.
+  - id: CVE-2026-30997
+    expired_at: 2026-10-31
+    statement: >-
+      Bambu printer cameras do not emit the affected AV1 format. Debian has no
+      fix available. Reassess on FFmpeg updates or before this exception expires.
+  - id: CVE-2026-6192
+    expired_at: 2026-10-31
+    statement: >-
+      OpenJPEG is pulled in transitively by FFmpeg, while PrintOps only processes
+      PNG thumbnails and MJPEG, H.264, or H.265 camera streams. No Debian fix is
+      available. Reassess on base-image updates or before this exception expires.
+
+misconfigurations:
+  - id: DS-0002
+    paths:
+      - "Dockerfile"
+    expired_at: 2026-10-31
+    statement: >-
+      PrintOps is a single-host appliance container that currently requires root
+      for local device access and FFmpeg. Reassess before this exception expires.
