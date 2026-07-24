@@ -15,6 +15,7 @@ import {
 } from '../../../api/documentLayouts';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAutosaveDraft } from '../../../hooks/useAutosaveDraft';
+import { cryptoRandomUuid } from '../../../utils/random';
 import { Button } from '../../ui/Button';
 import { TextField } from '../../ui/TextField';
 import { LayoutContextBar, type LayoutPreviewSourceOption } from './LayoutContextBar';
@@ -42,9 +43,7 @@ interface AutosaveLayoutDraft {
 }
 
 function newEditSessionId(): string {
-  return typeof crypto.randomUUID === 'function'
-    ? crypto.randomUUID()
-    : `layout-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return cryptoRandomUuid();
 }
 
 const editableSections: EditableLayoutSection[] = ['page', 'typography', 'header', 'title', 'positions', 'totals', 'technical', 'notes', 'footer'];
