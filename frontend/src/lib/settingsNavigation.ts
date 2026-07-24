@@ -30,9 +30,9 @@ export type PrinterProductionSubTab = 'devices' | 'print-process' | 'pipelines' 
 
 export type ProjectManagementSubTab = 'files';
 
-export type WarehouseMaterialSubTab = 'filament' | 'small-parts' | 'catalogs' | 'spoolbuddy';
+export type WarehouseMaterialSubTab = 'number-sequences' | 'filament' | 'small-parts' | 'catalogs' | 'spoolbuddy';
 
-export type OrderManagementSubTab = 'business-profile' | 'calculation';
+export type OrderManagementSubTab = 'business-profile' | 'documents' | 'format-preview' | 'calculation';
 
 export type IntegrationSubTab = 'notifications' | 'webhooks' | 'smart-home' | 'smart-plugs' | 'api-metrics';
 
@@ -167,7 +167,12 @@ export function settingsTabLabelKey(tab: CanonicalSettingsTab): string {
 }
 
 export function resolveOrderManagementSubTab(value: string | null): OrderManagementSubTab | null {
-  return value === 'business-profile' || value === 'calculation' ? value : null;
+  return value === 'business-profile'
+    || value === 'documents'
+    || value === 'format-preview'
+    || value === 'calculation'
+    ? value
+    : null;
 }
 
 export function legacySettingsTabDefaultSubTab(tabParam: string | null): {

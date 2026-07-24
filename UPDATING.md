@@ -8,6 +8,26 @@ Pick the section that matches how PrintOps was installed.
 
 ---
 
+## Document-format migration
+
+The document-format release adds versioned layout, asset, preview-job,
+publication, audit and artifact tables. Database migrations run automatically
+at startup. Every existing business profile receives exactly one unpublished
+Classic/A4 draft; the migration is idempotent and never publishes a layout on
+the user's behalf.
+
+Before upgrading, create a full backup. The current backup format includes
+layout rows, content-addressed logo/letterhead/font assets, issued PDF/XML
+evidence and validator reports. Restore verifies every stored SHA-256 and
+rejects damaged evidence instead of accepting a partial document history.
+
+Native and Windows-package upgrades must also refresh the pinned WeasyPrint,
+Pango, ICC and veraPDF runtime bundle. Container upgrades obtain these
+components from the image. There are no runtime downloads. After restart,
+check GET /api/v1/document-render/readiness; previews remain available and
+clearly marked when validation is unavailable, but publication and final
+document export stay blocked until the complete runtime is ready.
+
 ## Docker
 
 ```bash

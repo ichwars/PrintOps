@@ -67,6 +67,7 @@ firmware/
 node_modules/
 
 data/
+/calculations/
 
 # Local-dev runtime caches (matplotlib MPLCONFIGDIR lands here when DATA_DIR
 # is unset, so base_dir resolves to the repo root). In Docker this sits

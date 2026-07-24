@@ -29,8 +29,13 @@ from backend.app.api.routes import (
     calculations,
     camera,
     cloud,
+    commercial_documents,
     customers,
     discovery,
+    document_configurations,
+    document_layouts,
+    document_render,
+    einvoices,
     equipment,
     external_links,
     filaments,
@@ -5972,6 +5977,19 @@ async def lifespan(app: FastAPI):
 
     await init_db()
 
+    # A process may stop after atomically claiming a preview job. Requeue
+    # those interrupted jobs on startup so no request remains stuck forever.
+    try:
+        async with async_session() as db:
+            from backend.app.services.document_preview_jobs import DocumentPreviewJobService
+
+            recovered = await DocumentPreviewJobService().recover_interrupted(db)
+            await db.commit()
+            if recovered:
+                logging.info("Recovered %d interrupted document preview job(s)", recovered)
+    except Exception as exc:
+        logging.warning("Failed to recover document preview jobs: %s", exc)
+
     # Register an app-scoped httpx client for Bambu Cloud services so
     # per-request BambuCloudService instances reuse the same connection pool
     # (important for routes like /cloud/filament-info that chain many
@@ -6726,6 +6744,11 @@ app.include_router(auth.router, prefix=app_settings.api_prefix)
 app.include_router(mfa.router, prefix=app_settings.api_prefix)
 app.include_router(bug_report.router, prefix=app_settings.api_prefix)
 app.include_router(business_profiles.router, prefix=app_settings.api_prefix)
+app.include_router(document_configurations.router, prefix=app_settings.api_prefix)
+app.include_router(document_layouts.router, prefix=app_settings.api_prefix)
+app.include_router(document_render.router, prefix=app_settings.api_prefix)
+app.include_router(commercial_documents.router, prefix=app_settings.api_prefix)
+app.include_router(einvoices.router, prefix=app_settings.api_prefix)
 app.include_router(calculations.router, prefix=app_settings.api_prefix)
 app.include_router(calculation_projects.router, prefix=app_settings.api_prefix)
 app.include_router(offers.router, prefix=app_settings.api_prefix)

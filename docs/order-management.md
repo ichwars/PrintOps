@@ -2,8 +2,9 @@
 
 Diese Anleitung beschreibt den ersten ausgelieferten Baustein der
 Auftragsverwaltung: Unternehmensprofile, Kundenstammdaten, Berechtigungen und
-Kundennummern. Kalkulationen, Angebote, Auftraege und kaufmaennische Dokumente
-werden in den folgenden Ausbaustufen ergaenzt.
+Kundennummern. Die inzwischen verfügbare, versionierte Dokumentverwaltung mit
+E-Rechnung ist in der separaten Anleitung
+[`Dokumentverwaltung und E-Rechnung`](document-management.md) beschrieben.
 
 ## Erstes Unternehmensprofil einrichten
 
@@ -164,10 +165,10 @@ aus.
 Angebote werden im folgenden Ausbau aus einer freigegebenen Kalkulationsrevision
 erzeugt.
 
-PDF-Layouts werden als strukturierte Einstellungen nach Unternehmensprofil,
-Dokumentart und Sprache umgesetzt, sobald die kanonischen Dokumente in
-Ausbaustufe 4 eingefuehrt werden. EN 16931, UBL/CII, CSV und Lexware Office
-folgen in den dort beschriebenen Dokument- und Integrationsinkrementen.
+Kanonische Dokumente, EN 16931, XRechnung als UBL/CII und ZUGFeRD-XML sind in
+der [Dokumentverwaltung](document-management.md) beschrieben. PDF-Layout und
+-Vorschau sowie Transport- und Buchhaltungsintegrationen bleiben davon bewusst
+getrennte Ausbaustufen.
 
 ## Material, Lieferanten und Beschaffung
 

@@ -8,6 +8,14 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    default-jre-headless \
+    gnupg \
+    libcairo2 \
+    libharfbuzz-subset0 \
+    libjpeg62-turbo \
+    libopenjp2-7 \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies including test dependencies.
@@ -19,6 +27,15 @@ COPY requirements.txt ./
 COPY requirements-dev.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt -r requirements-dev.txt
+
+COPY scripts/vendor_pdf_runtime.py ./scripts/vendor_pdf_runtime.py
+COPY backend/app/resources/pdf/runtime-manifest.json backend/app/resources/pdf/verapdf-signing-key.asc ./backend/app/resources/pdf/
+RUN python scripts/vendor_pdf_runtime.py \
+      --destination /opt/verapdf \
+      --cache-dir /tmp/verapdf-download \
+ && rm -rf /tmp/verapdf-download
+ENV VERAPDF_CLI=/opt/verapdf/verapdf
+ENV WEASYPRINT_CLI=/usr/local/bin/weasyprint
 
 # Copy backend code
 COPY backend/ ./backend/

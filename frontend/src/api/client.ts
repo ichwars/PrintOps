@@ -1105,6 +1105,7 @@ export interface APIKey {
   can_manage_maintenance: boolean;
   can_manage_archives: boolean;
   can_manage_projects: boolean;
+  can_render_documents: boolean;
   can_access_cloud: boolean;
   can_update_energy_cost: boolean;
   printer_ids: number[] | null;
@@ -1124,6 +1125,7 @@ export interface APIKeyCreate {
   can_manage_maintenance?: boolean;
   can_manage_archives?: boolean;
   can_manage_projects?: boolean;
+  can_render_documents?: boolean;
   can_access_cloud?: boolean;
   can_update_energy_cost?: boolean;
   printer_ids?: number[] | null;
@@ -1144,6 +1146,7 @@ export interface APIKeyUpdate {
   can_manage_maintenance?: boolean;
   can_manage_archives?: boolean;
   can_manage_projects?: boolean;
+  can_render_documents?: boolean;
   can_access_cloud?: boolean;
   can_update_energy_cost?: boolean;
   printer_ids?: number[] | null;
@@ -3287,6 +3290,51 @@ export interface BusinessProfileOption {
   is_active: boolean;
 }
 
+export type NumberSequenceKey = 'customer' | 'offer' | 'order' | 'invoice';
+export type NumberSequenceResetPolicy = 'none' | 'yearly';
+
+export interface NumberSequenceValues {
+  prefix: string;
+  pattern: string;
+  next_value: number;
+  reset_policy: NumberSequenceResetPolicy;
+}
+
+export interface NumberSequenceCreate extends NumberSequenceValues {
+  key: NumberSequenceKey;
+}
+
+export interface NumberSequenceUpdate extends NumberSequenceValues {
+  version: number;
+}
+
+export interface NumberSequence extends NumberSequenceCreate {
+  id: number;
+  business_profile_id: number;
+  current_period: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type WarehouseNumberSequenceKey = 'material' | 'spool' | 'purchase_order' | 'goods_receipt';
+
+export interface WarehouseNumberSequenceCreate extends NumberSequenceValues {
+  key: WarehouseNumberSequenceKey;
+}
+
+export interface WarehouseNumberSequenceUpdate extends NumberSequenceValues {
+  version: number;
+}
+
+export interface WarehouseNumberSequence extends WarehouseNumberSequenceCreate {
+  id: number;
+  current_period: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CustomerAccount {
   business_profile_id: number;
   number?: string | null;
@@ -3433,6 +3481,9 @@ export type Permission =
   | 'orders:read' | 'orders:update' | 'orders:cancel' | 'orders:manage_production'
   | 'commercial_documents:read' | 'commercial_documents:draft' | 'commercial_documents:approve'
   | 'commercial_documents:issue' | 'commercial_documents:correct' | 'commercial_documents:export'
+  | 'commercial_documents:tax_override'
+  | 'document_layouts:read' | 'document_layouts:manage'
+  | 'document_templates:read' | 'document_templates:manage'
   | 'payments:read' | 'payments:manage'
   | 'order_audit:read'
   | 'order_settings:read' | 'order_settings:manage'
@@ -4966,10 +5017,11 @@ export const api = {
       chamber_temp_presets?: string;
       fan_speed_presets?: string;
     }>('/settings/ui-preferences'),
-  updateSettings: (data: AppSettingsUpdate) =>
+  updateSettings: (data: AppSettingsUpdate, signal?: AbortSignal) =>
     request<AppSettings>('/settings/', {
       method: 'PUT',
       body: JSON.stringify(data),
+      signal,
     }),
   getMQTTStatus: () => request<MQTTStatus>('/settings/mqtt/status'),
   resetSettings: () =>
@@ -6086,6 +6138,30 @@ export const api = {
       `/business-profiles/${includeInactive ? '?includeInactive=true' : ''}`,
     ),
   getBusinessProfileOptions: () => request<BusinessProfileOption[]>('/business-profiles/options'),
+  getNumberSequences: (profileId: number) =>
+    request<NumberSequence[]>(`/business-profiles/${profileId}/number-sequences`),
+  createNumberSequence: (profileId: number, data: NumberSequenceCreate) =>
+    request<NumberSequence>(`/business-profiles/${profileId}/number-sequences`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateNumberSequence: (profileId: number, sequenceId: number, data: NumberSequenceUpdate) =>
+    request<NumberSequence>(`/business-profiles/${profileId}/number-sequences/${sequenceId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  getWarehouseNumberSequences: () =>
+    request<WarehouseNumberSequence[]>('/inventory/number-sequences'),
+  createWarehouseNumberSequence: (data: WarehouseNumberSequenceCreate) =>
+    request<WarehouseNumberSequence>('/inventory/number-sequences', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateWarehouseNumberSequence: (sequenceId: number, data: WarehouseNumberSequenceUpdate) =>
+    request<WarehouseNumberSequence>(`/inventory/number-sequences/${sequenceId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
   createBusinessProfile: (data: BusinessProfileCreate) =>
     request<BusinessProfile>('/business-profiles/', {
       method: 'POST',

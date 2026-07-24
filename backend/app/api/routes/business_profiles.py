@@ -23,6 +23,11 @@ from backend.app.schemas.business_profile import (
     BusinessProfileResponse,
     BusinessProfileUpdate,
 )
+from backend.app.schemas.number_sequence import (
+    NumberSequenceCreate,
+    NumberSequenceResponse,
+    NumberSequenceUpdate,
+)
 from backend.app.services import business_profile as business_profile_service
 from backend.app.services.business_profile_logo import (
     MAX_LOGO_BYTES,
@@ -238,6 +243,58 @@ async def get_business_profile(
 ):
     try:
         return await business_profile_service.get_business_profile(db, profile_id)
+    except OrderDomainError as exc:
+        _raise_http_error(exc)
+
+
+@router.get("/{profile_id}/number-sequences", response_model=list[NumberSequenceResponse])
+async def list_number_sequences(
+    profile_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_SETTINGS_READ),
+):
+    try:
+        return await business_profile_service.list_number_sequences(db, profile_id)
+    except OrderDomainError as exc:
+        _raise_http_error(exc)
+
+
+@router.post(
+    "/{profile_id}/number-sequences",
+    response_model=NumberSequenceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_number_sequence(
+    profile_id: int,
+    data: NumberSequenceCreate,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_SETTINGS_MANAGE),
+):
+    try:
+        return await _commit_write(
+            db,
+            business_profile_service.create_number_sequence(db, profile_id, data),
+        )
+    except OrderDomainError as exc:
+        _raise_http_error(exc)
+
+
+@router.put(
+    "/{profile_id}/number-sequences/{sequence_id}",
+    response_model=NumberSequenceResponse,
+)
+async def update_number_sequence(
+    profile_id: int,
+    sequence_id: int,
+    data: NumberSequenceUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_SETTINGS_MANAGE),
+):
+    try:
+        return await _commit_write(
+            db,
+            business_profile_service.update_number_sequence(db, profile_id, sequence_id, data),
+        )
     except OrderDomainError as exc:
         _raise_http_error(exc)
 

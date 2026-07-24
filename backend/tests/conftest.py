@@ -127,6 +127,8 @@ async def test_engine():
         color_catalog,
         commerce,
         customer,
+        document_configuration,
+        document_layout,
         external_link,
         filament,
         filament_sku_settings,
@@ -163,6 +165,7 @@ async def test_engine():
         user_otp_code,
         user_totp,
         virtual_printer,
+        warehouse_number_sequence,
     )
 
     async with engine.begin() as conn:

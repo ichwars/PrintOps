@@ -26,6 +26,11 @@ ORDER_MANAGEMENT_PERMISSIONS = {
     "commercial_documents:issue",
     "commercial_documents:correct",
     "commercial_documents:export",
+    "commercial_documents:tax_override",
+    "document_templates:read",
+    "document_templates:manage",
+    "document_layouts:read",
+    "document_layouts:manage",
     "payments:read",
     "payments:manage",
     "order_audit:read",
@@ -78,6 +83,7 @@ async def test_order_permission_backfill_is_additive_and_idempotent(async_client
         "commercial_documents:read",
         "commercial_documents:draft",
         "commercial_documents:approve",
+        "document_layouts:read",
         "payments:read",
         "order_audit:read",
     }
@@ -86,6 +92,7 @@ async def test_order_permission_backfill_is_additive_and_idempotent(async_client
         "calculations:read",
         "orders:read",
         "commercial_documents:read",
+        "document_layouts:read",
         "payments:read",
         "order_audit:read",
     }

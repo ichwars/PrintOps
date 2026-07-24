@@ -11,7 +11,8 @@ service. No Python or Node installation required on the target machine.
 - **Logs target:** `C:\ProgramData\PrintOps\logs\`
 - **Service:** registered via NSSM, runs as `LocalSystem`, autostart on boot
 - **Service command:** `python.exe -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --loop asyncio` (`--loop asyncio` avoids a uvloop TLS bug that can truncate VP FTP uploads, #1896)
-- **Bundled binaries:** Python 3.13 embeddable, NSSM, ffmpeg static build
+- **Bundled binaries:** Python 3.13 embeddable, NSSM, ffmpeg, WeasyPrint
+  69.0 with its Pango/GTK runtime, Temurin JRE 21.0.10+7 and veraPDF 1.30.2
 
 Browser is the UI. Start Menu shortcut opens `http://localhost:8000`.
 
@@ -35,9 +36,41 @@ building from Linux is possible via Wine but not officially supported.
 - Node.js 22 LTS + npm (for building the frontend bundle)
 - [Inno Setup 6](https://jrsoftware.org/isdl.php) (for compiling
   `printops.iss` → `.exe`)
+- Git for Windows including GnuPG (used to verify veraPDF's detached
+  signature; the build aborts if it is missing or has the wrong fingerprint)
 
 The build script downloads everything else automatically (embedded Python,
 NSSM, ffmpeg).
+
+## PDF runtime provenance and licenses
+
+Commercial documents are rendered and validated without runtime downloads.
+The installer build stages only pinned artifacts and verifies them before they
+enter `build/staging/runtime/`:
+
+- WeasyPrint `69.0` standalone Windows archive from the official Kozea GitHub
+  release, SHA-256
+  `330101ff3ea50ebde4abf805283b6d703d5f3d71c77c983db94357ec4524a3ef`.
+  It contains the native Pango/GTK libraries required on Windows. WeasyPrint is
+  BSD-3-Clause; the archive carries its `LICENSE` file and the licenses of its
+  bundled dependencies.
+- Eclipse Temurin JRE `21.0.10+7` from the official Adoptium release,
+  SHA-256
+  `a6ac6789e51a2c245f41430c42e72b39ec706a449812fc5e4cbfc55ceed1e5ae`.
+  Temurin is distributed under GPLv2 with the Classpath Exception and retains
+  the upstream legal files inside the staged JRE.
+- veraPDF Greenfield `1.30.2` from `software.verapdf.org`. The archive and
+  detached signature hashes are recorded in
+  `backend/app/resources/pdf/runtime-manifest.json`; the build additionally
+  verifies signing fingerprint
+  `13DD102B4DD69354D12DE5A83184863278B17FE7`. Only the CLI payload is retained.
+  veraPDF is distributed under GPL-3.0 and MPL-2.0.
+
+To upgrade a runtime, change its version, immutable URL and expected hash in
+`build.py` or the shared veraPDF manifest in the same commit. Download from the
+official publisher, verify the publisher's signature where available, run the
+offline smoke below, and review the packaged license files. Never replace a
+hash without documenting the corresponding upstream release.
 
 ## Build steps
 
@@ -49,6 +82,23 @@ python build.py
 :: (or invoke ISCC.exe directly:)
 "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" printops.iss
 ```
+
+The lightweight CI receipt check does not assemble the installer:
+
+```cmd
+python build.py --verify-runtime-only
+```
+
+After a full build, disconnect the machine from the network and run:
+
+```cmd
+build\staging\runtime\weasyprint\dist\weasyprint.exe --version
+build\staging\runtime\java\bin\java.exe -version
+build\staging\runtime\verapdf\verapdf.bat --version
+```
+
+The expected versions are respectively `69.0`, `21.0.10` and `1.30.2`; no
+command may attempt a network connection.
 
 Output: `installers\windows\build\output\printops-windows-setup.exe`
 

@@ -23,6 +23,7 @@ from backend.app.models.customer import (
     CustomerTag,
     CustomerTaxIdentifier,
 )
+from backend.app.models.document_configuration import CustomerDocumentPreference
 from backend.app.models.number_sequence import NumberSequence
 from backend.app.schemas.customer import (
     CustomerCreate,
@@ -39,7 +40,7 @@ from backend.app.services.order_errors import (
 )
 
 _CUSTOMER_LOAD_OPTIONS = (
-    selectinload(Customer.accounts),
+    selectinload(Customer.accounts).selectinload(CustomerAccount.document_preference),
     selectinload(Customer.contacts),
     selectinload(Customer.addresses),
     selectinload(Customer.tax_identifiers),
@@ -255,7 +256,7 @@ async def _new_accounts(
 ) -> list[CustomerAccount]:
     accounts: list[CustomerAccount] = []
     for account_data in data.accounts:
-        values = account_data.model_dump()
+        values = account_data.model_dump(exclude={"document_preference"})
         if values["number"] is None:
             values["number"] = await _reserve_available_number(
                 session,
@@ -268,7 +269,10 @@ async def _new_accounts(
                 business_profile_id=account_data.business_profile_id,
                 number=values["number"],
             )
-        accounts.append(CustomerAccount(**values))
+        account = CustomerAccount(**values)
+        if account_data.document_preference is not None:
+            account.document_preference = CustomerDocumentPreference(**account_data.document_preference.model_dump())
+        accounts.append(account)
     return accounts
 
 
@@ -411,7 +415,7 @@ async def update_customer(
     requested_profile_ids: set[int] = set()
     for account_data in data.accounts:
         requested_profile_ids.add(account_data.business_profile_id)
-        values = account_data.model_dump()
+        values = account_data.model_dump(exclude={"document_preference"})
         existing_account = existing_accounts.get(account_data.business_profile_id)
         if values["number"] is None:
             values["number"] = await _reserve_available_number(
@@ -428,10 +432,25 @@ async def update_customer(
             )
 
         if existing_account is None:
-            customer.accounts.append(CustomerAccount(**values))
+            account = CustomerAccount(**values)
+            if account_data.document_preference is not None:
+                account.document_preference = CustomerDocumentPreference(
+                    **account_data.document_preference.model_dump()
+                )
+            customer.accounts.append(account)
             continue
         for field, value in values.items():
             setattr(existing_account, field, value)
+        if account_data.document_preference is None:
+            existing_account.document_preference = None
+        elif existing_account.document_preference is None:
+            existing_account.document_preference = CustomerDocumentPreference(
+                **account_data.document_preference.model_dump()
+            )
+        else:
+            for field, value in account_data.document_preference.model_dump().items():
+                setattr(existing_account.document_preference, field, value)
+            existing_account.document_preference.lock_version += 1
     await session.flush()
 
     for profile_id, account in existing_accounts.items():

@@ -73,6 +73,15 @@ qrcode[pil]>=7.4.0
 # PDF generation (spool label printing — #809)
 reportlab>=4.0.0
 
+# Commercial document rendering. These exact versions form part of the
+# immutable render receipt stored with issued PDFs; do not loosen them without
+# a renderer-version migration and fresh PDF/A conformance fixtures.
+weasyprint==69.0
+pikepdf==10.10.0
+fonttools==4.63.0
+jinja2==3.1.6
+cairosvg==2.9.0
+
 # STL Thumbnail Generation
 trimesh>=4.0.0
 matplotlib>=3.8.0
@@ -85,6 +94,9 @@ fast-simplification>=0.1.0
 # ("No module named 'networkx'" / "No module named 'lxml'") if absent.
 networkx>=3.0
 lxml>=5.0
+# Official EN 16931, XRechnung and Factur-X validation stylesheets require
+# XSLT 2.0/3.0. SaxonC-HE is the vendor-supported, license-free processor.
+saxonche>=13.0.0,<14
 
 # System monitoring
 psutil>=6.0.0

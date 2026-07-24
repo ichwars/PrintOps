@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "fixed_date": "2026-07-23",
+  "base": {
+    "currency": "EUR",
+    "seller": {
+      "name": "PrintOps Musterwerk GmbH",
+      "legal_name": "PrintOps Musterwerk GmbH",
+      "street": "Werkstraße 12",
+      "postal_code": "04279",
+      "city": "Leipzig",
+      "country_code": "DE",
+      "email": "rechnung@example.invalid",
+      "tax_id": "DEMO-TAX-123",
+      "vat_id": "DE123456789"
+    },
+    "buyer": {
+      "name": "Beispielkundin Fertigung GmbH",
+      "customer_number": "KD-2026-0042",
+      "street": "Fertigungsweg 3",
+      "postal_code": "12345",
+      "city": "Musterhausen",
+      "country_code": "DE",
+      "email": "einkauf@example.invalid",
+      "vat_id": "DE987654321"
+    },
+    "lines": [
+      {
+        "position": 1,
+        "description": "Additiv gefertigtes Funktionsbauteil mit sehr langer, umbrechender Bezeichnung für die belastbare Prüfung mehrzeiliger Positionsdarstellungen",
+        "quantity": "4.000",
+        "unit_code": "C62",
+        "unit_price": "24.50",
+        "net_amount": "98.00",
+        "tax_category_code": "S",
+        "tax_rate": "19.00",
+        "product_identifier": "PRINT-PETG-001",
+        "metadata": {
+          "discount_percent": "5.00",
+          "technical": {
+            "printer": "Bambu Lab X1 Carbon",
+            "plate": "Textured PEI Plate",
+            "material": "PETG - Verkehrsgrün",
+            "print_time_minutes": 367,
+            "weight_grams": "182.40",
+            "file_name": "funktionsbauteil-v12.3mf"
+          }
+        }
+      },
+      {
+        "position": 2,
+        "description": "Nachbearbeitung und Qualitätssicherung",
+        "quantity": "1.500",
+        "unit_code": "HUR",
+        "unit_price": "42.00",
+        "net_amount": "63.00",
+        "tax_category_code": "AA",
+        "tax_rate": "7.00",
+        "metadata": {}
+      }
+    ],
+    "totals": {
+      "line_net": "161.00",
+      "discount": "4.90",
+      "net": "156.10",
+      "tax": "23.03",
+      "gross": "179.13",
+      "prepaid": "0.00",
+      "payable": "179.13"
+    },
+    "payment": {
+      "term_days": 14,
+      "discount_percent": "2.00",
+      "discount_days": 7,
+      "iban": "DE02120300000000202051",
+      "bic": "BYLADEM1001",
+      "account_holder": "PrintOps Musterwerk GmbH",
+      "payment_reference": "RF18539007547034"
+    },
+    "references": [
+      {"type": "buyer_order", "value": "PO-2026-4711"}
+    ],
+    "text_blocks": [
+      {"purpose": "intro", "de": "Vielen Dank für Ihre Anfrage.", "en": "Thank you for your request."},
+      {"purpose": "closing", "de": "Vielen Dank für Ihren Auftrag.", "en": "Thank you for your order."},
+      {"purpose": "tax_note", "de": "Hinweis: Kleinunternehmerregelung kann je Profil gelten.", "en": "Note: small-business tax rules may apply per profile."},
+      {"purpose": "footer", "de": "Registergericht Leipzig · HRB DEMO", "en": "Register court Leipzig · HRB DEMO"}
+    ],
+    "metadata": {
+      "repeat_line_count": 24,
+      "small_business_note_available": true,
+      "fixture": true
+    }
+  },
+  "samples": [
+    {"key": "quotation-de-standard", "document_type": "quotation", "language": "de"},
+    {"key": "quotation-en-standard", "document_type": "quotation", "language": "en"},
+    {"key": "order-confirmation-de-standard", "document_type": "order_confirmation", "language": "de"},
+    {"key": "order-confirmation-en-standard", "document_type": "order_confirmation", "language": "en"},
+    {"key": "delivery-note-de-standard", "document_type": "delivery_note", "language": "de"},
+    {"key": "delivery-note-en-standard", "document_type": "delivery_note", "language": "en"},
+    {"key": "advance-invoice-de-standard", "document_type": "advance_invoice", "language": "de"},
+    {"key": "advance-invoice-en-standard", "document_type": "advance_invoice", "language": "en"},
+    {"key": "progress-invoice-de-standard", "document_type": "progress_invoice", "language": "de"},
+    {"key": "progress-invoice-en-standard", "document_type": "progress_invoice", "language": "en"},
+    {"key": "final-invoice-de-standard", "document_type": "final_invoice", "language": "de"},
+    {"key": "final-invoice-en-standard", "document_type": "final_invoice", "language": "en"},
+    {"key": "invoice-de-standard", "document_type": "invoice", "language": "de"},
+    {"key": "invoice-en-standard", "document_type": "invoice", "language": "en"},
+    {"key": "cancellation-invoice-de-standard", "document_type": "cancellation_invoice", "language": "de"},
+    {"key": "cancellation-invoice-en-standard", "document_type": "cancellation_invoice", "language": "en"},
+    {"key": "invoice-correction-de-standard", "document_type": "invoice_correction", "language": "de"},
+    {"key": "invoice-correction-en-standard", "document_type": "invoice_correction", "language": "en"},
+    {"key": "commercial-credit-note-de-standard", "document_type": "commercial_credit_note", "language": "de"},
+    {"key": "commercial-credit-note-en-standard", "document_type": "commercial_credit_note", "language": "en"},
+    {"key": "payment-reminder-de-standard", "document_type": "payment_reminder", "language": "de"},
+    {"key": "payment-reminder-en-standard", "document_type": "payment_reminder", "language": "en"},
+    {"key": "dunning-notice-de-standard", "document_type": "dunning_notice", "language": "de"},
+    {"key": "dunning-notice-en-standard", "document_type": "dunning_notice", "language": "en"},
+    {"key": "self-billing-de-standard", "document_type": "self_billing", "language": "de"},
+    {"key": "self-billing-en-standard", "document_type": "self_billing", "language": "en"}
+  ]
+}

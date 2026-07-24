@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated, Literal, Self
 
@@ -16,6 +16,8 @@ CustomerKind = Literal["company", "person"]
 CustomerStatus = Literal["active", "inactive", "blocked"]
 CustomerAddressKind = Literal["billing", "delivery", "other"]
 TaxValidationStatus = Literal["unchecked", "valid", "invalid"]
+EInvoiceRequirement = Literal["inherit", "optional", "required"]
+VATValidationResult = Literal["unchecked", "valid", "invalid", "error"]
 
 _COUNTRY_CODES = frozenset(country.alpha_2 for country in pycountry.countries)
 _CURRENCY_CODES = frozenset(currency.alpha_3 for currency in pycountry.currencies)
@@ -50,6 +52,43 @@ class _NormalizedModel(BaseModel):
         return value
 
 
+class CustomerDocumentPreferenceInput(_NormalizedModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True, from_attributes=True)
+
+    endpoint_id: str | None = Field(default=None, max_length=255)
+    endpoint_scheme: str | None = Field(default=None, max_length=32)
+    leitweg_id: str | None = Field(default=None, max_length=255)
+    buyer_reference: str | None = Field(default=None, max_length=255)
+    purchase_order_reference: str | None = Field(default=None, max_length=255)
+    supplier_reference: str | None = Field(default=None, max_length=255)
+    einvoice_requirement: EInvoiceRequirement = "inherit"
+    vat_validation_provider: str | None = Field(default=None, max_length=64)
+    vat_validation_result: VATValidationResult = "unchecked"
+    vat_checked_at: datetime | None = None
+    vat_validation_reference: str | None = Field(default=None, max_length=255)
+
+    @field_validator("vat_checked_at")
+    @classmethod
+    def require_explicit_utc_timestamp(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+    @model_validator(mode="after")
+    def validate_einvoice_evidence(self) -> Self:
+        if bool(self.endpoint_id) != bool(self.endpoint_scheme):
+            raise ValueError("endpoint_id and endpoint_scheme must be supplied together")
+        if self.vat_validation_result != "unchecked" and (
+            not self.vat_validation_provider or self.vat_checked_at is None
+        ):
+            raise ValueError("vat_validation_provider and vat_checked_at are required for a checked VAT result")
+        if self.vat_validation_result == "unchecked" and self.vat_checked_at is not None:
+            raise ValueError("vat_checked_at is not allowed for an unchecked VAT result")
+        return self
+
+
 class CustomerAccountInput(_NormalizedModel):
     business_profile_id: int = Field(gt=0)
     number: str | None = Field(default=None, min_length=1, max_length=50)
@@ -58,6 +97,7 @@ class CustomerAccountInput(_NormalizedModel):
     delivery_terms: str | None = Field(default=None, max_length=1000)
     discount_percent: Decimal = Field(default=Decimal("0.00"), ge=0, le=100)
     is_active: bool = True
+    document_preference: CustomerDocumentPreferenceInput | None = None
 
     @field_validator("preferred_currency")
     @classmethod
@@ -256,3 +296,61 @@ class CustomerListResponse(_NormalizedModel):
     total: int
     limit: int
     offset: int
+
+
+class TaxDecisionRequest(_NormalizedModel):
+    seller_country: str | None = Field(default=None, min_length=2, max_length=2)
+    buyer_country: str | None = Field(default=None, min_length=2, max_length=2)
+    place_of_supply: str | None = Field(default=None, min_length=2, max_length=2)
+    buyer_kind: Literal["business", "consumer"]
+    seller_tax_mode: Literal["standard", "small_business"] = "standard"
+    transaction_kind: Literal["service", "goods"] = "service"
+    seller_vat_id: str | None = Field(default=None, max_length=64)
+    buyer_vat_id: str | None = Field(default=None, max_length=64)
+    buyer_vat_valid: bool | None = None
+    vat_validation_evidence: dict[str, str] = Field(default_factory=dict)
+    exemption_code: str | None = Field(default=None, max_length=64)
+    exemption_text: str | None = Field(default=None, max_length=1000)
+
+
+class TaxFindingResponse(_NormalizedModel):
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
+
+    code: str
+    message: str
+
+
+class TaxDecisionResponse(_NormalizedModel):
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
+
+    treatment: str
+    tax_country: str | None
+    place_of_supply: str | None
+    category_code: str | None
+    rate: Decimal | None
+    legal_reason_code: str | None
+    legal_reason_text: str | None
+    seller_vat_id: str | None
+    buyer_vat_id: str | None
+    vat_validation_evidence: dict[str, str]
+    rule_version: str
+    blocking_findings: tuple[TaxFindingResponse, ...]
+    manual_override: bool
+    override_reason: str | None
+    override_actor_id: int | None
+    overridden_at: datetime | None
+
+
+class TaxOverrideValues(_NormalizedModel):
+    treatment: str = Field(min_length=1, max_length=64)
+    tax_country: str = Field(min_length=2, max_length=2)
+    category_code: str = Field(min_length=1, max_length=8)
+    rate: Decimal = Field(ge=0, le=100)
+    legal_reason_code: str | None = Field(default=None, max_length=64)
+    legal_reason_text: str | None = Field(default=None, max_length=1000)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class TaxOverrideRequest(_NormalizedModel):
+    facts: TaxDecisionRequest
+    override: TaxOverrideValues

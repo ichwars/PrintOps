@@ -78,6 +78,8 @@ async def kiosk_bootstrap(
             can_manage_archives=False,
             # Kiosk doesn't manage projects — keep it minimally scoped (#1893).
             can_manage_projects=False,
+            # Kiosk keys must not author layouts or export commercial documents.
+            can_render_documents=False,
             printer_ids=None,
             enabled=True,
             expires_at=None,

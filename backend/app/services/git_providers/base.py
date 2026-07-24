@@ -1,6 +1,7 @@
 """Abstract base class for Git hosting provider backends."""
 
 import hashlib
+import json
 from abc import ABC, abstractmethod
 
 import httpx
@@ -13,6 +14,13 @@ class GitProviderBackend(ABC):
     def _blob_sha(content_bytes: bytes) -> str:
         """Compute the git blob SHA for content_bytes (sha1("blob {len}\\0" + data))."""
         return hashlib.sha1(f"blob {len(content_bytes)}\0".encode() + content_bytes, usedforsecurity=False).hexdigest()
+
+    @staticmethod
+    def _content_bytes(content) -> bytes:
+        """Serialize structured backup data while preserving binary evidence."""
+        if isinstance(content, bytes):
+            return content
+        return json.dumps(content, indent=2, default=str).encode("utf-8")
 
     @staticmethod
     def _truncated_response_text(response: httpx.Response, max_length: int = 200) -> str:
