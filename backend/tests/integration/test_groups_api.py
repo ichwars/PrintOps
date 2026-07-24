@@ -83,6 +83,7 @@ async def test_order_permission_backfill_is_additive_and_idempotent(async_client
         "commercial_documents:read",
         "commercial_documents:draft",
         "commercial_documents:approve",
+        "document_layouts:read",
         "payments:read",
         "order_audit:read",
     }
@@ -91,6 +92,7 @@ async def test_order_permission_backfill_is_additive_and_idempotent(async_client
         "calculations:read",
         "orders:read",
         "commercial_documents:read",
+        "document_layouts:read",
         "payments:read",
         "order_audit:read",
     }
