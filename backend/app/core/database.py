@@ -177,7 +177,11 @@ async def init_db():
         calculation_slice,
         color_catalog,
         commerce,
+        commercial_document,
         customer,
+        document_audit,
+        document_configuration,
+        document_layout,
         equipment,
         external_link,
         filament,
@@ -241,6 +245,7 @@ async def init_db():
     # doesn't share a transaction with the schema-DDL block above — required to
     # avoid SQLite "database is locked" contention on the WAL writer.
     await _migrate_encrypt_legacy_secrets()
+    await _migrate_default_document_layouts()
 
     # Seed default notification templates
     await seed_notification_templates()
@@ -251,6 +256,17 @@ async def init_db():
     # Seed default catalog entries
     await seed_spool_catalog()
     await seed_color_catalog()
+
+async def _migrate_default_document_layouts() -> None:
+    """Idempotently backfill unpublished classic drafts for existing profiles."""
+    from backend.app.services.document_layouts import ensure_default_layout_drafts
+
+    async with async_session() as session:
+        created = await ensure_default_layout_drafts(session, migration_event=True)
+        await session.commit()
+    if created:
+        logger.info("Created %d missing default document layout draft(s)", created)
+
 
 
 # B2: Module-level counter exposing the number of rows skipped during the last
@@ -667,6 +683,32 @@ async def _migrate_widen_spoolman_slot_ams_id_range(conn) -> None:
         raise
 
 
+async def migrate_document_layout_schema(conn) -> None:
+    """Add layout receipts to legacy artifact tables, idempotently.
+
+    ``Base.metadata.create_all`` creates every new layout table on both fresh
+    and upgraded installations. Existing ``document_artifacts`` tables need
+    explicit nullable columns because create_all never alters a table.
+    """
+
+    columns = (
+        "layout_configuration_id INTEGER REFERENCES document_layout_configurations(id) ON DELETE RESTRICT",
+        "layout_version INTEGER",
+        "layout_effective_sha256 VARCHAR(64)",
+        "asset_receipts JSON",
+        "renderer_version VARCHAR(128)",
+        "validator_version VARCHAR(128)",
+        "render_receipt JSON",
+    )
+    for definition in columns:
+        await _safe_execute(conn, f"ALTER TABLE document_artifacts ADD COLUMN {definition}")
+    await _safe_execute(
+        conn,
+        "CREATE INDEX IF NOT EXISTS ix_document_artifacts_layout_configuration_id "
+        "ON document_artifacts (layout_configuration_id)",
+    )
+
+
 async def run_migrations(conn):
     """Run all schema migrations and data backfills on startup.
 
@@ -680,6 +722,8 @@ async def run_migrations(conn):
     swallowed.
     """
     from sqlalchemy import text
+
+    await migrate_document_layout_schema(conn)
 
     # Migration: Add procurement metadata to technical materials.
     await _safe_execute(
@@ -2604,6 +2648,17 @@ async def run_migrations(conn):
         async with conn.begin_nested():
             await conn.execute(text("UPDATE api_keys SET can_manage_projects = FALSE"))
 
+    # Rendering can expose commercial data and is therefore opt-in. Existing
+    # and newly created keys remain disabled until an operator enables it.
+    column_existed = await _api_keys_column_exists(conn, "can_render_documents")
+    await _safe_execute(
+        conn,
+        "ALTER TABLE api_keys ADD COLUMN can_render_documents BOOLEAN DEFAULT FALSE",
+    )
+    if not column_existed:
+        async with conn.begin_nested():
+            await conn.execute(text("UPDATE api_keys SET can_render_documents = FALSE"))
+
     # Migration: Soft-delete column for trash bin (Issue #1008). Indexed so the
     # sweeper's "SELECT ... WHERE deleted_at < cutoff" and the trash list's
     # "WHERE deleted_at IS NOT NULL" stay cheap as the table grows.
@@ -3412,6 +3467,25 @@ async def run_migrations(conn):
     # Migration: Disambiguate the four ``user_print_*`` notification template
     # names by appending " Email" (#1792). See ``_migrate_rename_user_print_template_names``.
     await _migrate_rename_user_print_template_names(conn)
+    if is_sqlite():
+        await _safe_execute(
+            conn,
+            "ALTER TABLE payment_policies ADD COLUMN installments JSON DEFAULT '[]' NOT NULL",
+        )
+    else:
+        await _safe_execute(
+            conn,
+            "ALTER TABLE payment_policies ADD COLUMN installments JSON DEFAULT '[]'::json NOT NULL",
+        )
+    await _migrate_document_configurations(conn)
+
+
+async def _migrate_document_configurations(conn) -> None:
+    """Create missing bilingual document drafts from validated committed defaults."""
+
+    from backend.app.services.document_defaults import seed_document_configurations
+
+    await seed_document_configurations(conn)
 
 
 _USER_PRINT_TEMPLATE_RENAMES: tuple[tuple[str, str, str], ...] = (
@@ -3696,6 +3770,7 @@ async def seed_default_groups():
                 "commercial_documents:approve",
                 "payments:read",
                 "order_audit:read",
+                "document_layouts:read",
             ],
             "Viewers": [
                 "customers:read",
@@ -3704,6 +3779,7 @@ async def seed_default_groups():
                 "commercial_documents:read",
                 "payments:read",
                 "order_audit:read",
+                "document_layouts:read",
             ],
         }
         for group_name, new_permissions in order_backfill.items():

@@ -289,16 +289,21 @@ install_dependencies() {
     case "$PKG_MANAGER" in
         apt)
             sudo apt-get update
-            sudo apt-get install -y python3 python3-pip python3-venv git curl ffmpeg
+            sudo apt-get install -y python3 python3-pip python3-venv git curl ffmpeg gnupg \
+                default-jre-headless libpango-1.0-0 libpangoft2-1.0-0 \
+                libharfbuzz-subset0 libjpeg62-turbo libopenjp2-7
             ;;
         dnf|yum)
-            sudo $PKG_MANAGER install -y python3 python3-pip git curl ffmpeg
+            sudo $PKG_MANAGER install -y python3 python3-pip git curl ffmpeg gnupg2 \
+                java-17-openjdk-headless pango harfbuzz libjpeg-turbo openjpeg2
             ;;
         pacman)
-            sudo pacman -Sy --noconfirm python python-pip git curl ffmpeg
+            sudo pacman -Sy --noconfirm python python-pip git curl ffmpeg gnupg \
+                jre17-openjdk-headless pango harfbuzz libjpeg-turbo openjpeg2
             ;;
         zypper)
-            sudo zypper install -y python3 python3-pip git curl ffmpeg
+            sudo zypper install -y python3 python3-pip git curl ffmpeg gpg2 \
+                java-17-openjdk-headless pango-tools libharfbuzz0 libjpeg8 openjpeg2
             ;;
         brew)
             # Check if Homebrew is installed
@@ -306,7 +311,8 @@ install_dependencies() {
                 log_error "Homebrew not found. Please install it first: https://brew.sh"
                 exit 1
             fi
-            brew install python git curl ffmpeg
+            brew install python git curl ffmpeg gnupg openjdk@17 pango jpeg openjpeg
+            export PATH="$(brew --prefix openjdk@17)/bin:$PATH"
             ;;
     esac
 
@@ -421,6 +427,27 @@ setup_virtualenv() {
     fi
 
     log_success "Virtual environment configured"
+}
+
+setup_pdf_runtime() {
+    log_info "Verifying and staging the offline PDF validator..."
+    local runtime_dir="$INSTALL_PATH/runtime/verapdf"
+    local cache_dir="$INSTALL_PATH/.cache/pdf-runtime"
+    local vendor_script="$INSTALL_PATH/scripts/vendor_pdf_runtime.py"
+
+    if [[ ! -f "$vendor_script" ]]; then
+        log_error "PDF runtime vendor script missing: $vendor_script"
+        exit 1
+    fi
+    if [[ "$OS_TYPE" == "macos" ]]; then
+        export PATH="$(brew --prefix openjdk@17)/bin:$PATH"
+        "$INSTALL_PATH/venv/bin/python" "$vendor_script" \
+            --destination "$runtime_dir" --cache-dir "$cache_dir"
+    else
+        sudo -H -u "$SERVICE_USER" "$INSTALL_PATH/venv/bin/python" "$vendor_script" \
+            --destination "$runtime_dir" --cache-dir "$cache_dir"
+    fi
+    log_success "Verified veraPDF CLI staged at $runtime_dir"
 }
 
 check_node_version() {
@@ -540,6 +567,9 @@ LOG_LEVEL=$LOG_LEVEL
 
 # Enable file logging
 LOG_TO_FILE=true
+
+# Signed, version-pinned offline PDF/A validator
+VERAPDF_CLI=$INSTALL_PATH/runtime/verapdf/verapdf
 EOF
 
     if [[ "$OS_TYPE" == "macos" ]]; then
@@ -945,6 +975,7 @@ main() {
 
     download_printops
     setup_virtualenv
+    setup_pdf_runtime
     build_frontend
     create_directories
     create_env_file

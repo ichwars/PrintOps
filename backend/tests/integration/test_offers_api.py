@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.calculation import Calculation, CalculationRevision, CalculationVariant
 from backend.app.models.commerce import CustomerOrder, OfferAcceptance
+from backend.app.models.commercial_document import CommercialDocument, DocumentRelation
 from backend.app.models.number_sequence import NumberSequence
 from backend.app.models.small_part import SmallPart, SmallPartLedgerEntry, SmallPartUnit
 from backend.app.models.spool import Spool
@@ -12,7 +13,13 @@ from backend.app.models.stock_reservation import StockReservation
 
 
 async def _approved_revision(db_session, *, with_requirements: bool = False) -> CalculationRevision:
-    profile = BusinessProfile(name="Commerce", legal_name="Commerce GmbH", country_code="DE", default_currency="EUR")
+    profile = BusinessProfile(
+        name="Commerce",
+        legal_name="Commerce GmbH",
+        country_code="DE",
+        default_currency="EUR",
+        default_tax_rate=Decimal("7.00"),
+    )
     db_session.add(profile)
     await db_session.flush()
     db_session.add_all(
@@ -91,6 +98,15 @@ async def test_offer_draft_send_and_reject_do_not_reserve_stock(async_client, db
     assert created.status_code == 201, created.text
     assert created.json()["status"] == "draft"
     assert created.json()["number"].startswith("ANG-")
+    quotation = await db_session.scalar(
+        select(CommercialDocument).where(
+            CommercialDocument.source_offer_id == created.json()["id"],
+            CommercialDocument.document_type == "quotation",
+        )
+    )
+    assert quotation is not None
+    assert quotation.number == created.json()["number"]
+    assert quotation.tax_amount == Decimal("1.75")
     sent = await async_client.post(f"/api/v1/offers/{created.json()['id']}/send", json={"expected_version": 1})
     assert sent.status_code == 200, sent.text
     rejected = await async_client.post(f"/api/v1/offers/{created.json()['id']}/reject", json={"expected_version": 2})
@@ -136,3 +152,17 @@ async def test_accepting_sent_offer_creates_order_project_and_reservations_once(
     assert replay.json()["order"]["id"] == accepted.json()["order"]["id"]
     assert await db_session.scalar(select(func.count()).select_from(CustomerOrder)) == 1
     assert await db_session.scalar(select(func.count()).select_from(OfferAcceptance)) == 1
+    confirmation = await db_session.scalar(
+        select(CommercialDocument).where(
+            CommercialDocument.source_order_id == accepted.json()["order"]["id"],
+            CommercialDocument.document_type == "order_confirmation",
+        )
+    )
+    assert confirmation is not None
+    assert confirmation.number == accepted.json()["order"]["number"]
+    assert await db_session.scalar(
+        select(func.count()).select_from(DocumentRelation).where(
+            DocumentRelation.target_document_id == confirmation.id,
+            DocumentRelation.relation_type == "successor",
+        )
+    ) == 1

@@ -27,6 +27,9 @@ from backend.app.schemas.customer import (
     CustomerStatus,
     CustomerTaxIdentifierResponse,
     CustomerUpdate,
+    TaxDecisionRequest,
+    TaxDecisionResponse,
+    TaxOverrideRequest,
 )
 from backend.app.services import customer as customer_service
 from backend.app.services.order_errors import (
@@ -35,6 +38,14 @@ from backend.app.services.order_errors import (
     ResourceInUseError,
     ResourceNotFoundError,
     VersionConflictError,
+)
+from backend.app.services.tax_decision import (
+    TAX_RULES_2026_1,
+    TaxDecisionInput,
+    TaxOverride,
+    TaxOverrideActor,
+    determine_tax,
+    override_tax,
 )
 
 router = APIRouter(prefix="/customers", tags=["customers"])
@@ -284,6 +295,37 @@ async def create_customer(
     except OrderDomainError as exc:
         _raise_http_error(exc)
     return _serialize_customer(customer)
+
+
+@router.post("/tax-decisions/preview", response_model=TaxDecisionResponse)
+async def preview_tax_decision(
+    data: TaxDecisionRequest,
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_DRAFT),
+) -> TaxDecisionResponse:
+    decision = determine_tax(
+        TaxDecisionInput(**data.model_dump()),
+        TAX_RULES_2026_1,
+    )
+    return TaxDecisionResponse.model_validate(decision)
+
+
+@router.post("/tax-decisions/override", response_model=TaxDecisionResponse)
+async def create_tax_override(
+    data: TaxOverrideRequest,
+    user: User | None = RequirePermissionIfAuthEnabled(
+        Permission.COMMERCIAL_DOCUMENTS_TAX_OVERRIDE
+    ),
+) -> TaxDecisionResponse:
+    decision = determine_tax(
+        TaxDecisionInput(**data.facts.model_dump()),
+        TAX_RULES_2026_1,
+    )
+    overridden = override_tax(
+        decision,
+        TaxOverride(**data.override.model_dump()),
+        TaxOverrideActor(user_id=user.id if user is not None else 0, can_override=True),
+    )
+    return TaxDecisionResponse.model_validate(overridden)
 
 
 @router.get("/{customer_id}", response_model=CustomerDetailResponse)

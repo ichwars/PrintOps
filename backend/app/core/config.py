@@ -5,6 +5,8 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings
 
+from backend.app.core.paths import resolve_data_dir
+
 # Application version - single source of truth
 APP_VERSION = "0.2.5rc4"
 GITHUB_REPO = "ichwars/PrintOps"
@@ -26,6 +28,7 @@ _plate_cal_dir = Path(_data_dir_env) / "plate_calibration" if _data_dir_env else
 # Log directory - use LOG_DIR env var if set, otherwise use app_dir/logs
 _log_dir_env = os.environ.get("LOG_DIR")
 _log_dir = Path(_log_dir_env) if _log_dir_env else _app_dir / "logs"
+_document_data_dir = resolve_data_dir()
 
 
 def _migrate_database() -> Path:
@@ -93,9 +96,26 @@ class Settings(BaseSettings):
     app_dir: Path = _app_dir
     archive_dir: Path = _data_dir / "archive"
     business_profile_logo_dir: Path = _data_dir / "business-profile-logos"
+    document_layout_asset_dir: Path = _document_data_dir / "document-layout-assets"
+    document_render_artifact_dir: Path = _document_data_dir / "document-render-artifacts"
+    document_render_cache_dir: Path = _document_data_dir / "document-render-cache"
+    document_validation_report_dir: Path = _document_data_dir / "document-validation-reports"
+    document_render_timeout_seconds: float = 10.0
+    document_render_memory_limit_mb: int = 512
+    document_render_page_limit: int = 12
+    document_render_output_limit_mb: int = 25
+    document_render_cache_ttl_seconds: int = 30 * 60
+    document_render_cache_limit_mb: int = 250
+    document_validation_timeout_seconds: float = 30.0
     plate_calibration_dir: Path = _plate_cal_dir  # Plate detection references
     static_dir: Path = _app_dir / "static"  # Static files are part of app, not data
     log_dir: Path = _log_dir
+    verapdf_cli: Path | None = (
+        Path(os.environ["VERAPDF_CLI"]) if os.environ.get("VERAPDF_CLI") else None
+    )
+    weasyprint_cli: Path | None = (
+        Path(os.environ["WEASYPRINT_CLI"]) if os.environ.get("WEASYPRINT_CLI") else None
+    )
     database_url: str = _external_db_url or f"sqlite+aiosqlite:///{_db_path}"
 
     # Logging
@@ -154,5 +174,21 @@ for _env_key in os.environ:
 settings.archive_dir.mkdir(parents=True, exist_ok=True)
 settings.plate_calibration_dir.mkdir(parents=True, exist_ok=True)
 settings.static_dir.mkdir(exist_ok=True)
+
+
+def _ensure_private_directory(path: Path) -> None:
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    try:
+        path.chmod(0o700)
+    except OSError:
+        # Windows ACLs are governed by the installer/service account. These
+        # directories remain outside every StaticFiles mount.
+        pass
+
+
+_ensure_private_directory(settings.document_layout_asset_dir)
+_ensure_private_directory(settings.document_render_artifact_dir)
+_ensure_private_directory(settings.document_render_cache_dir)
+_ensure_private_directory(settings.document_validation_report_dir)
 if settings.log_to_file:
     settings.log_dir.mkdir(exist_ok=True)

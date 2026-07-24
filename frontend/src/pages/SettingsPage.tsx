@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Settings as SettingsIcon, Cog, QrCode, Heart, Workflow, Info, Building2 } from 'lucide-react';
+import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Settings as SettingsIcon, Cog, QrCode, Heart, Workflow, Info, Building2, PanelsTopLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
@@ -42,6 +42,8 @@ import { ExternalLinksSettings } from '../components/ExternalLinksSettings';
 import { VirtualPrinterList } from '../components/VirtualPrinterList';
 import { SpoolBuddySettings } from '../components/SpoolBuddySettings';
 import { BusinessProfileSettings } from '../components/settings/BusinessProfileSettings';
+import { DocumentSettings } from '../components/settings/documents/DocumentSettings';
+import { DocumentLayoutSettings } from '../components/settings/document-layout/DocumentLayoutSettings';
 import { CalculationSettings } from '../components/orders/calculation/CalculationSettings';
 import { SmallPartsSettings } from '../components/settings/SmallPartsSettings';
 import { WarehouseNumberSequenceSettings } from '../components/settings/WarehouseNumberSequenceSettings';
@@ -60,6 +62,7 @@ import { APIBrowser } from '../components/APIBrowser';
 import { defaultNavItems, getDefaultView, setDefaultView } from '../components/Layout';
 import { availableLanguages } from '../i18n';
 import { useToast } from '../contexts/ToastContext';
+import { useAutosaveDraft } from '../hooks/useAutosaveDraft';
 import { useTheme, type ThemeStyle, type DarkBackground, type LightBackground, type ThemeAccent } from '../contexts/ThemeContext';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Palette } from 'lucide-react';
@@ -94,6 +97,8 @@ registerSettingsSearch({ labelKey: 'settings.camera', tab: 'printers-production'
 registerSettingsSearch({ labelKey: 'settings.defaultPrinter', labelFallback: 'Default Printer', tab: 'printers-production', printerProductionSubTab: 'devices', keywords: 'default printer preferred printer fallback printer selection', anchor: 'card-default-printer' });
 registerSettingsSearch({ labelKey: 'settings.costTracking', tab: 'orders-calculation', orderManagementSubTab: 'calculation', keywords: 'currency filament cost energy kwh price', anchor: 'card-cost' });
 registerSettingsSearch({ labelKey: 'orders.businessProfile.title', tab: 'orders-calculation', orderManagementSubTab: 'business-profile', keywords: 'business company seller issuer tax bank country currency', anchor: 'card-business-profile' });
+registerSettingsSearch({ labelKey: 'settings.documents.title', labelFallback: 'Document settings', tab: 'orders-calculation', orderManagementSubTab: 'documents', keywords: 'documents templates invoice quotation payment tax e-invoice xrechnung zugferd', anchor: 'card-document-settings' });
+registerSettingsSearch({ labelKey: 'settings.documentLayout.title', labelFallback: 'Format & Preview', tab: 'orders-calculation', orderManagementSubTab: 'format-preview', keywords: 'format preview layout pdf a4 letter logo letterhead typography footer zugferd xrechnung', anchor: 'card-document-layout-settings' });
 registerSettingsSearch({ labelKey: 'settings.fileManager', tab: 'projects-files', projectManagementSubTab: 'files', keywords: 'file manager archive mode disk warning storage', anchor: 'card-filemanager' });
 registerSettingsSearch({ labelKey: 'settings.updates', tab: 'operations', operationSubTab: 'updates', keywords: 'updates version firmware beta check', anchor: 'card-updates' });
 registerSettingsSearch({ labelKey: 'settings.dataManagement', tab: 'operations', operationSubTab: 'data-management', keywords: 'data clear logs notifications storage backup restore', anchor: 'card-data' });
@@ -451,6 +456,24 @@ const ORDER_MANAGEMENT_SUB_TABS: Record<OrderManagementSubTab, SettingsHeaderMet
     descriptionFallbackDe: 'Unternehmensdaten für die Ausstellung kaufmännischer Dokumente verwalten.',
     icon: Building2,
   },
+  documents: {
+    labelKey: 'settings.tabs.orderManagementDocuments',
+    fallback: 'Documents',
+    fallbackDe: 'Dokumente',
+    descriptionKey: 'settings.orderManagementSubTabDescriptions.documents',
+    descriptionFallback: 'Configure versioned document rules, payment terms, tax handling, and electronic invoices.',
+    descriptionFallbackDe: 'Versionierte Dokumentregeln, Zahlungsbedingungen, Steuerbehandlung und E-Rechnungen konfigurieren.',
+    icon: FileText,
+  },
+  'format-preview': {
+    labelKey: 'settings.tabs.orderManagementFormatPreview',
+    fallback: 'Format & Preview',
+    fallbackDe: 'Format & Vorschau',
+    descriptionKey: 'settings.orderManagementSubTabDescriptions.formatPreview',
+    descriptionFallback: 'Design versioned PDF layouts, verify real previews, and control publishing readiness.',
+    descriptionFallbackDe: 'Versionierte PDF-Layouts gestalten, echte Vorschauen prüfen und die Freigabebereitschaft steuern.',
+    icon: PanelsTopLeft,
+  },
   calculation: {
     labelKey: 'settings.tabs.orderManagementCalculation',
     fallback: 'Calculation',
@@ -464,6 +487,8 @@ const ORDER_MANAGEMENT_SUB_TABS: Record<OrderManagementSubTab, SettingsHeaderMet
 
 const ORDER_MANAGEMENT_SUB_TAB_ITEMS: Array<{ id: OrderManagementSubTab; meta: SettingsHeaderMeta }> = [
   { id: 'business-profile', meta: ORDER_MANAGEMENT_SUB_TABS['business-profile'] },
+  { id: 'documents', meta: ORDER_MANAGEMENT_SUB_TABS.documents },
+  { id: 'format-preview', meta: ORDER_MANAGEMENT_SUB_TABS['format-preview'] },
   { id: 'calculation', meta: ORDER_MANAGEMENT_SUB_TABS.calculation },
 ];
 
@@ -485,6 +510,8 @@ const legacySearchTabByAnchor: Record<string, string> = {
   'card-archive': 'printers-production',
   'card-camera': 'printers-production',
   'card-cost': 'orders-calculation',
+  'card-document-settings': 'orders-calculation',
+  'card-document-layout-settings': 'orders-calculation',
   'card-filemanager': 'projects-files',
   'card-updates': 'operations',
   'card-data': 'operations',
@@ -1576,10 +1603,7 @@ export function SettingsPage() {
     },
   });
 
-  // Ref for debounce timeout
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingGcodeSnippetsRef = useRef<string | null>(null);
-  const isSavingRef = useRef(false);
   const isInitialLoadRef = useRef(true);
 
   // Sync local state when settings load
@@ -1598,31 +1622,15 @@ export function SettingsPage() {
     }
   }, [settings, localSettings]);
 
-  const updateMutation = useMutation({
-    mutationFn: api.updateSettings,
-    onSuccess: (data) => {
+  const immediateSettingsMutation = useMutation({
+    mutationFn: (data: AppSettingsUpdate) => api.updateSettings(data),
+    onSuccess: data => {
       queryClient.setQueryData(['settings'], data);
-      // Don't call setLocalSettings(data) here — it would overwrite in-progress
-      // user input (e.g. typing a hostname) with the stale saved snapshot,
-      // causing the text field to reset mid-typing. Instead, let the useEffect
-      // re-compare the updated `settings` with current `localSettings` and
-      // debounce-save any remaining differences.
       queryClient.invalidateQueries({ queryKey: ['archiveStats'] });
       showToast(t('settings.toast.settingsSaved'), 'success');
     },
     onError: (error: Error) => {
       showToast(`Failed to save: ${error.message}`, 'error');
-      // No localSettings rollback here — the existing comment above (see
-      // onSuccess) already flags that overwriting localSettings would discard
-      // in-progress user input (e.g. typing a hostname). The no-permission
-      // loop is already prevented by the up-front guards in updateSetting and
-      // in the debounced-save effect, so this onError path now only fires for
-      // genuine server/network failures where preserving typed-in values is
-      // the right call.
-    },
-    onSettled: () => {
-      // Reset saving flag when mutation completes (success or error)
-      isSavingRef.current = false;
     },
   });
 
@@ -1638,24 +1646,10 @@ export function SettingsPage() {
     },
   });
 
-  // Debounced auto-save when localSettings change
-  useEffect(() => {
-    // Skip if initial load or no settings
-    if (isInitialLoadRef.current || !localSettings || !settings) {
-      return;
-    }
-
-    // Safety net: skip auto-save entirely when the user lacks settings:update.
-    // The actual user feedback (toast + revert) lives in updateSetting below,
-    // which runs once per click. Doing it here as well would fire on every
-    // React render since the debounced-save effect depends on non-stable refs.
-    if (authEnabled && !hasPermission('settings:update')) {
-      return;
-    }
-
-    // Check if there are actual changes
-    const hasChanges =
-      settings.auto_archive !== localSettings.auto_archive ||
+  const hasSettingsChanges = Boolean(
+    localSettings &&
+    settings &&
+    (settings.auto_archive !== localSettings.auto_archive ||
       settings.save_thumbnails !== localSettings.save_thumbnails ||
       settings.capture_finish_photo !== localSettings.capture_finish_photo ||
       settings.default_filament_cost !== localSettings.default_filament_cost ||
@@ -1730,118 +1724,115 @@ export function SettingsPage() {
       (settings.bed_temp_presets ?? '') !== (localSettings.bed_temp_presets ?? '') ||
       (settings.chamber_temp_presets ?? '') !== (localSettings.chamber_temp_presets ?? '') ||
       (settings.fan_speed_presets ?? '') !== (localSettings.fan_speed_presets ?? '') ||
-      (settings.session_max_hours ?? 24) !== (localSettings.session_max_hours ?? 24);
+      (settings.session_max_hours ?? 24) !== (localSettings.session_max_hours ?? 24))
+  );
 
-    if (!hasChanges) {
-      return;
-    }
+  const settingsToSave: AppSettingsUpdate | null = localSettings ? {
+        auto_archive: localSettings!.auto_archive,
+        save_thumbnails: localSettings!.save_thumbnails,
+        capture_finish_photo: localSettings!.capture_finish_photo,
+        default_filament_cost: localSettings!.default_filament_cost,
+        currency: localSettings!.currency,
+        energy_cost_per_kwh: localSettings!.energy_cost_per_kwh,
+        energy_tracking_mode: localSettings!.energy_tracking_mode,
+        check_updates: localSettings!.check_updates,
+        check_printer_firmware: localSettings!.check_printer_firmware,
+        include_beta_updates: localSettings!.include_beta_updates,
+        local_login_enabled: localSettings!.local_login_enabled,
+        notification_language: localSettings!.notification_language,
+        bed_cooled_threshold: localSettings!.bed_cooled_threshold,
+        ams_humidity_good: localSettings!.ams_humidity_good,
+        ams_humidity_fair: localSettings!.ams_humidity_fair,
+        ams_temp_good: localSettings!.ams_temp_good,
+        ams_temp_fair: localSettings!.ams_temp_fair,
+        ams_history_retention_days: localSettings!.ams_history_retention_days,
+        disable_filament_warnings: localSettings!.disable_filament_warnings,
+        prefer_lowest_filament: localSettings!.prefer_lowest_filament,
+        small_parts_default_minimum_stock: localSettings!.small_parts_default_minimum_stock,
+        small_parts_low_stock_warning: localSettings!.small_parts_low_stock_warning,
+        queue_drying_enabled: localSettings!.queue_drying_enabled,
+        queue_drying_block: localSettings!.queue_drying_block,
+        ambient_drying_enabled: localSettings!.ambient_drying_enabled,
+        print_drying_enabled: localSettings!.print_drying_enabled,
+        drying_presets: localSettings!.drying_presets,
+        ams_humidity_thresholds: localSettings!.ams_humidity_thresholds,
+        per_printer_mapping_expanded: localSettings!.per_printer_mapping_expanded,
+        date_format: localSettings!.date_format,
+        time_format: localSettings!.time_format,
+        default_printer_id: localSettings!.default_printer_id,
+        ftp_retry_enabled: localSettings!.ftp_retry_enabled,
+        ftp_retry_count: localSettings!.ftp_retry_count,
+        ftp_retry_delay: localSettings!.ftp_retry_delay,
+        ftp_timeout: localSettings!.ftp_timeout,
+        mqtt_enabled: localSettings!.mqtt_enabled,
+        mqtt_broker: localSettings!.mqtt_broker,
+        mqtt_port: localSettings!.mqtt_port,
+        mqtt_username: localSettings!.mqtt_username,
+        mqtt_password: localSettings!.mqtt_password,
+        mqtt_topic_prefix: localSettings!.mqtt_topic_prefix,
+        mqtt_use_tls: localSettings!.mqtt_use_tls,
+        external_url: localSettings!.external_url,
+        ha_enabled: localSettings!.ha_enabled,
+        ha_url: localSettings!.ha_url,
+        ha_token: localSettings!.ha_token,
+        library_archive_mode: localSettings!.library_archive_mode,
+        library_disk_warning_gb: localSettings!.library_disk_warning_gb,
+        camera_view_mode: localSettings!.camera_view_mode,
+        preferred_slicer: localSettings!.preferred_slicer,
+        open_in_slicer: localSettings!.open_in_slicer,
+        use_slicer_api: localSettings!.use_slicer_api,
+        orcaslicer_api_url: localSettings!.orcaslicer_api_url,
+        bambu_studio_api_url: localSettings!.bambu_studio_api_url,
+        prometheus_enabled: localSettings!.prometheus_enabled,
+        prometheus_token: localSettings!.prometheus_token,
+        user_notifications_enabled: localSettings!.user_notifications_enabled,
+        default_bed_levelling: localSettings!.default_bed_levelling,
+        default_flow_cali: localSettings!.default_flow_cali,
+        default_vibration_cali: localSettings!.default_vibration_cali,
+        default_layer_inspect: localSettings!.default_layer_inspect,
+        default_timelapse: localSettings!.default_timelapse,
+        default_nozzle_offset_cali: localSettings!.default_nozzle_offset_cali,
+        stagger_group_size: localSettings!.stagger_group_size,
+        stagger_interval_minutes: localSettings!.stagger_interval_minutes,
+        require_plate_clear: localSettings!.require_plate_clear,
+        preheat_enabled: localSettings!.preheat_enabled,
+        preheat_filament_targets: localSettings!.preheat_filament_targets,
+        preheat_max_wait_seconds: localSettings!.preheat_max_wait_seconds,
+        preheat_soak_seconds: localSettings!.preheat_soak_seconds,
+        nozzle_temp_presets: localSettings!.nozzle_temp_presets,
+        bed_temp_presets: localSettings!.bed_temp_presets,
+        chamber_temp_presets: localSettings!.chamber_temp_presets,
+        fan_speed_presets: localSettings!.fan_speed_presets,
+        session_max_hours: localSettings!.session_max_hours,
+      } : null;
 
-    // Don't queue more saves while one is in progress
-    if (isSavingRef.current) {
-      return;
-    }
-
-    // Clear existing timeout
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-
-    // Set new debounced save (500ms delay)
-    saveTimeoutRef.current = setTimeout(() => {
-      // Skip if a save is already in progress
-      if (isSavingRef.current) {
-        return;
-      }
-      isSavingRef.current = true;
-      // Only send the fields we manage on this page (exclude virtual_printer_* which are managed separately)
-      const settingsToSave: AppSettingsUpdate = {
-        auto_archive: localSettings.auto_archive,
-        save_thumbnails: localSettings.save_thumbnails,
-        capture_finish_photo: localSettings.capture_finish_photo,
-        default_filament_cost: localSettings.default_filament_cost,
-        currency: localSettings.currency,
-        energy_cost_per_kwh: localSettings.energy_cost_per_kwh,
-        energy_tracking_mode: localSettings.energy_tracking_mode,
-        check_updates: localSettings.check_updates,
-        check_printer_firmware: localSettings.check_printer_firmware,
-        include_beta_updates: localSettings.include_beta_updates,
-        local_login_enabled: localSettings.local_login_enabled,
-        notification_language: localSettings.notification_language,
-        bed_cooled_threshold: localSettings.bed_cooled_threshold,
-        ams_humidity_good: localSettings.ams_humidity_good,
-        ams_humidity_fair: localSettings.ams_humidity_fair,
-        ams_temp_good: localSettings.ams_temp_good,
-        ams_temp_fair: localSettings.ams_temp_fair,
-        ams_history_retention_days: localSettings.ams_history_retention_days,
-        disable_filament_warnings: localSettings.disable_filament_warnings,
-        prefer_lowest_filament: localSettings.prefer_lowest_filament,
-        small_parts_default_minimum_stock: localSettings.small_parts_default_minimum_stock,
-        small_parts_low_stock_warning: localSettings.small_parts_low_stock_warning,
-        queue_drying_enabled: localSettings.queue_drying_enabled,
-        queue_drying_block: localSettings.queue_drying_block,
-        ambient_drying_enabled: localSettings.ambient_drying_enabled,
-        print_drying_enabled: localSettings.print_drying_enabled,
-        drying_presets: localSettings.drying_presets,
-        ams_humidity_thresholds: localSettings.ams_humidity_thresholds,
-        per_printer_mapping_expanded: localSettings.per_printer_mapping_expanded,
-        date_format: localSettings.date_format,
-        time_format: localSettings.time_format,
-        default_printer_id: localSettings.default_printer_id,
-        ftp_retry_enabled: localSettings.ftp_retry_enabled,
-        ftp_retry_count: localSettings.ftp_retry_count,
-        ftp_retry_delay: localSettings.ftp_retry_delay,
-        ftp_timeout: localSettings.ftp_timeout,
-        mqtt_enabled: localSettings.mqtt_enabled,
-        mqtt_broker: localSettings.mqtt_broker,
-        mqtt_port: localSettings.mqtt_port,
-        mqtt_username: localSettings.mqtt_username,
-        mqtt_password: localSettings.mqtt_password,
-        mqtt_topic_prefix: localSettings.mqtt_topic_prefix,
-        mqtt_use_tls: localSettings.mqtt_use_tls,
-        external_url: localSettings.external_url,
-        ha_enabled: localSettings.ha_enabled,
-        ha_url: localSettings.ha_url,
-        ha_token: localSettings.ha_token,
-        library_archive_mode: localSettings.library_archive_mode,
-        library_disk_warning_gb: localSettings.library_disk_warning_gb,
-        camera_view_mode: localSettings.camera_view_mode,
-        preferred_slicer: localSettings.preferred_slicer,
-        open_in_slicer: localSettings.open_in_slicer,
-        use_slicer_api: localSettings.use_slicer_api,
-        orcaslicer_api_url: localSettings.orcaslicer_api_url,
-        bambu_studio_api_url: localSettings.bambu_studio_api_url,
-        prometheus_enabled: localSettings.prometheus_enabled,
-        prometheus_token: localSettings.prometheus_token,
-        user_notifications_enabled: localSettings.user_notifications_enabled,
-        default_bed_levelling: localSettings.default_bed_levelling,
-        default_flow_cali: localSettings.default_flow_cali,
-        default_vibration_cali: localSettings.default_vibration_cali,
-        default_layer_inspect: localSettings.default_layer_inspect,
-        default_timelapse: localSettings.default_timelapse,
-        default_nozzle_offset_cali: localSettings.default_nozzle_offset_cali,
-        stagger_group_size: localSettings.stagger_group_size,
-        stagger_interval_minutes: localSettings.stagger_interval_minutes,
-        require_plate_clear: localSettings.require_plate_clear,
-        preheat_enabled: localSettings.preheat_enabled,
-        preheat_filament_targets: localSettings.preheat_filament_targets,
-        preheat_max_wait_seconds: localSettings.preheat_max_wait_seconds,
-        preheat_soak_seconds: localSettings.preheat_soak_seconds,
-        nozzle_temp_presets: localSettings.nozzle_temp_presets,
-        bed_temp_presets: localSettings.bed_temp_presets,
-        chamber_temp_presets: localSettings.chamber_temp_presets,
-        fan_speed_presets: localSettings.fan_speed_presets,
-        session_max_hours: localSettings.session_max_hours,
-      };
-      updateMutation.mutate(settingsToSave);
-    }, 500);
-
-    // Cleanup on unmount or when localSettings changes again
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, [localSettings, settings, updateMutation, authEnabled, hasPermission, showToast, t]);
+  const saveSettingsDraft = useCallback(
+    (draft: AppSettingsUpdate, signal: AbortSignal) => api.updateSettings(draft, signal),
+    [],
+  );
+  const handleSettingsConfirmed = useCallback((data: AppSettings) => {
+    queryClient.setQueryData(['settings'], data);
+    queryClient.invalidateQueries({ queryKey: ['archiveStats'] });
+    showToast(t('settings.toast.settingsSaved'), 'success');
+  }, [queryClient, showToast, t]);
+  const settingsAutosave = useAutosaveDraft({
+    draft: settingsToSave ?? {},
+    enabled:
+      !isInitialLoadRef.current &&
+      settingsToSave !== null &&
+      hasSettingsChanges &&
+      (!authEnabled || hasPermission('settings:update')),
+    fingerprint: draft => JSON.stringify(draft),
+    adapter: saveSettingsDraft,
+    onConfirmed: handleSettingsConfirmed,
+  });
+  const lastAutosaveErrorRef = useRef<Error | null>(null);
+  useEffect(() => {
+    if (settingsAutosave.status !== 'error' || !settingsAutosave.error) return;
+    if (lastAutosaveErrorRef.current === settingsAutosave.error) return;
+    lastAutosaveErrorRef.current = settingsAutosave.error;
+    showToast(`Failed to save: ${settingsAutosave.error.message}`, 'error');
+  }, [settingsAutosave.error, settingsAutosave.status, showToast]);
 
   const updateSetting = useCallback(<K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     // Gate at the point of user interaction (not in the debounced-save effect —
@@ -3647,6 +3638,15 @@ export function SettingsPage() {
       />
     ) : null;
 
+  const settingsAutosaveLabel =
+    settingsAutosave.status === 'pending' || settingsAutosave.status === 'saving'
+      ? t('common.saving', 'Saving...')
+      : settingsAutosave.status === 'saved'
+        ? t('settings.toast.settingsSaved', 'Settings saved')
+        : settingsAutosave.status === 'error'
+          ? `${t('common.error', 'Error')} · ${t('common.retry', 'Retry')}`
+          : null;
+
   return (
     <CardDensityProvider density="dense">
     <div className="p-4 md:p-8">
@@ -3657,6 +3657,19 @@ export function SettingsPage() {
             {settingsPageTitle}
           </h1>
           <p className="text-bambu-gray mt-1">{settingsPageDescription}</p>
+          {settingsAutosaveLabel ? (
+            <div
+              role="status"
+              data-testid="settings-autosave-status"
+              className={`mt-1 text-xs ${settingsAutosave.status === 'error' ? 'text-red-400' : 'text-bambu-gray'}`}
+            >
+              {settingsAutosave.status === 'error' ? (
+                <Button variant="unstyled" onClick={settingsAutosave.retry} className="text-red-400 hover:text-red-300">
+                  {settingsAutosaveLabel}
+                </Button>
+              ) : settingsAutosaveLabel}
+            </div>
+          ) : null}
         </div>
         {/* Cross-tab search */}
         <div className="relative sm:w-72">
@@ -3768,7 +3781,7 @@ export function SettingsPage() {
                         return;
                       }
                       i18n.changeLanguage(newLang);
-                      updateMutation.mutate({ language: newLang });
+                      immediateSettingsMutation.mutate({ language: newLang });
                     }}
                     options={availableLanguages.map((lang) => ({
                       value: lang.code,
@@ -4011,6 +4024,18 @@ export function SettingsPage() {
       {activeTab === 'orders-calculation' && orderManagementSubTab === 'business-profile' && (
         <div className="w-full">
           <BusinessProfileSettings />
+        </div>
+      )}
+
+      {activeTab === 'orders-calculation' && orderManagementSubTab === 'documents' && (
+        <div className="w-full">
+          <DocumentSettings />
+        </div>
+      )}
+
+      {activeTab === 'orders-calculation' && orderManagementSubTab === 'format-preview' && (
+        <div id="card-document-layout-settings" className="w-full">
+          <DocumentLayoutSettings />
         </div>
       )}
 
@@ -5629,7 +5654,7 @@ export function SettingsPage() {
 
                 const saveGcodeSnippets = () => {
                   if (pendingGcodeSnippetsRef.current !== null) {
-                    updateMutation.mutate({ gcode_snippets: pendingGcodeSnippetsRef.current });
+                    immediateSettingsMutation.mutate({ gcode_snippets: pendingGcodeSnippetsRef.current });
                     pendingGcodeSnippetsRef.current = null;
                   }
                 };

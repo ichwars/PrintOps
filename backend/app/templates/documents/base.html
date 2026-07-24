@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="{{ document.language }}">
+<head>
+  <meta charset="utf-8">
+  <style>{{ trusted_css }}</style>
+</head>
+<body class="document {% block body_class %}template-classic{% endblock %}">
+  <header class="document-header">
+    <section class="company-header" aria-label="Sender">
+      {% if layout.header.show_logo %}<div class="logo-slot" aria-label="Logo"></div>{% endif %}
+      {% if layout.header.show_company_details %}
+      <div class="company-details">
+        <strong>{{ document.sender.name }}</strong>
+        <span>{{ document.sender.address.street }}</span>
+        <span>{{ document.sender.address.postal_code }} {{ document.sender.address.city }}</span>
+      </div>
+      {% endif %}
+    </section>
+    {% if layout.header.show_sender_line %}
+    <p class="sender-line">{{ document.sender.name }} · {{ document.sender.address.street }} · {{ document.sender.address.postal_code }} {{ document.sender.address.city }}</p>
+    {% endif %}
+    <section class="recipient" aria-label="Recipient">
+      <strong>{{ document.recipient.name }}</strong>
+      <span>{{ document.recipient.address.street }}</span>
+      <span>{{ document.recipient.address.postal_code }} {{ document.recipient.address.city }}</span>
+    </section>
+    <dl class="metadata">
+      <div><dt>{{ document.header.number_label }}</dt><dd>{{ document.header.number }}</dd></div>
+      <div><dt>{{ document.header.issue_date_label }}</dt><dd>{{ document.header.issue_date }}</dd></div>
+      {% if document.header.service_date %}<div><dt>{{ document.header.service_date_label }}</dt><dd>{{ document.header.service_date }}</dd></div>{% endif %}
+      {% if document.header.due_date %}<div><dt>{{ document.header.due_date_label }}</dt><dd>{{ document.header.due_date }}</dd></div>{% endif %}
+      {% if document.recipient.customer_number %}<div><dt>Kundennr.</dt><dd>{{ document.recipient.customer_number }}</dd></div>{% endif %}
+    </dl>
+  </header>
+
+  <main>
+    {% for text in document.texts if text.purpose == "intro" %}<p class="intro">{{ text.text }}</p>{% endfor %}
+    {% if layout.title.show_title %}<h1>{{ document.header.title }} {{ document.header.number }}</h1>{% endif %}
+    {% for reference in document.references %}<p class="reference">{{ reference }}</p>{% endfor %}
+
+    <table class="positions table-{{ layout.positions.table_style }}">
+      <thead><tr>
+        {% if layout.positions.show_position_number %}<th class="number">Pos.</th>{% endif %}
+        <th class="description">Bezeichnung</th>
+        {% if layout.positions.show_quantity %}<th class="quantity">Menge</th>{% endif %}
+        {% if layout.positions.show_unit %}<th class="unit">Einheit</th>{% endif %}
+        {% if document.capabilities.show_amounts and layout.positions.show_unit_price %}<th class="money">Einzel</th>{% endif %}
+        {% if document.capabilities.show_amounts and layout.positions.show_total %}<th class="money">Gesamt</th>{% endif %}
+      </tr></thead>
+      <tbody>
+      {% for position in document.positions %}
+        <tr class="position-row">
+          {% if layout.positions.show_position_number %}<td class="number">{{ position.position }}</td>{% endif %}
+          <td class="description">
+            <strong>{{ position.description }}</strong>
+            {% if layout.technical.enabled and position.technical %}
+            <dl class="technical">
+              {% if layout.technical.show_printer and position.technical.printer %}<div><dt>Drucker</dt><dd>{{ position.technical.printer }}</dd></div>{% endif %}
+              {% if layout.technical.show_plate and position.technical.plate %}<div><dt>Platte</dt><dd>{{ position.technical.plate }}</dd></div>{% endif %}
+              {% if layout.technical.show_material and position.technical.material %}<div><dt>Material</dt><dd>{{ position.technical.material }}</dd></div>{% endif %}
+              {% if layout.technical.show_print_time and position.technical.print_time %}<div><dt>Druckzeit</dt><dd>{{ position.technical.print_time }}</dd></div>{% endif %}
+              {% if layout.technical.show_weight and position.technical.weight %}<div><dt>Gewicht</dt><dd>{{ position.technical.weight }}</dd></div>{% endif %}
+            </dl>
+            {% endif %}
+          </td>
+          {% if layout.positions.show_quantity %}<td class="quantity">{{ position.quantity }}</td>{% endif %}
+          {% if layout.positions.show_unit %}<td class="unit">{{ position.unit }}</td>{% endif %}
+          {% if document.capabilities.show_amounts and layout.positions.show_unit_price %}<td class="money">{{ position.unit_price }}</td>{% endif %}
+          {% if document.capabilities.show_amounts and layout.positions.show_total %}<td class="money">{{ position.net_amount }}</td>{% endif %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% if document.capabilities.show_amounts %}
+    <section class="totals-block">
+      <dl class="totals">
+        <div><dt>Zwischensumme</dt><dd>{{ document.totals.line_net }}</dd></div>
+        {% if document.totals.discount %}<div><dt>Rabatt</dt><dd>{{ document.totals.discount }}</dd></div>{% endif %}
+        <div><dt>Netto</dt><dd>{{ document.totals.net }}</dd></div>
+        {% if document.capabilities.has_tax %}<div><dt>Steuer</dt><dd>{{ document.totals.tax }}</dd></div>{% endif %}
+        <div class="grand-total"><dt>Gesamt</dt><dd>{{ document.totals.payable }}</dd></div>
+      </dl>
+      {% if document.capabilities.has_tax %}
+      <table class="taxes"><tbody>{% for tax in document.taxes %}<tr><td>{{ tax.category_code }} · {{ tax.rate }}</td><td>{{ tax.basis }}</td><td>{{ tax.amount }}</td></tr>{% endfor %}</tbody></table>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="payment-notes">
+      {% if document.payment.term_text %}<p>{{ document.payment.term_text }}</p>{% endif %}
+      {% if document.payment.discount_text %}<p>{{ document.payment.discount_text }}</p>{% endif %}
+      {% for text in document.texts if text.purpose not in ("intro", "footer") %}<p class="note note-{{ text.purpose }}">{{ text.text }}</p>{% endfor %}
+    </section>
+    {% for text in document.texts if text.purpose == "closing" %}<p class="closing">{{ text.text }}</p>{% endfor %}
+  </main>
+
+  {% if layout.footer.enabled %}
+  <footer class="document-footer columns-{{ layout.footer.column_layout }}">
+    {% if layout.footer.show_company_data %}<div>{{ document.footer.company }}</div>{% endif %}
+    {% if layout.footer.show_tax_data %}<div>{{ document.footer.tax }}</div>{% endif %}
+    {% if layout.footer.show_bank_data %}<div>{{ document.footer.bank }}</div>{% endif %}
+    {% if layout.footer.show_additional_notes and document.footer.note %}<div>{{ document.footer.note }}</div>{% endif %}
+    {% if layout.footer.show_page_numbers %}<div class="page-number" aria-label="Page number"></div>{% endif %}
+  </footer>
+  {% endif %}
+</body>
+</html>

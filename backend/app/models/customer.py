@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -25,6 +26,9 @@ from backend.app.core.text_normalization import (
     normalize_case_insensitive_key,
     normalize_tag_name_key,
 )
+
+if TYPE_CHECKING:
+    from backend.app.models.document_configuration import CustomerDocumentPreference
 
 # NFKC plus casefold can expand one code point to at most 18 code points in
 # Python's current Unicode database, so persisted keys reserve that full width.
@@ -131,6 +135,14 @@ class CustomerAccount(Base):
     delivery_terms: Mapped[str | None] = mapped_column(Text, nullable=True)
     discount_percent: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("0"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    document_preference: Mapped[CustomerDocumentPreference | None] = relationship(
+        "CustomerDocumentPreference",
+        back_populates="account",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        single_parent=True,
+        uselist=False,
+    )
 
     @validates("number")
     def populate_number_key(self, _key: str, value: str) -> str:

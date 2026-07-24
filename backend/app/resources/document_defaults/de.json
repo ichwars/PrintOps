@@ -1,0 +1,77 @@
+{
+  "language": "de",
+  "defaults": {
+    "validity_days": 14,
+    "payment_term_days": 14,
+    "include_calculation_data": true,
+    "use_payment_term_in_invoice_text": true
+  },
+  "payment_terms": "Zahlbar bis zum {DUE_DATE} ohne Abzug, sofern im Dokument keine abweichende Skontoregel ausgewiesen ist.",
+  "documents": {
+    "quotation": {
+      "subject": "Angebot {DOCUMENT_NUMBER}",
+      "intro": "vielen Dank für Ihre Anfrage. Gerne bieten wir Ihnen die nachfolgend beschriebenen Leistungen an.",
+      "closing": "Dieses Angebot ist bis zum {VALID_UNTIL} gültig. Bei Rückfragen stehen wir Ihnen gerne zur Verfügung."
+    },
+    "order_confirmation": {
+      "subject": "Auftragsbestätigung {DOCUMENT_NUMBER}",
+      "intro": "vielen Dank für Ihren Auftrag. Wir bestätigen die Ausführung mit den nachfolgenden Positionen und Bedingungen.",
+      "closing": "Bitte prüfen Sie diese Auftragsbestätigung und teilen Sie uns Abweichungen unverzüglich mit."
+    },
+    "delivery_note": {
+      "subject": "Lieferschein {DOCUMENT_NUMBER}",
+      "intro": "Die nachfolgend aufgeführten Positionen wurden für die angegebene Lieferung bereitgestellt.",
+      "closing": "Bitte prüfen Sie die Lieferung auf Vollständigkeit und erkennbare Transportschäden."
+    },
+    "advance_invoice": {
+      "subject": "Anzahlungsrechnung {DOCUMENT_NUMBER}",
+      "intro": "für den Auftrag {ORDER_REFERENCE} berechnen wir die vereinbarte Anzahlung.",
+      "closing": "Bitte überweisen Sie den Zahlbetrag unter Angabe der Rechnungsnummer bis zum {DUE_DATE}."
+    },
+    "progress_invoice": {
+      "subject": "Abschlagsrechnung {DOCUMENT_NUMBER}",
+      "intro": "für die bis zum {SERVICE_DATE} erbrachten Teilleistungen berechnen wir den nachfolgenden Abschlag.",
+      "closing": "Bitte überweisen Sie den Zahlbetrag unter Angabe der Rechnungsnummer bis zum {DUE_DATE}."
+    },
+    "final_invoice": {
+      "subject": "Schlussrechnung {DOCUMENT_NUMBER}",
+      "intro": "für die vollständig erbrachten Leistungen stellen wir die Schlussrechnung unter Berücksichtigung aller Anzahlungen und Abschläge.",
+      "closing": "Der verbleibende Zahlbetrag ist unter Angabe der Rechnungsnummer bis zum {DUE_DATE} zu überweisen."
+    },
+    "invoice": {
+      "subject": "Rechnung {DOCUMENT_NUMBER}",
+      "intro": "für die erbrachten Leistungen berechnen wir die nachfolgend aufgeführten Positionen.",
+      "closing": "Bitte überweisen Sie den Zahlbetrag unter Angabe der Rechnungsnummer bis zum {DUE_DATE}."
+    },
+    "cancellation_invoice": {
+      "subject": "Stornorechnung {DOCUMENT_NUMBER} zu {ORIGINAL_DOCUMENT_NUMBER}",
+      "intro": "die Rechnung {ORIGINAL_DOCUMENT_NUMBER} wird aus dem angegebenen Grund vollständig storniert.",
+      "closing": "Diese Stornorechnung ist gemeinsam mit dem referenzierten Originalbeleg aufzubewahren."
+    },
+    "invoice_correction": {
+      "subject": "Rechnungskorrektur {DOCUMENT_NUMBER} zu {ORIGINAL_DOCUMENT_NUMBER}",
+      "intro": "die Rechnung {ORIGINAL_DOCUMENT_NUMBER} wird aus dem angegebenen Grund korrigiert.",
+      "closing": "Diese Rechnungskorrektur ist gemeinsam mit dem referenzierten Originalbeleg aufzubewahren."
+    },
+    "commercial_credit_note": {
+      "subject": "Gutschrift {DOCUMENT_NUMBER}",
+      "intro": "für den referenzierten Geschäftsvorgang schreiben wir Ihnen den nachfolgenden Betrag gut.",
+      "closing": "Die Gutschrift wird mit offenen Forderungen verrechnet oder auf die vereinbarte Zahlungsart erstattet."
+    },
+    "payment_reminder": {
+      "subject": "Zahlungserinnerung zu {ORIGINAL_DOCUMENT_NUMBER}",
+      "intro": "bei der Prüfung unseres Kontos konnten wir für die Rechnung {ORIGINAL_DOCUMENT_NUMBER} noch keinen vollständigen Zahlungseingang feststellen.",
+      "closing": "Bitte begleichen Sie den offenen Betrag von {OPEN_AMOUNT} {CURRENCY} bis zum {DUE_DATE}. Falls Sie bereits gezahlt haben, betrachten Sie dieses Schreiben bitte als gegenstandslos."
+    },
+    "dunning_notice": {
+      "subject": "Mahnung Stufe {DUNNING_LEVEL} zu {ORIGINAL_DOCUMENT_NUMBER}",
+      "intro": "die Rechnung {ORIGINAL_DOCUMENT_NUMBER} ist trotz Fälligkeit noch nicht vollständig ausgeglichen.",
+      "closing": "Bitte begleichen Sie den ausgewiesenen Gesamtbetrag bis zum {DUE_DATE}."
+    },
+    "self_billing": {
+      "subject": "Gutschrift {DOCUMENT_NUMBER}",
+      "intro": "als Leistungsempfänger rechnen wir die nachfolgend bezeichneten Leistungen im vereinbarten Gutschriftverfahren ab.",
+      "closing": "Bitte prüfen Sie diese Abrechnung und teilen Sie uns einen begründeten Widerspruch unverzüglich mit."
+    }
+  }
+}

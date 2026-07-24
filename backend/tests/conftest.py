@@ -127,6 +127,8 @@ async def test_engine():
         color_catalog,
         commerce,
         customer,
+        document_configuration,
+        document_layout,
         external_link,
         filament,
         filament_sku_settings,

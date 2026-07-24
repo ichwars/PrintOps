@@ -5,9 +5,14 @@ on a configurable schedule with retention management.
 """
 
 import asyncio
+import json
 import logging
 import os
+import shutil
+import sqlite3
+import tempfile
 from datetime import datetime, timedelta, timezone, tzinfo
+from hashlib import sha256
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -18,6 +23,357 @@ from backend.app.core.database import async_session
 from backend.app.models.settings import Settings
 
 logger = logging.getLogger(__name__)
+
+
+def _ruleset_manifest() -> dict:
+    """Return the small, stable ruleset receipt stored with every full backup."""
+    from backend.app.services.einvoice.validator import pinned_rule_versions
+
+    versions = pinned_rule_versions()
+    return {
+        "schema_version": 1,
+        "en16931": {"version": versions["en16931"]},
+        "xrechnung": {"version": "3.0.2", "bundle_date": "2026-01-31"},
+        "zugferd": {
+            "version": versions["zugferd"],
+            "factur_x_version": versions["factur_x"],
+        },
+    }
+
+
+def stage_document_evidence(staging_dir: Path, data_dir: Path) -> None:
+    """Stage external document evidence next to the database backup.
+
+    Relational configuration, snapshots, audit events, reservations and receipts
+    live in ``printops.db``. Assets, final PDFs, raw validation reports and e-invoice
+    XML remain external and are copied with a canonical integrity manifest.
+    """
+    evidence_roots = {
+        "document-artifacts": "einvoice",
+        "document-layout-assets": "layout_asset",
+        "document-render-artifacts": "rendered_pdf",
+        "document-validation-reports": "validation_report",
+    }
+    entries: list[dict] = []
+    for directory, evidence_type in evidence_roots.items():
+        source_root = data_dir / directory
+        target_root = staging_dir / directory
+        if not source_root.is_dir():
+            continue
+        shutil.copytree(source_root, target_root, dirs_exist_ok=True)
+        for source in sorted(path for path in source_root.rglob("*") if path.is_file()):
+            relative = source.relative_to(data_dir).as_posix()
+            content = source.read_bytes()
+            entry = {
+                "path": relative,
+                "type": evidence_type,
+                "sha256": sha256(content).hexdigest(),
+                "size": len(content),
+                "business_profile_id": None,
+                "document_id": None,
+                "database_id": None,
+                "database_sha256": None,
+                "integrity_status": "valid",
+            }
+            entries.append(entry)
+
+    backup_db = staging_dir / "printops.db"
+    if backup_db.is_file():
+        connection = sqlite3.connect(str(backup_db))
+        try:
+            tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+            metadata: dict[str, tuple[int | None, int | None, int | None, str | None]] = {}
+            if "document_artifacts" in tables:
+                for artifact_id, document_id, storage_path, expected_hash in connection.execute(
+                    "SELECT id, document_id, storage_path, sha256 FROM document_artifacts "
+                    "WHERE storage_path IS NOT NULL"
+                ):
+                    metadata[str(storage_path).replace("\\", "/")] = (
+                        None,
+                        document_id,
+                        artifact_id,
+                        expected_hash,
+                    )
+            if "document_layout_assets" in tables:
+                for asset_id, profile_id, storage_key, expected_hash in connection.execute(
+                    "SELECT id, business_profile_id, storage_key, sha256 FROM document_layout_assets"
+                ):
+                    metadata[str(storage_key).replace("\\", "/")] = (
+                        profile_id,
+                        None,
+                        asset_id,
+                        expected_hash,
+                    )
+            for entry in entries:
+                profile_id, document_id, database_id, database_sha256 = metadata.get(
+                    entry["path"],
+                    (None, None, None, None),
+                )
+                entry.update(
+                    business_profile_id=profile_id,
+                    document_id=document_id,
+                    database_id=database_id,
+                    database_sha256=database_sha256,
+                    integrity_status=(
+                        "valid"
+                        if database_sha256 is None or database_sha256 == entry["sha256"]
+                        else "invalid"
+                    ),
+                )
+        finally:
+            connection.close()
+
+    evidence_dir = staging_dir / "document-evidence"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    (evidence_dir / "ruleset-manifest.json").write_text(
+        json.dumps(_ruleset_manifest(), indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    (evidence_dir / "document-layout-manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "integrity_status": (
+                    "valid"
+                    if all(entry["integrity_status"] == "valid" for entry in entries)
+                    else "invalid"
+                ),
+                "file_count": len(entries),
+                "counts_by_type": {
+                    evidence_type: sum(entry["type"] == evidence_type for entry in entries)
+                    for evidence_type in sorted({entry["type"] for entry in entries})
+                },
+                "files": entries,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+
+
+def verify_restored_document_artifacts(
+    backup_root: Path,
+    backup_db: Path,
+    *,
+    destination_root: Path | None = None,
+) -> list[dict]:
+    """Verify artifact bytes before restore and downgrade broken evidence.
+
+    Older backups may predate the document tables and remain restorable. For a
+    document-aware backup, every external artifact is hash checked. A missing,
+    unsafe or corrupt artifact is recorded in its validation report and can never
+    remain marked ``valid`` after restore.
+    """
+    issues: list[dict] = []
+    root = backup_root.resolve()
+    evidence_manifest = backup_root / "document-evidence" / "document-layout-manifest.json"
+    if evidence_manifest.is_file():
+        payload = json.loads(evidence_manifest.read_text(encoding="utf-8"))
+        for entry in payload.get("files", []):
+            relative = Path(str(entry.get("path") or ""))
+            candidate = (backup_root / relative).resolve()
+            code = None
+            actual_hash = None
+            if relative.is_absolute() or not candidate.is_relative_to(root):
+                code = "manifest_path_unsafe"
+            elif not candidate.is_file():
+                code = "manifest_file_missing"
+            else:
+                content = candidate.read_bytes()
+                actual_hash = sha256(content).hexdigest()
+                if actual_hash != entry.get("sha256") or len(content) != entry.get("size"):
+                    code = "manifest_hash_mismatch"
+                elif entry.get("database_sha256") and actual_hash != entry["database_sha256"]:
+                    code = "manifest_database_hash_mismatch"
+                elif destination_root is not None:
+                    destination_base = destination_root.resolve()
+                    destination = (destination_base / relative).resolve()
+                    if destination.is_relative_to(destination_base) and destination.is_file():
+                        destination_hash = sha256(destination.read_bytes()).hexdigest()
+                        if destination_hash != actual_hash:
+                            code = "restore_destination_conflict"
+            if code:
+                issues.append(
+                    {
+                        "artifact_id": entry.get("database_id"),
+                        "code": code,
+                        "storage_path": entry.get("path"),
+                        "expected_sha256": entry.get("sha256"),
+                        "actual_sha256": actual_hash,
+                        "evidence_type": entry.get("type"),
+                    }
+                )
+    connection = sqlite3.connect(str(backup_db))
+    try:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+        for issue in list(issues):
+            database_id = issue.get("artifact_id")
+            if issue.get("evidence_type") == "layout_asset" and database_id is not None and "document_layout_assets" in tables:
+                connection.execute(
+                    "UPDATE document_layout_assets SET preflight_status = 'invalid', preflight_report = ? WHERE id = ?",
+                    (json.dumps({"restore_integrity": issue}, ensure_ascii=False), database_id),
+                )
+            elif database_id is not None and "document_artifacts" in tables:
+                row = connection.execute(
+                    "SELECT validation_report FROM document_artifacts WHERE id = ?",
+                    (database_id,),
+                ).fetchone()
+                if row is not None:
+                    try:
+                        report = json.loads(row[0]) if isinstance(row[0], str) else dict(row[0] or {})
+                    except (TypeError, ValueError):
+                        report = {}
+                    report.update(valid=False, restore_integrity=issue)
+                    connection.execute(
+                        "UPDATE document_artifacts SET validation_status = 'invalid', validation_report = ? WHERE id = ?",
+                        (json.dumps(report, ensure_ascii=False), database_id),
+                    )
+        if any(item.get("evidence_type") == "validation_report" for item in issues) and "document_artifacts" in tables:
+            connection.execute(
+                "UPDATE document_artifacts SET validation_status = 'invalid' WHERE kind = 'pdf'"
+            )
+        if "document_artifacts" not in tables:
+            connection.commit()
+            return issues
+        rows = connection.execute(
+            "SELECT id, storage_path, content, sha256, validation_report "
+            "FROM document_artifacts ORDER BY id"
+        ).fetchall()
+        for artifact_id, storage_path, content, expected_hash, raw_report in rows:
+            code = None
+            actual_hash = None
+            if storage_path:
+                candidate = (backup_root / storage_path).resolve()
+                if not candidate.is_relative_to(root):
+                    code = "artifact_path_unsafe"
+                elif not candidate.is_file():
+                    code = "artifact_file_missing"
+                else:
+                    actual_hash = sha256(candidate.read_bytes()).hexdigest()
+                    if actual_hash != expected_hash:
+                        code = "artifact_hash_mismatch"
+            elif content is not None:
+                actual_hash = sha256(content).hexdigest()
+                if actual_hash != expected_hash:
+                    code = "artifact_hash_mismatch"
+            else:
+                code = "artifact_content_missing"
+
+            if code is None:
+                continue
+            issue = {
+                "artifact_id": artifact_id,
+                "code": code,
+                "storage_path": storage_path,
+                "expected_sha256": expected_hash,
+                "actual_sha256": actual_hash,
+            }
+            issues.append(issue)
+            try:
+                report = json.loads(raw_report) if isinstance(raw_report, str) else dict(raw_report or {})
+            except (TypeError, ValueError):
+                report = {}
+            report["valid"] = False
+            report["restore_integrity"] = issue
+            connection.execute(
+                "UPDATE document_artifacts SET validation_status = 'invalid', validation_report = ? WHERE id = ?",
+                (json.dumps(report, ensure_ascii=False), artifact_id),
+            )
+        connection.commit()
+    finally:
+        connection.close()
+    return issues
+
+
+def restore_document_evidence_files(
+    backup_root: Path,
+    destination_root: Path,
+    issues: list[dict],
+) -> dict:
+    """Atomically restore manifest files without overwriting different evidence."""
+    manifest_path = backup_root / "document-evidence" / "document-layout-manifest.json"
+    if not manifest_path.is_file():
+        return {
+            "status": "legacy",
+            "total": 0,
+            "restored": 0,
+            "unchanged": 0,
+            "conflicts": 0,
+            "invalid": len(issues),
+        }
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    backup_base = backup_root.resolve()
+    destination_base = destination_root.resolve()
+    restored = 0
+    unchanged = 0
+    conflicts = 0
+
+    def write_atomically(target: Path, content: bytes) -> None:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        descriptor, temporary_name = tempfile.mkstemp(prefix=".restore-", dir=target.parent)
+        temporary = Path(temporary_name)
+        try:
+            with os.fdopen(descriptor, "wb") as handle:
+                handle.write(content)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, target)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    for entry in manifest.get("files", []):
+        relative = Path(str(entry.get("path") or ""))
+        source = (backup_base / relative).resolve()
+        destination = (destination_base / relative).resolve()
+        if (
+            relative.is_absolute()
+            or not source.is_relative_to(backup_base)
+            or not destination.is_relative_to(destination_base)
+            or not source.is_file()
+        ):
+            continue
+        content = source.read_bytes()
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.is_file():
+            if sha256(destination.read_bytes()).hexdigest() == sha256(content).hexdigest():
+                unchanged += 1
+                continue
+            conflicts += 1
+            conflict_target = (
+                destination_base
+                / "document-restore-conflicts"
+                / sha256(content).hexdigest()
+                / relative.name
+            )
+            if not conflict_target.exists():
+                write_atomically(conflict_target, content)
+            continue
+        write_atomically(destination, content)
+        restored += 1
+
+    invalid = len(issues)
+    return {
+        "status": "invalid" if invalid else "valid",
+        "total": len(manifest.get("files", [])),
+        "restored": restored,
+        "unchanged": unchanged,
+        "conflicts": conflicts,
+        "invalid": invalid,
+        "counts_by_type": manifest.get("counts_by_type", {}),
+    }
 
 
 def _local_zone() -> tzinfo:

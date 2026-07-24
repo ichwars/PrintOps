@@ -160,6 +160,43 @@ describe('SettingsPage', () => {
     );
   });
 
+  it('keeps general settings on the shared 500 ms autosave status flow', async () => {
+    const updates: Array<Record<string, unknown>> = [];
+    server.use(
+      http.put('/api/v1/settings/', async ({ request }) => {
+        const body = await request.json() as Record<string, unknown>;
+        updates.push(body);
+        return HttpResponse.json({ ...mockSettings, ...body });
+      }),
+    );
+    setSettingsTabUrl('printers-production', '&sub=print-process');
+    render(<SettingsPage />);
+
+    const heading = await screen.findByRole('heading', { name: 'Archive Settings' });
+    const card = heading.closest('#card-archive');
+    expect(card).not.toBeNull();
+    const archiveSwitch = within(card as HTMLElement).getAllByRole('switch')[0];
+    await new Promise(resolve => setTimeout(resolve, 150));
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(archiveSwitch);
+      expect(screen.getByTestId('settings-autosave-status')).toHaveTextContent('Saving...');
+      await vi.advanceTimersByTimeAsync(499);
+      expect(updates).toHaveLength(0);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(updates).toHaveLength(1);
+      expect(updates[0]).toEqual(expect.objectContaining({ auto_archive: false }));
+      vi.useRealTimers();
+      await waitFor(() => {
+        expect(screen.getByTestId('settings-autosave-status')).toHaveTextContent('Settings saved');
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   describe('rendering', () => {
     it('defaults canonical order settings to the business profile subtab and loads real profiles', async () => {
       let requestCount = 0;
@@ -213,6 +250,32 @@ describe('SettingsPage', () => {
       expect(document.getElementById('card-business-profile')?.parentElement).not.toHaveClass('max-w-3xl');
       expect(document.getElementById('card-business-profile')).toHaveClass('rounded-xl', 'border', 'bg-bambu-dark-secondary');
       expect(window.location.search).toContain('sub=business-profile');
+    });
+
+    it('opens the document settings URL as its own order-management subtab', async () => {
+      setSettingsTabUrl('orders-calculation', '&sub=documents');
+
+      render(<SettingsPage />);
+
+      expect(await screen.findByRole('button', { name: 'Documents' })).toHaveClass('text-bambu-green');
+      expect(document.getElementById('card-document-settings')).not.toBeNull();
+      expect(screen.getByRole('heading', { name: 'Document settings' })).toBeInTheDocument();
+      expect(window.location.search).toContain('sub=documents');
+    });
+
+    it('opens Format & Preview between Documents and Calculation via its canonical URL', async () => {
+      setSettingsTabUrl('orders-calculation', '&sub=format-preview');
+
+      render(<SettingsPage />);
+
+      const documents = await screen.findByRole('button', { name: 'Documents' });
+      const formatPreview = await screen.findByRole('button', { name: 'Format & Preview' });
+      const calculation = await screen.findByRole('button', { name: 'Calculation' });
+      expect(formatPreview).toHaveClass('text-bambu-green');
+      expect(documents.compareDocumentPosition(formatPreview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(formatPreview.compareDocumentPosition(calculation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(document.getElementById('card-document-layout-settings')).not.toBeNull();
+      expect(window.location.search).toContain('sub=format-preview');
     });
 
     it('renders the page title', async () => {
@@ -862,6 +925,17 @@ describe('SettingsPage', () => {
       expect(await screen.findByText('File Manager')).toBeInTheDocument();
       expect(window.location.search).toContain('tab=projects-files');
       expect(document.getElementById('card-filemanager')).not.toBeNull();
+    });
+
+    it('opens Format & Preview from the settings search registry', async () => {
+      render(<SettingsPage />);
+
+      await clickSettingsSearchResult('Format & Preview');
+
+      expect(await screen.findByRole('button', { name: 'Format & Preview' })).toHaveClass('text-bambu-green');
+      expect(window.location.search).toContain('tab=orders-calculation');
+      expect(window.location.search).toContain('sub=format-preview');
+      expect(document.getElementById('card-document-layout-settings')).not.toBeNull();
     });
 
     it('opens Cost Tracking from search results on its canonical tab', async () => {

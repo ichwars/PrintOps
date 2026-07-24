@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "renderer": {
+    "weasyprint": "69.0",
+    "pikepdf": "10.10.0",
+    "fonttools": "4.63.0",
+    "jinja2": "3.1.6"
+  },
+  "verapdf": {
+    "version": "1.30.2",
+    "url": "https://software.verapdf.org/rel/1.30/verapdf-greenfield-1.30.2-installer.zip",
+    "signature_url": "https://software.verapdf.org/rel/1.30/verapdf-greenfield-1.30.2-installer.zip.asc",
+    "sha256": "6cc6341cb1af644044054b81f00a6590a7918abb18f762243de115258bcad838",
+    "signature_sha256": "f33175e402f28c42e80866aa62aa337c5d7d7a16a4ea1ae4ff50b0f13343ff26",
+    "signing_key": "verapdf-signing-key.asc",
+    "signing_key_sha256": "5f6e3218296a7b73d308d1877e9ba5cd588ad71da27c3be917c0dfbce8e27a57",
+    "signing_fingerprint": "13DD102B4DD69354D12DE5A83184863278B17FE7",
+    "cli_relative_path_linux": "verapdf",
+    "cli_relative_path_windows": "verapdf.bat",
+    "license_files": [
+      "LICENSE.GPL",
+      "LICENSE.MPL"
+    ]
+  },
+  "srgb": {
+    "filename": "sRGB.icc",
+    "source_url": "https://registry.color.org/rgb-registry/profiles/sRGB2014.icc",
+    "sha256": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+    "color_space": "RGB",
+    "profile": "sRGB2014",
+    "license_url": "https://registry.color.org/rgb-registry/srgbprofiles"
+  }
+}

@@ -22,11 +22,18 @@ WORKDIR /app
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    default-jre-headless \
     ffmpeg \
     gnupg \
     gosu \
     iproute2 \
     libcap2-bin \
+    libcairo2 \
+    libharfbuzz-subset0 \
+    libjpeg62-turbo \
+    libopenjp2-7 \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
     openssh-client \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -47,6 +54,17 @@ COPY requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --root-user-action=ignore --upgrade 'pip>=26.1' \
  && pip install --root-user-action=ignore -r requirements.txt
+
+# Stage the signed, hash-pinned veraPDF CLI at image-build time.  Document
+# rendering is fully offline at runtime; container startup never downloads
+# executable code or validator data.
+COPY scripts/vendor_pdf_runtime.py ./scripts/vendor_pdf_runtime.py
+COPY backend/app/resources/pdf/runtime-manifest.json backend/app/resources/pdf/verapdf-signing-key.asc ./backend/app/resources/pdf/
+RUN python scripts/vendor_pdf_runtime.py \
+      --destination /opt/verapdf \
+      --cache-dir /tmp/verapdf-download \
+ && rm -rf /tmp/verapdf-download
+ENV VERAPDF_CLI=/opt/verapdf/verapdf
 
 # Copy backend
 COPY backend/ ./backend/

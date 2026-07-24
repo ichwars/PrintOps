@@ -4,16 +4,60 @@ Handles scheduled and on-demand backups of K-profiles and cloud profiles to GitH
 """
 
 import asyncio
+import base64
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
+from hashlib import sha256
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import httpx
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.database import async_session
+from backend.app.core.paths import resolve_data_dir
 from backend.app.models.archive import PrintArchive
+from backend.app.models.commercial_document import (
+    CommercialDocument,
+    CommercialDocumentLine,
+    DocumentArtifact,
+    DocumentNumberReservation,
+    DocumentRelation,
+    DocumentSnapshot,
+)
+from backend.app.models.document_audit import DocumentAuditEvent
+from backend.app.models.document_configuration import (
+    ConfigurationPublication,
+    CustomerDocumentPreference,
+    DocumentBasicPolicy,
+    DocumentConfiguration,
+    DocumentContentPolicy,
+    DocumentTextBlock,
+    DunningPolicy,
+    DunningStage,
+    EInvoicePolicy,
+    PaymentPolicy,
+    TaxPolicy,
+)
+from backend.app.models.document_layout import (
+    DocumentLayoutAsset,
+    DocumentLayoutAssetLink,
+    DocumentLayoutAuditReceipt,
+    DocumentLayoutConfiguration,
+    DocumentLayoutPublication,
+    LayoutFooterRules,
+    LayoutHeaderRules,
+    LayoutNotesRules,
+    LayoutPageRules,
+    LayoutPositionRules,
+    LayoutTechnicalRules,
+    LayoutTitleRules,
+    LayoutTotalsRules,
+    LayoutTypographyRules,
+)
 from backend.app.models.github_backup import GitHubBackupConfig, GitHubBackupLog
+from backend.app.models.number_sequence import NumberSequence
 from backend.app.models.printer import Printer
 from backend.app.models.settings import Settings
 from backend.app.models.spool import Spool
@@ -295,6 +339,7 @@ class GitHubBackupService:
                 "kprofiles": config.backup_kprofiles,
                 "cloud_profiles": config.backup_cloud_profiles,
                 "settings": config.backup_settings,
+                "commercial_documents": config.backup_settings,
                 "spools": config.backup_spools,
                 "archives": config.backup_archives,
             },
@@ -315,6 +360,8 @@ class GitHubBackupService:
         if config.backup_settings:
             self._backup_progress = "Collecting app settings..."
             await self._collect_settings(db, files)
+            self._backup_progress = "Collecting commercial document evidence..."
+            await self._collect_commercial_evidence(db, files)
 
         # Collect spool inventory
         if config.backup_spools:
@@ -449,6 +496,206 @@ class GitHubBackupService:
         files["settings/app_settings.json"] = {
             "version": "1.0",
             "settings": settings_data,
+        }
+
+    @staticmethod
+    def _evidence_value(value):
+        if isinstance(value, (datetime, date)):
+            return value.isoformat()
+        if isinstance(value, Decimal):
+            return str(value)
+        if isinstance(value, bytes):
+            return {"encoding": "base64", "content": base64.b64encode(value).decode("ascii")}
+        return value
+
+    async def _collect_commercial_evidence(self, db: AsyncSession, files: dict) -> None:
+        """Collect portable relational and binary evidence for private Git backups."""
+        models = (
+            NumberSequence,
+            DocumentConfiguration,
+            DocumentBasicPolicy,
+            PaymentPolicy,
+            DunningPolicy,
+            DunningStage,
+            DocumentTextBlock,
+            DocumentContentPolicy,
+            TaxPolicy,
+            EInvoicePolicy,
+            CustomerDocumentPreference,
+            ConfigurationPublication,
+            DocumentLayoutConfiguration,
+            LayoutPageRules,
+            LayoutTypographyRules,
+            LayoutHeaderRules,
+            LayoutTitleRules,
+            LayoutPositionRules,
+            LayoutTotalsRules,
+            LayoutTechnicalRules,
+            LayoutNotesRules,
+            LayoutFooterRules,
+            DocumentLayoutAsset,
+            DocumentLayoutAssetLink,
+            DocumentLayoutPublication,
+            DocumentLayoutAuditReceipt,
+            CommercialDocument,
+            CommercialDocumentLine,
+            DocumentRelation,
+            DocumentSnapshot,
+            DocumentArtifact,
+            DocumentNumberReservation,
+            DocumentAuditEvent,
+        )
+        table_counts: dict[str, int] = {}
+
+        def table_value(model, row, column):
+            value = getattr(row, column.name)
+            is_storage_path = (
+                model is DocumentArtifact and column.name == "storage_path"
+            ) or (model is DocumentLayoutAsset and column.name == "storage_key")
+            if is_storage_path and value is not None:
+                raw_path = str(value)
+                posix_path = PurePosixPath(raw_path)
+                windows_path = PureWindowsPath(raw_path)
+                if (
+                    posix_path.is_absolute()
+                    or windows_path.is_absolute()
+                    or ".." in posix_path.parts
+                    or ".." in windows_path.parts
+                ):
+                    return None
+            if model is DocumentArtifact and column.name == "content":
+                return None
+            return self._evidence_value(value)
+
+        artifacts: list[DocumentArtifact] = []
+        layout_assets: list[DocumentLayoutAsset] = []
+        for model in models:
+            rows = list((await db.execute(select(model))).scalars().all())
+            if model is DocumentArtifact:
+                artifacts = rows
+            elif model is DocumentLayoutAsset:
+                layout_assets = rows
+            table_counts[model.__tablename__] = len(rows)
+            files[f"documents/tables/{model.__tablename__}.json"] = {
+                "schema_version": 1,
+                "table": model.__tablename__,
+                "rows": [
+                    {
+                        column.name: table_value(model, row, column)
+                        for column in model.__table__.columns
+                    }
+                    for row in rows
+                ],
+            }
+
+        from backend.app.services.local_backup import _ruleset_manifest
+
+        binary_entries: dict[str, dict] = {}
+
+        def add_binary(path: str, content: bytes, **metadata) -> None:
+            digest = sha256(content).hexdigest()
+            files[path] = content
+            expected_hash = metadata.get("database_sha256")
+            binary_entries[path] = {
+                "path": path,
+                "sha256": digest,
+                "size": len(content),
+                "integrity_status": (
+                    "valid" if expected_hash is None or expected_hash == digest else "invalid"
+                ),
+                **metadata,
+            }
+
+        files[".gitattributes"] = b"documents/binary/** -text\n"
+        data_root = resolve_data_dir().resolve()
+        for artifact in artifacts:
+            content: bytes | None = None
+            suffix = ""
+            if artifact.storage_path:
+                source = (data_root / artifact.storage_path).resolve()
+                if source.is_relative_to(data_root) and source.is_file():
+                    content = source.read_bytes()
+                    suffix = source.suffix
+            elif artifact.content is not None:
+                content = bytes(artifact.content)
+            if content is None:
+                continue
+            if not suffix:
+                suffix = {
+                    "application/pdf": ".pdf",
+                    "application/xml": ".xml",
+                    "text/xml": ".xml",
+                }.get(artifact.content_type, ".bin")
+            binary_path = (
+                f"documents/binary/artifacts/{artifact.id}-{artifact.sha256}{suffix.lower()}"
+            )
+            add_binary(
+                binary_path,
+                content,
+                evidence_type="document_artifact",
+                database_id=artifact.id,
+                document_id=artifact.document_id,
+                kind=artifact.kind,
+                content_type=artifact.content_type,
+                database_sha256=artifact.sha256,
+                source_storage_path=artifact.storage_path,
+            )
+
+        for asset in layout_assets:
+            source = (data_root / asset.storage_key).resolve()
+            if not source.is_relative_to(data_root) or not source.is_file():
+                continue
+            suffix = Path(asset.original_name).suffix.lower() or source.suffix.lower() or ".bin"
+            binary_path = (
+                f"documents/binary/layout-assets/{asset.id}-{asset.sha256}{suffix}"
+            )
+            add_binary(
+                binary_path,
+                source.read_bytes(),
+                evidence_type="layout_asset",
+                database_id=asset.id,
+                business_profile_id=asset.business_profile_id,
+                asset_type=asset.asset_type,
+                database_sha256=asset.sha256,
+                source_storage_path=asset.storage_key,
+            )
+
+        validation_root = data_root / "document-validation-reports"
+        if validation_root.is_dir():
+            for source in sorted(path for path in validation_root.rglob("*") if path.is_file()):
+                content = source.read_bytes()
+                digest = sha256(content).hexdigest()
+                suffix = source.suffix.lower() or ".bin"
+                binary_path = f"documents/binary/validation-reports/{digest}{suffix}"
+                if binary_path not in binary_entries:
+                    add_binary(
+                        binary_path,
+                        content,
+                        evidence_type="validation_report",
+                        source_storage_path=source.relative_to(data_root).as_posix(),
+                    )
+
+        files["documents/ruleset-manifest.json"] = _ruleset_manifest()
+        files["documents/evidence-manifest.json"] = {
+            "schema_version": 1,
+            "tables": table_counts,
+            "artifact_storage": "content-addressed/binary",
+            "integrity_status": (
+                "valid"
+                if all(entry["integrity_status"] == "valid" for entry in binary_entries.values())
+                else "invalid"
+            ),
+            "file_count": len(binary_entries),
+            "counts_by_type": {
+                evidence_type: sum(
+                    entry["evidence_type"] == evidence_type
+                    for entry in binary_entries.values()
+                )
+                for evidence_type in sorted(
+                    {entry["evidence_type"] for entry in binary_entries.values()}
+                )
+            },
+            "files": [binary_entries[path] for path in sorted(binary_entries)],
         }
 
     async def _collect_spools(self, db: AsyncSession, files: dict):

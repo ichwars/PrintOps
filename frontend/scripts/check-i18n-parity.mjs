@@ -190,7 +190,128 @@ const ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS = new Set([
   'orders.status.blocked',
   'settings.tabs.orderManagementBusinessProfile',
   'settings.orderManagementSubTabDescriptions.businessProfile',
+  'settings.tabs.orderManagementDocuments',
+  'settings.orderManagementSubTabDescriptions.documents',
+  'settings.documents.title',
+  'settings.documents.description',
+  'settings.documents.contextHint',
 ]);
+
+[
+  'settings.documents.profile',
+  'settings.documents.documentType',
+  'settings.documents.language',
+  'settings.documents.version',
+  'settings.documents.status.draft',
+  'settings.documents.status.scheduled',
+  'settings.documents.status.active',
+  'settings.documents.status.superseded',
+  'settings.documents.readiness.ready',
+  'settings.documents.readiness.warnings',
+  'settings.documents.readiness.blocked',
+  'settings.documents.changeReason',
+  'settings.documents.changeReasonHint',
+  'settings.documents.readOnlyHint',
+  'settings.documents.permissionDenied',
+  'settings.documents.loading',
+  'settings.documents.loadError',
+  'settings.documents.actions.create',
+  'settings.documents.actions.check',
+  'settings.documents.actions.save',
+  'settings.documents.actions.publish',
+  'settings.documents.actions.withdraw',
+  'settings.documents.actions.clone',
+  'settings.documents.messages.createSuccess',
+  'settings.documents.messages.saveSuccess',
+  'settings.documents.messages.checkSuccess',
+  'settings.documents.messages.publishSuccess',
+  'settings.documents.messages.cloneSuccess',
+  'settings.documents.messages.withdrawSuccess',
+  'settings.documents.messages.actionFailed',
+  'settings.documents.policy.title',
+  'settings.documents.policy.hint',
+  'settings.documents.empty.title',
+  'settings.documents.empty.description',
+  'settings.documents.history.title',
+  'settings.documents.history.empty',
+  'settings.documents.history.version',
+  'settings.documents.history.status',
+  'settings.documents.history.effectiveFrom',
+  'settings.documents.history.reason',
+  'settings.documents.history.actor',
+  'settings.documents.history.rules',
+  'settings.documents.history.publishedAt',
+  'settings.documents.history.auditTitle',
+  'settings.documents.history.auditEmpty',
+  'settings.documents.history.correlation',
+  'settings.documents.history.actions.create',
+  'settings.documents.history.actions.update',
+  'settings.documents.history.actions.clone',
+  'settings.documents.history.actions.publication',
+  'settings.documents.history.actions.withdraw',
+  'settings.documents.unsaved.title',
+  'settings.documents.unsaved.message',
+  'settings.documents.unsaved.discard',
+  'settings.documents.publish.title',
+  'settings.documents.publish.description',
+  'settings.documents.publish.effectiveFrom',
+  'settings.documents.publish.reason',
+  'settings.documents.documentTypes.quotation',
+  'settings.documents.documentTypes.order_confirmation',
+  'settings.documents.documentTypes.delivery_note',
+  'settings.documents.documentTypes.advance_invoice',
+  'settings.documents.documentTypes.progress_invoice',
+  'settings.documents.documentTypes.final_invoice',
+  'settings.documents.documentTypes.invoice',
+  'settings.documents.documentTypes.cancellation_invoice',
+  'settings.documents.documentTypes.invoice_correction',
+  'settings.documents.documentTypes.commercial_credit_note',
+  'settings.documents.documentTypes.payment_reminder',
+  'settings.documents.documentTypes.dunning_notice',
+  'settings.documents.documentTypes.self_billing',
+].forEach((key) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(key));
+
+// Task 17 policy-editor terminology intentionally falls back to English
+// outside the complete German translation.
+[
+  'inheritance.system', 'inheritance.businessProfile', 'inheritance.customer', 'inheritance.configuration', 'inheritance.document', 'inheritance.reset',
+  'basic.title', 'basic.description', 'basic.subject', 'basic.validityDays', 'basic.dateRule', 'basic.dates.issue', 'basic.dates.service', 'basic.dates.delivery',
+  'basic.rounding', 'basic.roundingModes.commercial', 'basic.roundingModes.bankers', 'basic.roundingModes.down', 'basic.references',
+  'basic.reference.customer_reference', 'basic.reference.order_reference', 'basic.reference.service_period', 'basic.successors', 'basic.technicalContent',
+  'basic.includeCalculation', 'basic.content.print_time', 'basic.content.material', 'basic.content.plate_notes',
+  'payment.title', 'payment.description', 'payment.termDays', 'payment.currency', 'payment.dueBasis', 'payment.bankAccount', 'payment.discountDays',
+  'payment.discountPercent', 'payment.prepayment', 'payment.methods.bank_transfer', 'payment.methods.cash', 'payment.methods.card',
+  'payment.methods.direct_debit', 'payment.methods.paypal', 'payment.useTermInText', 'payment.installments', 'payment.installmentPercent',
+  'payment.installmentDue', 'payment.removeInstallment', 'payment.installmentTotalError', 'payment.addInstallment', 'payment.dunningEnabled',
+  'payment.interest', 'payment.flatFee', 'payment.stage', 'payment.removeStage', 'payment.waitDays', 'payment.stageFee', 'payment.newDueDays',
+  'payment.stageText', 'payment.chargeInterest', 'payment.addStage',
+  'textBlocks.title', 'textBlocks.description', 'textBlocks.insertPlaceholder', 'textBlocks.choosePlaceholder', 'textBlocks.purposes.intro',
+  'textBlocks.purposes.closing', 'textBlocks.purposes.payment_terms', 'textBlocks.purposes.delivery_terms', 'textBlocks.purposes.tax_note',
+  'textBlocks.purposes.footer', 'textBlocks.purposes.dunning_notice',
+  'placeholders.company_name', 'placeholders.company_address', 'placeholders.company_tax_id', 'placeholders.company_vat_id',
+  'placeholders.customer_name', 'placeholders.customer_number', 'placeholders.customer_address', 'placeholders.customer_email',
+  'placeholders.customer_vat_id', 'placeholders.document_number', 'placeholders.document_issue_date', 'placeholders.document_due_date',
+  'placeholders.document_service_date', 'placeholders.document_currency', 'placeholders.payment_term_days', 'placeholders.payment_discount_deadline',
+  'placeholders.payment_discount_percent', 'placeholders.dunning_stage', 'placeholders.dunning_fee', 'placeholders.dunning_new_due_date',
+  'placeholders.DOCUMENT_NUMBER', 'placeholders.VALID_UNTIL', 'placeholders.ORDER_REFERENCE', 'placeholders.DUE_DATE',
+  'placeholders.SERVICE_DATE', 'placeholders.ORIGINAL_DOCUMENT_NUMBER', 'placeholders.OPEN_AMOUNT', 'placeholders.CURRENCY', 'placeholders.DUNNING_LEVEL',
+].forEach((suffix) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(`settings.documents.${suffix}`));
+
+// Task 18 compliance terminology uses the same explicit English fallback.
+[
+  'readiness.loading', 'readiness.versionConflict', 'readiness.checkFailed', 'readiness.ruleId', 'readiness.correlationId',
+  'readiness.unknownError', 'readiness.reloadCompare', 'readiness.title', 'readiness.noFindings', 'readiness.findings.buyer_endpoint_missing',
+  'tax.title', 'tax.description', 'tax.ruleVersion', 'tax.allowedCases', 'tax.allowOverride', 'tax.recordedOverride', 'tax.manualOverride',
+  'tax.treatment', 'tax.taxCountry', 'tax.placeOfSupply', 'tax.category', 'tax.rate', 'tax.legalReasonCode', 'tax.legalReasonText',
+  'tax.sellerVatId', 'tax.buyerVatId', 'tax.evidence', 'tax.overrideReason', 'tax.applyOverride',
+  'tax.cases.domestic_standard', 'tax.cases.small_business_exempt', 'tax.cases.intra_community_supply',
+  'tax.cases.eu_reverse_charge', 'tax.cases.eu_b2c_oss', 'tax.cases.third_country', 'tax.cases.explicit_exemption',
+  'einvoice.title', 'einvoice.description', 'einvoice.requirement', 'einvoice.optional', 'einvoice.ruleRequired', 'einvoice.syntax',
+  'einvoice.pinned', 'einvoice.zugferdProfile', 'einvoice.processId', 'einvoice.sellerEndpoint', 'einvoice.endpointScheme',
+  'einvoice.buyerEndpoint', 'einvoice.buyerReference', 'einvoice.defaultPaymentMethod', 'einvoice.bankAccount',
+  'einvoice.validationLayers', 'einvoice.layers.xsd', 'einvoice.layers.en16931', 'einvoice.layers.cius',
+  'einvoice.validationStatus', 'einvoice.downloadXml', 'einvoice.downloadReport', 'einvoice.findingCount',
+].forEach((suffix) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(`settings.documents.${suffix}`));
 
 // Task 8 extends the same deliberately narrow English-fallback contract.
 [
@@ -279,9 +400,15 @@ const ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS = new Set([
   'orderUi.billingModes.hybrid',
 ].forEach((key) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(key));
 
+// Task 16 deliberately provides the complete English layout-editor fallback
+// outside German. The exception is constrained to the new namespace and its
+// two navigation leaves; unrelated copied English strings still fail.
 function isAllowedOrderManagementEnglishFallback(locale, key) {
+  const isDocumentLayoutFallback = key === 'settings.tabs.orderManagementFormatPreview'
+    || key === 'settings.orderManagementSubTabDescriptions.formatPreview'
+    || key.startsWith('settings.documentLayout.');
   return ORDER_MANAGEMENT_ENGLISH_FALLBACK_LOCALES.has(locale)
-    && ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.has(key);
+    && (ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.has(key) || isDocumentLayoutFallback);
 }
 
 // Heuristic: values that are ALWAYS allowed to match en, regardless of locale.
@@ -318,7 +445,8 @@ function isAlwaysAllowedIdentical(value) {
 // German loanwords / cognates from English are extensive. Most short technical
 // UI labels are identical in DE. List below curates the legitimate ones.
 const DE_COGNATES = [
-  'Name', 'Status', 'Tag', 'Tags', 'Online', 'Offline', 'Standard', 'Modus',
+  'Name', 'Status', 'Tag', 'Tags', 'Online', 'Offline', 'Standard', 'Modus', 'PayPal', 'Syntax',
+  'EU B2C / OSS', 'CIUS / XRechnung',
   'Stop', 'Reset', 'Test', 'Code', 'Token', 'Server', 'Port', 'Bug', 'Job',
   'Bambu Cloud', 'Orca Cloud',  // brand names — same in every locale
   'AMS Filament Backup',  // Bambu Lab product/firmware feature name
@@ -328,7 +456,7 @@ const DE_COGNATES = [
   'Pipeline', 'Pipelines', 'Filament {{n}}',  // #1425 — Slicer Pipelines (DE)
   'parallel',  // #1425 PR C polish — "parallel" is the same word in German
   'Region', 'Normal', 'Orange', 'Branch', 'Budget', 'Commit', 'Global',
-  'Version', 'Slot', 'Live', 'Rate', 'Host', 'Trend', 'Min', 'Admin', 'Cloud',
+  'Version', 'Version {{version}}', 'Slot', 'Live', 'Rate', 'Host', 'Trend', 'Min', 'Admin', 'Cloud',
   'Filament', 'Filaments', 'Software', 'Hardware', 'Avatar', 'Pin', 'Modal',
   'Active', 'Plate', 'Layer', 'Total', 'Plus', 'Pro', 'Mini', 'Studio',
   'Temperatur', 'Process', 'Service', 'Cache', 'Color', 'Login', 'Logout',

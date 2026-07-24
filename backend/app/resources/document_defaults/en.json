@@ -1,0 +1,77 @@
+{
+  "language": "en",
+  "defaults": {
+    "validity_days": 14,
+    "payment_term_days": 14,
+    "include_calculation_data": true,
+    "use_payment_term_in_invoice_text": true
+  },
+  "payment_terms": "Payment is due by {DUE_DATE} without deduction unless the document states a separate early-payment discount.",
+  "documents": {
+    "quotation": {
+      "subject": "Quotation {DOCUMENT_NUMBER}",
+      "intro": "Thank you for your enquiry. We are pleased to offer the goods and services described below.",
+      "closing": "This quotation is valid until {VALID_UNTIL}. Please contact us if you have any questions."
+    },
+    "order_confirmation": {
+      "subject": "Order confirmation {DOCUMENT_NUMBER}",
+      "intro": "Thank you for your order. We confirm fulfillment with the items and terms listed below.",
+      "closing": "Please review this order confirmation and notify us promptly of any discrepancy."
+    },
+    "delivery_note": {
+      "subject": "Delivery note {DOCUMENT_NUMBER}",
+      "intro": "The items listed below have been prepared for the stated delivery.",
+      "closing": "Please check the delivery for completeness and visible transport damage."
+    },
+    "advance_invoice": {
+      "subject": "Advance invoice {DOCUMENT_NUMBER}",
+      "intro": "We charge the agreed advance payment for order {ORDER_REFERENCE}.",
+      "closing": "Please transfer the amount due by {DUE_DATE}, quoting the invoice number."
+    },
+    "progress_invoice": {
+      "subject": "Progress invoice {DOCUMENT_NUMBER}",
+      "intro": "We charge the following progress payment for partial services completed by {SERVICE_DATE}.",
+      "closing": "Please transfer the amount due by {DUE_DATE}, quoting the invoice number."
+    },
+    "final_invoice": {
+      "subject": "Final invoice {DOCUMENT_NUMBER}",
+      "intro": "We issue the final invoice for the completed services, including all advance and progress payments.",
+      "closing": "Please transfer the remaining amount due by {DUE_DATE}, quoting the invoice number."
+    },
+    "invoice": {
+      "subject": "Invoice {DOCUMENT_NUMBER}",
+      "intro": "We charge the following items for the goods and services supplied.",
+      "closing": "Please transfer the amount due by {DUE_DATE}, quoting the invoice number."
+    },
+    "cancellation_invoice": {
+      "subject": "Cancellation invoice {DOCUMENT_NUMBER} for {ORIGINAL_DOCUMENT_NUMBER}",
+      "intro": "Invoice {ORIGINAL_DOCUMENT_NUMBER} is cancelled in full for the stated reason.",
+      "closing": "Keep this cancellation invoice together with the referenced original document."
+    },
+    "invoice_correction": {
+      "subject": "Invoice correction {DOCUMENT_NUMBER} for {ORIGINAL_DOCUMENT_NUMBER}",
+      "intro": "Invoice {ORIGINAL_DOCUMENT_NUMBER} is corrected for the stated reason.",
+      "closing": "Keep this invoice correction together with the referenced original document."
+    },
+    "commercial_credit_note": {
+      "subject": "Credit note {DOCUMENT_NUMBER}",
+      "intro": "We credit the following amount for the referenced business transaction.",
+      "closing": "The credit will be offset against outstanding receivables or refunded using the agreed payment method."
+    },
+    "payment_reminder": {
+      "subject": "Payment reminder for {ORIGINAL_DOCUMENT_NUMBER}",
+      "intro": "Our records show that invoice {ORIGINAL_DOCUMENT_NUMBER} has not yet been paid in full.",
+      "closing": "Please pay the outstanding amount of {OPEN_AMOUNT} {CURRENCY} by {DUE_DATE}. If payment has already been made, please disregard this reminder."
+    },
+    "dunning_notice": {
+      "subject": "Dunning notice level {DUNNING_LEVEL} for {ORIGINAL_DOCUMENT_NUMBER}",
+      "intro": "Invoice {ORIGINAL_DOCUMENT_NUMBER} remains unpaid in full after its due date.",
+      "closing": "Please pay the stated total amount by {DUE_DATE}."
+    },
+    "self_billing": {
+      "subject": "Self-billed invoice {DOCUMENT_NUMBER}",
+      "intro": "As the recipient of the supply, we account for the services listed below under the agreed self-billing arrangement.",
+      "closing": "Please review this self-billed invoice and notify us promptly of any reasoned objection."
+    }
+  }
+}

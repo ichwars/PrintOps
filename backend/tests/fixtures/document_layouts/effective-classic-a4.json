@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "template_version": "1.0.0",
+  "renderer_version": "weasyprint-69.0+pikepdf-10.10.0",
+  "validator_version": "verapdf-1.30.2",
+  "page": {
+    "template_key": "classic",
+    "page_format": "A4",
+    "orientation": "portrait",
+    "margin_top_mm": "18",
+    "margin_right_mm": "18",
+    "margin_bottom_mm": "18",
+    "margin_left_mm": "18",
+    "first_page_content_top_mm": "45",
+    "following_page_content_top_mm": "20",
+    "use_first_page_letterhead": false,
+    "use_following_page_letterhead": false,
+    "reuse_first_letterhead": false
+  },
+  "typography": {
+    "font_family": "Noto Sans",
+    "base_size_pt": "10",
+    "table_size_pt": "9",
+    "metadata_size_pt": "8",
+    "heading_scale": "1.4",
+    "line_height": "1.35",
+    "paragraph_spacing_mm": "3",
+    "accent_color": "#5A6C60",
+    "text_color": "#111111",
+    "muted_color": "#666666"
+  },
+  "header": {
+    "show_logo": true,
+    "logo_width_mm": "22",
+    "logo_alignment": "left",
+    "show_company_details": true,
+    "show_sender_line": true,
+    "recipient_window": "left",
+    "recipient_top_mm": "45"
+  },
+  "title": {
+    "show_title": true,
+    "show_document_number": true,
+    "show_issue_date": true,
+    "show_service_date": true,
+    "show_due_date": true,
+    "show_customer_number": true,
+    "metadata_alignment": "right",
+    "title_spacing_mm": "6"
+  },
+  "positions": {
+    "table_style": "standard",
+    "show_position_number": true,
+    "show_description": true,
+    "show_quantity": true,
+    "show_unit": true,
+    "show_unit_price": true,
+    "show_net_amount": false,
+    "show_tax_rate": false,
+    "show_total": true,
+    "show_secondary_description": true,
+    "repeat_header": true
+  },
+  "totals": {
+    "show_subtotal": true,
+    "show_discount": true,
+    "show_tax_breakdown": true,
+    "show_gross_total": true,
+    "show_prepayments": true,
+    "show_payment_terms": true,
+    "show_bank_details": true,
+    "totals_alignment": "right"
+  },
+  "technical": {
+    "enabled": true,
+    "show_printer": true,
+    "show_plate": true,
+    "show_material": true,
+    "show_print_time": true,
+    "show_weight": true,
+    "show_file_name": false,
+    "placement": "position"
+  },
+  "notes": {
+    "show_intro_text": true,
+    "show_outro_text": true,
+    "show_payment_note": true,
+    "show_legal_note": true,
+    "intro_placement": "before_positions",
+    "outro_placement": "after_totals",
+    "keep_with_next": true
+  },
+  "footer": {
+    "enabled": true,
+    "column_layout": "three",
+    "show_company_data": true,
+    "show_tax_data": true,
+    "show_bank_data": true,
+    "show_alternative_payment": true,
+    "show_additional_notes": false,
+    "show_page_numbers": true,
+    "page_number_format": "Seite {page}/{pages}"
+  }
+}

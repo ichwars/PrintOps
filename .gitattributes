@@ -5,3 +5,8 @@
 # Vite preserves source line endings while injecting generated tags. Force the
 # committed build entry point to LF so Windows builds do not become mixed-EOL.
 static/index.html text eol=lf
+
+# Binary layout resources must never pass through line-ending conversion.
+*.pdf binary
+*.ttf binary
+*.otf binary

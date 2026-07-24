@@ -71,6 +71,19 @@ def customer_payload(profile_id: int) -> dict:
                 "delivery_terms": "DHL shipment",
                 "discount_percent": "2.50",
                 "is_active": True,
+                "document_preference": {
+                    "endpoint_id": "9930123456789",
+                    "endpoint_scheme": "0204",
+                    "leitweg_id": "04011000-12345-34",
+                    "buyer_reference": "04011000-12345-34",
+                    "purchase_order_reference": "PO-2026-1",
+                    "supplier_reference": "SUP-42",
+                    "einvoice_requirement": "required",
+                    "vat_validation_provider": "manual",
+                    "vat_validation_result": "valid",
+                    "vat_checked_at": "2026-07-20T08:30:00Z",
+                    "vat_validation_reference": "VIES-2026-0001",
+                },
             }
         ],
         "contacts": [
@@ -156,6 +169,9 @@ async def test_create_customer_auto_numbers_and_returns_normalized_aggregate(
     assert body["accounts"][0]["number"] == "CUST-00001"
     assert body["accounts"][0]["preferred_currency"] == "EUR"
     assert body["accounts"][0]["discount_percent"] == "2.50"
+    assert body["accounts"][0]["document_preference"] == payload["accounts"][0][
+        "document_preference"
+    ]
     assert body["addresses"][0]["country_code"] == "DE"
     assert body["tax_identifiers"][0]["kind"] == "vat"
     assert body["tags"] == ["B2B", "priority"]
@@ -172,6 +188,97 @@ async def test_create_customer_auto_numbers_and_returns_normalized_aggregate(
     ).scalar_one()
     assert isinstance(account.discount_percent, Decimal)
     assert account.discount_percent == Decimal("2.50")
+
+
+@pytest.mark.asyncio
+async def test_customer_einvoice_preference_round_trips_on_update(async_client: AsyncClient):
+    profile = await create_profile(async_client)
+    created = await create_customer(async_client, profile["id"])
+    update_payload = customer_payload(profile["id"])
+    update_payload["version"] = created["version"]
+    update_payload["accounts"][0]["number"] = created["accounts"][0]["number"]
+    preference = update_payload["accounts"][0]["document_preference"]
+    preference["endpoint_id"] = "9912345678901"
+    preference["purchase_order_reference"] = "PO-UPDATED"
+    preference["vat_validation_result"] = "invalid"
+
+    updated = await async_client.put(f"{BASE_URL}/{created['id']}", json=update_payload)
+    detail = await async_client.get(f"{BASE_URL}/{created['id']}")
+
+    assert updated.status_code == 200, updated.text
+    assert detail.status_code == 200, detail.text
+    assert updated.json()["accounts"][0]["document_preference"] == preference
+    assert detail.json()["accounts"][0]["document_preference"] == preference
+
+
+@pytest.mark.asyncio
+async def test_tax_decision_preview_is_deterministic(async_client: AsyncClient):
+    response = await async_client.post(
+        BASE_URL + "/tax-decisions/preview",
+        json={
+            "seller_country": "de",
+            "buyer_country": "fr",
+            "place_of_supply": "fr",
+            "buyer_kind": "business",
+            "buyer_vat_id": "FR12345678901",
+            "buyer_vat_valid": True,
+            "vat_validation_evidence": {"reference": "VIES-2026-0001"},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["treatment"] == "eu_reverse_charge"
+    assert response.json()["rule_version"] == "2026.1"
+    assert response.json()["vat_validation_evidence"] == {"reference": "VIES-2026-0001"}
+
+
+@pytest.mark.asyncio
+async def test_tax_override_requires_dedicated_permission(async_client: AsyncClient, db_session):
+    allowed_token = await create_permission_user(
+        db_session,
+        username="tax-override",
+        permissions=[Permission.COMMERCIAL_DOCUMENTS_TAX_OVERRIDE.value],
+    )
+    denied_token = await create_permission_user(
+        db_session,
+        username="tax-draft-only",
+        permissions=[Permission.COMMERCIAL_DOCUMENTS_DRAFT.value],
+    )
+    payload = {
+        "facts": {
+            "seller_country": "DE",
+            "buyer_country": "DE",
+            "place_of_supply": "DE",
+            "buyer_kind": "business",
+        },
+        "override": {
+            "treatment": "domestic_reduced",
+            "tax_country": "DE",
+            "category_code": "S",
+            "rate": "7.00",
+            "legal_reason_code": None,
+            "legal_reason_text": "Ermaessigter Steuersatz",
+            "reason": "Manuelle steuerliche Pruefung, Artikel 123",
+        },
+    }
+
+    with patch("backend.app.core.auth.is_auth_enabled", return_value=True):
+        denied = await async_client.post(
+            BASE_URL + "/tax-decisions/override",
+            headers={"Authorization": f"Bearer {denied_token}"},
+            json=payload,
+        )
+        allowed = await async_client.post(
+            BASE_URL + "/tax-decisions/override",
+            headers={"Authorization": f"Bearer {allowed_token}"},
+            json=payload,
+        )
+
+    assert denied.status_code == 403
+    assert allowed.status_code == 200, allowed.text
+    assert allowed.json()["manual_override"] is True
+    assert allowed.json()["override_reason"] == payload["override"]["reason"]
+    assert allowed.json()["override_actor_id"] is not None
 
 
 @pytest.mark.asyncio

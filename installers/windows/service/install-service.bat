@@ -19,6 +19,11 @@ set "NSSM=%INSTALL_DIR%\bin\nssm.exe"
 set "PYTHON=%INSTALL_DIR%\python\python.exe"
 set "APP_DIR=%INSTALL_DIR%\app"
 set "BIN_DIR=%INSTALL_DIR%\bin"
+set "JAVA_DIR=%INSTALL_DIR%\runtime\java\bin"
+set "VERAPDF_CLI=%INSTALL_DIR%\runtime\verapdf\verapdf.bat"
+set "WEASYPRINT_CLI=%INSTALL_DIR%\runtime\weasyprint\dist\weasyprint.exe"
+set "WEASYPRINT_DIR=%INSTALL_DIR%\runtime\weasyprint\dist"
+set "WEASYPRINT_INTERNAL_DIR=%WEASYPRINT_DIR%\_internal"
 set "DATA_DIR=%DATA_ROOT%\data"
 set "LOG_DIR=%DATA_ROOT%\logs"
 
@@ -49,7 +54,9 @@ REM in backend/app/services/layer_timelapse.py.
     "DATA_DIR=%DATA_DIR%" ^
     "LOG_DIR=%LOG_DIR%" ^
     "PORT=%PORT%" ^
-    "PATH=%BIN_DIR%;%PATH%"
+    "VERAPDF_CLI=%VERAPDF_CLI%" ^
+    "WEASYPRINT_CLI=%WEASYPRINT_CLI%" ^
+    "PATH=%BIN_DIR%;%JAVA_DIR%;%WEASYPRINT_DIR%;%WEASYPRINT_INTERNAL_DIR%;%PATH%"
 
 REM Stdout / stderr capture. Rotate at 10MB.
 "%NSSM%" set PrintOps AppStdout "%LOG_DIR%\service-stdout.log"

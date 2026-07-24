@@ -45,6 +45,9 @@ class APIKey(Base):
     can_manage_projects: Mapped[bool] = mapped_column(
         Boolean, default=True
     )  # Create/update/delete projects + manage membership (add archives) (#1893)
+    can_render_documents: Mapped[bool] = mapped_column(
+        Boolean, default=False
+    )  # Layout authoring, immutable document rendering/export and render audit
     can_access_cloud: Mapped[bool] = mapped_column(Boolean, default=False)  # Read /cloud/* on the owner's behalf
     # Narrowly-scoped settings write: only POST /settings/electricity-price.
     # Lets HA/Tibber-style automations push dynamic tariff updates without

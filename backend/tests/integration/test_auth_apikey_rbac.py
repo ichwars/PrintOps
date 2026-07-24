@@ -227,6 +227,7 @@ class TestApiKeyScopeAllowlist:
             "can_manage_maintenance",
             "can_manage_archives",
             "can_manage_projects",
+            "can_render_documents",
             "can_access_cloud",
         }
         used_flags = set(_APIKEY_SCOPE_BY_PERMISSION.values())
@@ -256,6 +257,7 @@ class TestApiKeyScopeAllowlist:
             "can_manage_maintenance",
             "can_manage_archives",
             "can_manage_projects",
+            "can_render_documents",
             "can_access_cloud",
         ],
     )
@@ -286,6 +288,7 @@ class _FakeApiKey:
         can_manage_maintenance=False,
         can_manage_archives=False,
         can_manage_projects=False,
+        can_render_documents=False,
     ):
         self.can_read_status = can_read_status
         self.can_queue = can_queue
@@ -295,6 +298,7 @@ class _FakeApiKey:
         self.can_manage_maintenance = can_manage_maintenance
         self.can_manage_archives = can_manage_archives
         self.can_manage_projects = can_manage_projects
+        self.can_render_documents = can_render_documents
 
 
 class TestCheckApiKeyPermissionsMatrix:
@@ -357,6 +361,11 @@ class TestCheckApiKeyPermissionsMatrix:
         ("PROJECTS_CREATE", "can_manage_projects", "create a project"),
         ("PROJECTS_UPDATE", "can_manage_projects", "update a project / add archives"),
         ("PROJECTS_DELETE", "can_manage_projects", "delete a project"),
+        ("DOCUMENT_LAYOUTS_READ", "can_render_documents", "read document layouts"),
+        ("DOCUMENT_LAYOUTS_MANAGE", "can_render_documents", "manage document layouts"),
+        ("COMMERCIAL_DOCUMENTS_READ", "can_render_documents", "read immutable document evidence"),
+        ("COMMERCIAL_DOCUMENTS_EXPORT", "can_render_documents", "render and export a document"),
+        ("ORDER_AUDIT_READ", "can_render_documents", "read document render audit"),
     ]
 
     _ADMIN_CASES = [
@@ -409,6 +418,7 @@ class TestCheckApiKeyPermissionsMatrix:
                 "can_manage_maintenance",
                 "can_manage_archives",
                 "can_manage_projects",
+                "can_render_documents",
             )
             if f != required_flag
         }

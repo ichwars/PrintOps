@@ -27,6 +27,14 @@ from backend.app.models.calculation_project import (
 from backend.app.models.calculation_slice import CalculationSliceResult
 from backend.app.models.color_catalog import ColorCatalogEntry
 from backend.app.models.commerce import CustomerOrder, Offer, OfferAcceptance
+from backend.app.models.commercial_document import (
+    CommercialDocument,
+    CommercialDocumentLine,
+    DocumentArtifact,
+    DocumentNumberReservation,
+    DocumentRelation,
+    DocumentSnapshot,
+)
 from backend.app.models.customer import (
     Customer,
     CustomerAccount,
@@ -34,6 +42,20 @@ from backend.app.models.customer import (
     CustomerContact,
     CustomerTag,
     CustomerTaxIdentifier,
+)
+from backend.app.models.document_audit import DocumentAuditEvent
+from backend.app.models.document_configuration import (
+    ConfigurationPublication,
+    CustomerDocumentPreference,
+    DocumentBasicPolicy,
+    DocumentConfiguration,
+    DocumentContentPolicy,
+    DocumentTextBlock,
+    DunningPolicy,
+    DunningStage,
+    EInvoicePolicy,
+    PaymentPolicy,
+    TaxPolicy,
 )
 from backend.app.models.equipment import Equipment
 from backend.app.models.filament import Filament
@@ -148,12 +170,30 @@ __all__ = [
     "Offer",
     "CustomerOrder",
     "OfferAcceptance",
+    "CommercialDocument",
+    "CommercialDocumentLine",
+    "DocumentRelation",
+    "DocumentSnapshot",
+    "DocumentArtifact",
+    "DocumentNumberReservation",
+    "DocumentAuditEvent",
     "Customer",
     "CustomerAccount",
     "CustomerAddress",
     "CustomerContact",
     "CustomerTag",
     "CustomerTaxIdentifier",
+    "DocumentConfiguration",
+    "DocumentBasicPolicy",
+    "PaymentPolicy",
+    "DunningPolicy",
+    "DunningStage",
+    "DocumentTextBlock",
+    "DocumentContentPolicy",
+    "TaxPolicy",
+    "EInvoicePolicy",
+    "CustomerDocumentPreference",
+    "ConfigurationPublication",
     "NumberSequence",
     "Equipment",
     "SmallPartCategory",
