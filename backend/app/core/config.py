@@ -118,9 +118,7 @@ class Settings(BaseSettings):
     update_trusted_signers_file: Path | None = (
         Path(_update_trusted_signers_env) if _update_trusted_signers_env else None
     )
-    update_signing_principal: str = os.environ.get(
-        "PRINTOPS_UPDATE_SIGNING_PRINCIPAL", "release@printops"
-    )
+    update_signing_principal: str = os.environ.get("PRINTOPS_UPDATE_SIGNING_PRINCIPAL", "release@printops")
     verapdf_cli: Path | None = Path(os.environ["VERAPDF_CLI"]) if os.environ.get("VERAPDF_CLI") else None
     weasyprint_cli: Path | None = Path(os.environ["WEASYPRINT_CLI"]) if os.environ.get("WEASYPRINT_CLI") else None
     database_url: str = _external_db_url or f"sqlite+aiosqlite:///{_db_path}"

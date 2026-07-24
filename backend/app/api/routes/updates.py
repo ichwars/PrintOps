@@ -43,9 +43,7 @@ _github_rate_limit_until: float = 0.0
 
 # Only project release tags are accepted by the updater. Besides preventing
 # option/ref injection this rejects moving branches and arbitrary commit SHAs.
-_RELEASE_TAG_RE = re.compile(
-    r"^v\d+\.\d+\.\d+(?:\.\d+)?(?:(?:a|alpha|b|beta|rc)\d+)?(?:-daily\.\d{8})?$"
-)
+_RELEASE_TAG_RE = re.compile(r"^v\d+\.\d+\.\d+(?:\.\d+)?(?:(?:a|alpha|b|beta|rc)\d+)?(?:-daily\.\d{8})?$")
 _UPDATE_SIGNING_PRINCIPAL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9@._+-]{0,127}$")
 
 
@@ -87,9 +85,7 @@ def _load_update_trust_config() -> tuple[os.PathLike[str], str]:
     except (OSError, UnicodeError) as exc:
         raise ValueError("trusted signers file cannot be read safely") from exc
     active_lines = [
-        line.strip()
-        for line in signer_text.splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
+        line.strip() for line in signer_text.splitlines() if line.strip() and not line.lstrip().startswith("#")
     ]
     if not active_lines:
         raise ValueError("trusted signers file contains no keys")

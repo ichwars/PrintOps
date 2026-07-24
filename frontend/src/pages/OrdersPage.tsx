@@ -1,4 +1,4 @@
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Calculator, ClipboardList, FileText, Receipt } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../components/Card';

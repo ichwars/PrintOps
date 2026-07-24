@@ -409,6 +409,12 @@ async def test_run_ssh_command_timeout(tmp_path):
 # -- perform_ssh_update --------------------------------------------------------
 
 
+@pytest.fixture
+def trusted_update_commit(monkeypatch):
+    """Provide the immutable build identity required by the update flow."""
+    monkeypatch.setenv("PRINTOPS_COMMIT_SHA", "a" * 40)
+
+
 def _make_update_mocks(tmp_path):
     """Create common mocks for perform_ssh_update tests."""
     mock_db_device = MagicMock()
@@ -435,7 +441,7 @@ def _make_update_mocks(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_success(tmp_path):
+async def test_perform_ssh_update_success(tmp_path, trusted_update_commit):
     """Full update flow: all SSH commands succeed."""
     ssh_dir = tmp_path / "spoolbuddy" / "ssh"
     ssh_dir.mkdir(parents=True)
@@ -478,7 +484,7 @@ async def test_perform_ssh_update_success(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_branch_is_shell_quoted(tmp_path):
+async def test_perform_ssh_update_branch_is_shell_quoted(tmp_path, trusted_update_commit):
     """Branch name with shell-special chars must be quoted in all git commands (L1 fix)."""
     import shlex
 
@@ -520,7 +526,7 @@ async def test_perform_ssh_update_branch_is_shell_quoted(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_tofu_stores_host_key(tmp_path):
+async def test_perform_ssh_update_tofu_stores_host_key(tmp_path, trusted_update_commit):
     """On first connect (no stored key), the observed host key must be persisted (H1)."""
     ssh_dir = tmp_path / "spoolbuddy" / "ssh"
     ssh_dir.mkdir(parents=True)
@@ -556,7 +562,7 @@ async def test_perform_ssh_update_tofu_stores_host_key(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_ssh_failure(tmp_path):
+async def test_perform_ssh_update_ssh_failure(tmp_path, trusted_update_commit):
     """SSH connectivity check fails — should set error status."""
     ssh_dir = tmp_path / "spoolbuddy" / "ssh"
     ssh_dir.mkdir(parents=True)
@@ -587,7 +593,7 @@ async def test_perform_ssh_update_ssh_failure(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_git_fetch_failure(tmp_path):
+async def test_perform_ssh_update_git_fetch_failure(tmp_path, trusted_update_commit):
     """Git fetch fails — should set error and stop."""
     ssh_dir = tmp_path / "spoolbuddy" / "ssh"
     ssh_dir.mkdir(parents=True)
@@ -621,7 +627,7 @@ async def test_perform_ssh_update_git_fetch_failure(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_uses_stored_host_key(tmp_path):
+async def test_perform_ssh_update_uses_stored_host_key(tmp_path, trusted_update_commit):
     """When device already has ssh_host_key set, all SSH calls must receive non-None known_hosts (Gap 1)."""
     ssh_dir = tmp_path / "spoolbuddy" / "ssh"
     ssh_dir.mkdir(parents=True)
@@ -660,7 +666,7 @@ async def test_perform_ssh_update_uses_stored_host_key(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_corrupt_stored_key_falls_back_to_tofu(tmp_path):
+async def test_perform_ssh_update_corrupt_stored_key_falls_back_to_tofu(tmp_path, trusted_update_commit):
     """When stored ssh_host_key can't be parsed, update continues with known_hosts=None (Gap 2)."""
     ssh_dir = tmp_path / "spoolbuddy" / "ssh"
     ssh_dir.mkdir(parents=True)
@@ -701,7 +707,7 @@ async def test_perform_ssh_update_corrupt_stored_key_falls_back_to_tofu(tmp_path
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_passes_str_not_bytes_to_import_known_hosts(tmp_path):
+async def test_perform_ssh_update_passes_str_not_bytes_to_import_known_hosts(tmp_path, trusted_update_commit):
     """asyncssh.import_known_hosts() is a str-only API — passing bytes crashes
     inside its line parser (`line.startswith('#')` against a bytes line raises
     TypeError). Pin both call sites — the stored-key parse and the just-stored
