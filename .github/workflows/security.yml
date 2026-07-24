@@ -101,6 +101,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-config-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
+          trivyignores: '.trivyignore.yaml'
           version: 'v0.69.3'
 
       - name: Upload Trivy config results
