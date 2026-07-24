@@ -3018,20 +3018,9 @@ class TestSlicerProxyManager:
         assert mgr._aux_proxies[0].target_port == 2024
         assert mgr._aux_proxies[2].listen_port == 2026
 
-        # FTP data ports should be pre-created as TCPProxy instances
-        assert len(mgr._ftp_data_proxies) == 101  # 50000-50100 inclusive
-        for dp in mgr._ftp_data_proxies:
-            assert isinstance(dp, TCPProxy), "FTP data proxies should be TCPProxy"
-
-        # Verify FTP data proxies target the same port on the printer
-        first_dp = mgr._ftp_data_proxies[0]
-        assert first_dp.listen_port == 50000
-        assert first_dp.target_port == 50000
-        assert first_dp.target_host == "192.168.1.100"
-
-        last_dp = mgr._ftp_data_proxies[-1]
-        assert last_dp.listen_port == 50100
-        assert last_dp.target_port == 50100
+        # Transparent FTPS cannot authenticate a passive data peer, so the
+        # manager must not expose permanent forwarders for ports 50000-50100.
+        assert mgr._ftp_data_proxies == []
 
     def test_proxy_manager_mqtt_has_ip_rewriting(self, tmp_path):
         """Verify MQTT proxy is configured with IP rewriting when bind_address is set."""

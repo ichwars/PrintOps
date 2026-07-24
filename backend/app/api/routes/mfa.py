@@ -38,9 +38,10 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, undefer
 
-from backend.app.api.routes._oidc_helpers import assert_safe_public_https_url
+from backend.app.api.routes._oidc_helpers import OIDCPinnedTransport, assert_safe_public_https_url
 from backend.app.api.routes.settings import get_setting, set_setting
 from backend.app.core.auth import (
+    RequireAdminIfAuthEnabled,
     RequirePermissionIfAuthEnabled,
     create_access_token,
     get_current_active_user,
@@ -498,9 +499,25 @@ def _resolve_provider_email(provider: OIDCProvider, claims: dict, provider_sub: 
     raw_email: str | None = raw_claim_value.lower().strip() if raw_claim_value else None
 
     if provider.email_claim != "email":
-        # Fall C: custom claim (preferred_username, upn, …) — no email_verified check.
-        # SEC-2: _is_valid_email_shaped instead of bare '"@" in value'.
-        # Recommended for Azure Entra ID: set email_claim="preferred_username" or "upn".
+        # A custom claim may drive username/email selection for auto-created
+        # accounts, but it may only auto-link an existing local account when
+        # it exactly matches the provider's verified standard email claim.
+        # A signed token authenticates the IdP principal; it does not make an
+        # arbitrary preferred_username/upn value authoritative for local ATO.
+        if provider.auto_link_existing_accounts:
+            verified_email = claims.get("email")
+            normalized_verified = (
+                verified_email.lower().strip()
+                if isinstance(verified_email, str) and _is_valid_email_shaped(verified_email.lower().strip())
+                else None
+            )
+            if claims.get("email_verified") is not True or normalized_verified != raw_email:
+                logger.warning(
+                    "OIDC provider %d: refusing custom-claim auto-link for sub=%r without matching verified email",
+                    provider_id,
+                    provider_sub,
+                )
+                return None
         if raw_email and _is_valid_email_shaped(raw_email):
             return raw_email
         if raw_email:
@@ -1276,6 +1293,7 @@ async def verify_2fa(
 async def admin_disable_2fa(
     user_id: int,
     body: AdminDisable2FARequest = Body(default_factory=AdminDisable2FARequest),
+    _admin: User | None = RequireAdminIfAuthEnabled(),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.USERS_UPDATE),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -1379,6 +1397,7 @@ async def create_oidc_provider(
         client_secret=body.client_secret,
         scopes=body.scopes,
         is_enabled=body.is_enabled,
+        allow_private_network=body.allow_private_network,
         auto_create_users=body.auto_create_users,
         auto_link_existing_accounts=body.auto_link_existing_accounts,
         email_claim=body.email_claim,
@@ -1634,7 +1653,14 @@ async def oidc_authorize(
     # Fetch discovery document
     discovery_url = f"{provider.issuer_url.rstrip('/')}/.well-known/openid-configuration"
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(
+            timeout=10,
+            follow_redirects=False,
+            transport=OIDCPinnedTransport(
+                provider.issuer_url,
+                allow_private_network=getattr(provider, "allow_private_network", False),
+            ),
+        ) as client:
             resp = await client.get(discovery_url)
             resp.raise_for_status()
             discovery = resp.json()
@@ -1756,7 +1782,14 @@ async def oidc_callback(
         # ── Step 1: Fetch discovery document ────────────────────────────────
         discovery_url = f"{provider.issuer_url.rstrip('/')}/.well-known/openid-configuration"
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with httpx.AsyncClient(
+                timeout=10,
+                follow_redirects=False,
+                transport=OIDCPinnedTransport(
+                    provider.issuer_url,
+                    allow_private_network=getattr(provider, "allow_private_network", False),
+                ),
+            ) as client:
                 disc_resp = await client.get(discovery_url)
                 disc_resp.raise_for_status()
                 discovery = disc_resp.json()
@@ -1789,7 +1822,14 @@ async def oidc_callback(
             token_form["code_verifier"] = code_verifier
 
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
+            async with httpx.AsyncClient(
+                timeout=15,
+                follow_redirects=False,
+                transport=OIDCPinnedTransport(
+                    provider.issuer_url,
+                    allow_private_network=getattr(provider, "allow_private_network", False),
+                ),
+            ) as client:
                 token_resp = await client.post(
                     token_endpoint,
                     data=token_form,
@@ -1847,7 +1887,14 @@ async def oidc_callback(
         # are inconsistent between the discovery issuer and the JWT iss claim.
         discovery_issuer: str = discovery.get("issuer", provider.issuer_url).rstrip("/")
         try:
-            async with httpx.AsyncClient(timeout=10) as jwks_http:
+            async with httpx.AsyncClient(
+                timeout=10,
+                follow_redirects=False,
+                transport=OIDCPinnedTransport(
+                    provider.issuer_url,
+                    allow_private_network=getattr(provider, "allow_private_network", False),
+                ),
+            ) as jwks_http:
                 jwks_resp = await jwks_http.get(jwks_uri)
                 jwks_resp.raise_for_status()
                 jwks_data = jwks_resp.json()

@@ -8,6 +8,15 @@ from httpx import AsyncClient
 
 
 class TestUpdatesAPI:
+    @staticmethod
+    def _write_update_signers(tmp_path: Path) -> Path:
+        signers = tmp_path / "release-signers.allowed"
+        signers.write_text(
+            "release@printops ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestReleaseKey\n",
+            encoding="utf-8",
+        )
+        return signers
+
     @pytest.fixture(autouse=True)
     def _reset_update_status(self):
         """Isolate the module-global ``_update_status`` between tests.
@@ -266,6 +275,86 @@ class TestUpdatesAPI:
 
         assert parse_version("0.1.5")[:3] == (0, 1, 5)
 
+    @pytest.mark.parametrize(
+        "tag",
+        ["v0.2.5rc4", "v0.2.4.9", "v1.2.5b2-daily.20260718", "v1.0.0"],
+    )
+    def test_release_tag_validation_accepts_supported_tags(self, tag):
+        from backend.app.api.routes.updates import _is_release_tag
+
+        assert _is_release_tag(tag) is True
+
+    @pytest.mark.parametrize(
+        "tag",
+        ["main", "origin/main", "deadbeef", "--upload-pack=evil", "v1.0", "v1.0.0^{}", "v1.0.0/../../main"],
+    )
+    def test_release_tag_validation_rejects_arbitrary_refs(self, tag):
+        from backend.app.api.routes.updates import _is_release_tag
+
+        assert _is_release_tag(tag) is False
+
+    @pytest.mark.asyncio
+    async def test_perform_update_rejects_non_tag_before_starting_git(self):
+        from backend.app.api.routes import updates as updates_module
+
+        with patch.object(updates_module.asyncio, "create_subprocess_exec", new_callable=AsyncMock) as spawn:
+            await updates_module._perform_update("origin/main")
+
+        spawn.assert_not_awaited()
+        assert updates_module._update_status["status"] == "error"
+        assert "release tag" in updates_module._update_status["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_perform_update_fails_closed_without_trusted_signers(self):
+        from backend.app.api.routes import updates as updates_module
+
+        with (
+            patch.object(updates_module.settings, "update_trusted_signers_file", None),
+            patch.object(updates_module.asyncio, "create_subprocess_exec", new_callable=AsyncMock) as spawn,
+        ):
+            await updates_module._perform_update("v1.0.0")
+
+        spawn.assert_not_awaited()
+        assert updates_module._update_status["status"] == "error"
+        assert "PRINTOPS_UPDATE_TRUSTED_SIGNERS_FILE" in updates_module._update_status["error"]
+
+    @pytest.mark.asyncio
+    async def test_perform_update_rejects_lightweight_tag_before_reset(self, tmp_path):
+        from backend.app.api.routes import updates as updates_module
+
+        app_dir = tmp_path / "app"
+        data_dir = app_dir / "data"
+        app_dir.mkdir()
+        data_dir.mkdir()
+        signers = self._write_update_signers(tmp_path)
+        calls: list[tuple] = []
+
+        async def fake_create_subprocess_exec(*args, **kwargs):
+            calls.append(args)
+            proc = MagicMock(returncode=0)
+            if "get-url" in args:
+                proc.communicate = AsyncMock(return_value=(b"https://github.com/ichwars/PrintOps.git\n", b""))
+            elif "cat-file" in args:
+                proc.communicate = AsyncMock(return_value=(b"commit\n", b""))
+            else:
+                proc.communicate = AsyncMock(return_value=(b"", b""))
+            return proc
+
+        with (
+            patch.object(updates_module.settings, "base_dir", data_dir),
+            patch.object(updates_module.settings, "app_dir", app_dir),
+            patch.object(updates_module.settings, "update_trusted_signers_file", signers),
+            patch.object(updates_module.settings, "update_signing_principal", "release@printops"),
+            patch.object(updates_module, "_find_executable", return_value="/usr/bin/git"),
+            patch.object(updates_module.asyncio, "create_subprocess_exec", side_effect=fake_create_subprocess_exec),
+        ):
+            await updates_module._perform_update("v1.0.0")
+
+        assert not any("verify-tag" in call for call in calls)
+        assert not any("reset" in call for call in calls)
+        assert updates_module._update_status["status"] == "error"
+        assert "annotated tag" in updates_module._update_status["error"]
+
     def test_is_newer_version(self):
         from backend.app.api.routes.updates import is_newer_version
 
@@ -316,6 +405,7 @@ class TestUpdatesAPI:
         app_dir.mkdir()
         data_dir.mkdir()
         (app_dir / "requirements.txt").write_text("fastapi\n")
+        signers = self._write_update_signers(tmp_path)
 
         calls: list[dict] = []
 
@@ -327,6 +417,10 @@ class TestUpdatesAPI:
             # output.
             if "get-url" in args and "origin" in args:
                 proc.communicate = AsyncMock(return_value=(b"git@github.com:ichwars/PrintOps.git\n", b""))
+            elif "cat-file" in args:
+                proc.communicate = AsyncMock(return_value=(b"tag\n", b""))
+            elif "rev-parse" in args:
+                proc.communicate = AsyncMock(return_value=(b"1" * 40 + b"\n", b""))
             else:
                 proc.communicate = AsyncMock(return_value=(b"", b""))
             proc.returncode = 0
@@ -335,6 +429,8 @@ class TestUpdatesAPI:
         with (
             patch.object(updates_module.settings, "base_dir", data_dir),
             patch.object(updates_module.settings, "app_dir", app_dir),
+            patch.object(updates_module.settings, "update_trusted_signers_file", signers),
+            patch.object(updates_module.settings, "update_signing_principal", "release@printops"),
             patch.object(updates_module, "_find_executable", return_value="/usr/bin/git"),
             patch.object(
                 updates_module.asyncio,
@@ -367,6 +463,7 @@ class TestUpdatesAPI:
         app_dir.mkdir()
         data_dir.mkdir()
         (app_dir / "requirements.txt").write_text("fastapi\n")
+        signers = self._write_update_signers(tmp_path)
 
         calls: list[dict] = []
 
@@ -376,6 +473,10 @@ class TestUpdatesAPI:
             # origin is set to a fork — must be rewritten.
             if "get-url" in args and "origin" in args:
                 proc.communicate = AsyncMock(return_value=(b"git@github.com:somefork/printops.git\n", b""))
+            elif "cat-file" in args:
+                proc.communicate = AsyncMock(return_value=(b"tag\n", b""))
+            elif "rev-parse" in args:
+                proc.communicate = AsyncMock(return_value=(b"2" * 40 + b"\n", b""))
             else:
                 proc.communicate = AsyncMock(return_value=(b"", b""))
             proc.returncode = 0
@@ -384,6 +485,8 @@ class TestUpdatesAPI:
         with (
             patch.object(updates_module.settings, "base_dir", data_dir),
             patch.object(updates_module.settings, "app_dir", app_dir),
+            patch.object(updates_module.settings, "update_trusted_signers_file", signers),
+            patch.object(updates_module.settings, "update_signing_principal", "release@printops"),
             patch.object(updates_module, "_find_executable", return_value="/usr/bin/git"),
             patch.object(
                 updates_module.asyncio,
@@ -418,6 +521,7 @@ class TestUpdatesAPI:
         app_dir.mkdir()
         data_dir.mkdir()
         (app_dir / "requirements.txt").write_text("fastapi\n")
+        signers = self._write_update_signers(tmp_path)
 
         calls: list[dict] = []
 
@@ -426,6 +530,10 @@ class TestUpdatesAPI:
             proc = MagicMock()
             if "get-url" in args and "origin" in args:
                 proc.communicate = AsyncMock(return_value=(b"git@github.com:ichwars/PrintOps.git\n", b""))
+            elif "cat-file" in args:
+                proc.communicate = AsyncMock(return_value=(b"tag\n", b""))
+            elif "rev-parse" in args:
+                proc.communicate = AsyncMock(return_value=(b"3" * 40 + b"\n", b""))
             else:
                 proc.communicate = AsyncMock(return_value=(b"", b""))
             proc.returncode = 0
@@ -434,6 +542,8 @@ class TestUpdatesAPI:
         with (
             patch.object(updates_module.settings, "base_dir", data_dir),
             patch.object(updates_module.settings, "app_dir", app_dir),
+            patch.object(updates_module.settings, "update_trusted_signers_file", signers),
+            patch.object(updates_module.settings, "update_signing_principal", "release@printops"),
             patch.object(updates_module, "_find_executable", return_value="/usr/bin/git"),
             patch.object(
                 updates_module.asyncio,
@@ -443,34 +553,20 @@ class TestUpdatesAPI:
         ):
             await updates_module._perform_update("v0.2.4b1")
 
-        # Reset target must be the caller-supplied ref, not "origin/main".
+        # The verified tag is resolved once, then reset uses its immutable SHA.
         reset_calls = [c for c in calls if "reset" in c["args"] and "--hard" in c["args"]]
         assert reset_calls, "git reset must be invoked"
         reset_target = reset_calls[0]["args"][-1]
-        assert reset_target == "v0.2.4b1", (
-            f"Expected reset target to be the caller-supplied ref 'v0.2.4b1'; "
-            f"got {reset_target!r}. Regression to a hardcoded 'origin/main' "
-            "would re-introduce the in-app-updater-can't-install-betas bug."
-        )
+        assert reset_target == "3" * 40
 
-        # Fetch must include --tags so v0.2.4b1 (a tag) is locally resolvable.
+        # Fetch is restricted to exactly the selected release tag.
         fetch_calls = [c for c in calls if "fetch" in c["args"]]
         assert fetch_calls
-        assert "--tags" in fetch_calls[0]["args"], (
-            "Fetch must use --tags so release-tag refs (the production path "
-            "for tag-based updates) are resolvable for the subsequent reset. "
-            f"Captured fetch call: {fetch_calls[0]['args']}"
-        )
-        # Fetch must include --force so a re-pointed tag on the remote
-        # (common after re-tagging a release post-release-notes edit) doesn't
-        # surface as "Failed to fetch updates" to the user just because their
-        # local copy of the moved tag would be clobbered. The relevant target
-        # ref is fetched fine; we only want git's tag-clobber to be silent.
-        assert "--force" in fetch_calls[0]["args"], (
-            "Fetch must use --force so re-pointed tags on the remote don't "
-            "fail the whole fetch (the rest of the refs update cleanly). "
-            f"Captured fetch call: {fetch_calls[0]['args']}"
-        )
+        assert "+refs/tags/v0.2.4b1:refs/tags/v0.2.4b1" in fetch_calls[0]["args"]
+        verify_calls = [c for c in calls if "verify-tag" in c["args"]]
+        assert verify_calls
+        assert verify_calls[0]["args"][-1] == "refs/tags/v0.2.4b1"
+        assert calls.index(verify_calls[0]) < calls.index(reset_calls[0])
 
     @pytest.mark.asyncio
     async def test_apply_update_passes_discovered_release_to_perform_update(self, async_client: AsyncClient):
@@ -550,6 +646,7 @@ class TestUpdatesAPI:
         app_dir.mkdir()
         data_dir.mkdir()
         (app_dir / "requirements.txt").write_text("fastapi\n")
+        signers = self._write_update_signers(tmp_path)
 
         # Capture every subprocess call's cwd + the executable token.
         calls: list[dict] = []
@@ -557,13 +654,20 @@ class TestUpdatesAPI:
         async def fake_create_subprocess_exec(*args, **kwargs):
             calls.append({"args": args, "cwd": kwargs.get("cwd")})
             proc = MagicMock()
-            proc.communicate = AsyncMock(return_value=(b"", b""))
+            if "cat-file" in args:
+                proc.communicate = AsyncMock(return_value=(b"tag\n", b""))
+            elif "rev-parse" in args:
+                proc.communicate = AsyncMock(return_value=(b"4" * 40 + b"\n", b""))
+            else:
+                proc.communicate = AsyncMock(return_value=(b"", b""))
             proc.returncode = 0
             return proc
 
         with (
             patch.object(updates_module.settings, "base_dir", data_dir),
             patch.object(updates_module.settings, "app_dir", app_dir),
+            patch.object(updates_module.settings, "update_trusted_signers_file", signers),
+            patch.object(updates_module.settings, "update_signing_principal", "release@printops"),
             patch.object(updates_module, "_find_executable", return_value="/usr/bin/git"),
             patch.object(
                 updates_module.asyncio,
@@ -610,6 +714,7 @@ class TestUpdatesAPI:
         app_dir.mkdir(parents=True)
         data_dir.mkdir(parents=True)
         (app_dir / "requirements.txt").write_text("fastapi\n")
+        signers = self._write_update_signers(tmp_path)
 
         calls: list[dict] = []
 
@@ -618,6 +723,10 @@ class TestUpdatesAPI:
             proc = MagicMock()
             if "get-url" in args and "origin" in args:
                 proc.communicate = AsyncMock(return_value=(b"git@github.com:ichwars/PrintOps.git\n", b""))
+            elif "cat-file" in args:
+                proc.communicate = AsyncMock(return_value=(b"tag\n", b""))
+            elif "rev-parse" in args:
+                proc.communicate = AsyncMock(return_value=(b"5" * 40 + b"\n", b""))
             else:
                 proc.communicate = AsyncMock(return_value=(b"", b""))
             proc.returncode = 0
@@ -626,6 +735,8 @@ class TestUpdatesAPI:
         with (
             patch.object(updates_module.settings, "base_dir", data_dir),
             patch.object(updates_module.settings, "app_dir", app_dir),
+            patch.object(updates_module.settings, "update_trusted_signers_file", signers),
+            patch.object(updates_module.settings, "update_signing_principal", "release@printops"),
             patch.object(updates_module, "_find_executable", return_value="/usr/bin/git"),
             patch.object(
                 updates_module.asyncio,

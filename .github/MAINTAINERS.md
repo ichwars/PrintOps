@@ -119,12 +119,18 @@ Example:
 1. Update version in `pyproject.toml`
 2. Update `CHANGELOG.md`
 3. Create a PR with these changes
-4. After merge, tag the release:
+4. After merge, create a signed annotated tag:
    ```bash
-   git tag v0.1.x
+   git tag -s v0.1.x -m "PrintOps v0.1.x"
+   git verify-tag v0.1.x
    git push origin v0.1.x
    ```
-5. Run `docker-publish.sh` to publish Docker image
+5. The protected GitHub Actions release workflows publish the signed Windows
+   installer and the attested multi-architecture container image.
+
+The complete one-time setup, trust-anchor rotation, required GitHub
+environment variables, and verification commands are documented in
+[`docs/release-security.md`](../docs/release-security.md).
 
 ## Dependabot (Optional)
 

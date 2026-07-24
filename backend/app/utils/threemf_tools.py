@@ -6,20 +6,65 @@ accurate partial usage reporting for multi-material prints.
 """
 
 import hashlib
-import json
+import io
 import logging
 import math
 import re
+import shutil
+import tempfile
 import zipfile
 from pathlib import Path
 
 import defusedxml.ElementTree as ET
+
+from backend.app.utils.archive_budget import (
+    MAX_ARCHIVE_REFERENCES,
+    MAX_FILAMENT_SLOTS,
+    MAX_UPLOAD_BYTES,
+    ArchiveBudgetError,
+    read_json_member,
+    read_text_member,
+    read_xml_member,
+    read_zip_member,
+    validate_zip_archive,
+)
 
 logger = logging.getLogger(__name__)
 
 # Default filament properties
 DEFAULT_FILAMENT_DIAMETER = 1.75  # mm
 DEFAULT_FILAMENT_DENSITY = 1.24  # g/cm³ (PLA)
+
+# Semantic budgets for embedded G-code. The archive layer constrains inflated
+# bytes; these limits additionally bound the number and size of Python objects
+# retained while deriving per-layer usage snapshots.
+MAX_GCODE_BYTES = 64 * 1024 * 1024
+MAX_GCODE_LINES = 2_000_000
+MAX_GCODE_LINE_LENGTH = 16_384
+MAX_GCODE_LAYERS = 20_000
+MAX_GCODE_LAYER_NUMBER = 100_000
+MAX_TOOL_COUNT = MAX_FILAMENT_SLOTS
+MAX_GCODE_SNAPSHOTS = MAX_GCODE_LAYERS
+MAX_GCODE_SNAPSHOT_ENTRIES = 320_000
+MAX_GCODE_SNIPPET_CHARS = 1024 * 1024
+MAX_GCODE_OUTPUT_BYTES = MAX_GCODE_BYTES + (2 * MAX_GCODE_SNIPPET_CHARS)
+MIN_TEMP_FREE_RESERVE_BYTES = 64 * 1024 * 1024
+
+
+class _OutputBudgetWriter:
+    """File adapter that prevents a ZIP rewrite from exceeding its output cap."""
+
+    def __init__(self, raw, max_bytes: int):
+        self.raw = raw
+        self.max_bytes = max_bytes
+
+    def write(self, data: bytes) -> int:
+        if self.raw.tell() + len(data) > self.max_bytes:
+            raise ArchiveBudgetError("modified 3MF exceeds the output budget")
+        return self.raw.write(data)
+
+    def __getattr__(self, name):
+        return getattr(self.raw, name)
 
 
 def parse_gcode_layer_filament_usage(gcode_content: str) -> dict[int, dict[int, float]]:
@@ -53,8 +98,20 @@ def parse_gcode_layer_filament_usage(gcode_content: str) -> dict[int, dict[int, 
     current_layer = 0
     active_filament: int | None = None
     cumulative_extrusion: dict[int, float] = {}  # filament_id -> total mm
+    line_count = 0
+    layer_count = 0
+    snapshot_count = 0
+    snapshot_entries = 0
 
-    for line in gcode_content.splitlines():
+    if len(gcode_content) > MAX_GCODE_BYTES:
+        raise ArchiveBudgetError("embedded G-code exceeds the character budget")
+
+    for line in io.StringIO(gcode_content):
+        line_count += 1
+        if line_count > MAX_GCODE_LINES:
+            raise ArchiveBudgetError("embedded G-code exceeds the line-count budget")
+        if len(line) > MAX_GCODE_LINE_LENGTH:
+            raise ArchiveBudgetError("embedded G-code exceeds the line-length budget")
         line = line.strip()
         if not line:
             continue
@@ -83,10 +140,23 @@ def parse_gcode_layer_filament_usage(gcode_content: str) -> dict[int, dict[int, 
                 if part_upper.startswith("L"):
                     try:
                         new_layer = int(part[1:])
+                        if not 0 <= new_layer <= MAX_GCODE_LAYER_NUMBER:
+                            raise ArchiveBudgetError("embedded G-code contains an unsupported layer number")
+                        layer_count += 1
+                        if layer_count > MAX_GCODE_LAYERS:
+                            raise ArchiveBudgetError("embedded G-code exceeds the layer-count budget")
                         # Save current state before layer change
                         if cumulative_extrusion:
+                            snapshot_count += 1
+                            snapshot_entries += len(cumulative_extrusion)
+                            if snapshot_count > MAX_GCODE_SNAPSHOTS:
+                                raise ArchiveBudgetError("embedded G-code exceeds the snapshot-count budget")
+                            if snapshot_entries > MAX_GCODE_SNAPSHOT_ENTRIES:
+                                raise ArchiveBudgetError("embedded G-code exceeds the snapshot-entry budget")
                             layer_filaments[current_layer] = cumulative_extrusion.copy()
                         current_layer = new_layer
+                    except ArchiveBudgetError:
+                        raise
                     except ValueError:
                         pass  # Skip G-code lines with unparseable layer numbers
 
@@ -106,7 +176,12 @@ def parse_gcode_layer_filament_usage(gcode_content: str) -> dict[int, dict[int, 
                             # Extract digits (e.g., "0A" -> 0, "1" -> 1)
                             match = re.match(r"(\d+)", filament_str)
                             if match:
-                                active_filament = int(match.group(1))
+                                tool_id = int(match.group(1))
+                                if not 0 <= tool_id < MAX_TOOL_COUNT:
+                                    raise ArchiveBudgetError("embedded G-code contains an unsupported tool number")
+                                active_filament = tool_id
+                        except ArchiveBudgetError:
+                            raise
                         except (ValueError, AttributeError):
                             pass  # Skip unparseable filament switch commands
 
@@ -129,6 +204,12 @@ def parse_gcode_layer_filament_usage(gcode_content: str) -> dict[int, dict[int, 
 
     # Save final layer state
     if cumulative_extrusion:
+        snapshot_count += 1
+        snapshot_entries += len(cumulative_extrusion)
+        if snapshot_count > MAX_GCODE_SNAPSHOTS:
+            raise ArchiveBudgetError("embedded G-code exceeds the snapshot-count budget")
+        if snapshot_entries > MAX_GCODE_SNAPSHOT_ENTRIES:
+            raise ArchiveBudgetError("embedded G-code exceeds the snapshot-entry budget")
         layer_filaments[current_layer] = cumulative_extrusion.copy()
 
     return layer_filaments
@@ -170,6 +251,7 @@ def extract_layer_filament_usage_from_3mf(file_path: Path) -> dict[int, dict[int
     """
     try:
         with zipfile.ZipFile(file_path, "r") as zf:
+            validate_zip_archive(zf)
             # Find G-code file(s) - usually plate_1.gcode or Metadata/plate_1.gcode
             gcode_files = [f for f in zf.namelist() if f.endswith(".gcode")]
             if not gcode_files:
@@ -177,7 +259,7 @@ def extract_layer_filament_usage_from_3mf(file_path: Path) -> dict[int, dict[int
 
             # Use the first G-code file (typically only one per 3MF export)
             gcode_path = gcode_files[0]
-            gcode_content = zf.read(gcode_path).decode("utf-8", errors="ignore")
+            gcode_content = read_text_member(zf, gcode_path, max_bytes=MAX_GCODE_BYTES, errors="ignore")
 
             return parse_gcode_layer_filament_usage(gcode_content)
     except Exception:
@@ -226,10 +308,10 @@ def extract_filament_properties_from_3mf(file_path: Path) -> dict[int, dict]:
     properties: dict[int, dict] = {}
     try:
         with zipfile.ZipFile(file_path, "r") as zf:
+            validate_zip_archive(zf)
             # Try slice_info.config first for filament types
             if "Metadata/slice_info.config" in zf.namelist():
-                content = zf.read("Metadata/slice_info.config").decode()
-                root = ET.fromstring(content)
+                root = read_xml_member(zf, "Metadata/slice_info.config")
                 for f in root.findall(".//filament"):
                     try:
                         # id is 1-based in slice_info.config
@@ -244,9 +326,8 @@ def extract_filament_properties_from_3mf(file_path: Path) -> dict[int, dict]:
 
             # Try project_settings.config for density values
             if "Metadata/project_settings.config" in zf.namelist():
-                content = zf.read("Metadata/project_settings.config").decode()
                 try:
-                    data = json.loads(content)
+                    data = read_json_member(zf, "Metadata/project_settings.config")
                     densities = data.get("filament_density", [])
                     for i, density in enumerate(densities):
                         # project_settings uses 0-based indexing, convert to 1-based
@@ -260,7 +341,7 @@ def extract_filament_properties_from_3mf(file_path: Path) -> dict[int, dict]:
                             properties[fid]["density"] = float(density)
                         except (ValueError, TypeError):
                             properties[fid]["density"] = DEFAULT_FILAMENT_DENSITY
-                except json.JSONDecodeError:
+                except ValueError:
                     pass  # Skip malformed project_settings.config JSON
     except Exception:
         pass  # Return whatever properties were collected before the error
@@ -297,7 +378,7 @@ def extract_embedded_presets_from_3mf(zf: zipfile.ZipFile) -> dict[str, str | No
     try:
         if "Metadata/project_settings.config" not in zf.namelist():
             return result
-        data = json.loads(zf.read("Metadata/project_settings.config").decode())
+        data = read_json_member(zf, "Metadata/project_settings.config")
     except (KeyError, ValueError, OSError):
         return result
     if not isinstance(data, dict):
@@ -332,8 +413,7 @@ def extract_nozzle_mapping_from_3mf(zf: zipfile.ZipFile) -> dict[int, int] | Non
         if "Metadata/project_settings.config" not in zf.namelist():
             return None
 
-        content = zf.read("Metadata/project_settings.config").decode()
-        data = json.loads(content)
+        data = read_json_member(zf, "Metadata/project_settings.config")
 
         physical_extruder_map = data.get("physical_extruder_map")
         if not physical_extruder_map or len(physical_extruder_map) <= 1:
@@ -356,8 +436,7 @@ def extract_nozzle_mapping_from_3mf(zf: zipfile.ZipFile) -> dict[int, int] | Non
         si_root: ET.Element | None = None
         distinct_group_ids: set[int] = set()
         if "Metadata/slice_info.config" in zf.namelist():
-            si_content = zf.read("Metadata/slice_info.config").decode()
-            si_root = ET.fromstring(si_content)
+            si_root = read_xml_member(zf, "Metadata/slice_info.config")
             for filament_elem in si_root.findall(".//filament"):
                 gid = filament_elem.get("group_id")
                 if gid is not None:
@@ -441,11 +520,11 @@ def extract_filament_usage_from_3mf(file_path: Path, plate_id: int | None = None
     filament_usage = []
     try:
         with zipfile.ZipFile(file_path, "r") as zf:
+            validate_zip_archive(zf)
             if "Metadata/slice_info.config" not in zf.namelist():
                 return []
 
-            content = zf.read("Metadata/slice_info.config").decode()
-            root = ET.fromstring(content)
+            root = read_xml_member(zf, "Metadata/slice_info.config")
 
             if plate_id is not None:
                 # Find the plate element with matching index
@@ -520,11 +599,11 @@ def extract_print_time_from_3mf(file_path: Path, plate_id: int | None = None) ->
     """
     try:
         with zipfile.ZipFile(file_path, "r") as zf:
+            validate_zip_archive(zf)
             if "Metadata/slice_info.config" not in zf.namelist():
                 return None
 
-            content = zf.read("Metadata/slice_info.config").decode()
-            root = ET.fromstring(content)
+            root = read_xml_member(zf, "Metadata/slice_info.config")
 
             if plate_id is not None:
                 for plate_elem in root.findall(".//plate"):
@@ -580,11 +659,11 @@ def extract_bed_type_from_3mf(file_path: Path, plate_id: int | None = None) -> s
     """
     try:
         with zipfile.ZipFile(file_path, "r") as zf:
+            validate_zip_archive(zf)
             if "Metadata/slice_info.config" not in zf.namelist():
                 return None
 
-            content = zf.read("Metadata/slice_info.config").decode()
-            root = ET.fromstring(content)
+            root = read_xml_member(zf, "Metadata/slice_info.config")
 
             for plate_elem in root.findall(".//plate"):
                 plate_index = None
@@ -746,14 +825,17 @@ def inject_gcode_into_3mf(
         Path to temp file with injected G-code, or None if injection failed.
         Caller is responsible for cleaning up the temp file.
     """
-    import tempfile
-
     if not start_gcode and not end_gcode:
+        return None
+    if (start_gcode and len(start_gcode) > MAX_GCODE_SNIPPET_CHARS) or (
+        end_gcode and len(end_gcode) > MAX_GCODE_SNIPPET_CHARS
+    ):
         return None
 
     try:
         # Find the target gcode file inside the 3MF
         with zipfile.ZipFile(source_path, "r") as zf:
+            validate_zip_archive(zf)
             all_gcode = [f for f in zf.namelist() if f.endswith(".gcode")]
             if not all_gcode:
                 return None
@@ -771,7 +853,7 @@ def inject_gcode_into_3mf(
                 target_gcode = all_gcode[0]
 
             # Read and modify gcode content
-            gcode_content = zf.read(target_gcode).decode("utf-8", errors="ignore")
+            gcode_content = read_text_member(zf, target_gcode, max_bytes=MAX_GCODE_BYTES, errors="ignore")
             header = _parse_3mf_gcode_header(gcode_content)
 
             if start_gcode:
@@ -791,24 +873,49 @@ def inject_gcode_into_3mf(
             # reject the file at load (P1S: HMS 0500-4003 "unable to parse"),
             # so recompute it from the exact bytes we're about to write.
             gcode_bytes = gcode_content.encode("utf-8")
+            if len(gcode_bytes) > MAX_GCODE_OUTPUT_BYTES:
+                raise ArchiveBudgetError("modified G-code exceeds the output budget")
             md5_name = target_gcode + ".md5"
             # Not a security hash — this reproduces Bambu's `.gcode.md5` sidecar
             # format, so flag it as non-security for the linters (ruff S324 / bandit B324).
             md5_value = hashlib.md5(gcode_bytes, usedforsecurity=False).hexdigest().upper().encode("ascii")
 
-            # Write modified 3MF to temp file
+            infos = zf.infolist()
+            target_info = zf.getinfo(target_gcode)
+            projected_output_bytes = (
+                sum(info.compress_size for info in infos)
+                + max(0, len(gcode_bytes) - target_info.file_size)
+                + ((len(infos) + 1) * 1024)
+            )
+            if projected_output_bytes > MAX_UPLOAD_BYTES:
+                raise ArchiveBudgetError("modified 3MF exceeds the preflight output estimate")
+
+            temp_dir = Path(tempfile.gettempdir())
+            temp_capacity = shutil.disk_usage(temp_dir).free
+            required_capacity = projected_output_bytes + MIN_TEMP_FREE_RESERVE_BYTES
+            if temp_capacity < required_capacity:
+                raise ArchiveBudgetError("insufficient temporary storage capacity for 3MF rewrite")
+
+            # Write modified 3MF to temp file. The adapter enforces the cap
+            # while ZipFile writes, so highly incompressible output cannot fill
+            # temporary storage before the post-write size check runs.
             with tempfile.NamedTemporaryFile(delete=False, suffix=".3mf") as tmp:
                 tmp_path = Path(tmp.name)
 
-            with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf_write:
-                for item in zf.namelist():
-                    info = zf.getinfo(item)
-                    if item == target_gcode:
-                        zf_write.writestr(info, gcode_bytes)
-                    elif item == md5_name:
-                        zf_write.writestr(info, md5_value)
-                    else:
-                        zf_write.writestr(info, zf.read(item))
+            with tmp_path.open("w+b") as raw_output:
+                output_budget = _OutputBudgetWriter(raw_output, MAX_UPLOAD_BYTES)
+                with zipfile.ZipFile(output_budget, "w", zipfile.ZIP_DEFLATED) as zf_write:
+                    for item in zf.namelist():
+                        info = zf.getinfo(item)
+                        if item == target_gcode:
+                            zf_write.writestr(info, gcode_bytes)
+                        elif item == md5_name:
+                            zf_write.writestr(info, md5_value)
+                        else:
+                            zf_write.writestr(info, read_zip_member(zf, info))
+
+            if tmp_path.stat().st_size > MAX_UPLOAD_BYTES:
+                raise ValueError(f"modified 3MF exceeds {MAX_UPLOAD_BYTES} byte limit")
 
         return tmp_path
 
@@ -835,15 +942,18 @@ def extract_project_filaments_from_3mf(zf: zipfile.ZipFile) -> list[dict]:
     if "Metadata/project_settings.config" not in zf.namelist():
         return []
     try:
-        proj = json.loads(zf.read("Metadata/project_settings.config").decode())
+        proj = read_json_member(zf, "Metadata/project_settings.config")
     except (ValueError, OSError):
         return []
     if not isinstance(proj, dict):
         return []
     types_arr = proj.get("filament_type") or []
     colors_arr = proj.get("filament_colour") or []
-    slot_count = max(
-        len(types_arr) if isinstance(types_arr, list) else 0, len(colors_arr) if isinstance(colors_arr, list) else 0
+    slot_count = min(
+        MAX_FILAMENT_SLOTS,
+        max(
+            len(types_arr) if isinstance(types_arr, list) else 0, len(colors_arr) if isinstance(colors_arr, list) else 0
+        ),
     )
     out: list[dict] = []
     for i in range(slot_count):
@@ -879,8 +989,8 @@ def extract_support_filament_slots_from_3mf(zf: zipfile.ZipFile) -> set[int]:
     if "Metadata/project_settings.config" not in zf.namelist():
         return set()
     try:
-        cfg = json.loads(zf.read("Metadata/project_settings.config").decode("utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError, OSError):
+        cfg = read_json_member(zf, "Metadata/project_settings.config")
+    except (ValueError, UnicodeDecodeError, OSError):
         return set()
     if not isinstance(cfg, dict):
         return set()
@@ -951,7 +1061,7 @@ def extract_plate_extruder_set_from_3mf(zf: zipfile.ZipFile, plate_id: int) -> s
     if "Metadata/model_settings.config" not in zf.namelist():
         return set()
     try:
-        root = ET.fromstring(zf.read("Metadata/model_settings.config").decode())
+        root = read_xml_member(zf, "Metadata/model_settings.config")
     except (ET.ParseError, OSError):
         return set()
 
@@ -992,7 +1102,7 @@ def extract_plate_extruder_set_from_3mf(zf: zipfile.ZipFile, plate_id: int) -> s
     # without namespace gymnastics — `p:path` becomes `path` etc.
     if "3D/3dmodel.model" in zf.namelist():
         try:
-            raw = zf.read("3D/3dmodel.model").decode()
+            raw = read_text_member(zf, "3D/3dmodel.model")
             stripped = re.sub(r'xmlns:?\w*="[^"]*"', "", raw)
             stripped = re.sub(r"<(/?)\w+:", r"<\1", stripped)
             stripped = re.sub(r" \w+:(\w+=)", r" \1", stripped)
@@ -1026,7 +1136,7 @@ def extract_plate_extruder_set_from_3mf(zf: zipfile.ZipFile, plate_id: int) -> s
             paint_cache[path] = out
             return out
         try:
-            data = zf.read(path)
+            data = read_zip_member(zf, path)
         except OSError:
             paint_cache[path] = out
             return out
@@ -1073,7 +1183,7 @@ def extract_plate_extruder_set_from_3mf(zf: zipfile.ZipFile, plate_id: int) -> s
                 break
         if plater_id != plate_id:
             continue
-        for inst in plate_elem.findall("model_instance"):
+        for inst in plate_elem.findall("model_instance")[:MAX_ARCHIVE_REFERENCES]:
             for inst_meta in inst.findall("metadata"):
                 if inst_meta.get("key") != "object_id":
                     continue

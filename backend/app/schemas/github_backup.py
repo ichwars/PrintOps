@@ -183,6 +183,14 @@ class GitHubTestConnectionResponse(BaseModel):
     is_private: bool | None = None
 
 
+class GitHubTestConnectionRequest(BaseModel):
+    """Credentials used for a one-off provider connection test."""
+
+    repo_url: str = Field(..., min_length=1, max_length=500)
+    token: str = Field(..., min_length=1, max_length=1000)
+    provider: ProviderType = ProviderType.GITHUB
+
+
 class GitHubBackupTriggerResponse(BaseModel):
     """Schema for manual backup trigger response."""
 

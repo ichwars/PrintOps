@@ -8,10 +8,130 @@ the public internet (IdP-hosted), so private addresses there are SSRF probes.
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
+import socket
+from collections.abc import Iterable
 from urllib.parse import urlparse
 
+import httpx
+
 from backend.app.api.routes._url_safety import CLOUD_METADATA_IPS, NUMERIC_IP_RE, unwrap_ipv4_mapped
+
+
+class OIDCEndpointPolicyError(ValueError):
+    """An OIDC server-side endpoint violates the outbound network policy."""
+
+
+async def _resolve_oidc_host(hostname: str) -> tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, ...]:
+    """Resolve a hostname once so the validated address can be pinned to the connection."""
+    try:
+        infos = await asyncio.get_running_loop().getaddrinfo(
+            hostname,
+            443,
+            family=socket.AF_UNSPEC,
+            type=socket.SOCK_STREAM,
+        )
+    except OSError as exc:
+        raise OIDCEndpointPolicyError(f"OIDC endpoint hostname could not be resolved: {hostname}") from exc
+
+    addresses: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = []
+    for info in infos:
+        address = unwrap_ipv4_mapped(ipaddress.ip_address(info[4][0]))
+        if address not in addresses:
+            addresses.append(address)
+    if not addresses:
+        raise OIDCEndpointPolicyError(f"OIDC endpoint hostname did not resolve: {hostname}")
+    return tuple(addresses)
+
+
+def _oidc_address_scope(
+    addresses: Iterable[ipaddress.IPv4Address | ipaddress.IPv6Address],
+) -> str:
+    """Return ``public`` or ``private`` after rejecting ambiguous/unsafe answers."""
+    scopes: set[str] = set()
+    for address in addresses:
+        if address in CLOUD_METADATA_IPS:
+            raise OIDCEndpointPolicyError("OIDC endpoint must not resolve to a cloud metadata address")
+        if address.is_unspecified or address.is_multicast or address.is_link_local:
+            raise OIDCEndpointPolicyError("OIDC endpoint resolved to an unusable network address")
+        scopes.add("public" if address.is_global else "private")
+    if len(scopes) != 1:
+        raise OIDCEndpointPolicyError("OIDC endpoint returned mixed public/private DNS answers")
+    return scopes.pop()
+
+
+def _validated_oidc_url(url: httpx.URL) -> None:
+    if url.scheme != "https" or not url.host:
+        raise OIDCEndpointPolicyError("OIDC server endpoints must use https://")
+    if url.username or url.password:
+        raise OIDCEndpointPolicyError("OIDC server endpoints must not contain URL credentials")
+    if url.fragment:
+        raise OIDCEndpointPolicyError("OIDC server endpoints must not contain fragments")
+
+
+class OIDCPinnedTransport(httpx.AsyncBaseTransport):
+    """Validate and DNS-pin every OIDC request while retaining private IdP support.
+
+    The configured issuer is an operator-selected trust anchor and may resolve
+    wholly to private addresses. Discovery-provided endpoints may use a
+    different hostname only when both issuer and endpoint are wholly public.
+    Same-host private deployments (PocketID, Authentik, Keycloak) remain
+    supported. Each request is rewritten to the validated IP while preserving
+    the original Host header and TLS SNI, eliminating the DNS check/connect
+    race. Callers keep redirects disabled; a discovered redirect can therefore
+    never create an unvalidated second hop.
+    """
+
+    def __init__(
+        self,
+        issuer_url: str,
+        *,
+        allow_private_network: bool = False,
+        inner: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
+        self._issuer_url = httpx.URL(issuer_url)
+        _validated_oidc_url(self._issuer_url)
+        self._allow_private_network = allow_private_network
+        self._inner = inner or httpx.AsyncHTTPTransport(retries=0)
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        original_url = request.url
+        _validated_oidc_url(original_url)
+
+        issuer_addresses = await _resolve_oidc_host(self._issuer_url.host)
+        issuer_scope = _oidc_address_scope(issuer_addresses)
+        if issuer_scope == "private" and not self._allow_private_network:
+            raise OIDCEndpointPolicyError(
+                "OIDC issuer resolved to a private address, but private-network access is disabled"
+            )
+        if issuer_scope == "private" and (original_url.port or 443) != (self._issuer_url.port or 443):
+            raise OIDCEndpointPolicyError("private OIDC endpoints must use the configured issuer TLS port")
+
+        if original_url.host == self._issuer_url.host:
+            endpoint_addresses = issuer_addresses
+        else:
+            endpoint_addresses = await _resolve_oidc_host(original_url.host)
+            endpoint_scope = _oidc_address_scope(endpoint_addresses)
+            private_same_service = (
+                issuer_scope == "private"
+                and endpoint_scope == "private"
+                and set(endpoint_addresses) == set(issuer_addresses)
+                and (original_url.port or 443) == (self._issuer_url.port or 443)
+            )
+            if not private_same_service and (issuer_scope != "public" or endpoint_scope != "public"):
+                raise OIDCEndpointPolicyError(
+                    "private OIDC endpoints must resolve to the issuer service and use its TLS port"
+                )
+
+        pinned_address = endpoint_addresses[0]
+        request.url = original_url.copy_with(host=str(pinned_address))
+        request.headers["Host"] = original_url.netloc.decode("ascii")
+        request.extensions["sni_hostname"] = original_url.host
+        return await self._inner.handle_async_request(request)
+
+    async def aclose(self) -> None:
+        await self._inner.aclose()
 
 
 def assert_safe_public_https_url(url: str) -> None:

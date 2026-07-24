@@ -21,6 +21,7 @@ from backend.app.schemas.external_link import (
     ExternalLinkResponse,
     ExternalLinkUpdate,
 )
+from backend.app.utils.safe_logging import url_for_log
 
 # Directory for storing custom icons
 ICONS_DIR = app_settings.base_dir / "icons"
@@ -65,7 +66,7 @@ async def create_external_link(
     await db.commit()
     await db.refresh(link)
 
-    logger.info("Created external link: %s -> %s", link.name, link.url)
+    logger.info("Created external link: %s -> %s", link.name, url_for_log(link.url))
 
     return link
 

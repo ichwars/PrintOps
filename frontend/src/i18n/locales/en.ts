@@ -2907,6 +2907,8 @@ export default {
         scopes: 'Scopes',
         iconUrl: 'Icon URL (optional)',
         enabled: 'Enabled',
+        allowPrivateNetwork: 'Allow private-network IdP',
+        allowPrivateNetworkDesc: 'Opt in only for an IdP intentionally hosted on your private network. Public issuers remain blocked from resolving into the LAN.',
         autoCreate: 'Auto-create users',
         autoCreateDesc: 'Automatically create a local account on first login.',
         autoLink: 'Auto-link existing accounts',

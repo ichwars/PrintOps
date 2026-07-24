@@ -10,6 +10,7 @@ from backend.app.services.spoolbuddy_ssh import (
     _get_ssh_key_dir,
     _run_ssh_command,
     detect_current_branch,
+    detect_current_commit,
     get_or_create_keypair,
     get_public_key,
     perform_ssh_update,
@@ -203,6 +204,26 @@ def test_detect_branch_default_main(tmp_path):
         # Remove GIT_BRANCH if present
         os.environ.pop("GIT_BRANCH", None)
         assert detect_current_branch() == "main"
+
+
+def test_detect_commit_from_loose_ref(tmp_path):
+    commit = "a" * 40
+    git_dir = tmp_path / ".git"
+    (git_dir / "refs" / "heads").mkdir(parents=True)
+    (git_dir / "HEAD").write_text("ref: refs/heads/main\n")
+    (git_dir / "refs" / "heads" / "main").write_text(f"{commit}\n")
+
+    with patch("backend.app.services.spoolbuddy_ssh._APP_DIR", tmp_path):
+        assert detect_current_commit() == commit
+
+
+def test_detect_commit_uses_explicit_build_identity(tmp_path):
+    commit = "b" * 40
+    with (
+        patch("backend.app.services.spoolbuddy_ssh._APP_DIR", tmp_path),
+        patch.dict(os.environ, {"PRINTOPS_COMMIT_SHA": commit}),
+    ):
+        assert detect_current_commit() == commit
 
 
 # -- _run_ssh_command ----------------------------------------------------------
@@ -440,13 +461,15 @@ async def test_perform_ssh_update_success(tmp_path):
         mock_settings.base_dir = tmp_path
         await perform_ssh_update("sb-test", "10.0.0.1")
 
-    # Should have run: echo ok, git fetch, git checkout+reset, pip install,
+    # Should have run: echo ok, git fetch, exact commit checkout, pip check,
     # systemctl restart, find (SW cleanup), systemctl restart getty
     assert len(ssh_calls) == 7
     assert "echo ok" in ssh_calls[0]
     assert "fetch" in ssh_calls[1]
     assert "checkout" in ssh_calls[2]
-    assert "pip" in ssh_calls[3]
+    assert "--detach" in ssh_calls[2]
+    assert "pip" in ssh_calls[3] and " check " in ssh_calls[3]
+    assert "install" not in ssh_calls[3]
     assert "spoolbuddy.service" in ssh_calls[4]
     assert "Service Worker" in ssh_calls[5]
     assert "getty" in ssh_calls[6]
@@ -487,11 +510,13 @@ async def test_perform_ssh_update_branch_is_shell_quoted(tmp_path):
         mock_settings.base_dir = tmp_path
         await perform_ssh_update("sb-test", "10.0.0.1")
 
-    # All git commands must use the shell-quoted form, never the raw dangerous string
-    git_cmds = [c for c in ssh_calls if "fetch" in c or "checkout" in c or "reset" in c]
-    for cmd in git_cmds:
-        assert safe_branch in cmd, f"Branch not shell-quoted in: {cmd}"
-        assert dangerous_branch not in cmd.replace(safe_branch, ""), f"Raw dangerous branch in: {cmd}"
+    # Only fetch uses a branch; checkout is pinned to a commit identity.
+    fetch_cmd = next(c for c in ssh_calls if "fetch" in c)
+    assert safe_branch in fetch_cmd
+    assert dangerous_branch not in fetch_cmd.replace(safe_branch, "")
+    checkout_cmd = next(c for c in ssh_calls if "checkout" in c)
+    assert dangerous_branch not in checkout_cmd
+    assert "--detach" in checkout_cmd
 
 
 @pytest.mark.asyncio

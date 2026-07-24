@@ -12,9 +12,10 @@ import shutil
 import uuid
 import zipfile
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse as FastAPIFileResponse
 from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,6 +67,16 @@ from backend.app.schemas.slicer import SliceRequest, SliceResponse
 from backend.app.services.archive import ThreeMFParser
 from backend.app.services.plate_thumbnail import inject_plate_thumbnails_if_missing
 from backend.app.services.stl_thumbnail import MIN_USABLE_STL_BYTES, generate_stl_thumbnail
+from backend.app.utils.archive_budget import (
+    MAX_UPLOAD_BYTES,
+    ArchiveBudgetError,
+    read_json_member,
+    read_upload_limited,
+    read_xml_member,
+    read_zip_member,
+    safe_archive_basename,
+    validate_zip_archive,
+)
 from backend.app.utils.filename import InvalidFilenameError, validate_print_filename
 from backend.app.utils.threemf_tools import (
     extract_embedded_presets_from_3mf,
@@ -235,6 +246,12 @@ def validate_print_file_upload(filename: str, content: bytes) -> None:
                 "from your slicer using its 'Export Plate Sliced File' action."
             ),
         )
+    if is_3mf_upload:
+        try:
+            with zipfile.ZipFile(BytesIO(content), "r") as archive:
+                validate_zip_archive(archive)
+        except (zipfile.BadZipFile, ArchiveBudgetError) as exc:
+            raise HTTPException(status_code=400, detail=f"3MF archive exceeds safety limits: {exc}") from exc
 
 
 def _resolve_upload_destination(target_folder: LibraryFolder | None, filename: str) -> tuple[Path, bool]:
@@ -425,8 +442,8 @@ def _read_3mf_entry(zip_path: Path, entry: str) -> bytes | None:
         with zipfile.ZipFile(zip_path, "r") as zf:
             if entry not in zf.namelist():
                 return None
-            return zf.read(entry)
-    except (zipfile.BadZipFile, OSError, KeyError):
+            return read_zip_member(zf, entry)
+    except (ArchiveBudgetError, zipfile.BadZipFile, OSError, KeyError):
         return None
 
 
@@ -1976,7 +1993,10 @@ async def upload_file(
 
         # Read upload now so the validation can sniff magic bytes; the file
         # is written to disk only after the checks. #1401.
-        content = await file.read()
+        try:
+            content = await read_upload_limited(file)
+        except ArchiveBudgetError as exc:
+            raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail=str(exc)) from exc
         validate_print_file_upload(filename, content)
 
         # Save file
@@ -2148,7 +2168,10 @@ async def extract_zip_file(
     # Save ZIP to temp file
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
-            content = await file.read()
+            try:
+                content = await read_upload_limited(file)
+            except ArchiveBudgetError as exc:
+                raise HTTPException(status_code=413, detail=str(exc)) from exc
             tmp.write(content)
             tmp_path = tmp.name
     except Exception as e:
@@ -2190,6 +2213,7 @@ async def extract_zip_file(
 
     try:
         with zipfile.ZipFile(tmp_path, "r") as zf:
+            validate_zip_archive(zf)
             # Filter out directories and hidden/system files
             file_list = [
                 name
@@ -2258,7 +2282,7 @@ async def extract_zip_file(
                     )  # SEC-PATH-OK: unique_filename = uuid.uuid4().hex + ext
 
                     # Extract and save file
-                    file_content = zf.read(zip_path)
+                    file_content = read_zip_member(zf, zip_path)
                     with open(file_path, "wb") as f:
                         f.write(file_content)
 
@@ -2373,6 +2397,8 @@ async def extract_zip_file(
 
     except zipfile.BadZipFile:
         raise HTTPException(status_code=400, detail="Invalid or corrupted ZIP file")
+    except ArchiveBudgetError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
     except Exception as e:
         logger.error("ZIP extraction failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"ZIP extraction failed: {str(e)}")
@@ -2522,7 +2548,10 @@ def is_sliced_file(filename: str) -> bool:
 async def add_files_to_queue(
     request: AddToQueueRequest,
     db: AsyncSession = Depends(get_db),
-    _: User | None = Depends(require_permission_if_auth_enabled(Permission.QUEUE_CREATE)),
+    queue_authority: User | None = Depends(require_permission_if_auth_enabled(Permission.QUEUE_CREATE)),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.LIBRARY_READ_ALL, Permission.LIBRARY_READ_OWN)
+    ),
 ):
     """Add library files to the print queue.
 
@@ -2532,6 +2561,7 @@ async def add_files_to_queue(
     added: list[AddToQueueResult] = []
     errors: list[AddToQueueError] = []
 
+    user, can_read_all = auth_result
     # Get all requested files
     result = await db.execute(LibraryFile.active().where(LibraryFile.id.in_(request.file_ids)))
     files = {f.id: f for f in result.scalars().all()}
@@ -2543,7 +2573,9 @@ async def add_files_to_queue(
     for file_id in request.file_ids:
         lib_file = files.get(file_id)
 
-        if not lib_file:
+        try:
+            lib_file = _ensure_library_file_visible(lib_file, user, can_read_all)
+        except HTTPException:
             errors.append(AddToQueueError(file_id=file_id, filename="(not found)", error="File not found"))
             continue
 
@@ -2575,6 +2607,7 @@ async def add_files_to_queue(
                 library_file_id=file_id,
                 position=max_position,
                 status="pending",
+                created_by_id=user.id if user else None,
             )
             db.add(queue_item)
 
@@ -2613,10 +2646,6 @@ async def get_library_file_plates(
     Returns a list of plates with their index, name, thumbnail availability,
     and filament requirements. For single-plate exports, returns a single plate.
     """
-    import json
-
-    import defusedxml.ElementTree as ET
-
     user, can_read_all = auth_result
     # Get the library file
     result = await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))
@@ -2694,8 +2723,7 @@ async def get_library_file_plates(
             object_names_by_id: dict[str, str] = {}
             if "Metadata/model_settings.config" in namelist:
                 try:
-                    model_content = zf.read("Metadata/model_settings.config").decode()
-                    model_root = ET.fromstring(model_content)
+                    model_root = read_xml_member(zf, "Metadata/model_settings.config")
                     for obj_elem in model_root.findall(".//object"):
                         obj_id = obj_elem.get("id")
                         if not obj_id:
@@ -2737,8 +2765,7 @@ async def get_library_file_plates(
             # Parse slice_info.config for plate metadata
             plate_metadata = {}
             if "Metadata/slice_info.config" in namelist:
-                content = zf.read("Metadata/slice_info.config").decode()
-                root = ET.fromstring(content)
+                root = read_xml_member(zf, "Metadata/slice_info.config")
 
                 for plate_elem in root.findall(".//plate"):
                     plate_info = {"filaments": [], "prediction": None, "weight": None, "name": None, "objects": []}
@@ -2815,7 +2842,7 @@ async def get_library_file_plates(
                 except ValueError:
                     continue
                 try:
-                    payload = json.loads(zf.read(name).decode())
+                    payload = read_json_member(zf, name)
                     bbox_objects = payload.get("bbox_objects", [])
                     names: list[str] = []
                     for obj in bbox_objects:
@@ -2896,9 +2923,10 @@ async def get_library_file_plate_thumbnail(
 
     try:
         with zipfile.ZipFile(file_path, "r") as zf:
+            validate_zip_archive(zf)
             thumb_path = f"Metadata/plate_{plate_index}.png"
             if thumb_path in zf.namelist():
-                data = zf.read(thumb_path)
+                data = read_zip_member(zf, thumb_path, max_bytes=16 * 1024 * 1024)
                 return Response(content=data, media_type="image/png")
     except Exception:
         pass  # Archive unreadable or thumbnail missing; fall through to 404
@@ -2974,8 +3002,6 @@ async def get_library_file_filament_requirements(
         file_id: The library file ID
         plate_id: Optional plate index to get filaments for a specific plate
     """
-    import defusedxml.ElementTree as ET
-
     user, can_read_all = auth_result
     # Get the library file
     result = await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))
@@ -2995,10 +3021,10 @@ async def get_library_file_filament_requirements(
 
     try:
         with zipfile.ZipFile(file_path, "r") as zf:
+            validate_zip_archive(zf)
             # Parse slice_info.config for filament requirements
             if "Metadata/slice_info.config" in zf.namelist():
-                content = zf.read("Metadata/slice_info.config").decode()
-                root = ET.fromstring(content)
+                root = read_xml_member(zf, "Metadata/slice_info.config")
 
                 if plate_id is not None:
                     # Find filaments for specific plate
@@ -3180,11 +3206,15 @@ def _strip_3mf_embedded_settings(zip_bytes: bytes) -> bytes:
     src = BytesIO(zip_bytes)
     dst = BytesIO()
     with zipfile.ZipFile(src, "r") as zin, zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
+        validate_zip_archive(zin)
         for item in zin.infolist():
             if item.filename in _STRIPPABLE_3MF_CONFIGS:
                 continue
-            zout.writestr(item, zin.read(item.filename))
-    return dst.getvalue()
+            zout.writestr(item, read_zip_member(zin, item))
+    result = dst.getvalue()
+    if len(result) > MAX_UPLOAD_BYTES:
+        raise ArchiveBudgetError(f"rewritten 3MF exceeds {MAX_UPLOAD_BYTES} byte limit")
+    return result
 
 
 # Keys in ``Metadata/project_settings.config`` that BambuStudio writes ``"-1"``
@@ -3235,11 +3265,12 @@ def _sanitize_project_settings_sentinels(zip_bytes: bytes) -> bytes:
 
     try:
         with zipfile.ZipFile(BytesIO(zip_bytes), "r") as zin:
+            validate_zip_archive(zin)
             if "Metadata/project_settings.config" not in zin.namelist():
                 return zip_bytes
             try:
-                config = json.loads(zin.read("Metadata/project_settings.config").decode("utf-8"))
-            except (json.JSONDecodeError, UnicodeDecodeError):
+                config = read_json_member(zin, "Metadata/project_settings.config")
+            except (ArchiveBudgetError, ValueError, UnicodeDecodeError):
                 return zip_bytes
             if not isinstance(config, dict):
                 return zip_bytes
@@ -3259,9 +3290,10 @@ def _sanitize_project_settings_sentinels(zip_bytes: bytes) -> bytes:
                     if item.filename == "Metadata/project_settings.config":
                         zout.writestr(item, patched)
                     else:
-                        zout.writestr(item, zin.read(item.filename))
-            return dst.getvalue()
-    except (zipfile.BadZipFile, OSError):
+                        zout.writestr(item, read_zip_member(zin, item))
+            result = dst.getvalue()
+            return result if len(result) <= MAX_UPLOAD_BYTES else zip_bytes
+    except (ArchiveBudgetError, zipfile.BadZipFile, OSError):
         return zip_bytes
 
 
@@ -3319,8 +3351,8 @@ def _patch_process_support_settings(process_json: str, source_3mf_bytes: bytes) 
         with zipfile.ZipFile(BytesIO(source_3mf_bytes), "r") as zf:
             if "Metadata/project_settings.config" not in zf.namelist():
                 return process_json
-            src_cfg = json.loads(zf.read("Metadata/project_settings.config").decode("utf-8"))
-    except (zipfile.BadZipFile, json.JSONDecodeError, UnicodeDecodeError, OSError, KeyError):
+            src_cfg = read_json_member(zf, "Metadata/project_settings.config")
+    except (ArchiveBudgetError, zipfile.BadZipFile, ValueError, UnicodeDecodeError, OSError, KeyError):
         return process_json
     if not isinstance(src_cfg, dict):
         return process_json
@@ -3822,6 +3854,7 @@ async def slice_and_persist(
     """
     from backend.app.services.archive import ThreeMFParser
 
+    model_filename = safe_archive_basename(model_filename)
     library_request = request.model_copy(update={"export_3mf": True})
 
     result, used_embedded_settings = await _run_slicer_with_fallback(
@@ -3941,6 +3974,7 @@ async def slice_and_persist_as_archive(
     from backend.app.schemas.slicer import SliceArchiveResponse
     from backend.app.services.archive import ThreeMFParser
 
+    model_filename = safe_archive_basename(model_filename)
     # Archive sinks always want a 3MF. The library route still respects the
     # caller's `export_3mf` flag; here we override.
     archive_request = request.model_copy(update={"export_3mf": True})
@@ -4115,6 +4149,9 @@ async def slice_library_file(
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_permission_if_auth_enabled(Permission.LIBRARY_UPLOAD)),
     api_key_cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.LIBRARY_READ_ALL, Permission.LIBRARY_READ_OWN)
+    ),
 ):
     """Enqueue a slice job for a library file. Returns 202 + job_id; the
     slice runs in the background, the caller polls `GET /slice-jobs/{id}`.
@@ -4126,9 +4163,8 @@ async def slice_library_file(
     )
 
     src_result = await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))
-    lib_file = src_result.scalar_one_or_none()
-    if not lib_file:
-        raise HTTPException(status_code=404, detail="File not found")
+    user, can_read_all = auth_result
+    lib_file = _ensure_library_file_visible(src_result.scalar_one_or_none(), user, can_read_all)
 
     src_lower = (lib_file.filename or "").lower()
     if not (
@@ -4167,7 +4203,7 @@ async def slice_library_file(
         if isinstance(candidate, str) and candidate.strip():
             src_print_name = candidate.strip()
     src_ext = Path(lib_file.filename).suffix.lower() or ".3mf"
-    model_filename = f"{src_print_name}{src_ext}" if src_print_name else lib_file.filename
+    model_filename = safe_archive_basename(f"{src_print_name}{src_ext}" if src_print_name else lib_file.filename)
 
     # Block a cross-nozzle-class re-slice (single-nozzle <-> H2D) up front.
     # Fires only when the source is itself a sliced file (carries
@@ -4200,6 +4236,7 @@ async def slice_library_file(
         kind="library_file",
         source_id=lib_file.id,
         source_name=lib_file.filename,
+        owner_id=user_id,
         run=_run,
     )
     return {
@@ -4600,14 +4637,15 @@ async def get_gcode(
     if is_gcode_3mf:
         try:
             with zipfile.ZipFile(str(abs_path), "r") as zf:
+                validate_zip_archive(zf)
                 gcode_files = [n for n in zf.namelist() if n.endswith(".gcode")]
                 if not gcode_files:
                     raise HTTPException(status_code=404, detail="No gcode found in 3MF file")
-                gcode_content = zf.read(gcode_files[0])
+                gcode_content = read_zip_member(zf, gcode_files[0])
                 from fastapi.responses import Response
 
                 return Response(content=gcode_content, media_type="text/plain")
-        except zipfile.BadZipFile:
+        except (ArchiveBudgetError, zipfile.BadZipFile):
             raise HTTPException(status_code=400, detail="Invalid 3MF file")
     elif file.file_type == "gcode":
         return FastAPIFileResponse(str(abs_path), media_type="text/plain")

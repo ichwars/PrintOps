@@ -2,8 +2,16 @@
 
 import os
 import time
+from pathlib import Path
 
 import pytest
+
+
+def test_default_wake_fifo_is_not_in_world_writable_tmp():
+    import daemon.display_control as dc_mod
+
+    assert dc_mod.WAKE_FIFO.name == "spoolbuddy-wake"
+    assert dc_mod.WAKE_FIFO.parent != Path("/tmp")
 
 
 class TestDisplayControlNoBacklight:

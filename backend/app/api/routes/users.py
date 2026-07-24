@@ -45,6 +45,12 @@ from backend.app.services.email_service import (
 router = APIRouter(prefix="/users", tags=["users"])
 
 
+def _set_local_user_password(user: User, password: str) -> None:
+    """Set a local password and invalidate every JWT issued beforehand."""
+    user.password_hash = get_password_hash(password)
+    user.password_changed_at = datetime.now(timezone.utc)
+
+
 def _user_to_response(user: User) -> UserResponse:
     """Convert a User model to UserResponse schema."""
     return UserResponse(
@@ -283,7 +289,7 @@ async def update_user(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot set password for LDAP users",
             )
-        user.password_hash = get_password_hash(user_data.password)
+        _set_local_user_password(user, user_data.password)
 
     if user_data.role is not None:
         if user_data.role not in ["admin", "user"]:

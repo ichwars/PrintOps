@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import shutil
+import stat
 import sys
 import time
 
@@ -39,6 +40,64 @@ _update_status = {
 # (60 req/hr per source IP) is exhausted.
 _GITHUB_RATE_LIMIT_FALLBACK_SECONDS = 3600
 _github_rate_limit_until: float = 0.0
+
+# Only project release tags are accepted by the updater. Besides preventing
+# option/ref injection this rejects moving branches and arbitrary commit SHAs.
+_RELEASE_TAG_RE = re.compile(
+    r"^v\d+\.\d+\.\d+(?:\.\d+)?(?:(?:a|alpha|b|beta|rc)\d+)?(?:-daily\.\d{8})?$"
+)
+_UPDATE_SIGNING_PRINCIPAL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9@._+-]{0,127}$")
+
+
+def _is_release_tag(tag: str) -> bool:
+    """Return whether *tag* is a complete, supported PrintOps release tag."""
+    return bool(_RELEASE_TAG_RE.fullmatch(tag))
+
+
+def _load_update_trust_config() -> tuple[os.PathLike[str], str]:
+    """Validate and return the updater's SSH allowed-signers trust anchor.
+
+    The public key is intentionally operator-managed. A missing, relative, or
+    group/world-writable file disables in-app updates rather than silently
+    falling back to unsigned refs.
+    """
+    signers_file = settings.update_trusted_signers_file
+    principal = settings.update_signing_principal.strip()
+    if signers_file is None:
+        raise ValueError("PRINTOPS_UPDATE_TRUSTED_SIGNERS_FILE is not configured")
+    signers_file = signers_file.expanduser()
+    if not signers_file.is_absolute():
+        raise ValueError("PRINTOPS_UPDATE_TRUSTED_SIGNERS_FILE must be an absolute path")
+    if not signers_file.is_file():
+        raise ValueError("PRINTOPS_UPDATE_TRUSTED_SIGNERS_FILE is not a regular file")
+    signers_file = signers_file.resolve(strict=True)
+    data_dir = settings.base_dir.resolve()
+    if signers_file.is_relative_to(data_dir):
+        raise ValueError("trusted signers file must be outside writable application data")
+    if not _UPDATE_SIGNING_PRINCIPAL_RE.fullmatch(principal):
+        raise ValueError("PRINTOPS_UPDATE_SIGNING_PRINCIPAL is invalid")
+
+    if os.name != "nt":
+        mode = stat.S_IMODE(signers_file.stat().st_mode)
+        if mode & 0o022:
+            raise ValueError("trusted signers file must not be group/world writable")
+
+    try:
+        signer_text = signers_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise ValueError("trusted signers file cannot be read safely") from exc
+    active_lines = [
+        line.strip()
+        for line in signer_text.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    if not active_lines:
+        raise ValueError("trusted signers file contains no keys")
+    for line in active_lines:
+        principals = line.split(maxsplit=1)[0].split(",")
+        if principal not in principals:
+            raise ValueError("trusted signers file contains an unexpected principal")
+    return signers_file, principal
 
 
 def _seconds_until_github_unblocked() -> float:
@@ -585,7 +644,8 @@ async def _discover_target_release(db: AsyncSession) -> str | None:
 
     for release in releases:
         tag = release.get("tag_name", "")
-        if not tag:
+        if not isinstance(tag, str) or not _is_release_tag(tag):
+            logger.warning("Ignoring release with unsupported tag: %r", tag)
             continue
         if include_beta:
             return tag
@@ -598,18 +658,14 @@ async def _discover_target_release(db: AsyncSession) -> str | None:
 
 
 async def _perform_update(target_ref: str):
-    """Perform the actual update using git fetch and reset.
-
-    `target_ref` is whatever git ref the caller wants to land on — typically
-    a release tag like `v0.2.4b1` resolved by `_discover_target_release`,
-    but accepts any ref `git reset --hard` understands (`origin/main`, a
-    branch, a sha). Tag-based refs are the production path because they pin
-    the install to a specific release artifact instead of whatever happens
-    to be on a moving branch.
-    """
+    """Install one cryptographically verified, annotated release tag."""
     global _update_status
 
     try:
+        if not _is_release_tag(target_ref):
+            raise ValueError("Update target is not a supported release tag")
+        signers_file, signing_principal = _load_update_trust_config()
+
         # Every git step runs against the working tree (app_dir), NOT base_dir.
         # On a standard install with DATA_DIR=INSTALL_PATH/data, git happens
         # to walk up from a subdirectory of the repo to find .git so cwd=base_dir
@@ -679,27 +735,17 @@ async def _perform_update(target_ref: str):
             "error": None,
         }
 
-        # Fetch branches AND tags from origin so any ref the caller passes
-        # (release tag like `v0.2.4b1`, a branch like `main`, or a sha) is
-        # locally resolvable for the reset below. `--tags` is required —
-        # plain `git fetch origin` doesn't bring tags by default, so a
-        # release tag would not be resolvable.
-        #
-        # `--force` lets a moved tag on the remote overwrite the local copy.
-        # Without it, any tag that was re-tagged upstream (e.g. v0.2.1 being
-        # re-pointed after a hotfix re-tag) makes `git fetch --tags` return
-        # a non-zero exit even though every other ref fetched cleanly —
-        # which we'd then surface as "Failed to fetch updates" to the user.
-        # The in-app updater's contract is "sync me to the remote"; force-
-        # overwriting a stale local tag matches that intent.
+        tag_ref = f"refs/tags/{target_ref}"
+        # Fetch only the selected release tag. A leading '+' permits an
+        # upstream correction, but the replacement is still rejected unless
+        # its annotated tag object carries a trusted signature.
         process = await asyncio.create_subprocess_exec(
             git_path,
             *git_config,
             "fetch",
             "--prune",
-            "--tags",
-            "--force",
             "origin",
+            f"+{tag_ref}:{tag_ref}",
             cwd=str(app_dir),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -717,6 +763,81 @@ async def _perform_update(target_ref: str):
             }
             return
 
+        # Lightweight tags are mutable commit aliases and cannot carry an
+        # annotated-tag signature. Reject them before signature verification.
+        process = await asyncio.create_subprocess_exec(
+            git_path,
+            *git_config,
+            "cat-file",
+            "-t",
+            tag_ref,
+            cwd=str(app_dir),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await process.communicate()
+        if process.returncode != 0 or stdout.decode().strip() != "tag":
+            error_msg = stderr.decode().strip() if stderr else "release tag is not annotated"
+            logger.error("Release tag type validation failed: %s", error_msg)
+            _update_status = {
+                "status": "error",
+                "progress": 0,
+                "message": "Release signature verification failed",
+                "error": "The selected release is not a signed annotated tag.",
+            }
+            return
+
+        verification_config = [
+            *git_config,
+            "-c",
+            "gpg.format=ssh",
+            "-c",
+            f"gpg.ssh.allowedSignersFile={signers_file}",
+        ]
+        process = await asyncio.create_subprocess_exec(
+            git_path,
+            *verification_config,
+            "verify-tag",
+            "--raw",
+            tag_ref,
+            cwd=str(app_dir),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await process.communicate()
+        if process.returncode != 0:
+            logger.error("Release tag signature verification failed: %s", stderr.decode(errors="replace"))
+            _update_status = {
+                "status": "error",
+                "progress": 0,
+                "message": "Release signature verification failed",
+                "error": f"The release tag is not signed by {signing_principal}.",
+            }
+            return
+
+        # Resolve the verified tag once and reset to the immutable commit ID,
+        # eliminating any ref race between verification and installation.
+        process = await asyncio.create_subprocess_exec(
+            git_path,
+            *git_config,
+            "rev-parse",
+            f"{tag_ref}^{{commit}}",
+            cwd=str(app_dir),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await process.communicate()
+        target_commit = stdout.decode().strip()
+        if process.returncode != 0 or not re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", target_commit):
+            logger.error("Could not resolve verified release tag: %s", stderr.decode(errors="replace"))
+            _update_status = {
+                "status": "error",
+                "progress": 0,
+                "message": "Failed to resolve verified release",
+                "error": "The verified release tag does not resolve to a commit.",
+            }
+            return
+
         _update_status = {
             "status": "downloading",
             "progress": 40,
@@ -724,18 +845,13 @@ async def _perform_update(target_ref: str):
             "error": None,
         }
 
-        # Hard reset to the target ref (clean update, no merge conflicts).
-        # `target_ref` is typically a release tag like `v0.2.4b1` resolved
-        # from the GitHub releases API by `_discover_target_release`. The
-        # local branch name doesn't change — only HEAD moves. Falling back
-        # to `origin/main` here was the source of the "in-app updater can't
-        # reach beta releases" bug.
+        # Hard reset to the commit resolved from the verified tag.
         process = await asyncio.create_subprocess_exec(
             git_path,
             *git_config,
             "reset",
             "--hard",
-            target_ref,
+            target_commit,
             cwd=str(app_dir),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -828,6 +944,14 @@ async def _perform_update(target_ref: str):
 
         logger.info("Update completed successfully")
 
+    except ValueError as e:
+        logger.error("Update security validation failed: %s", e)
+        _update_status = {
+            "status": "error",
+            "progress": 0,
+            "message": "Update security validation failed",
+            "error": str(e),
+        }
     except Exception as e:
         logger.error("Update failed: %s", e)
         _update_status = {

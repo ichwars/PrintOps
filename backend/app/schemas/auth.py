@@ -407,6 +407,7 @@ class OIDCProviderCreate(BaseModel):
     client_secret: str = Field(..., max_length=512)  # L-NEW-4: Fernet input bounded
     scopes: str = Field(default="openid email profile", max_length=256)  # L-NEW-4
     is_enabled: bool = True
+    allow_private_network: bool = False
     auto_create_users: bool = False
     auto_link_existing_accounts: bool = False  # M-2: conservative default, opt-in only
     email_claim: str = Field(default="email", max_length=64)
@@ -464,6 +465,7 @@ class OIDCProviderUpdate(BaseModel):
     client_secret: str | None = Field(default=None, max_length=512)
     scopes: str | None = Field(default=None, max_length=256)
     is_enabled: bool | None = None
+    allow_private_network: bool | None = None
     auto_create_users: bool | None = None
     auto_link_existing_accounts: bool | None = None
     email_claim: str | None = Field(default=None, max_length=64)
@@ -511,6 +513,7 @@ class OIDCProviderResponse(BaseModel):
     client_id: str
     scopes: str
     is_enabled: bool
+    allow_private_network: bool = False
     auto_create_users: bool
     auto_link_existing_accounts: bool = False
     email_claim: str = "email"

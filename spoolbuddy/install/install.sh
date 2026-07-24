@@ -1447,7 +1447,7 @@ gather_config() {
         echo ""
 
         while [[ -z "$PRINTOPS_URL" ]]; do
-            prompt "PrintOps server URL (e.g. http://192.168.1.100:8000)" "" PRINTOPS_URL
+            prompt "PrintOps server URL (e.g. https://printops.example)" "" PRINTOPS_URL
             if [[ -z "$PRINTOPS_URL" ]]; then
                 warn "PrintOps URL is required"
             fi

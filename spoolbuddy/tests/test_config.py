@@ -1,21 +1,21 @@
 """Tests for daemon.config — Config.load() and _get_mac_id()."""
 
 import pytest
-from daemon.config import Config, _get_mac_id
+from daemon.config import Config, _get_mac_id, validate_backend_url
 
 
 class TestConfigLoad:
     """Config.load() reads env vars and validates required fields."""
 
     def test_load_with_all_env_vars(self, monkeypatch):
-        monkeypatch.setenv("SPOOLBUDDY_BACKEND_URL", "http://10.0.0.1:5000")
+        monkeypatch.setenv("SPOOLBUDDY_BACKEND_URL", "https://10.0.0.1:5000/")
         monkeypatch.setenv("SPOOLBUDDY_API_KEY", "test-key-123")
         monkeypatch.setenv("SPOOLBUDDY_DEVICE_ID", "my-device")
         monkeypatch.setenv("SPOOLBUDDY_HOSTNAME", "my-host")
 
         cfg = Config.load()
 
-        assert cfg.backend_url == "http://10.0.0.1:5000"
+        assert cfg.backend_url == "https://10.0.0.1:5000"
         assert cfg.api_key == "test-key-123"
         assert cfg.device_id == "my-device"
         assert cfg.hostname == "my-host"
@@ -87,6 +87,22 @@ class TestConfigLoad:
         assert cfg.heartbeat_interval == 10.0
         assert cfg.tare_offset == 0
         assert cfg.calibration_factor == 1.0
+
+
+class TestValidateBackendUrl:
+    def test_accepts_https_remote(self):
+        assert validate_backend_url("https://printops.example/") == "https://printops.example"
+
+    def test_accepts_http_loopback_only(self):
+        assert validate_backend_url("http://127.0.0.1:5000") == "http://127.0.0.1:5000"
+
+    def test_rejects_http_lan_backend(self):
+        with pytest.raises(ValueError, match="HTTPS is required"):
+            validate_backend_url("http://192.168.1.100:5000")
+
+    def test_rejects_embedded_credentials(self):
+        with pytest.raises(ValueError, match="without embedded credentials"):
+            validate_backend_url("https://admin:secret@printops.example")
 
 
 class TestGetMacId:

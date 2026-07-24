@@ -14,11 +14,20 @@ that schema logic locally.
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 import zipfile
 from io import BytesIO
+
+from backend.app.utils.archive_budget import (
+    MAX_3MF_PLATES,
+    MAX_UPLOAD_BYTES,
+    ArchiveBudgetError,
+    read_json_member,
+    read_text_member,
+    read_zip_member,
+    validate_zip_archive,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,16 +45,17 @@ def count_plates_in_3mf(zip_bytes: bytes) -> int:
     """
     try:
         with zipfile.ZipFile(BytesIO(zip_bytes), "r") as zf:
+            validate_zip_archive(zf)
             if _MODEL_SETTINGS_PATH not in zf.namelist():
                 return 0
-            xml = zf.read(_MODEL_SETTINGS_PATH).decode("utf-8", errors="replace")
-    except (zipfile.BadZipFile, OSError, KeyError):
+            xml = read_text_member(zf, _MODEL_SETTINGS_PATH, errors="replace")
+    except (zipfile.BadZipFile, ArchiveBudgetError, OSError, KeyError):
         return 0
     # Count ``<metadata key="plater_id" value="..."/>`` entries — each
     # ``<plate>`` element carries exactly one. Cheap and tolerant of the
     # full schema (no need to parse the whole XML, which is large and may
     # contain CDATA quirks).
-    return len(re.findall(r'<metadata key="plater_id" value="(\d+)"', xml))
+    return min(len(re.findall(r'<metadata key="plater_id" value="(\d+)"', xml)), MAX_3MF_PLATES)
 
 
 def extract_source_printer_model(zip_bytes: bytes) -> str | None:
@@ -62,10 +72,11 @@ def extract_source_printer_model(zip_bytes: bytes) -> str | None:
 
     try:
         with zipfile.ZipFile(BytesIO(zip_bytes), "r") as zf:
+            validate_zip_archive(zf)
             if _PROJECT_SETTINGS_PATH not in zf.namelist():
                 return None
-            cfg = json.loads(zf.read(_PROJECT_SETTINGS_PATH).decode("utf-8"))
-    except (zipfile.BadZipFile, json.JSONDecodeError, UnicodeDecodeError, OSError, KeyError):
+            cfg = read_json_member(zf, _PROJECT_SETTINGS_PATH)
+    except (zipfile.BadZipFile, ArchiveBudgetError, ValueError, UnicodeDecodeError, OSError, KeyError):
         return None
     if not isinstance(cfg, dict):
         return None
@@ -117,7 +128,16 @@ def merge_plate_3mfs(
     """
     if not plate_outputs:
         raise ValueError("merge_plate_3mfs: at least one plate output required")
+    if len(plate_outputs) > MAX_3MF_PLATES:
+        raise ArchiveBudgetError(f"merge exceeds {MAX_3MF_PLATES} plate limit")
     ordered = sorted(plate_outputs, key=lambda p: p[0])
+
+    for _plate_num, payload in ordered:
+        with zipfile.ZipFile(BytesIO(payload), "r") as archive:
+            validate_zip_archive(archive)
+    if source_3mf_bytes is not None:
+        with zipfile.ZipFile(BytesIO(source_3mf_bytes), "r") as archive:
+            validate_zip_archive(archive)
 
     if len(ordered) == 1:
         return ordered[0][1]
@@ -133,8 +153,8 @@ def merge_plate_3mfs(
             with zipfile.ZipFile(BytesIO(plate_bytes), "r") as zf:
                 if _SLICE_INFO_PATH not in zf.namelist():
                     continue
-                xml = zf.read(_SLICE_INFO_PATH).decode("utf-8", errors="replace")
-        except (zipfile.BadZipFile, OSError, KeyError) as exc:
+                xml = read_text_member(zf, _SLICE_INFO_PATH, errors="replace")
+        except (zipfile.BadZipFile, ArchiveBudgetError, OSError, KeyError) as exc:
             logger.warning("merge_plate_3mfs: couldn't read plate %d slice_info (%s)", plate_num, exc)
             continue
         match = _PLATE_BLOCK_RE.search(xml)
@@ -178,10 +198,11 @@ def merge_plate_3mfs(
         found: dict[str, bytes] = {}
         try:
             with zipfile.ZipFile(BytesIO(source_3mf_bytes), "r") as src_zf:
+                validate_zip_archive(src_zf)
                 for name in src_zf.namelist():
                     if name in wanted:
-                        found[name] = src_zf.read(name)
-        except (zipfile.BadZipFile, OSError) as exc:
+                        found[name] = read_zip_member(src_zf, name)
+        except (zipfile.BadZipFile, ArchiveBudgetError, OSError) as exc:
             logger.warning("merge_plate_3mfs: source thumbnail fallback failed (%s)", exc)
         return found
 
@@ -192,6 +213,7 @@ def merge_plate_3mfs(
         zipfile.ZipFile(BytesIO(base_bytes), "r") as base_zf,
         zipfile.ZipFile(out_buf, "w", zipfile.ZIP_DEFLATED) as out_zf,
     ):
+        validate_zip_archive(base_zf)
         # Pass 1: emit base entries. Track which per-plate-N thumbnails
         # the base actually had so the fallback pass below can fill in
         # the ones that are missing.
@@ -200,7 +222,7 @@ def merge_plate_3mfs(
             if item.filename == _SLICE_INFO_PATH:
                 out_zf.writestr(item, combined_slice_info)
             else:
-                out_zf.writestr(item, base_zf.read(item.filename))
+                out_zf.writestr(item, read_zip_member(base_zf, item))
 
         # Source-thumbnail fallback for the base plate when the slicer
         # didn't write its own preview.
@@ -217,11 +239,12 @@ def merge_plate_3mfs(
             written: set[str] = set()
             try:
                 with zipfile.ZipFile(BytesIO(plate_bytes), "r") as plate_zf:
+                    validate_zip_archive(plate_zf)
                     for name in plate_zf.namelist():
                         if name in wanted:
-                            out_zf.writestr(name, plate_zf.read(name))
+                            out_zf.writestr(name, read_zip_member(plate_zf, name))
                             written.add(name)
-            except (zipfile.BadZipFile, OSError) as exc:
+            except (zipfile.BadZipFile, ArchiveBudgetError, OSError) as exc:
                 logger.warning(
                     "merge_plate_3mfs: couldn't read plate %d artifacts (%s); skipping",
                     plate_num,
@@ -232,7 +255,10 @@ def merge_plate_3mfs(
                 if name not in written and name not in base_zip_names:
                     out_zf.writestr(name, payload)
 
-    return out_buf.getvalue()
+    result = out_buf.getvalue()
+    if len(result) > MAX_UPLOAD_BYTES:
+        raise ArchiveBudgetError(f"merged 3MF exceeds {MAX_UPLOAD_BYTES} byte output limit")
+    return result
 
 
 def substitute_unused_plate_filaments(source_3mf_bytes: bytes, plate_id: int | None, items: list[str]) -> list[str]:
@@ -271,13 +297,14 @@ def substitute_unused_plate_filaments(source_3mf_bytes: bytes, plate_id: int | N
 
     try:
         with zipfile.ZipFile(BytesIO(source_3mf_bytes), "r") as zf:
+            validate_zip_archive(zf)
             # Geometry-derived slots (per-object metadata + paint_color)
             # plus process-derived support-filament slots. Supports aren't
             # attached to object geometry so the geometry pass alone
             # misses PVA-in-support-slot setups (#1881).
             used = extract_plate_extruder_set_from_3mf(zf, plate_id)
             used |= extract_support_filament_slots_from_3mf(zf)
-    except (zipfile.BadZipFile, OSError) as exc:
+    except (zipfile.BadZipFile, ArchiveBudgetError, OSError) as exc:
         logger.warning("Plate-filament parse failed (%s); leaving filament list unchanged", exc)
         return items
     if not used:

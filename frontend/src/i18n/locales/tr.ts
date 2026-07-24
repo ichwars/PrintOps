@@ -2853,6 +2853,8 @@ export default {
         scopes: 'Kapsamlar',
         iconUrl: 'Simge URL (isteğe bağlı)',
         enabled: 'Etkin',
+        allowPrivateNetwork: 'Özel ağ IdP’sine izin ver',
+        allowPrivateNetworkDesc: 'Enable only for an IdP intentionally hosted on your private network.',
         autoCreate: 'Kullanıcıları otomatik oluştur',
         autoCreateDesc: 'İlk girişte otomatik olarak yerel bir hesap oluştur.',
         autoLink: 'Mevcut hesapları otomatik bağla',

@@ -29,6 +29,7 @@ _plate_cal_dir = Path(_data_dir_env) / "plate_calibration" if _data_dir_env else
 _log_dir_env = os.environ.get("LOG_DIR")
 _log_dir = Path(_log_dir_env) if _log_dir_env else _app_dir / "logs"
 _document_data_dir = resolve_data_dir()
+_update_trusted_signers_env = os.environ.get("PRINTOPS_UPDATE_TRUSTED_SIGNERS_FILE")
 
 
 def _migrate_database() -> Path:
@@ -110,6 +111,16 @@ class Settings(BaseSettings):
     plate_calibration_dir: Path = _plate_cal_dir  # Plate detection references
     static_dir: Path = _app_dir / "static"  # Static files are part of app, not data
     log_dir: Path = _log_dir
+    # Public SSH signing keys trusted by the native in-app updater. The file
+    # uses OpenSSH's allowed_signers format and must live outside writable
+    # application data. No default is intentional: updates fail closed until
+    # an operator installs an explicit trust anchor.
+    update_trusted_signers_file: Path | None = (
+        Path(_update_trusted_signers_env) if _update_trusted_signers_env else None
+    )
+    update_signing_principal: str = os.environ.get(
+        "PRINTOPS_UPDATE_SIGNING_PRINCIPAL", "release@printops"
+    )
     verapdf_cli: Path | None = Path(os.environ["VERAPDF_CLI"]) if os.environ.get("VERAPDF_CLI") else None
     weasyprint_cli: Path | None = Path(os.environ["WEASYPRINT_CLI"]) if os.environ.get("WEASYPRINT_CLI") else None
     database_url: str = _external_db_url or f"sqlite+aiosqlite:///{_db_path}"
@@ -152,6 +163,8 @@ _INTENTIONAL_UNSETTINGS = {
     "LOG_DIR",  # config.py (above)
     "LOG_LEVEL",  # main.py logging setup
     "BUG_REPORT_RELAY_URL",  # config.py (above)
+    "PRINTOPS_UPDATE_TRUSTED_SIGNERS_FILE",  # config.py (above)
+    "PRINTOPS_UPDATE_SIGNING_PRINCIPAL",  # config.py (above)
 }
 
 _known_settings_fields = {f.upper() for f in settings.model_fields}

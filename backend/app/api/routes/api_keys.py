@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.auth import RequirePermissionIfAuthEnabled, generate_api_key
+from backend.app.core.auth import RequireAdminIfAuthEnabled, RequirePermissionIfAuthEnabled, generate_api_key
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.models.api_key import APIKey
@@ -35,6 +35,7 @@ async def list_api_keys(
 async def create_api_key(
     data: APIKeyCreate,
     db: AsyncSession = Depends(get_db),
+    _admin: User | None = RequireAdminIfAuthEnabled(),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.API_KEYS_CREATE),
 ):
     """Create a new API key.
@@ -125,6 +126,7 @@ async def update_api_key(
     key_id: int,
     data: APIKeyUpdate,
     db: AsyncSession = Depends(get_db),
+    _admin: User | None = RequireAdminIfAuthEnabled(),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.API_KEYS_UPDATE),
 ):
     """Update an API key."""

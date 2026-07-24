@@ -59,7 +59,7 @@ class _FakeMjpegSession:
     def __init__(self, response):
         self._response = response
 
-    def get(self, _url):
+    def get(self, _url, **_kwargs):
         return self._response
 
     async def __aenter__(self):
@@ -615,6 +615,8 @@ def _fake_snapshot_session(body: bytes, status: int = 200):
     class _Resp:
         def __init__(self):
             self.status = status
+            self.content_length = len(body)
+            self.content = self
 
         async def __aenter__(self):
             return self
@@ -622,8 +624,11 @@ def _fake_snapshot_session(body: bytes, status: int = 200):
         async def __aexit__(self, *a):
             return False
 
-        async def read(self):
-            return body
+        def iter_chunked(self, _size):
+            async def _gen():
+                yield body
+
+            return _gen()
 
     class _Session:
         def __init__(self, *a, **k):
@@ -635,7 +640,7 @@ def _fake_snapshot_session(body: bytes, status: int = 200):
         async def __aexit__(self, *a):
             return False
 
-        def get(self, _url):
+        def get(self, _url, **_kwargs):
             return _Resp()
 
     return _Session
@@ -705,3 +710,12 @@ class TestSnapshotTranscode:
         with patch.object(ec.aiohttp, "ClientSession", _fake_snapshot_session(html)):
             out = await ec._capture_snapshot("http://192.168.50.50/snapshot", 10)
         assert out == html
+
+    @pytest.mark.asyncio
+    async def test_capture_snapshot_rejects_oversized_body(self):
+        from backend.app.services import external_camera as ec
+
+        oversized = b"x" * (ec.MAX_SNAPSHOT_BYTES + 1)
+        with patch.object(ec.aiohttp, "ClientSession", _fake_snapshot_session(oversized)):
+            out = await ec._capture_snapshot("http://192.168.50.50/snapshot", 10)
+        assert out is None

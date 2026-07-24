@@ -792,7 +792,7 @@ async def link_spool(
     spool_id: int,
     request: LinkSpoolRequest,
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.FILAMENTS_UPDATE),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.FILAMENTS_UPDATE),
 ):
     """Link a Spoolman spool to an AMS tag by setting Spoolman extra.tag."""
     sm = await get_spoolman_settings(db)
@@ -830,6 +830,8 @@ async def link_spool(
     # that field is user-managed in Spoolman. Slot assignment is stored locally.
     printer_context: tuple[int, int, int] | None = None
     if request.printer_id is not None and request.ams_id is not None and request.tray_id is not None:
+        if current_user is not None and not current_user.has_all_permissions(Permission.PRINTERS_AMS_RFID.value):
+            raise HTTPException(status_code=403, detail="Printer AMS control permission required")
         printer_result = await db.execute(select(Printer).where(Printer.id == request.printer_id))
         if not printer_result.scalar_one_or_none():
             raise HTTPException(status_code=404, detail="Printer not found")

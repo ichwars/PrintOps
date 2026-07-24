@@ -7,7 +7,7 @@
 # whatever the user picked in SpoolBuddy Settings → Display.
 #
 # Changes made in the UI are applied live: the daemon writes a
-# "reload-timeout N" line to /tmp/spoolbuddy-wake whenever it sees a new
+# "reload-timeout N" line to the per-user runtime FIFO whenever it sees a new
 # value over the heartbeat, and the FIFO loop below kills the current
 # swayidle and starts a fresh one with the new timeout. No kiosk restart
 # is required.
@@ -91,12 +91,14 @@ if [ -n "$BACKEND_URL" ] && [ -n "$API_KEY" ] && [ -n "$DEVICE_ID" ]; then
 fi
 
 # FIFO for the SpoolBuddy daemon to talk to this watchdog from outside the
-# Wayland session.  Two messages are understood:
+# Wayland session. The per-user runtime directory is private to this session,
+# unlike /tmp, so another local account cannot replace the endpoint between
+# the daemon's type check and open. Two messages are understood:
 #   wake               — turn the display on (NFC tag scan, scale weight change)
 #   reload-timeout N   — kill swayidle and restart it with timeout=N
-WAKE_FIFO="/tmp/spoolbuddy-wake"
+WAKE_FIFO="$XDG_RUNTIME_DIR/spoolbuddy-wake"
 rm -f "$WAKE_FIFO"
-mkfifo -m 622 "$WAKE_FIFO"
+mkfifo -m 600 "$WAKE_FIFO"
 echo "wake FIFO created at $WAKE_FIFO"
 
 SWAYIDLE_PID=""

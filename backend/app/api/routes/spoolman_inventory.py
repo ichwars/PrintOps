@@ -14,8 +14,9 @@ import re
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Response
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Path, Query, Response
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import delete, select, text
 from sqlalchemy.exc import IntegrityError
@@ -31,7 +32,12 @@ from backend.app.api.routes._spoolman_helpers import (
     _safe_optional_float,
     assert_safe_spoolman_url,
 )
-from backend.app.core.auth import RequirePermissionIfAuthEnabled
+from backend.app.core.auth import (
+    RequirePermissionIfAuthEnabled,
+    _validate_api_key,
+    check_printer_access,
+    security,
+)
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.core.websocket import ws_manager
@@ -1406,13 +1412,26 @@ async def sync_spoolman_ams_weights(
 async def assign_spoolman_slot(
     body: SpoolSlotAssignmentRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+    current_user: User | None = RequirePermissionIfAuthEnabled(
+        Permission.INVENTORY_UPDATE,
+        Permission.PRINTERS_AMS_RFID,
+    ),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
 ) -> dict:
     """Assign a Spoolman spool to a printer AMS slot (stored in local DB only).
 
     Raises 404 if the printer does not exist or the spool is not found in Spoolman.
     Spoolman's own ``spool.location`` field is NOT touched — it is user-managed.
     """
+
+    api_key_value = x_api_key
+    if api_key_value is None and credentials and credentials.credentials.startswith("bb_"):
+        api_key_value = credentials.credentials
+    if api_key_value is not None:
+        api_key = await _validate_api_key(db, api_key_value)
+        if api_key is not None:
+            check_printer_access(api_key, body.printer_id)
 
     client = await _get_client(db)
     result = await db.execute(select(Printer).where(Printer.id == body.printer_id))

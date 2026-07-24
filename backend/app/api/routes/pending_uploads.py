@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.auth import RequirePermissionIfAuthEnabled, require_ownership_permission
+from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.models.pending_upload import PendingUpload
@@ -91,12 +91,7 @@ async def _augment_with_display_name(
 @router.get("/", response_model=list[PendingUploadResponse])
 async def list_pending_uploads(
     db: AsyncSession = Depends(get_db),
-    _: tuple[User | None, bool] = Depends(
-        require_ownership_permission(
-            Permission.QUEUE_READ_ALL,
-            Permission.QUEUE_READ_OWN,
-        )
-    ),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_READ_ALL),
 ):
     """List all pending uploads."""
     result = await db.execute(
@@ -109,12 +104,7 @@ async def list_pending_uploads(
 @router.get("/count")
 async def get_pending_count(
     db: AsyncSession = Depends(get_db),
-    _: tuple[User | None, bool] = Depends(
-        require_ownership_permission(
-            Permission.QUEUE_READ_ALL,
-            Permission.QUEUE_READ_OWN,
-        )
-    ),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_READ_ALL),
 ):
     """Get count of pending uploads."""
     result = await db.execute(select(PendingUpload).where(PendingUpload.status == "pending"))
@@ -130,7 +120,8 @@ async def get_pending_count(
 @router.post("/archive-all")
 async def archive_all_pending(
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_CREATE),
+    queue_authority: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_UPDATE_ALL),
+    archive_authority: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_CREATE),
 ):
     """Archive all pending uploads."""
     from backend.app.api.routes.settings import get_setting
@@ -218,12 +209,7 @@ async def discard_all_pending(
 async def get_pending_upload(
     upload_id: int,
     db: AsyncSession = Depends(get_db),
-    _: tuple[User | None, bool] = Depends(
-        require_ownership_permission(
-            Permission.QUEUE_READ_ALL,
-            Permission.QUEUE_READ_OWN,
-        )
-    ),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_READ_ALL),
 ):
     """Get a specific pending upload."""
     result = await db.execute(select(PendingUpload).where(PendingUpload.id == upload_id))
@@ -240,7 +226,8 @@ async def archive_pending_upload(
     upload_id: int,
     request: ArchiveRequest = None,
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_CREATE),
+    queue_authority: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_UPDATE_ALL),
+    archive_authority: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_CREATE),
 ):
     """Archive a pending upload."""
     result = await db.execute(select(PendingUpload).where(PendingUpload.id == upload_id))

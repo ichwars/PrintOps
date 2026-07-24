@@ -6,6 +6,8 @@ from collections import deque
 
 import httpx
 
+from .config import validate_backend_url
+
 logger = logging.getLogger(__name__)
 
 MAX_BUFFER_SIZE = 100
@@ -13,7 +15,7 @@ MAX_BUFFER_SIZE = 100
 
 class APIClient:
     def __init__(self, backend_url: str, api_key: str):
-        self._base = backend_url.rstrip("/") + "/api/v1/spoolbuddy"
+        self._base = validate_backend_url(backend_url) + "/api/v1/spoolbuddy"
         self._headers = {"X-API-Key": api_key} if api_key else {}
         self._client = httpx.AsyncClient(timeout=10.0, headers=self._headers)
         self._backoff = 1.0

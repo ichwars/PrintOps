@@ -2837,6 +2837,8 @@ export default {
         scopes: '作用域',
         iconUrl: '图标 URL（可选）',
         enabled: '已启用',
+        allowPrivateNetwork: '允许私有网络 IdP',
+        allowPrivateNetworkDesc: 'Enable only for an IdP intentionally hosted on your private network.',
         autoCreate: '自动创建用户',
         autoCreateDesc: '首次登录时自动创建本地账户。',
         autoLink: '自动关联已有账户',

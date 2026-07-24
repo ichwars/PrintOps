@@ -49,6 +49,7 @@ from backend.app.services.order_errors import (
 )
 from backend.app.services.slicer_3mf_convert import count_plates_in_3mf
 from backend.app.services.stock_availability import check_availability, requirements_from_snapshot
+from backend.app.utils.archive_budget import ArchiveBudgetError, read_upload_limited
 from backend.app.utils.threemf_tools import extract_filament_usage_from_3mf, extract_print_time_from_3mf
 
 router = APIRouter(prefix="/calculations", tags=["calculations"])
@@ -228,7 +229,10 @@ async def upload_calculation_source(
     filename = Path(file.filename or "").name
     if not filename.lower().endswith(".3mf"):
         raise HTTPException(status_code=400, detail="Calculation source must be a .3mf file")
-    content = await file.read()
+    try:
+        content = await read_upload_limited(file)
+    except ArchiveBudgetError as exc:
+        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail=str(exc)) from exc
     validate_print_file_upload(filename, content)
     target_dir = app_settings.base_dir / "calculations" / "sources"
     target_dir.mkdir(parents=True, exist_ok=True)

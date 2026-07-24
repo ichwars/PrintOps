@@ -4453,17 +4453,15 @@ class TestOIDCStandardEmailFallback:
 
 
 # ===========================================================================
-# E2E: Fall C (custom email claim) auto-link actually links existing user
+# E2E: custom-claim auto-link requires matching verified standard email
 # ===========================================================================
 
 
 class TestOIDCFallCAutoLinkE2E:
-    """OIDC callback with email_claim='preferred_username' (Fall C / Azure Entra ID)
-    must auto-link an existing local user when auto_link_existing_accounts=True.
+    """Custom claims can auto-link only when backed by the same verified email.
 
-    This test exercises _resolve_provider_email Fall C and the auto-link path in
-    oidc_callback — a regression in either would silently drop the link without
-    being caught by the configuration-layer tests.
+    This preserves Azure/Entra-style ``preferred_username`` support without
+    treating an unrelated signed custom claim as authority over a local user.
     """
 
     @pytest.mark.asyncio
@@ -4493,7 +4491,7 @@ class TestOIDCFallCAutoLinkE2E:
         db_session.add(alice)
         await db_session.flush()
 
-        # ── 2. Provider: Fall C config (preferred_username, no email_verified) ─
+        # ── 2. Provider: custom identity claim with verified-email binding ────
         provider = OIDCProvider(
             name="AzureEntraFallC",
             issuer_url=issuer,
@@ -4530,10 +4528,12 @@ class TestOIDCFallCAutoLinkE2E:
             "jwks_uri": f"{issuer}/.well-known/jwks.json",
         }
         fake_token = {"access_token": "acc_tok", "id_token": "fake.id.token"}
-        # Fall C: preferred_username carries the email; no email_verified key at all
+        # The custom value must exactly match the verified standard email.
         fake_claims = {
             "sub": "azure-sub-alice",
             "preferred_username": "alice.fallc@example.com",
+            "email": "alice.fallc@example.com",
+            "email_verified": True,
             "iss": issuer,
             "aud": "azure-client",
             "nonce": nonce,

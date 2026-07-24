@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 from decimal import Decimal
 from pathlib import Path
@@ -28,8 +29,11 @@ from backend.app.services.calculation_estimator import BoundsMm, EstimatorSettin
 from backend.app.services.calculation_project import InvalidProjectFile, analyze_project_file
 from backend.app.services.calculation_slicing import build_cache_key
 from backend.app.services.slicer_api import SlicerApiError, SlicerApiService
+from backend.app.utils.archive_budget import ArchiveBudgetError, read_upload_limited
 
 router = APIRouter(prefix="/calculations", tags=["calculation-project-files"])
+_CALCULATION_SLICE_SLOTS = asyncio.Semaphore(2)
+_SLICE_SLOT_WAIT_SECONDS = 0.25
 
 
 def _storage_root(calculation_id: int) -> Path:
@@ -88,7 +92,13 @@ async def upload_project_file(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"code": "invalid_project_file", "message": "Nur 3MF-Projektdateien sind zulässig"},
         )
-    payload = await file.read()
+    try:
+        payload = await read_upload_limited(file)
+    except ArchiveBudgetError as exc:
+        raise HTTPException(
+            status.HTTP_413_CONTENT_TOO_LARGE,
+            detail={"code": "project_file_too_large", "message": str(exc)},
+        ) from exc
     digest = hashlib.sha256(payload).hexdigest()
     revision = (
         int(
@@ -248,13 +258,23 @@ async def slice_project_plates(
             results.append((cached, plate.id))
             continue
         try:
-            async with SlicerApiService(api_url) as slicer:
-                sliced = await slicer.slice_without_profiles(
-                    model_bytes=model_bytes,
-                    model_filename=project_file.original_filename,
-                    plate=plate.plate_index,
-                    export_3mf=False,
-                )
+            try:
+                await asyncio.wait_for(_CALCULATION_SLICE_SLOTS.acquire(), timeout=_SLICE_SLOT_WAIT_SECONDS)
+            except TimeoutError as exc:
+                raise HTTPException(
+                    status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail={"code": "slice_capacity_exhausted", "message": "Zu viele parallele Slice-Aufträge"},
+                ) from exc
+            try:
+                async with SlicerApiService(api_url) as slicer:
+                    sliced = await slicer.slice_without_profiles(
+                        model_bytes=model_bytes,
+                        model_filename=project_file.original_filename,
+                        plate=plate.plate_index,
+                        export_3mf=False,
+                    )
+            finally:
+                _CALCULATION_SLICE_SLOTS.release()
             result = CalculationSliceResult(
                 project_plate_id=plate.id,
                 cache_key=key,

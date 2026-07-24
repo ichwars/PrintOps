@@ -18,6 +18,7 @@ const EMPTY_FORM: OIDCProviderCreate = {
   client_secret: '',
   scopes: 'openid email profile',
   is_enabled: true,
+  allow_private_network: false,
   auto_create_users: false,
   auto_link_existing_accounts: false,
   email_claim: 'email',
@@ -156,6 +157,16 @@ function ProviderForm({
           <div>
             <p className="text-white text-sm">{t('settings.oidc.form.autologin')}</p>
             <p className="text-bambu-gray text-xs">{t('settings.oidc.form.autologinDesc')}</p>
+          </div>
+        </label>
+        <label className="flex items-center gap-3 cursor-pointer w-full">
+          <Toggle
+            checked={form.allow_private_network ?? false}
+            onChange={(v) => set('allow_private_network', v)}
+          />
+          <div>
+            <p className="text-white text-sm">{t('settings.oidc.form.allowPrivateNetwork')}</p>
+            <p className="text-bambu-gray text-xs">{t('settings.oidc.form.allowPrivateNetworkDesc')}</p>
           </div>
         </label>
       </div>

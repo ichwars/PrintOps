@@ -50,7 +50,7 @@ class LDAPConfig:
     security: str  # "none", "starttls", "ldaps"
     group_mapping: dict[str, str]  # LDAP group DN -> PrintOps group name
     auto_provision: bool
-    ca_cert_path: str  # Path to CA certificate file (empty = skip verification)
+    ca_cert_path: str  # Path to CA certificate file (empty = system trust store)
     default_group: str  # Fallback PrintOps group assigned when user has no mapped groups (empty = no fallback)
 
 
@@ -96,7 +96,7 @@ def _create_server(config: LDAPConfig) -> Server:
     if config.ca_cert_path:
         tls = Tls(validate=ssl.CERT_REQUIRED, ca_certs_file=config.ca_cert_path)
     else:
-        tls = Tls(validate=ssl.CERT_NONE)
+        tls = Tls(validate=ssl.CERT_REQUIRED)
 
     return Server(config.server_url, use_ssl=use_ssl, tls=tls, get_info=ALL, connect_timeout=10)
 

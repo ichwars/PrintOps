@@ -1082,7 +1082,7 @@ async def test_external_camera(
     url: str,
     camera_type: str,
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.CAMERA_VIEW),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_UPDATE),
 ):
     """Test external camera connection.
 
