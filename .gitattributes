@@ -6,6 +6,10 @@
 # committed build entry point to LF so Windows builds do not become mixed-EOL.
 static/index.html text eol=lf
 
+# Runtime signature material is hash-verified byte-for-byte during Docker and
+# installer builds. Keep its canonical LF representation on every platform.
+backend/app/resources/pdf/verapdf-signing-key.asc text eol=lf
+
 # Binary layout resources must never pass through line-ending conversion.
 *.pdf binary
 *.ttf binary

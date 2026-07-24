@@ -65,6 +65,7 @@ RUN python scripts/vendor_pdf_runtime.py \
       --cache-dir /tmp/verapdf-download \
  && rm -rf /tmp/verapdf-download
 ENV VERAPDF_CLI=/opt/verapdf/verapdf
+ENV WEASYPRINT_CLI=/usr/local/bin/weasyprint
 
 # Copy backend
 COPY backend/ ./backend/

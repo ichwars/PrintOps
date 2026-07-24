@@ -75,6 +75,8 @@ def test_warm_preview_cache_is_below_two_seconds(tmp_path):
 
 @pytest.mark.slow
 def test_ten_page_document_and_long_position_render_within_hard_limit(tmp_path):
+    if not STAGED_WEASYPRINT.exists():
+        pytest.skip("pinned WeasyPrint runtime is not staged")
     view_model = build_document_view_model(load_sample("invoice-de-standard"))
     base = view_model.positions[0]
     positions = tuple(
