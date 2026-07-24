@@ -1,0 +1,50 @@
+vulnerabilities:
+  - id: GHSA-r7wm-3cxj-wff9
+    paths: &verapdf_cli
+      - "opt/verapdf/bin/cli-1.30.2.jar"
+    expired_at: 2026-10-31
+    statement: &verapdf_statement >-
+      veraPDF 1.30.2 uses Jackson only to serialize locally generated validation
+      results via ObjectMapper.writeValueAsString. The vulnerable deserialization
+      and asynchronous parser paths are not reachable. Reassess when the next
+      signed stable veraPDF release is available or before this exception expires.
+  - id: CVE-2026-54512
+    paths: *verapdf_cli
+    expired_at: 2026-10-31
+    statement: *verapdf_statement
+  - id: CVE-2026-54513
+    paths: *verapdf_cli
+    expired_at: 2026-10-31
+    statement: *verapdf_statement
+  - id: CVE-2026-54514
+    paths: *verapdf_cli
+    expired_at: 2026-10-31
+    statement: *verapdf_statement
+  - id: CVE-2026-54515
+    paths: *verapdf_cli
+    expired_at: 2026-10-31
+    statement: *verapdf_statement
+  - id: CVE-2026-54516
+    paths: *verapdf_cli
+    expired_at: 2026-10-31
+    statement: *verapdf_statement
+  - id: CVE-2026-54517
+    paths: *verapdf_cli
+    expired_at: 2026-10-31
+    statement: *verapdf_statement
+  - id: CVE-2026-54518
+    paths: *verapdf_cli
+    expired_at: 2026-10-31
+    statement: *verapdf_statement
+  - id: CVE-2026-59888
+    paths: *verapdf_cli
+    expired_at: 2026-10-31
+    statement: *verapdf_statement
+  - id: CVE-2026-59889
+    paths: *verapdf_cli
+    expired_at: 2026-10-31
+    statement: *verapdf_statement
+  - id: GHSA-mhm7-754m-9p8w
+    paths: *verapdf_cli
+    expired_at: 2026-10-31
+    statement: *verapdf_statement
