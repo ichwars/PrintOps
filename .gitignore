@@ -106,5 +106,14 @@ test_pipeline_run_1.3mf
 # Local visual brainstorming previews
 .superpowers/
 
+# Local session and agent artifacts (not durable project documentation)
+docs/aegis/
+docs/superpowers/
+docs/session-handoff-*.md
+docs/session-summary-*.md
+docs/design-qa-*.png
+docs/screenshots/
+design-qa.md
+
 # Local Git worktrees used for isolated Codex implementation branches
 .worktrees/

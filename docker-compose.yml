@@ -77,14 +77,9 @@ services:
       # Uncomment to store them externally (e.g. on a NAS share).
       #- /path/to/nas/printops-backups:/app/data/backups
       #
-      # Tailscale integration (optional): mount the host's tailscaled socket
-      # so PrintOps can request Let's Encrypt certs for virtual printers via
-      # your tailnet's MagicDNS name. Requires:
-      #   1. Tailscale installed + `tailscale up` completed on the host
-      #   2. `sudo tailscale set --operator=<container-user>` on the host so
-      #      the user running the container can call `tailscale cert`
-      # Without this mount, the Tailscale toggle in the UI is harmless —
-      # PrintOps falls back to self-signed certs.
+      # Tailscale integration (optional): mount the host daemon socket so
+      # PrintOps can read the host's Tailscale IP and FQDN through LocalAPI.
+      # Requires Tailscale installed and `tailscale up` completed on the host.
       #- /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
       #
       # Using a self signed certificate for Home Assistant

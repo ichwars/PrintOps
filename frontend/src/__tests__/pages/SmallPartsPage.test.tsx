@@ -2,9 +2,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SmallPartsPage } from '../../pages/SmallPartsPage';
+import { cryptoRandomUuid } from '../../utils/random';
 import { server } from '../mocks/server';
 
 const part = {
@@ -64,6 +65,21 @@ function renderPage() {
 }
 
 describe('SmallPartsPage', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('creates a cryptographic UUID when randomUUID is unavailable over plain HTTP', () => {
+    const cryptoApi = {
+      getRandomValues: (target: Uint8Array) => {
+        target.set(Array.from({ length: 16 }, (_, index) => index));
+        return target;
+      },
+    } as unknown as Crypto;
+
+    expect(cryptoRandomUuid(cryptoApi)).toBe('00010203-0405-4607-8809-0a0b0c0d0e0f');
+  });
+
   it('uses Material wording and the shared field styling without a duplicate filter border', async () => {
     server.use(
       http.get('/api/v1/small-parts', () => HttpResponse.json({ items: [], total: 0, limit: 50, offset: 0 })),
@@ -116,6 +132,8 @@ describe('SmallPartsPage', () => {
   });
 
   it('prefills a stock receipt with the material default consumption reason', async () => {
+    vi.spyOn(globalThis.crypto, 'randomUUID')
+      .mockReturnValue('00000000-0000-4000-8000-000000000001');
     const posted = vi.fn();
     server.use(
       http.get('/api/v1/small-parts', () => HttpResponse.json({ items: [part], total: 1, limit: 50, offset: 0 })),
@@ -145,6 +163,10 @@ describe('SmallPartsPage', () => {
     await user.type(screen.getByLabelText('Menge'), '10');
     await user.click(screen.getByRole('button', { name: 'Buchung speichern' }));
 
-    await waitFor(() => expect(posted).toHaveBeenCalledWith(expect.objectContaining({ quantity: '10', reason: 'Produktion' })));
+    await waitFor(() => expect(posted).toHaveBeenCalledWith(expect.objectContaining({
+      quantity: '10',
+      reason: 'Produktion',
+      idempotency_key: 'receipt-7-00000000-0000-4000-8000-000000000001',
+    })));
   });
 });

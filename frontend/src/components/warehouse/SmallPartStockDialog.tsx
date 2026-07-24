@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { ApiError } from '../../api/client';
 import { smallPartsApi, type SmallPart } from '../../api/smallParts';
+import { cryptoRandomUuid } from '../../utils/random';
 import { Button, Modal, NumberField, Select, TextArea } from '../ui';
 
 interface SmallPartStockDialogProps {
@@ -25,7 +26,7 @@ export function SmallPartStockDialog({ part, onClose }: SmallPartStockDialogProp
       entry_kind: entryKind,
       quantity,
       reason,
-      idempotency_key: `${entryKind}-${part.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      idempotency_key: `${entryKind}-${part.id}-${cryptoRandomUuid()}`,
     }),
     onSuccess: async () => {
       setQuantity('');
