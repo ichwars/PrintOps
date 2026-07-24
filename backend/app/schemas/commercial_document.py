@@ -81,7 +81,9 @@ class IssuedDocumentSnapshot(BaseModel):
     currency: str = Field(min_length=3, max_length=3)
     seller: dict[str, Any]
     buyer: dict[str, Any]
-    lines: tuple[SnapshotLine, ...] = Field(min_length=1)
+    # Reminder and dunning documents can be issued solely against a referenced
+    # invoice and therefore legitimately contain no new commercial line.
+    lines: tuple[SnapshotLine, ...] = ()
     totals: dict[str, Decimal]
     payment: dict[str, Any] = Field(default_factory=dict)
     references: tuple[dict[str, Any], ...] = ()

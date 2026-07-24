@@ -355,6 +355,49 @@ async def publish(
     return target
 
 
+async def activate_due_configurations(
+    session: AsyncSession,
+    *,
+    today: date | None = None,
+) -> tuple[int, ...]:
+    """Atomically make scheduled document policies effective when their date arrives."""
+    today = today or date.today()
+    scheduled = (
+        await session.scalars(
+            select(DocumentConfiguration)
+            .where(
+                DocumentConfiguration.status == "scheduled",
+                DocumentConfiguration.effective_from <= today,
+            )
+            .order_by(DocumentConfiguration.effective_from, DocumentConfiguration.version)
+            .with_for_update()
+        )
+    ).all()
+    activated: list[int] = []
+    for configuration in scheduled:
+        await session.execute(
+            update(DocumentConfiguration)
+            .where(
+                DocumentConfiguration.business_profile_id == configuration.business_profile_id,
+                DocumentConfiguration.document_type == configuration.document_type,
+                DocumentConfiguration.language == configuration.language,
+                DocumentConfiguration.status == "active",
+            )
+            .values(status="superseded")
+        )
+        result = await session.execute(
+            update(DocumentConfiguration)
+            .where(
+                DocumentConfiguration.id == configuration.id,
+                DocumentConfiguration.status == "scheduled",
+            )
+            .values(status="active")
+        )
+        if result.rowcount == 1:
+            activated.append(configuration.id)
+    return tuple(activated)
+
+
 async def withdraw_scheduled(
     session: AsyncSession,
     configuration_id: int,
@@ -503,6 +546,7 @@ async def resolve_effective(
     language: str,
     document_overrides: dict[str, Any],
 ) -> EffectiveDocumentPolicy:
+    await activate_due_configurations(session)
     base_statement = (
         select(DocumentConfiguration)
         .where(

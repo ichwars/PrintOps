@@ -122,3 +122,22 @@ def test_runtime_readiness_has_concrete_missing_component_codes(tmp_path):
     assert "PDF_RENDERER_UNAVAILABLE" in status.findings
     assert "PDF_PANGO_UNAVAILABLE" in status.findings
     assert "PDF_VALIDATOR_UNAVAILABLE" in status.findings
+
+
+def test_runtime_readiness_discovers_weasyprint_on_path(tmp_path, monkeypatch):
+    renderer = tmp_path / "weasyprint.exe"
+    renderer.write_bytes(b"runtime")
+    monkeypatch.setattr("backend.app.services.document_readiness.shutil.which", lambda _name: str(renderer))
+
+    status = probe_document_runtime(
+        validator=SimpleNamespace(version=lambda: "1.30.2"),
+        process_runner=lambda command, **_kwargs: subprocess.CompletedProcess(
+            command,
+            0,
+            "WeasyPrint version: 69.0\nPango version: 15701\n",
+            "",
+        ),
+    )
+
+    assert status.ready is True
+    assert status.renderer.version == "69.0"

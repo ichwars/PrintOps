@@ -8,9 +8,8 @@ import type {
   DocumentType,
   ReadinessStatus,
 } from '../../../api/documentManagement';
-import { availableLanguages } from '../../../i18n';
 import { Select } from '../../ui';
-import type { DocumentContext } from './documentSettingsState';
+import { supportedDocumentLanguage, type DocumentContext } from './documentSettingsState';
 
 interface DocumentContextHeaderProps {
   context: DocumentContext;
@@ -37,6 +36,11 @@ const documentTypeFallbacks: Record<DocumentType, string> = {
   dunning_notice: 'Dunning notice',
   self_billing: 'Self-billing invoice',
 };
+
+const documentLanguages = [
+  { value: 'de', label: 'Deutsch' },
+  { value: 'en', label: 'English' },
+];
 
 export function DocumentContextHeader({
   context,
@@ -85,7 +89,7 @@ export function DocumentContextHeader({
           disabled={disabled || profiles.length === 0}
           onValueChange={(profileId) => {
             const profile = profiles.find((item) => item.id === profileId);
-            onChange({ ...context, profileId, language: profile?.default_locale || context.language });
+            onChange({ ...context, profileId, language: supportedDocumentLanguage(profile?.default_locale) });
           }}
         />
         <Select
@@ -101,7 +105,7 @@ export function DocumentContextHeader({
         <Select
           value={context.language}
           label={t('settings.documents.language', 'Language')}
-          options={availableLanguages.map((language) => ({ value: language.code, label: language.nativeName }))}
+          options={documentLanguages}
           disabled={disabled}
           onValueChange={(language) => onChange({ ...context, language })}
         />

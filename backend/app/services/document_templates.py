@@ -6,7 +6,6 @@ import re
 from importlib import resources
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
-from markupsafe import Markup
 
 from backend.app.schemas.document_layout import EffectiveDocumentLayout
 from backend.app.services.document_view_model import DocumentViewModel
@@ -16,18 +15,18 @@ _TEMPLATES = frozenset({"classic", "modern", "compact"})
 _SAFE_FONT = re.compile(r"^[A-Za-z0-9 _-]{1,128}$")
 
 
-def _css(layout: EffectiveDocumentLayout) -> str:
+def _css_variables(layout: EffectiveDocumentLayout) -> dict[str, str]:
     page = layout.page
     typography = layout.typography
     font = typography.font_family if _SAFE_FONT.fullmatch(typography.font_family) else "Noto Sans"
-    variables = {
+    return {
         "page-size": page.page_format,
         "margin-top": f"{page.margin_top_mm}mm",
         "margin-right": f"{page.margin_right_mm}mm",
         "margin-bottom": f"{page.margin_bottom_mm}mm",
         "margin-left": f"{page.margin_left_mm}mm",
         "first-content-top": f"{page.first_page_content_top_mm}mm",
-        "font-family": f"'{font}'",
+        "font-family": font,
         "base-size": f"{typography.base_size_pt}pt",
         "table-size": f"{typography.table_size_pt}pt",
         "metadata-size": f"{typography.metadata_size_pt}pt",
@@ -38,9 +37,6 @@ def _css(layout: EffectiveDocumentLayout) -> str:
         "text-color": typography.text_color,
         "muted-color": typography.muted_color,
     }
-    declaration = ";".join(f"--{key}:{value}" for key, value in variables.items())
-    static_css = resources.files(_TEMPLATE_PACKAGE).joinpath("print.css").read_text(encoding="utf-8")
-    return f":root{{{declaration}}}\n{static_css}"
 
 
 def render_document_html(
@@ -61,5 +57,5 @@ def render_document_html(
     return template.render(
         document=document.model_dump(mode="python"),
         layout=layout.model_dump(mode="python"),
-        trusted_css=Markup(_css(layout)),
+        css_variables=_css_variables(layout),
     )

@@ -138,6 +138,22 @@ async def test_effective_values_report_customer_and_document_sources(db_session)
 
 
 @pytest.mark.asyncio
+async def test_resolving_effective_policy_activates_due_scheduled_version(db_session):
+    profile, customer, active = await _configuration_fixture(db_session)
+    scheduled = await clone_version(db_session, active.id, actor_id=7)
+    scheduled.status = "scheduled"
+    scheduled.effective_from = date.today()
+    scheduled.basic_policy.subject = "Effective today"
+    await db_session.flush()
+
+    result = await resolve_effective(db_session, profile.id, customer.id, "invoice", "de", {})
+
+    assert result.configuration_id == scheduled.id
+    assert scheduled.status == "active"
+    assert active.status == "superseded"
+
+
+@pytest.mark.asyncio
 async def test_update_draft_uses_compare_and_swap(db_session):
     _profile, _customer, active = await _configuration_fixture(db_session)
     draft = await clone_version(db_session, active.id, actor_id=7)

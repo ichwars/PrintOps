@@ -151,14 +151,21 @@ def from_snapshot(snapshot: IssuedDocumentSnapshot) -> CanonicalInvoice:
     grouped: dict[tuple[str, Decimal], Decimal] = defaultdict(lambda: Decimal("0"))
     for line in lines:
         grouped[(line.tax_category_code, line.tax_rate)] += line.net_amount
+    tax_decision = snapshot.metadata.get("tax_decision")
+    if not isinstance(tax_decision, dict):
+        tax_decision = {}
+    exemption_reason_code = _optional(
+        snapshot.metadata.get("tax_exemption_code") or tax_decision.get("exemption_reason_code")
+    )
+    exemption_reason = _optional(snapshot.metadata.get("tax_exemption_reason") or tax_decision.get("exemption_reason"))
     tax_subtotals = tuple(
         CanonicalTaxSubtotal(
             category_code=category,
             rate=rate,
             taxable_amount=_money(taxable),
             tax_amount=_money(taxable * rate / Decimal("100")),
-            exemption_reason_code=_optional(snapshot.metadata.get("tax_exemption_code")),
-            exemption_reason=_optional(snapshot.metadata.get("tax_exemption_reason")),
+            exemption_reason_code=exemption_reason_code,
+            exemption_reason=exemption_reason,
         )
         for (category, rate), taxable in sorted(grouped.items(), key=lambda item: item[0])
     )

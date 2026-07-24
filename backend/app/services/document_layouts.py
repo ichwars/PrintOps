@@ -455,6 +455,7 @@ async def resolve_effective_layout(
     if language is not None and document_type is None:
         raise ValueError("language requires document_type")
     now = now or datetime.now(UTC)
+    await activate_due_layouts(session, now=now)
     layers: list[orm.DocumentLayoutConfiguration] = []
     for scope_type, scope_language in (
         (None, None),

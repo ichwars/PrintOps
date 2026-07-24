@@ -307,6 +307,44 @@ async def test_scheduled_layout_can_be_withdrawn_or_activated_and_supersedes(db_
 
 
 @pytest.mark.asyncio
+async def test_resolving_layout_automatically_activates_due_version(db_session):
+    profile = await _profile(db_session)
+    active = await create_draft(
+        db_session,
+        CreateLayoutRequest(scope=LayoutScope(business_profile_id=profile.id), reason="Active"),
+        actor_id=None,
+    )
+    active = await publish_layout(
+        db_session,
+        active.id,
+        PublishLayoutRequest(expected_lock_version=1, reason="Active"),
+        actor_id=None,
+    )
+    due = datetime.now(UTC) + timedelta(days=1)
+    scheduled = await clone_layout(
+        db_session,
+        CloneLayoutRequest(source_layout_id=active.id, reason="Scheduled"),
+        actor_id=None,
+    )
+    scheduled = await publish_layout(
+        db_session,
+        scheduled.id,
+        PublishLayoutRequest(expected_lock_version=1, reason="Scheduled", effective_from=due),
+        actor_id=None,
+    )
+
+    resolved = await resolve_effective_layout(
+        db_session,
+        business_profile_id=profile.id,
+        now=due + timedelta(seconds=1),
+    )
+
+    assert resolved.configuration_ids == (scheduled.id,)
+    assert scheduled.status == "active"
+    assert active.status == "superseded"
+
+
+@pytest.mark.asyncio
 async def test_readiness_blocks_missing_profile_default(db_session):
     profile = await _profile(db_session)
     report = await check_readiness(db_session, business_profile_id=profile.id)

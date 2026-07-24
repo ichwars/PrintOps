@@ -141,3 +141,17 @@ def test_view_model_accepts_the_production_snapshot_shape():
     assert view_model.payment.account_holder == "Produktionsprofil"
     assert view_model.references == ("order: PO-77",)
     assert view_model.texts[0].text == "Produktionsform"
+
+
+def test_configured_subject_and_footer_body_are_rendered():
+    snapshot = load_sample("invoice-en-standard").model_copy(
+        update={
+            "metadata": {"subject": "Custom invoice title"},
+            "text_blocks": ({"purpose": "footer", "body": "Registered office: Berlin"},),
+        }
+    )
+
+    view_model = build_document_view_model(snapshot)
+
+    assert view_model.header.title == "Custom invoice title"
+    assert view_model.footer.note == "Registered office: Berlin"

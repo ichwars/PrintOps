@@ -45,6 +45,19 @@ def test_missing_buyer_reference_has_stable_rule_and_field_path(canonical_invoic
     )
 
 
+def test_xrechnung_credit_note_uses_credit_note_schema(canonical_invoice):
+    credit_note = replace(canonical_invoice, type_code="381", is_credit=True)
+
+    report = validate_xml(
+        render_xrechnung(credit_note, "ubl"),
+        standard="xrechnung",
+        syntax="ubl-2.1",
+        profile="xrechnung",
+    )
+
+    assert not any(finding.source == "xsd" for finding in report.findings), report.to_dict()
+
+
 @pytest.mark.parametrize("profile", ("en16931", "xrechnung"))
 def test_valid_zugferd_passes_official_schema_and_profile_rules(canonical_invoice, profile):
     report = validate_xml(

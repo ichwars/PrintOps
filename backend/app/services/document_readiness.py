@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 from collections.abc import Callable
 from datetime import UTC, date, datetime, time
@@ -92,7 +93,8 @@ def probe_document_runtime(
     findings: list[str] = []
     renderer_version = None
     pango_version = None
-    cli = Path(renderer_cli) if renderer_cli is not None else None
+    discovered_cli = shutil.which("weasyprint") if renderer_cli is None else None
+    cli = Path(renderer_cli or discovered_cli) if renderer_cli is not None or discovered_cli else None
     if cli is None or not cli.is_file():
         findings.extend(("PDF_RENDERER_UNAVAILABLE", "PDF_PANGO_UNAVAILABLE"))
     else:

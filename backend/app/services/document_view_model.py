@@ -248,7 +248,12 @@ def build_document_view_model(snapshot: IssuedDocumentSnapshot) -> DocumentViewM
     capability = DOCUMENT_CAPABILITIES[DocumentType(snapshot.document_type)]
     sender = _party(snapshot.seller)
     recipient = _party(snapshot.buyer)
-    title = _TITLES[snapshot.document_type][0 if language == "de" else 1]
+    configured_subject = snapshot.metadata.get("subject")
+    title = (
+        plain_text(configured_subject, max_length=255)
+        if isinstance(configured_subject, str) and configured_subject.strip()
+        else _TITLES[snapshot.document_type][0 if language == "de" else 1]
+    )
     labels = (
         ("Nummer", "Datum", "Leistungsdatum", "Fällig am")
         if language == "de"
@@ -295,7 +300,11 @@ def build_document_view_model(snapshot: IssuedDocumentSnapshot) -> DocumentViewM
     discount_days = payment.get("discount_days")
     discount_percent = payment.get("discount_percent")
     footer_note = next(
-        (plain_text(block.get("text", "")) for block in snapshot.text_blocks if block.get("purpose") == "footer"),
+        (
+            plain_text(block.get("text") or block.get("body", ""))
+            for block in snapshot.text_blocks
+            if block.get("purpose") == "footer"
+        ),
         None,
     )
     return DocumentViewModel(

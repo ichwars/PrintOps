@@ -7,13 +7,17 @@ export interface DocumentContext {
   language: string;
 }
 
+export function supportedDocumentLanguage(locale: string | null | undefined): 'de' | 'en' {
+  return locale?.toLowerCase().startsWith('de') ? 'de' : 'en';
+}
+
 export function initialDocumentContext(profiles: BusinessProfileOption[]): DocumentContext {
   const activeProfiles = profiles.filter((profile) => profile.is_active);
   const profile = activeProfiles.find((item) => item.is_default) ?? activeProfiles[0];
   return {
     profileId: profile?.id ?? 0,
     documentType: 'invoice',
-    language: profile?.default_locale || 'de',
+    language: supportedDocumentLanguage(profile?.default_locale),
   };
 }
 

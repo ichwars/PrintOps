@@ -48,6 +48,18 @@ def _issued_snapshot(number: str = "RE-2026-0001") -> IssuedDocumentSnapshot:
     )
 
 
+def test_reference_only_reminder_snapshot_allows_no_lines():
+    snapshot = _issued_snapshot("ZE-2026-0001").model_copy(
+        update={
+            "document_type": "payment_reminder",
+            "lines": (),
+            "references": ({"kind": "invoice", "identifier": "RE-2026-0001"},),
+        }
+    )
+
+    assert snapshot.lines == ()
+
+
 async def _profile(db_session) -> BusinessProfile:
     profile = BusinessProfile(
         name="Document schema profile",

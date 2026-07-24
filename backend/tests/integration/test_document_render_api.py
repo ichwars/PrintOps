@@ -9,6 +9,7 @@ from sqlalchemy import select
 from backend.app.api.routes import document_render as render_routes
 from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.commercial_document import CommercialDocument, DocumentArtifact, DocumentSnapshot
+from backend.app.models.document_audit import DocumentAuditEvent
 from backend.app.schemas.document_layout import CreateLayoutRequest, LayoutScope, PublishLayoutRequest
 from backend.app.services.document_layout_samples import load_sample
 from backend.app.services.document_layouts import create_draft, publish_layout
@@ -146,6 +147,14 @@ async def test_external_render_is_snapshot_only_idempotent_and_downloadable(
     assert download.content == content
     assert download.headers["etag"] == f'"{digest}"'
     assert download.headers["x-content-type-options"] == "nosniff"
+    audit = await db_session.scalar(
+        select(DocumentAuditEvent).where(
+            DocumentAuditEvent.action == "export",
+            DocumentAuditEvent.object_id == snapshot.document_id,
+        )
+    )
+    assert audit is not None
+    assert audit.after == {"artifact_id": artifact.id, "sha256": digest}
 
 
 async def test_external_render_rejects_mutable_or_guessed_inputs(async_client, db_session):
@@ -170,6 +179,27 @@ async def test_external_render_rejects_mutable_or_guessed_inputs(async_client, d
 
     assert missing.status_code in {404, 424}
     assert forbidden_shape.status_code == 422
+
+
+async def test_resolved_assets_include_inherited_layers_and_specific_overrides(monkeypatch):
+    profile_asset = SimpleNamespace(id=1, sha256="a" * 64)
+    specific_asset = SimpleNamespace(id=2, sha256="b" * 64)
+    layers = {
+        10: SimpleNamespace(asset_links=[SimpleNamespace(role="logo", asset=profile_asset)]),
+        20: SimpleNamespace(asset_links=[SimpleNamespace(role="logo", asset=specific_asset)]),
+    }
+
+    async def load_layer(_db, configuration_id):
+        return layers[configuration_id]
+
+    monkeypatch.setattr(render_routes, "get_layout", load_layer)
+    monkeypatch.setattr(render_routes, "read_asset", lambda asset: f"asset-{asset.id}".encode())
+
+    assets, roles, receipts = await render_routes._resolved_assets(SimpleNamespace(), (10, 20))
+
+    assert assets == {"a" * 64: b"asset-1", "b" * 64: b"asset-2"}
+    assert roles == {"logo": "b" * 64}
+    assert receipts == {"logo": {"asset_id": 2, "sha256": "b" * 64}}
 
 
 async def test_external_render_schema_rejects_einvoice_ambiguity_and_remote_input(

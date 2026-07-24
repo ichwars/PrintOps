@@ -108,6 +108,18 @@ def test_position_table_header_is_single_line_and_visually_separated():
     assert "border-bottom: 1.5px solid var(--accent)" in html
 
 
+def test_english_documents_use_english_table_headings():
+    html = render_document_html(
+        build_document_view_model(load_sample("invoice-en-standard")),
+        TEMPLATE_DEFAULTS["classic"],
+    )
+
+    assert ">Description<" in html
+    assert ">Quantity<" in html
+    assert ">Unit price<" in html
+    assert ">Bezeichnung<" not in html
+
+
 def test_normalized_html_snapshots_are_stable():
     expected = json.loads((FIXTURES / "template-html-sha256.json").read_text(encoding="utf-8"))
     view_model = build_document_view_model(load_sample("invoice-de-standard"))

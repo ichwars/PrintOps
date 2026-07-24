@@ -87,6 +87,7 @@ async def test_successor_must_be_allowed_by_document_catalog(db_session):
     quotation = CommercialDocument(
         document_type="quotation",
         business_profile_id=profile.id,
+        number="AG-2026-0001",
         technical_status="issued",
         language="de-DE",
         currency="EUR",
@@ -105,6 +106,7 @@ async def test_successor_must_be_allowed_by_document_catalog(db_session):
 
     assert successor.document_type == "order_confirmation"
     assert successor.incoming_relations[0].source_document_id == quotation.id
+    assert successor.incoming_relations[0].relation_data == {"document_number": "AG-2026-0001"}
 
 
 @pytest.mark.asyncio

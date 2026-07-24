@@ -61,6 +61,7 @@ class _ValidationTarget:
     xsd: str
     stylesheets: tuple[tuple[str, str], ...]
     rule_versions: Mapping[str, str]
+    credit_note_xsd: str | None = None
 
 
 _RULE_VERSIONS = MappingProxyType(
@@ -83,6 +84,7 @@ _TARGETS: Mapping[tuple[str, str, str], _ValidationTarget] = MappingProxyType(
     {
         ("xrechnung", "ubl-2.1", "xrechnung"): _ValidationTarget(
             xsd="xrechnung/3.0.2-2026-01-31/ubl/xsd/maindoc/UBL-Invoice-2.1.xsd",
+            credit_note_xsd="xrechnung/3.0.2-2026-01-31/ubl/xsd/maindoc/UBL-CreditNote-2.1.xsd",
             stylesheets=(
                 ("en16931", "en16931/1.3.16/ubl/EN16931-UBL-validation.xslt"),
                 (
@@ -303,7 +305,9 @@ def validate_xml(
         )
 
     try:
-        findings = _xsd_findings(root, _RESOURCE_ROOT / target.xsd)
+        root_name = etree.QName(root).localname
+        xsd = target.credit_note_xsd if root_name == "CreditNote" and target.credit_note_xsd else target.xsd
+        findings = _xsd_findings(root, _RESOURCE_ROOT / xsd)
         if not findings:
             findings.extend(_xslt_findings(xml, target.stylesheets))
         ordered = tuple(

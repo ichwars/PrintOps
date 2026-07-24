@@ -25,6 +25,7 @@ from backend.app.models.commercial_document import (
 from backend.app.models.user import User
 from backend.app.schemas.commercial_document import IssuedDocumentSnapshot
 from backend.app.schemas.document_layout import ExternalRenderRequest, ExternalRenderResponse
+from backend.app.services.document_audit import append_audit
 from backend.app.services.document_layout_assets import read_asset
 from backend.app.services.document_layout_catalog import RENDERER_VERSION, VALIDATOR_VERSION
 from backend.app.services.document_layouts import LayoutNotFoundError, get_layout, resolve_effective_layout
@@ -45,6 +46,10 @@ router = APIRouter(prefix="/document-render", tags=["document-render"])
 def _correlation_id(request: Request) -> str:
     value = getattr(request.state, "correlation_id", None) or request.headers.get("X-Correlation-ID")
     return str(value)[:128] if value else str(uuid4())
+
+
+def _actor_id(actor: User | None) -> int | None:
+    return actor.id if actor is not None else None
 
 
 def _error(request: Request, status_code: int, code: str, message: str) -> NoReturn:
@@ -85,6 +90,22 @@ def _response(artifact: DocumentArtifact, correlation_id: str) -> ExternalRender
         content_type=artifact.content_type,
         correlation_id=correlation_id,
     )
+
+
+async def _resolved_assets(
+    db: AsyncSession,
+    configuration_ids: tuple[int, ...],
+) -> tuple[dict[str, bytes], dict[str, str], dict[str, dict[str, int | str]]]:
+    assets: dict[str, bytes] = {}
+    roles: dict[str, str] = {}
+    receipts: dict[str, dict[str, int | str]] = {}
+    for configuration_id in configuration_ids:
+        layer = await get_layout(db, configuration_id)
+        for link in layer.asset_links:
+            assets[link.asset.sha256] = read_asset(link.asset)
+            roles[link.role] = link.asset.sha256
+            receipts[link.role] = {"asset_id": link.asset.id, "sha256": link.asset.sha256}
+    return assets, roles, receipts
 
 
 @router.get("/readiness")
@@ -180,8 +201,7 @@ async def render_document(
             else XrechnungArtifactReference(xrechnung_artifact_id=artifact_id)
         )
 
-    assets = {link.asset.sha256: read_asset(link.asset) for link in layout.asset_links}
-    roles = {link.role: link.asset.sha256 for link in layout.asset_links}
+    assets, roles, asset_receipts = await _resolved_assets(db, resolved.configuration_ids)
     renderer = DocumentRenderer(
         einvoice_artifact_resolver=(
             (lambda _reference, _render_input: resolved_einvoice) if resolved_einvoice is not None else None
@@ -233,9 +253,7 @@ async def render_document(
         layout_configuration_id=layout.id,
         layout_version=layout.version,
         layout_effective_sha256=resolved.effective_sha256,
-        asset_receipts={
-            link.role: {"asset_id": link.asset.id, "sha256": link.asset.sha256} for link in layout.asset_links
-        },
+        asset_receipts=asset_receipts,
         renderer_version=RENDERER_VERSION,
         validator_version=VALIDATOR_VERSION,
         render_receipt={
@@ -255,8 +273,9 @@ async def render_document(
 @router.get("/artifacts/{artifact_id}")
 async def download_artifact(
     artifact_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_EXPORT),
+    actor: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_EXPORT),
 ):
     artifact = await db.get(DocumentArtifact, artifact_id)
     if artifact is None or artifact.kind != "pdf" or artifact.validation_status != "valid":
@@ -269,6 +288,18 @@ async def download_artifact(
         raise HTTPException(status_code=424, detail={"code": "render_artifact_unavailable"}) from None
     if artifact.sha256 != __import__("hashlib").sha256(content).hexdigest():
         raise HTTPException(status_code=424, detail={"code": "render_artifact_integrity_failed"})
+    await append_audit(
+        db,
+        action="export",
+        object_type="commercial_document",
+        object_id=artifact.document_id,
+        actor_id=_actor_id(actor),
+        reason="Immutable document artifact downloaded through render API",
+        before=None,
+        after={"artifact_id": artifact.id, "sha256": artifact.sha256},
+        correlation_id=_correlation_id(request),
+    )
+    await db.commit()
     return Response(
         content,
         media_type="application/pdf",

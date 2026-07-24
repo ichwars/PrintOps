@@ -30,6 +30,7 @@ from backend.app.schemas.commercial_document import (
 )
 from backend.app.services.document_audit import append_audit
 from backend.app.services.document_catalog import DOCUMENT_CAPABILITIES, DocumentType
+from backend.app.services.document_configuration import activate_due_configurations
 from backend.app.services.document_numbering import reserve_document_number
 from backend.app.services.document_readiness import check_issuance_readiness
 from backend.app.services.document_snapshot import attach_issued_snapshot, render_issued_pdf
@@ -525,7 +526,13 @@ async def create_successor(
         )
         for line in source.lines
     ]
-    successor.incoming_relations = [DocumentRelation(source_document_id=source.id, relation_type=relation_type)]
+    successor.incoming_relations = [
+        DocumentRelation(
+            source_document_id=source.id,
+            relation_type=relation_type,
+            relation_data={"document_number": source.number},
+        )
+    ]
     session.add(successor)
     await session.flush()
     return successor
@@ -623,6 +630,7 @@ async def _issuance_configuration(
     session: AsyncSession,
     document: CommercialDocument,
 ) -> DocumentConfiguration | None:
+    await activate_due_configurations(session, today=document.issue_date or date.today())
     base = select(DocumentConfiguration).where(
         DocumentConfiguration.business_profile_id == document.business_profile_id,
         DocumentConfiguration.document_type == document.document_type,
@@ -911,6 +919,7 @@ async def _snapshot_payload(
         .where(DocumentConfiguration.id == configuration_id)
         .options(
             selectinload(DocumentConfiguration.text_blocks),
+            selectinload(DocumentConfiguration.basic_policy),
             selectinload(DocumentConfiguration.payment_policy),
             selectinload(DocumentConfiguration.einvoice_policy),
         )
@@ -1155,6 +1164,11 @@ async def _snapshot_payload(
             for block in configuration.text_blocks
         ),
         metadata={
+            "subject": (
+                configuration.basic_policy.subject.replace("{DOCUMENT_NUMBER}", number)
+                if configuration.basic_policy is not None
+                else None
+            ),
             "tax_decision": dict(document.tax_decision or {}),
             "einvoice": {
                 "required": einvoice_required,

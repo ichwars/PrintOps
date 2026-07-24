@@ -159,3 +159,21 @@ def test_math_validation_reports_snapshot_total_mismatches() -> None:
         "invoice_total_mismatch",
         "payable_amount_mismatch",
     }
+
+
+def test_tax_exemption_reason_is_read_from_frozen_tax_decision() -> None:
+    snapshot = _snapshot().model_copy(
+        update={
+            "metadata": {
+                "tax_decision": {
+                    "exemption_reason_code": "VATEX-EU-O",
+                    "exemption_reason": "Not subject to VAT",
+                }
+            }
+        }
+    )
+
+    subtotal = from_snapshot(snapshot).tax_subtotals[0]
+
+    assert subtotal.exemption_reason_code == "VATEX-EU-O"
+    assert subtotal.exemption_reason == "Not subject to VAT"

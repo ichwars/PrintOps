@@ -98,7 +98,7 @@ def _render_ubl(invoice: CanonicalInvoice) -> bytes:
     _element(root, CBC, "ProfileID", PROFILE_ID)
     _element(root, CBC, "ID", invoice.invoice_number)
     _element(root, CBC, "IssueDate", invoice.issue_date.isoformat())
-    if invoice.due_date:
+    if invoice.due_date and not invoice.is_credit:
         _element(root, CBC, "DueDate", invoice.due_date.isoformat())
     _element(
         root,
