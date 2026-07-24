@@ -83,6 +83,7 @@ jobs:
           # vulnerabilities without an upstream fix remain visible in Trivy's
           # database and explicit full scans, but cannot be resolved here.
           ignore-unfixed: true
+          trivyignores: '.trivyignore.yaml'
           version: 'v0.69.3'
 
       - name: Upload Trivy results to GitHub Security
