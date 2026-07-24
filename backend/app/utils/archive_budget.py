@@ -16,6 +16,9 @@ import defusedxml.ElementTree as ET
 
 MIB = 1024 * 1024
 MAX_UPLOAD_BYTES = 256 * MIB
+# Timelapse videos routinely exceed the ZIP/3MF budget on long prints. Keep a
+# separate finite cap so video uploads work without becoming unbounded.
+MAX_TIMELAPSE_UPLOAD_BYTES = 2 * 1024 * MIB
 MAX_3MF_PLATES = 64
 MAX_FILAMENT_SLOTS = 64
 MAX_ARCHIVE_REFERENCES = 1024

@@ -60,6 +60,43 @@ async def test_upload_reader_stops_after_limit() -> None:
         await read_upload_limited(Upload(), max_bytes=16, chunk_size=8)
 
 
+@pytest.mark.asyncio
+async def test_timelapse_upload_uses_video_specific_limit(monkeypatch) -> None:
+    from backend.app.api.routes import archives as archive_routes
+    from backend.app.utils.archive_budget import MAX_TIMELAPSE_UPLOAD_BYTES, MAX_UPLOAD_BYTES
+
+    assert MAX_TIMELAPSE_UPLOAD_BYTES > MAX_UPLOAD_BYTES
+    observed: dict[str, object] = {}
+
+    class Upload:
+        filename = "long-print.mp4"
+
+    class Service:
+        def __init__(self, _db) -> None:
+            pass
+
+        async def get_archive(self, archive_id: int):
+            assert archive_id == 7
+            return object()
+
+        async def attach_timelapse(self, archive_id: int, content: bytes, filename: str) -> bool:
+            observed.update(archive_id=archive_id, content=content, filename=filename)
+            return True
+
+    async def read_video_upload(_upload, *, max_bytes: int):
+        observed["max_bytes"] = max_bytes
+        return b"video"
+
+    monkeypatch.setattr(archive_routes, "ArchiveService", Service)
+    monkeypatch.setattr(archive_routes, "read_upload_limited", read_video_upload)
+
+    result = await archive_routes.upload_timelapse(7, Upload(), db=object(), _=None)
+
+    assert observed["max_bytes"] == MAX_TIMELAPSE_UPLOAD_BYTES
+    assert observed["filename"] == "long-print.mp4"
+    assert result == {"status": "attached", "filename": "long-print.mp4"}
+
+
 def test_safe_archive_basename_removes_both_separator_styles() -> None:
     from backend.app.utils.archive_budget import safe_archive_basename
 

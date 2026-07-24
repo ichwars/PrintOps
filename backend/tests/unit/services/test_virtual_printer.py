@@ -2957,16 +2957,17 @@ class TestSlicerProxyManager:
         assert status["mqtt_connections"] == 0
 
     @pytest.mark.asyncio
-    async def test_proxy_start_creates_transparent_proxies(self, tmp_path):
-        """Verify start() uses TCPProxy for FTP/FileTransfer/RTSP and TLSProxy only for MQTT.
+    async def test_proxy_start_creates_session_aware_ftp_proxy(self, tmp_path):
+        """Verify proxy mode keeps FTP passive uploads on a session-aware listener.
 
-        The transparent proxy architecture preserves end-to-end TLS between
-        slicer and printer for all protocols except MQTT, which must be
-        TLS-terminated to rewrite the printer's IP in MQTT payloads.
+        FTP must terminate the control-channel TLS so PASV/EPSV responses can
+        create peer-bound, one-shot data listeners. FileTransfer/RTSP remain
+        transparent and MQTT remains TLS-terminated for IP rewriting.
         """
         from unittest.mock import patch
 
         from backend.app.services.virtual_printer.tcp_proxy import (
+            FTPTLSProxy,
             SlicerProxyManager,
             TCPProxy,
             TLSProxy,
@@ -3002,8 +3003,9 @@ class TestSlicerProxyManager:
             mock_create_task.return_value = MagicMock()
             await mgr.start()
 
-        # FTP, FileTransfer, RTSP should be TCPProxy (transparent)
-        assert isinstance(mgr._ftp_proxy, TCPProxy), "FTP should be TCPProxy (transparent)"
+        # FTP must dynamically proxy passive data connections from the same
+        # control peer; a raw TCP control proxy cannot see PASV/EPSV ports.
+        assert isinstance(mgr._ftp_proxy, FTPTLSProxy), "FTP should be session-aware"
         assert isinstance(mgr._file_transfer_proxy, TCPProxy), "FileTransfer should be TCPProxy"
         assert isinstance(mgr._rtsp_proxy, TCPProxy), "RTSP should be TCPProxy"
 
@@ -3018,8 +3020,8 @@ class TestSlicerProxyManager:
         assert mgr._aux_proxies[0].target_port == 2024
         assert mgr._aux_proxies[2].listen_port == 2026
 
-        # Transparent FTPS cannot authenticate a passive data peer, so the
-        # manager must not expose permanent forwarders for ports 50000-50100.
+        # Passive listeners are created dynamically by FTPTLSProxy rather than
+        # exposing the whole range through permanent forwarders.
         assert mgr._ftp_data_proxies == []
 
     def test_proxy_manager_mqtt_has_ip_rewriting(self, tmp_path):

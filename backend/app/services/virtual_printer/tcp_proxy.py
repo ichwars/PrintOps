@@ -1575,26 +1575,18 @@ class SlicerProxyManager:
         # port_ftps check probes the port that actually has a socket.
         self._actual_ftp_port = ftp_listen_port
 
-        # FTP control — raw TCP pass-through (end-to-end TLS with printer).
-        # A TLS 1.3 → 1.2 ClientHello-rewrite was attempted to work around
-        # BambuStudio's libcurl bug on the X1C FTPS data channel (PSK
-        # session-resumption + CURLE_PARTIAL_FILE). Reverted because the
-        # rewrite broke the control-channel TLS handshake itself: replacing
-        # 0x0304 with a duplicate 0x0303 in supported_versions while leaving
-        # the TLS-1.3-only extensions (key_share, psk_key_exchange_modes,
-        # signature_algorithms_cert) in place produced a malformed ClientHello
-        # that the printer or slicer rejected, and the connection closed
-        # before any data channel was opened. A proper fix needs full TLS
-        # bumping (terminate + re-establish) with packet-capture work
-        # that's out of scope for now. X1C proxy-mode FTP uploads remain
-        # broken — users with X1C should use the non-proxy modes (immediate
-        # / review / print_queue) which work end-to-end via the VP's own
-        # FTP server on TLS 1.2.
-        self._ftp_proxy = TCPProxy(
+        # FTP control must be session-aware: passive uploads use a second
+        # connection whose port is announced inside encrypted PASV/EPSV
+        # responses. FTPTLSProxy terminates the control TLS channel, creates a
+        # peer-bound one-shot data listener, and reuses the printer-side TLS
+        # session where required by vsFTPd.
+        self._ftp_proxy = FTPTLSProxy(
             name="FTP",
             listen_port=ftp_listen_port,
             target_host=self.target_host,
             target_port=self.PRINTER_FTP_PORT,
+            server_cert_path=self.cert_path,
+            server_key_path=self.key_path,
             on_connect=lambda cid: self._log_activity("FTP", f"connected: {cid}"),
             on_disconnect=lambda cid: self._log_activity("FTP", f"disconnected: {cid}"),
             bind_address=self.bind_address,
@@ -1776,7 +1768,7 @@ class SlicerProxyManager:
                 logger.info("Proxy diagnostic: probing un-proxied ports %s on %s", probed, self.bind_address)
 
         logger.info(
-            "Slicer proxy started for %s (transparent TCP + MQTT TLS, %d FTP data ports)",
+            "Slicer proxy started for %s (session-aware FTPS + transparent TCP + MQTT TLS, %d static FTP data ports)",
             self.target_host,
             len(self._ftp_data_proxies),
         )

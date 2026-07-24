@@ -226,7 +226,7 @@ async def _run_ssh_command(
 
 
 async def perform_ssh_update(device_id: str, ip_address: str, install_path: str | None = None) -> None:
-    """SSH into a SpoolBuddy device and update it to match PrintOps's branch.
+    """SSH into a SpoolBuddy device and update it to PrintOps's exact commit.
 
     Updates device.update_status/update_message in the DB and broadcasts
     progress via WebSocket at each step.  Host key verification uses TOFU:
@@ -240,11 +240,9 @@ async def perform_ssh_update(device_id: str, ip_address: str, install_path: str 
     from backend.app.models.spoolbuddy_device import SpoolBuddyDevice
 
     install_path = install_path or DEFAULT_INSTALL_PATH
-    branch = detect_current_branch()
     commit = detect_current_commit()
     if commit is None:
         logger.error("Cannot update SpoolBuddy without a trusted PrintOps commit SHA")
-    safe_branch = shlex.quote(branch)
     safe_commit = shlex.quote(commit or "")
     safe_path = shlex.quote(install_path)
 
@@ -326,11 +324,12 @@ async def perform_ssh_update(device_id: str, ip_address: str, install_path: str 
                 )
                 known_hosts = None
 
-        # Step 2: Git fetch
-        await _update_progress("updating", f"Fetching latest code (branch: {branch})...")
+        # Step 2: Fetch the immutable build identity directly. A signed release
+        # commit may be reachable only from its tag and not from origin/<branch>.
+        await _update_progress("updating", f"Fetching trusted commit ({commit[:12]})...")
         rc, _, stderr, _ = await _run_ssh_command(
             ip_address,
-            f"cd {safe_path} && git -c safe.directory={safe_path} fetch origin {safe_branch}",
+            f"cd {safe_path} && git -c safe.directory={safe_path} fetch --no-tags origin {safe_commit}",
             private_key,
             known_hosts=known_hosts,
             timeout=120,

@@ -484,10 +484,8 @@ async def test_perform_ssh_update_success(tmp_path, trusted_update_commit):
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_branch_is_shell_quoted(tmp_path, trusted_update_commit):
-    """Branch name with shell-special chars must be quoted in all git commands (L1 fix)."""
-    import shlex
-
+async def test_perform_ssh_update_fetches_exact_trusted_commit(tmp_path, trusted_update_commit):
+    """Release commits must be fetched directly before detached checkout."""
     ssh_dir = tmp_path / "spoolbuddy" / "ssh"
     ssh_dir.mkdir(parents=True)
     (ssh_dir / "id_ed25519").write_text("PRIVATE")
@@ -495,7 +493,7 @@ async def test_perform_ssh_update_branch_is_shell_quoted(tmp_path, trusted_updat
 
     # A branch name containing a semicolon — shell-injection without quoting
     dangerous_branch = "dev; echo pwned"
-    safe_branch = shlex.quote(dangerous_branch)  # expected: "'dev; echo pwned'"
+    trusted_commit = "a" * 40
 
     ssh_calls = []
 
@@ -516,12 +514,13 @@ async def test_perform_ssh_update_branch_is_shell_quoted(tmp_path, trusted_updat
         mock_settings.base_dir = tmp_path
         await perform_ssh_update("sb-test", "10.0.0.1")
 
-    # Only fetch uses a branch; checkout is pinned to a commit identity.
+    # A release commit may be reachable only from a signed tag, not from the
+    # server's current branch. Fetch the trusted identity itself.
     fetch_cmd = next(c for c in ssh_calls if "fetch" in c)
-    assert safe_branch in fetch_cmd
-    assert dangerous_branch not in fetch_cmd.replace(safe_branch, "")
+    assert trusted_commit in fetch_cmd
+    assert dangerous_branch not in fetch_cmd
     checkout_cmd = next(c for c in ssh_calls if "checkout" in c)
-    assert dangerous_branch not in checkout_cmd
+    assert trusted_commit in checkout_cmd
     assert "--detach" in checkout_cmd
 
 

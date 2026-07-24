@@ -29,7 +29,7 @@ from backend.app.schemas.archive import ArchiveResponse, ArchiveSlim, ArchiveSta
 from backend.app.schemas.print_log import PrintLogResponse
 from backend.app.schemas.slicer import SliceRequest
 from backend.app.services.archive import ArchiveService
-from backend.app.utils.archive_budget import ArchiveBudgetError, read_upload_limited
+from backend.app.utils.archive_budget import MAX_TIMELAPSE_UPLOAD_BYTES, ArchiveBudgetError, read_upload_limited
 from backend.app.utils.http import build_content_disposition
 from backend.app.utils.safe_path import safe_join_under
 from backend.app.utils.threemf_tools import (
@@ -2517,7 +2517,7 @@ async def upload_timelapse(
         raise HTTPException(400, "File must be a video file (.mp4, .avi, .mkv)")
 
     try:
-        content = await read_upload_limited(file)
+        content = await read_upload_limited(file, max_bytes=MAX_TIMELAPSE_UPLOAD_BYTES)
     except ArchiveBudgetError as exc:
         raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail=str(exc)) from exc
     safe_filename = _safe_filename(file.filename)

@@ -11,11 +11,13 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from backend.app.api.routes import _oidc_helpers, api_keys as api_key_routes, mfa, users as user_routes
 from backend.app.core.auth import _validate_api_key, generate_api_key, get_api_key as get_webhook_api_key
 from backend.app.models.api_key import APIKey
 from backend.app.models.user import User
+from backend.app.schemas.auth import OIDCProviderCreate, OIDCProviderUpdate
 from backend.app.services import ldap_service
 
 
@@ -26,6 +28,30 @@ def test_api_key_create_and_update_declare_admin_role_dependencies():
 
 def test_cross_user_mfa_disable_declares_admin_role_dependency():
     assert "_admin" in inspect.signature(mfa.admin_disable_2fa).parameters
+
+
+def test_oidc_private_ip_literal_requires_and_honors_explicit_opt_in():
+    payload = {
+        "name": "LAN IdP",
+        "issuer_url": "https://192.168.1.10",
+        "client_id": "printops",
+        "client_secret": "secret",
+    }
+
+    with pytest.raises(ValidationError, match="private"):
+        OIDCProviderCreate(**payload)
+
+    provider = OIDCProviderCreate(**payload, allow_private_network=True)
+    assert provider.issuer_url == "https://192.168.1.10"
+
+
+def test_oidc_private_ip_literal_update_honors_explicit_opt_in():
+    update = OIDCProviderUpdate(
+        issuer_url="https://192.168.1.11",
+        allow_private_network=True,
+    )
+
+    assert update.issuer_url == "https://192.168.1.11"
 
 
 def test_admin_password_update_advances_session_freshness_timestamp():
