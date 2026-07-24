@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import get_password_hash, verify_password
 from backend.app.models.long_lived_token import LongLivedToken
+from backend.app.models.user import User
 
 # Issue #1108 hard cap. Bump here if policy changes — UI default is shorter
 # (90 days) and the create route enforces this ceiling.
@@ -156,10 +157,13 @@ async def verify_token(db: AsyncSession, token: str, *, scope: str = "camera_str
 
     now = datetime.now(timezone.utc)
     result = await db.execute(
-        select(LongLivedToken).where(
+        select(LongLivedToken)
+        .join(User, LongLivedToken.user_id == User.id)
+        .where(
             LongLivedToken.lookup_prefix == lookup_prefix,
             LongLivedToken.scope == scope,
             LongLivedToken.revoked_at.is_(None),
+            User.is_active.is_(True),
         )
     )
     candidates = result.scalars().all()

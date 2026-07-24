@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Clock, Calendar, ChevronRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import { formatRelativeTime } from '../utils/date';

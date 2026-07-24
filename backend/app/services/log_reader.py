@@ -156,6 +156,24 @@ def sanitize_log_content(content: str, sensitive_strings: dict[str, str] | None 
     # Replace credentials in URLs (e.g. http://user:pass@host, rtsps://bblp:code@host)
     content = re.sub(r"((?:https?|rtsps?)://)[^/:@\s]+:[^/@\s]+@", r"\1[CREDENTIALS]@", content)
 
+    content = re.sub(
+        r"(?i)\b(authorization\s*[:=]\s*(?:bearer|basic)\s+)[^\s,;]+",
+        r"\1[CREDENTIAL]",
+        content,
+    )
+    content = re.sub(
+        r"(?i)\b(api[_-]?key|access[_-]?token|token|secret|password|passwd|access[_-]?code)"
+        r"(\s*[:=]\s*)[^\s,;&]+",
+        r"\1\2[CREDENTIAL]",
+        content,
+    )
+    content = re.sub(r"([?&][A-Za-z0-9_.~-]+=)[^&#\s]+", r"\1[REDACTED]", content)
+    content = re.sub(
+        r"(?i)(/(?:api|token|secret|api[_-]?key|access[_-]?code)/)[^/?#\s]+",
+        r"\1[REDACTED]",
+        content,
+    )
+
     # Replace email addresses
     content = re.sub(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", "[EMAIL]", content)
 
@@ -209,5 +227,11 @@ async def collect_sensitive_strings(db: AsyncSession) -> dict[str, str]:
     cloud_email = result.scalar_one_or_none()
     if cloud_email:
         sensitive_strings[cloud_email] = "[EMAIL]"
+
+    result = await db.execute(select(Settings.key, Settings.value))
+    for key, value in result.all():
+        key_lower = str(key).lower()
+        if value and any(marker in key_lower for marker in ("token", "secret", "password", "api_key", "access_code")):
+            sensitive_strings[str(value)] = "[CREDENTIAL]"
 
     return sensitive_strings

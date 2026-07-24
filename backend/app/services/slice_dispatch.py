@@ -30,6 +30,7 @@ class SliceJob:
     kind: Literal["library_file", "archive"]
     source_id: int
     source_name: str
+    owner_id: int | None
     status: SliceJobStatus = "pending"
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: datetime | None = None
@@ -68,6 +69,7 @@ class SliceDispatchService:
         kind: Literal["library_file", "archive"],
         source_id: int,
         source_name: str,
+        owner_id: int | None = None,
         run: Callable[[int], Awaitable[dict[str, Any]]],
     ) -> SliceJob:
         """Register a new slice job and start it on the event loop.
@@ -83,6 +85,7 @@ class SliceDispatchService:
                 kind=kind,
                 source_id=source_id,
                 source_name=source_name,
+                owner_id=owner_id,
             )
             self._next_id += 1
             self._jobs[job.id] = job

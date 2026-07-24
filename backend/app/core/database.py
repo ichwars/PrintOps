@@ -3461,8 +3461,10 @@ async def run_migrations(conn):
     # rejects ``DEFAULT 0`` for BOOLEAN columns.
     if is_sqlite():
         await _safe_execute(conn, "ALTER TABLE oidc_providers ADD COLUMN is_autologin BOOLEAN DEFAULT 0")
+        await _safe_execute(conn, "ALTER TABLE oidc_providers ADD COLUMN allow_private_network BOOLEAN DEFAULT 0")
     else:
         await _safe_execute(conn, "ALTER TABLE oidc_providers ADD COLUMN is_autologin BOOLEAN DEFAULT false")
+        await _safe_execute(conn, "ALTER TABLE oidc_providers ADD COLUMN allow_private_network BOOLEAN DEFAULT false")
 
     # Migration: Disambiguate the four ``user_print_*`` notification template
     # names by appending " Email" (#1792). See ``_migrate_rename_user_print_template_names``.

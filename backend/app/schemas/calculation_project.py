@@ -4,7 +4,9 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
+
+from backend.app.utils.archive_budget import MAX_3MF_PLATES
 
 
 class CalculationProjectSchema(BaseModel):
@@ -78,8 +80,14 @@ class CalculationProjectFileRead(CalculationProjectSchema):
 
 
 class CalculationSliceRequest(CalculationProjectSchema):
-    plate_ids: list[int] = Field(min_length=1)
+    plate_ids: list[int] = Field(min_length=1, max_length=MAX_3MF_PLATES)
     printer_preset: dict | None = None
     process_preset: dict | None = None
     filament_preset: dict | None = None
     allow_estimate_fallback: bool = True
+
+    @model_validator(mode="after")
+    def reject_unused_profile_overrides(self):
+        if any((self.printer_preset, self.process_preset, self.filament_preset)):
+            raise ValueError("calculation slicing uses embedded profiles; custom preset payloads are unsupported")
+        return self

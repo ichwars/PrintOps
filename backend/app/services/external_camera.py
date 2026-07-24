@@ -19,6 +19,8 @@ import aiohttp
 
 logger = logging.getLogger(__name__)
 
+MAX_SNAPSHOT_BYTES = 10 * 1024 * 1024
+
 
 def _sanitize_camera_url(url: str, allowed_schemes: tuple[str, ...] = ("http", "https", "rtsp")) -> str | None:
     """Validate and sanitize camera URL, returning a safe reconstructed URL.
@@ -322,7 +324,7 @@ async def _capture_mjpeg_frame(url: str, timeout: int) -> bytes | None:
     try:
         async with (
             aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session,
-            session.get(safe_url) as response,
+            session.get(safe_url, allow_redirects=False) as response,
         ):
             if response.status != 200:
                 logger.error("MJPEG stream returned status %s", response.status)
@@ -510,13 +512,22 @@ async def _capture_snapshot(url: str, timeout: int) -> bytes | None:
     try:
         async with (
             aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session,
-            session.get(safe_url) as response,
+            session.get(safe_url, allow_redirects=False) as response,
         ):
             if response.status != 200:
                 logger.error("Snapshot URL returned status %s", response.status)
                 return None
+            if response.content_length is not None and response.content_length > MAX_SNAPSHOT_BYTES:
+                logger.warning("Snapshot response exceeds %s-byte limit", MAX_SNAPSHOT_BYTES)
+                return None
 
-            data = await response.read()
+            body = bytearray()
+            async for chunk in response.content.iter_chunked(64 * 1024):
+                if len(body) + len(chunk) > MAX_SNAPSHOT_BYTES:
+                    logger.warning("Snapshot response exceeds %s-byte limit", MAX_SNAPSHOT_BYTES)
+                    return None
+                body.extend(chunk)
+            data = bytes(body)
     except TimeoutError:
         logger.warning("Snapshot capture timed out after %ss", timeout)
         return None

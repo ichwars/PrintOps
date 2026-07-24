@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ChevronLeft, ChevronRight, Eye, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ApiError, api, type CustomerCreate, type CustomerDetail, type CustomerKind, type CustomerStatus, type CustomerUpdate } from '../api/client';
 import { Button } from '../components/Button';

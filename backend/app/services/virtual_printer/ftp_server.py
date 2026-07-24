@@ -9,6 +9,7 @@ immediately upon connection, before any FTP commands are exchanged.
 
 import asyncio
 import hmac
+import ipaddress
 import logging
 import os
 import random
@@ -33,6 +34,20 @@ FTP_PORT = 990
 # the b''.join — so the cap also caps that peak. If real users hit it
 # with a legitimate file, raise here.
 MAX_UPLOAD_BYTES = 4 * 1024 * 1024 * 1024  # 4 GiB
+
+
+def _same_peer_address(left: str, right: str) -> bool:
+    """Compare control/data peer IPs, normalizing IPv4-mapped IPv6 forms."""
+    try:
+        left_ip = ipaddress.ip_address(left.split("%", 1)[0])
+        right_ip = ipaddress.ip_address(right.split("%", 1)[0])
+    except ValueError:
+        return left.casefold() == right.casefold()
+    if isinstance(left_ip, ipaddress.IPv6Address) and left_ip.ipv4_mapped is not None:
+        left_ip = left_ip.ipv4_mapped
+    if isinstance(right_ip, ipaddress.IPv6Address) and right_ip.ipv4_mapped is not None:
+        right_ip = right_ip.ipv4_mapped
+    return left_ip == right_ip
 
 
 class FTPSession:
@@ -328,9 +343,24 @@ class FTPSession:
         would complete and the StreamReaderProtocol could release its strong
         reader reference, potentially destabilising the connection.
         """
+        peername = writer.get_extra_info("peername")
+        data_peer_ip = str(peername[0]) if peername else "unknown"
+        if not _same_peer_address(self.remote_ip, data_peer_ip):
+            logger.warning(
+                "FTP rejecting passive data connection from %s; control peer is %s",
+                data_peer_ip,
+                self.remote_ip,
+            )
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except OSError:
+                pass
+            return
+
         # Reject duplicate connections — only one data connection per transfer
         if self._data_reader is not None:
-            logger.warning("FTP rejecting duplicate data connection from %s", self.remote_ip)
+            logger.warning("FTP rejecting duplicate data connection from %s", data_peer_ip)
             try:
                 writer.close()
                 await writer.wait_closed()

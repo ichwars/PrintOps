@@ -11,7 +11,7 @@ import { screen, waitFor, fireEvent, act } from '@testing-library/react';
 import React from 'react';
 import { render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, Route, Routes, Outlet } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, Outlet } from 'react-router';
 import { SpoolBuddyDashboard } from '../../pages/spoolbuddy/SpoolBuddyDashboard';
 import { ToastProvider } from '../../contexts/ToastContext';
 

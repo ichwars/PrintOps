@@ -26,8 +26,16 @@ from backend.app.services.virtual_printer.ftp_server import (
     PASSIVE_MAX_SLOTS,
     PASSIVE_PORT_BASE,
     PASSIVE_SLICE_SIZE,
+    _same_peer_address as ftp_same_peer_address,
     compute_passive_port_slice,
 )
+from backend.app.services.virtual_printer.tcp_proxy import _same_peer_address as proxy_same_peer_address
+
+
+@pytest.mark.parametrize("same_peer", [ftp_same_peer_address, proxy_same_peer_address])
+def test_passive_data_peer_must_match_control_peer(same_peer):
+    assert same_peer("192.0.2.10", "::ffff:192.0.2.10")
+    assert not same_peer("192.0.2.10", "192.0.2.11")
 
 
 class TestComputePassivePortSlice:

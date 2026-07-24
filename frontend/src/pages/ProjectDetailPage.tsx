@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import DOMPurify from 'dompurify';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { NumberField , TextField} from '../components/ui';

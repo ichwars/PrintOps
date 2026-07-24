@@ -20,11 +20,10 @@ async def get_slice_job(
     job_id: int,
     # Job IDs are sequential integers and the body leaks source filenames
     # plus the resulting library_file_id / archive_id. Gate on the library
-    # read permission family (own/all). NOTE: SliceJob is in-memory with no
-    # owner field, so we cannot per-row scope; callers with either OWN or
-    # ALL can poll any job_id. Adding owner_id to SliceJob is the proper
-    # follow-up (out of scope for the IDOR fix train).
-    _: tuple[User | None, bool] = Depends(
+    # read permission family (own/all). SliceJob carries the initiating user,
+    # so OWN callers can poll only their jobs while ALL callers retain the
+    # operational overview.
+    auth_result: tuple[User | None, bool] = Depends(
         require_ownership_permission(
             Permission.LIBRARY_READ_ALL,
             Permission.LIBRARY_READ_OWN,
@@ -33,6 +32,9 @@ async def get_slice_job(
 ):
     job = slice_dispatch.get(job_id)
     if job is None:
+        raise HTTPException(status_code=404, detail="Slice job not found or expired")
+    user, can_read_all = auth_result
+    if not can_read_all and (user is None or job.owner_id is None or job.owner_id != user.id):
         raise HTTPException(status_code=404, detail="Slice job not found or expired")
     body: dict = {
         "job_id": job.id,

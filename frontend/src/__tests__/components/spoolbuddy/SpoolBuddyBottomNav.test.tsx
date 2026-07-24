@@ -7,7 +7,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { SpoolBuddyBottomNav } from '../../../components/spoolbuddy/SpoolBuddyBottomNav';
 
 vi.mock('react-i18next', () => ({

@@ -164,6 +164,14 @@ async def test_verify_returns_none_for_revoked_token(db_session, alice: User):
     assert await verify_token(db_session, created.plaintext) is None
 
 
+async def test_verify_returns_none_when_owner_is_inactive(db_session, alice: User):
+    created = await create_token(db_session, user_id=alice.id, name="x", expires_in_days=7)
+    alice.is_active = False
+    await db_session.commit()
+
+    assert await verify_token(db_session, created.plaintext) is None
+
+
 async def test_verify_returns_none_when_scope_mismatched(db_session, alice: User):
     """A camera_stream-scoped token must NOT validate against any other scope.
 

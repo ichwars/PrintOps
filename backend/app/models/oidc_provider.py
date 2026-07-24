@@ -76,6 +76,10 @@ class OIDCProvider(Base):
     # Space-separated scopes; must include "openid"
     scopes: Mapped[str] = mapped_column(String(500), default="openid email profile")
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Private DNS answers are denied by default. Operators must explicitly opt
+    # in for an IdP hosted on a private network, preventing a public issuer
+    # hostname from silently rebinding into the LAN after configuration.
+    allow_private_network: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     # When True, a new local user is created automatically on first OIDC login
     auto_create_users: Mapped[bool] = mapped_column(Boolean, default=False)
     # When True, an existing local user whose email matches the OIDC claim is

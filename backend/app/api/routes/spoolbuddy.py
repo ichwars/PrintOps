@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import ipaddress
 import json
 import logging
 import time
@@ -1107,8 +1108,19 @@ async def queue_system_config_update(
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise HTTPException(
             status_code=400,
-            detail="backend_url must be a full URL with scheme, e.g. http://192.168.1.100:5000 or http://printops.local",
+            detail="backend_url must be a full URL with scheme, e.g. https://printops.example",
         )
+    hostname = (parsed.hostname or "").rstrip(".").casefold()
+    is_loopback = hostname == "localhost"
+    if not is_loopback:
+        try:
+            is_loopback = ipaddress.ip_address(hostname).is_loopback
+        except ValueError:
+            is_loopback = False
+    if parsed.scheme != "https" and not is_loopback:
+        raise HTTPException(status_code=400, detail="HTTPS is required for a remote PrintOps backend")
+    if parsed.username or parsed.password:
+        raise HTTPException(status_code=400, detail="backend_url must not contain embedded credentials")
 
     payload = {
         "backend_url": req.backend_url.strip(),

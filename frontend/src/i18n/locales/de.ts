@@ -2887,6 +2887,8 @@ export default {
         scopes: 'Bereiche',
         iconUrl: 'Symbol-URL (optional)',
         enabled: 'Aktiviert',
+        allowPrivateNetwork: 'IdP im privaten Netzwerk erlauben',
+        allowPrivateNetworkDesc: 'Nur aktivieren, wenn der IdP bewusst im privaten Netzwerk betrieben wird. Öffentliche Aussteller dürfen weiterhin nicht ins LAN auflösen.',
         autoCreate: 'Benutzer automatisch anlegen',
         autoCreateDesc: 'Erstellt beim ersten Login automatisch ein lokales Konto.',
         autoLink: 'Bestehende Konten automatisch verknüpfen',

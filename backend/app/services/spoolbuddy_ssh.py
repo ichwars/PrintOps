@@ -2,7 +2,8 @@
 
 Instead of the daemon updating itself (fragile: permission issues, self-modifying
 code, hardcoded branch), PrintOps SSHes into the SpoolBuddy Pi and drives the
-update remotely: git fetch/checkout, pip install, systemctl restart.
+update remotely: fetch the selected branch, check out PrintOps's exact commit,
+verify installed dependencies, and restart the service.
 
 Uses `asyncssh` (pure-Python async SSH client) rather than shelling out to the
 OpenSSH `ssh` binary. The subprocess approach fails in Docker: both `ssh` and
@@ -15,6 +16,7 @@ entries for root). asyncssh does all of its work in-process.
 import asyncio
 import logging
 import os
+import re
 import shlex
 from pathlib import Path
 
@@ -23,6 +25,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from backend.app.core.config import settings
+from backend.app.utils.safe_path import PathTraversalError, safe_join_under
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +139,40 @@ def detect_current_branch() -> str:
     return os.environ.get("GIT_BRANCH", "main")
 
 
+def detect_current_commit() -> str | None:
+    """Resolve the exact trusted commit served by this PrintOps instance."""
+    configured = os.environ.get("PRINTOPS_COMMIT_SHA", "").strip().lower()
+    if re.fullmatch(r"[0-9a-f]{40,64}", configured):
+        return configured
+
+    git_path = _APP_DIR / ".git"
+    try:
+        if git_path.is_file():
+            content = git_path.read_text(encoding="utf-8").strip()
+            if content.startswith("gitdir:"):
+                git_path = (_APP_DIR / content.removeprefix("gitdir:").strip()).resolve()
+        head = (git_path / "HEAD").read_text(encoding="utf-8").strip()
+        if re.fullmatch(r"[0-9a-fA-F]{40,64}", head):
+            return head.lower()
+        if head.startswith("ref: "):
+            ref = head.removeprefix("ref: ").strip()
+            loose_ref = safe_join_under(git_path, ref, http=False)
+            if loose_ref.is_file():
+                value = loose_ref.read_text(encoding="utf-8").strip()
+                if re.fullmatch(r"[0-9a-fA-F]{40,64}", value):
+                    return value.lower()
+            packed_refs = git_path / "packed-refs"
+            if packed_refs.is_file():
+                for line in packed_refs.read_text(encoding="utf-8").splitlines():
+                    if line.endswith(f" {ref}"):
+                        value = line.split(" ", 1)[0]
+                        if re.fullmatch(r"[0-9a-fA-F]{40,64}", value):
+                            return value.lower()
+    except (OSError, PathTraversalError) as exc:
+        logger.debug("Could not resolve current git commit: %s", exc)
+    return None
+
+
 async def _run_ssh_command(
     ip: str,
     command: str,
@@ -189,7 +226,7 @@ async def _run_ssh_command(
 
 
 async def perform_ssh_update(device_id: str, ip_address: str, install_path: str | None = None) -> None:
-    """SSH into a SpoolBuddy device and update it to match PrintOps's branch.
+    """SSH into a SpoolBuddy device and update it to PrintOps's exact commit.
 
     Updates device.update_status/update_message in the DB and broadcasts
     progress via WebSocket at each step.  Host key verification uses TOFU:
@@ -203,8 +240,10 @@ async def perform_ssh_update(device_id: str, ip_address: str, install_path: str 
     from backend.app.models.spoolbuddy_device import SpoolBuddyDevice
 
     install_path = install_path or DEFAULT_INSTALL_PATH
-    branch = detect_current_branch()
-    safe_branch = shlex.quote(branch)
+    commit = detect_current_commit()
+    if commit is None:
+        logger.error("Cannot update SpoolBuddy without a trusted PrintOps commit SHA")
+    safe_commit = shlex.quote(commit or "")
     safe_path = shlex.quote(install_path)
 
     # Load the stored SSH host key for TOFU verification
@@ -250,6 +289,10 @@ async def perform_ssh_update(device_id: str, ip_address: str, install_path: str 
         )
 
     try:
+        if commit is None:
+            await _update_progress("error", "Update blocked: PrintOps commit identity is unavailable")
+            return
+
         private_key, _ = await get_or_create_keypair()
 
         # Step 1: Test SSH connectivity
@@ -281,11 +324,12 @@ async def perform_ssh_update(device_id: str, ip_address: str, install_path: str 
                 )
                 known_hosts = None
 
-        # Step 2: Git fetch
-        await _update_progress("updating", f"Fetching latest code (branch: {branch})...")
+        # Step 2: Fetch the immutable build identity directly. A signed release
+        # commit may be reachable only from its tag and not from origin/<branch>.
+        await _update_progress("updating", f"Fetching trusted commit ({commit[:12]})...")
         rc, _, stderr, _ = await _run_ssh_command(
             ip_address,
-            f"cd {safe_path} && git -c safe.directory={safe_path} fetch origin {safe_branch}",
+            f"cd {safe_path} && git -c safe.directory={safe_path} fetch --no-tags origin {safe_commit}",
             private_key,
             known_hosts=known_hosts,
             timeout=120,
@@ -294,31 +338,33 @@ async def perform_ssh_update(device_id: str, ip_address: str, install_path: str 
             await _update_progress("error", f"git fetch failed: {stderr[:200]}")
             return
 
-        # Step 3: Git checkout + reset
+        # Step 3: Check out the exact commit trusted by this PrintOps server.
         await _update_progress("updating", "Applying update...")
         rc, _, stderr, _ = await _run_ssh_command(
             ip_address,
-            f"cd {safe_path} && git -c safe.directory={safe_path} checkout {safe_branch} "
-            f"&& git -c safe.directory={safe_path} reset --hard origin/{safe_branch}",
+            f"cd {safe_path} && git -c safe.directory={safe_path} checkout --detach {safe_commit} "
+            f'&& test "$(git -c safe.directory={safe_path} rev-parse HEAD)" = {safe_commit}',
             private_key,
             known_hosts=known_hosts,
         )
         if rc != 0:
-            await _update_progress("error", f"git checkout/reset failed: {stderr[:200]}")
+            await _update_progress("error", f"exact commit checkout failed: {stderr[:200]}")
             return
 
-        # Step 4: Install dependencies
-        await _update_progress("updating", "Installing dependencies...")
+        # Step 4: Verify the already provisioned, pinned environment. OTA
+        # updates must not resolve mutable package-index dependencies.
+        await _update_progress("updating", "Verifying dependencies...")
         venv_pip = shlex.quote(f"{install_path}/spoolbuddy/venv/bin/pip")
         rc, _, stderr, _ = await _run_ssh_command(
             ip_address,
-            f"{venv_pip} install --upgrade spidev gpiod smbus2 httpx 2>&1",
+            f"{venv_pip} check 2>&1",
             private_key,
             known_hosts=known_hosts,
             timeout=120,
         )
         if rc != 0:
-            logger.warning("SpoolBuddy %s: pip install returned non-zero (continuing): %s", device_id, stderr[:200])
+            await _update_progress("error", f"dependency verification failed: {stderr[:200]}")
+            return
 
         # Step 5: Restart daemon
         await _update_progress("updating", "Restarting daemon...")
@@ -349,8 +395,8 @@ async def perform_ssh_update(device_id: str, ip_address: str, install_path: str 
         if rc != 0:
             logger.warning("SpoolBuddy %s: kiosk restart failed (non-fatal): %s", device_id, stderr[:200])
 
-        logger.info("SpoolBuddy %s: SSH update complete (branch=%s)", device_id, branch)
-        await _update_progress("complete", f"Updated to {branch}")
+        logger.info("SpoolBuddy %s: SSH update complete (commit=%s)", device_id, commit)
+        await _update_progress("complete", f"Updated to {commit[:12]}")
 
     except Exception:
         logger.exception("SpoolBuddy %s: SSH update failed", device_id)

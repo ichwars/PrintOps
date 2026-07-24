@@ -22,7 +22,8 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 BACKLIGHT_BASE = Path("/sys/class/backlight")
-WAKE_FIFO = Path("/tmp/spoolbuddy-wake")
+_RUNTIME_DIR = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{getattr(os, 'getuid', lambda: 0)()}"))
+WAKE_FIFO = _RUNTIME_DIR / "spoolbuddy-wake"
 
 
 class DisplayControl:
@@ -100,7 +101,7 @@ class DisplayControl:
     def wake(self):
         """Wake screen on activity (NFC tag, scale weight change).
 
-        Writes to /tmp/spoolbuddy-wake FIFO which the idle watchdog
+        Writes to the per-user runtime FIFO which the idle watchdog
         (spoolbuddy-idle.sh) monitors inside the Wayland session.  The
         watchdog calls wlopm --on on our behalf.  No-op if the FIFO
         doesn't exist (kiosk not running or blanking disabled without FIFO).

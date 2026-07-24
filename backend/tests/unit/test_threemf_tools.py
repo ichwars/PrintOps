@@ -9,6 +9,10 @@ import json
 import math
 import zipfile
 
+import pytest
+
+import backend.app.utils.threemf_tools as threemf_tools
+from backend.app.utils.archive_budget import ArchiveBudgetError
 from backend.app.utils.threemf_tools import (
     extract_bed_type_from_3mf,
     extract_embedded_presets_from_3mf,
@@ -174,6 +178,31 @@ G1 E100.0
         assert result[0] == {0: 100.0}
         assert result[1] == {0: 200.0}
         assert result[2] == {0: 300.0}
+
+    def test_rejects_line_count_over_budget(self, monkeypatch):
+        monkeypatch.setattr(threemf_tools, "MAX_GCODE_LINES", 2)
+        with pytest.raises(ArchiveBudgetError, match="line-count"):
+            parse_gcode_layer_filament_usage("M620 S0\nG1 E1\nG1 E1\n")
+
+    def test_rejects_line_length_over_budget(self, monkeypatch):
+        monkeypatch.setattr(threemf_tools, "MAX_GCODE_LINE_LENGTH", 8)
+        with pytest.raises(ArchiveBudgetError, match="line-length"):
+            parse_gcode_layer_filament_usage("G1 X123456789\n")
+
+    def test_rejects_layer_count_over_budget(self, monkeypatch):
+        monkeypatch.setattr(threemf_tools, "MAX_GCODE_LAYERS", 1)
+        with pytest.raises(ArchiveBudgetError, match="layer-count"):
+            parse_gcode_layer_filament_usage("M620 S0\nG1 E1\nM73 L1\nM73 L2\n")
+
+    def test_rejects_tool_outside_supported_range(self, monkeypatch):
+        monkeypatch.setattr(threemf_tools, "MAX_TOOL_COUNT", 2)
+        with pytest.raises(ArchiveBudgetError, match="tool number"):
+            parse_gcode_layer_filament_usage("M620 S2\nG1 E1\n")
+
+    def test_rejects_snapshot_entries_over_budget(self, monkeypatch):
+        monkeypatch.setattr(threemf_tools, "MAX_GCODE_SNAPSHOT_ENTRIES", 1)
+        with pytest.raises(ArchiveBudgetError, match="snapshot-entry"):
+            parse_gcode_layer_filament_usage("M620 S0\nG1 E1\nM73 L1\nG1 E1\n")
 
 
 class TestMmToGrams:

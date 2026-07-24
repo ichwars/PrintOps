@@ -558,9 +558,11 @@ async def get_filament_presets(
     return settings.filament
 
 
-# Cache for filament preset info (setting_id -> {name, k})
-_filament_cache: dict[str, dict] = {}
-_filament_cache_time: float = 0
+# Per-cloud-identity cache for filament preset info. ``None`` is the
+# authentication-disabled installation-wide identity; authenticated users and
+# API-key owners are isolated by User.id.
+_filament_cache: dict[int | None, dict[str, dict]] = {}
+_filament_cache_time: dict[int | None, float] = {}
 FILAMENT_CACHE_TTL = 300  # 5 minutes
 
 # Built-in filament ID → name mapping (fallback when cloud API and local profiles
@@ -659,6 +661,7 @@ async def _enrich_from_local_presets(
     unresolved_ids: list[str],
     result: dict,
     db: AsyncSession,
+    cache: dict[str, dict],
 ) -> dict:
     """Fall back to local profiles for filament IDs not resolved by cloud.
 
@@ -706,7 +709,7 @@ async def _enrich_from_local_presets(
                             info["k"] = k_val
                         except (ValueError, TypeError, IndexError):
                             pass
-                    _filament_cache[original_id] = info
+                    cache[original_id] = info
                     result[original_id] = info
             except Exception:
                 continue
@@ -721,13 +724,13 @@ async def _enrich_from_local_presets(
                 # Preserve K value from earlier phases if available
                 existing_k = result.get(fid, {}).get("k")
                 info = {"name": name, "k": existing_k}
-                _filament_cache[fid] = info
+                cache[fid] = info
                 result[fid] = info
 
     # Fill remaining unresolved with empty entries
     for fid in unresolved_ids:
         if fid not in result:
-            _filament_cache[fid] = {"name": "", "k": None}
+            cache[fid] = {"name": "", "k": None}
             result[fid] = {"name": "", "k": None}
 
     return result
@@ -753,12 +756,12 @@ async def get_filament_info(
 
     logger.info("get_filament_info called with %s IDs: %s", len(setting_ids), setting_ids)
 
-    global _filament_cache, _filament_cache_time
-
-    # Clear stale cache
-    if time.time() - _filament_cache_time > FILAMENT_CACHE_TTL:
-        _filament_cache = {}
-        _filament_cache_time = time.time()
+    identity = current_user.id if current_user is not None else None
+    now = time.time()
+    if now - _filament_cache_time.get(identity, 0) > FILAMENT_CACHE_TTL:
+        _filament_cache[identity] = {}
+        _filament_cache_time[identity] = now
+    cache = _filament_cache.setdefault(identity, {})
 
     result = {}
     unresolved_ids: list[str] = []
@@ -767,8 +770,8 @@ async def get_filament_info(
     for setting_id in setting_ids:
         if not setting_id:
             continue
-        if setting_id in _filament_cache:
-            result[setting_id] = _filament_cache[setting_id]
+        if setting_id in cache:
+            result[setting_id] = cache[setting_id]
         else:
             unresolved_ids.append(setting_id)
 
@@ -792,7 +795,7 @@ async def get_filament_info(
                                 k_value = None
 
                         info = {"name": name, "k": k_value}
-                        _filament_cache[setting_id] = info
+                        cache[setting_id] = info
                         result[setting_id] = info
 
                         if not name:
@@ -812,7 +815,7 @@ async def get_filament_info(
 
     # Phase 3: Try local profiles for any IDs still without a name
     if unresolved_ids:
-        result = await _enrich_from_local_presets(unresolved_ids, result, db)
+        result = await _enrich_from_local_presets(unresolved_ids, result, db, cache)
 
     return result
 
@@ -1076,9 +1079,9 @@ async def get_builtin_filaments(
     return [{"filament_id": fid, "name": name} for fid, name in _BUILTIN_FILAMENT_NAMES.items()]
 
 
-# Cache for filament_id → name mapping (resolved from cloud preset details)
-_filament_id_name_cache: dict[str, str] = {}
-_filament_id_name_cache_time: float = 0
+# Per-cloud-identity filament_id → name mappings.
+_filament_id_name_cache: dict[int | None, dict[str, str]] = {}
+_filament_id_name_cache_time: dict[int | None, float] = {}
 
 
 @router.get("/filament-id-map")
@@ -1096,16 +1099,16 @@ async def get_filament_id_map(
     """
     import time
 
-    global _filament_id_name_cache, _filament_id_name_cache_time
-
-    if _filament_id_name_cache and time.time() - _filament_id_name_cache_time < FILAMENT_CACHE_TTL:
-        return _filament_id_name_cache
+    identity = current_user.id if current_user is not None else None
+    cached = _filament_id_name_cache.get(identity, {})
+    if cached and time.time() - _filament_id_name_cache_time.get(identity, 0) < FILAMENT_CACHE_TTL:
+        return cached
 
     cloud = await build_authenticated_cloud(db, current_user)
     if cloud is None or not cloud.is_authenticated:
         if cloud is not None:
             await cloud.close()
-        return _filament_id_name_cache or {}
+        return cached
 
     try:
         data = await cloud.get_slicer_settings()
@@ -1127,11 +1130,11 @@ async def get_filament_id_map(
             except Exception:
                 pass
 
-        _filament_id_name_cache = result
-        _filament_id_name_cache_time = time.time()
+        _filament_id_name_cache[identity] = result
+        _filament_id_name_cache_time[identity] = time.time()
         return result
     except Exception:
-        return _filament_id_name_cache or {}
+        return cached
     finally:
         await cloud.close()
 

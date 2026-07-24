@@ -11,7 +11,7 @@ from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt.exceptions import PyJWTError as JWTError
 from passlib.context import CryptContext
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -934,8 +934,11 @@ async def _validate_api_key(db: AsyncSession, api_key_value: str) -> APIKey | No
         # at most one row in practice (2^40 collision space for 5 base64 chars).
         key_lookup = api_key_value[:8] if len(api_key_value) >= 8 else api_key_value
         result = await db.execute(
-            select(APIKey).where(
+            select(APIKey)
+            .outerjoin(User, APIKey.user_id == User.id)
+            .where(
                 APIKey.enabled.is_(True),
+                or_(APIKey.user_id.is_(None), User.is_active.is_(True)),
                 APIKey.key_prefix.like(
                     key_lookup.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%", escape="\\"
                 ),
@@ -1281,8 +1284,11 @@ async def get_api_key(
     # Pre-filter by key_prefix to avoid O(n) pbkdf2 hashes across all enabled keys.
     key_lookup = api_key_value[:8] if len(api_key_value) >= 8 else api_key_value
     result = await db.execute(
-        select(APIKey).where(
+        select(APIKey)
+        .outerjoin(User, APIKey.user_id == User.id)
+        .where(
             APIKey.enabled.is_(True),
+            or_(APIKey.user_id.is_(None), User.is_active.is_(True)),
             APIKey.key_prefix.like(
                 key_lookup.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%",
                 escape="\\",

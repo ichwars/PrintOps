@@ -3699,6 +3699,7 @@ export interface OIDCProvider {
   client_id: string;
   scopes: string;
   is_enabled: boolean;
+  allow_private_network: boolean;
   auto_create_users: boolean;
   auto_link_existing_accounts: boolean;
   email_claim: string;
@@ -3725,6 +3726,7 @@ export interface OIDCProviderCreate {
   client_secret: string;
   scopes?: string;
   is_enabled?: boolean;
+  allow_private_network?: boolean;
   auto_create_users?: boolean;
   auto_link_existing_accounts?: boolean;
   email_claim?: string;
@@ -6722,10 +6724,10 @@ export const api = {
     request<{ message: string }>('/github-backup/config', { method: 'DELETE' }),
 
   testGitHubConnection: (repoUrl: string, token: string, provider: GitProviderType = 'github') =>
-    request<GitHubTestConnectionResponse>(
-      `/github-backup/test?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}&provider=${encodeURIComponent(provider)}`,
-      { method: 'POST' }
-    ),
+    request<GitHubTestConnectionResponse>('/github-backup/test', {
+      method: 'POST',
+      body: JSON.stringify({ repo_url: repoUrl, token, provider }),
+    }),
 
   testGitHubStoredConnection: () =>
     request<GitHubTestConnectionResponse>('/github-backup/test-stored', { method: 'POST' }),

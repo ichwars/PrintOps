@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 
 import httpx
 
+from backend.app.utils.safe_logging import url_for_log
+
 if TYPE_CHECKING:
     from backend.app.models.smart_plug import SmartPlug
 
@@ -46,7 +48,7 @@ class RESTSmartPlugService:
             if isinstance(headers, dict):
                 return {str(k): str(v) for k, v in headers.items()}
         except (json.JSONDecodeError, TypeError):
-            logger.warning("Failed to parse REST headers JSON: %s", headers_json)
+            logger.warning("Failed to parse REST headers JSON")
         return {}
 
     @staticmethod
@@ -75,7 +77,7 @@ class RESTSmartPlugService:
     ) -> httpx.Response | None:
         """Send an HTTP request and return the response."""
         if not self._validate_url(url):
-            logger.warning("Blocked REST request to invalid URL: %s", url)
+            logger.warning("Blocked REST request to invalid URL: %s", url_for_log(url))
             return None
 
         try:
@@ -95,16 +97,20 @@ class RESTSmartPlugService:
                 response.raise_for_status()
                 return response
         except httpx.TimeoutException:
-            logger.warning("REST smart plug at %s timed out", url)
+            logger.warning("REST smart plug at %s timed out", url_for_log(url))
             return None
         except httpx.HTTPStatusError as e:
-            logger.warning("REST smart plug at %s returned error: %s", url, e)
+            logger.warning("REST smart plug at %s returned error: %s", url_for_log(url), type(e).__name__)
             return None
         except httpx.RequestError as e:
-            logger.warning("Failed to connect to REST smart plug at %s: %s", url, e)
+            logger.warning("Failed to connect to REST smart plug at %s: %s", url_for_log(url), type(e).__name__)
             return None
         except Exception as e:
-            logger.error("Unexpected error communicating with REST smart plug at %s: %s", url, e)
+            logger.error(
+                "Unexpected error communicating with REST smart plug at %s: %s",
+                url_for_log(url),
+                type(e).__name__,
+            )
             return None
 
     async def turn_on(self, plug: "SmartPlug") -> bool:
@@ -118,7 +124,7 @@ class RESTSmartPlugService:
         response = await self._send_request(plug.rest_on_url, method, headers, plug.rest_on_body)
 
         if response is not None:
-            logger.info("Turned ON REST smart plug '%s' via %s %s", plug.name, method, plug.rest_on_url)
+            logger.info("Turned ON REST smart plug '%s' via %s %s", plug.name, method, url_for_log(plug.rest_on_url))
             return True
 
         logger.warning("Failed to turn ON REST smart plug '%s'", plug.name)
@@ -135,7 +141,7 @@ class RESTSmartPlugService:
         response = await self._send_request(plug.rest_off_url, method, headers, plug.rest_off_body)
 
         if response is not None:
-            logger.info("Turned OFF REST smart plug '%s' via %s %s", plug.name, method, plug.rest_off_url)
+            logger.info("Turned OFF REST smart plug '%s' via %s %s", plug.name, method, url_for_log(plug.rest_off_url))
             return True
 
         logger.warning("Failed to turn OFF REST smart plug '%s'", plug.name)

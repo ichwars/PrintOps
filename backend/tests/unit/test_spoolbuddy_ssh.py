@@ -10,6 +10,7 @@ from backend.app.services.spoolbuddy_ssh import (
     _get_ssh_key_dir,
     _run_ssh_command,
     detect_current_branch,
+    detect_current_commit,
     get_or_create_keypair,
     get_public_key,
     perform_ssh_update,
@@ -205,6 +206,26 @@ def test_detect_branch_default_main(tmp_path):
         assert detect_current_branch() == "main"
 
 
+def test_detect_commit_from_loose_ref(tmp_path):
+    commit = "a" * 40
+    git_dir = tmp_path / ".git"
+    (git_dir / "refs" / "heads").mkdir(parents=True)
+    (git_dir / "HEAD").write_text("ref: refs/heads/main\n")
+    (git_dir / "refs" / "heads" / "main").write_text(f"{commit}\n")
+
+    with patch("backend.app.services.spoolbuddy_ssh._APP_DIR", tmp_path):
+        assert detect_current_commit() == commit
+
+
+def test_detect_commit_uses_explicit_build_identity(tmp_path):
+    commit = "b" * 40
+    with (
+        patch("backend.app.services.spoolbuddy_ssh._APP_DIR", tmp_path),
+        patch.dict(os.environ, {"PRINTOPS_COMMIT_SHA": commit}),
+    ):
+        assert detect_current_commit() == commit
+
+
 # -- _run_ssh_command ----------------------------------------------------------
 #
 # _run_ssh_command uses asyncssh (pure Python) rather than the OpenSSH `ssh`
@@ -388,6 +409,12 @@ async def test_run_ssh_command_timeout(tmp_path):
 # -- perform_ssh_update --------------------------------------------------------
 
 
+@pytest.fixture
+def trusted_update_commit(monkeypatch):
+    """Provide the immutable build identity required by the update flow."""
+    monkeypatch.setenv("PRINTOPS_COMMIT_SHA", "a" * 40)
+
+
 def _make_update_mocks(tmp_path):
     """Create common mocks for perform_ssh_update tests."""
     mock_db_device = MagicMock()
@@ -414,7 +441,7 @@ def _make_update_mocks(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_success(tmp_path):
+async def test_perform_ssh_update_success(tmp_path, trusted_update_commit):
     """Full update flow: all SSH commands succeed."""
     ssh_dir = tmp_path / "spoolbuddy" / "ssh"
     ssh_dir.mkdir(parents=True)
@@ -440,13 +467,15 @@ async def test_perform_ssh_update_success(tmp_path):
         mock_settings.base_dir = tmp_path
         await perform_ssh_update("sb-test", "10.0.0.1")
 
-    # Should have run: echo ok, git fetch, git checkout+reset, pip install,
+    # Should have run: echo ok, git fetch, exact commit checkout, pip check,
     # systemctl restart, find (SW cleanup), systemctl restart getty
     assert len(ssh_calls) == 7
     assert "echo ok" in ssh_calls[0]
     assert "fetch" in ssh_calls[1]
     assert "checkout" in ssh_calls[2]
-    assert "pip" in ssh_calls[3]
+    assert "--detach" in ssh_calls[2]
+    assert "pip" in ssh_calls[3] and " check " in ssh_calls[3]
+    assert "install" not in ssh_calls[3]
     assert "spoolbuddy.service" in ssh_calls[4]
     assert "Service Worker" in ssh_calls[5]
     assert "getty" in ssh_calls[6]
@@ -455,10 +484,8 @@ async def test_perform_ssh_update_success(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_branch_is_shell_quoted(tmp_path):
-    """Branch name with shell-special chars must be quoted in all git commands (L1 fix)."""
-    import shlex
-
+async def test_perform_ssh_update_fetches_exact_trusted_commit(tmp_path, trusted_update_commit):
+    """Release commits must be fetched directly before detached checkout."""
     ssh_dir = tmp_path / "spoolbuddy" / "ssh"
     ssh_dir.mkdir(parents=True)
     (ssh_dir / "id_ed25519").write_text("PRIVATE")
@@ -466,7 +493,7 @@ async def test_perform_ssh_update_branch_is_shell_quoted(tmp_path):
 
     # A branch name containing a semicolon — shell-injection without quoting
     dangerous_branch = "dev; echo pwned"
-    safe_branch = shlex.quote(dangerous_branch)  # expected: "'dev; echo pwned'"
+    trusted_commit = "a" * 40
 
     ssh_calls = []
 
@@ -487,15 +514,18 @@ async def test_perform_ssh_update_branch_is_shell_quoted(tmp_path):
         mock_settings.base_dir = tmp_path
         await perform_ssh_update("sb-test", "10.0.0.1")
 
-    # All git commands must use the shell-quoted form, never the raw dangerous string
-    git_cmds = [c for c in ssh_calls if "fetch" in c or "checkout" in c or "reset" in c]
-    for cmd in git_cmds:
-        assert safe_branch in cmd, f"Branch not shell-quoted in: {cmd}"
-        assert dangerous_branch not in cmd.replace(safe_branch, ""), f"Raw dangerous branch in: {cmd}"
+    # A release commit may be reachable only from a signed tag, not from the
+    # server's current branch. Fetch the trusted identity itself.
+    fetch_cmd = next(c for c in ssh_calls if "fetch" in c)
+    assert trusted_commit in fetch_cmd
+    assert dangerous_branch not in fetch_cmd
+    checkout_cmd = next(c for c in ssh_calls if "checkout" in c)
+    assert trusted_commit in checkout_cmd
+    assert "--detach" in checkout_cmd
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_tofu_stores_host_key(tmp_path):
+async def test_perform_ssh_update_tofu_stores_host_key(tmp_path, trusted_update_commit):
     """On first connect (no stored key), the observed host key must be persisted (H1)."""
     ssh_dir = tmp_path / "spoolbuddy" / "ssh"
     ssh_dir.mkdir(parents=True)
@@ -531,7 +561,7 @@ async def test_perform_ssh_update_tofu_stores_host_key(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_ssh_failure(tmp_path):
+async def test_perform_ssh_update_ssh_failure(tmp_path, trusted_update_commit):
     """SSH connectivity check fails — should set error status."""
     ssh_dir = tmp_path / "spoolbuddy" / "ssh"
     ssh_dir.mkdir(parents=True)
@@ -562,7 +592,7 @@ async def test_perform_ssh_update_ssh_failure(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_git_fetch_failure(tmp_path):
+async def test_perform_ssh_update_git_fetch_failure(tmp_path, trusted_update_commit):
     """Git fetch fails — should set error and stop."""
     ssh_dir = tmp_path / "spoolbuddy" / "ssh"
     ssh_dir.mkdir(parents=True)
@@ -596,7 +626,7 @@ async def test_perform_ssh_update_git_fetch_failure(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_uses_stored_host_key(tmp_path):
+async def test_perform_ssh_update_uses_stored_host_key(tmp_path, trusted_update_commit):
     """When device already has ssh_host_key set, all SSH calls must receive non-None known_hosts (Gap 1)."""
     ssh_dir = tmp_path / "spoolbuddy" / "ssh"
     ssh_dir.mkdir(parents=True)
@@ -635,7 +665,7 @@ async def test_perform_ssh_update_uses_stored_host_key(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_corrupt_stored_key_falls_back_to_tofu(tmp_path):
+async def test_perform_ssh_update_corrupt_stored_key_falls_back_to_tofu(tmp_path, trusted_update_commit):
     """When stored ssh_host_key can't be parsed, update continues with known_hosts=None (Gap 2)."""
     ssh_dir = tmp_path / "spoolbuddy" / "ssh"
     ssh_dir.mkdir(parents=True)
@@ -676,7 +706,7 @@ async def test_perform_ssh_update_corrupt_stored_key_falls_back_to_tofu(tmp_path
 
 
 @pytest.mark.asyncio
-async def test_perform_ssh_update_passes_str_not_bytes_to_import_known_hosts(tmp_path):
+async def test_perform_ssh_update_passes_str_not_bytes_to_import_known_hosts(tmp_path, trusted_update_commit):
     """asyncssh.import_known_hosts() is a str-only API — passing bytes crashes
     inside its line parser (`line.startswith('#')` against a bytes line raises
     TypeError). Pin both call sites — the stored-key parse and the just-stored

@@ -2698,6 +2698,8 @@ export default {
         scopes: '범위',
         iconUrl: '아이콘 URL (선택사항)',
         enabled: '활성화됨',
+        allowPrivateNetwork: '개인 네트워크 IdP 허용',
+        allowPrivateNetworkDesc: 'Enable only for an IdP intentionally hosted on your private network.',
         autoCreate: '사용자 자동 생성',
         autoCreateDesc: '첫 번째 로그인 시 자동으로 로컬 계정 생성.',
         autoLink: '기존 계정 자동 연결',

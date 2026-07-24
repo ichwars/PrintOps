@@ -4,7 +4,9 @@ import hashlib
 import tempfile
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
+import backend.app.utils.threemf_tools as threemf_tools
 from backend.app.utils.threemf_tools import (
     _inject_start_at_marker,
     _parse_3mf_gcode_header,
@@ -209,6 +211,38 @@ class TestInjectGcodeInto3mf:
             source.unlink(missing_ok=True)
             if result:
                 result.unlink(missing_ok=True)
+
+    def test_rejects_oversized_snippet_before_rewrite(self, monkeypatch):
+        source = _make_test_3mf()
+        monkeypatch.setattr(threemf_tools, "MAX_GCODE_SNIPPET_CHARS", 4)
+        try:
+            assert inject_gcode_into_3mf(source, 1, "12345", None) is None
+        finally:
+            source.unlink(missing_ok=True)
+
+    def test_rejects_when_temp_capacity_is_too_low(self, monkeypatch):
+        source = _make_test_3mf()
+        monkeypatch.setattr(
+            threemf_tools.shutil,
+            "disk_usage",
+            lambda _path: SimpleNamespace(total=100, used=100, free=0),
+        )
+        try:
+            assert inject_gcode_into_3mf(source, 1, "; START", None) is None
+        finally:
+            source.unlink(missing_ok=True)
+
+    def test_output_writer_enforces_budget_during_write(self, tmp_path):
+        output = tmp_path / "bounded.bin"
+        with output.open("w+b") as raw:
+            writer = threemf_tools._OutputBudgetWriter(raw, 4)
+            assert writer.write(b"1234") == 4
+            try:
+                writer.write(b"5")
+            except threemf_tools.ArchiveBudgetError as exc:
+                assert "output budget" in str(exc)
+            else:
+                raise AssertionError("output writer accepted data beyond its budget")
 
 
 # Realistic Bambu / Orca header + startup block — the start-gcode marker is the

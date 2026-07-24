@@ -12,7 +12,7 @@ from pathlib import Path
 
 from . import __version__, system_stats
 from .api_client import APIClient
-from .config import Config
+from .config import Config, validate_backend_url
 from .display_control import DisplayControl
 from .nfc_reader import NFCReader, NFCState
 from .scale_reader import ScaleReader
@@ -288,6 +288,17 @@ async def heartbeat_loop(config: Config, api: APIClient, start_time: float, shar
                         "apply_system_config",
                         False,
                         "Missing backend_url payload",
+                    )
+                    continue
+
+                try:
+                    backend_url = validate_backend_url(backend_url)
+                except ValueError as e:
+                    await api.system_command_result(
+                        config.device_id,
+                        "apply_system_config",
+                        False,
+                        str(e),
                     )
                     continue
 

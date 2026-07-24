@@ -2849,6 +2849,8 @@ export default {
         scopes: 'スコープ',
         iconUrl: 'アイコンURL (任意)',
         enabled: '有効',
+        allowPrivateNetwork: 'プライベートネットワークの IdP を許可',
+        allowPrivateNetworkDesc: 'Enable only for an IdP intentionally hosted on your private network.',
         autoCreate: 'ユーザーを自動作成',
         autoCreateDesc: '初回ログイン時にローカルアカウントを自動的に作成します。',
         autoLink: '既存アカウントを自動リンク',

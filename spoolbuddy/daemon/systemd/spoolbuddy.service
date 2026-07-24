@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=mz
 WorkingDirectory=/opt/printops/spoolbuddy
-Environment=SPOOLBUDDY_BACKEND_URL=http://printops:5000
+Environment=SPOOLBUDDY_BACKEND_URL=https://printops.example
 Environment=SPOOLBUDDY_API_KEY=bb_change_me
 ExecStart=/opt/printops/venv/bin/python -m daemon.main
 Restart=always

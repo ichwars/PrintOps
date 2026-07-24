@@ -8,7 +8,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +29,7 @@ from backend.app.schemas.archive import ArchiveResponse, ArchiveSlim, ArchiveSta
 from backend.app.schemas.print_log import PrintLogResponse
 from backend.app.schemas.slicer import SliceRequest
 from backend.app.services.archive import ArchiveService
+from backend.app.utils.archive_budget import MAX_TIMELAPSE_UPLOAD_BYTES, ArchiveBudgetError, read_upload_limited
 from backend.app.utils.http import build_content_disposition
 from backend.app.utils.safe_path import safe_join_under
 from backend.app.utils.threemf_tools import (
@@ -2206,13 +2207,14 @@ async def get_timelapse(
 async def delete_timelapse(
     archive_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_DELETE_OWN),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.ARCHIVES_DELETE_ALL, Permission.ARCHIVES_DELETE_OWN)
+    ),
 ):
     """Remove the timelapse video from an archive."""
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = result.scalar_one_or_none()
-    if not archive:
-        raise HTTPException(404, "Archive not found")
+    user, can_modify_all = auth_result
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_modify_all)
 
     if not archive.timelapse_path:
         raise HTTPException(404, "No timelapse attached to this archive")
@@ -2514,7 +2516,10 @@ async def upload_timelapse(
     if not file.filename or not file.filename.endswith((".mp4", ".avi", ".mkv")):
         raise HTTPException(400, "File must be a video file (.mp4, .avi, .mkv)")
 
-    content = await file.read()
+    try:
+        content = await read_upload_limited(file, max_bytes=MAX_TIMELAPSE_UPLOAD_BYTES)
+    except ArchiveBudgetError as exc:
+        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail=str(exc)) from exc
     safe_filename = _safe_filename(file.filename)
     success = await service.attach_timelapse(archive_id, content, safe_filename)
 
@@ -2644,7 +2649,10 @@ async def process_timelapse(
         if not audio.filename.lower().endswith((".mp3", ".wav", ".m4a", ".aac", ".ogg")):
             raise HTTPException(400, "Audio must be .mp3, .wav, .m4a, .aac, or .ogg")
 
-        audio_content = await audio.read()
+        try:
+            audio_content = await read_upload_limited(audio)
+        except ArchiveBudgetError as exc:
+            raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail=str(exc)) from exc
         # Extract and validate suffix to prevent path injection
         suffix = Path(audio.filename).suffix.lower()
         if suffix not in (".mp3", ".wav", ".m4a", ".aac", ".ogg"):
@@ -2720,13 +2728,14 @@ async def upload_photo(
     archive_id: int,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_OWN),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN)
+    ),
 ):
     """Upload a photo of the printed result."""
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = result.scalar_one_or_none()
-    if not archive:
-        raise HTTPException(404, "Archive not found")
+    user, can_modify_all = auth_result
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_modify_all)
 
     if not file.filename or not file.filename.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
         raise HTTPException(400, "File must be an image (.jpg, .jpeg, .png, .webp)")
@@ -2744,7 +2753,10 @@ async def upload_photo(
     photo_path = photos_dir / photo_filename  # SEC-PATH-OK: photo_filename = uuid.uuid4().hex[:8] + ext
 
     # Save file
-    content = await file.read()
+    try:
+        content = await read_upload_limited(file)
+    except ArchiveBudgetError as exc:
+        raise HTTPException(413, str(exc)) from exc
     photo_path.write_bytes(content)
 
     # Update archive photos list (create new list to trigger SQLAlchemy change detection)
@@ -2810,13 +2822,14 @@ async def delete_photo(
     archive_id: int,
     filename: str,
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_DELETE_OWN),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.ARCHIVES_DELETE_ALL, Permission.ARCHIVES_DELETE_OWN)
+    ),
 ):
     """Delete a photo."""
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = result.scalar_one_or_none()
-    if not archive:
-        raise HTTPException(404, "Archive not found")
+    user, can_modify_all = auth_result
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_modify_all)
 
     if not archive.photos or filename not in archive.photos:
         raise HTTPException(404, "Photo not found")
@@ -3284,7 +3297,10 @@ async def upload_archive(
     temp_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        content = await file.read()
+        try:
+            content = await read_upload_limited(file)
+        except ArchiveBudgetError as exc:
+            raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail=str(exc)) from exc
         # #1401: same content validation as library upload — catches
         # raw-gcode-renamed-to-.3mf and other unprintable shapes before
         # archiving them and offering them up for print.
@@ -3334,7 +3350,11 @@ async def upload_archives_bulk(
         temp_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            content = await file.read()
+            try:
+                content = await read_upload_limited(file)
+            except ArchiveBudgetError as exc:
+                errors.append({"filename": file.filename, "error": str(exc)})
+                continue
             # #1401: bulk-upload variant of the library validation. Collect
             # the rejection per-file rather than aborting the whole batch
             # so one bad file in a 10-file drag-drop doesn't lose the
@@ -3924,6 +3944,9 @@ async def slice_archive(
     request: SliceRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.LIBRARY_UPLOAD),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
 ):
     """Enqueue a slice job for an archive's source. Returns 202 + job_id;
     the slice runs in the background, the caller polls `GET /slice-jobs/{id}`.
@@ -3939,9 +3962,8 @@ async def slice_archive(
         slice_dispatch,
     )
 
-    archive = await db.get(PrintArchive, archive_id)
-    if archive is None:
-        raise HTTPException(status_code=404, detail="Archive not found")
+    user, can_read_all = auth_result
+    archive = _ensure_archive_visible(await db.get(PrintArchive, archive_id), user, can_read_all)
 
     src_relative = archive.source_3mf_path or archive.file_path
     if not src_relative:
@@ -4012,6 +4034,7 @@ async def slice_archive(
         kind="archive",
         source_id=archive.id,
         source_name=archive.print_name or archive.filename or f"archive {archive.id}",
+        owner_id=user_id,
         run=_run,
     )
     return {
@@ -4084,15 +4107,16 @@ async def update_project_page(
     archive_id: int,
     update_data: dict,
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_OWN),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN)
+    ),
 ):
     """Update project page metadata in the 3MF file."""
     from backend.app.services.archive import ProjectPageParser
 
     service = ArchiveService(db)
-    archive = await service.get_archive(archive_id)
-    if not archive:
-        raise HTTPException(404, "Archive not found")
+    user, can_modify_all = auth_result
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_modify_all)
 
     file_path = settings.base_dir / archive.file_path
     if not file_path.is_file():
@@ -4202,13 +4226,14 @@ async def upload_source_3mf(
     archive_id: int,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_OWN),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN)
+    ),
 ):
     """Upload the original source 3MF project file for an archive."""
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = result.scalar_one_or_none()
-    if not archive:
-        raise HTTPException(404, "Archive not found")
+    user, can_modify_all = auth_result
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_modify_all)
 
     if not file.filename or not file.filename.endswith(".3mf"):
         raise HTTPException(400, "File must be a .3mf file")
@@ -4217,19 +4242,20 @@ async def upload_source_3mf(
     source_filename = _safe_filename(file.filename)
     source_path = _resolve_source_3mf_path(archive, source_filename)
 
-    # Delete old source file if exists
-    if archive.source_3mf_path:
-        old_source_path = settings.base_dir / archive.source_3mf_path
-        if old_source_path.exists():
-            old_source_path.unlink()
-
-    content = await file.read()
+    try:
+        content = await read_upload_limited(file)
+    except ArchiveBudgetError as exc:
+        raise HTTPException(413, str(exc)) from exc
     # #1401: validate zip header on source 3MF uploads too — source files
     # are uploaded for reprint and slicing, so an invalid one breaks the
     # same downstream paths as a bad sliced file.
     from backend.app.api.routes.library import validate_print_file_upload
 
     validate_print_file_upload(file.filename, content)
+    if archive.source_3mf_path:
+        old_source_path = settings.base_dir / archive.source_3mf_path
+        if old_source_path.exists():
+            old_source_path.unlink()
     source_path.write_bytes(content)
 
     # Update archive with source path (relative to base_dir)
@@ -4430,19 +4456,22 @@ async def upload_source_3mf_by_name(
     source_filename = safe_filename
     source_path = _resolve_source_3mf_path(archive, source_filename)
 
-    # Delete old source file if exists
-    if archive.source_3mf_path:
-        old_source_path = settings.base_dir / archive.source_3mf_path
-        if old_source_path.exists():
-            old_source_path.unlink()
-
-    content = await file.read()
+    try:
+        content = await read_upload_limited(file)
+    except ArchiveBudgetError as exc:
+        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail=str(exc)) from exc
     # #1401: same zip-header check as the other upload routes — the
     # match-by-name endpoint is used by slicer post-processing scripts,
     # so a misconfigured script is exactly how a bad 3MF would slip in.
     from backend.app.api.routes.library import validate_print_file_upload
 
     validate_print_file_upload(file.filename, content)
+
+    # Replace the old source only after the new payload passed all checks.
+    if archive.source_3mf_path:
+        old_source_path = settings.base_dir / archive.source_3mf_path
+        if old_source_path.exists() and old_source_path != source_path:
+            old_source_path.unlink()
     source_path.write_bytes(content)
 
     # Update archive with source path
@@ -4463,13 +4492,14 @@ async def upload_source_3mf_by_name(
 async def delete_source_3mf(
     archive_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_DELETE_OWN),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.ARCHIVES_DELETE_ALL, Permission.ARCHIVES_DELETE_OWN)
+    ),
 ):
     """Delete the source 3MF project file from an archive."""
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = result.scalar_one_or_none()
-    if not archive:
-        raise HTTPException(404, "Archive not found")
+    user, can_modify_all = auth_result
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_modify_all)
 
     if not archive.source_3mf_path:
         raise HTTPException(404, "No source 3MF attached to this archive")
@@ -4496,13 +4526,14 @@ async def upload_f3d(
     archive_id: int,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_OWN),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN)
+    ),
 ):
     """Upload a Fusion 360 design file for an archive."""
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = result.scalar_one_or_none()
-    if not archive:
-        raise HTTPException(404, "Archive not found")
+    user, can_modify_all = auth_result
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_modify_all)
 
     if not file.filename or not file.filename.endswith(".f3d"):
         raise HTTPException(400, "File must be a .f3d file")
@@ -4523,7 +4554,10 @@ async def upload_f3d(
     f3d_filename = _safe_filename(file.filename)
     f3d_path = f3d_dir / f3d_filename  # SEC-PATH-OK: f3d_filename = _safe_filename(...) basename-stripped above
 
-    content = await file.read()
+    try:
+        content = await read_upload_limited(file)
+    except ArchiveBudgetError as exc:
+        raise HTTPException(413, str(exc)) from exc
     f3d_path.write_bytes(content)
 
     # Update archive with F3D path (relative to base_dir)
@@ -4576,13 +4610,14 @@ async def download_f3d(
 async def delete_f3d(
     archive_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_DELETE_OWN),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.ARCHIVES_DELETE_ALL, Permission.ARCHIVES_DELETE_OWN)
+    ),
 ):
     """Delete the Fusion 360 design file from an archive."""
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = result.scalar_one_or_none()
-    if not archive:
-        raise HTTPException(404, "Archive not found")
+    user, can_modify_all = auth_result
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_modify_all)
 
     if not archive.f3d_path:
         raise HTTPException(404, "No F3D file attached to this archive")

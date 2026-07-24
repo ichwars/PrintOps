@@ -4,15 +4,19 @@ import hashlib
 import json
 from dataclasses import dataclass
 from decimal import Decimal
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
-import defusedxml.ElementTree as ET
-
 from backend.app.services.calculation_estimator import BoundsMm, PlateGeometry
+from backend.app.utils.archive_budget import (
+    MAX_3MF_PLATES,
+    ArchiveBudgetError,
+    read_json_member,
+    read_xml_member,
+    read_zip_member,
+    validate_zip_archive,
+)
 from backend.app.utils.threemf_tools import extract_filament_usage_from_3mf, extract_print_time_from_3mf
-
-MAX_METADATA_BYTES = 24 * 1024 * 1024
 
 
 class InvalidProjectFile(ValueError):
@@ -42,15 +46,10 @@ class ProjectFileAnalysis:
 
 
 def _safe_members(archive: ZipFile) -> set[str]:
-    names: set[str] = set()
-    for info in archive.infolist():
-        path = PurePosixPath(info.filename)
-        if path.is_absolute() or ".." in path.parts:
-            raise InvalidProjectFile("3MF archive contains an unsafe path")
-        if info.filename.startswith("Metadata/") and info.file_size > MAX_METADATA_BYTES:
-            raise InvalidProjectFile("3MF metadata file exceeds the safety limit")
-        names.add(info.filename)
-    return names
+    try:
+        return {info.filename for info in validate_zip_archive(archive)}
+    except ArchiveBudgetError as exc:
+        raise InvalidProjectFile(str(exc)) from exc
 
 
 def _metadata(element, key: str) -> str | None:
@@ -66,25 +65,25 @@ def analyze_project_file(path: Path) -> ProjectFileAnalysis:
             names = _safe_members(archive)
             if "Metadata/slice_info.config" not in names:
                 raise InvalidProjectFile("3MF has no plate metadata")
-            raw_slice_info = archive.read("Metadata/slice_info.config")
-            if len(raw_slice_info) > MAX_METADATA_BYTES:
-                raise InvalidProjectFile("3MF plate metadata exceeds the safety limit")
-            root = ET.fromstring(raw_slice_info)
+            root = read_xml_member(archive, "Metadata/slice_info.config")
             printer_metadata: dict[str, object] = {}
             if "Metadata/project_settings.config" in names:
                 try:
-                    settings = json.loads(archive.read("Metadata/project_settings.config"))
+                    settings = read_json_member(archive, "Metadata/project_settings.config")
                     if isinstance(settings, dict):
                         printer_metadata = {
                             key: settings[key]
                             for key in ("printer_model", "printer_settings_id", "print_settings_id")
                             if key in settings
                         }
-                except (json.JSONDecodeError, UnicodeDecodeError):
+                except (ArchiveBudgetError, ValueError, UnicodeDecodeError):
                     pass
 
             plates: list[PlateAnalysis] = []
-            for ordinal, plate_element in enumerate(root.findall(".//plate"), start=1):
+            plate_elements = root.findall(".//plate")
+            if len(plate_elements) > MAX_3MF_PLATES:
+                raise InvalidProjectFile(f"3MF contains more than {MAX_3MF_PLATES} plates")
+            for ordinal, plate_element in enumerate(plate_elements, start=1):
                 try:
                     plate_index = int(_metadata(plate_element, "index") or ordinal)
                 except ValueError:
@@ -106,7 +105,11 @@ def analyze_project_file(path: Path) -> ProjectFileAnalysis:
                     separators=(",", ":"),
                 )
                 thumbnail_name = f"Metadata/plate_{plate_index}.png"
-                thumbnail = archive.read(thumbnail_name) if thumbnail_name in names else None
+                thumbnail = (
+                    read_zip_member(archive, thumbnail_name, max_bytes=16 * 1024 * 1024)
+                    if thumbnail_name in names
+                    else None
+                )
                 geometry = PlateGeometry(
                     object_count=len(object_ids),
                     triangle_count=0,
@@ -128,5 +131,5 @@ def analyze_project_file(path: Path) -> ProjectFileAnalysis:
             if not plates:
                 raise InvalidProjectFile("3MF contains no project plates")
             return ProjectFileAnalysis(printer_metadata=printer_metadata, plates=tuple(plates))
-    except BadZipFile as exc:
+    except (ArchiveBudgetError, BadZipFile) as exc:
         raise InvalidProjectFile("File is not a valid 3MF archive") from exc

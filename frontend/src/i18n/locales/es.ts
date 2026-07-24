@@ -2859,6 +2859,8 @@ export default {
         scopes: 'Ámbitos',
         iconUrl: 'URL del icono (opcional)',
         enabled: 'Activado',
+        allowPrivateNetwork: 'Permitir IdP en red privada',
+        allowPrivateNetworkDesc: 'Enable only for an IdP intentionally hosted on your private network.',
         autoCreate: 'Crear usuarios automáticamente',
         autoCreateDesc: 'Crear automáticamente una cuenta local en el primer inicio de sesión.',
         autoLink: 'Vincular cuentas existentes automáticamente',

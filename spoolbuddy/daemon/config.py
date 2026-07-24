@@ -4,7 +4,7 @@ All configuration is via environment variables. The systemd service file
 or a shell wrapper sets these before launching the daemon.
 
 Required:
-    SPOOLBUDDY_BACKEND_URL  — PrintOps server URL (e.g. http://192.168.1.100:5000)
+    SPOOLBUDDY_BACKEND_URL  — PrintOps server URL (e.g. https://printops.example)
     SPOOLBUDDY_API_KEY      — API key created in PrintOps Settings → API Keys
 
 Optional:
@@ -12,10 +12,32 @@ Optional:
     SPOOLBUDDY_HOSTNAME     — Display name (default: system hostname)
 """
 
+import ipaddress
 import os
 import socket
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
+
+
+def validate_backend_url(value: str) -> str:
+    """Return a normalized backend URL, requiring TLS off the local host."""
+    url = value.strip().rstrip("/")
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+        raise ValueError("backend URL must be a full HTTP(S) URL without embedded credentials")
+
+    if parsed.scheme == "http":
+        hostname = parsed.hostname.rstrip(".").casefold()
+        is_loopback = hostname == "localhost"
+        if not is_loopback:
+            try:
+                is_loopback = ipaddress.ip_address(hostname).is_loopback
+            except ValueError:
+                is_loopback = False
+        if not is_loopback:
+            raise ValueError("HTTPS is required for a remote PrintOps backend")
+    return url
 
 
 @dataclass
@@ -45,7 +67,11 @@ class Config:
         cfg.hostname = os.environ.get("SPOOLBUDDY_HOSTNAME", "")
 
         if not cfg.backend_url:
-            raise RuntimeError("SPOOLBUDDY_BACKEND_URL is required (e.g. http://192.168.1.100:5000)")
+            raise RuntimeError("SPOOLBUDDY_BACKEND_URL is required (e.g. https://printops.example)")
+        try:
+            cfg.backend_url = validate_backend_url(cfg.backend_url)
+        except ValueError as exc:
+            raise RuntimeError(f"Invalid SPOOLBUDDY_BACKEND_URL: {exc}") from exc
         if not cfg.api_key:
             raise RuntimeError("SPOOLBUDDY_API_KEY is required (create one in PrintOps Settings → API Keys)")
 

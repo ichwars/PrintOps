@@ -13,6 +13,7 @@ rewrite the printer's real IP with the proxy's bind IP in MQTT payloads.
 # ruff: noqa: N801
 
 import asyncio
+import ipaddress
 import logging
 import random
 import re
@@ -22,6 +23,20 @@ from collections.abc import Callable
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+def _same_peer_address(left: str, right: str) -> bool:
+    """Compare control/data peer IPs, normalizing IPv4-mapped IPv6 forms."""
+    try:
+        left_ip = ipaddress.ip_address(left.split("%", 1)[0])
+        right_ip = ipaddress.ip_address(right.split("%", 1)[0])
+    except ValueError:
+        return left.casefold() == right.casefold()
+    if isinstance(left_ip, ipaddress.IPv6Address) and left_ip.ipv4_mapped is not None:
+        left_ip = left_ip.ipv4_mapped
+    if isinstance(right_ip, ipaddress.IPv6Address) and right_ip.ipv4_mapped is not None:
+        right_ip = right_ip.ipv4_mapped
+    return left_ip == right_ip
 
 
 class _SessionReuseSSLContext:
@@ -911,7 +926,11 @@ class FTPTLSProxy(TLSProxy):
         # PROT C = cleartext data, PROT P = TLS data.
         # Default to cleartext — many Bambu printers (A1, H2D) use PROT C.
         # If the slicer sends PROT P, we switch to TLS for data connections.
-        session_state: dict[str, str | ssl.SSLSession] = {"prot": "C"}
+        control_peer_ip = str(peername[0]) if peername else "unknown"
+        session_state: dict[str, str | ssl.SSLSession] = {
+            "prot": "C",
+            "control_peer_ip": control_peer_ip,
+        }
         if ctrl_tls_session:
             session_state["tls_session"] = ctrl_tls_session
 
@@ -1177,11 +1196,14 @@ class FTPTLSProxy(TLSProxy):
 
         # Get control channel TLS session for data channel reuse
         tls_session = session_state.get("tls_session") if use_tls else None
+        control_peer_ip = str(session_state.get("control_peer_ip", "unknown"))
 
         # Try the printer's original port first — this ensures the port
         # matches even when bounce protection or iptables REDIRECT is in play.
         try:
-            await self._start_data_proxy_server(printer_port, printer_ip, printer_port, use_tls, tls_session)
+            await self._start_data_proxy_server(
+                printer_port, printer_ip, printer_port, use_tls, tls_session, control_peer_ip
+            )
             logger.info("FTP data proxy: using printer's port %s", printer_port)
             return printer_port
         except OSError as e:
@@ -1194,7 +1216,9 @@ class FTPTLSProxy(TLSProxy):
         for _attempt in range(10):
             port = random.randint(self.PASV_PORT_MIN, self.PASV_PORT_MAX)
             try:
-                await self._start_data_proxy_server(port, printer_ip, printer_port, use_tls, tls_session)
+                await self._start_data_proxy_server(
+                    port, printer_ip, printer_port, use_tls, tls_session, control_peer_ip
+                )
                 logger.info("FTP data proxy: using random port %s", port)
                 return port
             except OSError:
@@ -1210,6 +1234,7 @@ class FTPTLSProxy(TLSProxy):
         printer_port: int,
         use_tls: bool,
         tls_session: ssl.SSLSession | None = None,
+        control_peer_ip: str = "unknown",
     ) -> None:
         """Start a one-shot server for one FTP data connection.
 
@@ -1258,6 +1283,20 @@ class FTPTLSProxy(TLSProxy):
             """Handle one FTP data connection, then close the server."""
             peername = client_writer.get_extra_info("peername")
             data_client = f"{peername[0]}:{peername[1]}" if peername else "unknown"
+            data_peer_ip = str(peername[0]) if peername else "unknown"
+            if not _same_peer_address(control_peer_ip, data_peer_ip):
+                logger.warning(
+                    "FTP data proxy port %s: rejecting peer %s; control peer is %s",
+                    port,
+                    data_peer_ip,
+                    control_peer_ip,
+                )
+                client_writer.close()
+                try:
+                    await client_writer.wait_closed()
+                except OSError:
+                    pass
+                return
             logger.info(
                 "FTP data proxy port %s (slicer=cleartext, printer=%s): client connected from %s, bridging to %s:%s",
                 port,
@@ -1536,47 +1575,30 @@ class SlicerProxyManager:
         # port_ftps check probes the port that actually has a socket.
         self._actual_ftp_port = ftp_listen_port
 
-        # FTP control — raw TCP pass-through (end-to-end TLS with printer).
-        # A TLS 1.3 → 1.2 ClientHello-rewrite was attempted to work around
-        # BambuStudio's libcurl bug on the X1C FTPS data channel (PSK
-        # session-resumption + CURLE_PARTIAL_FILE). Reverted because the
-        # rewrite broke the control-channel TLS handshake itself: replacing
-        # 0x0304 with a duplicate 0x0303 in supported_versions while leaving
-        # the TLS-1.3-only extensions (key_share, psk_key_exchange_modes,
-        # signature_algorithms_cert) in place produced a malformed ClientHello
-        # that the printer or slicer rejected, and the connection closed
-        # before any data channel was opened. A proper fix needs full TLS
-        # bumping (terminate + re-establish) with packet-capture work
-        # that's out of scope for now. X1C proxy-mode FTP uploads remain
-        # broken — users with X1C should use the non-proxy modes (immediate
-        # / review / print_queue) which work end-to-end via the VP's own
-        # FTP server on TLS 1.2.
-        self._ftp_proxy = TCPProxy(
+        # FTP control must be session-aware: passive uploads use a second
+        # connection whose port is announced inside encrypted PASV/EPSV
+        # responses. FTPTLSProxy terminates the control TLS channel, creates a
+        # peer-bound one-shot data listener, and reuses the printer-side TLS
+        # session where required by vsFTPd.
+        self._ftp_proxy = FTPTLSProxy(
             name="FTP",
             listen_port=ftp_listen_port,
             target_host=self.target_host,
             target_port=self.PRINTER_FTP_PORT,
+            server_cert_path=self.cert_path,
+            server_key_path=self.key_path,
             on_connect=lambda cid: self._log_activity("FTP", f"connected: {cid}"),
             on_disconnect=lambda cid: self._log_activity("FTP", f"disconnected: {cid}"),
             bind_address=self.bind_address,
         )
 
-        # FTP data ports — pre-listen on the entire passive port range.
-        # Since FTP control is encrypted end-to-end, we can't read EPSV
-        # responses to know which port the printer chose. Instead, we
-        # listen on every port in the range and forward to the same port
-        # on the printer. The slicer connects to bind_ip:PORT (from EPSV)
-        # and we transparently relay to printer_ip:PORT.
+        # Do not pre-listen on the printer's passive range. The transparent
+        # control proxy cannot authenticate or bind a data connection to its
+        # encrypted FTPS session, so permanent forwarders would expose every
+        # printer passive port to unrelated LAN peers. Proxy-mode FTP uploads
+        # that require passive forwarding must use the session-aware FTPTLS
+        # proxy or one of the VP-owned non-proxy transfer modes.
         self._ftp_data_proxies: list[TCPProxy] = []
-        for port in range(self.FTP_DATA_PORT_MIN, self.FTP_DATA_PORT_MAX + 1):
-            dp = TCPProxy(
-                name=f"FTP-Data-{port}",
-                listen_port=port,
-                target_host=self.target_host,
-                target_port=port,
-                bind_address=self.bind_address,
-            )
-            self._ftp_data_proxies.append(dp)
 
         # MQTT — TLS-terminating proxy (must decrypt to rewrite IP addresses)
         self._mqtt_proxy = TLSProxy(
@@ -1746,7 +1768,7 @@ class SlicerProxyManager:
                 logger.info("Proxy diagnostic: probing un-proxied ports %s on %s", probed, self.bind_address)
 
         logger.info(
-            "Slicer proxy started for %s (transparent TCP + MQTT TLS, %d FTP data ports)",
+            "Slicer proxy started for %s (session-aware FTPS + transparent TCP + MQTT TLS, %d static FTP data ports)",
             self.target_host,
             len(self._ftp_data_proxies),
         )

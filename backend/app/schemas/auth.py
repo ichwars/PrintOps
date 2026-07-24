@@ -359,7 +359,7 @@ def _validate_icon_url(v: str | None) -> str | None:
     return v
 
 
-def _validate_issuer_url(v: str | None) -> str | None:
+def _validate_issuer_url(v: str | None, *, allow_private_network: bool = False) -> str | None:
     """Nit4: Reject non-HTTPS issuer URLs and private/loopback/link-local hosts.
 
     HTTP is no longer accepted — OIDC providers must be reachable over TLS.
@@ -376,7 +376,7 @@ def _validate_issuer_url(v: str | None) -> str | None:
     host = urlparse(v).hostname or ""
     try:
         addr = ipaddress.ip_address(host)
-        if addr.is_private or addr.is_loopback or addr.is_link_local:
+        if (addr.is_private or addr.is_loopback or addr.is_link_local) and not allow_private_network:
             raise ValueError("issuer_url must not point to a private, loopback, or link-local address")
     except ValueError as exc:
         if "issuer_url" in str(exc):
@@ -407,6 +407,7 @@ class OIDCProviderCreate(BaseModel):
     client_secret: str = Field(..., max_length=512)  # L-NEW-4: Fernet input bounded
     scopes: str = Field(default="openid email profile", max_length=256)  # L-NEW-4
     is_enabled: bool = True
+    allow_private_network: bool = False
     auto_create_users: bool = False
     auto_link_existing_accounts: bool = False  # M-2: conservative default, opt-in only
     email_claim: str = Field(default="email", max_length=64)
@@ -414,14 +415,6 @@ class OIDCProviderCreate(BaseModel):
     icon_url: str | None = None
     default_group_id: int | None = None
     is_autologin: bool = False  # #1589 — at most one provider may carry this
-
-    @field_validator("issuer_url")
-    @classmethod
-    def validate_issuer_url(cls, v: str) -> str:
-        result = _validate_issuer_url(v)
-        if result is None:
-            raise ValueError("issuer_url is required")
-        return result
 
     @field_validator("scopes")
     @classmethod
@@ -446,6 +439,7 @@ class OIDCProviderCreate(BaseModel):
     # Fall C (custom claim != 'email') is safe: no email_verified gate on that path regardless of require_email_verified.
     @model_validator(mode="after")
     def check_auto_link_requires_verified(self) -> "OIDCProviderCreate":
+        _validate_issuer_url(self.issuer_url, allow_private_network=self.allow_private_network)
         if self.auto_link_existing_accounts and self.email_claim == "email" and not self.require_email_verified:
             raise ValueError(AUTO_LINK_REQUIREMENTS_ERROR)
         return self
@@ -455,15 +449,11 @@ class OIDCProviderUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=100)
     issuer_url: str | None = None
 
-    @field_validator("issuer_url")
-    @classmethod
-    def validate_issuer_url(cls, v: str | None) -> str | None:
-        return _validate_issuer_url(v)
-
     client_id: str | None = Field(default=None, max_length=256)
     client_secret: str | None = Field(default=None, max_length=512)
     scopes: str | None = Field(default=None, max_length=256)
     is_enabled: bool | None = None
+    allow_private_network: bool | None = None
     auto_create_users: bool | None = None
     auto_link_existing_accounts: bool | None = None
     email_claim: str | None = Field(default=None, max_length=64)
@@ -495,6 +485,11 @@ class OIDCProviderUpdate(BaseModel):
     # Combined-State-Guard in the route handler after the setattr loop.
     @model_validator(mode="after")
     def check_auto_link_requires_verified(self) -> "OIDCProviderUpdate":
+        if self.issuer_url is not None:
+            _validate_issuer_url(
+                self.issuer_url,
+                allow_private_network=self.allow_private_network is True,
+            )
         if (
             self.auto_link_existing_accounts is True
             and self.require_email_verified is False
@@ -511,6 +506,7 @@ class OIDCProviderResponse(BaseModel):
     client_id: str
     scopes: str
     is_enabled: bool
+    allow_private_network: bool = False
     auto_create_users: bool
     auto_link_existing_accounts: bool = False
     email_claim: str = "email"

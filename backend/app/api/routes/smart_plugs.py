@@ -330,7 +330,7 @@ async def test_ha_connection(
 @router.post("/rest/test-connection", response_model=RESTTestConnectionResponse)
 async def test_rest_connection(
     request: RESTTestConnectionRequest,
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_CONTROL),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_UPDATE),
 ):
     """Test connection to a REST/HTTP endpoint."""
     result = await rest_smart_plug_service.test_connection(request.url, request.method, request.headers)

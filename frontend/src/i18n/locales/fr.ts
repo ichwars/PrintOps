@@ -2599,6 +2599,8 @@ export default {
         scopes: 'Portées',
         iconUrl: 'URL de l\'icône (optionnel)',
         enabled: 'Activé',
+        allowPrivateNetwork: 'Autoriser un IdP sur le réseau privé',
+        allowPrivateNetworkDesc: 'Enable only for an IdP intentionally hosted on your private network.',
         autoCreate: 'Créer les utilisateurs automatiquement',
         autoCreateDesc: 'Crée automatiquement un compte local lors de la première connexion.',
         autoLink: 'Lier automatiquement les comptes existants',
