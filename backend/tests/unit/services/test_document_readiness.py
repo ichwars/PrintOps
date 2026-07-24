@@ -69,8 +69,7 @@ async def test_configuration_readiness_reports_clickable_bank_blocker(db_session
 
     assert report.status == "blocked"
     assert any(
-        item.code == "bank_account_missing" and item.field_path == "payment.bank_account_id"
-        for item in report.findings
+        item.code == "bank_account_missing" and item.field_path == "payment.bank_account_id" for item in report.findings
     )
 
 

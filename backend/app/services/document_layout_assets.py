@@ -49,9 +49,7 @@ _DANGEROUS_PDF_NAMES = frozenset(
         "/XFA",
     }
 )
-_SVG_ELEMENTS = frozenset(
-    {"svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon"}
-)
+_SVG_ELEMENTS = frozenset({"svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon"})
 _SVG_ATTRIBUTES = frozenset(
     {
         "viewBox",
@@ -80,9 +78,7 @@ _SVG_ATTRIBUTES = frozenset(
     }
 )
 _REQUIRED_GLYPHS = frozenset(
-    ord(char)
-    for char in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    " .,;:!?+-/%()[]{}@#&€ÄÖÜäöüß"
+    ord(char) for char in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,;:!?+-/%()[]{}@#&€ÄÖÜäöüß"
 )
 _DLL_DIRECTORY_HANDLES: list[object] = []
 
@@ -190,9 +186,7 @@ def _walk_pdf(value, seen: set[tuple[int, int]]) -> None:
     if isinstance(value, (pikepdf.Dictionary, pikepdf.Stream)):
         for key, child in value.items():
             if str(key) in _DANGEROUS_PDF_NAMES:
-                raise AssetValidationError(
-                    f"PDF contains active content {key}", finding="pdf_active_content"
-                )
+                raise AssetValidationError(f"PDF contains active content {key}", finding="pdf_active_content")
             _walk_pdf(child, seen)
     elif isinstance(value, pikepdf.Array):
         for child in value:
@@ -256,15 +250,11 @@ def _preflight_font(content: bytes, *, embedding_rights_confirmed: bool) -> Asse
         fs_type = int(getattr(font.get("OS/2"), "fsType", 0))
         embedding_allowed = not bool(fs_type & 0x0202)
         if not embedding_allowed or not embedding_rights_confirmed:
-            raise AssetValidationError(
-                "font embedding rights are missing or restricted", finding="font_embedding"
-            )
+            raise AssetValidationError("font embedding rights are missing or restricted", finding="font_embedding")
         cmap = font.getBestCmap() or {}
         missing = sorted(_REQUIRED_GLYPHS - set(cmap))
         if missing:
-            raise AssetValidationError(
-                "font does not cover required invoice glyphs", finding="font_glyphs"
-            )
+            raise AssetValidationError("font does not cover required invoice glyphs", finding="font_glyphs")
         flavor = "font/otf" if content.startswith(b"OTTO") else "font/ttf"
         return AssetPreflight(
             content=content,
@@ -307,13 +297,13 @@ def preflight_asset(
         return _preflight_pdf(content, page_format)
     if magic not in {"font/ttf", "font/otf", "font/collection"}:
         raise AssetValidationError("font must be TTF or OTF", finding="font_type")
-    return _preflight_font(
-        content, embedding_rights_confirmed=font_embedding_rights_confirmed
-    )
+    return _preflight_font(content, embedding_rights_confirmed=font_embedding_rights_confirmed)
 
 
 def _relative_key(profile_id: int, asset_type: str, digest: str) -> Path:
-    return Path("document-layout-assets") / str(profile_id) / asset_type / digest[:2] / digest  # SEC-PATH-OK: profile_id is an integer, asset_type is a closed Literal, and digest is a server-computed lowercase SHA-256
+    return (
+        Path("document-layout-assets") / str(profile_id) / asset_type / digest[:2] / digest
+    )  # SEC-PATH-OK: profile_id is an integer, asset_type is a closed Literal, and digest is a server-computed lowercase SHA-256
 
 
 def _atomic_write(target: Path, content: bytes) -> None:
@@ -411,16 +401,11 @@ async def link_asset(
     role_matches_type = (
         (request.role == "logo" and asset.asset_type == "logo")
         or (request.role == "letterhead_first" and asset.asset_type == "letterhead_first")
-        or (
-            request.role == "letterhead_following"
-            and asset.asset_type == "letterhead_following"
-        )
+        or (request.role == "letterhead_following" and asset.asset_type == "letterhead_following")
         or (request.role.startswith("font_") and asset.asset_type == "font")
     )
     if not role_matches_type:
-        raise AssetValidationError(
-            "asset type does not match its layout role", finding="asset_role"
-        )
+        raise AssetValidationError("asset type does not match its layout role", finding="asset_role")
     if asset.preflight_status != "valid":
         raise AssetValidationError("asset preflight is not valid", finding="preflight_status")
     existing = await session.scalar(
@@ -434,9 +419,7 @@ async def link_asset(
         existing.asset_id = asset.id
         await session.flush()
         return existing
-    link = DocumentLayoutAssetLink(
-        configuration_id=layout.id, asset_id=asset.id, role=request.role
-    )
+    link = DocumentLayoutAssetLink(configuration_id=layout.id, asset_id=asset.id, role=request.role)
     session.add(link)
     await session.flush()
     return link
@@ -447,9 +430,7 @@ async def delete_unreferenced_asset(session: AsyncSession, asset_id: int) -> Non
     if asset is None:
         raise LookupError("asset was not found")
     references = await session.scalar(
-        select(func.count(DocumentLayoutAssetLink.id)).where(
-            DocumentLayoutAssetLink.asset_id == asset.id
-        )
+        select(func.count(DocumentLayoutAssetLink.id)).where(DocumentLayoutAssetLink.asset_id == asset.id)
     )
     if references:
         raise AssetAccessError("referenced assets cannot be deleted")

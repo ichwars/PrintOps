@@ -49,9 +49,7 @@ def _actor_id(actor: User | None) -> int | None:
 
 
 def _correlation_id(request: Request) -> str:
-    existing = getattr(request.state, "correlation_id", None) or request.headers.get(
-        "X-Correlation-ID"
-    )
+    existing = getattr(request.state, "correlation_id", None) or request.headers.get("X-Correlation-ID")
     if existing and 1 <= len(str(existing)) <= 128:
         return str(existing)
     return str(uuid4())
@@ -134,9 +132,7 @@ def _open_artifact(
         relative = Path(artifact.storage_path)
         root = resolve_data_dir().resolve()
         target = (root / relative).resolve()
-        if relative.is_absolute() or ".." in relative.parts or (
-            target != root and root not in target.parents
-        ):
+        if relative.is_absolute() or ".." in relative.parts or (target != root and root not in target.parents):
             _error(
                 request,
                 status_code=status.HTTP_409_CONFLICT,

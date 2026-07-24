@@ -91,10 +91,7 @@ def _expand_snapshot(payload: dict[str, Any], row: dict[str, str], index: int) -
                 "metadata": {},
             }
         )
-    text_blocks = [
-        {"purpose": block["purpose"], "text": block[language]}
-        for block in base["text_blocks"]
-    ]
+    text_blocks = [{"purpose": block["purpose"], "text": block[language]} for block in base["text_blocks"]]
     fixed_date = date.fromisoformat(payload["fixed_date"])
     data = {
         "document_type": document_type.value,
@@ -123,10 +120,7 @@ def _expand_snapshot(payload: dict[str, Any], row: dict[str, str], index: int) -
 
 def load_all_samples() -> dict[str, IssuedDocumentSnapshot]:
     payload = _fixture()
-    return {
-        row["key"]: _expand_snapshot(payload, row, index)
-        for index, row in enumerate(_catalog_rows(payload))
-    }
+    return {row["key"]: _expand_snapshot(payload, row, index) for index, row in enumerate(_catalog_rows(payload))}
 
 
 def load_sample(key: str) -> IssuedDocumentSnapshot:

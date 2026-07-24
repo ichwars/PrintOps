@@ -104,11 +104,7 @@ def _layout_options() -> tuple:
     return tuple(
         selectinload(getattr(orm.DocumentLayoutConfiguration, binding.relationship))
         for binding in RULE_BINDINGS.values()
-    ) + (
-        selectinload(orm.DocumentLayoutConfiguration.asset_links).selectinload(
-            orm.DocumentLayoutAssetLink.asset
-        ),
-    )
+    ) + (selectinload(orm.DocumentLayoutConfiguration.asset_links).selectinload(orm.DocumentLayoutAssetLink.asset),)
 
 
 def _layout_query() -> Select:
@@ -146,9 +142,7 @@ def _section_values(layout: orm.DocumentLayoutConfiguration, section: str) -> di
     return values
 
 
-def _attach_template_rules(
-    layout: orm.DocumentLayoutConfiguration, template: dto.EffectiveDocumentLayout
-) -> None:
+def _attach_template_rules(layout: orm.DocumentLayoutConfiguration, template: dto.EffectiveDocumentLayout) -> None:
     for section, binding in RULE_BINDINGS.items():
         values = getattr(template, section).model_dump()
         if section == "page":
@@ -335,8 +329,7 @@ async def clone_layout(
         values = {key: value for key, value in values.items() if key not in _CONFIG_PAGE_FIELDS}
         setattr(clone, binding.relationship, binding.model(**values))
     clone.asset_links = [
-        orm.DocumentLayoutAssetLink(asset_id=link.asset_id, role=link.role)
-        for link in source.asset_links
+        orm.DocumentLayoutAssetLink(asset_id=link.asset_id, role=link.role) for link in source.asset_links
     ]
     session.add(clone)
     await session.flush()
@@ -506,9 +499,7 @@ async def resolve_effective_layout(
                 if level == "profile" or path in overrides:
                     effective_data[section][field] = value
                     source_data[section][field] = source
-    effective_data["template_version"] = TEMPLATE_VERSIONS[
-        effective_data["page"]["template_key"]
-    ]
+    effective_data["template_version"] = TEMPLATE_VERSIONS[effective_data["page"]["template_key"]]
     effective_data["renderer_version"] = RENDERER_VERSION
     effective_data["validator_version"] = VALIDATOR_VERSION
     effective = dto.EffectiveDocumentLayout.model_validate(effective_data)
@@ -703,8 +694,7 @@ async def publish_layout(
     if result.rowcount != 1:
         raise LayoutConflictError("layout was changed by another editor")
     asset_receipts = {
-        link.role: {"asset_id": link.asset_id, "sha256": link.asset.sha256}
-        for link in layout.asset_links
+        link.role: {"asset_id": link.asset_id, "sha256": link.asset.sha256} for link in layout.asset_links
     }
     session.add(
         orm.DocumentLayoutPublication(
@@ -731,9 +721,7 @@ async def publish_layout(
     return await get_layout(session, layout_id)
 
 
-async def activate_due_layouts(
-    session: AsyncSession, *, now: datetime | None = None
-) -> tuple[int, ...]:
+async def activate_due_layouts(session: AsyncSession, *, now: datetime | None = None) -> tuple[int, ...]:
     now = now or datetime.now(UTC)
     scheduled = (
         await session.scalars(

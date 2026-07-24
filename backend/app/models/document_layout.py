@@ -76,12 +76,8 @@ class DocumentLayoutConfiguration(Base):
     lock_version: Mapped[int] = mapped_column(Integer, default=1)
     effective_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     change_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_by_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
-    published_by_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    published_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     renderer_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
     validator_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -129,6 +125,8 @@ class DocumentLayoutConfiguration(Base):
         back_populates="configuration", cascade="all, delete-orphan", lazy="selectin"
     )
     preview_jobs: Mapped[list[DocumentPreviewJob]] = relationship(back_populates="configuration")
+
+
 class LayoutPageRules(Base):
     __tablename__ = "layout_page_rules"
 
@@ -321,9 +319,7 @@ class DocumentLayoutAsset(Base):
     font_weight: Mapped[int | None] = mapped_column(Integer, nullable=True)
     font_glyph_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     font_embedding_allowed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    created_by_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     first_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     links: Mapped[list[DocumentLayoutAssetLink]] = relationship(back_populates="asset")
@@ -344,9 +340,7 @@ class DocumentLayoutAssetLink(Base):
     configuration_id: Mapped[int] = mapped_column(
         ForeignKey("document_layout_configurations.id", ondelete="CASCADE"), index=True
     )
-    asset_id: Mapped[int] = mapped_column(
-        ForeignKey("document_layout_assets.id", ondelete="RESTRICT"), index=True
-    )
+    asset_id: Mapped[int] = mapped_column(ForeignKey("document_layout_assets.id", ondelete="RESTRICT"), index=True)
     role: Mapped[str] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     configuration: Mapped[DocumentLayoutConfiguration] = relationship(back_populates="asset_links")
@@ -366,18 +360,14 @@ class DocumentLayoutPublication(Base):
     validator_version: Mapped[str] = mapped_column(String(128))
     validation_status: Mapped[str] = mapped_column(String(32))
     validation_report: Mapped[dict] = mapped_column(JSON, default=dict)
-    published_by_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
+    published_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     configuration: Mapped[DocumentLayoutConfiguration] = relationship(back_populates="publication")
 
 
 class DocumentLayoutAuditReceipt(Base):
     __tablename__ = "document_layout_audit_receipts"
-    __table_args__ = (
-        UniqueConstraint("configuration_id", "edit_session_id", name="uq_layout_audit_edit_session"),
-    )
+    __table_args__ = (UniqueConstraint("configuration_id", "edit_session_id", name="uq_layout_audit_edit_session"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     configuration_id: Mapped[int] = mapped_column(
@@ -387,9 +377,7 @@ class DocumentLayoutAuditReceipt(Base):
     edit_session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     changed_field_paths: Mapped[list] = mapped_column(JSON, default=list)
-    actor_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     before_lock_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     after_lock_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -409,12 +397,8 @@ class DocumentPreviewJob(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    public_id: Mapped[str] = mapped_column(
-        String(36), unique=True, index=True, default=lambda: str(uuid4())
-    )
-    actor_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
-    )
+    public_id: Mapped[str] = mapped_column(String(36), unique=True, index=True, default=lambda: str(uuid4()))
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     business_profile_id: Mapped[int] = mapped_column(
         ForeignKey("business_profiles.id", ondelete="RESTRICT"), index=True
     )
@@ -462,9 +446,7 @@ def _reject_published_layout_change(_mapper, _connection, target) -> None:
 
 def _configuration_status(connection, configuration_id: int) -> str | None:
     return connection.execute(
-        select(DocumentLayoutConfiguration.status).where(
-            DocumentLayoutConfiguration.id == configuration_id
-        )
+        select(DocumentLayoutConfiguration.status).where(DocumentLayoutConfiguration.id == configuration_id)
     ).scalar_one_or_none()
 
 
@@ -480,18 +462,21 @@ def _reject_rule_change(_mapper, connection, target) -> None:
 def _reject_used_asset_change(_mapper, connection, target: DocumentLayoutAsset) -> None:
     if getattr(target, "_allow_layout_asset_mutation", False):
         return
-    used = target.first_used_at is not None or connection.execute(
-        select(DocumentLayoutAssetLink.id)
-        .join(
-            DocumentLayoutConfiguration,
-            DocumentLayoutConfiguration.id == DocumentLayoutAssetLink.configuration_id,
-        )
-        .where(
-            DocumentLayoutAssetLink.asset_id == target.id,
-            DocumentLayoutConfiguration.status != "draft",
-        )
-        .limit(1)
-    ).first()
+    used = (
+        target.first_used_at is not None
+        or connection.execute(
+            select(DocumentLayoutAssetLink.id)
+            .join(
+                DocumentLayoutConfiguration,
+                DocumentLayoutConfiguration.id == DocumentLayoutAssetLink.configuration_id,
+            )
+            .where(
+                DocumentLayoutAssetLink.asset_id == target.id,
+                DocumentLayoutConfiguration.status != "draft",
+            )
+            .limit(1)
+        ).first()
+    )
     if used:
         raise ImmutableLayoutError("an asset used by a published layout is immutable")
 

@@ -29,9 +29,9 @@ def _snapshot(
         for position, (rate, net) in enumerate(rates or (("19.00", "100.00"),), start=1)
     )
     expected_line_net = sum((line.net_amount for line in lines), Decimal("0"))
-    expected_tax = sum(
-        (line.net_amount * line.tax_rate / Decimal("100") for line in lines), Decimal("0")
-    ).quantize(Decimal("0.01"))
+    expected_tax = sum((line.net_amount * line.tax_rate / Decimal("100") for line in lines), Decimal("0")).quantize(
+        Decimal("0.01")
+    )
     return IssuedDocumentSnapshot(
         document_type=document_type,
         number="RE-2026-0001",

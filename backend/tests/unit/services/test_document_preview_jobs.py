@@ -68,9 +68,7 @@ async def test_preview_job_transitions_and_cache_hash(db_session, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_preview_job_recovers_running_and_expires_results(
-    db_session, tmp_path
-):
+async def test_preview_job_recovers_running_and_expires_results(db_session, tmp_path):
     profile_id, layout_id = await _scope(db_session)
     service = DocumentPreviewJobService(storage_root=tmp_path, ttl_seconds=1)
     job, _ = await service.enqueue(
@@ -94,9 +92,7 @@ async def test_preview_job_recovers_running_and_expires_results(
 
 
 @pytest.mark.asyncio
-async def test_preview_job_rejects_state_races_and_tampered_cache(
-    db_session, tmp_path
-):
+async def test_preview_job_rejects_state_races_and_tampered_cache(db_session, tmp_path):
     profile_id, layout_id = await _scope(db_session)
     service = DocumentPreviewJobService(storage_root=tmp_path)
     job, _ = await service.enqueue(

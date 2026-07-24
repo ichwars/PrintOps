@@ -160,9 +160,14 @@ async def test_accepting_sent_offer_creates_order_project_and_reservations_once(
     )
     assert confirmation is not None
     assert confirmation.number == accepted.json()["order"]["number"]
-    assert await db_session.scalar(
-        select(func.count()).select_from(DocumentRelation).where(
-            DocumentRelation.target_document_id == confirmation.id,
-            DocumentRelation.relation_type == "successor",
+    assert (
+        await db_session.scalar(
+            select(func.count())
+            .select_from(DocumentRelation)
+            .where(
+                DocumentRelation.target_document_id == confirmation.id,
+                DocumentRelation.relation_type == "successor",
+            )
         )
-    ) == 1
+        == 1
+    )

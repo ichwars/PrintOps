@@ -111,4 +111,3 @@ class CanonicalInvoice:
     buyer_reference: str | None = None
     is_credit: bool = False
     is_self_billed: bool = False
-

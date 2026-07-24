@@ -7,7 +7,6 @@ import json
 from importlib.metadata import version
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[4]
 RESOURCE_DIR = REPO_ROOT / "backend" / "app" / "resources" / "pdf"
 
@@ -23,11 +22,8 @@ def test_verapdf_runtime_manifest_is_pinned_and_signed() -> None:
     verapdf = manifest["verapdf"]
 
     assert verapdf["version"] == "1.30.2"
-    assert verapdf["url"] == (
-        "https://software.verapdf.org/rel/1.30/"
-        "verapdf-greenfield-1.30.2-installer.zip"
-    )
-    assert verapdf["signature_url"] == f'{verapdf["url"]}.asc'
+    assert verapdf["url"] == ("https://software.verapdf.org/rel/1.30/verapdf-greenfield-1.30.2-installer.zip")
+    assert verapdf["signature_url"] == f"{verapdf['url']}.asc"
     assert verapdf["signing_fingerprint"] == "13DD102B4DD69354D12DE5A83184863278B17FE7"
     assert len(verapdf["sha256"]) == 64
 

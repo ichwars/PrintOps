@@ -130,9 +130,7 @@ def from_snapshot(snapshot: IssuedDocumentSnapshot) -> CanonicalInvoice:
     try:
         type_code, is_credit, is_self_billed = _TYPE_CODES[snapshot.document_type]
     except KeyError as exc:
-        raise ValueError(
-            f"Document type {snapshot.document_type!r} is not E-invoice capable"
-        ) from exc
+        raise ValueError(f"Document type {snapshot.document_type!r} is not E-invoice capable") from exc
 
     currency = _iso_alpha(snapshot.currency, 3, "ISO 4217")
     lines = tuple(
@@ -143,9 +141,7 @@ def from_snapshot(snapshot: IssuedDocumentSnapshot) -> CanonicalInvoice:
             unit_code=_required(line.unit_code, "line.unit_code").upper(),
             unit_price=line.unit_price,
             net_amount=_money(line.net_amount),
-            tax_category_code=_required(
-                line.tax_category_code, "line.tax_category_code"
-            ).upper(),
+            tax_category_code=_required(line.tax_category_code, "line.tax_category_code").upper(),
             tax_rate=_money(line.tax_rate),
             product_identifier=_optional(line.product_identifier),
         )
@@ -174,9 +170,7 @@ def from_snapshot(snapshot: IssuedDocumentSnapshot) -> CanonicalInvoice:
     allowance = _money(totals.get("allowance", Decimal("0")))
     charge = _money(totals.get("charge", Decimal("0")))
     tax_total = _money(totals.get("tax", derived_tax))
-    invoice_total = _money(
-        totals.get("invoice_total", line_net - allowance + charge + tax_total)
-    )
+    invoice_total = _money(totals.get("invoice_total", line_net - allowance + charge + tax_total))
     paid = _money(totals.get("paid", Decimal("0")))
     payable = _money(totals.get("payable", invoice_total - paid))
 
@@ -210,17 +204,10 @@ def from_snapshot(snapshot: IssuedDocumentSnapshot) -> CanonicalInvoice:
 def validate_math(invoice: CanonicalInvoice) -> tuple[EInvoiceFinding, ...]:
     """Validate declared totals against independently recomputed EN-16931 totals."""
     findings: list[EInvoiceFinding] = []
-    calculated_line_net = _money(
-        sum((line.net_amount for line in invoice.lines), Decimal("0"))
-    )
-    calculated_tax = _money(
-        sum((subtotal.tax_amount for subtotal in invoice.tax_subtotals), Decimal("0"))
-    )
+    calculated_line_net = _money(sum((line.net_amount for line in invoice.lines), Decimal("0")))
+    calculated_tax = _money(sum((subtotal.tax_amount for subtotal in invoice.tax_subtotals), Decimal("0")))
     calculated_invoice_total = _money(
-        calculated_line_net
-        - invoice.allowance_total
-        + invoice.charge_total
-        + calculated_tax
+        calculated_line_net - invoice.allowance_total + invoice.charge_total + calculated_tax
     )
     calculated_payable = _money(calculated_invoice_total - invoice.paid_amount)
 

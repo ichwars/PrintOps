@@ -242,12 +242,8 @@ async def test_artifact_list_manifest_download_and_integrity_audit(
     await db_session.commit()
 
     listing = await async_client.get(f"{BASE_URL}/{document.id}/artifacts")
-    manifest = await async_client.get(
-        f"{BASE_URL}/{document.id}/artifacts/{artifact.id}/manifest"
-    )
-    download = await async_client.get(
-        f"{BASE_URL}/{document.id}/artifacts/{artifact.id}/download"
-    )
+    manifest = await async_client.get(f"{BASE_URL}/{document.id}/artifacts/{artifact.id}/manifest")
+    download = await async_client.get(f"{BASE_URL}/{document.id}/artifacts/{artifact.id}/download")
 
     assert listing.status_code == 200
     assert listing.json()[0]["original_role"] == "original"
@@ -259,9 +255,7 @@ async def test_artifact_list_manifest_download_and_integrity_audit(
     assert download.headers["etag"] == f'"{digest}"'
 
     target.write_bytes(content + b"tampered")
-    blocked = await async_client.get(
-        f"{BASE_URL}/{document.id}/artifacts/{artifact.id}/download"
-    )
+    blocked = await async_client.get(f"{BASE_URL}/{document.id}/artifacts/{artifact.id}/download")
     assert blocked.status_code == 409
     assert blocked.json()["detail"]["code"] == "artifact_integrity_failed"
     integrity_event = await db_session.scalar(

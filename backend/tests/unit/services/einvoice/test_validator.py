@@ -40,9 +40,7 @@ def test_missing_buyer_reference_has_stable_rule_and_field_path(canonical_invoic
 
     assert report.valid is False
     assert any(
-        finding.rule_id == "BR-DE-15"
-        and finding.field_path == "buyer.reference"
-        and finding.severity == "error"
+        finding.rule_id == "BR-DE-15" and finding.field_path == "buyer.reference" and finding.severity == "error"
         for finding in report.findings
     )
 

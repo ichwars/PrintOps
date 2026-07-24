@@ -338,16 +338,12 @@ async def test_concurrent_issuance_returns_one_document_and_one_idempotent_repla
         document = await session.get(CommercialDocument, document_id)
         reservations = list(
             await session.scalars(
-                select(DocumentNumberReservation).where(
-                    DocumentNumberReservation.document_id == document_id
-                )
+                select(DocumentNumberReservation).where(DocumentNumberReservation.document_id == document_id)
             )
         )
         assert document.technical_status == "issued"
         artifacts = list(
-            await session.scalars(
-                select(DocumentArtifact).where(DocumentArtifact.document_id == document_id)
-            )
+            await session.scalars(select(DocumentArtifact).where(DocumentArtifact.document_id == document_id))
         )
         pdfs = [item for item in artifacts if item.kind == "pdf"]
         assert len(pdfs) == 1
@@ -356,11 +352,7 @@ async def test_concurrent_issuance_returns_one_document_and_one_idempotent_repla
         assert pdfs[0].layout_effective_sha256
         assert pdfs[0].render_receipt["idempotency_id"] == "issue-key-123"
         actions = set(
-            await session.scalars(
-                select(DocumentAuditEvent.action).where(
-                    DocumentAuditEvent.object_id == document_id
-                )
-            )
+            await session.scalars(select(DocumentAuditEvent.action).where(DocumentAuditEvent.object_id == document_id))
         )
         assert {"render_start", "render_success", "issue"} <= actions
         assert len(reservations) == 1
@@ -395,9 +387,7 @@ async def test_failed_artifact_validation_keeps_voided_number_evidence(
     async with issuance_sessions() as session:
         document = await session.get(CommercialDocument, document_id)
         reservation = await session.scalar(
-            select(DocumentNumberReservation).where(
-                DocumentNumberReservation.document_id == document_id
-            )
+            select(DocumentNumberReservation).where(DocumentNumberReservation.document_id == document_id)
         )
         assert document.technical_status == "ready"
         assert document.number is None
@@ -405,11 +395,7 @@ async def test_failed_artifact_validation_keeps_voided_number_evidence(
         assert reservation.number == "RE-2026-0001"
         assert reservation.failure_code == "einvoice_invalid"
         actions = set(
-            await session.scalars(
-                select(DocumentAuditEvent.action).where(
-                    DocumentAuditEvent.object_id == document_id
-                )
-            )
+            await session.scalars(select(DocumentAuditEvent.action).where(DocumentAuditEvent.object_id == document_id))
         )
         assert {"render_start", "render_failure"} <= actions
 
@@ -448,11 +434,12 @@ async def test_missing_published_layout_blocks_before_number_reservation(issuanc
         assert any(item.code == "published_layout_missing" for item in captured.value.findings)
 
     async with issuance_sessions() as session:
-        assert await session.scalar(
-            select(DocumentNumberReservation.id).where(
-                DocumentNumberReservation.document_id == document_id
+        assert (
+            await session.scalar(
+                select(DocumentNumberReservation.id).where(DocumentNumberReservation.document_id == document_id)
             )
-        ) is None
+            is None
+        )
 
 
 @pytest.mark.asyncio
@@ -483,11 +470,12 @@ async def test_missing_pdf_validator_blocks_before_number_reservation(
         assert any(item.code == "pdf_validator_unavailable" for item in captured.value.findings)
 
     async with issuance_sessions() as session:
-        assert await session.scalar(
-            select(DocumentNumberReservation.id).where(
-                DocumentNumberReservation.document_id == document_id
+        assert (
+            await session.scalar(
+                select(DocumentNumberReservation.id).where(DocumentNumberReservation.document_id == document_id)
             )
-        ) is None
+            is None
+        )
 
 
 @pytest.mark.asyncio

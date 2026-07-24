@@ -312,9 +312,7 @@ async def preview_tax_decision(
 @router.post("/tax-decisions/override", response_model=TaxDecisionResponse)
 async def create_tax_override(
     data: TaxOverrideRequest,
-    user: User | None = RequirePermissionIfAuthEnabled(
-        Permission.COMMERCIAL_DOCUMENTS_TAX_OVERRIDE
-    ),
+    user: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_TAX_OVERRIDE),
 ) -> TaxDecisionResponse:
     decision = determine_tax(
         TaxDecisionInput(**data.facts.model_dump()),

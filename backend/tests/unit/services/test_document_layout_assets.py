@@ -148,9 +148,7 @@ def test_font_preflight_requires_rights_and_invoice_glyphs():
     source.save(incomplete)
     source.close()
     with pytest.raises(AssetValidationError) as error:
-        preflight_asset(
-            "font", incomplete.getvalue(), font_embedding_rights_confirmed=True
-        )
+        preflight_asset("font", incomplete.getvalue(), font_embedding_rights_confirmed=True)
     assert error.value.finding == "font_glyphs"
 
 
@@ -172,9 +170,7 @@ async def test_store_is_content_addressed_deduplicated_and_integrity_checked(db_
     )
     assert second.id == first.id
     assert first.original_name == "unsafe.jpg"
-    assert first.storage_key == (
-        f"document-layout-assets/{profile.id}/logo/{first.sha256[:2]}/{first.sha256}"
-    )
+    assert first.storage_key == (f"document-layout-assets/{profile.id}/logo/{first.sha256[:2]}/{first.sha256}")
     stored = safe_join(resolve_data_dir(), first.storage_key)
     assert stored.read_bytes() == read_asset(first)
     stored.write_bytes(b"tampered")
@@ -208,9 +204,7 @@ async def test_declared_hash_and_cross_profile_link_are_rejected(db_session):
         actor_id=None,
     )
     with pytest.raises(AssetAccessError, match="another business profile"):
-        await link_asset(
-            db_session, layout.id, AssetLinkRequest(asset_id=asset.id, role="logo")
-        )
+        await link_asset(db_session, layout.id, AssetLinkRequest(asset_id=asset.id, role="logo"))
 
 
 @pytest.mark.asyncio
@@ -225,9 +219,7 @@ async def test_referenced_asset_cannot_be_deleted(db_session):
     )
     layout = await create_draft(
         db_session,
-        CreateLayoutRequest(
-            scope=LayoutScope(business_profile_id=profile.id), reason="Asset link test"
-        ),
+        CreateLayoutRequest(scope=LayoutScope(business_profile_id=profile.id), reason="Asset link test"),
         actor_id=None,
     )
     await link_asset(db_session, layout.id, AssetLinkRequest(asset_id=asset.id, role="logo"))

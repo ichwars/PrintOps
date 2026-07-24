@@ -257,6 +257,7 @@ async def init_db():
     await seed_spool_catalog()
     await seed_color_catalog()
 
+
 async def _migrate_default_document_layouts() -> None:
     """Idempotently backfill unpublished classic drafts for existing profiles."""
     from backend.app.services.document_layouts import ensure_default_layout_drafts
@@ -266,7 +267,6 @@ async def _migrate_default_document_layouts() -> None:
         await session.commit()
     if created:
         logger.info("Created %d missing default document layout draft(s)", created)
-
 
 
 # B2: Module-level counter exposing the number of rows skipped during the last

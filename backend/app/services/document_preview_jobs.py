@@ -113,9 +113,7 @@ class DocumentPreviewJobService:
         if result.rowcount != 1:
             raise PreviewJobError("PREVIEW_NOT_QUEUED")
         await session.flush()
-        job = await session.scalar(
-            select(DocumentPreviewJob).where(DocumentPreviewJob.public_id == public_id)
-        )
+        job = await session.scalar(select(DocumentPreviewJob).where(DocumentPreviewJob.public_id == public_id))
         if job is None:
             raise PreviewJobError("PREVIEW_NOT_FOUND")
         return job

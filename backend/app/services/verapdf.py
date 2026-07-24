@@ -112,9 +112,10 @@ class VeraPdfRunner:
             raise VeraPdfExecutionError("PDF_VALIDATOR_TIMEOUT") from exc
         except OSError as exc:
             raise VeraPdfUnavailable("PDF_VALIDATOR_UNAVAILABLE") from exc
-        if len(result.stdout.encode("utf-8")) > _MAX_REPORT_BYTES or len(
-            result.stderr.encode("utf-8")
-        ) > _MAX_REPORT_BYTES:
+        if (
+            len(result.stdout.encode("utf-8")) > _MAX_REPORT_BYTES
+            or len(result.stderr.encode("utf-8")) > _MAX_REPORT_BYTES
+        ):
             raise VeraPdfExecutionError("PDF_VALIDATOR_OUTPUT_LIMIT")
         return result
 
@@ -221,4 +222,3 @@ class VeraPdfRunner:
             os.replace(temporary, target)
         finally:
             temporary.unlink(missing_ok=True)
-

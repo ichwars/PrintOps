@@ -982,9 +982,7 @@ async def restore_backup(
             verify_restored_document_artifacts,
         )
 
-        document_manifest_present = (
-            temp_path / "document-evidence" / "document-layout-manifest.json"
-        ).is_file()
+        document_manifest_present = (temp_path / "document-evidence" / "document-layout-manifest.json").is_file()
         document_integrity_issues = verify_restored_document_artifacts(
             temp_path,
             backup_db,

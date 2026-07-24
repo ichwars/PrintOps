@@ -79,9 +79,7 @@ async def get_business_profile(session: AsyncSession, profile_id: int) -> Busine
 async def list_number_sequences(session: AsyncSession, profile_id: int) -> list[NumberSequence]:
     await _load_business_profile(session, profile_id)
     result = await session.execute(
-        select(NumberSequence)
-        .where(NumberSequence.business_profile_id == profile_id)
-        .order_by(NumberSequence.key)
+        select(NumberSequence).where(NumberSequence.business_profile_id == profile_id).order_by(NumberSequence.key)
     )
     return list(result.scalars().all())
 

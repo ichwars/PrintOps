@@ -190,9 +190,7 @@ async def test_sensitive_audit_actions_require_reason(db_session):
 @pytest.mark.asyncio
 async def test_commercial_document_tables_are_registered(test_engine):
     async with test_engine.connect() as connection:
-        names = await connection.run_sync(
-            lambda sync_connection: set(inspect(sync_connection).get_table_names())
-        )
+        names = await connection.run_sync(lambda sync_connection: set(inspect(sync_connection).get_table_names()))
 
     assert {
         "commercial_documents",

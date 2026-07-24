@@ -17,8 +17,7 @@ from backend.app.services.document_view_model import build_document_view_model
 
 ROOT = Path(__file__).parents[2]
 STAGED_WEASYPRINT = (
-    ROOT.parent / "installers" / "windows" / "build" / "staging" / "runtime"
-    / "weasyprint" / "dist" / "weasyprint.exe"
+    ROOT.parent / "installers" / "windows" / "build" / "staging" / "runtime" / "weasyprint" / "dist" / "weasyprint.exe"
 )
 
 

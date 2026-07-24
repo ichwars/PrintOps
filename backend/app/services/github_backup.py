@@ -549,9 +549,9 @@ class GitHubBackupService:
 
         def table_value(model, row, column):
             value = getattr(row, column.name)
-            is_storage_path = (
-                model is DocumentArtifact and column.name == "storage_path"
-            ) or (model is DocumentLayoutAsset and column.name == "storage_key")
+            is_storage_path = (model is DocumentArtifact and column.name == "storage_path") or (
+                model is DocumentLayoutAsset and column.name == "storage_key"
+            )
             if is_storage_path and value is not None:
                 raw_path = str(value)
                 posix_path = PurePosixPath(raw_path)
@@ -580,11 +580,7 @@ class GitHubBackupService:
                 "schema_version": 1,
                 "table": model.__tablename__,
                 "rows": [
-                    {
-                        column.name: table_value(model, row, column)
-                        for column in model.__table__.columns
-                    }
-                    for row in rows
+                    {column.name: table_value(model, row, column) for column in model.__table__.columns} for row in rows
                 ],
             }
 
@@ -600,9 +596,7 @@ class GitHubBackupService:
                 "path": path,
                 "sha256": digest,
                 "size": len(content),
-                "integrity_status": (
-                    "valid" if expected_hash is None or expected_hash == digest else "invalid"
-                ),
+                "integrity_status": ("valid" if expected_hash is None or expected_hash == digest else "invalid"),
                 **metadata,
             }
 
@@ -626,9 +620,7 @@ class GitHubBackupService:
                     "application/xml": ".xml",
                     "text/xml": ".xml",
                 }.get(artifact.content_type, ".bin")
-            binary_path = (
-                f"documents/binary/artifacts/{artifact.id}-{artifact.sha256}{suffix.lower()}"
-            )
+            binary_path = f"documents/binary/artifacts/{artifact.id}-{artifact.sha256}{suffix.lower()}"
             add_binary(
                 binary_path,
                 content,
@@ -646,9 +638,7 @@ class GitHubBackupService:
             if not source.is_relative_to(data_root) or not source.is_file():
                 continue
             suffix = Path(asset.original_name).suffix.lower() or source.suffix.lower() or ".bin"
-            binary_path = (
-                f"documents/binary/layout-assets/{asset.id}-{asset.sha256}{suffix}"
-            )
+            binary_path = f"documents/binary/layout-assets/{asset.id}-{asset.sha256}{suffix}"
             add_binary(
                 binary_path,
                 source.read_bytes(),
@@ -681,19 +671,12 @@ class GitHubBackupService:
             "tables": table_counts,
             "artifact_storage": "content-addressed/binary",
             "integrity_status": (
-                "valid"
-                if all(entry["integrity_status"] == "valid" for entry in binary_entries.values())
-                else "invalid"
+                "valid" if all(entry["integrity_status"] == "valid" for entry in binary_entries.values()) else "invalid"
             ),
             "file_count": len(binary_entries),
             "counts_by_type": {
-                evidence_type: sum(
-                    entry["evidence_type"] == evidence_type
-                    for entry in binary_entries.values()
-                )
-                for evidence_type in sorted(
-                    {entry["evidence_type"] for entry in binary_entries.values()}
-                )
+                evidence_type: sum(entry["evidence_type"] == evidence_type for entry in binary_entries.values())
+                for evidence_type in sorted({entry["evidence_type"] for entry in binary_entries.values()})
             },
             "files": [binary_entries[path] for path in sorted(binary_entries)],
         }

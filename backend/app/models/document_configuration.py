@@ -178,9 +178,7 @@ class DunningPolicy(Base):
 
 class DunningStage(Base):
     __tablename__ = "dunning_stages"
-    __table_args__ = (
-        UniqueConstraint("dunning_policy_id", "level", name="uq_dunning_stage_level"),
-    )
+    __table_args__ = (UniqueConstraint("dunning_policy_id", "level", name="uq_dunning_stage_level"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     dunning_policy_id: Mapped[int] = mapped_column(

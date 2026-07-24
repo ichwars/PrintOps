@@ -49,9 +49,7 @@ def test_policy_rejects_discount_after_due_date():
     invalid_payment = policy().payment.model_copy(update={"discount_days": 30})
     findings = validate_policy(policy(payment=invalid_payment))
 
-    assert [(item.code, item.field_path) for item in findings] == [
-        ("discount_after_due_date", "payment.discount_days")
-    ]
+    assert [(item.code, item.field_path) for item in findings] == [("discount_after_due_date", "payment.discount_days")]
 
 
 def test_installment_percentages_must_total_one_hundred():

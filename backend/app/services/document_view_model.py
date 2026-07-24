@@ -159,9 +159,7 @@ def plain_text(value: object, *, max_length: int = 4000) -> str:
     """Normalize untrusted values as text; markup remains inert template input."""
     normalized = unicodedata.normalize("NFC", str(value)).replace("\r\n", "\n").replace("\r", "\n")
     normalized = "".join(
-        char
-        for char in normalized
-        if char in "\n\t" or unicodedata.category(char) not in {"Cc", "Cf"}
+        char for char in normalized if char in "\n\t" or unicodedata.category(char) not in {"Cc", "Cf"}
     )
     return normalized[:max_length]
 
@@ -176,8 +174,18 @@ def format_date(value: date | None, language: Literal["de", "en"]) -> str | None
     if language == "de":
         return f"{value.day:02d}.{value.month:02d}.{value.year:04d}"
     months = (
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December",
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
     )
     return f"{months[value.month - 1]} {value.day}, {value.year}"
 
@@ -268,15 +276,19 @@ def build_document_view_model(snapshot: IssuedDocumentSnapshot) -> DocumentViewM
     for line in snapshot.lines:
         key = (line.tax_category_code, line.tax_rate)
         tax_groups[key] = tax_groups.get(key, Decimal("0")) + line.net_amount
-    taxes = tuple(
-        TaxView(
-            category_code=category,
-            rate=f"{format_number(rate, language)} %",
-            basis=format_money(basis, snapshot.currency, language),
-            amount=format_money(basis * rate / Decimal("100"), snapshot.currency, language),
+    taxes = (
+        tuple(
+            TaxView(
+                category_code=category,
+                rate=f"{format_number(rate, language)} %",
+                basis=format_money(basis, snapshot.currency, language),
+                amount=format_money(basis * rate / Decimal("100"), snapshot.currency, language),
+            )
+            for (category, rate), basis in sorted(tax_groups.items(), key=lambda item: (item[0][1], item[0][0]))
         )
-        for (category, rate), basis in sorted(tax_groups.items(), key=lambda item: (item[0][1], item[0][0]))
-    ) if capability.has_tax else ()
+        if capability.has_tax
+        else ()
+    )
     totals = snapshot.totals
     payment = snapshot.payment
     term_days = payment.get("term_days")

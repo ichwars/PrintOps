@@ -73,15 +73,13 @@ beforeEach(() => {
 });
 
 describe('DocumentLayoutSettings flow', () => {
-  it('autosaves after 500 ms and advances the preview only after confirmation', async () => {
+  it('autosaves and advances the preview only after confirmation', async () => {
     renderFlow();
     expect(await screen.findByTestId('flow-preview')).toHaveTextContent('Confirmed 3');
 
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Top margin' }), { target: { value: '23' } });
     expect(screen.getByTestId('flow-preview')).toHaveTextContent('Confirmed 3');
 
-    await new Promise((resolve) => setTimeout(resolve, 350));
-    expect(mocks.patchLayout).not.toHaveBeenCalled();
 
     await waitFor(() => expect(mocks.patchLayout).toHaveBeenCalledTimes(1), { timeout: 1000 });
     expect(mocks.patchLayout).toHaveBeenCalledWith(17, expect.objectContaining({

@@ -25,8 +25,8 @@ def test_every_template_renders_every_document_type_and_language(template_key):
         html = render_document_html(build_document_view_model(snapshot), layout)
         assert f"template-{template_key}" in html
         assert snapshot.number in html
-        assert "<table class=\"positions" in html
-        assert "<section class=\"totals-block\">" in html or snapshot.document_type == "delivery_note"
+        assert '<table class="positions' in html
+        assert '<section class="totals-block">' in html or snapshot.document_type == "delivery_note"
 
 
 def test_markup_is_autoescaped_and_never_becomes_script_or_style():
@@ -34,9 +34,7 @@ def test_markup_is_autoescaped_and_never_becomes_script_or_style():
     hostile = "<script>alert(1)</script><style>body{display:none}</style>"
     line = snapshot.lines[0].model_copy(update={"description": hostile})
     snapshot = snapshot.model_copy(update={"lines": (line, *snapshot.lines[1:])})
-    html = render_document_html(
-        build_document_view_model(snapshot), TEMPLATE_DEFAULTS["classic"]
-    )
+    html = render_document_html(build_document_view_model(snapshot), TEMPLATE_DEFAULTS["classic"])
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
     assert html.count("<script") == 0
     assert html.count("<style") == 1
@@ -89,9 +87,7 @@ def test_typography_controls_change_the_rendered_pdf_css():
         }
     )
 
-    html = render_document_html(
-        build_document_view_model(load_sample("invoice-de-standard")), layout
-    )
+    html = render_document_html(build_document_view_model(load_sample("invoice-de-standard")), layout)
 
     assert "--table-size:13pt" in html
     assert "--paragraph-spacing:6mm" in html

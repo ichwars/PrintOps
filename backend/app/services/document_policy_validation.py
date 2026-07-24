@@ -28,9 +28,7 @@ _PLACEHOLDER_DOCUMENT_TYPES: dict[str, frozenset[DocumentType]] = {
         }
     ),
     "DUE_DATE": frozenset(
-        document_type
-        for document_type, capability in DOCUMENT_CAPABILITIES.items()
-        if capability.has_payment_terms
+        document_type for document_type, capability in DOCUMENT_CAPABILITIES.items() if capability.has_payment_terms
     ),
     "SERVICE_DATE": frozenset({DocumentType.PROGRESS_INVOICE, DocumentType.FINAL_INVOICE, DocumentType.INVOICE}),
     "ORIGINAL_DOCUMENT_NUMBER": frozenset(
@@ -115,10 +113,14 @@ def validate_policy(policy: DocumentConfigurationDraft) -> tuple[PolicyFinding, 
             _finding("payment_term_negative", "payment.payment_term_days", "documents.errors.paymentTermNegative")
         )
     if payment.discount_days < 0:
-        findings.append(_finding("discount_days_negative", "payment.discount_days", "documents.errors.discountDaysNegative"))
+        findings.append(
+            _finding("discount_days_negative", "payment.discount_days", "documents.errors.discountDaysNegative")
+        )
     if payment.discount_percent < 0:
         findings.append(
-            _finding("discount_percent_negative", "payment.discount_percent", "documents.errors.discountPercentNegative")
+            _finding(
+                "discount_percent_negative", "payment.discount_percent", "documents.errors.discountPercentNegative"
+            )
         )
     if payment.discount_percent > 0 and payment.discount_days > payment.payment_term_days:
         findings.append(
@@ -258,6 +260,7 @@ def render_text_blocks(
     missing_findings: list[PolicyFinding] = []
     rendered: list[RenderedTextBlock] = []
     for index, block in enumerate(sorted(blocks, key=lambda item: item.position)):
+
         def replace(match: re.Match[str], block_index: int = index) -> str:
             placeholder = match.group(1)
             if placeholder not in values:

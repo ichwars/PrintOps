@@ -634,9 +634,7 @@ class PreviewRequest(StrictModel):
     @model_validator(mode="after")
     def validate_source_reference(self) -> PreviewRequest:
         if self.source_kind == "document" and (
-            not self.source_id.isascii()
-            or not self.source_id.isdecimal()
-            or int(self.source_id) <= 0
+            not self.source_id.isascii() or not self.source_id.isdecimal() or int(self.source_id) <= 0
         ):
             raise ValueError("document source_id must be a positive decimal identifier")
         return self

@@ -57,9 +57,7 @@ def test_final_invoice_requires_prior_payment_deductions_by_tax_group():
     draft = _draft(
         "final_invoice",
         content_options={
-            "prior_invoices": [
-                {"document_id": 10, "tax_category_code": "S", "tax_rate": "19.00", "gross": "119.00"}
-            ],
+            "prior_invoices": [{"document_id": 10, "tax_category_code": "S", "tax_rate": "19.00", "gross": "119.00"}],
             "prior_payment_deductions": [],
         },
     )
@@ -97,9 +95,7 @@ def test_complete_final_invoice_deductions_match_tax_groups():
     draft = _draft(
         "final_invoice",
         content_options={
-            "prior_invoices": [
-                {"document_id": 10, "tax_category_code": "S", "tax_rate": "19.00", "gross": "119.00"}
-            ],
+            "prior_invoices": [{"document_id": 10, "tax_category_code": "S", "tax_rate": "19.00", "gross": "119.00"}],
             "prior_payment_deductions": [
                 {"document_id": 10, "tax_category_code": "S", "tax_rate": "19.00", "gross": "119.00"}
             ],

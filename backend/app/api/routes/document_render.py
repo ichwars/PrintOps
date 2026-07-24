@@ -122,8 +122,7 @@ async def render_document(
         (
             item
             for item in document.artifacts
-            if item.kind == "pdf"
-            and (item.render_receipt or {}).get("idempotency_id") == command.idempotency_id
+            if item.kind == "pdf" and (item.render_receipt or {}).get("idempotency_id") == command.idempotency_id
         ),
         None,
     )
@@ -185,9 +184,7 @@ async def render_document(
     roles = {link.role: link.asset.sha256 for link in layout.asset_links}
     renderer = DocumentRenderer(
         einvoice_artifact_resolver=(
-            (lambda _reference, _render_input: resolved_einvoice)
-            if resolved_einvoice is not None
-            else None
+            (lambda _reference, _render_input: resolved_einvoice) if resolved_einvoice is not None else None
         )
     )
     document_timestamp = snapshot_row.issued_at
@@ -213,7 +210,9 @@ async def render_document(
             _error(request, 504, exc.code, "PDF rendering timed out")
         if exc.code in {"RENDER_PAGE_LIMIT", "RENDER_MEMORY_LIMIT"}:
             _error(request, 413, exc.code, "The render limits were exceeded")
-        if exc.code in {"RENDER_INPUT_INVALID", "EINVOICE_ARTIFACT_NOT_VALID"} or exc.code.startswith(("ZUGFERD_", "XRECHNUNG_", "EINVOICE_")):
+        if exc.code in {"RENDER_INPUT_INVALID", "EINVOICE_ARTIFACT_NOT_VALID"} or exc.code.startswith(
+            ("ZUGFERD_", "XRECHNUNG_", "EINVOICE_")
+        ):
             _error(request, 422, exc.code, "The render evidence is invalid")
         _error(request, 424, exc.code, "A required render component failed")
     if rendered.artifact_path is None:
@@ -228,15 +227,15 @@ async def render_document(
         sha256=rendered.sha256,
         validation_status=rendered.validation_status,
         validation_report=(
-            rendered.validation_report.model_dump(mode="json")
-            if rendered.validation_report is not None
-            else {}
+            rendered.validation_report.model_dump(mode="json") if rendered.validation_report is not None else {}
         ),
         rule_versions={"pdfa": "3u"},
         layout_configuration_id=layout.id,
         layout_version=layout.version,
         layout_effective_sha256=resolved.effective_sha256,
-        asset_receipts={link.role: {"asset_id": link.asset.id, "sha256": link.asset.sha256} for link in layout.asset_links},
+        asset_receipts={
+            link.role: {"asset_id": link.asset.id, "sha256": link.asset.sha256} for link in layout.asset_links
+        },
         renderer_version=RENDERER_VERSION,
         validator_version=VALIDATOR_VERSION,
         render_receipt={

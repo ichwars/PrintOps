@@ -37,26 +37,9 @@ from backend.app.services.verapdf import VeraPdfRunner
 
 ROOT = Path(__file__).parents[2]
 WEASYPRINT = (
-    ROOT.parent
-    / "installers"
-    / "windows"
-    / "build"
-    / "staging"
-    / "runtime"
-    / "weasyprint"
-    / "dist"
-    / "weasyprint.exe"
+    ROOT.parent / "installers" / "windows" / "build" / "staging" / "runtime" / "weasyprint" / "dist" / "weasyprint.exe"
 )
-VERAPDF = (
-    ROOT.parent
-    / "installers"
-    / "windows"
-    / "build"
-    / "staging"
-    / "runtime"
-    / "verapdf"
-    / "verapdf.bat"
-)
+VERAPDF = ROOT.parent / "installers" / "windows" / "build" / "staging" / "runtime" / "verapdf" / "verapdf.bat"
 
 
 async def _document(db_session, name: str) -> CommercialDocument:

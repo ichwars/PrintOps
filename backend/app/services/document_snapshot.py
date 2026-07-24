@@ -84,9 +84,7 @@ async def attach_issued_snapshot(
 ) -> DocumentSnapshot:
     if document.technical_status != "issued":
         raise ValueError("A snapshot can only be attached to an issued document")
-    existing = await session.scalar(
-        select(DocumentSnapshot.id).where(DocumentSnapshot.document_id == document.id)
-    )
+    existing = await session.scalar(select(DocumentSnapshot.id).where(DocumentSnapshot.document_id == document.id))
     if existing is not None:
         raise ImmutableDocumentError("The issued document already has a snapshot")
 
@@ -205,9 +203,7 @@ async def render_issued_pdf(
 
     renderer = DocumentRenderer(
         einvoice_artifact_resolver=(
-            (lambda _reference, _render_input: resolved_einvoice)
-            if resolved_einvoice is not None
-            else None
+            (lambda _reference, _render_input: resolved_einvoice) if resolved_einvoice is not None else None
         )
     )
     try:
@@ -228,11 +224,7 @@ async def render_issued_pdf(
     except DocumentRendererError as exc:
         raise IssuedPdfError(exc.code) from None
     try:
-        persisted_content = (
-            rendered.artifact_path.read_bytes()
-            if rendered.artifact_path is not None
-            else b""
-        )
+        persisted_content = rendered.artifact_path.read_bytes() if rendered.artifact_path is not None else b""
     except OSError as exc:
         raise IssuedPdfError("PDF_ARTIFACT_STORAGE_INVALID") from exc
     if (
@@ -244,9 +236,7 @@ async def render_issued_pdf(
         raise IssuedPdfError("PDF_VALIDATION_FAILED")
 
     original_role = (
-        "visual_copy"
-        if einvoice_artifact is not None and einvoice_artifact.kind == "xrechnung_xml"
-        else "original"
+        "visual_copy" if einvoice_artifact is not None and einvoice_artifact.kind == "xrechnung_xml" else "original"
     )
     export_manifest = dict(rendered.export_manifest)
     export_manifest.update(
@@ -273,9 +263,7 @@ async def render_issued_pdf(
         sha256=rendered.sha256,
         validation_status="valid",
         validation_report=(
-            rendered.validation_report.model_dump(mode="json")
-            if rendered.validation_report is not None
-            else {}
+            rendered.validation_report.model_dump(mode="json") if rendered.validation_report is not None else {}
         ),
         rule_versions={"pdfa": "3u"},
         layout_configuration_id=selected_layout.id,

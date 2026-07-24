@@ -11,9 +11,7 @@ from backend.app.models.document_layout import (
     DocumentLayoutConfiguration,
 )
 
-_REASON_REQUIRED_ACTIONS = frozenset(
-    {"publication", "tax_override", "issue", "cancel", "correct", "export"}
-)
+_REASON_REQUIRED_ACTIONS = frozenset({"publication", "tax_override", "issue", "cancel", "correct", "export"})
 
 
 async def append_audit(
@@ -103,6 +101,4 @@ async def append_or_merge_layout_edit_session(
     )
     receipt_id = receipt.id
     session.expire(receipt)
-    return await session.scalar(
-        select(DocumentLayoutAuditReceipt).where(DocumentLayoutAuditReceipt.id == receipt_id)
-    )
+    return await session.scalar(select(DocumentLayoutAuditReceipt).where(DocumentLayoutAuditReceipt.id == receipt_id))

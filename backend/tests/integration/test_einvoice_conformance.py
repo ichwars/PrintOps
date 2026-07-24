@@ -46,8 +46,23 @@ def conformance_invoice() -> CanonicalInvoice:
             electronic_address_scheme="0204",
         ),
         buyer_reference="04011000-12345-34",
-        lines=(CanonicalLine(position=1, description="3D-Druck", quantity=Decimal("1"), unit_code="C62", unit_price=Decimal("100"), net_amount=Decimal("100"), tax_category_code="S", tax_rate=Decimal("19")),),
-        tax_subtotals=(CanonicalTaxSubtotal(category_code="S", rate=Decimal("19"), taxable_amount=Decimal("100"), tax_amount=Decimal("19")),),
+        lines=(
+            CanonicalLine(
+                position=1,
+                description="3D-Druck",
+                quantity=Decimal("1"),
+                unit_code="C62",
+                unit_price=Decimal("100"),
+                net_amount=Decimal("100"),
+                tax_category_code="S",
+                tax_rate=Decimal("19"),
+            ),
+        ),
+        tax_subtotals=(
+            CanonicalTaxSubtotal(
+                category_code="S", rate=Decimal("19"), taxable_amount=Decimal("100"), tax_amount=Decimal("19")
+            ),
+        ),
         tax_total=Decimal("19"),
         line_net_total=Decimal("100"),
         allowance_total=Decimal("0"),
@@ -55,7 +70,14 @@ def conformance_invoice() -> CanonicalInvoice:
         invoice_total=Decimal("119"),
         paid_amount=Decimal("0"),
         payable_amount=Decimal("119"),
-        payment=CanonicalPayment(means_code="58", due_date=date(2026, 8, 5), terms="Zahlbar binnen 14 Tagen.", iban="DE02120300000000202051", bic="BYLADEM1001", account_name="PrintOps GmbH"),
+        payment=CanonicalPayment(
+            means_code="58",
+            due_date=date(2026, 8, 5),
+            terms="Zahlbar binnen 14 Tagen.",
+            iban="DE02120300000000202051",
+            bic="BYLADEM1001",
+            account_name="PrintOps GmbH",
+        ),
         references=(),
     )
 
@@ -69,9 +91,7 @@ def conformance_invoice() -> CanonicalInvoice:
         ("zugferd", "cii-d22b", "xrechnung", lambda invoice: render_zugferd(invoice, "xrechnung")),
     ],
 )
-def test_generated_xml_conforms_to_pinned_official_rules(
-    conformance_invoice, standard, syntax, profile, renderer
-):
+def test_generated_xml_conforms_to_pinned_official_rules(conformance_invoice, standard, syntax, profile, renderer):
     xml = renderer(conformance_invoice)
     report = validate_xml(xml, standard, syntax, profile)
 
@@ -90,9 +110,7 @@ def test_xrechnung_b2g_buyer_reference_is_a_blocking_business_rule(conformance_i
 
     assert report.valid is False
     assert "BR-DE-15" in {finding.rule_id for finding in report.blockers}
-    assert {finding.field_path for finding in report.blockers if finding.rule_id == "BR-DE-15"} == {
-        "buyer.reference"
-    }
+    assert {finding.field_path for finding in report.blockers if finding.rule_id == "BR-DE-15"} == {"buyer.reference"}
 
 
 def test_conformance_output_is_byte_deterministic(conformance_invoice):

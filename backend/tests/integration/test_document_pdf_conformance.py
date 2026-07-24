@@ -12,8 +12,8 @@ from pathlib import Path
 import pikepdf
 import pytest
 
-from backend.app.services.document_layout_defaults import TEMPLATE_DEFAULTS
 from backend.app.services.document_catalog import DOCUMENT_CAPABILITIES, DocumentType
+from backend.app.services.document_layout_defaults import TEMPLATE_DEFAULTS
 from backend.app.services.document_layout_samples import load_all_samples, load_sample, sample_catalog
 from backend.app.services.document_renderer import DocumentRenderer, RenderInput, RenderLimits
 from backend.app.services.document_view_model import build_document_view_model
@@ -23,8 +23,7 @@ from backend.app.services.verapdf import VeraPdfRunner
 ROOT = Path(__file__).parents[2]
 FIXTURES = ROOT / "tests" / "fixtures" / "document_layouts"
 WEASYPRINT = (
-    ROOT.parent / "installers" / "windows" / "build" / "staging" / "runtime"
-    / "weasyprint" / "dist" / "weasyprint.exe"
+    ROOT.parent / "installers" / "windows" / "build" / "staging" / "runtime" / "weasyprint" / "dist" / "weasyprint.exe"
 )
 VERAPDF = ROOT.parent / "installers" / "windows" / "build" / "staging" / "runtime" / "verapdf" / "verapdf.bat"
 
@@ -91,6 +90,7 @@ def test_maximum_typography_settings_render_in_preview(tmp_path):
     assert rendered.page_count >= 1
     assert rendered.content.startswith(b"%PDF-")
 
+
 def test_custom_font_is_resolved_only_from_registered_asset(tmp_path):
     font = (FIXTURES / "test-font.ttf").read_bytes()
     digest = hashlib.sha256(font).hexdigest()
@@ -101,16 +101,12 @@ def test_custom_font_is_resolved_only_from_registered_asset(tmp_path):
             )
         }
     )
-    rendered = _renderer(tmp_path).render_final(
-        _input(layout, assets={digest: font}, roles={"font_regular": digest})
-    )
+    rendered = _renderer(tmp_path).render_final(_input(layout, assets={digest: font}, roles={"font_regular": digest}))
     report = inspect_pdfa3u(rendered.content)
     assert report.valid is True
     with pikepdf.open(io.BytesIO(rendered.content)) as pdf:
         base_fonts = {
-            str(font_object.BaseFont)
-            for page in pdf.pages
-            for font_object in page.Resources.get("/Font", {}).values()
+            str(font_object.BaseFont) for page in pdf.pages for font_object in page.Resources.get("/Font", {}).values()
         }
     assert any("Bitstream-Vera-Sans" in name for name in base_fonts)
 
@@ -142,9 +138,7 @@ def test_first_and_following_letterhead_are_applied_as_backgrounds(tmp_path):
     assert inspect_pdfa3u(rendered.content).valid is True
 
 
-_SAMPLE_KEYS = {
-    (item.document_type, item.language): item.key for item in sample_catalog()
-}
+_SAMPLE_KEYS = {(item.document_type, item.language): item.key for item in sample_catalog()}
 
 
 @pytest.mark.parametrize("document_type", tuple(DocumentType))
@@ -164,11 +158,7 @@ def test_supported_document_matrix_renders_pdfa3u_with_unicode_and_correct_capab
     view_model = build_document_view_model(sample)
     layout = TEMPLATE_DEFAULTS[template_key]
     layout = layout.model_copy(
-        update={
-            "page": layout.page.model_copy(
-                update={"template_key": template_key, "page_format": page_format}
-            )
-        }
+        update={"page": layout.page.model_copy(update={"template_key": template_key, "page_format": page_format})}
     )
 
     rendered = _validated_renderer(tmp_path).render_final(

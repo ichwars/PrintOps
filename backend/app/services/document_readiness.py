@@ -122,9 +122,7 @@ def probe_document_runtime(
             findings.extend(("PDF_RENDERER_UNAVAILABLE", "PDF_PANGO_UNAVAILABLE"))
 
     manifest = json.loads(
-        resources.files("backend.app.resources.pdf")
-        .joinpath("runtime-manifest.json")
-        .read_text(encoding="utf-8")
+        resources.files("backend.app.resources.pdf").joinpath("runtime-manifest.json").read_text(encoding="utf-8")
     )
     icc = resources.files("backend.app.resources.pdf").joinpath(manifest["srgb"]["filename"])
     icc_digest = hashlib.sha256(icc.read_bytes()).hexdigest() if icc.is_file() else None

@@ -271,9 +271,7 @@ async def _new_accounts(
             )
         account = CustomerAccount(**values)
         if account_data.document_preference is not None:
-            account.document_preference = CustomerDocumentPreference(
-                **account_data.document_preference.model_dump()
-            )
+            account.document_preference = CustomerDocumentPreference(**account_data.document_preference.model_dump())
         accounts.append(account)
     return accounts
 

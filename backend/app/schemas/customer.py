@@ -83,9 +83,7 @@ class CustomerDocumentPreferenceInput(_NormalizedModel):
         if self.vat_validation_result != "unchecked" and (
             not self.vat_validation_provider or self.vat_checked_at is None
         ):
-            raise ValueError(
-                "vat_validation_provider and vat_checked_at are required for a checked VAT result"
-            )
+            raise ValueError("vat_validation_provider and vat_checked_at are required for a checked VAT result")
         if self.vat_validation_result == "unchecked" and self.vat_checked_at is not None:
             raise ValueError("vat_checked_at is not allowed for an unchecked VAT result")
         return self

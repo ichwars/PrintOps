@@ -84,9 +84,7 @@ def load_document_defaults(language: str) -> dict[str, Any]:
                 raise DocumentDefaultsError(f"Missing {field} default for {language}/{document_type}")
             invalid = sorted(set(_PLACEHOLDER_PATTERN.findall(value)) - allowed_placeholders)
             if invalid:
-                raise DocumentDefaultsError(
-                    f"Invalid placeholders in {language}/{document_type}/{field}: {invalid}"
-                )
+                raise DocumentDefaultsError(f"Invalid placeholders in {language}/{document_type}/{field}: {invalid}")
 
     payment_terms = payload.get("payment_terms")
     if not isinstance(payment_terms, str) or not payment_terms.strip():
@@ -127,7 +125,9 @@ async def seed_document_configurations(conn) -> None:
     """Seed complete bilingual version-one drafts without overwriting existing rows."""
 
     defaults_by_language = {language: load_document_defaults(language) for language in SUPPORTED_LANGUAGES}
-    settings_result = await conn.execute(select(Settings.key, Settings.value).where(Settings.key.in_(LEGACY_SETTING_KEYS)))
+    settings_result = await conn.execute(
+        select(Settings.key, Settings.value).where(Settings.key.in_(LEGACY_SETTING_KEYS))
+    )
     legacy_settings = dict(settings_result.all())
     profile_rows = (await conn.execute(select(BusinessProfile.id, BusinessProfile.default_currency))).all()
 

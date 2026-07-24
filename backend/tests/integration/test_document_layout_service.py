@@ -89,9 +89,7 @@ async def test_draft_autosave_conflict_publish_immutability_and_clone(db_session
 
     receipts = (
         await db_session.scalars(
-            select(DocumentLayoutAuditReceipt).where(
-                DocumentLayoutAuditReceipt.configuration_id == draft.id
-            )
+            select(DocumentLayoutAuditReceipt).where(DocumentLayoutAuditReceipt.configuration_id == draft.id)
         )
     ).all()
     autosaves = [receipt for receipt in receipts if receipt.event_type == "autosave"]
@@ -258,9 +256,7 @@ async def test_scheduled_layout_can_be_withdrawn_or_activated_and_supersedes(db_
     profile = await _profile(db_session)
     first = await create_draft(
         db_session,
-        CreateLayoutRequest(
-            scope=LayoutScope(business_profile_id=profile.id), reason="Erste Version"
-        ),
+        CreateLayoutRequest(scope=LayoutScope(business_profile_id=profile.id), reason="Erste Version"),
         actor_id=None,
     )
     first = await publish_layout(
@@ -278,9 +274,7 @@ async def test_scheduled_layout_can_be_withdrawn_or_activated_and_supersedes(db_
     scheduled = await publish_layout(
         db_session,
         scheduled.id,
-        PublishLayoutRequest(
-            expected_lock_version=1, reason="Zum Stichtag", effective_from=due
-        ),
+        PublishLayoutRequest(expected_lock_version=1, reason="Zum Stichtag", effective_from=due),
         actor_id=None,
     )
     assert scheduled.status == "scheduled"
@@ -300,14 +294,10 @@ async def test_scheduled_layout_can_be_withdrawn_or_activated_and_supersedes(db_
     replacement = await publish_layout(
         db_session,
         replacement.id,
-        PublishLayoutRequest(
-            expected_lock_version=1, reason="Neuer Termin", effective_from=due
-        ),
+        PublishLayoutRequest(expected_lock_version=1, reason="Neuer Termin", effective_from=due),
         actor_id=None,
     )
-    assert await activate_due_layouts(db_session, now=due + timedelta(seconds=1)) == (
-        replacement.id,
-    )
+    assert await activate_due_layouts(db_session, now=due + timedelta(seconds=1)) == (replacement.id,)
     first_id = first.id
     replacement_id = replacement.id
     model_type = type(first)

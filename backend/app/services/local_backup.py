@@ -21,6 +21,7 @@ from sqlalchemy import select
 from backend.app.core.config import settings as app_settings
 from backend.app.core.database import async_session
 from backend.app.models.settings import Settings
+from backend.app.utils.safe_path import safe_join_under
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +57,8 @@ def stage_document_evidence(staging_dir: Path, data_dir: Path) -> None:
     }
     entries: list[dict] = []
     for directory, evidence_type in evidence_roots.items():
-        source_root = data_dir / directory
-        target_root = staging_dir / directory
+        source_root = data_dir / directory  # SEC-PATH-OK: trusted evidence_roots constant
+        target_root = staging_dir / directory  # SEC-PATH-OK: trusted evidence_roots constant
         if not source_root.is_dir():
             continue
         shutil.copytree(source_root, target_root, dirs_exist_ok=True)
@@ -81,12 +82,7 @@ def stage_document_evidence(staging_dir: Path, data_dir: Path) -> None:
     if backup_db.is_file():
         connection = sqlite3.connect(str(backup_db))
         try:
-            tables = {
-                row[0]
-                for row in connection.execute(
-                    "SELECT name FROM sqlite_master WHERE type = 'table'"
-                )
-            }
+            tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
             metadata: dict[str, tuple[int | None, int | None, int | None, str | None]] = {}
             if "document_artifacts" in tables:
                 for artifact_id, document_id, storage_path, expected_hash in connection.execute(
@@ -120,9 +116,7 @@ def stage_document_evidence(staging_dir: Path, data_dir: Path) -> None:
                     database_id=database_id,
                     database_sha256=database_sha256,
                     integrity_status=(
-                        "valid"
-                        if database_sha256 is None or database_sha256 == entry["sha256"]
-                        else "invalid"
+                        "valid" if database_sha256 is None or database_sha256 == entry["sha256"] else "invalid"
                     ),
                 )
         finally:
@@ -139,9 +133,7 @@ def stage_document_evidence(staging_dir: Path, data_dir: Path) -> None:
             {
                 "schema_version": 1,
                 "integrity_status": (
-                    "valid"
-                    if all(entry["integrity_status"] == "valid" for entry in entries)
-                    else "invalid"
+                    "valid" if all(entry["integrity_status"] == "valid" for entry in entries) else "invalid"
                 ),
                 "file_count": len(entries),
                 "counts_by_type": {
@@ -194,7 +186,7 @@ def verify_restored_document_artifacts(
                     code = "manifest_database_hash_mismatch"
                 elif destination_root is not None:
                     destination_base = destination_root.resolve()
-                    destination = (destination_base / relative).resolve()
+                    destination = safe_join_under(destination_base, relative.as_posix(), http=False)
                     if destination.is_relative_to(destination_base) and destination.is_file():
                         destination_hash = sha256(destination.read_bytes()).hexdigest()
                         if destination_hash != actual_hash:
@@ -212,15 +204,14 @@ def verify_restored_document_artifacts(
                 )
     connection = sqlite3.connect(str(backup_db))
     try:
-        tables = {
-            row[0]
-            for row in connection.execute(
-                "SELECT name FROM sqlite_master WHERE type = 'table'"
-            )
-        }
+        tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
         for issue in list(issues):
             database_id = issue.get("artifact_id")
-            if issue.get("evidence_type") == "layout_asset" and database_id is not None and "document_layout_assets" in tables:
+            if (
+                issue.get("evidence_type") == "layout_asset"
+                and database_id is not None
+                and "document_layout_assets" in tables
+            ):
                 connection.execute(
                     "UPDATE document_layout_assets SET preflight_status = 'invalid', preflight_report = ? WHERE id = ?",
                     (json.dumps({"restore_integrity": issue}, ensure_ascii=False), database_id),
@@ -241,15 +232,12 @@ def verify_restored_document_artifacts(
                         (json.dumps(report, ensure_ascii=False), database_id),
                     )
         if any(item.get("evidence_type") == "validation_report" for item in issues) and "document_artifacts" in tables:
-            connection.execute(
-                "UPDATE document_artifacts SET validation_status = 'invalid' WHERE kind = 'pdf'"
-            )
+            connection.execute("UPDATE document_artifacts SET validation_status = 'invalid' WHERE kind = 'pdf'")
         if "document_artifacts" not in tables:
             connection.commit()
             return issues
         rows = connection.execute(
-            "SELECT id, storage_path, content, sha256, validation_report "
-            "FROM document_artifacts ORDER BY id"
+            "SELECT id, storage_path, content, sha256, validation_report FROM document_artifacts ORDER BY id"
         ).fetchall()
         for artifact_id, storage_path, content, expected_hash, raw_report in rows:
             code = None
@@ -292,6 +280,10 @@ def verify_restored_document_artifacts(
                 (json.dumps(report, ensure_ascii=False), artifact_id),
             )
         connection.commit()
+    except sqlite3.DatabaseError:
+        if evidence_manifest.is_file():
+            raise
+        return issues
     finally:
         connection.close()
     return issues
@@ -337,7 +329,7 @@ def restore_document_evidence_files(
     for entry in manifest.get("files", []):
         relative = Path(str(entry.get("path") or ""))
         source = (backup_base / relative).resolve()
-        destination = (destination_base / relative).resolve()
+        destination = safe_join_under(destination_base, relative.as_posix(), http=False)
         if (
             relative.is_absolute()
             or not source.is_relative_to(backup_base)
@@ -353,10 +345,7 @@ def restore_document_evidence_files(
                 continue
             conflicts += 1
             conflict_target = (
-                destination_base
-                / "document-restore-conflicts"
-                / sha256(content).hexdigest()
-                / relative.name
+                destination_base / "document-restore-conflicts" / sha256(content).hexdigest() / relative.name
             )
             if not conflict_target.exists():
                 write_atomically(conflict_target, content)

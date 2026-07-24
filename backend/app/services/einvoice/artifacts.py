@@ -135,11 +135,7 @@ def _read_stored_content(artifact: DocumentArtifact) -> bytes:
     except OSError as exc:
         raise EInvoiceArtifactError("EINVOICE_ARTIFACT_UNAVAILABLE") from exc
     if sha256(content).hexdigest() != artifact.sha256:
-        code = (
-            "ZUGFERD_XML_HASH_MISMATCH"
-            if artifact.kind == "zugferd_xml"
-            else "XRECHNUNG_XML_HASH_MISMATCH"
-        )
+        code = "ZUGFERD_XML_HASH_MISMATCH" if artifact.kind == "zugferd_xml" else "XRECHNUNG_XML_HASH_MISMATCH"
         raise EInvoiceArtifactError(code)
     return content
 
@@ -202,9 +198,7 @@ async def load_validated_artifact(
     actor_id: int | None = None,
     correlation_id: str = "einvoice-artifact-resolution",
 ) -> ResolvedEInvoiceArtifact:
-    artifact = await session.scalar(
-        select(DocumentArtifact).where(DocumentArtifact.id == artifact_id)
-    )
+    artifact = await session.scalar(select(DocumentArtifact).where(DocumentArtifact.id == artifact_id))
     try:
         if artifact is None:
             raise EInvoiceArtifactError("EINVOICE_ARTIFACT_UNAVAILABLE")

@@ -90,7 +90,9 @@ def _detail(configuration: DocumentConfiguration) -> DocumentConfigurationDetail
     except InvalidStateConflictError:
         policy = None
         findings = []
-    return DocumentConfigurationDetail(**_summary(configuration).model_dump(), policy=policy, validation_findings=findings)
+    return DocumentConfigurationDetail(
+        **_summary(configuration).model_dump(), policy=policy, validation_findings=findings
+    )
 
 
 def _raise_domain_error(error: OrderDomainError) -> NoReturn:
@@ -182,7 +184,7 @@ async def get_catalog(
                 allowed_successors=sorted(item.value for item in capability.allowed_successors),
             )
             for document_type, capability in DOCUMENT_CAPABILITIES.items()
-        ]
+        ],
     )
 
 
@@ -313,7 +315,9 @@ async def patch_configuration(
         _raise_domain_error(error)
 
 
-@router.post("/{configuration_id}/clone", response_model=DocumentConfigurationDetail, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{configuration_id}/clone", response_model=DocumentConfigurationDetail, status_code=status.HTTP_201_CREATED
+)
 async def clone_configuration(
     configuration_id: int,
     request: Request,

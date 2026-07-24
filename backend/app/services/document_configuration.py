@@ -131,7 +131,9 @@ async def create_draft(
     )
     configuration.basic_policy = DocumentBasicPolicy(
         subject=document_defaults["subject"],
-        validity_days=(defaults["defaults"]["validity_days"] if command.document_type is DocumentType.QUOTATION else None),
+        validity_days=(
+            defaults["defaults"]["validity_days"] if command.document_type is DocumentType.QUOTATION else None
+        ),
         allowed_successors=sorted(successor.value for successor in capability.allowed_successors),
     )
     configuration.payment_policy = PaymentPolicy(
@@ -247,7 +249,9 @@ async def update_draft(
             raise InvalidStateConflictError(f"Unsupported document configuration patch section: {section}")
         values = deepcopy(values)
         if section == "dunning" and "stages" in values:
-            target.stages = [DunningStage(**DunningStageDraft.model_validate(item).model_dump()) for item in values.pop("stages")]
+            target.stages = [
+                DunningStage(**DunningStageDraft.model_validate(item).model_dump()) for item in values.pop("stages")
+            ]
         if section == "payment":
             discount_days = values.pop("discount_days", None)
             discount_percent = values.pop("discount_percent", None)
@@ -551,7 +555,9 @@ async def resolve_effective(
     content = configuration.content_policy
     tax = configuration.tax_policy
     einvoice = configuration.einvoice_policy
-    assert basic is not None and payment is not None and content is not None and tax is not None and einvoice is not None
+    assert (
+        basic is not None and payment is not None and content is not None and tax is not None and einvoice is not None
+    )
 
     payment_term_value = payment.payment_term_days
     payment_term_source = "configuration"
@@ -596,7 +602,10 @@ async def resolve_effective(
             due_date_basis=sourced_field(payment, "due_date_basis", payment_overrides),
             payment_methods=sourced_field(payment, "payment_methods", payment_overrides),
             early_payment_rules=sourced_field(payment, "early_payment_rules", payment_overrides),
-            prepayment_percent=_value(str(payment_overrides.get("prepayment_percent", payment.prepayment_percent)), "document" if "prepayment_percent" in payment_overrides else "configuration"),
+            prepayment_percent=_value(
+                str(payment_overrides.get("prepayment_percent", payment.prepayment_percent)),
+                "document" if "prepayment_percent" in payment_overrides else "configuration",
+            ),
             installment_enabled=sourced_field(payment, "installment_enabled", payment_overrides),
             bank_account_id=sourced_field(payment, "bank_account_id", payment_overrides),
             use_term_in_invoice_text=sourced_field(payment, "use_term_in_invoice_text", payment_overrides),
@@ -627,7 +636,10 @@ async def resolve_effective(
         text_blocks=[
             EffectiveTextBlock(
                 purpose=block.purpose,
-                body=_value(text_overrides.get(block.purpose, block.body), "document" if block.purpose in text_overrides else "configuration"),
+                body=_value(
+                    text_overrides.get(block.purpose, block.body),
+                    "document" if block.purpose in text_overrides else "configuration",
+                ),
                 condition=deepcopy(block.condition),
                 position=block.position,
             )

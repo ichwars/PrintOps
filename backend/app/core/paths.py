@@ -11,7 +11,7 @@ effect immediately.
 from __future__ import annotations
 
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 
 def resolve_data_dir() -> Path:
@@ -29,7 +29,10 @@ def resolve_data_dir() -> Path:
 def safe_join(root: Path, relative_path: Path | str) -> Path:
     """Resolve a relative storage key and reject traversal outside ``root``."""
     resolved_root = root.resolve()
-    candidate = (resolved_root / Path(relative_path)).resolve()
+    relative = Path(relative_path)
+    if relative.is_absolute() or PureWindowsPath(str(relative_path)).is_absolute():
+        raise ValueError("storage path escapes its configured root")
+    candidate = (resolved_root / relative).resolve()
     try:
         candidate.relative_to(resolved_root)
     except ValueError as exc:

@@ -49,6 +49,7 @@ from backend.app.services.verapdf import (
     VeraPdfRunner,
     VeraPdfUnavailable,
 )
+from backend.app.utils.safe_path import safe_join_under
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,7 @@ class EInvoiceArtifactResolver(Protocol):
         reference: EInvoiceArtifactReference,
         render_input: RenderInput,
     ) -> ResolvedEInvoiceArtifact: ...
+
 
 _RESOURCE_PATTERN = re.compile(
     r"(?:\b(?:src|href)\s*=\s*[\"']([^\"']+)[\"']|url\(\s*[\"']?([^\"')]+))",
@@ -151,9 +153,7 @@ class RenderInput:
             raise ValueError("document and snapshot source identifiers must be supplied together")
         if self.source_document_id is not None and self.source_document_id <= 0:
             raise ValueError("source_document_id must be positive")
-        if self.source_snapshot_sha256 is not None and not re.fullmatch(
-            r"[0-9a-f]{64}", self.source_snapshot_sha256
-        ):
+        if self.source_snapshot_sha256 is not None and not re.fullmatch(r"[0-9a-f]{64}", self.source_snapshot_sha256):
             raise ValueError("source_snapshot_sha256 must be a lowercase SHA-256 value")
 
 
@@ -171,9 +171,7 @@ class RenderedPdf:
     from_cache: bool
     duration_ms: int
     artifact_path: Path | None = None
-    validation_status: Literal["not_requested", "unvalidated", "valid", "invalid"] = (
-        "not_requested"
-    )
+    validation_status: Literal["not_requested", "unvalidated", "valid", "invalid"] = "not_requested"
     validation_report: PdfaValidationReport | None = None
     warnings: tuple[str, ...] = ()
     render_receipt: Mapping[str, object] = field(default_factory=dict)
@@ -250,9 +248,7 @@ class DocumentRenderer:
                     else einvoice_artifact.xrechnung_artifact_id
                 )
                 expected_kind = (
-                    "zugferd_xml"
-                    if isinstance(einvoice_artifact, ZugferdArtifactReference)
-                    else "xrechnung_xml"
+                    "zugferd_xml" if isinstance(einvoice_artifact, ZugferdArtifactReference) else "xrechnung_xml"
                 )
                 if resolved.artifact_id != expected_id or resolved.kind != expected_kind:
                     raise EInvoiceArtifactError("EINVOICE_ARTIFACT_KIND_INVALID")
@@ -337,11 +333,7 @@ class DocumentRenderer:
                 )
             receipt: dict[str, object] = {
                 "pdf_sha256": digest,
-                "pdfa_report": (
-                    validation_report.model_dump(mode="json")
-                    if validation_report is not None
-                    else None
-                ),
+                "pdfa_report": (validation_report.model_dump(mode="json") if validation_report is not None else None),
             }
             manifest: dict[str, object] = {}
             if einvoice_artifact is not None:
@@ -419,9 +411,7 @@ class DocumentRenderer:
         if report.compliant:
             return "valid", report, ()
         if mode == "preview":
-            return "invalid", report, tuple(
-                finding.external_rule_id or finding.code for finding in report.findings
-            )
+            return "invalid", report, tuple(finding.external_rule_id or finding.code for finding in report.findings)
         raise DocumentRendererError("RENDER_ENGINE_FAILED")
 
     def _with_validation(self, rendered: RenderedPdf, correlation_id: str) -> RenderedPdf:
@@ -597,7 +587,7 @@ class DocumentRenderer:
     def _add_preview_mark(html: str) -> str:
         mark = (
             '<div aria-hidden="true" style="position:fixed;inset:42% 0 auto;'
-            'transform:rotate(-28deg);text-align:center;font-size:54pt;'
+            "transform:rotate(-28deg);text-align:center;font-size:54pt;"
             'font-weight:bold;color:rgba(90,108,96,.13);z-index:-1">VORSCHAU</div>'
         )
         return html.replace("</body>", f"{mark}</body>", 1)
@@ -624,9 +614,7 @@ class DocumentRenderer:
             timestamp=request.document_timestamp,
             document_id=canonical_source_sha256(raw_pdf),
             letterhead_first=(
-                request.assets[first_digest]
-                if request.layout.page.use_first_page_letterhead and first_digest
-                else None
+                request.assets[first_digest] if request.layout.page.use_first_page_letterhead and first_digest else None
             ),
             letterhead_following=(
                 request.assets[following_digest]
@@ -648,9 +636,7 @@ class DocumentRenderer:
                     sort_keys=True,
                     separators=(",", ":"),
                 ).encode("utf-8"),
-                b"\n".join(
-                    digest.encode("ascii") for digest in sorted(request.assets)
-                ),
+                b"\n".join(digest.encode("ascii") for digest in sorted(request.assets)),
                 str(request.source_document_id or "").encode("ascii"),
                 (request.source_snapshot_sha256 or "").encode("ascii"),
             )
@@ -738,7 +724,7 @@ class DocumentRenderer:
         document_id: int | None,
     ) -> Path:
         scope = str(document_id) if document_id is not None else digest[:2]
-        target = self._artifact_dir / scope / f"{digest}.pdf"
+        target = safe_join_under(self._artifact_dir, scope, f"{digest}.pdf", http=False)
         if not target.exists():
             self._atomic_write(target, content)
         return target

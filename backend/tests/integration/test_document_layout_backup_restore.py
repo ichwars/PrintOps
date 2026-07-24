@@ -43,18 +43,19 @@ async def test_existing_profile_gets_one_unpublished_classic_draft(db_session):
     assert await ensure_default_layout_drafts(db_session, migration_event=True) == 0
 
     layout = await db_session.scalar(
-        select(DocumentLayoutConfiguration).where(
-            DocumentLayoutConfiguration.business_profile_id == profile.id
-        )
+        select(DocumentLayoutConfiguration).where(DocumentLayoutConfiguration.business_profile_id == profile.id)
     )
     assert layout is not None
     assert (layout.template_key, layout.page_format, layout.orientation) == ("classic", "A4", "portrait")
     assert (layout.scope_key, layout.version, layout.status) == ("*|*", 1, "draft")
-    assert await db_session.scalar(
-        select(func.count(DocumentLayoutPublication.id)).where(
-            DocumentLayoutPublication.configuration_id == layout.id
+    assert (
+        await db_session.scalar(
+            select(func.count(DocumentLayoutPublication.id)).where(
+                DocumentLayoutPublication.configuration_id == layout.id
+            )
         )
-    ) == 0
+        == 0
+    )
     for rule_model in (
         LayoutPageRules,
         LayoutTypographyRules,
@@ -103,9 +104,7 @@ async def test_new_business_profile_gets_default_layout_draft(db_session):
 
     layouts = list(
         await db_session.scalars(
-            select(DocumentLayoutConfiguration).where(
-                DocumentLayoutConfiguration.business_profile_id == profile.id
-            )
+            select(DocumentLayoutConfiguration).where(DocumentLayoutConfiguration.business_profile_id == profile.id)
         )
     )
     assert len(layouts) == 1
@@ -113,9 +112,7 @@ async def test_new_business_profile_gets_default_layout_draft(db_session):
 
 
 @pytest.mark.asyncio
-async def test_private_git_backup_uses_binary_paths_for_layout_and_document_evidence(
-    db_session, monkeypatch, tmp_path
-):
+async def test_private_git_backup_uses_binary_paths_for_layout_and_document_evidence(db_session, monkeypatch, tmp_path):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     profile = BusinessProfile(
         name="Git backup",

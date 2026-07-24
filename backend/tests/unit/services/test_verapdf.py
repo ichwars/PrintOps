@@ -16,23 +16,25 @@ from backend.app.services.verapdf import (
 
 
 def _report(*, compliant: bool) -> str:
-    rules = [] if compliant else [
-        {
-            "ruleStatus": "FAILED",
-            "specification": "ISO 19005-3:2012",
-            "clause": "6.6.2.1",
-            "testNumber": 1,
-            "description": "Catalog metadata is required",
-            "failedChecks": 1,
-            "checks": [{"errorMessage": "Metadata stream is missing"}],
-        }
-    ]
+    rules = (
+        []
+        if compliant
+        else [
+            {
+                "ruleStatus": "FAILED",
+                "specification": "ISO 19005-3:2012",
+                "clause": "6.6.2.1",
+                "testNumber": 1,
+                "description": "Catalog metadata is required",
+                "failedChecks": 1,
+                "checks": [{"errorMessage": "Metadata stream is missing"}],
+            }
+        ]
+    )
     return json.dumps(
         {
             "report": {
-                "buildInformation": {
-                    "releaseDetails": [{"id": "core", "version": "1.30.2"}]
-                },
+                "buildInformation": {"releaseDetails": [{"id": "core", "version": "1.30.2"}]},
                 "jobs": [
                     {
                         "validationResult": [
@@ -120,4 +122,3 @@ def test_timeout_and_malformed_report_have_stable_errors(tmp_path):
     with pytest.raises(VeraPdfExecutionError) as caught:
         runner.validate(b"%PDF-1.7\n%%EOF", correlation_id="malformed")
     assert caught.value.code == "PDF_VALIDATOR_REPORT_INVALID"
-

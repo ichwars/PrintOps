@@ -52,11 +52,7 @@ async def update_number_sequence(
         )
         if exists is None:
             raise ResourceNotFoundError(f"Warehouse number sequence {sequence_id} was not found")
-        raise VersionConflictError(
-            f"Warehouse number sequence {sequence_id} changed concurrently; reload it and retry"
-        )
-    sequence = await session.scalar(
-        select(WarehouseNumberSequence).where(WarehouseNumberSequence.id == sequence_id)
-    )
+        raise VersionConflictError(f"Warehouse number sequence {sequence_id} changed concurrently; reload it and retry")
+    sequence = await session.scalar(select(WarehouseNumberSequence).where(WarehouseNumberSequence.id == sequence_id))
     assert sequence is not None
     return sequence

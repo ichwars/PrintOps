@@ -78,6 +78,7 @@ def pinned_rule_versions() -> dict[str, str]:
 
     return dict(_RULE_VERSIONS)
 
+
 _TARGETS: Mapping[tuple[str, str, str], _ValidationTarget] = MappingProxyType(
     {
         ("xrechnung", "ubl-2.1", "xrechnung"): _ValidationTarget(
@@ -271,9 +272,7 @@ def _xslt_findings(xml: bytes, stylesheets: tuple[tuple[str, str], ...]) -> list
         source = processor.parse_xml(xml_text=xml.decode("utf-8"))
         xslt_processor = processor.new_xslt30_processor()
         for source_name, relative_path in stylesheets:
-            executable = xslt_processor.compile_stylesheet(
-                stylesheet_file=str(_RESOURCE_ROOT / relative_path)
-            )
+            executable = xslt_processor.compile_stylesheet(stylesheet_file=str(_RESOURCE_ROOT / relative_path))
             result = executable.transform_to_string(xdm_node=source)
             findings.extend(_svrl_findings(result, source_name))
     return findings
@@ -291,10 +290,7 @@ def validate_xml(
     normalized_profile = profile.strip().lower()
     target = _TARGETS.get((normalized_standard, normalized_syntax, normalized_profile))
     if target is None:
-        raise ValueError(
-            "Unsupported E-invoice validation target: "
-            f"{standard!r}/{syntax!r}/{profile!r}"
-        )
+        raise ValueError(f"Unsupported E-invoice validation target: {standard!r}/{syntax!r}/{profile!r}")
 
     root, parse_finding = _parse(xml)
     if parse_finding is not None or root is None:

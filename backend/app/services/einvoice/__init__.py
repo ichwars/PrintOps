@@ -3,4 +3,3 @@
 from backend.app.schemas.einvoice import CanonicalInvoice, EInvoiceFinding
 
 __all__ = ["CanonicalInvoice", "EInvoiceFinding"]
-

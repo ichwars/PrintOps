@@ -46,9 +46,7 @@ def test_backup_stages_artifacts_and_pinned_ruleset_manifest(tmp_path):
     stage_document_evidence(staging, data_dir)
 
     assert (staging / "document-artifacts" / "42" / "invoice.xml").read_bytes() == b"<Invoice/>"
-    manifest = json.loads(
-        (staging / "document-evidence" / "ruleset-manifest.json").read_text(encoding="utf-8")
-    )
+    manifest = json.loads((staging / "document-evidence" / "ruleset-manifest.json").read_text(encoding="utf-8"))
     assert manifest["en16931"]["version"] == "1.3.16"
     assert manifest["xrechnung"] == {"version": "3.0.2", "bundle_date": "2026-01-31"}
     assert manifest["zugferd"]["version"] == "2.5"
@@ -70,11 +68,7 @@ def test_backup_manifest_covers_layout_pdf_and_validation_evidence(tmp_path):
 
     stage_document_evidence(staging, data_dir)
 
-    manifest = json.loads(
-        (staging / "document-evidence" / "document-layout-manifest.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    manifest = json.loads((staging / "document-evidence" / "document-layout-manifest.json").read_text(encoding="utf-8"))
     entries = {item["path"]: item for item in manifest["files"]}
     assert set(entries) == set(evidence)
     for relative, content in evidence.items():
@@ -199,11 +193,7 @@ async def test_private_git_backup_exports_every_commercial_evidence_table(db_ses
         "document_number_reservations",
         "document_audit_events",
     }
-    assert expected_tables <= {
-        value["table"]
-        for name, value in files.items()
-        if name.startswith("documents/tables/")
-    }
+    assert expected_tables <= {value["table"] for name, value in files.items() if name.startswith("documents/tables/")}
     assert files["documents/ruleset-manifest.json"]["xrechnung"]["bundle_date"] == "2026-01-31"
     assert files["documents/evidence-manifest.json"]["artifact_storage"] == "content-addressed/binary"
     assert files[".gitattributes"] == b"documents/binary/** -text\n"

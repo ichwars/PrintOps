@@ -9,6 +9,17 @@ def load_manifest() -> dict[str, object]:
     return json.loads((RESOURCE_ROOT / "manifest.json").read_text(encoding="utf-8"))
 
 
+def line_ending_stable_hashes(content: bytes) -> set[str]:
+    """Return hashes for the original bytes and both Git checkout EOL forms."""
+    lf_content = content.replace(b"\r\n", b"\n")
+    crlf_content = lf_content.replace(b"\n", b"\r\n")
+    return {
+        hashlib.sha256(content).hexdigest(),
+        hashlib.sha256(lf_content).hexdigest(),
+        hashlib.sha256(crlf_content).hexdigest(),
+    }
+
+
 def test_vendored_einvoice_assets_match_manifest() -> None:
     manifest = load_manifest()
 
@@ -23,7 +34,7 @@ def test_vendored_einvoice_assets_match_manifest() -> None:
     for item in files:
         path = RESOURCE_ROOT / item["path"]
         assert path.is_file(), item["path"]
-        assert hashlib.sha256(path.read_bytes()).hexdigest() == item["sha256"]
+        assert item["sha256"] in line_ending_stable_hashes(path.read_bytes())
         assert item["source"] in {"en16931", "xrechnung", "zugferd"}
         assert item["syntax"] in {"cii-d16b", "cii-d22b", "ubl-2.1", "n/a"}
         assert item["profile"] in {"en16931", "xrechnung", "license"}

@@ -193,14 +193,10 @@ def _deduction_findings(draft: CommercialDocumentDraft) -> list[DocumentFinding]
     deduction_by_group: dict[tuple[str, Decimal], Decimal] = {}
     for item in prior:
         group = _tax_group(item)
-        prior_by_group[group] = prior_by_group.get(group, Decimal("0")) + Decimal(
-            str(item.get("gross") or "0")
-        )
+        prior_by_group[group] = prior_by_group.get(group, Decimal("0")) + Decimal(str(item.get("gross") or "0"))
     for item in deductions:
         group = _tax_group(item)
-        deduction_by_group[group] = deduction_by_group.get(group, Decimal("0")) + Decimal(
-            str(item.get("gross") or "0")
-        )
+        deduction_by_group[group] = deduction_by_group.get(group, Decimal("0")) + Decimal(str(item.get("gross") or "0"))
 
     findings: list[DocumentFinding] = []
     for group, amount in prior_by_group.items():
@@ -529,9 +525,7 @@ async def create_successor(
         )
         for line in source.lines
     ]
-    successor.incoming_relations = [
-        DocumentRelation(source_document_id=source.id, relation_type=relation_type)
-    ]
+    successor.incoming_relations = [DocumentRelation(source_document_id=source.id, relation_type=relation_type)]
     session.add(successor)
     await session.flush()
     return successor
@@ -647,9 +641,7 @@ async def _issuance_configuration(
         if active is not None:
             return active
     return await session.scalar(
-        base.where(DocumentConfiguration.status == "draft").order_by(
-            DocumentConfiguration.version.desc()
-        )
+        base.where(DocumentConfiguration.status == "draft").order_by(DocumentConfiguration.version.desc())
     )
 
 
@@ -666,9 +658,7 @@ async def _prepare_issuance(
     if document.lock_version != expected_version:
         raise VersionConflictError(f"Commercial document {document_id} has changed")
     if document.issue_date is None:
-        raise DocumentValidationFailed(
-            (_finding("issue_date_missing", "issue_date", "An issue date is required"),)
-        )
+        raise DocumentValidationFailed((_finding("issue_date_missing", "issue_date", "An issue date is required"),))
     document_findings = tuple(
         finding for finding in validate_document(_to_draft(document)) if finding.severity == "blocker"
     )
@@ -743,9 +733,7 @@ async def _existing_reservation(
     idempotency_key: str,
 ) -> DocumentNumberReservation | None:
     return await session.scalar(
-        select(DocumentNumberReservation).where(
-            DocumentNumberReservation.idempotency_key == idempotency_key
-        )
+        select(DocumentNumberReservation).where(DocumentNumberReservation.idempotency_key == idempotency_key)
     )
 
 
@@ -823,9 +811,7 @@ async def _wait_for_issue_replay(
         async with sessions() as evidence_session:
             reservation = await evidence_session.get(DocumentNumberReservation, reservation_id)
             if reservation is None:
-                raise ResourceNotFoundError(
-                    f"Document number reservation {reservation_id} was not found"
-                )
+                raise ResourceNotFoundError(f"Document number reservation {reservation_id} was not found")
             if reservation.status == "consumed":
                 return
             if reservation.status == "voided":
@@ -833,9 +819,7 @@ async def _wait_for_issue_replay(
                     f"The prior issuance attempt failed with {reservation.failure_code or 'unknown'}"
                 )
             document_status = await evidence_session.scalar(
-                select(CommercialDocument.technical_status).where(
-                    CommercialDocument.id == reservation.document_id
-                )
+                select(CommercialDocument.technical_status).where(CommercialDocument.id == reservation.document_id)
             )
             if document_status == "issued":
                 reservation.status = "consumed"
@@ -908,16 +892,20 @@ async def _snapshot_payload(
     )
     if profile is None:
         raise ResourceNotFoundError(f"Business profile {document.business_profile_id} was not found")
-    buyer = await session.scalar(
-        select(Customer)
-        .where(Customer.id == document.customer_id)
-        .options(
-            selectinload(Customer.addresses),
-            selectinload(Customer.contacts),
-            selectinload(Customer.tax_identifiers),
-            selectinload(Customer.accounts).selectinload(CustomerAccount.document_preference),
+    buyer = (
+        await session.scalar(
+            select(Customer)
+            .where(Customer.id == document.customer_id)
+            .options(
+                selectinload(Customer.addresses),
+                selectinload(Customer.contacts),
+                selectinload(Customer.tax_identifiers),
+                selectinload(Customer.accounts).selectinload(CustomerAccount.document_preference),
+            )
         )
-    ) if document.customer_id is not None else None
+        if document.customer_id is not None
+        else None
+    )
     configuration = await session.scalar(
         select(DocumentConfiguration)
         .where(DocumentConfiguration.id == configuration_id)
@@ -983,27 +971,14 @@ async def _snapshot_payload(
         and einvoice_policy is not None
         and (
             customer_requirement == "required"
-            or (
-                customer_requirement == "inherit"
-                and einvoice_policy.requirement == "rule_required"
-            )
+            or (customer_requirement == "inherit" and einvoice_policy.requirement == "rule_required")
         )
     )
     seller_endpoint = einvoice_policy.seller_identifier if einvoice_policy is not None else None
-    seller_endpoint_scheme = (
-        einvoice_policy.seller_identifier_scheme if einvoice_policy is not None else None
-    )
-    if (
-        seller_endpoint
-        and seller_endpoint_scheme
-        and seller_endpoint.startswith(f"{seller_endpoint_scheme}:")
-    ):
+    seller_endpoint_scheme = einvoice_policy.seller_identifier_scheme if einvoice_policy is not None else None
+    if seller_endpoint and seller_endpoint_scheme and seller_endpoint.startswith(f"{seller_endpoint_scheme}:"):
         seller_endpoint = seller_endpoint.split(":", 1)[1]
-    policy_requirements = (
-        dict(einvoice_policy.recipient_requirements or {})
-        if einvoice_policy is not None
-        else {}
-    )
+    policy_requirements = dict(einvoice_policy.recipient_requirements or {}) if einvoice_policy is not None else {}
     buyer_endpoint = preference.endpoint_id if preference is not None else None
     buyer_endpoint_scheme = preference.endpoint_scheme if preference is not None else None
     if not buyer_endpoint and customer_contact is not None and customer_contact.email:
@@ -1023,9 +998,7 @@ async def _snapshot_payload(
         (item for item in profile.bank_accounts if item.id == bank_account_id),
         next((item for item in profile.bank_accounts if item.is_default), None),
     )
-    payment_method = (
-        einvoice_policy.default_payment_method if einvoice_policy is not None else None
-    )
+    payment_method = einvoice_policy.default_payment_method if einvoice_policy is not None else None
     payment_means_code = {
         "bank_transfer": "58",
         "credit_transfer": "58",
@@ -1040,15 +1013,11 @@ async def _snapshot_payload(
     )
     if payment_terms:
         payment_terms = payment_terms.replace("{DOCUMENT_NUMBER}", number)
-        payment_terms = payment_terms.replace(
-            "{DUE_DATE}", document.due_date.isoformat() if document.due_date else ""
-        )
+        payment_terms = payment_terms.replace("{DUE_DATE}", document.due_date.isoformat() if document.due_date else "")
 
     references: list[dict] = []
     if preference is not None and preference.purchase_order_reference:
-        references.append(
-            {"kind": "order", "identifier": preference.purchase_order_reference}
-        )
+        references.append({"kind": "order", "identifier": preference.purchase_order_reference})
     for relation in document.incoming_relations:
         relation_number = (relation.relation_data or {}).get("document_number")
         if relation_number:
@@ -1129,9 +1098,7 @@ async def _snapshot_payload(
             "contact": (
                 {
                     "name": " ".join(
-                        part
-                        for part in (customer_contact.first_name, customer_contact.last_name)
-                        if part
+                        part for part in (customer_contact.first_name, customer_contact.last_name) if part
                     ),
                     "email": customer_contact.email,
                     "phone": customer_contact.phone,
@@ -1170,9 +1137,7 @@ async def _snapshot_payload(
         payment={
             "due_date": document.due_date,
             "term_days": (
-                configuration.payment_policy.payment_term_days
-                if configuration.payment_policy is not None
-                else None
+                configuration.payment_policy.payment_term_days if configuration.payment_policy is not None else None
             ),
             "means_code": payment_means_code,
             "terms": payment_terms,
@@ -1196,13 +1161,9 @@ async def _snapshot_payload(
                 "standard": standard,
                 "syntax": syntax,
                 "profile": profile_name,
-                "en16931_version": (
-                    einvoice_policy.en16931_version if einvoice_policy is not None else None
-                ),
+                "en16931_version": (einvoice_policy.en16931_version if einvoice_policy is not None else None),
                 "cius_name": einvoice_policy.cius_name if einvoice_policy is not None else None,
-                "cius_version": (
-                    einvoice_policy.cius_version if einvoice_policy is not None else None
-                ),
+                "cius_version": (einvoice_policy.cius_version if einvoice_policy is not None else None),
             },
         },
     )

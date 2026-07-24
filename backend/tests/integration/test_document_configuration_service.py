@@ -235,7 +235,15 @@ async def test_update_draft_round_trips_basic_content_payment_and_dunning(db_ses
                 "annual_interest_rate": "5.0000",
                 "flat_fee": "2.50",
                 "stages": [
-                    {"level": 1, "wait_days": 7, "fee": "2.50", "charge_interest": True, "new_due_days": 7, "body": "Bitte zahlen.", "escalation_hint": None}
+                    {
+                        "level": 1,
+                        "wait_days": 7,
+                        "fee": "2.50",
+                        "charge_interest": True,
+                        "new_due_days": 7,
+                        "body": "Bitte zahlen.",
+                        "escalation_hint": None,
+                    }
                 ],
             },
             "tax": {

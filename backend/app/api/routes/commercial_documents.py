@@ -72,9 +72,7 @@ def _actor_id(actor: User | None) -> int | None:
 
 
 def _correlation_id(request: Request) -> str:
-    existing = getattr(request.state, "correlation_id", None) or request.headers.get(
-        "X-Correlation-ID"
-    )
+    existing = getattr(request.state, "correlation_id", None) or request.headers.get("X-Correlation-ID")
     if existing and 1 <= len(str(existing)) <= 128:
         return str(existing)
     return str(uuid4())
@@ -139,11 +137,7 @@ def _artifact_read(artifact: DocumentArtifact) -> CommercialDocumentArtifactRead
 
 
 async def _load(db: AsyncSession, document_id: int, *, lock: bool = False) -> CommercialDocument:
-    statement = (
-        select(CommercialDocument)
-        .where(CommercialDocument.id == document_id)
-        .options(*_LOAD_OPTIONS)
-    )
+    statement = select(CommercialDocument).where(CommercialDocument.id == document_id).options(*_LOAD_OPTIONS)
     if lock:
         statement = statement.with_for_update()
     document = await db.scalar(statement)
@@ -199,9 +193,7 @@ async def _raise_domain_error(
         current_version = None
         if db is not None and document_id is not None:
             current_version = await db.scalar(
-                select(CommercialDocument.lock_version).where(
-                    CommercialDocument.id == document_id
-                )
+                select(CommercialDocument.lock_version).where(CommercialDocument.id == document_id)
             )
         _error(
             request,
@@ -294,9 +286,7 @@ async def list_documents(
         statement = statement.where(CommercialDocument.document_type == document_type)
     if technical_status is not None:
         statement = statement.where(CommercialDocument.technical_status == technical_status)
-    rows = (
-        await db.scalars(statement.order_by(CommercialDocument.created_at.desc()))
-    ).all()
+    rows = (await db.scalars(statement.order_by(CommercialDocument.created_at.desc()))).all()
     return [_read(row) for row in rows]
 
 
@@ -455,9 +445,7 @@ async def download_document_artifact(
         correlation_id=_correlation_id(request),
     )
     await db.commit()
-    number = await db.scalar(
-        select(CommercialDocument.number).where(CommercialDocument.id == document_id)
-    )
+    number = await db.scalar(select(CommercialDocument.number).where(CommercialDocument.id == document_id))
     safe_number = re.sub(r"[^A-Za-z0-9._-]+", "-", number or str(document_id)).strip("-.")
     extension = "pdf" if artifact.content_type == "application/pdf" else "xml"
     return Response(

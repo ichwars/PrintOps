@@ -139,18 +139,13 @@ async def _preview_source(
             selectinload(CommercialDocument.artifacts),
         )
     )
-    if (
-        document is None
-        or document.business_profile_id != job.business_profile_id
-        or document.snapshot is None
-    ):
+    if document is None or document.business_profile_id != job.business_profile_id or document.snapshot is None:
         raise PreviewJobError("PREVIEW_SOURCE_NOT_FOUND")
     einvoice = next(
         (
             artifact
             for artifact in document.artifacts
-            if artifact.kind in {"zugferd_xml", "xrechnung_xml"}
-            and artifact.validation_status == "valid"
+            if artifact.kind in {"zugferd_xml", "xrechnung_xml"} and artifact.validation_status == "valid"
         ),
         None,
     )
@@ -385,7 +380,14 @@ async def publish(
         return _summary(layout)
     except LayoutReadinessError as exc:
         await db.rollback()
-        raise HTTPException(status_code=422, detail={"code": "layout_not_ready", "findings": exc.report.model_dump(mode="json"), "correlation_id": _correlation_id(request)}) from None
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "layout_not_ready",
+                "findings": exc.report.model_dump(mode="json"),
+                "correlation_id": _correlation_id(request),
+            },
+        ) from None
     except (LayoutConflictError, LayoutStateError) as exc:
         await db.rollback()
         _error(request, 409, "layout_publish_conflict", str(exc))

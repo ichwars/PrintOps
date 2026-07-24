@@ -19,18 +19,11 @@ from backend.app.services.document_view_model import (
 def test_catalog_contains_every_document_type_in_both_languages():
     catalog = sample_catalog()
     pairs = {(item.document_type, item.language) for item in catalog}
-    expected = {
-        (document_type, language)
-        for document_type in DOCUMENT_CAPABILITIES
-        for language in ("de", "en")
-    }
+    expected = {(document_type, language) for document_type in DOCUMENT_CAPABILITIES for language in ("de", "en")}
     assert pairs == expected
     assert len(catalog) == len(expected) == 26
     assert len({item.key for item in catalog}) == 26
-    view_models = {
-        key: build_document_view_model(snapshot)
-        for key, snapshot in load_all_samples().items()
-    }
+    view_models = {key: build_document_view_model(snapshot) for key, snapshot in load_all_samples().items()}
     assert len(view_models) == 26
     assert {model.language for model in view_models.values()} == {"de", "en"}
 

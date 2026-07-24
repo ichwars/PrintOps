@@ -83,10 +83,7 @@ def _normalize_structure_ids(pdf: pikepdf.Pdf) -> None:
                     found.append(text)
 
     _walk_structure(root, collect, set())
-    mapping = {
-        old: f"printops-struct-{index:06d}"
-        for index, old in enumerate(found, start=1)
-    }
+    mapping = {old: f"printops-struct-{index:06d}" for index, old in enumerate(found, start=1)}
 
     def replace(value) -> None:
         if isinstance(value, (pikepdf.Dictionary, pikepdf.Stream)):
@@ -162,9 +159,7 @@ def merge_letterheads(
                     background_pdf = first_pdf if index == 0 else following_pdf
                     if background_pdf is None:
                         continue
-                    if len(background_pdf.pages) != 1 or not _same_page_geometry(
-                        page, background_pdf.pages[0]
-                    ):
+                    if len(background_pdf.pages) != 1 or not _same_page_geometry(page, background_pdf.pages[0]):
                         raise PdfaError("PDFA_LETTERHEAD_PAGE_MISMATCH")
                     page.add_underlay(background_pdf.pages[0], shrink=False, expand=False)
                 document.save(output, deterministic_id=True, compress_streams=True)
@@ -318,12 +313,8 @@ def _apply_factur_x_metadata(
             etree.QName(_RDF_NS, "li"),
             {etree.QName(_RDF_NS, "parseType"): "Resource"},
         )
-        etree.SubElement(schema, etree.QName(_PDFA_SCHEMA_NS, "schema")).text = (
-            "Factur-X PDFA Extension Schema"
-        )
-        etree.SubElement(schema, etree.QName(_PDFA_SCHEMA_NS, "namespaceURI")).text = (
-            FACTUR_X_XMP_NAMESPACE
-        )
+        etree.SubElement(schema, etree.QName(_PDFA_SCHEMA_NS, "schema")).text = "Factur-X PDFA Extension Schema"
+        etree.SubElement(schema, etree.QName(_PDFA_SCHEMA_NS, "namespaceURI")).text = FACTUR_X_XMP_NAMESPACE
         etree.SubElement(schema, etree.QName(_PDFA_SCHEMA_NS, "prefix")).text = "fx"
         properties = etree.SubElement(schema, etree.QName(_PDFA_SCHEMA_NS, "property"))
         sequence = etree.SubElement(properties, etree.QName(_RDF_NS, "Seq"))
@@ -391,9 +382,7 @@ def attach_zugferd_xml(
     result = output.getvalue()
     try:
         with pikepdf.open(io.BytesIO(result)) as pdf:
-            if hashlib.sha256(
-                pdf.attachments[FACTUR_X_FILENAME].get_file().read_bytes()
-            ).hexdigest() != xml_sha256:
+            if hashlib.sha256(pdf.attachments[FACTUR_X_FILENAME].get_file().read_bytes()).hexdigest() != xml_sha256:
                 raise PdfaError("ZUGFERD_XML_HASH_MISMATCH")
     except PdfaError:
         raise
@@ -433,21 +422,13 @@ def inspect_pdfa3u(content: bytes) -> PdfaStructureReport:
         with pikepdf.open(io.BytesIO(content)) as pdf:
             try:
                 metadata = pdf.open_metadata()
-                if metadata.get("pdfaid:part") != "3" or metadata.get(
-                    "pdfaid:conformance"
-                ) != "U":
-                    findings.append(
-                        PdfaFinding("PDFA_XMP_MISSING", "PDF/A-3u identification is missing")
-                    )
+                if metadata.get("pdfaid:part") != "3" or metadata.get("pdfaid:conformance") != "U":
+                    findings.append(PdfaFinding("PDFA_XMP_MISSING", "PDF/A-3u identification is missing"))
             except (KeyError, ValueError, pikepdf.PdfError):
-                findings.append(
-                    PdfaFinding("PDFA_XMP_MISSING", "PDF/A-3u identification is missing")
-                )
+                findings.append(PdfaFinding("PDFA_XMP_MISSING", "PDF/A-3u identification is missing"))
             intents = pdf.Root.get("/OutputIntents")
             if not intents or not intents[0].get("/DestOutputProfile"):
-                findings.append(
-                    PdfaFinding("PDFA_OUTPUT_INTENT_MISSING", "sRGB output intent is missing")
-                )
+                findings.append(PdfaFinding("PDFA_OUTPUT_INTENT_MISSING", "sRGB output intent is missing"))
             if not pdf.Root.get("/Lang"):
                 findings.append(PdfaFinding("PDFA_LANGUAGE_MISSING", "document language is missing"))
             mark_info = pdf.Root.get("/MarkInfo")
@@ -457,17 +438,11 @@ def inspect_pdfa3u(content: bytes) -> PdfaStructureReport:
                 fonts_checked += 1
                 name = str(font.get("/BaseFont", "unknown"))
                 if not font.get("/ToUnicode"):
-                    findings.append(
-                        PdfaFinding("PDFA_FONT_TOUNICODE_MISSING", f"{name} lacks ToUnicode")
-                    )
+                    findings.append(PdfaFinding("PDFA_FONT_TOUNICODE_MISSING", f"{name} lacks ToUnicode"))
                 descriptor = _font_descriptor(font)
-                embedded = descriptor and any(
-                    descriptor.get(key) for key in ("/FontFile", "/FontFile2", "/FontFile3")
-                )
+                embedded = descriptor and any(descriptor.get(key) for key in ("/FontFile", "/FontFile2", "/FontFile3"))
                 if not embedded:
-                    findings.append(
-                        PdfaFinding("PDFA_FONT_NOT_EMBEDDED", f"{name} is not embedded")
-                    )
+                    findings.append(PdfaFinding("PDFA_FONT_NOT_EMBEDDED", f"{name} is not embedded"))
     except pikepdf.PdfError:
         findings.append(PdfaFinding("PDFA_PARSE_FAILED", "PDF cannot be parsed"))
     return PdfaStructureReport(

@@ -57,8 +57,7 @@ async def reserve_document_number(
     )
     if sequence is None:
         raise ResourceNotFoundError(
-            f"Number sequence not found for business profile {document.business_profile_id} "
-            f"and key {sequence_key!r}"
+            f"Number sequence not found for business profile {document.business_profile_id} and key {sequence_key!r}"
         )
     number = document.number
     if number is None:

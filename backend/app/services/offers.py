@@ -352,9 +352,7 @@ async def accept_offer(
         )
         for line in quotation.lines
     ]
-    confirmation.incoming_relations = [
-        DocumentRelation(source_document_id=quotation.id, relation_type="successor")
-    ]
+    confirmation.incoming_relations = [DocumentRelation(source_document_id=quotation.id, relation_type="successor")]
     session.add(confirmation)
     await session.flush()
     await _persist_reservations(

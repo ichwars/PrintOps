@@ -38,13 +38,11 @@ class CommercialDocument(Base):
             name="uq_commercial_document_profile_number",
         ),
         CheckConstraint(
-            "technical_status IN "
-            "('draft','validation_failed','ready','issued','cancelled','corrected','replaced')",
+            "technical_status IN ('draft','validation_failed','ready','issued','cancelled','corrected','replaced')",
             name="ck_commercial_document_technical_status",
         ),
         CheckConstraint(
-            "payment_status IN "
-            "('not_applicable','unpaid','partially_paid','paid','overpaid','written_off')",
+            "payment_status IN ('not_applicable','unpaid','partially_paid','paid','overpaid','written_off')",
             name="ck_commercial_document_payment_status",
         ),
     )
@@ -147,9 +145,7 @@ class CommercialDocument(Base):
 
 class CommercialDocumentLine(Base):
     __tablename__ = "commercial_document_lines"
-    __table_args__ = (
-        UniqueConstraint("document_id", "position", name="uq_commercial_document_line_position"),
-    )
+    __table_args__ = (UniqueConstraint("document_id", "position", name="uq_commercial_document_line_position"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     document_id: Mapped[int] = mapped_column(
@@ -238,9 +234,7 @@ class DocumentSnapshot(Base):
 
 class DocumentArtifact(Base):
     __tablename__ = "document_artifacts"
-    __table_args__ = (
-        UniqueConstraint("document_id", "kind", name="uq_document_artifact_kind"),
-    )
+    __table_args__ = (UniqueConstraint("document_id", "kind", name="uq_document_artifact_kind"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     document_id: Mapped[int] = mapped_column(

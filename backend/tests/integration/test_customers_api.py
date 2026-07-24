@@ -169,9 +169,7 @@ async def test_create_customer_auto_numbers_and_returns_normalized_aggregate(
     assert body["accounts"][0]["number"] == "CUST-00001"
     assert body["accounts"][0]["preferred_currency"] == "EUR"
     assert body["accounts"][0]["discount_percent"] == "2.50"
-    assert body["accounts"][0]["document_preference"] == payload["accounts"][0][
-        "document_preference"
-    ]
+    assert body["accounts"][0]["document_preference"] == payload["accounts"][0]["document_preference"]
     assert body["addresses"][0]["country_code"] == "DE"
     assert body["tax_identifiers"][0]["kind"] == "vat"
     assert body["tags"] == ["B2B", "priority"]

@@ -110,12 +110,8 @@ class Settings(BaseSettings):
     plate_calibration_dir: Path = _plate_cal_dir  # Plate detection references
     static_dir: Path = _app_dir / "static"  # Static files are part of app, not data
     log_dir: Path = _log_dir
-    verapdf_cli: Path | None = (
-        Path(os.environ["VERAPDF_CLI"]) if os.environ.get("VERAPDF_CLI") else None
-    )
-    weasyprint_cli: Path | None = (
-        Path(os.environ["WEASYPRINT_CLI"]) if os.environ.get("WEASYPRINT_CLI") else None
-    )
+    verapdf_cli: Path | None = Path(os.environ["VERAPDF_CLI"]) if os.environ.get("VERAPDF_CLI") else None
+    weasyprint_cli: Path | None = Path(os.environ["WEASYPRINT_CLI"]) if os.environ.get("WEASYPRINT_CLI") else None
     database_url: str = _external_db_url or f"sqlite+aiosqlite:///{_db_path}"
 
     # Logging
