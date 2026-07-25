@@ -111,6 +111,8 @@ primary need is printer control and automation.
 - Local, self-hosted operation with persistent data under your control.
 - A Python/FastAPI backend and React/TypeScript frontend with REST and real-time
   interfaces.
+- Modular printer API routers with CI-enforced Python size budgets, keeping the
+  printer-control surface maintainable as the fork grows.
 - Role-based permissions, API keys, integrations, responsive layouts, and a
   multilingual interface.
 
