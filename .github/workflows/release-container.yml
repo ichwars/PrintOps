@@ -27,6 +27,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Restore annotated tag object
+        shell: bash
+        run: git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+
       - name: Verify signed annotated release tag
         shell: bash
         env:
