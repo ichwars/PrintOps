@@ -34,7 +34,8 @@ jobs:
       - name: Restore annotated tag object
         shell: pwsh
         run: |
-          git fetch --force origin "+refs/tags/$env:GITHUB_REF_NAME:refs/tags/$env:GITHUB_REF_NAME"
+          $tagRefSpec = "+refs/tags/{0}:refs/tags/{0}" -f $env:GITHUB_REF_NAME
+          git fetch --force origin $tagRefSpec
           if ($LASTEXITCODE -ne 0) { throw "failed to restore annotated release tag" }
 
       - name: Verify signed annotated release tag
