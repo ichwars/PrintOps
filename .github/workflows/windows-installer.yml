@@ -31,6 +31,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Restore annotated tag object
+        shell: pwsh
+        run: |
+          git fetch --force origin "+refs/tags/$env:GITHUB_REF_NAME:refs/tags/$env:GITHUB_REF_NAME"
+          if ($LASTEXITCODE -ne 0) { throw "failed to restore annotated release tag" }
+
       - name: Verify signed annotated release tag
         shell: pwsh
         env:
@@ -44,6 +50,11 @@ jobs:
           }
           $tagRef = "refs/tags/$env:GITHUB_REF_NAME"
           if ((git cat-file -t $tagRef) -ne 'tag') { throw "$tagRef is not an annotated tag" }
+          $peeledCommit = git rev-parse "$tagRef^{}"
+          if ($LASTEXITCODE -ne 0) { throw "failed to resolve release tag target" }
+          if ($peeledCommit.Trim() -ne $env:GITHUB_SHA) {
+            throw "release tag $env:GITHUB_REF_NAME points to $peeledCommit, expected $env:GITHUB_SHA"
+          }
           $allowedSigners = Join-Path $env:RUNNER_TEMP 'release-signers.allowed'
           "release@printops $env:RELEASE_TAG_SSH_PUBLIC_KEY" | Set-Content -Encoding ascii $allowedSigners
           git -c gpg.format=ssh -c "gpg.ssh.allowedSignersFile=$allowedSigners" verify-tag $tagRef
