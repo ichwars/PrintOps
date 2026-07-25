@@ -109,7 +109,7 @@ def _load_or_generate_key() -> tuple[str | None, _InternalSource]:
         logger.error(
             "%s is present but is not a valid Fernet key. "
             "Refusing to overwrite — fix the file or set MFA_ENCRYPTION_KEY. "
-            "Falling back to plaintext storage.",
+            "New secret writes will be refused unless MFA_ALLOW_PLAINTEXT_FALLBACK is explicitly enabled.",
             key_file,
         )
         return None, "none_corrupted"
@@ -151,8 +151,8 @@ def _load_or_generate_key() -> tuple[str | None, _InternalSource]:
     except OSError as exc:
         logger.error(
             "Could not save MFA encryption key to %s (%s). "
-            "Falling back to plaintext storage. Set MFA_ENCRYPTION_KEY in the "
-            "environment or fix the data-dir permissions to enable encryption.",
+            "New secret writes will be refused unless MFA_ALLOW_PLAINTEXT_FALLBACK is explicitly enabled. "
+            "Set MFA_ENCRYPTION_KEY in the environment or fix the data-dir permissions to enable encryption.",
             key_file,
             exc,
         )
@@ -184,12 +184,20 @@ def _get_fernet():
             # actually the cause. The corrupted-file path already error-logged
             # in _load_or_generate_key with a more specific message.
             if internal_source == "none_write_failed":
-                logger.warning(
-                    "MFA_ENCRYPTION_KEY is not set and DATA_DIR is not writable — "
-                    "TOTP secrets and OIDC client_secrets are stored in plaintext. "
-                    "Generate a key with: "
-                    'python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
-                )
+                if _plaintext_fallback_allowed():
+                    logger.warning(
+                        "MFA_ENCRYPTION_KEY is not set and DATA_DIR is not writable — "
+                        "TOTP secrets and OIDC client_secrets may be stored in plaintext because "
+                        "%s is enabled. Generate a key with: "
+                        'python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"',
+                        _ALLOW_PLAINTEXT_ENV,
+                    )
+                else:
+                    logger.warning(
+                        "MFA_ENCRYPTION_KEY is not set and DATA_DIR is not writable — "
+                        "new TOTP/OIDC secret writes will be refused. Generate a key with: "
+                        'python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
+                    )
             # Suppresses repetitive warnings across calls; reset together
             # with _fernet_instance when re-initializing (e.g. in tests).
             _warn_shown = True

@@ -5,7 +5,7 @@ import zipfile
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import (
@@ -196,7 +196,9 @@ async def get_available_filaments(
     # Normalize model name
     normalized_model = normalize_printer_model(model) or normalize_printer_model_id(model) or model
 
-    query = select(Printer).where(Printer.model.ilike(normalized_model)).where(Printer.is_active == True)  # noqa: E712
+    query = (
+        select(Printer).where(func.lower(Printer.model) == normalized_model.lower()).where(Printer.is_active == True)  # noqa: E712
+    )
     if location:
         query = query.where(Printer.location == location)
 

@@ -133,6 +133,9 @@ services:
       # DATA_DIR/.mfa_encryption_key on first startup if unset. Override here
       # to manage the key out-of-band (e.g. via a secret manager).
       #- MFA_ENCRYPTION_KEY=
+      # Emergency/legacy fallback only: allow new TOTP/OIDC secrets to be
+      # written in plaintext when no encryption key can be loaded.
+      - MFA_ALLOW_PLAINTEXT_FALLBACK=${MFA_ALLOW_PLAINTEXT_FALLBACK:-false}
       #
       # External library folders (GHSA-r2qv follow-up). Empty default
       # disables the "Add external folder" feature; set to one or more
