@@ -36,7 +36,23 @@ mode rather than being ignored.
 
 ## Migration
 
-Installations already using non-root IDs need no change. Installations with
-`PUID=0` or `PGID=0` must switch to a non-root host identity before upgrading.
-If startup reports an ownership error, correct the host mount permissions or
-select matching IDs; PrintOps will not continue with unsafe permissions.
+Existing installations must update their Compose service as well as the image.
+Keeping an older Compose file leaves Docker's broad default capability set in
+place during initialization. Copy the current `cap_drop`/`cap_add` block from
+`docker-compose.yml`, or apply this equivalent policy:
+
+```yaml
+cap_drop:
+  - ALL
+cap_add:
+  - CHOWN
+  - DAC_OVERRIDE
+  - SETGID
+  - SETUID
+  - NET_BIND_SERVICE
+```
+
+Installations with `PUID=0` or `PGID=0` must also switch to a non-root host
+identity before upgrading. If startup reports an ownership error, correct the
+host mount permissions or select matching IDs; PrintOps will not continue with
+unsafe permissions.

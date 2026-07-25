@@ -56,6 +56,18 @@ run_hardened --entrypoint /bin/sh -e PUID=1234 -e PGID=1234 "$IMAGE" -c '
   '\''
 '
 
+# A nested bind mount can be root-owned even when its parent already matches
+# PUID:PGID. The entrypoint must normalize it independently.
+run_hardened --entrypoint /bin/sh -e PUID=1234 -e PGID=1234 "$IMAGE" -c '
+  rm -rf /app/data/virtual_printer
+  mkdir -p /app/data/virtual_printer
+  chown 1234:1234 /app/data
+  chown 0:0 /app/data/virtual_printer
+  /usr/local/bin/docker-entrypoint.sh sh -c '\''
+    test "$(stat -c %u:%g /app/data/virtual_printer)" = "1234:1234"
+  '\''
+'
+
 run_hardened -i "$IMAGE" python - <<'PY'
 from pathlib import Path
 import socket
@@ -75,9 +87,10 @@ finally:
         sock.close()
 PY
 
-python - <<'PY'
+python - "$IMAGE" <<'PY'
 import json
 import subprocess
+import sys
 
 config = subprocess.check_output(
     ["docker", "compose", "config", "--format", "json"], text=True
@@ -87,6 +100,14 @@ assert service.get("cap_drop") == ["ALL"], service.get("cap_drop")
 cap_add = service.get("cap_add", [])
 expected = {"CHOWN", "DAC_OVERRIDE", "SETGID", "SETUID", "NET_BIND_SERVICE"}
 assert len(cap_add) == len(expected) and set(cap_add) == expected, cap_add
+
+image = json.loads(
+    subprocess.check_output(["docker", "image", "inspect", sys.argv[1]], text=True)
+)[0]
+healthcheck = image["Config"]["Healthcheck"]["Test"]
+assert healthcheck[0] == "CMD-SHELL", healthcheck
+assert healthcheck[1].startswith("exec gosu "), healthcheck
+assert "os.getuid()" in healthcheck[1] and "os.getgid()" in healthcheck[1], healthcheck
 PY
 
 echo "Docker entrypoint boundary checks passed"

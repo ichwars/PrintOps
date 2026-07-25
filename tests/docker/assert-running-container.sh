@@ -7,22 +7,46 @@ container="${1:?container name required}"
 expected_uid="${2:-1000}"
 expected_gid="${3:-1000}"
 
-python - "$container" <<'PY'
+if [ "${DOCKER_USE_SUDO:-0}" = "1" ]; then
+  docker_command=(sudo docker)
+  docker_mode="sudo"
+elif docker inspect "$container" >/dev/null 2>&1; then
+  docker_command=(docker)
+  docker_mode="direct"
+elif command -v sudo >/dev/null 2>&1 && sudo docker inspect "$container" >/dev/null 2>&1; then
+  docker_command=(sudo docker)
+  docker_mode="sudo"
+else
+  echo "cannot inspect Docker container ${container} directly or via sudo" >&2
+  exit 1
+fi
+
+python - "$container" "$docker_mode" <<'PY'
 import json
 import subprocess
 import sys
 
+docker_command = ["sudo", "docker"] if sys.argv[2] == "sudo" else ["docker"]
 container = json.loads(
-    subprocess.check_output(["docker", "inspect", sys.argv[1]], text=True)
+    subprocess.check_output([*docker_command, "inspect", sys.argv[1]], text=True)
 )[0]
 host_config = container["HostConfig"]
 assert host_config["CapDrop"] == ["ALL"], host_config["CapDrop"]
 cap_add = [value.removeprefix("CAP_") for value in (host_config["CapAdd"] or [])]
 expected = {"CHOWN", "DAC_OVERRIDE", "SETGID", "SETUID", "NET_BIND_SERVICE"}
 assert len(cap_add) == len(expected) and set(cap_add) == expected, cap_add
+
+# Docker launches health checks separately from PID 1. The probe therefore
+# verifies its own identity, while `exec gosu` ensures no root shell remains
+# alive for the duration of the request.
+healthcheck = container["Config"]["Healthcheck"]["Test"]
+assert healthcheck[0] == "CMD-SHELL", healthcheck
+assert healthcheck[1].startswith("exec gosu "), healthcheck
+assert "os.getuid()" in healthcheck[1] and "os.getgid()" in healthcheck[1], healthcheck
+assert container["State"]["Health"]["Status"] == "healthy", container["State"]["Health"]
 PY
 
-docker exec -i --user "${expected_uid}:${expected_gid}" \
+"${docker_command[@]}" exec -i --user "${expected_uid}:${expected_gid}" \
   -e EXPECTED_UID="$expected_uid" -e EXPECTED_GID="$expected_gid" \
   "$container" python - <<'PY'
 import os

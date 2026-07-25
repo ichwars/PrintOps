@@ -43,7 +43,13 @@ services:
       - TESTING=1
       - DATA_DIR=/app/data
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test:
+        - CMD-SHELL
+        - >-
+          exec gosu "$${PUID:-1000}:$${PGID:-1000}" python -c
+          "import os, urllib.request; expected = (int(os.environ.get('PUID', '1000')),
+          int(os.environ.get('PGID', '1000'))); assert (os.getuid(), os.getgid()) == expected;
+          urllib.request.urlopen('http://localhost:8000/health', timeout=5).close()"
       interval: 5s
       timeout: 5s
       retries: 10

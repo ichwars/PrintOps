@@ -102,6 +102,13 @@ chown_if_needed() {
 }
 
 chown_if_needed /app/data
+# A nested bind mount has its own ownership. The parent can already match
+# PUID:PGID while Docker has created this mount point as root, so it needs an
+# independent check. Ignore symlinks: ownership normalization must never
+# traverse outside the managed data tree.
+if [ -d /app/data/virtual_printer ] && [ ! -L /app/data/virtual_printer ]; then
+    chown_if_needed /app/data/virtual_printer
+fi
 chown_if_needed /app/logs
 
 # Drop privileges and run the application. python's file capabilities
