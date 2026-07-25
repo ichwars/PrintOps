@@ -56,4 +56,37 @@ run_hardened --entrypoint /bin/sh -e PUID=1234 -e PGID=1234 "$IMAGE" -c '
   '\''
 '
 
+run_hardened -i "$IMAGE" python - <<'PY'
+from pathlib import Path
+import socket
+
+status = Path("/proc/self/status").read_text(encoding="utf-8")
+cap_eff = next(line.split()[1] for line in status.splitlines() if line.startswith("CapEff:"))
+assert int(cap_eff, 16) == 1 << 10, cap_eff  # CAP_NET_BIND_SERVICE
+
+sockets = []
+try:
+    for port in (322, 990):
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", port))
+        sockets.append(sock)
+finally:
+    for sock in sockets:
+        sock.close()
+PY
+
+python - <<'PY'
+import json
+import subprocess
+
+config = subprocess.check_output(
+    ["docker", "compose", "config", "--format", "json"], text=True
+)
+service = json.loads(config)["services"]["printops"]
+assert service.get("cap_drop") == ["ALL"], service.get("cap_drop")
+cap_add = service.get("cap_add", [])
+expected = {"CHOWN", "DAC_OVERRIDE", "SETGID", "SETUID", "NET_BIND_SERVICE"}
+assert len(cap_add) == len(expected) and set(cap_add) == expected, cap_add
+PY
+
 echo "Docker entrypoint boundary checks passed"
