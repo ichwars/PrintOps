@@ -24,27 +24,46 @@
 
 set -eu
 
+fatal() {
+    echo "[entrypoint] error: $*" >&2
+    exit 1
+}
+
+validate_id() {
+    name="$1"
+    value="$2"
+    case "$value" in
+        ''|*[!0-9]*)
+            fatal "${name} must be a decimal integer from 1 to 2147483647"
+            ;;
+    esac
+    if [ "$value" -lt 1 ] || [ "$value" -gt 2147483647 ]; then
+        fatal "${name} must be a decimal integer from 1 to 2147483647"
+    fi
+}
+
 # Default to 1000:1000 to match the legacy `user: "1000:1000"` default
 # in our previously-shipped compose template; overridable via env so
 # users who run docker as a different uid can match their host without
 # editing the compose user: directive.
-PUID="${PUID:-1000}"
-PGID="${PGID:-1000}"
+PUID="${PUID-1000}"
+PGID="${PGID-1000}"
+validate_id PUID "$PUID"
+validate_id PGID "$PGID"
+echo "[entrypoint] target identity ${PUID}:${PGID} validated"
 
 # If requested, update and use the system trust store inside the container.
 # Users can set USE_SYSTEM_TRUST_STORE to any non-empty value to enable.
 if [ -n "${USE_SYSTEM_TRUST_STORE:-}" ]; then
     echo "[entrypoint] USE_SYSTEM_TRUST_STORE is set"
     if [ "$(id -u)" -ne 0 ]; then
-        echo "[entrypoint] error: USE_SYSTEM_TRUST_STORE is set but not running as root; cannot update trust store"
-        exit 1
+        fatal "USE_SYSTEM_TRUST_STORE is set but not running as root; cannot update trust store"
     fi
     # Check if we have any certificates to process. Error if directory is empty
     if ls -1 /usr/local/share/ca-certificates/*.crt >/dev/null 2>&1; then
         echo "[entrypoint] .crt files found in /usr/local/share/ca-certificates"
     else
-        echo "[entrypoint] no .crt files in /usr/local/share/ca-certificates"
-        exit 1
+        fatal "no .crt files in /usr/local/share/ca-certificates"
     fi
     if command -v update-ca-certificates >/dev/null 2>&1; then
         echo "[entrypoint] update-ca-certificates found; updating system trust store"
@@ -52,12 +71,10 @@ if [ -n "${USE_SYSTEM_TRUST_STORE:-}" ]; then
             echo "[entrypoint] update-ca-certificates succeeded; exporting SSL_CERT_DIR=/etc/ssl/certs"
             export SSL_CERT_DIR="/etc/ssl/certs"
         else
-            echo "[entrypoint] error: update-ca-certificates failed"
-            exit 1
+            fatal "update-ca-certificates failed"
         fi
     else
-        echo "[entrypoint] error: update-ca-certificates not found; cannot update trust store"
-        exit 1
+        fatal "update-ca-certificates not found; cannot update trust store"
     fi
 else
     echo "[entrypoint] USE_SYSTEM_TRUST_STORE not set; skipping system trust store update"
@@ -75,26 +92,27 @@ fi
 # of chown traversal at every restart.
 chown_if_needed() {
     target="$1"
-    [ -d "$target" ] || mkdir -p "$target"
+    [ -d "$target" ] || mkdir -p -- "$target" || fatal "cannot create ${target}"
     current="$(stat -c '%u:%g' "$target" 2>/dev/null || echo '')"
     if [ "$current" != "$PUID:$PGID" ]; then
-        echo "[entrypoint] chown -R ${PUID}:${PGID} ${target}"
-        chown -R "${PUID}:${PGID}" "$target" || true
+        echo "[entrypoint] normalizing ownership of ${target} to ${PUID}:${PGID}"
+        chown -R -h -- "${PUID}:${PGID}" "$target" \
+            || fatal "cannot set ownership of ${target}; check the mount and PUID/PGID"
     fi
 }
 
 chown_if_needed /app/data
-chown_if_needed /app/logs
-
-# Bind-mount-source path needs the same treatment when present. dockerd
-# creates missing bind-mount sources as root on the host before the
-# container starts; the chown here propagates through the bind mount to
-# the host-side directory and fixes the issue once and for all.
-if [ -d /app/data/virtual_printer ]; then
+# A nested bind mount has its own ownership. The parent can already match
+# PUID:PGID while Docker has created this mount point as root, so it needs an
+# independent check. Ignore symlinks: ownership normalization must never
+# traverse outside the managed data tree.
+if [ -d /app/data/virtual_printer ] && [ ! -L /app/data/virtual_printer ]; then
     chown_if_needed /app/data/virtual_printer
 fi
+chown_if_needed /app/logs
 
 # Drop privileges and run the application. python's file capabilities
 # (cap_net_bind_service=+ep, set in the Dockerfile) survive the uid
 # switch, so binding to :322 / :990 still works post-drop.
+echo "[entrypoint] starting application as ${PUID}:${PGID}"
 exec gosu "${PUID}:${PGID}" "$@"

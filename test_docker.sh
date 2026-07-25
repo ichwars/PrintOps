@@ -239,6 +239,12 @@ if [ "$RUN_INTEGRATION" = true ]; then
     else
         print_success "Application is healthy"
 
+        if DOCKER_USE_SUDO=1 bash tests/docker/assert-running-container.sh printops-integration-test 1000 1000; then
+            print_success "Application runtime is non-root with minimal capabilities"
+        else
+            print_failure "Application runtime privilege check failed"
+        fi
+
         # Run basic health checks
         print_info "Running integration tests..."
 
