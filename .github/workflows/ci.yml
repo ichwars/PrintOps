@@ -357,6 +357,12 @@ jobs:
           echo "$HEALTH"
           echo "$HEALTH" | grep -q "healthy"
 
+      - name: Test non-root runtime boundary
+        run: bash tests/docker/assert-running-container.sh printops-integration-test 1000 1000
+
+      - name: Test entrypoint and capability policy
+        run: bash tests/docker/runtime-security.sh printops:test
+
       - name: Test API endpoint
         run: |
           docker compose -f docker-compose.test.yml exec -T integration curl -s http://localhost:8000/api/v1/settings

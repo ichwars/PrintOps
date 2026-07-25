@@ -151,14 +151,17 @@ EXPOSE 8000
 EXPOSE 8883
 EXPOSE 50000-50100
 
-# Health check (uses PORT env var via shell)
+# Docker starts health checks with the image's configured user (root is needed
+# for the one-time entrypoint initialization). Replace that probe process with
+# the configured non-root identity and make the probe verify its own UID/GID.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request, os; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"PORT\", \"8000\")}/health')" || exit 1
+    CMD exec gosu "${PUID:-1000}:${PGID:-1000}" python -c "import os, urllib.request; expected = (int(os.environ.get('PUID', '1000')), int(os.environ.get('PGID', '1000'))); assert (os.getuid(), os.getgid()) == expected; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"PORT\", \"8000\")}/health', timeout=5).close()"
 
 # Run the application
 # Use standard asyncio loop (uvloop has permission issues in some Docker environments)
 # Port is configurable via PORT (default 8000); bind address via HOST (default
 # 0.0.0.0). Set HOST=127.0.0.1 to bind loopback only, e.g. when a reverse proxy
-# on the same host fronts the app.
+# on the same host fronts the app. The shell expands these environment values
+# and then replaces itself so Python/Uvicorn is the non-root PID 1.
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["sh", "-c", "uvicorn backend.app.main:app --host ${HOST:-0.0.0.0} --port ${PORT:-8000} --loop asyncio"]
+CMD ["sh", "-c", "exec python -m uvicorn backend.app.main:app --host ${HOST:-0.0.0.0} --port ${PORT:-8000} --loop asyncio"]

@@ -12,11 +12,17 @@ services:
     # your host user if needed — defaults to 1000:1000 to match the
     # historical compose `user:` directive.
     #
-    # Allow binding to privileged ports (322, 990) as non-root user — required
-    # for FTPS in every VP mode and for the RTSPS camera proxy in proxy mode +
-    # non-proxy modes that have a target printer configured. Without this, the
-    # FTP and RTSP listeners silently fail.
+    # Root exists only during entrypoint initialization. Drop Docker's broad
+    # default set and allow only volume ownership, UID/GID transition, and the
+    # two privileged virtual-printer ports. Python retains only
+    # NET_BIND_SERVICE after gosu + exec.
+    cap_drop:
+      - ALL
     cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
       - NET_BIND_SERVICE
     #
     # LINUX: Use host mode for printer discovery and camera streaming

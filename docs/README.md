@@ -10,6 +10,7 @@ Screenshots gehören nicht in das Repository.
 | --- | --- | --- |
 | Authentifizierung | [Azure Entra ID](authentication/entra-id.md) | Einrichtung der OIDC-Anmeldung mit Microsoft Entra ID |
 | Bambu Lab | [Preset Sync API](bambu_lab_preset_sync_api.md) | Referenz der beobachteten Cloud-Endpunkte für Preset-Synchronisation |
+| Betrieb | [Docker-Laufzeitsicherheit](docker-runtime-security.md) | Root-Init, PUID/PGID, Capabilities und Volume-Rechte |
 | Migration | [Virtual-Printer-FTP-Port](migration-vp-ftp-port.md) | Umstellung des FTP-Ports und erforderliche Migrationsschritte |
 | Aufträge | [Auftragsverwaltung](order-management.md) | Unternehmensprofile, Kundenstammdaten, Berechtigungen und Nummernkreise |
 | Lager | [Lagerorte](storage-locations.md) | Datenmodell und Verhalten strukturierter Lagerorte |

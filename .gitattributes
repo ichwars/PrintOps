@@ -2,6 +2,10 @@
 # regardless of the user's core.autocrlf setting.
 *.bat text eol=crlf
 
+# Shell scripts execute in Linux containers and appliances. Keep their shebangs
+# free of CRLF regardless of the Windows checkout configuration.
+*.sh text eol=lf
+
 # Vite preserves source line endings while injecting generated tags. Force the
 # committed build entry point to LF so Windows builds do not become mixed-EOL.
 static/index.html text eol=lf

@@ -51,6 +51,17 @@ Open **http://localhost:8000** and add your printer.
 | `PGID` | `1000` | Group ID for file permissions |
 | `DEBUG` | `false` | Enable debug logging |
 
+## Runtime Security
+
+The container uses root only for a bounded initialization phase that validates
+`PUID`/`PGID` and prepares the data and log volumes. It then replaces the init
+process with Python/Uvicorn running as the configured non-root identity. Values
+of 0 are rejected. If you set Compose `user:` or `docker run --user`, prepare
+volume ownership and the optional system trust store on the host first.
+
+The complete capability model and migration guidance are documented in
+[Docker runtime security](docs/docker-runtime-security.md).
+
 ## Volumes
 
 | Path | Purpose |
