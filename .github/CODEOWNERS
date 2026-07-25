@@ -14,6 +14,21 @@
 /Dockerfile* @ichwars
 /docker-compose*.yml @ichwars
 /.github/ @ichwars
+/scripts/ @ichwars
+
+# Security-sensitive backend surfaces
+/backend/app/core/auth.py @ichwars
+/backend/app/core/permissions.py @ichwars
+/backend/app/core/database.py @ichwars
+/backend/app/api/routes/auth.py @ichwars
+/backend/migrations/ @ichwars
+
+# Commercial document issuance and compliance
+/backend/app/services/commercial_documents.py @ichwars
+/backend/app/services/document_* @ichwars
+
+# Dependency inputs and generated locks
+/requirements*.txt @ichwars
 
 # Documentation
 /*.md @ichwars

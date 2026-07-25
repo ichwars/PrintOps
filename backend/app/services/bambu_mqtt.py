@@ -32,6 +32,10 @@ logger = logging.getLogger(__name__)
 #   "n3s/<id>"  – AMS HT (H2D Pro and similar; IDs typically start at 128)
 _AMS_MODULE_PREFIXES = ("ams/", "n3f/", "n3s/")
 
+# gcode_state values that mean a printer must not receive a new project_file.
+# IDLE / FINISH / FAILED are valid start targets; these active states are not.
+_ACTIVE_PRINT_STATES = frozenset({"PREPARE", "SLICING", "RUNNING", "PAUSE"})
+
 
 def parse_ams_filament_backup_from_cfg(cfg_raw: object) -> bool | None:
     """Extract AMS Filament Backup state from a Bambu push_status ``print.cfg`` value.
@@ -1913,10 +1917,18 @@ class BambuMQTTClient:
                             # 10=spool present but filament not in feeder) indicate
                             # the slot should be cleared.  Without this, old
                             # tray_type/tray_color persist indefinitely (#784).
+                            # AMS-HT units (id >= 128) report a loaded resting tray
+                            # as state=9, so this state heuristic must not clear HT
+                            # spool data. Explicit tray_type="" removals still clear.
+                            try:
+                                is_ht_unit = int(ams_id) >= 128
+                            except (TypeError, ValueError):
+                                is_ht_unit = False
                             tray_state = new_tray.get("state")
                             if (
                                 tray_state is not None
                                 and tray_state != 11
+                                and not is_ht_unit
                                 and "tray_type" not in new_tray
                                 and merged_tray.get("tray_type")
                             ):
@@ -3637,6 +3649,15 @@ class BambuMQTTClient:
                 back to "last matching nozzle" auto-pick. Silently ignored
                 on single-nozzle printers.
         """
+        if self.state.state in _ACTIVE_PRINT_STATES:
+            logger.warning(
+                "[%s] start_print refused: printer busy (gcode_state=%s), not publishing project_file for %s",
+                self.serial_number,
+                self.state.state,
+                filename,
+            )
+            return False
+
         if self._client and self.state.connected:
             # Bambu print command format — matches Bambu Studio's format.
             # The calibration/leveling fields (timelapse, bed_leveling,

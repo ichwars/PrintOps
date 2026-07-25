@@ -102,6 +102,41 @@ def extract_filament_requirements(file_path: Path, plate_id: int | None = None) 
     return filaments
 
 
+def overrides_for_plate(overrides: list[dict], file_path: Path | None, plate_id: int | None) -> list[dict]:
+    """Keep only overrides for filament slots consumed by the selected plate."""
+    if not overrides or plate_id is None or file_path is None or not file_path.exists():
+        return overrides
+
+    plate_slots = {f["slot_id"] for f in extract_filament_requirements(file_path, plate_id)}
+    if not plate_slots:
+        logger.warning(
+            "Cannot read filaments for plate %s in %s; keeping all %d override(s)",
+            plate_id,
+            file_path.name,
+            len(overrides),
+        )
+        return overrides
+
+    narrowed: list[dict] = []
+    for override in overrides:
+        try:
+            slot_id = int(override["slot_id"])
+        except (KeyError, TypeError, ValueError):
+            narrowed.append(override)
+            continue
+        if slot_id in plate_slots:
+            narrowed.append(override)
+
+    if len(narrowed) != len(overrides):
+        logger.info(
+            "Plate %s: kept %d of %d filament override(s); the rest belong to other plates",
+            plate_id,
+            len(narrowed),
+            len(overrides),
+        )
+    return narrowed
+
+
 def _collect_filaments(parent: ET.Element, into: list[dict]) -> None:
     """Walk every `./filament` child under `parent` and append normalised
     entries to `into`. Skips filaments with `used_g <= 0` (slot present in

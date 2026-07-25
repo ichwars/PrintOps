@@ -5,12 +5,16 @@ All notable changes to PrintOps will be documented in this file.
 ## Unreleased
 
 ### Added
+- **Upstream alignment, reproducible builds, and architecture guardrails** - Ports high-impact bambuddy printer/queue/AMS fixes into PrintOps without dropping PrintOps commerce and warehouse domains; adds queue dispatch claiming, busy-printer start protection, AMS-HT tray preservation, printer model compatibility checks, plate-scoped filament overrides, DB pool diagnostics, bounded FTP/SMTP I/O, a split printer file-router, a PrintOps upstream-domain deletion guard, Python size-budget CI, hash-locked runtime/dev dependency files, and maintainer/review governance docs.
 - **Complete commercial-document format and PDF preview workspace** - Adds the dedicated Settings -> Order Management -> Format & Preview area with real multi-page PDF.js preview on the left, compact structured controls on the right, A4/Letter and Classic/Modern/Compact templates, profile/document/language inheritance, 500 ms autosave, assets and font preflight, readiness findings, auditable version history and guarded publication.
 - **Offline PDF/A-3u and electronic-invoice evidence pipeline** - Preview, final output and external immutable-snapshot export now share one pinned WeasyPrint/veraPDF pipeline. ZUGFeRD identifies the PDF as original and records the embedded XML profile/hash; XRechnung identifies XML as original and exposes a separately downloadable PDF visual copy.
 - **Immutable document evidence and backup coverage** - Published layouts, asset hashes, document snapshots, PDF/XML artifacts, renderer/validator receipts and validation reports are retained and included in local/private-Git backups with integrity manifests.
 
 ### Security
 - **Hardened document rendering and assets** - Rejects arbitrary HTML/CSS, SSRF and unregistered file URLs, active PDF content, cross-profile assets, traversal paths, oversized uploads, stale layout versions and guessed preview jobs. Preview caches are actor/profile scoped and final export accepts only immutable snapshots plus published layouts.
+
+### Fixed
+- **Python 3.11 CI dependency locks** - Keeps `numpy`, `contourpy`, `fast-simplification`, and `greenlet` below releases that require Python 3.12 or lack Linux CPython 3.11 wheels, so GitHub Actions can install the hash-locked dev environment again.
 
 ## [0.2.4.9] - 2026-07-07
 

@@ -35,8 +35,9 @@ from backend.app.schemas.print_queue import (
     PrintQueueReorder,
 )
 from backend.app.services.filament_deficit import compute_deficit_for_queue_item
+from backend.app.services.filament_requirements import overrides_for_plate
 from backend.app.services.notification_service import notification_service
-from backend.app.utils.printer_models import normalize_printer_model, normalize_printer_model_id
+from backend.app.utils.printer_models import is_gcode_compatible, normalize_printer_model, normalize_printer_model_id
 from backend.app.utils.threemf_tools import (
     extract_bed_type_from_3mf,
     extract_filament_usage_from_3mf,
@@ -113,6 +114,31 @@ def _extract_filament_types_from_3mf(file_path: Path, plate_id: int | None = Non
 # in utils/threemf_tools.py so the notification path (main.py) can reuse it
 # without importing from a routes module (#1785).
 _extract_print_time_from_3mf = extract_print_time_from_3mf
+
+
+async def _resolve_source_path(db: AsyncSession, item: PrintQueueItem) -> Path | None:
+    """Resolve an existing queue item's source 3MF on disk, or None."""
+    if item.archive_id:
+        result = await db.execute(select(PrintArchive).where(PrintArchive.id == item.archive_id))
+        archive = result.scalar_one_or_none()
+        if archive:
+            return settings.base_dir / archive.file_path
+    if item.library_file_id:
+        result = await db.execute(LibraryFile.active().where(LibraryFile.id == item.library_file_id))
+        library_file = result.scalar_one_or_none()
+        if library_file:
+            lib_path = Path(library_file.file_path)
+            return lib_path if lib_path.is_absolute() else settings.base_dir / library_file.file_path
+    return None
+
+
+def _source_sliced_for(archive: PrintArchive | None, library_file: LibraryFile | None) -> str | None:
+    if archive:
+        return archive.sliced_for_model
+    if library_file and library_file.file_metadata:
+        value = library_file.file_metadata.get("sliced_for_model")
+        return str(value) if value else None
+    return None
 
 
 def _enrich_response(item: PrintQueueItem) -> PrintQueueItemResponse:
@@ -374,11 +400,13 @@ async def add_to_queue(
     if data.printer_id and target_model_norm:
         raise HTTPException(400, "Cannot specify both printer_id and target_model")
 
-    # Validate printer exists (if assigned)
+    assigned_printer_model = None
     if data.printer_id is not None:
         result = await db.execute(select(Printer).where(Printer.id == data.printer_id))
-        if not result.scalar_one_or_none():
+        assigned_printer = result.scalar_one_or_none()
+        if assigned_printer is None:
             raise HTTPException(400, "Printer not found")
+        assigned_printer_model = assigned_printer.model
 
     # Validate target_model has active printers
     if target_model_norm:
@@ -449,11 +477,19 @@ async def add_to_queue(
         except InvalidFilenameError as e:
             raise HTTPException(400, str(e)) from e
 
+    target_hardware_model = target_model_norm or assigned_printer_model
+    sliced_for_model = _source_sliced_for(archive, library_file)
+    if target_hardware_model and not is_gcode_compatible(sliced_for_model, target_hardware_model):
+        raise HTTPException(
+            400,
+            f"File was sliced for {sliced_for_model} and cannot be dispatched to {target_hardware_model} printers",
+        )
+
     # Extract filament types for model-based assignment (used by scheduler for validation)
     required_filament_types = None
+    file_path = None
     if target_model_norm:
         # Get file path from archive or library file
-        file_path = None
         if archive:
             file_path = settings.base_dir / archive.file_path
         elif library_file:
@@ -469,15 +505,17 @@ async def add_to_queue(
     # If filament overrides are provided, update required_filament_types to match override types
     filament_overrides_json = None
     if data.filament_overrides and target_model_norm:
-        filament_overrides_json = json.dumps(data.filament_overrides)
-        # Update required_filament_types from overrides so scheduler validates against overridden types
-        override_types = sorted({o["type"] for o in data.filament_overrides if "type" in o})
-        if override_types:
-            # Merge with existing types (overrides may only cover some slots)
-            existing_types = set(json.loads(required_filament_types)) if required_filament_types else set()
-            # Replace types for overridden slots, keep others
-            all_types = existing_types | set(override_types)
-            required_filament_types = json.dumps(sorted(all_types))
+        plate_overrides = overrides_for_plate(data.filament_overrides, file_path, data.plate_id)
+        if plate_overrides:
+            filament_overrides_json = json.dumps(plate_overrides)
+            # Update required_filament_types from overrides so scheduler validates against overridden types
+            override_types = sorted({o["type"] for o in plate_overrides if "type" in o})
+            if override_types:
+                # Merge with existing types (overrides may only cover some slots)
+                existing_types = set(json.loads(required_filament_types)) if required_filament_types else set()
+                # Replace types for overridden slots, keep others
+                all_types = existing_types | set(override_types)
+                required_filament_types = json.dumps(sorted(all_types))
 
     # Validate quantity
     quantity = max(1, data.quantity)
@@ -734,26 +772,28 @@ async def bulk_update_queue_items(
         if not result.scalar_one_or_none():
             raise HTTPException(400, "Printer not found")
 
-    # Fetch all items
-    result = await db.execute(select(PrintQueueItem).where(PrintQueueItem.id.in_(data.item_ids)))
-    items = result.scalars().all()
+    # Fetch existing IDs first so skipped_count keeps the legacy behavior of
+    # ignoring unknown IDs while still applying edits atomically below.
+    result = await db.execute(select(PrintQueueItem.id).where(PrintQueueItem.id.in_(data.item_ids)))
+    item_ids = result.scalars().all()
 
     updated_count = 0
     skipped_count = 0
 
-    for item in items:
-        if item.status != "pending":
-            skipped_count += 1
-            continue
+    for existing_id in item_ids:
+        conditions = [
+            PrintQueueItem.id == existing_id,
+            PrintQueueItem.status == "pending",
+            PrintQueueItem.dispatching_at.is_(None),
+        ]
+        if not can_modify_all:
+            conditions.append(PrintQueueItem.created_by_id == user.id)
 
-        # Ownership check
-        if not can_modify_all and item.created_by_id != user.id:
+        result = await db.execute(update(PrintQueueItem).where(*conditions).values(**update_data))
+        if result.rowcount:
+            updated_count += 1
+        else:
             skipped_count += 1
-            continue
-
-        for field, value in update_data.items():
-            setattr(item, field, value)
-        updated_count += 1
 
     await db.commit()
 
@@ -1050,6 +1090,9 @@ async def update_queue_item(
     if item.status != "pending":
         raise HTTPException(400, "Can only update pending items")
 
+    if item.dispatching_at is not None:
+        raise HTTPException(409, "Item is being dispatched; cancel it first to make changes")
+
     update_data = data.model_dump(exclude_unset=True)
 
     # Normalize target_model if being updated
@@ -1067,10 +1110,13 @@ async def update_queue_item(
         raise HTTPException(400, "Cannot specify both printer_id and target_model")
 
     # Validate new printer_id if being changed (and not None)
+    new_printer_model = None
     if "printer_id" in update_data and update_data["printer_id"] is not None:
         result = await db.execute(select(Printer).where(Printer.id == update_data["printer_id"]))
-        if not result.scalar_one_or_none():
+        new_printer = result.scalar_one_or_none()
+        if new_printer is None:
             raise HTTPException(400, "Printer not found")
+        new_printer_model = new_printer.model
 
     # Validate target_model has active printers
     if "target_model" in update_data and update_data["target_model"]:
@@ -1080,15 +1126,38 @@ async def update_queue_item(
         if not result.scalars().first():
             raise HTTPException(400, f"No active printers for model: {update_data['target_model']}")
 
+    target_hardware_model = new_target_model or new_printer_model
+    if target_hardware_model:
+        sliced_for = None
+        if item.archive_id:
+            result = await db.execute(select(PrintArchive.sliced_for_model).where(PrintArchive.id == item.archive_id))
+            sliced_for = result.scalar_one_or_none()
+        elif item.library_file_id:
+            result = await db.execute(select(LibraryFile).where(LibraryFile.id == item.library_file_id))
+            library_file = result.scalar_one_or_none()
+            if library_file and library_file.file_metadata:
+                value = library_file.file_metadata.get("sliced_for_model")
+                sliced_for = str(value) if value else None
+        if not is_gcode_compatible(sliced_for, target_hardware_model):
+            raise HTTPException(
+                400,
+                f"File was sliced for {sliced_for} and cannot be dispatched to {target_hardware_model} printers",
+            )
+
     # Serialize ams_mapping to JSON for TEXT column storage
     if "ams_mapping" in update_data:
         update_data["ams_mapping"] = json.dumps(update_data["ams_mapping"]) if update_data["ams_mapping"] else None
 
     # Serialize filament_overrides to JSON for TEXT column storage
     if "filament_overrides" in update_data:
-        update_data["filament_overrides"] = (
-            json.dumps(update_data["filament_overrides"]) if update_data["filament_overrides"] else None
-        )
+        overrides = update_data["filament_overrides"]
+        if overrides:
+            overrides = overrides_for_plate(
+                overrides,
+                await _resolve_source_path(db, item),
+                update_data.get("plate_id", item.plate_id),
+            )
+        update_data["filament_overrides"] = json.dumps(overrides) if overrides else None
 
     # Serialize H2C rack-swap nozzle pick (#1780) to JSON for TEXT column
     # storage; same Text-as-opaque-blob convention as ams_mapping above.
@@ -1097,11 +1166,33 @@ async def update_queue_item(
             json.dumps(update_data["nozzle_mapping"]) if update_data["nozzle_mapping"] else None
         )
 
-    for field, value in update_data.items():
-        setattr(item, field, value)
+    if update_data:
+        conditions = [
+            PrintQueueItem.id == item_id,
+            PrintQueueItem.status == "pending",
+            PrintQueueItem.dispatching_at.is_(None),
+        ]
+        if not can_modify_all:
+            conditions.append(PrintQueueItem.created_by_id == user.id)
 
-    await db.commit()
-    await db.refresh(item, ["archive", "printer", "library_file", "created_by", "batch"])
+        result = await db.execute(update(PrintQueueItem).where(*conditions).values(**update_data))
+        if not result.rowcount:
+            await db.rollback()
+            raise HTTPException(409, "Item is being dispatched; cancel it first to make changes")
+
+        await db.commit()
+    result = await db.execute(
+        select(PrintQueueItem)
+        .options(
+            selectinload(PrintQueueItem.archive),
+            selectinload(PrintQueueItem.printer),
+            selectinload(PrintQueueItem.library_file),
+            selectinload(PrintQueueItem.created_by),
+            selectinload(PrintQueueItem.batch),
+        )
+        .where(PrintQueueItem.id == item_id)
+    )
+    item = result.scalar_one()
 
     logger.info("Updated queue item %s", item_id)
     return _enrich_response(item)

@@ -12,6 +12,8 @@ on:
       - 'Dockerfile'
       - 'docker-compose*.yml'
       - 'requirements.txt'
+      - 'requirements.lock.txt'
+      - 'requirements-dev.lock.txt'
       - 'frontend/package*.json'
       - '.github/workflows/security.yml'
   # These jobs are required by branch protection, so every pull request must
@@ -127,9 +129,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip "setuptools>=83.0.0"
-          pip install -r requirements.txt
-          pip install pip-audit
+          pip install --require-hashes -r requirements-dev.lock.txt
 
       - name: Run pip-audit
         id: pip-audit

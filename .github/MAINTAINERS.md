@@ -29,9 +29,9 @@ Enable these rules:
 **Restrict deletions** - Prevents branch deletion
 
 **Require a pull request before merging**
-- Required approvals: `1`
+- Required approvals: `2`
 - [x] Dismiss stale pull request approvals when new commits are pushed
-- [ ] Require review from Code Owners (optional)
+- [x] Require review from Code Owners
 - [x] Require approval of the most recent reviewable push
 
 **Require status checks to pass**
@@ -46,6 +46,32 @@ Enable these rules:
   - `Docker Build`
 
 **Block force pushes** - Prevents history rewriting
+
+### Sensitive Change Policy
+
+Changes touching authentication, permissions, release automation, dependency
+locks, Docker/runtime boundaries, database migrations, or document issuance need
+two independent human approvals before merge. At least one approval must come
+from a maintainer who did not author the change.
+
+Sensitive paths include:
+
+- `.github/`
+- `Dockerfile*`
+- `docker-compose*.yml`
+- `requirements*.txt`
+- `backend/app/core/auth.py`
+- `backend/app/core/permissions.py`
+- `backend/app/core/database.py`
+- `backend/migrations/`
+- `backend/app/api/routes/auth.py`
+- `backend/app/services/commercial_documents.py`
+- `backend/app/services/document_*`
+- `scripts/`
+
+Emergency recovery may use a documented bypass only when production users are
+blocked or exposed to an active security issue. The bypassing maintainer must
+open a follow-up PR or issue with the commit hash, reason, and verification.
 
 ### Optional (stricter)
 
@@ -102,17 +128,24 @@ npm run test:run
 ## CODEOWNERS
 
 The `CODEOWNERS` file automatically requests reviews from `@ichwars` for all changes.
+This is still a bus-factor risk until a second maintainer is added to the
+repository or to a dedicated GitHub team.
 
 To add more code owners:
 1. Edit `.github/CODEOWNERS`
 2. Add GitHub usernames with `@` prefix
 3. Assign specific paths to specific owners
+4. Enable "Require review from Code Owners" in the `main` branch ruleset
+5. Confirm the new owner can approve PRs without also relying on emergency bypass
 
 Example:
 ```
 /backend/ @ichwars @backend-contributor
 /frontend/ @ichwars @frontend-contributor
 ```
+
+Do not add placeholder users or teams to CODEOWNERS. Add only accounts that are
+already members or collaborators with review authority.
 
 ## Release Process
 

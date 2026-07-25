@@ -3,6 +3,7 @@ import os
 import re as _re
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 from backend.app.core.paths import resolve_data_dir
@@ -122,6 +123,15 @@ class Settings(BaseSettings):
     verapdf_cli: Path | None = Path(os.environ["VERAPDF_CLI"]) if os.environ.get("VERAPDF_CLI") else None
     weasyprint_cli: Path | None = Path(os.environ["WEASYPRINT_CLI"]) if os.environ.get("WEASYPRINT_CLI") else None
     database_url: str = _external_db_url or f"sqlite+aiosqlite:///{_db_path}"
+
+    # Database connection pool sizing. None keeps the dialect-aware defaults
+    # below (PostgreSQL: 20 + 80, SQLite: 20 + 200). Large printer farms can
+    # raise these with DB_POOL_SIZE / DB_MAX_OVERFLOW / DB_POOL_TIMEOUT /
+    # DB_POOL_RECYCLE after checking database max_connections.
+    db_pool_size: int | None = Field(default=None, gt=0)
+    db_max_overflow: int | None = Field(default=None, ge=0)
+    db_pool_timeout: int | None = Field(default=None, gt=0)
+    db_pool_recycle: int | None = Field(default=None, gt=0)
 
     # Logging
     log_level: str = "INFO"  # Override with LOG_LEVEL env var or DEBUG=true

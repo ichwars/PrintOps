@@ -189,11 +189,11 @@ log "Updating code to origin/$BRANCH"
 git reset --hard "origin/$BRANCH"
 CODE_UPDATED=1
 
-if [ -x "$VENV_PIP" ] && [ -f requirements.txt ]; then
+if [ -x "$VENV_PIP" ] && [ -f requirements.lock.txt ]; then
   log "Updating Python dependencies"
-  "$VENV_PIP" install -r requirements.txt
+  "$VENV_PIP" install --require-hashes -r requirements.lock.txt
 else
-  warn "Skipping Python dependency update (venv pip or requirements.txt missing)."
+  warn "Skipping Python dependency update (venv pip or requirements.lock.txt missing)."
 fi
 
 if [ -f "$FRONTEND_DIR/package.json" ]; then

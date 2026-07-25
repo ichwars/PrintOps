@@ -16,6 +16,7 @@ Thank you for your interest in contributing to PrintOps! This document provides 
 - [Testing](#testing)
 - [CI Pipeline](#ci-pipeline)
 - [Submitting Changes](#submitting-changes)
+- [Becoming a Maintainer](#becoming-a-maintainer)
 - [Reporting Bugs](#reporting-bugs)
 - [Requesting Features](#requesting-features)
 
@@ -110,11 +111,9 @@ python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt  # Dev/test dependencies (pytest, ruff, bandit, etc.)
+pip install --require-hashes -r requirements-dev.lock.txt
 
 # Install pre-commit hooks
-pip install pre-commit
 pre-commit install
 
 # Run backend (--loop asyncio matches production; avoids a uvloop TLS bug
@@ -388,6 +387,29 @@ All checks must pass before merging. Run `./test_all.sh` locally before pushing 
 - Ensure all tests pass
 - Follow the existing code style
 - **Visual changes require screenshots** — if your PR changes any frontend UI, include before/after screenshots showing the old and new appearance
+
+## Becoming a Maintainer
+
+PrintOps needs maintainers who can review safely, not just merge quickly. A
+contributor can be nominated for co-maintainer access after they have:
+
+- landed multiple focused PRs with tests and documentation where needed
+- reviewed other contributors' PRs with clear, actionable feedback
+- demonstrated care around security-sensitive areas such as auth, dependency
+  updates, Docker/runtime changes, migrations, and release automation
+- responded well to review and followed up on regressions
+
+Maintainer nomination should happen in a public issue or discussion. The
+nomination should summarize the contributor's recent work, expected ownership
+area, and any areas where they should still request a second specialist review.
+
+Co-maintainers are expected to:
+
+- avoid self-approving sensitive changes
+- require two human approvals for auth, permissions, release, Docker, database,
+  dependency-lock, and document-issuance changes
+- document emergency bypasses with a follow-up issue or PR
+- help keep CODEOWNERS accurate as ownership grows
 
 ## Reporting Bugs
 

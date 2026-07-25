@@ -82,6 +82,16 @@ def mfa_encryption_isolation(monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def reset_auth_enabled_cache():
+    """Keep the short-lived auth-enabled cache isolated between tests."""
+    from backend.app.core.auth import invalidate_auth_enabled_cache
+
+    invalidate_auth_enabled_cache()
+    yield
+    invalidate_auth_enabled_cache()
+
+
+@pytest.fixture(autouse=True)
 def reset_spoolman_location_sync_cache():
     """Drop the per-URL Spoolman location-sync TTL cache between tests.
 

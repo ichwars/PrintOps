@@ -42,7 +42,7 @@ from backend.app.services.printer_manager import (
 )
 from backend.app.services.smart_plug_manager import smart_plug_manager
 from backend.app.utils.filename import derive_remote_filename
-from backend.app.utils.printer_models import normalize_printer_model
+from backend.app.utils.printer_models import is_gcode_compatible, normalize_printer_model
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +191,8 @@ class PrintScheduler:
         self._running = True
         logger.info("Print scheduler started")
 
+        await self._clear_stale_dispatch_claims()
+
         while self._running:
             try:
                 await self.check_queue()
@@ -203,6 +205,49 @@ class PrintScheduler:
         """Stop the scheduler."""
         self._running = False
         logger.info("Print scheduler stopped")
+
+    async def _clear_stale_dispatch_claims(self) -> None:
+        """Clear dispatch claims left behind by a process restart."""
+        try:
+            async with async_session() as db:
+                result = await db.execute(
+                    update(PrintQueueItem).where(PrintQueueItem.dispatching_at.is_not(None)).values(dispatching_at=None)
+                )
+                await db.commit()
+                if result.rowcount:
+                    logger.info("Cleared %d stale queue dispatch claim(s)", result.rowcount)
+        except Exception as exc:
+            logger.error("Failed to clear stale queue dispatch claims: %s", exc)
+
+    async def _dispatch_with_claim(self, db: AsyncSession, item: PrintQueueItem) -> bool:
+        if not await self._claim_for_dispatch(db, item.id):
+            logger.info("Queue item %s is no longer claimable for dispatch", item.id)
+            return False
+        try:
+            await db.refresh(item)
+            await self._start_print(db, item)
+            return True
+        finally:
+            await self._clear_dispatch_claim(item.id)
+
+    async def _claim_for_dispatch(self, db: AsyncSession, item_id: int) -> bool:
+        result = await db.execute(
+            update(PrintQueueItem)
+            .where(PrintQueueItem.id == item_id)
+            .where(PrintQueueItem.status == "pending")
+            .where(PrintQueueItem.dispatching_at.is_(None))
+            .values(dispatching_at=datetime.now(timezone.utc))
+        )
+        await db.commit()
+        return result.rowcount > 0
+
+    async def _clear_dispatch_claim(self, item_id: int) -> None:
+        try:
+            async with async_session() as db:
+                await db.execute(update(PrintQueueItem).where(PrintQueueItem.id == item_id).values(dispatching_at=None))
+                await db.commit()
+        except Exception as exc:
+            logger.warning("Queue item %s: failed to clear dispatch claim: %s", item_id, exc)
 
     async def check_queue(self):
         """Check for prints ready to start."""
@@ -217,7 +262,9 @@ class PrintScheduler:
                 # then sort by print_time ascending. Items with no print time go last.
                 result = await db.execute(
                     select(PrintQueueItem)
+                    .options(selectinload(PrintQueueItem.archive), selectinload(PrintQueueItem.library_file))
                     .where(PrintQueueItem.status == "pending")
+                    .where(PrintQueueItem.dispatching_at.is_(None))
                     .order_by(
                         PrintQueueItem.printer_id,
                         PrintQueueItem.target_model,
@@ -229,7 +276,9 @@ class PrintScheduler:
             else:
                 result = await db.execute(
                     select(PrintQueueItem)
+                    .options(selectinload(PrintQueueItem.archive), selectinload(PrintQueueItem.library_file))
                     .where(PrintQueueItem.status == "pending")
+                    .where(PrintQueueItem.dispatching_at.is_(None))
                     .order_by(PrintQueueItem.printer_id, PrintQueueItem.position)
                 )
             items = list(result.scalars().all())
@@ -398,7 +447,8 @@ class PrintScheduler:
                         continue
 
                     # Start the print
-                    await self._start_print(db, item)
+                    if not await self._dispatch_with_claim(db, item):
+                        continue
                     busy_printers.add(item.printer_id)
 
                     # SJF starvation guard: mark items that were jumped
@@ -444,15 +494,29 @@ class PrintScheduler:
                             # Merge: keep original types for non-overridden slots, add override types
                             effective_types = sorted(set(required_types or []) | set(override_types))
 
-                    printer_id, waiting_reason = await self._find_idle_printer_for_model(
-                        db,
-                        item.target_model,
-                        busy_printers,
-                        effective_types,
-                        item.target_location,
-                        filament_overrides=filament_overrides,
-                        require_plate_clear=require_plate_clear,
-                    )
+                    sliced_for = None
+                    if item.archive:
+                        sliced_for = item.archive.sliced_for_model
+                    elif item.library_file and item.library_file.file_metadata:
+                        sliced_for = item.library_file.file_metadata.get("sliced_for_model")
+
+                    if not is_gcode_compatible(sliced_for, item.target_model):
+                        printer_id = None
+                        waiting_reason = (
+                            f"File was sliced for {sliced_for}, which is not compatible with "
+                            f"{item.target_model} - edit the item and fix its target model"
+                        )
+                        skip_reasons["sliced_model_mismatch"] = skip_reasons.get("sliced_model_mismatch", 0) + 1
+                    else:
+                        printer_id, waiting_reason = await self._find_idle_printer_for_model(
+                            db,
+                            item.target_model,
+                            busy_printers,
+                            effective_types,
+                            item.target_location,
+                            filament_overrides=filament_overrides,
+                            require_plate_clear=require_plate_clear,
+                        )
 
                     # Update waiting_reason if changed and send notification when first waiting
                     if item.waiting_reason != waiting_reason:
@@ -524,7 +588,8 @@ class PrintScheduler:
                         if await self._block_on_filament_deficit(db, item):
                             continue
 
-                        await self._start_print(db, item)
+                        if not await self._dispatch_with_claim(db, item):
+                            continue
                         busy_printers.add(printer_id)
 
                         # SJF starvation guard: mark model-based items that were jumped
@@ -2505,6 +2570,16 @@ class PrintScheduler:
             )
             return
 
+        pre_dispatch_state = getattr(printer_manager.get_status(item.printer_id), "state", None)
+        if pre_dispatch_state in _ACTIVE_PRINT_STATES:
+            logger.info(
+                "Queue item %s: printer %s is busy (state=%s), deferring dispatch",
+                item.id,
+                item.printer_id,
+                pre_dispatch_state,
+            )
+            return
+
         # Determine source: archive or library file
         archive = None
         library_file = None
@@ -3006,6 +3081,19 @@ class PrintScheduler:
                 )
             except Exception:
                 pass  # Best-effort — don't fail the error handler
+
+            post_dispatch_state = getattr(printer_manager.get_status(item.printer_id), "state", None)
+            if post_dispatch_state in _ACTIVE_PRINT_STATES:
+                logger.info(
+                    "Queue item %s: printer %s became busy (state=%s) before start command, reverting to pending",
+                    item.id,
+                    item.printer_id,
+                    post_dispatch_state,
+                )
+                item.status = "pending"
+                item.started_at = None
+                await db.commit()
+                return
 
             # Print command failed - revert status
             item.status = "failed"

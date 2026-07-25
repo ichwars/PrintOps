@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
@@ -426,7 +427,7 @@ def require_energy_cost_update():
                 if username is None:
                     raise credentials_exception
                 jti: str | None = payload.get("jti")
-                if not jti or await is_jti_revoked(jti):
+                if not jti or await is_jti_revoked(jti, db):
                     raise credentials_exception
                 iat: int | float | None = payload.get("iat")
             except JWTError:
@@ -811,16 +812,26 @@ async def revoke_jti(jti: str, expires_at: datetime, username: str | None = None
             await db.rollback()  # jti already revoked — desired state, ignore
 
 
-async def is_jti_revoked(jti: str) -> bool:
-    """Return True if the given jti has been revoked."""
-    async with async_session() as db:
-        result = await db.execute(
+async def is_jti_revoked(jti: str, db: AsyncSession | None = None) -> bool:
+    """Return True if the given jti has been revoked.
+
+    Pass an existing session to avoid a second DB checkout from auth dependencies
+    that already hold one.
+    """
+
+    async def _query(session: AsyncSession) -> bool:
+        result = await session.execute(
             select(AuthEphemeralToken).where(
                 AuthEphemeralToken.token == jti,
                 AuthEphemeralToken.token_type == "revoked_jti",
             )
         )
         return result.scalar_one_or_none() is not None
+
+    if db is not None:
+        return await _query(db)
+    async with async_session() as own_db:
+        return await _query(own_db)
 
 
 async def get_user_by_username(db: AsyncSession, username: str) -> User | None:
@@ -875,6 +886,18 @@ async def authenticate_user_by_email(db: AsyncSession, email: str, password: str
     return user
 
 
+_AUTH_ENABLED_CACHE_TTL_SECONDS = 30.0
+_auth_enabled_cached_value = False
+_auth_enabled_cached_until = 0.0
+
+
+def invalidate_auth_enabled_cache() -> None:
+    """Drop the short-lived auth-enabled cache after an auth toggle."""
+    global _auth_enabled_cached_value, _auth_enabled_cached_until
+    _auth_enabled_cached_value = False
+    _auth_enabled_cached_until = 0.0
+
+
 async def is_auth_enabled(db: AsyncSession) -> bool:
     """Check if authentication is enabled.
 
@@ -892,11 +915,19 @@ async def is_auth_enabled(db: AsyncSession) -> bool:
     schema mismatch, …) propagates so the caller can deny the request
     (503 / 500). Fail-closed is the only safe default for an auth probe.
     """
+    global _auth_enabled_cached_value, _auth_enabled_cached_until
+    if _auth_enabled_cached_value and time.monotonic() < _auth_enabled_cached_until:
+        return True
+
     result = await db.execute(select(Settings).where(Settings.key == "auth_enabled"))
     setting = result.scalar_one_or_none()
-    if setting is None:
-        return False
-    return setting.value.lower() == "true"
+    enabled = setting is not None and setting.value.lower() == "true"
+    if enabled:
+        _auth_enabled_cached_value = True
+        _auth_enabled_cached_until = time.monotonic() + _AUTH_ENABLED_CACHE_TTL_SECONDS
+    else:
+        _auth_enabled_cached_value = False
+    return enabled
 
 
 async def _user_from_api_key(db: AsyncSession, api_key: APIKey) -> User | None:
@@ -1098,7 +1129,7 @@ async def require_auth_if_enabled(
                         headers={"WWW-Authenticate": "Bearer"},
                     )
                 jti: str | None = payload.get("jti")
-                if not jti or await is_jti_revoked(jti):
+                if not jti or await is_jti_revoked(jti, db):
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
                         detail="Could not validate credentials",
@@ -1207,7 +1238,7 @@ def require_admin_if_auth_enabled():
                         headers={"WWW-Authenticate": "Bearer"},
                     )
                 jti: str | None = payload.get("jti")
-                if not jti or await is_jti_revoked(jti):
+                if not jti or await is_jti_revoked(jti, db):
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
                         detail="Could not validate credentials",
@@ -1450,7 +1481,7 @@ def require_permission(*permissions: str | Permission):
                 if username is None:
                     raise credentials_exception
                 jti: str | None = payload.get("jti")
-                if not jti or await is_jti_revoked(jti):
+                if not jti or await is_jti_revoked(jti, db):
                     raise credentials_exception
                 iat: int | float | None = payload.get("iat")
             except JWTError:
@@ -1537,7 +1568,7 @@ def require_permission_if_auth_enabled(*permissions: str | Permission):
                             headers={"WWW-Authenticate": "Bearer"},
                         )
                     jti: str | None = payload.get("jti")
-                    if not jti or await is_jti_revoked(jti):
+                    if not jti or await is_jti_revoked(jti, db):
                         raise HTTPException(
                             status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Could not validate credentials",
@@ -1637,7 +1668,7 @@ def require_any_permission_if_auth_enabled(*permissions: str | Permission):
                             headers={"WWW-Authenticate": "Bearer"},
                         )
                     jti: str | None = payload.get("jti")
-                    if not jti or await is_jti_revoked(jti):
+                    if not jti or await is_jti_revoked(jti, db):
                         raise HTTPException(
                             status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Could not validate credentials",
@@ -1791,7 +1822,7 @@ def require_ownership_permission(
                             headers={"WWW-Authenticate": "Bearer"},
                         )
                     jti: str | None = payload.get("jti")
-                    if not jti or await is_jti_revoked(jti):
+                    if not jti or await is_jti_revoked(jti, db):
                         raise HTTPException(
                             status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Could not validate credentials",

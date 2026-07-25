@@ -20,7 +20,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from backend.app.core.auth import is_auth_enabled
+from backend.app.core.auth import invalidate_auth_enabled_cache, is_auth_enabled
+
+
+@pytest.fixture(autouse=True)
+def _reset_auth_enabled_cache():
+    invalidate_auth_enabled_cache()
+    yield
+    invalidate_auth_enabled_cache()
 
 
 @pytest.mark.asyncio

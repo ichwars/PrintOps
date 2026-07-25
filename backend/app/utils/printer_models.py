@@ -222,6 +222,29 @@ def is_dual_nozzle_model(model: str | None) -> bool:
     return normalized in DUAL_NOZZLE_MODELS
 
 
+GCODE_COMPAT_FAMILIES = (frozenset(["X1", "X1C", "X1E", "P1P", "P1S"]),)
+
+
+def is_gcode_compatible(sliced_for_model: str | None, target_model: str | None) -> bool:
+    """Return True when sliced G-code may be dispatched to the target model.
+
+    Missing metadata stays compatible for legacy/unknown files. Known mismatches
+    are exact-match only, except the proven X1/P1 CoreXY single-nozzle family.
+    """
+    if not sliced_for_model or not target_model:
+        return True
+
+    def _norm(model: str) -> str:
+        resolved = PRINTER_MODEL_ID_MAP.get(model.strip(), model)
+        return resolved.strip().upper().replace(" ", "").replace("-", "")
+
+    sliced = _norm(sliced_for_model)
+    target = _norm(target_model)
+    if sliced == target:
+        return True
+    return any(sliced in family and target in family for family in GCODE_COMPAT_FAMILIES)
+
+
 def get_rod_type(model: str | None) -> str | None:
     """Return the rod/rail type for a printer model.
 

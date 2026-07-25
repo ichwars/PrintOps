@@ -939,17 +939,23 @@ async def download_file_try_paths_async(
     local_path: Path,
     socket_timeout: float | None = None,
     printer_model: str | None = None,
+    timeout: float = 90.0,
 ) -> bool:
     """Try downloading a file from multiple paths using a single connection.
 
     Args:
         socket_timeout: FTP socket timeout for slow connections (e.g., A1 printers)
         printer_model: Printer model for A1-specific workarounds
+        timeout: Overall async cap so a saturated executor cannot pin callers indefinitely.
     """
     loop = asyncio.get_event_loop()
+    client_ref: dict[str, BambuFTPClient | None] = {"client": None}
+    client_lock = threading.Lock()
 
     def _download():
         client = BambuFTPClient(ip_address, access_code, timeout=socket_timeout, printer_model=printer_model)
+        with client_lock:
+            client_ref["client"] = client
         if not client.connect():
             return False
 
@@ -966,8 +972,46 @@ async def download_file_try_paths_async(
             return False
         finally:
             client.disconnect()
+            with client_lock:
+                if client_ref["client"] is client:
+                    client_ref["client"] = None
 
-    return await loop.run_in_executor(None, _download)
+    def _abort_download() -> None:
+        with client_lock:
+            client = client_ref["client"]
+        if client is None:
+            return
+        ftp = getattr(client, "_ftp", None)
+        if ftp is not None:
+            try:
+                ftp.close()
+            except (OSError, ftplib.Error, EOFError):
+                pass
+        client.disconnect()
+
+    done = threading.Event()
+
+    def _download_with_done() -> bool:
+        try:
+            return _download()
+        finally:
+            done.set()
+
+    future = loop.run_in_executor(None, _download_with_done)
+    try:
+        return await asyncio.wait_for(asyncio.shield(future), timeout=timeout)
+    except TimeoutError:
+        await loop.run_in_executor(None, _abort_download)
+        grace = max(min(socket_timeout or timeout, 30.0), 1.0)
+        finished = await loop.run_in_executor(None, done.wait, grace)
+        if finished:
+            try:
+                return future.result()
+            except Exception as exc:
+                logger.warning("FTP download_try_paths aborted after timeout for %s: %s", ip_address, exc)
+                return False
+        logger.warning("FTP download_try_paths exceeded its %ss cap for %s", timeout, ip_address)
+        return False
 
 
 async def upload_file_async(
@@ -1086,6 +1130,7 @@ async def delete_file_async(
     remote_path: str,
     socket_timeout: float | None = None,
     printer_model: str | None = None,
+    timeout: float = 60.0,
 ) -> DeleteResult:
     """Async wrapper for deleting a file.
 
@@ -1096,6 +1141,7 @@ async def delete_file_async(
     Args:
         socket_timeout: FTP socket timeout for slow connections (e.g., A1 printers)
         printer_model: Printer model for A1-specific workarounds
+        timeout: Overall async cap so a saturated executor cannot pin callers indefinitely.
     """
     loop = asyncio.get_event_loop()
 
@@ -1108,7 +1154,11 @@ async def delete_file_async(
                 client.disconnect()
         return DeleteResult.FAILED
 
-    return await loop.run_in_executor(None, _delete)
+    try:
+        return await asyncio.wait_for(loop.run_in_executor(None, _delete), timeout=timeout)
+    except TimeoutError:
+        logger.warning("FTP delete_file exceeded its %ss cap for %s", timeout, ip_address)
+        return DeleteResult.FAILED
 
 
 async def download_file_bytes_async(
@@ -1117,12 +1167,14 @@ async def download_file_bytes_async(
     remote_path: str,
     socket_timeout: float | None = None,
     printer_model: str | None = None,
+    timeout: float = 300.0,
 ) -> bytes | None:
     """Async wrapper for downloading file as bytes.
 
     Args:
         socket_timeout: FTP socket timeout for slow connections (e.g., A1 printers)
         printer_model: Printer model for A1-specific workarounds
+        timeout: Overall async cap for whole-file downloads.
     """
     loop = asyncio.get_event_loop()
 
@@ -1135,7 +1187,11 @@ async def download_file_bytes_async(
                 client.disconnect()
         return None
 
-    return await loop.run_in_executor(None, _download)
+    try:
+        return await asyncio.wait_for(loop.run_in_executor(None, _download), timeout=timeout)
+    except TimeoutError:
+        logger.warning("FTP download_bytes exceeded its %ss cap for %s", timeout, ip_address)
+        return None
 
 
 async def get_storage_info_async(
@@ -1143,12 +1199,14 @@ async def get_storage_info_async(
     access_code: str,
     socket_timeout: float | None = None,
     printer_model: str | None = None,
+    timeout: float = 60.0,
 ) -> dict | None:
     """Async wrapper for getting storage info.
 
     Args:
         socket_timeout: FTP socket timeout for slow connections (e.g., A1 printers)
         printer_model: Printer model for A1-specific workarounds
+        timeout: Overall async cap so a saturated executor cannot pin callers indefinitely.
     """
     loop = asyncio.get_event_loop()
 
@@ -1161,7 +1219,11 @@ async def get_storage_info_async(
                 client.disconnect()
         return None
 
-    return await loop.run_in_executor(None, _get_storage)
+    try:
+        return await asyncio.wait_for(loop.run_in_executor(None, _get_storage), timeout=timeout)
+    except TimeoutError:
+        logger.warning("FTP get_storage_info exceeded its %ss cap for %s", timeout, ip_address)
+        return None
 
 
 async def get_ftp_retry_settings() -> tuple[bool, int, float, float]:

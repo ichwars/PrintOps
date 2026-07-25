@@ -37,13 +37,16 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install ruff
-        run: pip install ruff==0.16.0
+        run: pip install --require-hashes -r requirements-dev.lock.txt
 
       - name: Run ruff check
         run: ruff check backend/
 
       - name: Run ruff format check
         run: ruff format --check backend/
+
+      - name: Run Python size budget
+        run: python tools/check_python_size_budget.py
 
   backend-security:
     name: Backend Security
@@ -59,9 +62,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip "setuptools>=83.0.0"
-          pip install -r requirements.txt
-          pip install pip-audit
+          pip install --require-hashes -r requirements-dev.lock.txt
 
       - name: Run pip-audit
         run: |
@@ -100,15 +101,13 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements-dev.lock.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          pip install --require-hashes -r requirements-dev.lock.txt
 
       - name: Run tests (shard ${{ matrix.shard }}/4)
         timeout-minutes: 10
@@ -292,7 +291,7 @@ jobs:
 
       # Build the backend-test image with GHA BuildKit cache backend so
       # the pip-install layer is shared across the 4 matrix shards AND
-      # across CI runs. First run on a given requirements.txt is cold
+      # across CI runs. First run on a given requirements-dev.lock.txt is cold
       # (~60-90s); subsequent runs are ~5-10s.
       - name: Build backend test image (cached)
         uses: docker/build-push-action@v7

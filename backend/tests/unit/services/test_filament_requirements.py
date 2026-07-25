@@ -10,7 +10,7 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
-from backend.app.services.filament_requirements import extract_filament_requirements
+from backend.app.services.filament_requirements import extract_filament_requirements, overrides_for_plate
 
 
 def _make_3mf(
@@ -190,3 +190,28 @@ class TestExtractFilamentRequirements:
         )
         out = extract_filament_requirements(f, plate_id=1)
         assert [r["slot_id"] for r in out] == [1, 2, 3]
+
+
+class TestOverridesForPlate:
+    def test_keeps_only_slots_used_by_plate(self, tmp_path: Path):
+        f = tmp_path / "multi.3mf"
+        _make_3mf(
+            f,
+            plates=[
+                (1, [{"id": "1", "type": "PLA", "color": "#FFF", "used_g": "5"}]),
+                (2, [{"id": "2", "type": "PETG", "color": "#000", "used_g": "5"}]),
+            ],
+        )
+        overrides = [
+            {"slot_id": 1, "type": "PLA", "color": "#FFF", "force_color_match": True},
+            {"slot_id": 2, "type": "PETG", "color": "#000", "force_color_match": True},
+        ]
+
+        assert overrides_for_plate(overrides, f, 1) == [overrides[0]]
+
+    def test_keeps_all_when_plate_slots_cannot_be_read(self, tmp_path: Path):
+        f = tmp_path / "multi.3mf"
+        _make_3mf(f, plates=[(1, [{"id": "1", "type": "PLA", "color": "#FFF", "used_g": "5"}])])
+        overrides = [{"slot_id": 2, "type": "PETG", "color": "#000", "force_color_match": True}]
+
+        assert overrides_for_plate(overrides, f, 99) == overrides

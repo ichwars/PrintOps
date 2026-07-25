@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.config import APP_VERSION, settings
-from backend.app.core.database import get_db
+from backend.app.core.database import get_db, get_pool_status
 from backend.app.core.local_config import read_local_toml, read_ntp_gate
 from backend.app.core.permissions import Permission
 from backend.app.models.archive import PrintArchive
@@ -585,6 +585,14 @@ async def get_system_info(
             "percent": psutil.cpu_percent(interval=0.1),
         },
     }
+
+
+@router.get("/db-pool")
+async def get_database_pool_status(
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.SYSTEM_READ),
+):
+    """Return DB pool diagnostics without checking out a connection."""
+    return get_pool_status()
 
 
 @router.get("/storage-usage")

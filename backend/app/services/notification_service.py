@@ -493,22 +493,31 @@ class NotificationService:
                 msg["Subject"] = f"[PrintOps] {subject}"
                 msg.attach(MIMEText(body, "plain"))
 
-            if security == "ssl":
-                # Direct SSL connection (typically port 465)
-                server = smtplib.SMTP_SSL(smtp_server, smtp_port)
-            elif security == "starttls":
-                # STARTTLS upgrade (typically port 587)
-                server = smtplib.SMTP(smtp_server, smtp_port)
-                server.starttls()
-            else:
-                # No encryption (typically port 25) - use with caution
-                server = smtplib.SMTP(smtp_server, smtp_port)
+            smtp_timeout = 30.0
+            message = msg.as_string()
 
-            if auth_enabled:
-                server.login(username, password)
+            def _blocking_send() -> None:
+                if security == "ssl":
+                    # Direct SSL connection (typically port 465)
+                    server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=smtp_timeout)
+                elif security == "starttls":
+                    # STARTTLS upgrade (typically port 587)
+                    server = smtplib.SMTP(smtp_server, smtp_port, timeout=smtp_timeout)
+                    server.starttls()
+                else:
+                    # No encryption (typically port 25) - use with caution
+                    server = smtplib.SMTP(smtp_server, smtp_port, timeout=smtp_timeout)
+                try:
+                    if auth_enabled:
+                        server.login(username, password)
+                    server.sendmail(from_email, to_email, message)
+                finally:
+                    try:
+                        server.quit()
+                    except Exception:  # noqa: BLE001 - best-effort close on a broken SMTP socket
+                        pass
 
-            server.sendmail(from_email, to_email, msg.as_string())
-            server.quit()
+            await asyncio.to_thread(_blocking_send)
 
             return True, "Email sent successfully"
         except smtplib.SMTPAuthenticationError:

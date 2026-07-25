@@ -23,10 +23,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # cache so the second build only does install work — the slow ~60-90s
 # fetch step from the first build becomes ~5s. Requires DOCKER_BUILDKIT=1
 # (already set in test_docker.sh).
-COPY requirements.txt ./
-COPY requirements-dev.txt ./
+COPY requirements-dev.lock.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r requirements.txt -r requirements-dev.txt
+    pip install --require-hashes -r requirements-dev.lock.txt
 
 COPY scripts/vendor_pdf_runtime.py ./scripts/vendor_pdf_runtime.py
 COPY backend/app/resources/pdf/runtime-manifest.json backend/app/resources/pdf/verapdf-signing-key.asc ./backend/app/resources/pdf/

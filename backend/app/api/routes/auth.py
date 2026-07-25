@@ -29,6 +29,7 @@ from backend.app.core.auth import (
     get_password_hash,
     get_user_by_email,
     get_user_by_username,
+    invalidate_auth_enabled_cache,
     is_jti_revoked,
     resolve_session_max_minutes,
     revoke_jti,
@@ -192,6 +193,7 @@ async def set_auth_enabled(db: AsyncSession, enabled: bool) -> None:
     from backend.app.core.db_dialect import upsert_setting
 
     await upsert_setting(db, Settings, "auth_enabled", "true" if enabled else "false")
+    invalidate_auth_enabled_cache()
     # Note: Don't commit here - let get_db handle it or commit explicitly in the route
 
 
@@ -619,7 +621,7 @@ async def get_current_user_info(
                     headers={"WWW-Authenticate": "Bearer"},
                 )
             jti: str | None = payload.get("jti")
-            if not jti or await is_jti_revoked(jti):  # B1: logout bypass fix
+            if not jti or await is_jti_revoked(jti, db):  # B1: logout bypass fix
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Could not validate credentials",

@@ -23,12 +23,39 @@ def _set_sqlite_pragmas(dbapi_conn, connection_record):
     cursor.close()
 
 
+_pool_config: dict = {}
+
+
+def _resolve_pool_kwargs() -> dict:
+    """Build dialect-aware connection pool kwargs for the async engine."""
+    if is_sqlite():
+        kwargs = {
+            "pool_size": settings.db_pool_size if settings.db_pool_size is not None else 20,
+            "max_overflow": settings.db_max_overflow if settings.db_max_overflow is not None else 200,
+        }
+    else:
+        kwargs = {
+            "pool_size": settings.db_pool_size if settings.db_pool_size is not None else 20,
+            "max_overflow": settings.db_max_overflow if settings.db_max_overflow is not None else 20,
+            "pool_pre_ping": True,
+            "pool_recycle": settings.db_pool_recycle if settings.db_pool_recycle is not None else 1800,
+        }
+    if settings.db_pool_timeout is not None:
+        kwargs["pool_timeout"] = settings.db_pool_timeout
+    return kwargs
+
+
 def _create_engine():
     """Create the async engine with dialect-appropriate settings."""
-    if is_sqlite():
-        kwargs = {"pool_size": 20, "max_overflow": 200}
-    else:
-        kwargs = {"pool_size": 10, "max_overflow": 20}
+    kwargs = _resolve_pool_kwargs()
+    global _pool_config
+    _pool_config = {
+        "pool_size": kwargs["pool_size"],
+        "max_overflow": kwargs["max_overflow"],
+        "pool_timeout": kwargs.get("pool_timeout", 30),
+        "pool_recycle": kwargs.get("pool_recycle", -1),
+        "pool_pre_ping": kwargs.get("pool_pre_ping", False),
+    }
     eng = create_async_engine(
         settings.database_url,
         echo=settings.debug,
@@ -77,6 +104,28 @@ async_session = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False,
 )
+
+
+def get_pool_status() -> dict:
+    """Return resolved pool config plus live gauges without checking out a DB connection."""
+    pool = engine.sync_engine.pool
+    gauges: dict = {}
+    for key, method_name in (
+        ("current_size", "size"),
+        ("checked_out", "checkedout"),
+        ("checked_in", "checkedin"),
+        ("overflow", "overflow"),
+    ):
+        method = getattr(pool, method_name, None)
+        try:
+            gauges[key] = method() if callable(method) else None
+        except Exception:
+            gauges[key] = None
+    return {
+        "dialect": "sqlite" if is_sqlite() else "postgresql",
+        "config": dict(_pool_config),
+        **gauges,
+    }
 
 
 async def run_with_retry(fn, *, max_attempts: int = 3, label: str = ""):
@@ -1318,6 +1367,13 @@ async def run_migrations(conn):
                 await conn.execute(text("ALTER TABLE print_queue_new2 RENAME TO print_queue"))
         except (OperationalError, ProgrammingError):
             pass  # Already applied
+
+    # Migration: dispatch claim column for print_queue. This is added after the
+    # legacy SQLite table-recreate above so that path cannot drop the new column.
+    if is_sqlite():
+        await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN dispatching_at DATETIME")
+    else:
+        await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN dispatching_at TIMESTAMP")
 
     # Migration: Add HA energy sensor entity columns to smart_plugs
     await _safe_execute(conn, "ALTER TABLE smart_plugs ADD COLUMN ha_power_entity VARCHAR(100)")
