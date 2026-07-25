@@ -227,7 +227,7 @@ def install_requirements(python_dir: Path) -> None:
             "install",
             "--no-warn-script-location",
             "--only-binary",
-            ":all:",
+            "greenlet",
             "--require-hashes",
             "-r",
             str(requirements),
