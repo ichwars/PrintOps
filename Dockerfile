@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     default-jre-headless \
     ffmpeg \
+    g++ \
     gnupg \
     gosu \
     iproute2 \
