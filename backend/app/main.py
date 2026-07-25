@@ -64,6 +64,7 @@ from backend.app.api.routes import (
     pipeline_runs,
     print_log,
     print_queue,
+    printer_files,
     printer_sensor_history,
     printers,
     procurement,
@@ -182,9 +183,9 @@ def _start_error_server(missing_packages: list):
         <h2>Missing Python packages</h2>
         <div class="packages"><ul>{packages_html}</ul></div>
         <p>To fix, run this command on your server:</p>
-        <div class="command">pip install -r requirements.txt</div>
+        <div class="command">pip install --require-hashes -r requirements.lock.txt</div>
         <p>Or if using a virtual environment:</p>
-        <div class="command">./venv/bin/pip install -r requirements.txt</div>
+        <div class="command">./venv/bin/pip install --require-hashes -r requirements.lock.txt</div>
         <p class="note">After installing, restart PrintOps:<br>
         <code>sudo systemctl restart printops</code></p>
     </div>
@@ -244,9 +245,9 @@ def check_dependencies():
         print("=" * 60)
         print(f"\nMissing packages: {', '.join(missing)}")
         print("\nTo fix, run:")
-        print("  pip install -r requirements.txt")
+        print("  pip install --require-hashes -r requirements.lock.txt")
         print("\nOr if using a virtual environment:")
-        print("  ./venv/bin/pip install -r requirements.txt")
+        print("  ./venv/bin/pip install --require-hashes -r requirements.lock.txt")
         print("=" * 60 + "\n")
         _start_error_server(missing)
 
@@ -6650,16 +6651,16 @@ async def auth_middleware(request, call_next):
             raise ValueError("No jti in token")
         iat = payload.get("iat")
 
-        # Reject revoked tokens (defense-in-depth gateway check)
-        if await is_jti_revoked(jti):
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Token has been revoked"},
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        # Verify user exists, is active, and token is still fresh (L-R8-A)
+        # Verify user exists, is active, token is still fresh, and the token
+        # has not been revoked. Reuse this session for the revocation check so
+        # the gateway path needs one pooled checkout, not two.
         async with async_session() as db:
+            if await is_jti_revoked(jti, db):
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Token has been revoked"},
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
             user = await get_user_by_username(db, username)
             if not user or not user.is_active:
                 return JSONResponse(
@@ -6757,6 +6758,7 @@ app.include_router(customers.router, prefix=app_settings.api_prefix)
 app.include_router(users.router, prefix=app_settings.api_prefix)
 app.include_router(groups.router, prefix=app_settings.api_prefix)
 app.include_router(printers.router, prefix=app_settings.api_prefix)
+app.include_router(printer_files.router, prefix=app_settings.api_prefix)
 app.include_router(procurement.router, prefix=app_settings.api_prefix)
 app.include_router(equipment.router, prefix=app_settings.api_prefix)
 app.include_router(archives.router, prefix=app_settings.api_prefix)

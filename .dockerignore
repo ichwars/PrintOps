@@ -55,6 +55,8 @@ static/
 docs/
 *.md
 !requirements.txt
+!requirements.lock.txt
+!requirements-dev.lock.txt
 
 # Docker
 Dockerfile

@@ -11,6 +11,7 @@ from backend.app.utils.printer_models import (
     has_ethernet,
     has_external_storage,
     is_dual_nozzle_model,
+    is_gcode_compatible,
     normalize_printer_model,
     normalize_printer_model_id,
 )
@@ -210,6 +211,24 @@ class TestDualNozzleModel:
     def test_none_and_empty_are_not_dual(self):
         assert is_dual_nozzle_model(None) is False
         assert is_dual_nozzle_model("") is False
+
+
+class TestGcodeCompatibility:
+    def test_exact_match_is_compatible(self):
+        assert is_gcode_compatible("H2D", "H2D") is True
+        assert is_gcode_compatible("O1D", "H2D") is True
+
+    @pytest.mark.parametrize("target", ["X1", "X1C", "X1E", "P1P", "P1S"])
+    def test_x1_p1_family_is_compatible(self, target: str):
+        assert is_gcode_compatible("X1C", target) is True
+
+    def test_cross_family_mismatch_is_blocked(self):
+        assert is_gcode_compatible("A1", "P1S") is False
+        assert is_gcode_compatible("H2D", "P1S") is False
+
+    def test_missing_metadata_stays_compatible(self):
+        assert is_gcode_compatible(None, "P1S") is True
+        assert is_gcode_compatible("P1S", None) is True
 
 
 class TestHasExternalStorage:

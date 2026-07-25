@@ -184,7 +184,7 @@ TypeScript, and Vite.
 # Backend
 python -m venv .venv
 # Activate .venv for your shell, then:
-pip install -r requirements.txt -r requirements-dev.txt
+pip install --require-hashes -r requirements-dev.lock.txt
 uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000 --loop asyncio
 
 # Frontend, in a second shell

@@ -2379,9 +2379,10 @@ class TestEmailProvider:
     @staticmethod
     def _fake_smtp_class(captured: dict):
         class FakeSMTP:
-            def __init__(self, host, port):
+            def __init__(self, host, port, timeout=None):
                 captured["host"] = host
                 captured["port"] = port
+                captured["timeout"] = timeout
 
             def starttls(self):
                 captured["starttls"] = True

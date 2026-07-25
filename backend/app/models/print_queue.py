@@ -103,6 +103,12 @@ class PrintQueueItem(Base):
     # Status: pending, printing, completed, failed, skipped, cancelled
     status: Mapped[str] = mapped_column(String(20), default="pending")
 
+    # Dispatch claim. Set atomically by the scheduler before slow upload/dispatch
+    # work and cleared when that attempt exits. While this is set the row remains
+    # pending, but edit routes must not reassign it because a printer snapshot is
+    # already in flight.
+    dispatching_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     # Cleared by the per-printer "Resume after failure" action (#1818) so the
     # scheduler's `_check_previous_success` lookback skips this row. Without
     # this, a single `failed` or `aborted` print poisoned every later

@@ -10,6 +10,14 @@ import time
 import pytest
 
 
+class _RecordingMqttClient:
+    def __init__(self):
+        self.published = []
+
+    def publish(self, topic, payload, qos=0):
+        self.published.append((topic, payload, qos))
+
+
 class TestTimelapseTracking:
     """Tests for timelapse state tracking during prints."""
 
@@ -89,6 +97,15 @@ class TestTimelapseTracking:
             mqtt_client._timelapse_during_print = True
 
         assert mqtt_client._timelapse_during_print is True
+
+    def test_start_print_refuses_busy_printer(self, mqtt_client):
+        """Do not publish project_file while the printer is actively printing."""
+        mqtt_client._client = _RecordingMqttClient()
+        mqtt_client.state.connected = True
+        mqtt_client.state.state = "RUNNING"
+
+        assert mqtt_client.start_print("busy.3mf") is False
+        assert mqtt_client._client.published == []
 
 
 class TestPrintCompletionWithTimelapse:
@@ -1138,6 +1155,51 @@ class TestAMSTrayStateClearning:
         assert tray0["tray_type"] == "PETG", "state=11 must preserve tray data"
         assert tray0["tray_color"] == "00FF00FF"
         assert tray0["remain"] == 75
+
+    def _seed_loaded_ht_tray(self, mqtt_client):
+        initial = {
+            "ams": [
+                {
+                    "id": 128,
+                    "tray": [
+                        {
+                            "id": 0,
+                            "tray_type": "PA",
+                            "tray_color": "161616FF",
+                            "tray_info_idx": "GFG99",
+                            "tag_uid": "AABBCCDD11223344",
+                            "tray_uuid": "AABBCCDD11223344AABBCCDD11223344",
+                            "remain": 60,
+                            "state": 9,
+                        }
+                    ],
+                }
+            ],
+            "power_on_flag": True,
+        }
+        mqtt_client._handle_ams_data(initial)
+
+    def test_ht_unit_state_9_preserves_tray_data(self, mqtt_client):
+        """AMS-HT reports a loaded resting tray as state=9."""
+        self._seed_loaded_ht_tray(mqtt_client)
+
+        update = {"ams": [{"id": 128, "tray": [{"id": 0, "state": 9}]}], "power_on_flag": True}
+        mqtt_client._handle_ams_data(update)
+
+        tray0 = mqtt_client.state.raw_data["ams"][0]["tray"][0]
+        assert tray0["tray_type"] == "PA"
+        assert tray0["tray_uuid"] == "AABBCCDD11223344AABBCCDD11223344"
+        assert tray0["remain"] == 60
+
+    def test_ht_unit_explicit_empty_still_clears(self, mqtt_client):
+        """Explicit tray_type='' must still clear AMS-HT removal."""
+        self._seed_loaded_ht_tray(mqtt_client)
+
+        update = {"ams": [{"id": 128, "tray": [{"id": 0, "tray_type": ""}]}], "power_on_flag": False}
+        mqtt_client._handle_ams_data(update)
+
+        tray0 = mqtt_client.state.raw_data["ams"][0]["tray"][0]
+        assert tray0["tray_type"] == ""
 
     def test_no_clearing_when_tray_type_already_empty(self, mqtt_client):
         """Don't re-clear a tray that's already empty (avoids log spam)."""

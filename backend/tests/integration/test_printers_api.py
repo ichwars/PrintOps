@@ -328,7 +328,7 @@ class TestPrintersAPI:
         file_bytes = b"fake 3mf content"
 
         with patch(
-            "backend.app.api.routes.printers.download_file_bytes_async",
+            "backend.app.api.routes.printer_files.download_file_bytes_async",
             new=AsyncMock(return_value=file_bytes),
         ):
             response = await async_client.get(
