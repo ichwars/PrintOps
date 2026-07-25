@@ -47,6 +47,7 @@ class AcceptanceResult:
 _OFFER_LOAD = (
     selectinload(Offer.customer),
     selectinload(Offer.business_profile),
+    selectinload(Offer.commercial_document),
     selectinload(Offer.order).selectinload(CustomerOrder.reservations).selectinload(StockReservation.allocations),
 )
 

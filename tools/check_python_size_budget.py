@@ -27,7 +27,7 @@ FILE_ALLOWLIST = {
     "backend/app/api/routes/inventory.py": 2560,
     "backend/app/api/routes/library.py": 4902,
     "backend/app/api/routes/mfa.py": 2279,
-    "backend/app/api/routes/printers.py": 3380,
+    "backend/app/api/routes/printers.py": 3304,
     "backend/app/api/routes/spoolman_inventory.py": 2004,
 }
 

@@ -29,7 +29,9 @@ Enable these rules:
 **Restrict deletions** - Prevents branch deletion
 
 **Require a pull request before merging**
-- Required approvals: `2`
+- Required approvals: `1` while `@ichwars` is the only active reviewer.
+- Raise to `2` only after a second named maintainer or maintainer team has
+  been added to `CODEOWNERS` and can approve protected-branch PRs.
 - [x] Dismiss stale pull request approvals when new commits are pushed
 - [x] Require review from Code Owners
 - [x] Require approval of the most recent reviewable push
@@ -51,8 +53,10 @@ Enable these rules:
 
 Changes touching authentication, permissions, release automation, dependency
 locks, Docker/runtime boundaries, database migrations, or document issuance need
-two independent human approvals before merge. At least one approval must come
-from a maintainer who did not author the change.
+two independent human approvals before merge once the repository has at least
+two active maintainers. Until then, these changes must be merged only after all
+CI, CodeQL, security audit checks, and review conversations are resolved; the
+single maintainer may not count emergency bypass as a normal review path.
 
 Sensitive paths include:
 
@@ -72,6 +76,25 @@ Sensitive paths include:
 Emergency recovery may use a documented bypass only when production users are
 blocked or exposed to an active security issue. The bypassing maintainer must
 open a follow-up PR or issue with the commit hash, reason, and verification.
+
+### Bus-Factor Gate
+
+`CODEOWNERS` currently requests `@ichwars` for every path. That protects review
+routing, but it does not provide independent approval capacity. Do not raise
+required approvals above `1`, enable stricter release-environment reviewer
+rules, or require two-person sensitive-change approval until a second real
+collaborator or GitHub team is present.
+
+Activation checklist for the second reviewer:
+
+1. Add the named account or team to `.github/CODEOWNERS` for at least the
+   security-sensitive paths listed above.
+2. Confirm the account can review a test PR without relying on bypass.
+3. Raise branch-protection required approvals from `1` to `2`.
+4. Add the same account or team as a required reviewer on the protected
+   `release` environment with "Prevent self-review" enabled.
+5. Re-run this guide after the first sensitive PR to verify CODEOWNERS,
+   branch protection, and release-environment review all trigger as expected.
 
 ### Optional (stricter)
 

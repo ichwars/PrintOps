@@ -39,6 +39,7 @@ class OfferRead(CommerceSchema):
     customer_id: int | None
     calculation_revision_id: int
     order_id: int | None = None
+    quotation_document_id: int | None = None
     number: str
     status: Literal["draft", "sent", "accepted", "rejected"]
     preferred_variant_sort_order: int

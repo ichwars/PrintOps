@@ -166,6 +166,7 @@ settings = Settings()
 # them but log every unrecognised one at INFO so operators can spot mistakes.
 _INTENTIONAL_UNSETTINGS = {
     "MFA_ENCRYPTION_KEY",  # encryption.py reads this directly
+    "MFA_ALLOW_PLAINTEXT_FALLBACK",  # encryption.py reads this directly
     "DATA_DIR",  # paths.py / config.py
     "DATABASE_URL",  # config.py (above)
     "LOG_DIR",  # config.py (above)
