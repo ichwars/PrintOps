@@ -220,7 +220,6 @@ class PrintScheduler:
             logger.error("Failed to clear stale queue dispatch claims: %s", exc)
 
     async def _dispatch_with_claim(self, db: AsyncSession, item: PrintQueueItem) -> bool:
-        """Claim a pending row while slow upload/dispatch work is in flight."""
         if not await self._claim_for_dispatch(db, item.id):
             logger.info("Queue item %s is no longer claimable for dispatch", item.id)
             return False
@@ -229,7 +228,7 @@ class PrintScheduler:
             await self._start_print(db, item)
             return True
         finally:
-            await self._clear_dispatch_claim(db, item.id)
+            await self._clear_dispatch_claim(item.id)
 
     async def _claim_for_dispatch(self, db: AsyncSession, item_id: int) -> bool:
         result = await db.execute(
@@ -242,10 +241,11 @@ class PrintScheduler:
         await db.commit()
         return result.rowcount > 0
 
-    async def _clear_dispatch_claim(self, db: AsyncSession, item_id: int) -> None:
+    async def _clear_dispatch_claim(self, item_id: int) -> None:
         try:
-            await db.execute(update(PrintQueueItem).where(PrintQueueItem.id == item_id).values(dispatching_at=None))
-            await db.commit()
+            async with async_session() as db:
+                await db.execute(update(PrintQueueItem).where(PrintQueueItem.id == item_id).values(dispatching_at=None))
+                await db.commit()
         except Exception as exc:
             logger.warning("Queue item %s: failed to clear dispatch claim: %s", item_id, exc)
 

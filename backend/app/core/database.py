@@ -36,7 +36,7 @@ def _resolve_pool_kwargs() -> dict:
     else:
         kwargs = {
             "pool_size": settings.db_pool_size if settings.db_pool_size is not None else 20,
-            "max_overflow": settings.db_max_overflow if settings.db_max_overflow is not None else 80,
+            "max_overflow": settings.db_max_overflow if settings.db_max_overflow is not None else 20,
             "pool_pre_ping": True,
             "pool_recycle": settings.db_pool_recycle if settings.db_pool_recycle is not None else 1800,
         }

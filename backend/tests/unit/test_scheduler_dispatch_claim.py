@@ -88,11 +88,33 @@ async def test_dispatch_with_claim_holds_then_releases(claim_ctx):
 
     async with claim_ctx.sessionmaker() as db:
         item = await db.get(PrintQueueItem, claim_ctx.item_id)
-        with patch.object(scheduler, "_start_print", side_effect=fake_start_print) as start_print:
+        with (
+            patch.object(scheduler_module, "async_session", claim_ctx.sessionmaker),
+            patch.object(scheduler, "_start_print", side_effect=fake_start_print) as start_print,
+        ):
             assert await scheduler._dispatch_with_claim(db, item) is True
 
     start_print.assert_awaited_once()
     assert seen["claimed_during_dispatch"] is True
+    assert (await _get_item(claim_ctx)).dispatching_at is None
+
+
+@pytest.mark.asyncio
+async def test_dispatch_claim_clear_uses_fresh_session_after_start_failure(claim_ctx):
+    scheduler = PrintScheduler()
+
+    async def fake_start_print(db, item):
+        raise RuntimeError("dispatch failed")
+
+    async with claim_ctx.sessionmaker() as db:
+        item = await db.get(PrintQueueItem, claim_ctx.item_id)
+        with (
+            patch.object(scheduler_module, "async_session", claim_ctx.sessionmaker),
+            patch.object(scheduler, "_start_print", side_effect=fake_start_print),
+            pytest.raises(RuntimeError),
+        ):
+            await scheduler._dispatch_with_claim(db, item)
+
     assert (await _get_item(claim_ctx)).dispatching_at is None
 
 

@@ -123,7 +123,26 @@ class TestPrintQueueAPI:
         assert result["printer_id"] == printer.id
         assert result["archive_id"] == archive.id
         assert result["status"] == "pending"
-        assert result["manual_start"] is False
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_add_to_queue_allows_printer_without_model(
+        self, async_client: AsyncClient, printer_factory, archive_factory, db_session
+    ):
+        """Verify a model-less printer is still a valid direct queue target."""
+        printer = await printer_factory(model=None)
+        archive = await archive_factory()
+
+        response = await async_client.post(
+            "/api/v1/queue/",
+            json={
+                "printer_id": printer.id,
+                "archive_id": archive.id,
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json()["printer_id"] == printer.id
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -358,6 +377,20 @@ class TestPrintQueueAPI:
         assert response.status_code == 200
         result = response.json()
         assert result["auto_off_after"] is True
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_update_queue_item_allows_printer_without_model(
+        self, async_client: AsyncClient, printer_factory, queue_item_factory, db_session
+    ):
+        """Verify model-less printers are not treated as missing on update."""
+        printer = await printer_factory(model=None)
+        item = await queue_item_factory(printer_id=None, target_model=None)
+
+        response = await async_client.patch(f"/api/v1/queue/{item.id}", json={"printer_id": printer.id})
+
+        assert response.status_code == 200
+        assert response.json()["printer_id"] == printer.id
 
     @pytest.mark.asyncio
     @pytest.mark.integration

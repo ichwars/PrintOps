@@ -400,13 +400,13 @@ async def add_to_queue(
     if data.printer_id and target_model_norm:
         raise HTTPException(400, "Cannot specify both printer_id and target_model")
 
-    # Validate printer exists (if assigned)
     assigned_printer_model = None
     if data.printer_id is not None:
-        result = await db.execute(select(Printer.model).where(Printer.id == data.printer_id))
-        assigned_printer_model = result.scalar_one_or_none()
-        if assigned_printer_model is None:
+        result = await db.execute(select(Printer).where(Printer.id == data.printer_id))
+        assigned_printer = result.scalar_one_or_none()
+        if assigned_printer is None:
             raise HTTPException(400, "Printer not found")
+        assigned_printer_model = assigned_printer.model
 
     # Validate target_model has active printers
     if target_model_norm:
@@ -772,26 +772,28 @@ async def bulk_update_queue_items(
         if not result.scalar_one_or_none():
             raise HTTPException(400, "Printer not found")
 
-    # Fetch all items
-    result = await db.execute(select(PrintQueueItem).where(PrintQueueItem.id.in_(data.item_ids)))
-    items = result.scalars().all()
+    # Fetch existing IDs first so skipped_count keeps the legacy behavior of
+    # ignoring unknown IDs while still applying edits atomically below.
+    result = await db.execute(select(PrintQueueItem.id).where(PrintQueueItem.id.in_(data.item_ids)))
+    item_ids = result.scalars().all()
 
     updated_count = 0
     skipped_count = 0
 
-    for item in items:
-        if item.status != "pending" or item.dispatching_at is not None:
-            skipped_count += 1
-            continue
+    for existing_id in item_ids:
+        conditions = [
+            PrintQueueItem.id == existing_id,
+            PrintQueueItem.status == "pending",
+            PrintQueueItem.dispatching_at.is_(None),
+        ]
+        if not can_modify_all:
+            conditions.append(PrintQueueItem.created_by_id == user.id)
 
-        # Ownership check
-        if not can_modify_all and item.created_by_id != user.id:
+        result = await db.execute(update(PrintQueueItem).where(*conditions).values(**update_data))
+        if result.rowcount:
+            updated_count += 1
+        else:
             skipped_count += 1
-            continue
-
-        for field, value in update_data.items():
-            setattr(item, field, value)
-        updated_count += 1
 
     await db.commit()
 
@@ -1110,10 +1112,11 @@ async def update_queue_item(
     # Validate new printer_id if being changed (and not None)
     new_printer_model = None
     if "printer_id" in update_data and update_data["printer_id"] is not None:
-        result = await db.execute(select(Printer.model).where(Printer.id == update_data["printer_id"]))
-        new_printer_model = result.scalar_one_or_none()
-        if new_printer_model is None:
+        result = await db.execute(select(Printer).where(Printer.id == update_data["printer_id"]))
+        new_printer = result.scalar_one_or_none()
+        if new_printer is None:
             raise HTTPException(400, "Printer not found")
+        new_printer_model = new_printer.model
 
     # Validate target_model has active printers
     if "target_model" in update_data and update_data["target_model"]:
@@ -1163,17 +1166,33 @@ async def update_queue_item(
             json.dumps(update_data["nozzle_mapping"]) if update_data["nozzle_mapping"] else None
         )
 
-    claimed = (
-        await db.execute(select(PrintQueueItem.dispatching_at).where(PrintQueueItem.id == item_id))
-    ).scalar_one_or_none()
-    if claimed is not None:
-        raise HTTPException(409, "Item is being dispatched; cancel it first to make changes")
+    if update_data:
+        conditions = [
+            PrintQueueItem.id == item_id,
+            PrintQueueItem.status == "pending",
+            PrintQueueItem.dispatching_at.is_(None),
+        ]
+        if not can_modify_all:
+            conditions.append(PrintQueueItem.created_by_id == user.id)
 
-    for field, value in update_data.items():
-        setattr(item, field, value)
+        result = await db.execute(update(PrintQueueItem).where(*conditions).values(**update_data))
+        if not result.rowcount:
+            await db.rollback()
+            raise HTTPException(409, "Item is being dispatched; cancel it first to make changes")
 
-    await db.commit()
-    await db.refresh(item, ["archive", "printer", "library_file", "created_by", "batch"])
+        await db.commit()
+    result = await db.execute(
+        select(PrintQueueItem)
+        .options(
+            selectinload(PrintQueueItem.archive),
+            selectinload(PrintQueueItem.printer),
+            selectinload(PrintQueueItem.library_file),
+            selectinload(PrintQueueItem.created_by),
+            selectinload(PrintQueueItem.batch),
+        )
+        .where(PrintQueueItem.id == item_id)
+    )
+    item = result.scalar_one()
 
     logger.info("Updated queue item %s", item_id)
     return _enrich_response(item)

@@ -9,7 +9,7 @@ Steps:
     1. Download python.org embeddable distribution for Windows x64
     2. Configure embedded Python (allow site-packages)
     3. Bootstrap pip into the embedded distribution
-    4. Install ``requirements.txt`` into the embedded Python
+    4. Install ``requirements.lock.txt`` into the embedded Python
     5. Build the React frontend (``frontend/npm run build``)
     6. Stage backend source + frontend bundle
     7. Download NSSM
@@ -78,10 +78,7 @@ VCRUNTIME_DLLS = ("vcruntime140_1.dll", "msvcp140.dll")
 # Official, immutable Windows runtimes used by the commercial-document
 # pipeline.  The WeasyPrint standalone binary contains its matching native
 # Pango/GTK stack; Temurin supplies the Java runtime required by veraPDF.
-WEASYPRINT_RUNTIME_URL = (
-    "https://github.com/Kozea/WeasyPrint/releases/download/v69.0/"
-    "weasyprint-windows.zip"
-)
+WEASYPRINT_RUNTIME_URL = "https://github.com/Kozea/WeasyPrint/releases/download/v69.0/weasyprint-windows.zip"
 WEASYPRINT_RUNTIME_SHA256 = "330101ff3ea50ebde4abf805283b6d703d5f3d71c77c983db94357ec4524a3ef"
 TEMURIN_JRE_URL = (
     "https://github.com/adoptium/temurin21-binaries/releases/download/"
@@ -120,9 +117,7 @@ def download_verified(url: str, dest: Path, expected_sha256: str) -> Path:
     actual = _sha256(path)
     if actual.lower() != expected_sha256.lower():
         path.unlink(missing_ok=True)
-        raise RuntimeError(
-            f"SHA-256 mismatch for {dest.name}: expected {expected_sha256}, got {actual}"
-        )
+        raise RuntimeError(f"SHA-256 mismatch for {dest.name}: expected {expected_sha256}, got {actual}")
     return path
 
 
@@ -220,10 +215,10 @@ def stage_vcruntime(python_dir: Path) -> None:
 
 
 def install_requirements(python_dir: Path) -> None:
-    """Install PrintOps's requirements.txt into the embedded Python."""
+    """Install PrintOps's locked runtime requirements into the embedded Python."""
     py = python_dir / "python.exe"
-    requirements = REPO_ROOT / "requirements.txt"
-    log(f"installing requirements.txt into {python_dir}")
+    requirements = REPO_ROOT / "requirements.lock.txt"
+    log(f"installing requirements.lock.txt into {python_dir}")
     subprocess.run(
         [
             str(py),
@@ -231,6 +226,7 @@ def install_requirements(python_dir: Path) -> None:
             "pip",
             "install",
             "--no-warn-script-location",
+            "--require-hashes",
             "-r",
             str(requirements),
         ],
@@ -498,7 +494,7 @@ def main() -> int:
         log("ERROR: this build script must run on Windows.")
         log("")
         log("It downloads a Windows embeddable Python distribution and")
-        log("pip-installs PrintOps's requirements.txt against it — both")
+        log("pip-installs PrintOps's requirements.lock.txt against it — both")
         log("require executing python.exe, which only runs on Windows.")
         log("")
         log("Supported build paths:")
