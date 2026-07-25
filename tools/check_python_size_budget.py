@@ -27,7 +27,7 @@ FILE_ALLOWLIST = {
     "backend/app/api/routes/inventory.py": 2560,
     "backend/app/api/routes/library.py": 4902,
     "backend/app/api/routes/mfa.py": 2279,
-    "backend/app/api/routes/printers.py": 3304,
+    "backend/app/api/routes/printers.py": 3152,
     "backend/app/api/routes/spoolman_inventory.py": 2004,
 }
 
@@ -49,7 +49,6 @@ FUNCTION_ALLOWLIST = {
     "backend/app/api/routes/library.py::_run_slicer_with_fallback": 335,
     "backend/app/api/routes/metrics.py::get_metrics": 386,
     "backend/app/api/routes/mfa.py::oidc_callback": 404,
-    "backend/app/api/routes/printers.py::get_printer_status": 357,
     "backend/app/api/routes/printers.py::configure_ams_slot": 374,
     "backend/app/api/routes/print_queue.py::add_to_queue": 361,
     "backend/app/api/routes/settings.py::restore_backup": 304,

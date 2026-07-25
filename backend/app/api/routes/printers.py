@@ -23,8 +23,6 @@ from backend.app.models.slot_preset import SlotPresetMapping
 from backend.app.models.user import User
 from backend.app.schemas.printer import (
     AmsLabelBody,
-    AMSTray,
-    AMSUnit,
     DiagnosticRequest,
     FilaSwitchResponse,
     HmsActionBody,
@@ -55,6 +53,7 @@ from backend.app.services.printer_manager import (
     supports_drying,
     supports_drying_while_printing,
 )
+from backend.app.services.printer_status_ams import build_ams_units, build_kprofile_map, build_virtual_trays
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/printers", tags=["printers"])
@@ -399,164 +398,13 @@ async def get_printer_status(
     ams_exists = False
     raw_data = state.raw_data or {}
 
-    # Build K-profile lookup map: cali_idx -> k_value
-    # This allows looking up the calibrated K value for each AMS slot
-    kprofile_map: dict[int, float] = {}
-    for kp in state.kprofiles or []:
-        if kp.slot_id is not None and kp.k_value:
-            try:
-                kprofile_map[kp.slot_id] = float(kp.k_value)
-            except (ValueError, TypeError):
-                pass  # Skip K-profile entries with unparseable values
-
     # Cached active-cycle drying params (filament + target temp) we sent
     # last; Bambu doesn't echo them on the per-tick AMS push, so the badge
     # needs the cache to render "<filament> @ <temp>°C".
     drying_targets = printer_manager.get_drying_targets(printer_id) or {}
-
-    if "ams" in raw_data and isinstance(raw_data["ams"], list):
-        ams_exists = True
-        for ams_data in raw_data["ams"]:
-            # Skip if ams_data is not a dict (defensive check)
-            if not isinstance(ams_data, dict):
-                continue
-            trays = []
-            for tray_data in ams_data.get("tray", []):
-                # Filter out empty/invalid tag values
-                tag_uid = tray_data.get("tag_uid", "")
-                if tag_uid in ("", "0000000000000000"):
-                    tag_uid = None
-                tray_uuid = tray_data.get("tray_uuid", "")
-                if tray_uuid in ("", "00000000000000000000000000000000"):
-                    tray_uuid = None
-
-                # Get K value: first try tray's k field, then lookup from K-profiles
-                k_value = tray_data.get("k")
-                cali_idx = tray_data.get("cali_idx")
-                if k_value is None and cali_idx is not None and cali_idx in kprofile_map:
-                    k_value = kprofile_map[cali_idx]
-
-                trays.append(
-                    AMSTray(
-                        id=tray_data.get("id", 0),
-                        tray_color=tray_data.get("tray_color"),
-                        tray_type=tray_data.get("tray_type"),
-                        tray_sub_brands=tray_data.get("tray_sub_brands"),
-                        tray_id_name=tray_data.get("tray_id_name"),
-                        tray_info_idx=tray_data.get("tray_info_idx"),
-                        remain=tray_data.get("remain", 0),
-                        k=k_value,
-                        cali_idx=cali_idx,
-                        tag_uid=tag_uid,
-                        tray_uuid=tray_uuid,
-                        nozzle_temp_min=tray_data.get("nozzle_temp_min"),
-                        nozzle_temp_max=tray_data.get("nozzle_temp_max"),
-                        drying_temp=tray_data.get("drying_temp"),
-                        drying_time=tray_data.get("drying_time"),
-                        state=tray_data.get("state"),
-                    )
-                )
-            # Prefer humidity_raw (percentage) over humidity (index 1-5)
-            # humidity_raw is the actual percentage value from the sensor
-            humidity_raw = ams_data.get("humidity_raw")
-            humidity_idx = ams_data.get("humidity")
-            humidity_value = None
-
-            if humidity_raw is not None:
-                try:
-                    humidity_value = int(humidity_raw)
-                except (ValueError, TypeError):
-                    pass  # Skip unparseable humidity; will try index fallback
-            if humidity_value is None and humidity_idx is not None:
-                try:
-                    humidity_value = int(humidity_idx)
-                except (ValueError, TypeError):
-                    pass  # Skip unparseable humidity index; humidity remains None
-            # AMS-HT has 1 tray, regular AMS has 4 trays
-            is_ams_ht = len(trays) == 1
-
-            ams_id_int = int(ams_data.get("id", 0))
-            target = drying_targets.get(ams_id_int) or {}
-            dry_target_temp: int | None = None
-            dry_filament: str | None = None
-            target_temp_val = target.get("temp")
-            target_fil_val = target.get("filament") or ""
-            if target_temp_val is not None:
-                try:
-                    dry_target_temp = int(target_temp_val)
-                except (TypeError, ValueError):
-                    dry_target_temp = None
-            if target_fil_val:
-                dry_filament = str(target_fil_val)
-            # Fallback: derive from first loaded tray when no cached target
-            # (drying started in a previous backend session, or cache wasn't
-            # seeded). Mirrors the popover seed heuristic.
-            if dry_target_temp is None or not dry_filament:
-                for tray in trays:
-                    if tray.tray_type:
-                        if not dry_filament:
-                            dry_filament = str(tray.tray_type)
-                        if dry_target_temp is None and tray.drying_temp:
-                            try:
-                                dry_target_temp = int(tray.drying_temp)
-                            except (TypeError, ValueError):
-                                pass
-                        break
-
-            ams_units.append(
-                AMSUnit(
-                    id=ams_id_int,
-                    humidity=humidity_value,
-                    temp=ams_data.get("temp"),
-                    is_ams_ht=is_ams_ht,
-                    tray=trays,
-                    # Serial number: Bambu MQTT uses "sn" key on AMS unit objects
-                    serial_number=str(ams_data.get("sn") or ams_data.get("serial_number") or ""),
-                    # Firmware version: populated by _handle_version_info from info.module ams/* entries
-                    sw_ver=str(ams_data.get("sw_ver") or ""),
-                    # Drying: dry_time > 0 means drying is active (minutes remaining)
-                    dry_time=int(ams_data.get("dry_time") or 0),
-                    dry_target_temp=dry_target_temp,
-                    dry_filament=dry_filament,
-                    module_type=str(ams_data.get("module_type") or ""),
-                )
-            )
-
-    # Virtual tray (external spool holder) - comes from vt_tray in raw_data (list)
-    if "vt_tray" in raw_data:
-        for vt_data in raw_data["vt_tray"]:
-            # Filter out empty/invalid tag values for vt_tray
-            vt_tag_uid = vt_data.get("tag_uid", "")
-            if vt_tag_uid in ("", "0000000000000000"):
-                vt_tag_uid = None
-            vt_tray_uuid = vt_data.get("tray_uuid", "")
-            if vt_tray_uuid in ("", "00000000000000000000000000000000"):
-                vt_tray_uuid = None
-
-            # Get K value: first try tray's k field, then lookup from K-profiles
-            vt_k_value = vt_data.get("k")
-            vt_cali_idx = vt_data.get("cali_idx")
-            if vt_k_value is None and vt_cali_idx is not None and vt_cali_idx in kprofile_map:
-                vt_k_value = kprofile_map[vt_cali_idx]
-
-            tray_id = int(vt_data.get("id", 254))
-            vt_tray.append(
-                AMSTray(
-                    id=tray_id,
-                    tray_color=vt_data.get("tray_color"),
-                    tray_type=vt_data.get("tray_type"),
-                    tray_sub_brands=vt_data.get("tray_sub_brands"),
-                    tray_id_name=vt_data.get("tray_id_name"),
-                    tray_info_idx=vt_data.get("tray_info_idx"),
-                    remain=vt_data.get("remain", 0),
-                    k=vt_k_value,
-                    cali_idx=vt_cali_idx,
-                    tag_uid=vt_tag_uid,
-                    tray_uuid=vt_tray_uuid,
-                    nozzle_temp_min=vt_data.get("nozzle_temp_min"),
-                    nozzle_temp_max=vt_data.get("nozzle_temp_max"),
-                )
-            )
+    kprofile_map = build_kprofile_map(state.kprofiles)
+    ams_units, ams_exists = build_ams_units(raw_data, kprofile_map, drying_targets)
+    vt_tray = build_virtual_trays(raw_data, kprofile_map)
 
     # Convert nozzle info to response format
     nozzles = [
