@@ -21,8 +21,9 @@ uvicorn[standard]>=0.27.0
 sqlalchemy>=2.0.38
 aiosqlite>=0.19.0
 asyncpg>=0.29.0
-# greenlet 3.5.x has no CPython 3.11 Linux wheel, while CI still runs Python 3.11.
-greenlet>=3.0.0,<3.3
+# greenlet 3.2.x has no CPython 3.13 Windows wheel for the embedded installer,
+# while 3.5.x has no CPython 3.11 Linux wheel for CI.
+greenlet>=3.3.2,<3.4
 
 # Pydantic
 pydantic>=2.0.0
