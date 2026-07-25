@@ -226,6 +226,8 @@ def install_requirements(python_dir: Path) -> None:
             "pip",
             "install",
             "--no-warn-script-location",
+            "--only-binary",
+            ":all:",
             "--require-hashes",
             "-r",
             str(requirements),
