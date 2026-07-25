@@ -84,6 +84,8 @@ def _read(document: CommercialDocument) -> CommercialDocumentRead:
         document_type=document.document_type,
         business_profile_id=document.business_profile_id,
         customer_id=document.customer_id,
+        source_offer_id=document.source_offer_id,
+        source_order_id=document.source_order_id,
         number=document.number,
         external_issuer_number=document.external_issuer_number,
         technical_status=document.technical_status,

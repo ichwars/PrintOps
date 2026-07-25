@@ -167,6 +167,8 @@ class CommercialDocumentRead(BaseModel):
     document_type: str
     business_profile_id: int
     customer_id: int | None
+    source_offer_id: int | None
+    source_order_id: int | None
     number: str | None
     external_issuer_number: str | None
     technical_status: str

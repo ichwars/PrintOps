@@ -72,6 +72,7 @@ def mfa_encryption_isolation(monkeypatch, tmp_path):
 
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     monkeypatch.delenv("MFA_ENCRYPTION_KEY", raising=False)
+    monkeypatch.delenv("MFA_ALLOW_PLAINTEXT_FALLBACK", raising=False)
     enc_mod._fernet_instance = None
     enc_mod._warn_shown = False
     enc_mod._key_source = None

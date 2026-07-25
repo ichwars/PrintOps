@@ -30,6 +30,7 @@ export interface Offer {
   customer_id: number | null;
   calculation_revision_id: number;
   order_id: number | null;
+  quotation_document_id: number | null;
   number: string;
   status: OfferStatus;
   preferred_variant_sort_order: number;

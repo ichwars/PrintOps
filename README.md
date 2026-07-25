@@ -125,6 +125,9 @@ the current release.
   notes, invoices, corrections, credit notes, reminders, and related records.
 - **Standards-compliant electronic invoicing:** structured formats and validation
   for increasingly digital accounting workflows.
+- **Safer self-hosted secrets:** TOTP and OIDC client secrets are encrypted at
+  rest by default, and new plaintext secret writes require an explicit recovery
+  opt-in.
 - **Deeper planning and traceability:** purchasing, production capacity,
   material demand, document history, reporting, and auditability.
 - **A coherent product experience:** consistent workflows and visual language

@@ -48,6 +48,10 @@ class Offer(Base):
     def order_id(self) -> int | None:
         return self.order.id if self.order is not None else None
 
+    @property
+    def quotation_document_id(self) -> int | None:
+        return self.commercial_document.id if self.commercial_document is not None else None
+
 
 class CustomerOrder(Base):
     __tablename__ = "customer_orders"

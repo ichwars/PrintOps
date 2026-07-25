@@ -91,7 +91,7 @@ def _make_test_rsa_key():
 
 
 class TestEncryption:
-    """encrypt/decrypt round-trips, plaintext passthrough, RuntimeError on missing key.
+    """encrypt/decrypt round-trips, legacy plaintext reads, RuntimeError on missing key.
 
     The ``mfa_encryption_isolation`` autouse fixture (conftest.py) resets the
     ``encryption`` module's globals before/after each test and points
@@ -113,12 +113,24 @@ class TestEncryption:
         assert ciphertext.startswith("fernet:")
         assert enc_mod.mfa_decrypt(ciphertext) == "my-totp-secret"
 
-    def test_plaintext_passthrough_without_key(self, monkeypatch):
+    def test_plaintext_write_without_key_requires_explicit_opt_in(self, monkeypatch):
+        import backend.app.core.encryption as enc_mod
+
+        monkeypatch.setattr(enc_mod, "_load_or_generate_key", lambda: (None, "none"))
+        enc_mod._fernet_instance = None
+
+        with pytest.raises(RuntimeError, match="refusing to store a new secret in plaintext"):
+            enc_mod.mfa_encrypt("plaintext-secret")
+
+        assert enc_mod.mfa_decrypt("plaintext-secret") == "plaintext-secret"
+
+    def test_plaintext_passthrough_without_key_when_explicitly_allowed(self, monkeypatch):
         # Force the auto-bootstrap into the legacy "no key available" branch
         # by patching _load_or_generate_key directly. This is more robust than
         # chmod tricks (which root bypasses) when verifying the plaintext path.
         import backend.app.core.encryption as enc_mod
 
+        monkeypatch.setenv("MFA_ALLOW_PLAINTEXT_FALLBACK", "true")
         monkeypatch.setattr(enc_mod, "_load_or_generate_key", lambda: (None, "none"))
         enc_mod._fernet_instance = None
 

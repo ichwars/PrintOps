@@ -107,6 +107,7 @@ async def test_offer_draft_send_and_reject_do_not_reserve_stock(async_client, db
     assert quotation is not None
     assert quotation.number == created.json()["number"]
     assert quotation.tax_amount == Decimal("1.75")
+    assert created.json()["quotation_document_id"] == quotation.id
     sent = await async_client.post(f"/api/v1/offers/{created.json()['id']}/send", json={"expected_version": 1})
     assert sent.status_code == 200, sent.text
     rejected = await async_client.post(f"/api/v1/offers/{created.json()['id']}/reject", json={"expected_version": 2})

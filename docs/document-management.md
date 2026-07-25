@@ -67,6 +67,13 @@ ausgestellte Rechnungen können storniert, korrigiert, gutgeschrieben oder
 gemahnt werden. Storno und Korrektur erzeugen neue Belege und verändern den
 ursprünglich ausgestellten Beleg nicht.
 
+Ein aus einer Kalkulation erzeugtes Angebot besitzt zusätzlich einen
+verknüpften `commercial_document`-Entwurf mit `document_type=quotation`. Die
+Offer-API liefert dessen `quotation_document_id`; die Commercial-Document-API
+liefert umgekehrt `source_offer_id` beziehungsweise `source_order_id`, damit
+UI und Integrationen Angebot, Auftragsbestätigung und spätere Belege eindeutig
+aufeinander beziehen können.
+
 ## Dokumentregeln und Textbausteine
 
 Je Dokumentart werden Betreff, maßgebliches Datum, Rundungsverfahren,

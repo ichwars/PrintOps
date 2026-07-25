@@ -8,7 +8,7 @@ import { OffersPage } from '../../pages/OffersPage';
 vi.mock('../../api/offers', () => ({ offersApi: { list: vi.fn(), send: vi.fn(), reject: vi.fn(), accept: vi.fn() } }));
 
 const offer: Offer = {
-  id: 1, business_profile_id: 1, customer_id: null, calculation_revision_id: 4, order_id: null,
+  id: 1, business_profile_id: 1, customer_id: null, calculation_revision_id: 4, order_id: null, quotation_document_id: 17,
   number: 'ANG-2026-00001', status: 'draft', preferred_variant_sort_order: 0,
   snapshot: { calculation: { title: 'Mounting set', currency: 'EUR' }, revision: { revision_number: 1, selling_price: '25', currency: 'EUR' } },
   sent_at: null, accepted_at: null, rejected_at: null, version: 1,
@@ -22,6 +22,7 @@ describe('OffersPage', () => {
     render(<MemoryRouter><OffersPage /></MemoryRouter>);
 
     expect(await screen.findByText('ANG-2026-00001')).toBeInTheDocument();
+    expect(screen.getByText('Document #17')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Send offer|Angebot versenden/ }));
     await waitFor(() => expect(offersApi.send).toHaveBeenCalledWith(1, 1));
     expect(offersApi.accept).not.toHaveBeenCalled();
