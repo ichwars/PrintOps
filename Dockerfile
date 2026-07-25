@@ -24,7 +24,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     default-jre-headless \
     ffmpeg \
-    g++ \
     gnupg \
     gosu \
     iproute2 \
@@ -35,6 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libopenjp2-7 \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
+    libstdc++6 \
     openssh-client \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -53,8 +53,12 @@ RUN setcap cap_net_bind_service=+ep "$(readlink -f /usr/local/bin/python3)"
 # wheels (so a hostile wheel could hijack stdlib imports during install).
 COPY requirements.lock.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --root-user-action=ignore --upgrade 'pip>=26.1.2' \
- && pip install --root-user-action=ignore --require-hashes -r requirements.lock.txt
+    apt-get update \
+ && apt-get install -y --no-install-recommends g++ \
+ && pip install --root-user-action=ignore --upgrade 'pip>=26.1.2' \
+ && pip install --root-user-action=ignore --require-hashes -r requirements.lock.txt \
+ && apt-get purge -y --auto-remove g++ \
+ && rm -rf /var/lib/apt/lists/*
 
 # Stage the signed, hash-pinned veraPDF CLI at image-build time.  Document
 # rendering is fully offline at runtime; container startup never downloads
