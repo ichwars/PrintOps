@@ -596,6 +596,7 @@ async def get_printer_cover(
         if not using_cached and temp_path.exists():
             temp_path.unlink()
 
+
 # Split routers keep the public /printers URL surface while limiting this
 # compatibility facade to core CRUD and cover-cache behavior.
 from backend.app.api.routes.printers_ams import (  # noqa: E402
