@@ -322,21 +322,22 @@ async def _origin_points_at_repo(git_path: str, git_config: list[str], app_dir, 
 def parse_version(version: str) -> tuple:
     """Parse version string into tuple for comparison.
 
-    Returns (major, minor, patch, micro, is_prerelease, prerelease_num)
+    Returns (major, minor, patch, micro, is_prerelease, prerelease_num, daily_date)
     where is_prerelease is 0 for release, 1 for prerelease.
     This ensures releases sort higher than prereleases of same version.
 
     Examples:
-        "0.1.5"    -> (0, 1, 5, 0, 0, 0)   # release
-        "0.1.5b7"  -> (0, 1, 5, 0, 1, 7)   # beta 7
-        "0.1.5b10" -> (0, 1, 5, 0, 1, 10)  # beta 10
-        "0.1.8.1"  -> (0, 1, 8, 1, 0, 0)   # patch release
+        "0.1.5"                  -> (0, 1, 5, 0, 0, 0, 0)        # release
+        "0.1.5b7"                -> (0, 1, 5, 0, 1, 7, 0)        # beta 7
+        "0.1.5b10"               -> (0, 1, 5, 0, 1, 10, 0)       # beta 10
+        "0.1.5b10-daily.20260719" -> (0, 1, 5, 0, 1, 10, 20260719)
+        "0.1.8.1"                -> (0, 1, 8, 1, 0, 0, 0)        # patch release
     """
     # Remove 'v' prefix if present
     version = version.lstrip("v")
 
-    # Strip daily build suffix (e.g., "0.2.2b4-daily.20260313" -> "0.2.2b4")
-    version = re.sub(r"-daily\.\d+$", "", version)
+    daily_match = re.search(r"-daily\.(\d+)$", version)
+    daily_date = int(daily_match.group(1)) if daily_match else 0
 
     # Match version pattern: major.minor.patch[.micro][b|beta|alpha|rc]N
     match = re.match(r"(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?(?:b|beta|alpha|rc)?(\d+)?", version)
@@ -351,7 +352,7 @@ def parse_version(version: str) -> tuple:
         # Check if this is a prerelease (has b/beta/alpha/rc/daily suffix anywhere)
         is_prerelease = 1 if re.search(r"[a-zA-Z]", version) else 0
 
-        return (major, minor, patch, micro, is_prerelease, prerelease_num)
+        return (major, minor, patch, micro, is_prerelease, prerelease_num, daily_date)
 
     # Fallback: try simple split
     parts = []
@@ -362,7 +363,7 @@ def parse_version(version: str) -> tuple:
             num = "".join(c for c in part if c.isdigit())
             parts.append(int(num) if num else 0)
 
-    return tuple(parts) + (0, 0, 0)
+    return tuple(parts) + (0, 0, 0, 0)
 
 
 def is_newer_version(latest: str, current: str) -> bool:
@@ -400,11 +401,18 @@ def is_newer_version(latest: str, current: str) -> bool:
             return False
 
         # Both are same type (both release or both prerelease)
-        # Compare prerelease numbers
+        # Compare prerelease numbers, then daily-build date when present.
         latest_prerelease_num = latest_parsed[5] if len(latest_parsed) > 5 else 0
         current_prerelease_num = current_parsed[5] if len(current_parsed) > 5 else 0
 
-        return latest_prerelease_num > current_prerelease_num
+        if latest_prerelease_num > current_prerelease_num:
+            return True
+        if latest_prerelease_num < current_prerelease_num:
+            return False
+
+        latest_daily_date = latest_parsed[6] if len(latest_parsed) > 6 else 0
+        current_daily_date = current_parsed[6] if len(current_parsed) > 6 else 0
+        return latest_daily_date > current_daily_date
 
     except Exception:
         return False
