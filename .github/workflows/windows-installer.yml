@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 # Build jobs never receive a release token. Signing and publication are split
-# into protected jobs; release candidates may publish unsigned installers when
-# no trusted-signing provider is configured, but the artifact is marked as such.
+# into protected jobs; prerelease tags may publish unsigned installers when no
+# trusted-signing provider is configured, but the artifact is marked as such.
 permissions:
   contents: read
 
@@ -152,8 +152,12 @@ jobs:
           $missing = $required | Where-Object {
             [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_))
           }
-          if ($missing) {
-            Write-Warning "Missing protected release variables: $($missing -join ', '); publishing unsigned Windows installer."
+          $configured = $required | Where-Object {
+            -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_))
+          }
+          $isPrereleaseTag = $env:GITHUB_REF_NAME -match '(?:a|alpha|b|beta|rc)\d+|-daily\.\d{8}$'
+          if ($missing -and -not $configured -and $isPrereleaseTag) {
+            Write-Warning "Trusted signing is not configured; publishing unsigned Windows prerelease installer."
             "status=unsigned" >> $env:GITHUB_OUTPUT
             "unsigned" | Set-Content -Encoding ascii release\SIGNING_STATUS.txt
             @(
@@ -161,11 +165,15 @@ jobs:
               ""
               "Azure Trusted Signing is not configured for this release environment."
               "Windows may show an unknown-publisher warning."
-            ) | Set-Content -Encoding utf8 release\WINDOWS_INSTALLER_UNSIGNED.txt
+            ) | Set-Content -Encoding utf8 release\WINDOWS_INSTALLER_SIGNING.txt
             exit 0
+          }
+          if ($missing) {
+            throw "Missing protected release variables: $($missing -join ', ')"
           }
           "status=signed" >> $env:GITHUB_OUTPUT
           "signed" | Set-Content -Encoding ascii release\SIGNING_STATUS.txt
+          "PrintOps Windows installer is Authenticode-signed." | Set-Content -Encoding utf8 release\WINDOWS_INSTALLER_SIGNING.txt
 
       - name: Authenticate to Azure with OIDC
         if: steps.signing-config.outputs.status == 'signed'
@@ -208,6 +216,12 @@ jobs:
             }
           } elseif ($status -eq 'unsigned') {
             Write-Warning "Publishing unsigned Windows installer."
+            foreach ($installer in $installers) {
+              if ($installer.BaseName.EndsWith("-unsigned", [StringComparison]::OrdinalIgnoreCase)) { continue }
+              $unsignedName = "$($installer.BaseName)-unsigned$($installer.Extension)"
+              Rename-Item $installer.FullName $unsignedName
+            }
+            $installers = Get-ChildItem -File -Filter '*.exe'
           } else {
             throw "unknown signing status: $status"
           }
@@ -276,6 +290,30 @@ jobs:
           foreach ($installer in $installers) {
             $actual = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($expected[$installer.Name] -ne $actual) { throw "checksum mismatch: $($installer.Name)" }
+          }
+
+      - name: Remove stale Windows release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept = "application/vnd.github+json"
+            "X-GitHub-Api-Version" = "2022-11-28"
+          }
+          $releaseUrl = "https://api.github.com/repos/${env:GITHUB_REPOSITORY}/releases/tags/${env:GITHUB_REF_NAME}"
+          try {
+            $release = Invoke-RestMethod -Headers $headers -Uri $releaseUrl
+          } catch {
+            if ($_.Exception.Response.StatusCode.value__ -eq 404) { exit 0 }
+            throw
+          }
+          $assetNamePattern = '^(printops.*windows.*setup.*\.exe|SHA256SUMS\.txt|SIGNING_STATUS\.txt|WINDOWS_INSTALLER_SIGNING\.txt|WINDOWS_INSTALLER_UNSIGNED\.txt)$'
+          foreach ($asset in $release.assets) {
+            if ($asset.name -match $assetNamePattern) {
+              Invoke-RestMethod -Method Delete -Headers $headers -Uri $asset.url
+            }
           }
 
       - name: Attach Windows installers to release
