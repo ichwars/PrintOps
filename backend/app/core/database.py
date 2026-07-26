@@ -8,6 +8,7 @@ from sqlalchemy.orm import DeclarativeBase
 
 from backend.app.core.config import settings
 from backend.app.core.db_dialect import is_sqlite
+from backend.app.core.number_sequence_migrations import migrate_number_sequence_monthly_reset_policy
 
 logger = logging.getLogger(__name__)
 
@@ -758,44 +759,6 @@ async def migrate_document_layout_schema(conn) -> None:
     )
 
 
-async def _migrate_number_sequence_monthly_reset_policy(conn) -> None:
-    """Allow monthly reset policy in existing number sequence check constraints."""
-
-    from sqlalchemy import text
-
-    constraint_name = "ck_number_sequence_reset_policy"
-    old_formula = "reset_policy IN ('none', 'yearly')"
-    new_formula = "reset_policy IN ('none', 'yearly', 'monthly')"
-    if is_sqlite():
-        try:
-            result = await conn.execute(text("SELECT sql FROM sqlite_master WHERE type='table' AND name='number_sequences'"))
-            table_sql = result.scalar()
-            if table_sql and old_formula in table_sql and new_formula not in table_sql:
-                version_result = await conn.execute(text("PRAGMA schema_version"))
-                schema_version = version_result.scalar() or 0
-                await conn.execute(text("PRAGMA writable_schema = ON"))
-                await conn.execute(
-                    text(
-                        "UPDATE sqlite_master "
-                        "SET sql = replace(sql, :old_formula, :new_formula) "
-                        "WHERE type = 'table' AND name = 'number_sequences'"
-                    ),
-                    {"old_formula": old_formula, "new_formula": new_formula},
-                )
-                await conn.execute(text(f"PRAGMA schema_version = {schema_version + 1}"))
-                await conn.execute(text("PRAGMA writable_schema = OFF"))
-        except (OperationalError, ProgrammingError) as exc:
-            logger.error(
-                "Failed to widen number_sequences.reset_policy constraint for monthly reset: %s",
-                exc,
-                exc_info=True,
-            )
-            raise
-    else:
-        await _safe_execute(conn, f"ALTER TABLE number_sequences DROP CONSTRAINT IF EXISTS {constraint_name}")
-        await _safe_execute(conn, f"ALTER TABLE number_sequences ADD CONSTRAINT {constraint_name} CHECK ({new_formula})")
-
-
 async def run_migrations(conn):
     """Run all schema migrations and data backfills on startup.
 
@@ -811,9 +774,7 @@ async def run_migrations(conn):
     from sqlalchemy import text
 
     await migrate_document_layout_schema(conn)
-    await _migrate_number_sequence_monthly_reset_policy(conn)
-
-    # Migration: Add procurement metadata to technical materials.
+    await migrate_number_sequence_monthly_reset_policy(conn, _safe_execute)
     await _safe_execute(
         conn,
         "ALTER TABLE small_parts ADD COLUMN default_consumption_reason VARCHAR(120) NOT NULL DEFAULT 'Produktion'",
