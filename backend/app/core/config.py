@@ -8,13 +8,37 @@ from pydantic_settings import BaseSettings
 
 from backend.app.core.paths import resolve_data_dir
 
-# Application version - single source of truth
-APP_VERSION = "0.2.5rc4"
-GITHUB_REPO = "ichwars/PrintOps"
-BUG_REPORT_RELAY_URL = os.environ.get("BUG_REPORT_RELAY_URL", "")
-
 # App directory - where the application is installed (for static files)
 _app_dir = Path(__file__).resolve().parent.parent.parent.parent
+_DEFAULT_APP_VERSION = "0.2.5rc4"
+
+
+def _load_app_version() -> str:
+    """Resolve the runtime application version.
+
+    Release builds stamp APP_VERSION or an adjacent VERSION file from the
+    release tag. Local source checkouts fall back to the checked-in development
+    version so contributors do not need generated files.
+    """
+    env_version = os.environ.get("APP_VERSION", "").strip()
+    if env_version:
+        return env_version
+
+    for version_file in (_app_dir / "VERSION", _app_dir.parent / "VERSION"):
+        try:
+            version = version_file.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if version:
+            return version
+
+    return _DEFAULT_APP_VERSION
+
+
+# Application version surfaced by /updates/version, /system and support bundles.
+APP_VERSION = _load_app_version()
+GITHUB_REPO = "ichwars/PrintOps"
+BUG_REPORT_RELAY_URL = os.environ.get("BUG_REPORT_RELAY_URL", "")
 
 # Data directory - for persistent data (database, archives)
 # Use DATA_DIR env var if set (Docker), otherwise use project root (local dev)

@@ -410,7 +410,7 @@ def stage_service_scripts() -> None:
 
 
 def _read_app_version() -> str:
-    """Read APP_VERSION from backend/app/core/config.py (the canonical
+    """Read _DEFAULT_APP_VERSION from backend/app/core/config.py (the local
     source used by every other PrintOps surface — FastAPI OpenAPI title,
     /system info, support bundles, spoolbuddy update check).
     """
@@ -419,8 +419,8 @@ def _read_app_version() -> str:
         return "0.0.0+dev"
     for raw in config_py.read_text().splitlines():
         stripped = raw.strip()
-        if stripped.startswith("APP_VERSION"):
-            # APP_VERSION = "0.2.5b1"  ->  0.2.5b1
+        if stripped.startswith("_DEFAULT_APP_VERSION"):
+            # _DEFAULT_APP_VERSION = "0.2.5b1"  ->  0.2.5b1
             return stripped.split("=", 1)[1].strip().strip('"').strip("'")
     return "0.0.0+dev"
 
@@ -458,6 +458,9 @@ def write_version_file() -> None:
     """
     version = _resolve_installer_version()
     (STAGING / "VERSION").write_text(version)
+    staged_app = STAGING / "app"
+    if staged_app.exists():
+        (staged_app / "VERSION").write_text(version)
 
     # Inno Setup include — printops.iss does `#include "build\staging\version.iss"`
     iss_version = STAGING / "version.iss"

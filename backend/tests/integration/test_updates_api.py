@@ -274,6 +274,7 @@ class TestUpdatesAPI:
         from backend.app.api.routes.updates import parse_version
 
         assert parse_version("0.1.5")[:3] == (0, 1, 5)
+        assert parse_version("v1.2.5b2-daily.20260719") == (1, 2, 5, 0, 1, 2, 20260719)
 
     @pytest.mark.parametrize(
         "tag",
@@ -359,6 +360,8 @@ class TestUpdatesAPI:
         from backend.app.api.routes.updates import is_newer_version
 
         assert is_newer_version("0.1.5", "0.1.5b7") is True
+        assert is_newer_version("1.2.5b2-daily.20260719", "1.2.5b2-daily.20260718") is True
+        assert is_newer_version("1.2.5b2-daily.20260718", "1.2.5b2-daily.20260719") is False
 
     def test_parse_github_remote_recognises_ssh_https_and_dotgit(self):
         """`_parse_github_remote` must accept the four canonical forms `git
