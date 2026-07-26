@@ -62,6 +62,8 @@ class AppSettings(BaseModel):
     # Updates
     check_updates: bool = Field(default=True, description="Automatically check for updates on startup")
     check_printer_firmware: bool = Field(default=True, description="Check for printer firmware updates from Bambu Lab")
+    show_developer_lan_warning: bool = Field(default=True, description="Show warning banner for printers without Developer LAN mode")
+    show_sponsor_prompts: bool = Field(default=True, description="Show supporter/community prompts in the app")
     include_beta_updates: bool = Field(default=False, description="Include beta/prerelease versions in update checks")
 
     # Language
@@ -493,6 +495,8 @@ class AppSettingsUpdate(BaseModel):
     prefer_lowest_filament: bool | None = None
     check_updates: bool | None = None
     check_printer_firmware: bool | None = None
+    show_developer_lan_warning: bool | None = None
+    show_sponsor_prompts: bool | None = None
     include_beta_updates: bool | None = None
     local_login_enabled: bool | None = None
     language: str | None = None

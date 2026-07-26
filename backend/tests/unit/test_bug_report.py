@@ -56,6 +56,52 @@ class TestBugReportService:
 
     @pytest.mark.asyncio
     @pytest.mark.unit
+    async def test_submit_rejects_relay_issue_from_wrong_repo(self):
+        """Relay success is rejected when the issue URL points outside PrintOps."""
+        from backend.app.services.bug_report import submit_report
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "success": True,
+            "message": "Created",
+            "issue_url": "https://github.com/other/project/issues/99",
+            "issue_number": 99,
+        }
+
+        mock_db = AsyncMock()
+        mock_db.add = MagicMock()
+        mock_db.commit = AsyncMock()
+
+        with (
+            patch("backend.app.services.bug_report.httpx.AsyncClient") as mock_client_cls,
+            patch("backend.app.services.bug_report.async_session") as mock_session,
+            patch("backend.app.services.bug_report._rate_limit_timestamps", []),
+            patch("backend.app.services.bug_report.BUG_REPORT_RELAY_URL", "https://example.com/api/bug-report"),
+        ):
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            mock_session.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+            mock_session.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            result = await submit_report(
+                description="Test bug",
+                reporter_email="user@test.com",
+                screenshot_base64=None,
+                support_info=None,
+            )
+
+        assert result["success"] is False
+        assert "unexpected GitHub repository" in result["message"]
+        assert result["issue_url"] is None
+        mock_db.add.assert_called_once()
+
+    @pytest.mark.asyncio
+    @pytest.mark.unit
     async def test_submit_rate_limited(self):
         """Returns failure when rate limit exceeded."""
         import time

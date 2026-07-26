@@ -54,6 +54,7 @@ describe('Layout', () => {
         return HttpResponse.json({
           check_updates: false,
           check_printer_firmware: false,
+          show_developer_lan_warning: true,
           auto_archive: true,
         });
       }),
@@ -505,6 +506,28 @@ describe('Layout', () => {
       await waitFor(() => {
         expect(document.body.textContent).toContain('0.2.5');
       });
+    });
+
+    it('links the update banner to the settings update page', async () => {
+      server.use(
+        http.get('/api/v1/updates/check', () => {
+          return HttpResponse.json({
+            update_available: true,
+            current_version: '0.2.4',
+            latest_version: '0.2.5',
+            is_docker: true,
+            is_ha_addon: false,
+            update_method: 'docker',
+          });
+        }),
+      );
+
+      render(<Layout />);
+
+      fireEvent.click(await screen.findByText('View update'));
+
+      expect(window.location.pathname).toBe('/settings');
+      expect(window.location.search).toContain('tab=operations');
     });
   });
 

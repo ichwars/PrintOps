@@ -142,6 +142,40 @@ describe('DocumentSettings', () => {
     expect(screen.getByRole('button', { name: 'Änderungen verwerfen' })).toBeInTheDocument();
   });
 
+  it('shows missing draft status and opens the new draft immediately after creation', async () => {
+    await i18n.changeLanguage('de');
+    const user = userEvent.setup();
+    server.use(
+      http.get('/api/v1/business-profiles/options', () => HttpResponse.json([profile])),
+      http.get('/api/v1/document-configurations/catalog', () => HttpResponse.json({
+        tax_rule_version: '2026.1',
+        einvoice_rule_versions: { en16931: '1.3.16', xrechnung: '3.0.2-2026-01-31' },
+        document_types: [
+          { key: 'invoice', einvoice: true, issuer_role: 'seller', has_payment_terms: true, has_tax: true, allowed_successors: [] },
+        ],
+      })),
+      http.get('/api/v1/document-configurations/placeholders', () => HttpResponse.json({ placeholders: [], text_block_purposes: ['intro', 'closing', 'footer'] })),
+      http.get('/api/v1/document-configurations/', () => HttpResponse.json([])),
+      http.post('/api/v1/document-configurations/', () => HttpResponse.json(detail, { status: 201 })),
+      http.post('/api/v1/document-configurations/effective', () => HttpResponse.json({
+        configuration_id: 17,
+        configuration_version: 2,
+        basic: {}, payment: {}, content: {}, tax: {}, einvoice: {}, text_blocks: [],
+      })),
+      http.get('/api/v1/document-configurations/17/readiness', () => HttpResponse.json({ context: 'configuration', status: 'ready', findings: [] })),
+      http.get('/api/v1/document-configurations/17/history', () => HttpResponse.json([summary])),
+      http.get('/api/v1/document-configurations/17/audit', () => HttpResponse.json([])),
+    );
+
+    render(<DocumentSettings />);
+
+    expect(await screen.findByText('Kein Entwurf')).toBeInTheDocument();
+    await user.click((await screen.findAllByRole('button', { name: 'Entwurf anlegen' }))[0]);
+
+    expect(await screen.findByText('Entwurf · Version 2')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Dokumentregeln' })).toBeInTheDocument();
+  });
+
   it('explains read-only access and disables editing actions', async () => {
     await i18n.changeLanguage('de');
 

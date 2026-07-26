@@ -56,14 +56,14 @@ function buildMessage(
   }
 }
 
-export function useSponsorPrompt(currencyCode = 'EUR') {
+export function useSponsorPrompt(currencyCode = 'EUR', enabled = true) {
   const { t } = useTranslation();
   const { loading } = useAuth();
   const { showPersistentToast } = useToast();
   const firedRef = useRef(false);
 
   useEffect(() => {
-    if (loading || firedRef.current) return;
+    if (!enabled || loading || firedRef.current) return;
     if (sessionStorage.getItem(SESSION_SHOWN_KEY)) {
       firedRef.current = true;
       return;
@@ -90,5 +90,5 @@ export function useSponsorPrompt(currencyCode = 'EUR') {
         // Network / 401 — silently skip; next session retries.
       }
     })();
-  }, [loading, t, showPersistentToast, currencyCode]);
+  }, [enabled, loading, t, showPersistentToast, currencyCode]);
 }

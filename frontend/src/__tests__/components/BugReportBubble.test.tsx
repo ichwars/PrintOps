@@ -73,6 +73,15 @@ describe('BugReportBubble', () => {
     expect(button).toBeInTheDocument();
   });
 
+  it('keeps the floating bug button subdued until hover or focus', () => {
+    render(<BugReportBubble />);
+
+    const button = screen.getByRole('button');
+    expect(button.className).toContain('bg-red-500/55');
+    expect(button.className).toContain('hover:bg-red-500');
+    expect(button.className).toContain('focus-visible:bg-red-500');
+  });
+
   it('opens panel when bubble is clicked', async () => {
     const user = userEvent.setup();
 

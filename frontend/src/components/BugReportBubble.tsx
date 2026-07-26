@@ -220,7 +220,7 @@ export function BugReportBubble() {
       {/* Floating bubble */}
       <button
         onClick={handleOpen}
-        className="fixed bottom-4 right-4 z-40 w-12 h-12 rounded-full bg-red-500 hover:bg-red-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 flex items-center justify-center"
+        className="fixed bottom-4 right-4 z-40 w-12 h-12 rounded-full bg-red-500/55 hover:bg-red-500 focus-visible:bg-red-500 text-white/90 hover:text-white focus-visible:text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 flex items-center justify-center"
         title={t('bugReport.title')}
       >
         <Bug className="w-5 h-5" />

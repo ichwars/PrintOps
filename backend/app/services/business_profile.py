@@ -107,7 +107,15 @@ async def update_number_sequence(
     data: NumberSequenceUpdate,
 ) -> NumberSequence:
     values = data.model_dump(exclude={"version"})
-    if data.reset_policy == "none":
+    current_reset_policy = await session.scalar(
+        select(NumberSequence.reset_policy).where(
+            NumberSequence.id == sequence_id,
+            NumberSequence.business_profile_id == profile_id,
+        )
+    )
+    if current_reset_policy is None:
+        raise ResourceNotFoundError(f"Number sequence {sequence_id} was not found")
+    if data.reset_policy == "none" or data.reset_policy != current_reset_policy:
         values["current_period"] = None
     result = await session.execute(
         update(NumberSequence)

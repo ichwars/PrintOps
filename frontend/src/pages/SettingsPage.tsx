@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Settings as SettingsIcon, Cog, QrCode, Heart, Workflow, Info, Building2, PanelsTopLeft } from 'lucide-react';
+import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Settings as SettingsIcon, Cog, QrCode, Workflow, Info, Building2, PanelsTopLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import { api } from '../api/client';
@@ -92,6 +92,7 @@ import {
 registerSettingsSearch({ labelKey: 'settings.general', tab: 'general', keywords: 'language default view date time format locale preferences', anchor: 'card-general' });
 registerSettingsSearch({ labelKey: 'settings.appearance', tab: 'general', keywords: 'theme dark light mode colors', anchor: 'card-appearance' });
 registerSettingsSearch({ labelKey: 'settings.resetUiPreferences', labelFallback: 'Reset UI Preferences', tab: 'general', keywords: 'ui preferences reset local storage sidebar layout defaults', anchor: 'card-ui-preferences' });
+registerSettingsSearch({ labelKey: 'settings.noticePreferences', labelFallback: 'Notices', tab: 'general', keywords: 'notices hints warnings developer lan supporter community sponsor', anchor: 'card-notice-preferences' });
 registerSettingsSearch({ labelKey: 'settings.archiveSettings', tab: 'printers-production', printerProductionSubTab: 'print-process', keywords: 'archive auto save thumbnails captures', anchor: 'card-archive' });
 registerSettingsSearch({ labelKey: 'settings.camera', tab: 'printers-production', printerProductionSubTab: 'devices', keywords: 'camera external video stream', anchor: 'card-camera' });
 registerSettingsSearch({ labelKey: 'settings.defaultPrinter', labelFallback: 'Default Printer', tab: 'printers-production', printerProductionSubTab: 'devices', keywords: 'default printer preferred printer fallback printer selection', anchor: 'card-default-printer' });
@@ -1659,6 +1660,8 @@ export function SettingsPage() {
       settings.energy_tracking_mode !== localSettings.energy_tracking_mode ||
       settings.check_updates !== localSettings.check_updates ||
       (settings.check_printer_firmware ?? true) !== (localSettings.check_printer_firmware ?? true) ||
+      (settings.show_developer_lan_warning ?? true) !== (localSettings.show_developer_lan_warning ?? true) ||
+      (settings.show_sponsor_prompts ?? true) !== (localSettings.show_sponsor_prompts ?? true) ||
       (settings.include_beta_updates ?? false) !== (localSettings.include_beta_updates ?? false) ||
       (settings.local_login_enabled ?? true) !== (localSettings.local_login_enabled ?? true) ||
       settings.notification_language !== localSettings.notification_language ||
@@ -1738,6 +1741,8 @@ export function SettingsPage() {
         energy_tracking_mode: localSettings!.energy_tracking_mode,
         check_updates: localSettings!.check_updates,
         check_printer_firmware: localSettings!.check_printer_firmware,
+        show_developer_lan_warning: localSettings!.show_developer_lan_warning,
+        show_sponsor_prompts: localSettings!.show_sponsor_prompts,
         include_beta_updates: localSettings!.include_beta_updates,
         local_login_enabled: localSettings!.local_login_enabled,
         notification_language: localSettings!.notification_language,
@@ -2565,6 +2570,44 @@ export function SettingsPage() {
       </CardContent>
     </Card>
   );
+
+  const noticePreferencesCard = localSettings ? (
+    <Card id="card-notice-preferences">
+      <CardHeader>
+        <h2 className="text-lg font-semibold text-white">{t('settings.noticePreferences')}</h2>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-white">{t('settings.showDeveloperLanWarning')}</p>
+            <p className="text-sm text-bambu-gray">
+              {t('settings.showDeveloperLanWarningDesc')}
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <Switch
+              checked={localSettings.show_developer_lan_warning ?? true}
+              onChange={(e) => updateSetting('show_developer_lan_warning', e.target.checked)}
+            />
+          </label>
+        </div>
+        <div className="flex items-center justify-between gap-4 border-t border-bambu-dark-tertiary pt-3">
+          <div>
+            <p className="text-white">{t('settings.showSponsorPrompts')}</p>
+            <p className="text-sm text-bambu-gray">
+              {t('settings.showSponsorPromptsDesc')}
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <Switch
+              checked={localSettings.show_sponsor_prompts ?? true}
+              onChange={(e) => updateSetting('show_sponsor_prompts', e.target.checked)}
+            />
+          </label>
+        </div>
+      </CardContent>
+    </Card>
+  ) : null;
 
   const dataManagementCard = localSettings ? (
     <Card id="card-data">
@@ -3727,35 +3770,6 @@ export function SettingsPage() {
       <div className="min-w-0">
       {activeTab === 'general' && (
       <>
-      {/* Sponsor banner — prominent independence callout */}
-      <a
-        href="https://github.com/ichwars/PrintOps?from=app-settings"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="group block mb-4 lg:mb-6 rounded-xl border border-bambu-green/30 bg-gradient-to-br from-bambu-green/15 via-bambu-green/5 to-transparent hover:border-bambu-green/50 hover:from-bambu-green/20 transition-colors"
-      >
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-4 p-4 md:p-5">
-          <div className="p-3 rounded-lg bg-bambu-green/20 text-bambu-green flex-shrink-0">
-            <Heart className="w-6 h-6" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-base font-semibold text-white">
-              {t('sponsors.sectionTitle', 'Independent & community-funded')}
-            </p>
-            <p className="text-sm text-bambu-gray mt-0.5">
-              {t(
-                'sponsors.tagline',
-                'PrintOps is free and stays that way because people choose to support it. No VC, no cloud lock-in.'
-              )}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-bambu-green/20 text-bambu-green group-hover:bg-bambu-green/30 text-sm font-medium whitespace-nowrap self-start md:self-auto">
-            {t('sponsors.viewSupporters', 'View supporters')}
-            <ExternalLink className="w-4 h-4" />
-          </div>
-        </div>
-      </a>
-
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
         {/* Left Column - General Settings */}
         <div className="space-y-3 flex-1 lg:max-w-xl">
@@ -4005,6 +4019,7 @@ export function SettingsPage() {
         {/* Second Column - Camera, Cost, AMS & Spoolman */}
         <div className="space-y-3 flex-1 lg:max-w-md">
           {uiPreferencesCard}
+          {noticePreferencesCard}
         </div>
 
         {/* Third Column - Sidebar Links */}

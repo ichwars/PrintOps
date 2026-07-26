@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from backend.app.services.number_sequence import validate_number_pattern
 
 NumberSequenceKey = Literal["customer", "offer", "order", "invoice"]
-NumberSequenceResetPolicy = Literal["none", "yearly"]
+NumberSequenceResetPolicy = Literal["none", "yearly", "monthly"]
 
 
 class NumberSequenceValues(BaseModel):

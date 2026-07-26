@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, FilePlus2, Loader2, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { ApiError, api } from '../../../api/client';
@@ -151,8 +151,14 @@ export function DocumentSettings() {
     setPendingAction(name);
     setActionError(null);
     try {
-      await action();
+      const result = await action();
       await refresh();
+      if (result) {
+        queryClient.setQueryData(
+          ['document-configuration', result.business_profile_id, result.document_type, result.language],
+          result,
+        );
+      }
       setChangeReason('');
       showToast(t(`settings.documents.messages.${name}Success`, `${name} completed.`), 'success');
     } catch (error) {
@@ -339,8 +345,15 @@ export function DocumentSettings() {
             </>
           ) : (
             <div className="rounded-xl border border-dashed border-bambu-dark-tertiary bg-bambu-dark-secondary p-6 text-center">
-              <p className="font-medium text-white">{t('settings.documents.empty.title', 'No configuration for this context')}</p>
-              <p className="mt-1 text-sm text-gray-400">{t('settings.documents.empty.description', 'Create a draft from the system defaults, then review it before publication.')}</p>
+              <FilePlus2 className="mx-auto h-8 w-8 text-bambu-green" aria-hidden="true" />
+              <p className="mt-3 font-medium text-white">{t('settings.documents.empty.title', 'No configuration for this context')}</p>
+              <p className="mx-auto mt-1 max-w-2xl text-sm text-gray-400">{t('settings.documents.empty.description', 'Create a draft from the system defaults, then review it before publication.')}</p>
+              {canManage ? (
+                <Button className="mt-4" onClick={() => void runAction('create', () => createMutation.mutateAsync())} loading={pendingAction === 'create'} disabled={pendingAction !== null}>
+                  <FilePlus2 className="h-4 w-4" aria-hidden="true" />
+                  {t('settings.documents.actions.create', 'Create draft')}
+                </Button>
+              ) : null}
             </div>
           )}
 

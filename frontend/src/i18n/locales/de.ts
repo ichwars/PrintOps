@@ -1895,7 +1895,7 @@ export default {
       documentType: 'Dokumenttyp',
       language: 'Sprache',
       version: 'Version {{version}}',
-      status: { draft: 'Entwurf', scheduled: 'Geplant', active: 'Aktiv', superseded: 'Abgelöst' },
+      status: { draft: 'Entwurf', scheduled: 'Geplant', active: 'Aktiv', superseded: 'Abgelöst', missingDraft: 'Kein Entwurf' },
       readiness: { ready: 'Bereit', warnings: 'Warnungen', blocked: 'Blockiert', loading: 'Bereitschaft wird geprüft...', versionConflict: 'Der Entwurf wurde an anderer Stelle geändert', checkFailed: 'Compliance-Prüfung fehlgeschlagen', ruleId: 'Regel-ID', correlationId: 'Korrelations-ID', unknownError: 'Unbekannter Validierungsfehler', reloadCompare: 'Neu laden und vergleichen', title: 'Freigabebereitschaft', noFindings: 'Keine blockierenden Befunde.', findings: { buyer_endpoint_missing: 'Empfängerkennung fehlt' } },
       changeReason: 'Änderungsgrund',
       changeReasonHint: 'Für gespeicherte und freigegebene Änderungen erforderlich (mindestens 3 Zeichen).',
@@ -2200,6 +2200,11 @@ export default {
     // Updates
     checkForUpdatesLabel: 'Nach Updates suchen',
     checkPrinterFirmware: 'Drucker-Firmware prüfen',
+    noticePreferences: 'Hinweise',
+    showDeveloperLanWarning: 'Entwickler-LAN-Meldung anzeigen',
+    showDeveloperLanWarningDesc: 'Warnt oben in der App, wenn ein Drucker ohne aktivierten Entwickler-LAN-Modus verbunden ist.',
+    showSponsorPrompts: 'Unterstützer-Hinweise anzeigen',
+    showSponsorPromptsDesc: 'Zeigt gelegentliche Hinweise auf Unterstützer und die Community-Finanzierung von PrintOps.',
     includeBetaUpdates: 'Beta-Versionen einschließen',
     includeBetaUpdatesDesc: 'Über Beta- und Vorabversionen bei der Updateprüfung benachrichtigen',
     localLogin: {

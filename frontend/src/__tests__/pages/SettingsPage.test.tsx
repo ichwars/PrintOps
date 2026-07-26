@@ -34,6 +34,8 @@ const mockSettings = {
   ha_token: '',
   check_updates: false,
   check_printer_firmware: false,
+  show_developer_lan_warning: true,
+  show_sponsor_prompts: true,
   bed_cooled_threshold: 35,
   ftp_retry_enabled: true,
   ftp_retry_count: 3,

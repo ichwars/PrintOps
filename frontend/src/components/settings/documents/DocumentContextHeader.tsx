@@ -1,4 +1,4 @@
-import { FileText } from 'lucide-react';
+import { FileQuestion, FileText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { BusinessProfileOption } from '../../../api/client';
@@ -73,7 +73,12 @@ export function DocumentContextHeader({
             <span className="rounded-full border border-bambu-dark-tertiary bg-bambu-dark px-3 py-1.5 text-gray-200">
               {t(`settings.documents.status.${status}`, status ?? '')} · {t('settings.documents.version', { version: configuration.version, defaultValue: `Version ${configuration.version}` })}
             </span>
-          ) : null}
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full border border-bambu-dark-tertiary bg-bambu-dark px-3 py-1.5 text-gray-300">
+              <FileQuestion className="h-3.5 w-3.5 text-bambu-gray" aria-hidden="true" />
+              {t('settings.documents.status.missingDraft', 'No draft')}
+            </span>
+          )}
           {readiness ? (
             <span className={`rounded-full border px-3 py-1.5 ${statusClass}`}>
               {t(`settings.documents.readiness.${readiness}`, readiness)}

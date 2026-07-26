@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { CreditCard, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { DunningPolicyDraft, PaymentPolicyDraft, PolicyFinding, SourcedValue } from '../../../api/documentManagement';
@@ -27,7 +27,10 @@ export function PaymentPolicySection({ payment, dunning, effectivePayment = {}, 
 
   return (
     <section className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4" aria-labelledby="document-payment-policy-heading">
-      <h3 id="document-payment-policy-heading" className="font-semibold text-white">{t('settings.documents.payment.title', 'Payment and dunning')}</h3>
+      <div className="flex items-center gap-2">
+        <CreditCard className="h-4 w-4 text-bambu-green" aria-hidden="true" />
+        <h3 id="document-payment-policy-heading" className="font-semibold text-white">{t('settings.documents.payment.title', 'Payment and dunning')}</h3>
+      </div>
       <p className="mt-1 text-sm text-gray-400">{t('settings.documents.payment.description', 'Due dates, discounts, installments, bank assignment and escalation stages.')}</p>
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <InheritanceField path="payment.payment_term_days" sourced={effectivePayment.payment_term_days as SourcedValue<number> | undefined} onReset={reset}>

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Building2, Check, Loader2, Pencil, Plus, Power, RefreshCw, Star, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Building2, Check, ImageOff, Loader2, Pencil, Plus, Power, RefreshCw, Star, Trash2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ApiError, api, type BusinessProfile, type BusinessProfileCreate, type BusinessProfileUpdate } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
@@ -201,7 +201,7 @@ export function BusinessProfileSettings() {
             <tbody className="divide-y divide-bambu-dark-tertiary">
               {profilesQuery.data.map((profile) => (
                 <tr key={profile.id} className="text-bambu-gray-light">
-                  <td className="w-[28%] px-2 py-3"><div className="flex items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded border border-bambu-dark-tertiary bg-bambu-dark">{profile.logo_version != null ? <img src={api.getBusinessProfileLogoUrl(profile.id, profile.logo_version)} alt={`${profile.name} logo`} className="h-full w-full object-contain" /> : <Building2 className="h-4 w-4 text-bambu-gray" aria-hidden="true" />}</div><div className="min-w-0"><p className="truncate font-medium text-white">{profile.name}</p><p className="truncate text-xs text-bambu-gray">{profile.legal_name}</p></div></div></td>
+                  <td className="w-[28%] px-2 py-3"><div className="flex items-center gap-3"><ProfileLogo profile={profile} /><div className="min-w-0"><p className="truncate font-medium text-white">{profile.name}</p><p className="truncate text-xs text-bambu-gray">{profile.legal_name}</p></div></div></td>
                   <td className="px-2 py-3">{profile.country_code}</td><td className="px-2 py-3">{profile.default_currency}</td><td className="px-2 py-3">{profile.timezone}</td><td className="px-2 py-3">{t(`orderUi.billingModes.${profile.billing_mode}`)}</td>
                   <td className="px-2 py-3 align-middle"><div className="flex items-center gap-2"><span className={profile.is_active ? 'text-bambu-green' : 'text-bambu-gray'}>{profile.is_active ? t('orders.businessProfile.active') : t('orders.businessProfile.inactive')}</span>{profile.is_default && <span className="inline-flex items-center gap-1 text-xs text-bambu-green"><Check className="h-3 w-3" />{t('orders.default')}</span>}</div></td>
                   <td className="px-2 py-3"><div className="flex justify-end gap-1">
@@ -220,6 +220,47 @@ export function BusinessProfileSettings() {
       {editorProfile !== undefined && <BusinessProfileEditorModal profile={editorProfile} isSubmitting={isMutating} onClose={() => setEditorProfile(undefined)} onSubmit={submitEditor} />}
     </section>
     <NumberSequenceSettings profiles={profilesQuery.data ?? []} canManage={canManage} />
+    </div>
+  );
+}
+
+function ProfileLogo({ profile }: { profile: BusinessProfile }) {
+  const [failed, setFailed] = useState(false);
+  const logoVersion = profile.logo_version;
+  const logoQuery = useQuery({
+    queryKey: ['business-profile-logo', profile.id, logoVersion],
+    queryFn: () => api.getBusinessProfileLogoBlob(profile.id, logoVersion!),
+    enabled: logoVersion != null,
+    staleTime: 60 * 60 * 1000,
+    retry: false,
+  });
+  const objectUrl = useMemo(() => (logoQuery.data ? URL.createObjectURL(logoQuery.data) : null), [logoQuery.data]);
+  const showLogo = objectUrl != null && !failed && !logoQuery.isError;
+
+  useEffect(() => {
+    setFailed(false);
+  }, [profile.id, logoVersion, objectUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [objectUrl]);
+
+  return (
+    <div className="flex h-10 w-16 shrink-0 items-center justify-center overflow-hidden rounded border border-bambu-dark-tertiary bg-bambu-dark p-1">
+      {showLogo ? (
+        <img
+          src={objectUrl ?? ''}
+          alt={`${profile.name} logo`}
+          className="max-h-full max-w-full object-contain"
+          onError={() => setFailed(true)}
+        />
+      ) : failed ? (
+        <ImageOff className="h-4 w-4 text-bambu-gray" aria-hidden="true" />
+      ) : (
+        <Building2 className="h-4 w-4 text-bambu-gray" aria-hidden="true" />
+      )}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { FileCheck2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type {
@@ -42,7 +43,10 @@ export function BasicPolicySection({
 
   return (
     <section className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4" aria-labelledby="document-basic-policy-heading">
-      <h3 id="document-basic-policy-heading" className="font-semibold text-white">{t('settings.documents.basic.title', 'Document rules')}</h3>
+      <div className="flex items-center gap-2">
+        <FileCheck2 className="h-4 w-4 text-bambu-green" aria-hidden="true" />
+        <h3 id="document-basic-policy-heading" className="font-semibold text-white">{t('settings.documents.basic.title', 'Document rules')}</h3>
+      </div>
       <p className="mt-1 text-sm text-gray-400">{t('settings.documents.basic.description', 'Dates, references, successors, rounding and technical content.')}</p>
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <InheritanceField path="basic.subject" sourced={effectiveBasic.subject as SourcedValue<string> | undefined} onReset={reset}>
