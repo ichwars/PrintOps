@@ -54,6 +54,10 @@ function valuesFromDraft(draft: SequenceDraft): NumberSequenceValues {
   };
 }
 
+function supportsResetPolicy(draft: SequenceDraft) {
+  return draft.resetPolicy !== 'monthly' || draft.pattern.includes('{YYMM}');
+}
+
 export function NumberSequenceSettings({ profiles, canManage }: Props) {
   const { i18n } = useTranslation();
   const german = i18n.language.startsWith('de');
@@ -102,6 +106,9 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
   const saveMutation = useMutation({
     mutationFn: async ({ definition, existing }: { definition: SequenceDefinition; existing?: NumberSequence }) => {
       if (profileId === null) throw new Error('No business profile selected');
+      if (!supportsResetPolicy(drafts[definition.key])) {
+        throw new Error(german ? 'Monatliches Zurücksetzen benötigt den Platzhalter {YYMM} im Format.' : 'Monthly resets require the {YYMM} token in the number format.');
+      }
       const values = valuesFromDraft(drafts[definition.key]);
       if (existing) {
         return api.updateNumberSequence(profileId, existing.id, { ...values, version: existing.version });
@@ -167,6 +174,7 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
               const stem = german ? definition.germanStem : definition.englishName;
               const noun = german ? definition.germanNoun : `${definition.englishName} number sequence`;
               const pending = saveMutation.isPending && saveMutation.variables?.definition.key === definition.key;
+              const resetPolicySupported = supportsResetPolicy(draft);
               return (
                 <div key={definition.key} className="space-y-3 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark/35 p-4">
                   <div className="flex items-center justify-between gap-3">
@@ -178,6 +186,7 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
                     <NumberField label={german ? `Nächste ${stem}nummer` : `Next ${stem.toLowerCase()} number`} aria-label={german ? `Nächste ${stem}nummer` : `Next ${stem.toLowerCase()} number`} min="1" step="1" value={draft.nextValue} onValueChange={(value) => updateDraft(definition.key, { nextValue: value })} disabled={!canManage || pending} />
                   </div>
                   <TextField label={german ? `${stem}-Nummernformat` : `${stem} number format`} aria-label={german ? `${stem}-Nummernformat` : `${stem} number format`} value={draft.pattern} onValueChange={(value) => updateDraft(definition.key, { pattern: value })} disabled={!canManage || pending} />
+                  {!resetPolicySupported && <p role="alert" className="text-xs text-red-300">{german ? 'Monatliches Zurücksetzen benötigt {YYMM}, damit Nummern je Monat eindeutig bleiben.' : 'Monthly resets require {YYMM} so numbers remain unique per month.'}</p>}
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <Select
                       ariaLabel={german ? `${stem}nummer zurücksetzen` : `Reset ${stem.toLowerCase()} number`}
@@ -192,7 +201,7 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
                       disabled={!canManage || pending}
                     />
                     {canManage && (
-                      <Button type="button" size="sm" onClick={() => saveMutation.mutate({ definition, existing })} loading={pending} disabled={saveMutation.isPending}>
+                      <Button type="button" size="sm" onClick={() => saveMutation.mutate({ definition, existing })} loading={pending} disabled={saveMutation.isPending || !resetPolicySupported}>
                         {!pending && <Save className="h-4 w-4" />}
                         {existing ? (german ? `${noun} speichern` : `Save ${noun.toLowerCase()}`) : (german ? `${noun} anlegen` : `Create ${noun.toLowerCase()}`)}
                       </Button>

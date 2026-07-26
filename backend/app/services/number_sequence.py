@@ -45,6 +45,12 @@ def validate_number_pattern(pattern: str) -> None:
     _counter_token(pattern)
 
 
+def validate_reset_policy_pattern(pattern: str, reset_policy: str) -> None:
+    validate_number_pattern(pattern)
+    if reset_policy == "monthly" and "{YYMM}" not in pattern:
+        raise ValueError("Monthly reset policy requires the {YYMM} token")
+
+
 def _parse_period(current_period: str, *, reset_policy: str) -> int:
     if reset_policy == "yearly":
         expected_format = "a four-digit year from 0001 through 9999"

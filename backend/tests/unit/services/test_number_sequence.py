@@ -8,7 +8,12 @@ from sqlalchemy.sql.dml import Update
 
 from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.number_sequence import NumberSequence
-from backend.app.services.number_sequence import format_number, reserve_number, validate_number_pattern
+from backend.app.services.number_sequence import (
+    format_number,
+    reserve_number,
+    validate_number_pattern,
+    validate_reset_policy_pattern,
+)
 from backend.app.services.order_errors import ResourceNotFoundError, VersionConflictError
 
 
@@ -73,6 +78,15 @@ def test_format_number_replaces_month_token_for_lexware_style_offer_numbers():
         )
         == "AG26070001"
     )
+
+
+def test_monthly_reset_requires_month_token():
+    with pytest.raises(ValueError, match="YYMM"):
+        validate_reset_policy_pattern("{PREFIX}-{YYYY}-{####}", "monthly")
+
+
+def test_monthly_reset_accepts_month_token():
+    validate_reset_policy_pattern("{PREFIX}{YYMM}{####}", "monthly")
 
 
 def test_format_number_zero_pads_four_digit_year_for_early_dates():

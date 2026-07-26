@@ -8,6 +8,14 @@ import pytest
 class TestBugReportService:
     """Tests for bug_report.submit_report()."""
 
+    def test_issue_url_must_match_issue_number(self):
+        """Relay success data must point to the exact claimed issue."""
+        from backend.app.services.bug_report import _issue_url_points_at_expected_repo
+
+        assert _issue_url_points_at_expected_repo("https://github.com/ichwars/PrintOps/issues/99", 99)
+        assert not _issue_url_points_at_expected_repo("https://github.com/ichwars/PrintOps/issues/98", 99)
+        assert not _issue_url_points_at_expected_repo("https://github.com/ichwars/PrintOps/issues/", 99)
+
     @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_submit_success(self):

@@ -191,8 +191,16 @@ export function Layout() {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
+  const { data: uiPreferences } = useQuery({
+    queryKey: ['ui-preferences'],
+    queryFn: api.getUiPreferences,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+  const showDeveloperLanWarning = uiPreferences?.show_developer_lan_warning ?? true;
+  const showSponsorPrompts = uiPreferences?.show_sponsor_prompts ?? false;
+
   // Sponsor-prompt toast — fires once per session post-auth if a milestone is eligible.
-  useSponsorPrompt(settings?.currency ?? 'EUR', settings?.show_sponsor_prompts ?? false);
+  useSponsorPrompt(settings?.currency ?? 'EUR', showSponsorPrompts);
 
   // Unknown-spool prompt — surfaces a confirmation modal when the AMS reports a
   // tag with no inventory match (only when `auto_add_unknown_rfid` is off).
@@ -298,7 +306,7 @@ export function Layout() {
   const { data: devModeWarnings } = useQuery({
     queryKey: ['developer-mode-warnings'],
     queryFn: api.getDeveloperModeWarnings,
-    enabled: settings?.show_developer_lan_warning !== false,
+    enabled: showDeveloperLanWarning,
     staleTime: 10 * 1000,
     refetchInterval: 30 * 1000,
     refetchOnWindowFocus: true,
@@ -1096,7 +1104,7 @@ export function Layout() {
             </div>
           </div>
         )}
-        {settings?.show_developer_lan_warning !== false && devModeWarnings && devModeWarnings.length > 0 && (
+        {showDeveloperLanWarning && devModeWarnings && devModeWarnings.length > 0 && (
           <div className="bg-orange-100 dark:bg-orange-500/20 border-b border-orange-300 dark:border-orange-500/30 px-4 py-2 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm">
               <ShieldAlert className="w-4 h-4 text-orange-500" />

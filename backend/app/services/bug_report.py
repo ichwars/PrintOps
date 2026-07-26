@@ -28,7 +28,7 @@ def _check_rate_limit() -> bool:
     return True
 
 
-def _issue_url_points_at_expected_repo(issue_url: object) -> bool:
+def _issue_url_points_at_expected_repo(issue_url: object, issue_number: int) -> bool:
     """Return True when the relay-created issue URL belongs to this app repo."""
     if not isinstance(issue_url, str):
         return False
@@ -36,8 +36,8 @@ def _issue_url_points_at_expected_repo(issue_url: object) -> bool:
     if parsed.scheme != "https" or parsed.netloc.lower() != "github.com":
         return False
     owner, repo = GITHUB_REPO.split("/", 1)
-    expected_prefix = f"/{owner}/{repo}/issues/"
-    return parsed.path.lower().startswith(expected_prefix.lower())
+    expected_path = f"/{owner}/{repo}/issues/{issue_number}"
+    return parsed.path.lower() == expected_path.lower()
 
 
 async def submit_report(
@@ -133,7 +133,11 @@ async def submit_report(
 
     issue_number = relay_data.get("issue_number")
     issue_url = relay_data.get("issue_url")
-    if not isinstance(issue_number, int) or not _issue_url_points_at_expected_repo(issue_url):
+    if (
+        type(issue_number) is not int
+        or issue_number <= 0
+        or not _issue_url_points_at_expected_repo(issue_url, issue_number)
+    ):
         error_message = f"Relay returned an unexpected issue response for repository {GITHUB_REPO}"
         logger.error("%s: %r", error_message, issue_url)
         async with async_session() as db:
