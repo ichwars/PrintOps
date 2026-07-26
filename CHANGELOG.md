@@ -17,6 +17,7 @@ All notable changes to PrintOps will be documented in this file.
 - **Hardened document rendering and assets** - Rejects arbitrary HTML/CSS, SSRF and unregistered file URLs, active PDF content, cross-profile assets, traversal paths, oversized uploads, stale layout versions and guessed preview jobs. Preview caches are actor/profile scoped and final export accepts only immutable snapshots plus published layouts.
 
 ### Fixed
+- **Release version metadata stamping** - Release containers and Windows installer builds now stamp the runtime app version from the release tag, so `/updates/version`, System Info, support bundles and the sidebar show the installed RC instead of the stale source fallback.
 - **Unsigned Windows release-candidate publication** - Windows installer prereleases now fall back to a clearly marked unsigned artifact when no signing provider is configured, while stable releases and partially configured signing still fail closed.
 - **Release candidate packaging guardrails** - Keeps Windows installer dependency staging on binary wheels only and moves `greenlet` to a CPython 3.13 Windows-wheel-capable pin, avoiding source builds against the headerless Python embeddable distribution.
 - **Python 3.11 CI dependency locks** - Keeps `numpy`, `contourpy`, `fast-simplification`, and `greenlet` below releases that require Python 3.12 or lack Linux CPython 3.11 wheels, so GitHub Actions can install the hash-locked dev environment again.

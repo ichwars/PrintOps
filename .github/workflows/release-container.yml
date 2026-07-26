@@ -100,6 +100,8 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.value }}
           tags: |
             ghcr.io/ichwars/printops:${{ steps.version.outputs.value }}
             ghcr.io/ichwars/printops:rc

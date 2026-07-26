@@ -121,7 +121,9 @@ COPY deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Environment variables
+ARG APP_VERSION=0.2.5rc4
 ENV PYTHONUNBUFFERED=1
+ENV APP_VERSION=${APP_VERSION}
 ENV DATA_DIR=/app/data
 ENV LOG_DIR=/app/logs
 ENV PORT=8000
