@@ -35,6 +35,9 @@ npm-debug.log*
 # Archive files (user data)
 archive/
 
+# Uploaded business profile logos (user data)
+business-profile-logos/
+
 # Firmware cache (downloaded firmware files)
 firmware/
 

@@ -4,7 +4,7 @@ import type { DocumentConfigurationDraft, DocumentType } from '../../../api/docu
 export interface DocumentContext {
   profileId: number;
   documentType: DocumentType;
-  language: string;
+  languageOverride: 'de' | 'en' | null;
 }
 
 export function supportedDocumentLanguage(locale: string | null | undefined): 'de' | 'en' {
@@ -17,8 +17,17 @@ export function initialDocumentContext(profiles: BusinessProfileOption[]): Docum
   return {
     profileId: profile?.id ?? 0,
     documentType: 'invoice',
-    language: supportedDocumentLanguage(profile?.default_locale),
+    languageOverride: null,
   };
+}
+
+export function effectiveDocumentLanguage(
+  context: DocumentContext,
+  profiles: BusinessProfileOption[],
+): 'de' | 'en' {
+  if (context.languageOverride) return context.languageOverride;
+  const profile = profiles.find((item) => item.id === context.profileId);
+  return supportedDocumentLanguage(profile?.default_locale);
 }
 
 function sortedValue(value: unknown): unknown {

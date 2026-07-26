@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
+import { waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { setAuthToken } from '../../../../api/client';
@@ -123,9 +124,39 @@ describe('DocumentSettings', () => {
 
     expect(await screen.findByLabelText('Unternehmensprofil')).toHaveTextContent('TT - ModelPrint');
     expect(screen.getByLabelText('Dokumenttyp')).toHaveTextContent('Rechnung');
-    expect(screen.getByLabelText('Sprache')).toHaveTextContent('Deutsch');
+    expect(screen.getByLabelText('Sprache')).toHaveTextContent('Aus Unternehmensprofil (Deutsch)');
     expect(await screen.findByText('Entwurf · Version 2')).toBeInTheDocument();
     expect(screen.getByText('Blockiert')).toBeInTheDocument();
+  });
+
+  it('uses the profile language until a document language override is selected', async () => {
+    await i18n.changeLanguage('de');
+    const requestedLanguages: string[] = [];
+    server.use(
+      http.get('/api/v1/business-profiles/options', () => HttpResponse.json([{ ...profile, default_locale: 'en' }])),
+      http.get('/api/v1/document-configurations/catalog', () => HttpResponse.json({
+        tax_rule_version: '2026.1',
+        einvoice_rule_versions: { en16931: '1.3.16', xrechnung: '3.0.2-2026-01-31' },
+        document_types: [
+          { key: 'invoice', einvoice: true, issuer_role: 'seller', has_payment_terms: true, has_tax: true, allowed_successors: [] },
+        ],
+      })),
+      http.get('/api/v1/document-configurations/placeholders', () => HttpResponse.json({ placeholders: [], text_block_purposes: ['intro', 'closing', 'footer'] })),
+      http.get('/api/v1/document-configurations/', ({ request }) => {
+        requestedLanguages.push(new URL(request.url).searchParams.get('language') ?? '');
+        return HttpResponse.json([]);
+      }),
+    );
+
+    render(<DocumentSettings />);
+
+    expect(await screen.findByLabelText('Sprache')).toHaveTextContent('Aus Unternehmensprofil (English)');
+    await waitFor(() => expect(requestedLanguages).toContain('en'));
+
+    selectComboboxOption(screen.getByLabelText('Sprache'), 'Deutsch');
+
+    expect(screen.getByLabelText('Sprache')).toHaveTextContent('Deutsch');
+    await waitFor(() => expect(requestedLanguages).toContain('de'));
   });
 
   it('blocks context changes until unsaved edits are discarded or saved', async () => {

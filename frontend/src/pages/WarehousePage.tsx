@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ArrowRight, Boxes, Package, PackageCheck, Warehouse } from 'lucide-react';
 import { api } from '../api/client';
 import { Card, CardContent, CardHeader } from '../components/Card';
+import { tableHeaderCellClass, tableHeaderClass, tableHeaderRowClass } from '../components/ui/tableStyles';
 
 type WarehouseSectionId = 'overview' | 'parts' | 'stock';
 
@@ -249,10 +250,10 @@ export function WarehousePage() {
           <CardContent>
             <div className="overflow-hidden rounded-lg border border-bambu-dark-tertiary">
               <table className="w-full text-sm">
-                <thead className="bg-bambu-dark">
-                  <tr>
+                <thead className={tableHeaderClass}>
+                  <tr className={tableHeaderRowClass}>
                     {columns.map((column) => (
-                      <th key={column} className="px-4 py-3 text-left font-medium text-bambu-gray">
+                      <th key={column} className={tableHeaderCellClass}>
                         {column}
                       </th>
                     ))}

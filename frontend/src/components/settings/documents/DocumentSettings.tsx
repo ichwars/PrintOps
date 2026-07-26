@@ -16,6 +16,7 @@ import { Button, DatePicker, Modal } from '../../ui';
 import { DocumentActionBar } from './DocumentActionBar';
 import { DocumentContextHeader } from './DocumentContextHeader';
 import {
+  effectiveDocumentLanguage,
   initialDocumentContext,
   stableStringify,
   type DocumentContext,
@@ -80,12 +81,13 @@ export function DocumentSettings() {
     }
   }, [context.profileId, profilesQuery.data]);
 
+  const effectiveLanguage = effectiveDocumentLanguage(context, profilesQuery.data ?? []);
   const configurationQuery = useQuery({
-    queryKey: ['document-configuration', context.profileId, context.documentType, context.language],
+    queryKey: ['document-configuration', context.profileId, context.documentType, effectiveLanguage],
     queryFn: () => documentManagementApi.getSelectedConfiguration({
       businessProfileId: context.profileId,
       documentType: context.documentType,
-      language: context.language,
+      language: effectiveLanguage,
     }),
     enabled: canRead && context.profileId > 0,
   });
@@ -110,11 +112,11 @@ export function DocumentSettings() {
     enabled: Boolean(configuration?.id),
   });
   const effectivePolicyQuery = useQuery({
-    queryKey: ['document-effective-policy', context.profileId, context.documentType, context.language, configuration?.lock_version],
+    queryKey: ['document-effective-policy', context.profileId, context.documentType, effectiveLanguage, configuration?.lock_version],
     queryFn: () => documentManagementApi.getEffectivePolicy({
       business_profile_id: context.profileId,
       document_type: context.documentType,
-      language: context.language,
+      language: effectiveLanguage,
     }),
     enabled: Boolean(configuration?.id),
   });
@@ -173,7 +175,7 @@ export function DocumentSettings() {
     mutationFn: () => documentManagementApi.createConfiguration({
       business_profile_id: context.profileId,
       document_type: context.documentType,
-      language: context.language,
+      language: effectiveLanguage,
       change_reason: changeReason.trim() || null,
     }),
   });

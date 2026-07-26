@@ -9,7 +9,7 @@ import type {
   ReadinessStatus,
 } from '../../../api/documentManagement';
 import { Select } from '../../ui';
-import { supportedDocumentLanguage, type DocumentContext } from './documentSettingsState';
+import { effectiveDocumentLanguage, supportedDocumentLanguage, type DocumentContext } from './documentSettingsState';
 
 interface DocumentContextHeaderProps {
   context: DocumentContext;
@@ -42,6 +42,8 @@ const documentLanguages = [
   { value: 'en', label: 'English' },
 ];
 
+const PROFILE_LANGUAGE_VALUE = 'profile';
+
 export function DocumentContextHeader({
   context,
   profiles,
@@ -53,6 +55,19 @@ export function DocumentContextHeader({
 }: DocumentContextHeaderProps) {
   const { t } = useTranslation();
   const status = configuration?.status ?? null;
+  const selectedProfile = profiles.find((item) => item.id === context.profileId);
+  const profileLanguage = supportedDocumentLanguage(selectedProfile?.default_locale);
+  const effectiveLanguage = effectiveDocumentLanguage(context, profiles);
+  const languageOptions = [
+    {
+      value: PROFILE_LANGUAGE_VALUE,
+      label: t('settings.documents.languageProfileDefault', {
+        language: profileLanguage === 'de' ? 'Deutsch' : 'English',
+        defaultValue: `Aus Unternehmensprofil (${profileLanguage === 'de' ? 'Deutsch' : 'English'})`,
+      }),
+    },
+    ...documentLanguages,
+  ];
   const statusClass = readiness === 'blocked'
     ? 'border-red-500/40 bg-red-500/10 text-red-200'
     : readiness === 'warnings'
@@ -93,8 +108,7 @@ export function DocumentContextHeader({
           options={profiles.filter((profile) => profile.is_active).map((profile) => ({ value: profile.id, label: profile.name }))}
           disabled={disabled || profiles.length === 0}
           onValueChange={(profileId) => {
-            const profile = profiles.find((item) => item.id === profileId);
-            onChange({ ...context, profileId, language: supportedDocumentLanguage(profile?.default_locale) });
+            onChange({ ...context, profileId });
           }}
         />
         <Select
@@ -108,11 +122,22 @@ export function DocumentContextHeader({
           onValueChange={(documentType) => onChange({ ...context, documentType })}
         />
         <Select
-          value={context.language}
+          value={context.languageOverride ?? PROFILE_LANGUAGE_VALUE}
           label={t('settings.documents.language', 'Language')}
-          options={documentLanguages}
+          helperText={
+            context.languageOverride
+              ? t('settings.documents.languageOverrideHint', 'Overrides the business profile language for this document context.')
+              : t('settings.documents.languageProfileDefaultHint', {
+                language: effectiveLanguage === 'de' ? 'Deutsch' : 'English',
+                defaultValue: `Folgt aktuell dem Unternehmensprofil: ${effectiveLanguage === 'de' ? 'Deutsch' : 'English'}.`,
+              })
+          }
+          options={languageOptions}
           disabled={disabled}
-          onValueChange={(language) => onChange({ ...context, language })}
+          onValueChange={(language) => onChange({
+            ...context,
+            languageOverride: language === PROFILE_LANGUAGE_VALUE ? null : language as 'de' | 'en',
+          })}
         />
       </div>
     </header>

@@ -2,6 +2,7 @@ import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Calculator, ClipboardList, FileText, Receipt } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../components/Card';
+import { tableHeaderCellClass, tableHeaderClass, tableHeaderRowClass } from '../components/ui/tableStyles';
 
 type OrderSectionId = 'overview' | 'calculation' | 'offers' | 'invoices';
 
@@ -117,10 +118,10 @@ export function OrdersPage() {
         <CardContent>
           <div className="overflow-hidden rounded-lg border border-bambu-dark-tertiary">
             <table className="w-full text-sm">
-              <thead className="bg-bambu-dark">
-                <tr>
+              <thead className={tableHeaderClass}>
+                <tr className={tableHeaderRowClass}>
                   {columns.map((column) => (
-                    <th key={column} className="px-4 py-3 text-left font-medium text-bambu-gray">
+                    <th key={column} className={tableHeaderCellClass}>
                       {column}
                     </th>
                   ))}

@@ -272,6 +272,8 @@ async def _new_accounts(
         account = CustomerAccount(**values)
         if account_data.document_preference is not None:
             account.document_preference = CustomerDocumentPreference(**account_data.document_preference.model_dump())
+        else:
+            account.document_preference = None
         accounts.append(account)
     return accounts
 
@@ -437,6 +439,8 @@ async def update_customer(
                 account.document_preference = CustomerDocumentPreference(
                     **account_data.document_preference.model_dump()
                 )
+            else:
+                account.document_preference = None
             customer.accounts.append(account)
             continue
         for field, value in values.items():
