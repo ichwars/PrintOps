@@ -11,7 +11,7 @@ from backend.app.services.order_errors import ResourceNotFoundError, VersionConf
 
 _TOKEN_PATTERN = re.compile(r"\{[^{}]*\}")
 _COUNTER_PATTERN = re.compile(r"\{(#{1,10})\}")
-_NAMED_TOKENS = {"{PREFIX}", "{YYYY}", "{YY}"}
+_NAMED_TOKENS = {"{PREFIX}", "{YYYY}", "{YY}", "{YYMM}"}
 _MAX_RESERVATION_ATTEMPTS = 10
 
 
@@ -45,14 +45,44 @@ def validate_number_pattern(pattern: str) -> None:
     _counter_token(pattern)
 
 
-def _parse_yearly_period(current_period: str) -> int:
-    if not re.fullmatch(r"[0-9]{4}", current_period):
-        raise ValueError("Yearly sequence current_period must be a four-digit year from 0001 through 9999")
+def validate_reset_policy_pattern(pattern: str, reset_policy: str) -> None:
+    validate_number_pattern(pattern)
+    if reset_policy == "monthly" and "{YYMM}" not in pattern:
+        raise ValueError("Monthly reset policy requires the {YYMM} token")
 
-    current_year = int(current_period)
-    if current_year == 0:
-        raise ValueError("Yearly sequence current_period must be a four-digit year from 0001 through 9999")
-    return current_year
+
+def _parse_period(current_period: str, *, reset_policy: str) -> int:
+    if reset_policy == "yearly":
+        expected_format = "a four-digit year from 0001 through 9999"
+        pattern = r"[0-9]{4}"
+    elif reset_policy == "monthly":
+        expected_format = "a six-digit year and month from 000101 through 999912"
+        pattern = r"[0-9]{6}"
+    else:
+        raise ValueError(f"Unsupported reset policy: {reset_policy}")
+
+    if not re.fullmatch(pattern, current_period):
+        raise ValueError(f"{reset_policy.title()} sequence current_period must be {expected_format}")
+
+    current_value = int(current_period)
+    if reset_policy == "yearly":
+        if current_value == 0:
+            raise ValueError(f"{reset_policy.title()} sequence current_period must be {expected_format}")
+        return current_value
+
+    year = current_value // 100
+    month = current_value % 100
+    if year == 0 or month < 1 or month > 12:
+        raise ValueError(f"{reset_policy.title()} sequence current_period must be {expected_format}")
+    return current_value
+
+
+def _period_for_date(effective_date: date, *, reset_policy: str) -> str:
+    if reset_policy == "yearly":
+        return f"{effective_date.year:04d}"
+    if reset_policy == "monthly":
+        return f"{effective_date.year:04d}{effective_date.month:02d}"
+    raise ValueError(f"Unsupported reset policy: {reset_policy}")
 
 
 def format_number(*, pattern: str, prefix: str, value: int, effective_date: date) -> str:
@@ -68,6 +98,8 @@ def format_number(*, pattern: str, prefix: str, value: int, effective_date: date
             return f"{effective_date.year:04d}"
         if token == "{YY}":
             return f"{effective_date.year % 100:02d}"
+        if token == "{YYMM}":
+            return f"{effective_date.year % 100:02d}{effective_date.month:02d}"
 
         counter_width = len(token) - 2
         return f"{value:0{counter_width}d}"
@@ -95,17 +127,18 @@ async def reserve_number(
         )
 
     for attempt in range(_MAX_RESERVATION_ATTEMPTS):
-        if sequence.reset_policy == "yearly":
-            period = f"{effective_date.year:04d}"
+        if sequence.reset_policy in {"yearly", "monthly"}:
+            period = _period_for_date(effective_date, reset_policy=sequence.reset_policy)
             if sequence.current_period is None:
                 reserved_value = 1
             else:
-                current_year = _parse_yearly_period(sequence.current_period)
-                if effective_date.year < current_year:
+                current_period = _parse_period(sequence.current_period, reset_policy=sequence.reset_policy)
+                effective_period = _parse_period(period, reset_policy=sequence.reset_policy)
+                if effective_period < current_period:
                     raise ValueError(
-                        f"Effective year {period} precedes current sequence period {sequence.current_period}"
+                        f"Effective period {period} precedes current sequence period {sequence.current_period}"
                     )
-                reserved_value = sequence.next_value if effective_date.year == current_year else 1
+                reserved_value = sequence.next_value if effective_period == current_period else 1
         else:
             period = sequence.current_period
             reserved_value = sequence.next_value

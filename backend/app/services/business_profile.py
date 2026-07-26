@@ -28,19 +28,24 @@ _PROFILE_LOAD_OPTIONS = (
 _NESTED_FIELDS = {"addresses", "tax_identifiers", "bank_accounts"}
 
 
-async def _lock_customer_sequence_for_sqlite(session: AsyncSession, profile_id: int) -> None:
-    """Serialize profile lifecycle changes with SQLite customer creation."""
+async def _lock_number_sequence_for_sqlite(
+    session: AsyncSession,
+    profile_id: int,
+    *,
+    sequence_id: int | None = None,
+    key: str | None = None,
+) -> None:
+    """Serialize number sequence reads behind a SQLite write lock."""
     if session.get_bind().dialect.name != "sqlite":
         return
 
+    statement = update(NumberSequence).where(NumberSequence.business_profile_id == profile_id)
+    if sequence_id is not None:
+        statement = statement.where(NumberSequence.id == sequence_id)
+    if key is not None:
+        statement = statement.where(NumberSequence.key == key)
     await session.execute(
-        update(NumberSequence)
-        .where(
-            NumberSequence.business_profile_id == profile_id,
-            NumberSequence.key == "customer",
-        )
-        .values(updated_at=NumberSequence.updated_at)
-        .execution_options(synchronize_session=False)
+        statement.values(updated_at=NumberSequence.updated_at).execution_options(synchronize_session=False)
     )
 
 
@@ -107,7 +112,16 @@ async def update_number_sequence(
     data: NumberSequenceUpdate,
 ) -> NumberSequence:
     values = data.model_dump(exclude={"version"})
-    if data.reset_policy == "none":
+    await _lock_number_sequence_for_sqlite(session, profile_id, sequence_id=sequence_id)
+    current_reset_policy = await session.scalar(
+        select(NumberSequence.reset_policy).where(
+            NumberSequence.id == sequence_id,
+            NumberSequence.business_profile_id == profile_id,
+        )
+    )
+    if current_reset_policy is None:
+        raise ResourceNotFoundError(f"Number sequence {sequence_id} was not found")
+    if data.reset_policy == "none" or data.reset_policy != current_reset_policy:
         values["current_period"] = None
     result = await session.execute(
         update(NumberSequence)
@@ -204,10 +218,10 @@ async def create_business_profile(
             NumberSequence(
                 business_profile_id=profile.id,
                 key="offer",
-                prefix="ANG",
-                pattern="{PREFIX}-{YYYY}-{#####}",
+                prefix="AG",
+                pattern="{PREFIX}{YYMM}{####}",
                 next_value=1,
-                reset_policy="yearly",
+                reset_policy="monthly",
                 current_period=None,
             ),
             NumberSequence(
@@ -241,7 +255,7 @@ async def update_business_profile(
     # SQLite must enter its write transaction before the first read. Otherwise
     # a concurrent writer can invalidate the deferred read snapshot and turn
     # the later lock upgrade into SQLITE_BUSY_SNAPSHOT.
-    await _lock_customer_sequence_for_sqlite(session, profile_id)
+    await _lock_number_sequence_for_sqlite(session, profile_id, key="customer")
     profile = await _load_business_profile(
         session,
         profile_id,
@@ -307,7 +321,7 @@ async def update_business_profile(
 
 
 async def set_default_business_profile(session: AsyncSession, profile_id: int) -> BusinessProfile:
-    await _lock_customer_sequence_for_sqlite(session, profile_id)
+    await _lock_number_sequence_for_sqlite(session, profile_id, key="customer")
     profile = await _load_business_profile(
         session,
         profile_id,
@@ -343,7 +357,7 @@ async def set_default_business_profile(session: AsyncSession, profile_id: int) -
 
 
 async def delete_business_profile(session: AsyncSession, profile_id: int) -> None:
-    await _lock_customer_sequence_for_sqlite(session, profile_id)
+    await _lock_number_sequence_for_sqlite(session, profile_id, key="customer")
     profile = await _load_business_profile(
         session,
         profile_id,

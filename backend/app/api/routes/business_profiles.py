@@ -11,7 +11,10 @@ from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.auth import RequireAnyPermissionIfAuthEnabled, RequirePermissionIfAuthEnabled
+from backend.app.core.auth import (
+    RequireAnyPermissionIfAuthEnabled,
+    RequirePermissionIfAuthEnabled,
+)
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
@@ -305,6 +308,11 @@ async def get_business_profile_logo(
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_SETTINGS_READ),
 ):
+    """Get a business profile logo.
+
+    The frontend loads this through an authenticated Blob request so normal
+    order-settings permissions apply.
+    """
     try:
         profile = await business_profile_service.get_business_profile(db, profile_id)
     except OrderDomainError as exc:

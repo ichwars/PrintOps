@@ -35,6 +35,13 @@ import {
 } from '../utils/inventoryQueries';
 import { aggregateGroupSpool } from '../utils/inventoryGrouping';
 import { Checkbox, LegacySelect, TextField } from '../components/ui';
+import {
+  tableHeaderActionCellClass,
+  tableHeaderCellClass,
+  tableHeaderCellCompactClass,
+  tableHeaderClass,
+  tableHeaderRowClass,
+} from '../components/ui/tableStyles';
 
 type ArchiveFilter = 'active' | 'archived';
 type UsageFilter = 'all' | 'used' | 'new' | 'lowstock';
@@ -1984,9 +1991,9 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
           <div className="bg-bambu-dark-secondary rounded-lg overflow-hidden border border-bambu-dark-tertiary">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead>
-                  <tr className="border-b border-bambu-dark-tertiary bg-bambu-dark-tertiary/30">
-                    <th className="w-10 px-3 py-3">
+                <thead className={tableHeaderClass}>
+                  <tr className={tableHeaderRowClass}>
+                    <th className={`w-10 ${tableHeaderCellCompactClass}`}>
                       <Checkbox
                         aria-label={t('inventory.bulk.selectAllVisible')}
                         checked={pagedItems.length > 0 && pagedItems.every((item) => {
@@ -2018,9 +2025,9 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                       return (
                         <th
                           key={colId}
-                          className={`text-left py-3 px-4 text-xs font-medium uppercase tracking-wide select-none ${colId === 'remaining' ? 'min-w-[150px]' : ''} ${
-                            sortable ? 'cursor-pointer hover:text-bambu-green transition-colors' : ''
-                          } ${isActive ? 'text-bambu-green' : 'text-bambu-gray'}`}
+                          className={`${tableHeaderCellClass} select-none ${colId === 'remaining' ? 'min-w-[150px]' : ''} ${
+                            sortable ? 'cursor-pointer transition-colors hover:text-bambu-green' : ''
+                          } ${isActive ? '!text-bambu-green' : ''}`}
                           onClick={sortable ? () => handleSort(colId) : undefined}
                         >
                           <span className="inline-flex items-center gap-1">
@@ -2036,7 +2043,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                         </th>
                       );
                     })}
-                    <th className="text-right py-3 px-4 text-xs font-medium text-bambu-gray uppercase tracking-wide">{t('common.actions')}</th>
+                    <th className={tableHeaderActionCellClass}>{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>

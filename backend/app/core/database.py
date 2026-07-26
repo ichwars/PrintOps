@@ -8,6 +8,7 @@ from sqlalchemy.orm import DeclarativeBase
 
 from backend.app.core.config import settings
 from backend.app.core.db_dialect import is_sqlite
+from backend.app.core.number_sequence_migrations import migrate_number_sequence_monthly_reset_policy
 
 logger = logging.getLogger(__name__)
 
@@ -773,8 +774,7 @@ async def run_migrations(conn):
     from sqlalchemy import text
 
     await migrate_document_layout_schema(conn)
-
-    # Migration: Add procurement metadata to technical materials.
+    await migrate_number_sequence_monthly_reset_policy(conn, _safe_execute)
     await _safe_execute(
         conn,
         "ALTER TABLE small_parts ADD COLUMN default_consumption_reason VARCHAR(120) NOT NULL DEFAULT 'Produktion'",

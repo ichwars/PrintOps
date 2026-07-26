@@ -60,15 +60,17 @@ async def _ensure_sequence(session: AsyncSession, business_profile_id: int, key:
     )
     if existing is not None:
         return
-    prefix = "ANG" if key == "offer" else "AUF"
+    prefix = "AG" if key == "offer" else "AUF"
+    pattern = "{PREFIX}{YYMM}{####}" if key == "offer" else "{PREFIX}-{YYYY}-{#####}"
+    reset_policy = "monthly" if key == "offer" else "yearly"
     session.add(
         NumberSequence(
             business_profile_id=business_profile_id,
             key=key,
             prefix=prefix,
-            pattern="{PREFIX}-{YYYY}-{#####}",
+            pattern=pattern,
             next_value=1,
-            reset_policy="yearly",
+            reset_policy=reset_policy,
         )
     )
     await session.flush()

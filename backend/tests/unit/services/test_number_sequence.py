@@ -8,7 +8,12 @@ from sqlalchemy.sql.dml import Update
 
 from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.number_sequence import NumberSequence
-from backend.app.services.number_sequence import format_number, reserve_number, validate_number_pattern
+from backend.app.services.number_sequence import (
+    format_number,
+    reserve_number,
+    validate_number_pattern,
+    validate_reset_policy_pattern,
+)
 from backend.app.services.order_errors import ResourceNotFoundError, VersionConflictError
 
 
@@ -61,6 +66,27 @@ def test_format_number_replaces_supported_tokens():
         )
         == "CUST-2026-00042"
     )
+
+
+def test_format_number_replaces_month_token_for_lexware_style_offer_numbers():
+    assert (
+        format_number(
+            pattern="{PREFIX}{YYMM}{####}",
+            prefix="AG",
+            value=1,
+            effective_date=date(2026, 7, 26),
+        )
+        == "AG26070001"
+    )
+
+
+def test_monthly_reset_requires_month_token():
+    with pytest.raises(ValueError, match="YYMM"):
+        validate_reset_policy_pattern("{PREFIX}-{YYYY}-{####}", "monthly")
+
+
+def test_monthly_reset_accepts_month_token():
+    validate_reset_policy_pattern("{PREFIX}{YYMM}{####}", "monthly")
 
 
 def test_format_number_zero_pads_four_digit_year_for_early_dates():
@@ -185,6 +211,58 @@ async def test_yearly_sequence_stores_and_reuses_zero_padded_early_year_period(d
 
 
 @pytest.mark.asyncio
+async def test_monthly_sequence_resets_on_new_month(db_session):
+    profile_id, sequence = await _create_sequence(
+        db_session,
+        prefix="AG",
+        pattern="{PREFIX}{YYMM}{####}",
+        next_value=88,
+        reset_policy="monthly",
+        current_period="202606",
+        version=4,
+    )
+
+    number = await reserve_number(
+        db_session,
+        business_profile_id=profile_id,
+        key="customer",
+        effective_date=date(2026, 7, 26),
+    )
+
+    assert number == "AG26070001"
+    await db_session.refresh(sequence)
+    assert sequence.next_value == 2
+    assert sequence.current_period == "202607"
+    assert sequence.version == 5
+
+
+@pytest.mark.asyncio
+async def test_monthly_sequence_reuses_current_month_next_value(db_session):
+    profile_id, sequence = await _create_sequence(
+        db_session,
+        prefix="AG",
+        pattern="{PREFIX}{YYMM}{####}",
+        next_value=88,
+        reset_policy="monthly",
+        current_period="202607",
+        version=4,
+    )
+
+    number = await reserve_number(
+        db_session,
+        business_profile_id=profile_id,
+        key="customer",
+        effective_date=date(2026, 7, 26),
+    )
+
+    assert number == "AG26070088"
+    await db_session.refresh(sequence)
+    assert sequence.next_value == 89
+    assert sequence.current_period == "202607"
+    assert sequence.version == 5
+
+
+@pytest.mark.asyncio
 async def test_yearly_sequence_rejects_an_effective_year_before_current_period(db_session):
     profile_id, sequence = await _create_sequence(
         db_session,
@@ -225,6 +303,31 @@ async def test_yearly_sequence_rejects_malformed_current_period(db_session, curr
             business_profile_id=profile_id,
             key="customer",
             effective_date=date(2026, 1, 1),
+        )
+
+    await db_session.refresh(sequence)
+    assert sequence.next_value == 88
+    assert sequence.current_period == current_period
+    assert sequence.version == 4
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("current_period", ["2026AA", "202600", "202613", "000001"])
+async def test_monthly_sequence_rejects_malformed_current_period(db_session, current_period):
+    profile_id, sequence = await _create_sequence(
+        db_session,
+        next_value=88,
+        reset_policy="monthly",
+        current_period=current_period,
+        version=4,
+    )
+
+    with pytest.raises(ValueError, match="six-digit year and month"):
+        await reserve_number(
+            db_session,
+            business_profile_id=profile_id,
+            key="customer",
+            effective_date=date(2026, 7, 1),
         )
 
     await db_session.refresh(sequence)
@@ -277,7 +380,7 @@ async def test_yearly_conflict_rejects_rewind_after_writer_advances_period(db_se
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("reset_policy", "current_period", "expected_period"),
-    [("yearly", "2026", "2026"), ("none", "2025", "2025")],
+    [("yearly", "2026", "2026"), ("monthly", "202607", "202607"), ("none", "2025", "2025")],
 )
 async def test_sequence_without_period_reset_reserves_existing_next_value(
     db_session,

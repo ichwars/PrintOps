@@ -3,12 +3,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from typing_extensions import Self
 
-from backend.app.services.number_sequence import validate_number_pattern
+from backend.app.services.number_sequence import validate_number_pattern, validate_reset_policy_pattern
 
 NumberSequenceKey = Literal["customer", "offer", "order", "invoice"]
-NumberSequenceResetPolicy = Literal["none", "yearly"]
+NumberSequenceResetPolicy = Literal["none", "yearly", "monthly"]
 
 
 class NumberSequenceValues(BaseModel):
@@ -24,6 +25,11 @@ class NumberSequenceValues(BaseModel):
     def validate_pattern(cls, value: str) -> str:
         validate_number_pattern(value)
         return value
+
+    @model_validator(mode="after")
+    def validate_reset_policy_matches_pattern(self) -> Self:
+        validate_reset_policy_pattern(self.pattern, self.reset_policy)
+        return self
 
 
 class NumberSequenceCreate(NumberSequenceValues):

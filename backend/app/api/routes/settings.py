@@ -117,6 +117,8 @@ async def _build_settings_response(db: AsyncSession, is_api_key: bool = False) -
             "small_parts_low_stock_warning",
             "check_updates",
             "check_printer_firmware",
+            "show_developer_lan_warning",
+            "show_sponsor_prompts",
             "include_beta_updates",
             "virtual_printer_enabled",
             "ftp_retry_enabled",
@@ -375,6 +377,8 @@ async def get_default_sidebar_order(
 _UI_PREFERENCE_FIELDS: tuple[str, ...] = (
     "require_plate_clear",
     "check_printer_firmware",
+    "show_developer_lan_warning",
+    "show_sponsor_prompts",
     "camera_view_mode",
     "time_format",
     "date_format",

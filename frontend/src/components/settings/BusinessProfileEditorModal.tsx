@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, Building2, ImageOff, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   ApiError,
@@ -403,9 +403,7 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
             <legend className="font-medium text-white">{german ? 'Dokumentdarstellung' : 'Document appearance'}</legend>
             <div className="rounded-lg border border-bambu-dark-tertiary p-3">
               <div className="flex flex-wrap items-center gap-3">
-                {(logoFile || (profile?.logo_version && !removeLogo)) ? (
-                  <img className="h-16 w-24 rounded border border-bambu-dark-tertiary object-contain" alt={german ? 'Logovorschau' : 'Logo preview'} src={logoFile ? URL.createObjectURL(logoFile) : api.getBusinessProfileLogoUrl(profile!.id, profile!.logo_version!)} />
-                ) : <div className="flex h-16 w-24 items-center justify-center rounded border border-bambu-dark-tertiary text-xs text-bambu-gray">{german ? 'Kein Logo' : 'No logo'}</div>}
+                <LogoPreview profile={profile} logoFile={logoFile} removeLogo={removeLogo} german={german} />
                 <label className="text-sm text-bambu-gray-light">
                   {german ? 'Logo hochladen' : 'Upload logo'}
                   <FileInput accept="image/png,image/jpeg" aria-label={german ? 'Logo hochladen' : 'Upload logo'} onChange={(event) => { setLogoFile(event.target.files?.[0] ?? null); setRemoveLogo(false); }} className="mt-1 block text-sm" />
@@ -599,5 +597,101 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
         </div>
       </form>
     </Modal>
+  );
+}
+
+function LogoPreview({
+  profile,
+  logoFile,
+  removeLogo,
+  german,
+}: {
+  profile?: BusinessProfile | null;
+  logoFile: File | null;
+  removeLogo: boolean;
+  german: boolean;
+}) {
+  const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [remotePreviewUrl, setRemotePreviewUrl] = useState<string | null>(null);
+  const localPreviewUrl = useMemo(() => (logoFile ? URL.createObjectURL(logoFile) : null), [logoFile]);
+  const logoVersion = profile?.logo_version ?? null;
+
+  useEffect(() => {
+    setFailed(false);
+  }, [localPreviewUrl, profile?.id, logoVersion, removeLogo]);
+
+  useEffect(() => {
+    return () => {
+      if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+    };
+  }, [localPreviewUrl]);
+
+  useEffect(() => {
+    if (logoFile || removeLogo || profile?.id == null || logoVersion == null) {
+      setLoading(false);
+      setRemotePreviewUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+    let nextUrl: string | null = null;
+    setLoading(true);
+    setFailed(false);
+    setRemotePreviewUrl(null);
+
+    api.getBusinessProfileLogoBlob(profile.id, logoVersion)
+      .then((blob) => {
+        if (cancelled) return;
+        nextUrl = URL.createObjectURL(blob);
+        setRemotePreviewUrl(nextUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      if (nextUrl) URL.revokeObjectURL(nextUrl);
+    };
+  }, [logoFile, removeLogo, profile?.id, logoVersion]);
+
+  if (removeLogo || (!logoFile && logoVersion == null)) {
+    return (
+      <div className="flex h-16 w-24 items-center justify-center rounded border border-bambu-dark-tertiary text-xs text-bambu-gray">
+        <Building2 className="h-5 w-5" aria-hidden="true" />
+        <span className="sr-only">{german ? 'Kein Logo' : 'No logo'}</span>
+      </div>
+    );
+  }
+
+  if (failed) {
+    return (
+      <div className="flex h-16 w-24 flex-col items-center justify-center gap-1 rounded border border-bambu-dark-tertiary text-xs text-bambu-gray">
+        <ImageOff className="h-5 w-5" aria-hidden="true" />
+        <span>{german ? 'Nicht ladbar' : 'Not loaded'}</span>
+      </div>
+    );
+  }
+
+  const src = localPreviewUrl ?? remotePreviewUrl;
+  if (loading || !src) {
+    return (
+      <div className="flex h-16 w-24 items-center justify-center rounded border border-bambu-dark-tertiary text-xs text-bambu-gray">
+        {german ? 'Lädt...' : 'Loading...'}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      className="h-16 w-24 rounded border border-bambu-dark-tertiary object-contain"
+      alt={german ? 'Logovorschau' : 'Logo preview'}
+      src={src}
+      onError={() => setFailed(true)}
+    />
   );
 }

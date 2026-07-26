@@ -9,9 +9,10 @@ import {
   type BusinessProfile,
   type NumberSequence,
   type NumberSequenceKey,
+  type NumberSequenceResetPolicy,
   type NumberSequenceValues,
 } from '../../api/client';
-import { Button, Checkbox, NumberField, Select, TextField } from '../ui';
+import { Button, NumberField, Select, TextField } from '../ui';
 
 interface Props {
   profiles: BusinessProfile[];
@@ -22,7 +23,7 @@ interface SequenceDraft {
   prefix: string;
   pattern: string;
   nextValue: string;
-  yearly: boolean;
+  resetPolicy: NumberSequenceResetPolicy;
 }
 
 interface SequenceDefinition {
@@ -34,10 +35,10 @@ interface SequenceDefinition {
 }
 
 const DEFINITIONS: SequenceDefinition[] = [
-  { key: 'customer', germanStem: 'Kunden', germanNoun: 'Kundennummernkreis', englishName: 'Customer', defaults: { prefix: 'KD', pattern: '{PREFIX}-{#####}', nextValue: '1', yearly: false } },
-  { key: 'offer', germanStem: 'Angebots', germanNoun: 'Angebotsnummernkreis', englishName: 'Offer', defaults: { prefix: 'AG', pattern: '{PREFIX}-{YYYY}-{#####}', nextValue: '1', yearly: true } },
-  { key: 'order', germanStem: 'Auftrags', germanNoun: 'Auftragsnummernkreis', englishName: 'Order', defaults: { prefix: 'AU', pattern: '{PREFIX}-{YYYY}-{#####}', nextValue: '1', yearly: true } },
-  { key: 'invoice', germanStem: 'Rechnungs', germanNoun: 'Rechnungsnummernkreis', englishName: 'Invoice', defaults: { prefix: 'RE', pattern: '{PREFIX}-{YYYY}-{#####}', nextValue: '1', yearly: true } },
+  { key: 'customer', germanStem: 'Kunden', germanNoun: 'Kundennummernkreis', englishName: 'Customer', defaults: { prefix: 'KD', pattern: '{PREFIX}-{#####}', nextValue: '1', resetPolicy: 'none' } },
+  { key: 'offer', germanStem: 'Angebots', germanNoun: 'Angebotsnummernkreis', englishName: 'Offer', defaults: { prefix: 'AG', pattern: '{PREFIX}{YYMM}{####}', nextValue: '1', resetPolicy: 'monthly' } },
+  { key: 'order', germanStem: 'Auftrags', germanNoun: 'Auftragsnummernkreis', englishName: 'Order', defaults: { prefix: 'AU', pattern: '{PREFIX}-{YYYY}-{#####}', nextValue: '1', resetPolicy: 'yearly' } },
+  { key: 'invoice', germanStem: 'Rechnungs', germanNoun: 'Rechnungsnummernkreis', englishName: 'Invoice', defaults: { prefix: 'RE', pattern: '{PREFIX}-{YYYY}-{#####}', nextValue: '1', resetPolicy: 'yearly' } },
 ];
 
 function initialDrafts(): Record<NumberSequenceKey, SequenceDraft> {
@@ -49,8 +50,12 @@ function valuesFromDraft(draft: SequenceDraft): NumberSequenceValues {
     prefix: draft.prefix.trim(),
     pattern: draft.pattern.trim(),
     next_value: Math.max(1, Number.parseInt(draft.nextValue, 10) || 1),
-    reset_policy: draft.yearly ? 'yearly' : 'none',
+    reset_policy: draft.resetPolicy,
   };
+}
+
+function supportsResetPolicy(draft: SequenceDraft) {
+  return draft.resetPolicy !== 'monthly' || draft.pattern.includes('{YYMM}');
 }
 
 export function NumberSequenceSettings({ profiles, canManage }: Props) {
@@ -90,7 +95,7 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
         prefix: sequence.prefix,
         pattern: sequence.pattern,
         nextValue: String(sequence.next_value),
-        yearly: sequence.reset_policy === 'yearly',
+        resetPolicy: sequence.reset_policy,
       };
     }
     setDrafts(next);
@@ -101,6 +106,9 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
   const saveMutation = useMutation({
     mutationFn: async ({ definition, existing }: { definition: SequenceDefinition; existing?: NumberSequence }) => {
       if (profileId === null) throw new Error('No business profile selected');
+      if (!supportsResetPolicy(drafts[definition.key])) {
+        throw new Error(german ? 'Monatliches Zurücksetzen benötigt den Platzhalter {YYMM} im Format.' : 'Monthly resets require the {YYMM} token in the number format.');
+      }
       const values = valuesFromDraft(drafts[definition.key]);
       if (existing) {
         return api.updateNumberSequence(profileId, existing.id, { ...values, version: existing.version });
@@ -142,8 +150,8 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
           ) : <p className="text-sm text-bambu-gray">{german ? 'Legen Sie zuerst ein Unternehmensprofil an.' : 'Create a business profile first.'}</p>}
           <p className="text-sm text-bambu-gray">
             {german
-              ? 'Präfix, Format und nächste laufende Nummer je Dokumenttyp. Erlaubte Platzhalter: {PREFIX}, {YYYY}, {YY} und {####} (4–10 Stellen).'
-              : 'Prefix, format, and next counter per document type. Supported placeholders: {PREFIX}, {YYYY}, {YY}, and {####} (4–10 digits).'}
+              ? 'Präfix, Format und nächste laufende Nummer je Dokumenttyp. Erlaubte Platzhalter: {PREFIX}, {YYYY}, {YY}, {YYMM} und {####} (1–10 Stellen).'
+              : 'Prefix, format, and next counter per document type. Supported placeholders: {PREFIX}, {YYYY}, {YY}, {YYMM}, and {####} (1–10 digits).'}
           </p>
         </div>
 
@@ -166,6 +174,7 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
               const stem = german ? definition.germanStem : definition.englishName;
               const noun = german ? definition.germanNoun : `${definition.englishName} number sequence`;
               const pending = saveMutation.isPending && saveMutation.variables?.definition.key === definition.key;
+              const resetPolicySupported = supportsResetPolicy(draft);
               return (
                 <div key={definition.key} className="space-y-3 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark/35 p-4">
                   <div className="flex items-center justify-between gap-3">
@@ -177,10 +186,22 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
                     <NumberField label={german ? `Nächste ${stem}nummer` : `Next ${stem.toLowerCase()} number`} aria-label={german ? `Nächste ${stem}nummer` : `Next ${stem.toLowerCase()} number`} min="1" step="1" value={draft.nextValue} onValueChange={(value) => updateDraft(definition.key, { nextValue: value })} disabled={!canManage || pending} />
                   </div>
                   <TextField label={german ? `${stem}-Nummernformat` : `${stem} number format`} aria-label={german ? `${stem}-Nummernformat` : `${stem} number format`} value={draft.pattern} onValueChange={(value) => updateDraft(definition.key, { pattern: value })} disabled={!canManage || pending} />
+                  {!resetPolicySupported && <p role="alert" className="text-xs text-red-300">{german ? 'Monatliches Zurücksetzen benötigt {YYMM}, damit Nummern je Monat eindeutig bleiben.' : 'Monthly resets require {YYMM} so numbers remain unique per month.'}</p>}
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <Checkbox checked={draft.yearly} onCheckedChange={(checked) => updateDraft(definition.key, { yearly: checked })} label={german ? `${stem}nummer jährlich zurücksetzen` : `Reset ${stem.toLowerCase()} number yearly`} disabled={!canManage || pending} />
+                    <Select
+                      ariaLabel={german ? `${stem}nummer zurücksetzen` : `Reset ${stem.toLowerCase()} number`}
+                      label={german ? 'Zurücksetzen' : 'Reset'}
+                      value={draft.resetPolicy}
+                      onValueChange={(value) => updateDraft(definition.key, { resetPolicy: value as NumberSequenceResetPolicy })}
+                      options={[
+                        { value: 'none', label: german ? 'Nicht zurücksetzen' : 'Do not reset' },
+                        { value: 'yearly', label: german ? 'Jährlich' : 'Yearly' },
+                        { value: 'monthly', label: german ? 'Monatlich' : 'Monthly' },
+                      ]}
+                      disabled={!canManage || pending}
+                    />
                     {canManage && (
-                      <Button type="button" size="sm" onClick={() => saveMutation.mutate({ definition, existing })} loading={pending} disabled={saveMutation.isPending}>
+                      <Button type="button" size="sm" onClick={() => saveMutation.mutate({ definition, existing })} loading={pending} disabled={saveMutation.isPending || !resetPolicySupported}>
                         {!pending && <Save className="h-4 w-4" />}
                         {existing ? (german ? `${noun} speichern` : `Save ${noun.toLowerCase()}`) : (german ? `${noun} anlegen` : `Create ${noun.toLowerCase()}`)}
                       </Button>

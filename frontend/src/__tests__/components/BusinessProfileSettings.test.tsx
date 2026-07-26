@@ -82,10 +82,13 @@ async function chooseOption(
 describe('BusinessProfileSettings', () => {
   beforeEach(() => {
     setAuthToken(null);
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:business-profile-logo');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
   });
 
   afterEach(async () => {
     setAuthToken(null);
+    vi.restoreAllMocks();
     await i18n.changeLanguage('en');
   });
 
@@ -124,7 +127,7 @@ describe('BusinessProfileSettings', () => {
     expect(await screen.findByLabelText('Angebots-Präfix')).toHaveValue('ANG');
     expect(screen.getByLabelText('Nächste Angebotsnummer')).toHaveValue(12);
     expect(screen.getByLabelText('Angebots-Nummernformat')).toHaveValue('{PREFIX}-{YYYY}-{#####}');
-    expect(screen.getByRole('checkbox', { name: 'Angebotsnummer jährlich zurücksetzen' })).toBeChecked();
+    expect(screen.getAllByRole('combobox', { name: 'Zurücksetzen' })[1]).toHaveTextContent('Jährlich');
   });
 
   it('creates a missing invoice number sequence', async () => {
@@ -253,10 +256,15 @@ describe('BusinessProfileSettings', () => {
 
   it('shows a versioned logo thumbnail before the profile name', async () => {
     useProfiles([profile({ logo_media_type: 'image/png', logo_version: 9 })]);
+    server.use(
+      http.get('/api/v1/business-profiles/7/logo', () =>
+        new HttpResponse(new Blob(['logo'], { type: 'image/png' })),
+      ),
+    );
     render(<BusinessProfileSettings />);
 
     const logo = await screen.findByRole('img', { name: 'EU Operations logo' });
-    expect(logo).toHaveAttribute('src', expect.stringContaining('/business-profiles/7/logo?v=9'));
+    expect(logo).toHaveAttribute('src', 'blob:business-profile-logo');
     expect(logo.closest('td')?.textContent).toContain('EU Operations');
   });
 
@@ -317,6 +325,31 @@ describe('BusinessProfileSettings', () => {
       billing_mode: 'hybrid',
       default_locale: 'de',
     }));
+  });
+
+  it('uploads a selected logo with the version returned by the profile save', async () => {
+    const user = userEvent.setup();
+    let profileSaveSubmitted = false;
+    let uploadVersion: string | null = null;
+    useProfiles([profile()]);
+    server.use(
+      http.put('/api/v1/business-profiles/7', async () => {
+        profileSaveSubmitted = true;
+        return HttpResponse.json(profile({ version: 5 }));
+      }),
+      http.put('/api/v1/business-profiles/7/logo', async ({ request }) => {
+        uploadVersion = new URL(request.url).searchParams.get('version');
+        return HttpResponse.json(profile({ version: 6, logo_media_type: 'image/png', logo_version: 6 }));
+      }),
+    );
+
+    render(<BusinessProfileSettings />);
+    await user.click(await screen.findByRole('button', { name: 'Edit EU Operations' }));
+    await user.upload(screen.getByLabelText('Upload logo'), new File(['logo'], 'logo.png', { type: 'image/png' }));
+    await user.click(screen.getByRole('button', { name: 'Save business profile' }));
+
+    await waitFor(() => expect(profileSaveSubmitted).toBe(true));
+    expect(uploadVersion).toBe('5');
   });
 
   it('adds and removes repeatable tax IDs and bank accounts', async () => {

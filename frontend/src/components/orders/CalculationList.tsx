@@ -1,5 +1,6 @@
 import { Archive, ChevronRight } from 'lucide-react';
 import type { CalculationDetail } from '../../api/calculations';
+import { tableHeaderCellClass, tableHeaderClass, tableHeaderRowClass } from '../ui/tableStyles';
 
 interface Props {
   items: CalculationDetail[];
@@ -18,9 +19,9 @@ export function CalculationList({ items, locale, onOpen }: Props) {
   return (
     <div className="overflow-x-auto rounded-lg border border-bambu-dark-tertiary">
       <table className="w-full min-w-[1050px] text-sm">
-        <thead className="bg-bambu-dark">
-          <tr className="text-left text-xs uppercase tracking-wide text-bambu-gray">
-            {[de ? 'Kalkulation' : 'Calculation', de ? 'Kunde / Profil' : 'Customer / profile', de ? 'Variante' : 'Variant', de ? 'Revision' : 'Revision', de ? 'Status' : 'Status', de ? 'Selbstkosten' : 'Cost', de ? 'Verkaufspreis' : 'Selling price', de ? 'Aktualisiert' : 'Updated', ''].map(label => <th key={label} className="px-4 py-3 font-medium">{label}</th>)}
+        <thead className={tableHeaderClass}>
+          <tr className={tableHeaderRowClass}>
+            {[de ? 'Kalkulation' : 'Calculation', de ? 'Kunde / Profil' : 'Customer / profile', de ? 'Variante' : 'Variant', de ? 'Revision' : 'Revision', de ? 'Status' : 'Status', de ? 'Selbstkosten' : 'Cost', de ? 'Verkaufspreis' : 'Selling price', de ? 'Aktualisiert' : 'Updated', ''].map(label => <th key={label} className={tableHeaderCellClass}>{label}</th>)}
           </tr>
         </thead>
         <tbody className="divide-y divide-bambu-dark-tertiary">

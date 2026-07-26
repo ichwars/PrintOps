@@ -1912,7 +1912,7 @@ export default {
       documentType: 'Document type',
       language: 'Language',
       version: 'Version {{version}}',
-      status: { draft: 'Draft', scheduled: 'Scheduled', active: 'Active', superseded: 'Superseded' },
+      status: { draft: 'Draft', scheduled: 'Scheduled', active: 'Active', superseded: 'Superseded', missingDraft: 'No draft' },
       readiness: { ready: 'Ready', warnings: 'Warnings', blocked: 'Blocked', loading: 'Checking readiness...', versionConflict: 'The draft was changed elsewhere', checkFailed: 'Compliance check failed', ruleId: 'Rule ID', correlationId: 'Correlation ID', unknownError: 'Unknown validation error', reloadCompare: 'Reload and compare', title: 'Publication readiness', noFindings: 'No blocking findings.', findings: { buyer_endpoint_missing: 'Buyer endpoint is missing' } },
       changeReason: 'Change reason',
       changeReasonHint: 'Required for saved and published changes (at least 3 characters).',
@@ -2219,6 +2219,11 @@ export default {
     // Updates
     checkForUpdatesLabel: 'Check for updates',
     checkPrinterFirmware: 'Check printer firmware',
+    noticePreferences: 'Notices',
+    showDeveloperLanWarning: 'Show Developer LAN warning',
+    showDeveloperLanWarningDesc: 'Warn at the top of the app when a connected printer does not have Developer LAN mode enabled.',
+    showSponsorPrompts: 'Show supporter notices',
+    showSponsorPromptsDesc: 'Show occasional notices about supporters and PrintOps community funding.',
     includeBetaUpdates: 'Include beta versions',
     includeBetaUpdatesDesc: 'Notify about beta and prerelease versions when checking for updates',
     localLogin: {

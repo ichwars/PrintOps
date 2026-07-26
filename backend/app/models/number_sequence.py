@@ -18,7 +18,7 @@ class NumberSequence(Base):
         UniqueConstraint("business_profile_id", "key", name="uq_number_sequence_profile_key"),
         CheckConstraint("next_value > 0", name="ck_number_sequence_next_value"),
         CheckConstraint(
-            "reset_policy IN ('none', 'yearly')",
+            "reset_policy IN ('none', 'yearly', 'monthly')",
             name="ck_number_sequence_reset_policy",
         ),
     )

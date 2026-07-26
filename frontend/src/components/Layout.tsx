@@ -42,6 +42,8 @@ interface NavItem {
   parentId?: string;
 }
 
+const UPDATE_SETTINGS_ROUTE = '/settings?tab=operations';
+
 export const defaultNavItems: NavItem[] = [
   { id: 'dashboard', to: '/dashboard', icon: BarChart3, labelKey: 'printops.nav.dashboard', defaultLabel: 'Dashboard', defaultLabelDe: 'Dashboard' },
   { id: 'printers', to: '/printers', icon: Printer, labelKey: 'nav.printers' },
@@ -189,8 +191,16 @@ export function Layout() {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
+  const { data: uiPreferences } = useQuery({
+    queryKey: ['ui-preferences'],
+    queryFn: api.getUiPreferences,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+  const showDeveloperLanWarning = uiPreferences?.show_developer_lan_warning ?? true;
+  const showSponsorPrompts = uiPreferences?.show_sponsor_prompts ?? false;
+
   // Sponsor-prompt toast — fires once per session post-auth if a milestone is eligible.
-  useSponsorPrompt(settings?.currency ?? 'EUR');
+  useSponsorPrompt(settings?.currency ?? 'EUR', showSponsorPrompts);
 
   // Unknown-spool prompt — surfaces a confirmation modal when the AMS reports a
   // tag with no inventory match (only when `auto_add_unknown_rfid` is off).
@@ -296,6 +306,7 @@ export function Layout() {
   const { data: devModeWarnings } = useQuery({
     queryKey: ['developer-mode-warnings'],
     queryFn: api.getDeveloperModeWarnings,
+    enabled: showDeveloperLanWarning,
     staleTime: 10 * 1000,
     refetchInterval: 30 * 1000,
     refetchOnWindowFocus: true,
@@ -962,7 +973,7 @@ export function Layout() {
                 <span className="text-sm text-bambu-gray">v{versionInfo?.version || '...'}</span>
                 {updateCheck?.update_available && (
                   <button
-                    onClick={() => navigate('/settings')}
+                    onClick={() => navigate(UPDATE_SETTINGS_ROUTE)}
                     className="flex items-center gap-1 text-xs text-bambu-green hover:text-bambu-green/80 transition-colors"
                     title={t('nav.updateAvailable', { version: updateCheck.latest_version })}
                   >
@@ -976,7 +987,7 @@ export function Layout() {
             <div className="flex flex-col items-center gap-1 overflow-y-auto max-h-[50vh]">
               {updateCheck?.update_available && (
                 <button
-                  onClick={() => navigate('/settings')}
+                  onClick={() => navigate(UPDATE_SETTINGS_ROUTE)}
                   className="p-2 rounded-lg hover:bg-bambu-dark-tertiary transition-colors text-bambu-green hover:text-bambu-green/80"
                   title={t('nav.updateAvailable', { version: updateCheck.latest_version })}
                 >
@@ -1093,7 +1104,7 @@ export function Layout() {
             </div>
           </div>
         )}
-        {devModeWarnings && devModeWarnings.length > 0 && (
+        {showDeveloperLanWarning && devModeWarnings && devModeWarnings.length > 0 && (
           <div className="bg-orange-100 dark:bg-orange-500/20 border-b border-orange-300 dark:border-orange-500/30 px-4 py-2 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm">
               <ShieldAlert className="w-4 h-4 text-orange-500" />
@@ -1123,7 +1134,7 @@ export function Layout() {
                 })}
               </span>
               <button
-                onClick={() => navigate('/settings')}
+                onClick={() => navigate(UPDATE_SETTINGS_ROUTE)}
                 className="text-bambu-green hover:text-bambu-green/80 font-medium underline"
               >
                 {t('nav.viewUpdate', { defaultValue: 'View update' })}

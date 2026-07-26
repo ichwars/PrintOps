@@ -260,6 +260,20 @@ class TestSettingsAPI:
         assert response.status_code == 200
         assert response.json()["check_printer_firmware"] is True
 
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_update_show_developer_lan_warning(self, async_client: AsyncClient):
+        """Verify show_developer_lan_warning can be updated."""
+        response = await async_client.get("/api/v1/settings/")
+        assert response.json()["show_developer_lan_warning"] is True
+
+        response = await async_client.put("/api/v1/settings/", json={"show_developer_lan_warning": False})
+        assert response.status_code == 200
+        assert response.json()["show_developer_lan_warning"] is False
+
+        response = await async_client.get("/api/v1/settings/")
+        assert response.json()["show_developer_lan_warning"] is False
+
     # ========================================================================
     # MQTT settings tests
     # ========================================================================

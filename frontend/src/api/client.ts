@@ -1168,6 +1168,8 @@ export interface AppSettings {
   small_parts_low_stock_warning: boolean;
   check_updates: boolean;
   check_printer_firmware: boolean;
+  show_developer_lan_warning: boolean;
+  show_sponsor_prompts: boolean;
   include_beta_updates: boolean;
   // #1589: false hides the local username/password form on the login page;
   // PRINTOPS_LOCAL_LOGIN=true on the server flips the reported value back to
@@ -3291,7 +3293,7 @@ export interface BusinessProfileOption {
 }
 
 export type NumberSequenceKey = 'customer' | 'offer' | 'order' | 'invoice';
-export type NumberSequenceResetPolicy = 'none' | 'yearly';
+export type NumberSequenceResetPolicy = 'none' | 'yearly' | 'monthly';
 
 export interface NumberSequenceValues {
   prefix: string;
@@ -5004,6 +5006,8 @@ export const api = {
     request<{
       require_plate_clear?: boolean;
       check_printer_firmware?: boolean;
+      show_developer_lan_warning?: boolean;
+      show_sponsor_prompts?: boolean;
       camera_view_mode?: 'window' | 'embedded';
       time_format?: 'system' | '12h' | '24h';
       date_format?: string;
@@ -6201,6 +6205,24 @@ export const api = {
     request<void>(`/business-profiles/${id}/logo?version=${version}`, { method: 'DELETE' }),
   getBusinessProfileLogoUrl: (id: number, logoVersion: number) =>
     withStreamToken(`${API_BASE}/business-profiles/${id}/logo?v=${logoVersion}`),
+  getBusinessProfileLogoBlob: async (id: number, logoVersion: number): Promise<Blob> => {
+    const headers: Record<string, string> = {};
+    if (authToken) headers.Authorization = `Bearer ${authToken}`;
+    const response = await fetch(`${API_BASE}/business-profiles/${id}/logo?v=${logoVersion}`, {
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      const detail = error.detail;
+      throw new ApiError(
+        typeof detail === 'object' && detail && typeof detail.message === 'string' ? detail.message : `HTTP ${response.status}`,
+        response.status,
+        typeof detail === 'object' && detail && typeof detail.code === 'string' ? detail.code : null,
+      );
+    }
+    return response.blob();
+  },
   getCustomers: (params: CustomerListParams) => {
     const search = new URLSearchParams();
     search.set('business_profile_id', String(params.businessProfileId));

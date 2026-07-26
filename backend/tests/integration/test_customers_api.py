@@ -189,6 +189,25 @@ async def test_create_customer_auto_numbers_and_returns_normalized_aggregate(
 
 
 @pytest.mark.asyncio
+async def test_create_customer_without_document_preference_returns_null_preference(
+    async_client: AsyncClient,
+):
+    profile = await create_profile(async_client)
+    payload = person_payload(profile["id"])
+    payload["accounts"][0]["document_preference"] = None
+    payload["contacts"] = []
+    payload["addresses"] = []
+    payload["tax_identifiers"] = []
+    payload["tags"] = []
+
+    response = await async_client.post(BASE_URL + "/", json=payload)
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["accounts"][0]["document_preference"] is None
+
+
+@pytest.mark.asyncio
 async def test_customer_einvoice_preference_round_trips_on_update(async_client: AsyncClient):
     profile = await create_profile(async_client)
     created = await create_customer(async_client, profile["id"])

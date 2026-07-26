@@ -1,4 +1,4 @@
-import { CheckCircle2, Copy, Rocket, Save, Undo2 } from 'lucide-react';
+import { CheckCircle2, Copy, FilePlus2, Rocket, Save, Undo2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { ConfigurationStatus, ReadinessStatus } from '../../../api/documentManagement';
@@ -56,6 +56,7 @@ export function DocumentActionBar({
         <div className="flex flex-wrap gap-2">
           {!hasConfiguration ? (
             <Button onClick={onCreate} disabled={!canManage || busy} loading={pendingAction === 'create'}>
+              {!pendingAction && <FilePlus2 className="h-4 w-4" aria-hidden="true" />}
               {t('settings.documents.actions.create', 'Create draft')}
             </Button>
           ) : (

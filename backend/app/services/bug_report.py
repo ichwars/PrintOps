@@ -2,10 +2,11 @@
 
 import logging
 import time
+from urllib.parse import urlparse
 
 import httpx
 
-from backend.app.core.config import BUG_REPORT_RELAY_URL
+from backend.app.core.config import BUG_REPORT_RELAY_URL, GITHUB_REPO
 from backend.app.core.database import async_session
 from backend.app.models.bug_report import BugReport
 
@@ -25,6 +26,18 @@ def _check_rate_limit() -> bool:
         return False
     _rate_limit_timestamps.append(now)
     return True
+
+
+def _issue_url_points_at_expected_repo(issue_url: object, issue_number: int) -> bool:
+    """Return True when the relay-created issue URL belongs to this app repo."""
+    if not isinstance(issue_url, str):
+        return False
+    parsed = urlparse(issue_url)
+    if parsed.scheme != "https" or parsed.netloc.lower() != "github.com":
+        return False
+    owner, repo = GITHUB_REPO.split("/", 1)
+    expected_path = f"/{owner}/{repo}/issues/{issue_number}"
+    return parsed.path.lower() == expected_path.lower()
 
 
 async def submit_report(
@@ -118,8 +131,31 @@ async def submit_report(
             "issue_number": None,
         }
 
-    issue_number = relay_data["issue_number"]
-    issue_url = relay_data["issue_url"]
+    issue_number = relay_data.get("issue_number")
+    issue_url = relay_data.get("issue_url")
+    if (
+        type(issue_number) is not int
+        or issue_number <= 0
+        or not _issue_url_points_at_expected_repo(issue_url, issue_number)
+    ):
+        error_message = f"Relay returned an unexpected issue response for repository {GITHUB_REPO}"
+        logger.error("%s: %r", error_message, issue_url)
+        async with async_session() as db:
+            report = BugReport(
+                description=description,
+                reporter_email=reporter_email,
+                status="failed",
+                error_message=error_message,
+            )
+            db.add(report)
+            await db.commit()
+
+        return {
+            "success": False,
+            "message": "Bug report relay returned an unexpected GitHub repository. Please check the relay configuration.",
+            "issue_url": None,
+            "issue_number": None,
+        }
 
     # Save to DB
     async with async_session() as db:

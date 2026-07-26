@@ -12,6 +12,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { useModalFocusLifecycle } from '../hooks/useModalFocusLifecycle';
 import { normalizeOrderTags } from '../lib/orderTagNormalization';
 import { LegacySelect, TextField } from '../components/ui';
+import {
+  tableHeaderActionCellClass,
+  tableHeaderCellCompactClass,
+  tableHeaderClass,
+  tableHeaderRowClass,
+} from '../components/ui/tableStyles';
 
 const limit = 25;
 const emptyProfiles: import('../api/client').BusinessProfileOption[] = [];
@@ -188,7 +194,7 @@ export function OrdersCustomersPage() {
             <>
               <div className="overflow-x-auto rounded-md border border-bambu-dark-tertiary">
                 <table className="w-full min-w-[940px] table-fixed text-sm">
-                  <thead className="bg-bambu-dark text-left text-xs uppercase text-bambu-gray"><tr><Th width="w-28">{t('orders.customers.number')}</Th><Th width="w-52">{t('orders.customers.name')}</Th><Th width="w-52">{t('orders.customers.primaryContact')}</Th><Th width="w-36">{t('orders.customers.billingAddress')}</Th><Th width="w-24">{t('common.status')}</Th><Th>{t('orders.customerEditor.tags')}</Th><Th width="w-32" align="text-right">{t('orders.customers.actions')}</Th></tr></thead>
+                  <thead className={tableHeaderClass}><tr className={tableHeaderRowClass}><Th width="w-28">{t('orders.customers.number')}</Th><Th width="w-52">{t('orders.customers.name')}</Th><Th width="w-52">{t('orders.customers.primaryContact')}</Th><Th width="w-36">{t('orders.customers.billingAddress')}</Th><Th width="w-24">{t('common.status')}</Th><Th>{t('orders.customerEditor.tags')}</Th><Th width="w-32" align="text-right">{t('orders.customers.actions')}</Th></tr></thead>
                   <tbody>{page.items.map((customer) => <tr key={customer.id} className="border-t border-bambu-dark-tertiary text-white hover:bg-bambu-dark/50">
                     <Td>{customer.account_number || '-'}</Td><Td><strong>{customer.display_name}</strong><span className="block text-xs text-bambu-gray">{t(`orders.customerEditor.${customer.kind}`)}</span></Td>
                     <Td>{customer.primary_contact_name || '-'}{customer.primary_contact_email && <span className="block truncate text-xs text-bambu-gray">{customer.primary_contact_email}</span>}</Td>
@@ -228,6 +234,6 @@ function ModalQueryError({ title, onClose, onRetry }: { title: string; onClose: 
   const { dialogRef, onKeyDown } = useModalFocusLifecycle<HTMLDivElement>({ onClose });
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3"><div ref={dialogRef} onKeyDown={onKeyDown} role="dialog" aria-modal="true" aria-label={title} className="w-full max-w-md rounded-md border border-bambu-dark-tertiary bg-bambu-dark-secondary p-5"><div className="flex items-center gap-2 text-red-200"><AlertTriangle className="h-5 w-5" /><p>{title}</p></div><div className="mt-4 flex justify-end gap-2"><Button size="sm" variant="secondary" onClick={onRetry}>{t('common.retry')}</Button><Button size="sm" variant="ghost" onClick={onClose}>{t('common.close')}</Button></div></div></div>;
 }
-function Th({ children, width = '', align = '' }: { children: React.ReactNode; width?: string; align?: string }) { return <th className={`${width} ${align} px-3 py-2 font-medium`}>{children}</th>; }
+function Th({ children, width = '', align = '' }: { children: React.ReactNode; width?: string; align?: string }) { return <th className={`${width} ${align === 'text-right' ? tableHeaderActionCellClass : tableHeaderCellCompactClass}`}>{children}</th>; }
 function Td({ children }: { children: React.ReactNode }) { return <td className="px-3 py-3 align-top">{children}</td>; }
 function IconButton({ label, title, danger = false, disabled = false, onClick, children }: { label: string; title: string; danger?: boolean; disabled?: boolean; onClick: () => void; children: React.ReactNode }) { return <button type="button" aria-label={label} title={title} disabled={disabled} onClick={onClick} className={`rounded p-2 disabled:cursor-not-allowed disabled:opacity-40 ${danger ? 'text-bambu-gray hover:bg-red-500/10 hover:text-red-300' : 'text-bambu-gray hover:bg-bambu-dark-tertiary hover:text-white'}`}>{children}</button>; }

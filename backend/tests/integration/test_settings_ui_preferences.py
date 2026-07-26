@@ -79,6 +79,8 @@ class TestUiPreferencesEndpoint:
         expected = {
             "require_plate_clear",
             "check_printer_firmware",
+            "show_developer_lan_warning",
+            "show_sponsor_prompts",
             "camera_view_mode",
             "time_format",
             "date_format",
