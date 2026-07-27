@@ -63,6 +63,7 @@ def _user_to_response(user: User) -> UserResponse:
         auth_source=getattr(user, "auth_source", "local"),
         groups=[GroupBrief(id=g.id, name=g.name) for g in user.groups],
         permissions=sorted(user.get_permissions()),
+        allowed_printer_ids=getattr(user, "allowed_printer_ids", None),
         created_at=user.created_at.isoformat(),
     )
 
@@ -156,6 +157,7 @@ async def create_user(
         password_hash=get_password_hash(password),
         role=user_data.role,
         is_active=True,
+        allowed_printer_ids=user_data.allowed_printer_ids or None,
     )
 
     # Handle group assignments
@@ -301,6 +303,9 @@ async def update_user(
 
     if user_data.is_active is not None:
         user.is_active = user_data.is_active
+
+    if "allowed_printer_ids" in user_data.model_fields_set:
+        user.allowed_printer_ids = user_data.allowed_printer_ids or None
 
     # Handle group assignments
     if user_data.group_ids is not None:

@@ -1043,6 +1043,7 @@ export function SettingsPage() {
     confirmPassword: string;
     role: string;
     group_ids: number[];
+    allowed_printer_ids?: number[];
   }>({
     username: '',
     password: '',
@@ -1050,6 +1051,7 @@ export function SettingsPage() {
     confirmPassword: '',
     role: 'user',
     group_ids: [],
+    allowed_printer_ids: undefined,
   });
 
   // Group management state
@@ -1473,6 +1475,7 @@ export function SettingsPage() {
       email: userFormData.email || undefined,
       role: userFormData.role,
       group_ids: userFormData.group_ids.length > 0 ? userFormData.group_ids : undefined,
+      allowed_printer_ids: userFormData.allowed_printer_ids?.length ? userFormData.allowed_printer_ids : null,
     });
   };
 
@@ -1501,6 +1504,7 @@ export function SettingsPage() {
       email: userFormData.email || undefined,
       role: userFormData.role,
       group_ids: userFormData.group_ids,
+      allowed_printer_ids: userFormData.allowed_printer_ids?.length ? userFormData.allowed_printer_ids : null,
     };
     if (!updateData.password) {
       delete updateData.password;
@@ -1517,6 +1521,7 @@ export function SettingsPage() {
       confirmPassword: '',
       role: userToEdit.role,
       group_ids: userToEdit.groups?.map(g => g.id) || [],
+      allowed_printer_ids: userToEdit.allowed_printer_ids ?? undefined,
     });
     setShowEditUserModal(true);
   };
@@ -1528,6 +1533,22 @@ export function SettingsPage() {
         ? prev.group_ids.filter(id => id !== groupId)
         : [...prev.group_ids, groupId],
     }));
+  };
+
+  const toggleUserPrinterScope = (printerId: number) => {
+    setUserFormData(prev => {
+      const current = prev.allowed_printer_ids ?? [];
+      return {
+        ...prev,
+        allowed_printer_ids: current.includes(printerId)
+          ? current.filter(id => id !== printerId)
+          : [...current, printerId],
+      };
+    });
+  };
+
+  const clearUserPrinterScope = () => {
+    setUserFormData(prev => ({ ...prev, allowed_printer_ids: undefined }));
   };
 
   const applyUpdateMutation = useMutation({
@@ -6567,6 +6588,11 @@ export function SettingsPage() {
                                     {group.name}
                                   </span>
                                 ))}
+                                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-bambu-dark text-bambu-gray">
+                                  {userItem.allowed_printer_ids?.length
+                                    ? t('users.form.printerScopeCount', { count: userItem.allowed_printer_ids.length, defaultValue: `${userItem.allowed_printer_ids.length} printers` })
+                                    : t('users.form.allPrinters', 'All printers')}
+                                </span>
                               </div>
                             </div>
                             <div className="flex items-center gap-1 ml-4">
@@ -6911,6 +6937,30 @@ export function SettingsPage() {
                     )}
                   </div>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">{t('users.form.printerScope', 'Printer access')}</label>
+                  <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
+                    <label className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer">
+                      <Checkbox
+                        checked={!userFormData.allowed_printer_ids?.length}
+                        onChange={clearUserPrinterScope}
+                      />
+                      <span className="text-sm text-white">{t('users.form.allPrinters', 'All printers')}</span>
+                    </label>
+                    {(printers ?? []).map(printer => (
+                      <label
+                        key={printer.id}
+                        className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={userFormData.allowed_printer_ids?.includes(printer.id) ?? false}
+                          onChange={() => toggleUserPrinterScope(printer.id)}
+                        />
+                        <span className="text-sm text-white">{printer.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div className="mt-6 flex justify-end gap-3">
                 <Button
@@ -6952,6 +7002,7 @@ export function SettingsPage() {
           formData={userFormData}
           setFormData={setUserFormData}
           groups={groupsData}
+          printers={printers ?? []}
           onClose={() => {
             setShowCreateUserModal(false);
             setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
@@ -7120,6 +7171,30 @@ export function SettingsPage() {
                         {group.is_system && (
                           <span className="text-xs text-yellow-700 dark:text-yellow-400">({t('users.system') || 'System'})</span>
                         )}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">{t('users.form.printerScope', 'Printer access')}</label>
+                  <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
+                    <label className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer">
+                      <Checkbox
+                        checked={!userFormData.allowed_printer_ids?.length}
+                        onChange={clearUserPrinterScope}
+                      />
+                      <span className="text-sm text-white">{t('users.form.allPrinters', 'All printers')}</span>
+                    </label>
+                    {(printers ?? []).map(printer => (
+                      <label
+                        key={printer.id}
+                        className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={userFormData.allowed_printer_ids?.includes(printer.id) ?? false}
+                          onChange={() => toggleUserPrinterScope(printer.id)}
+                        />
+                        <span className="text-sm text-white">{printer.name}</span>
                       </label>
                     ))}
                   </div>

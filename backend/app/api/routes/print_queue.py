@@ -12,7 +12,12 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.app.core.auth import RequirePermissionIfAuthEnabled, require_ownership_permission
+from backend.app.core.auth import (
+    RequirePermissionIfAuthEnabled,
+    allowed_printer_ids_for_user,
+    require_ownership_permission,
+    user_can_access_printer,
+)
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
@@ -337,6 +342,9 @@ async def list_queue(
     )
     if user is not None and not can_read_all:
         query = query.where(PrintQueueItem.created_by_id == user.id)
+    allowed_printer_ids = allowed_printer_ids_for_user(user)
+    if allowed_printer_ids is not None:
+        query = query.where(or_(PrintQueueItem.printer_id.is_(None), PrintQueueItem.printer_id.in_(allowed_printer_ids)))
 
     if printer_id is not None:
         if printer_id == -1:
@@ -1058,6 +1066,8 @@ async def get_queue_item(
         and not can_read_all
         and (item.created_by_id is None or item.created_by_id != current_user.id)
     ):
+        raise HTTPException(404, "Queue item not found")
+    if not user_can_access_printer(current_user, item.printer_id):
         raise HTTPException(404, "Queue item not found")
     return _enrich_response(item)
 

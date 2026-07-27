@@ -1884,6 +1884,24 @@ async def run_migrations(conn):
     except (OperationalError, ProgrammingError):
         pass  # Already applied
 
+    # Migration: Audit events for spool refills (#1817)
+    await _safe_execute(
+        conn,
+        """
+        CREATE TABLE IF NOT EXISTS spool_refill_events (
+            id INTEGER PRIMARY KEY,
+            spool_id INTEGER REFERENCES spool(id) ON DELETE SET NULL,
+            external_spool_id VARCHAR(64),
+            before_weight_used REAL NOT NULL,
+            after_weight_used REAL NOT NULL,
+            added_weight REAL NOT NULL,
+            note VARCHAR(500),
+            created_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+    )
+
     # Migration: Migrate single virtual printer key-value settings to virtual_printers table
     try:
         async with conn.begin_nested():
@@ -2324,6 +2342,14 @@ async def run_migrations(conn):
 
     # Migration: Add auth_source column to users for LDAP support (#794)
     await _safe_execute(conn, "ALTER TABLE users ADD COLUMN auth_source VARCHAR(20) DEFAULT 'local' NOT NULL")
+
+    # Migration: Add optional printer scope to users (#1727/#1620)
+    if is_sqlite():
+        await _safe_execute(conn, "ALTER TABLE users ADD COLUMN allowed_printer_ids JSON")
+        await _safe_execute(conn, "UPDATE users SET allowed_printer_ids = NULL WHERE allowed_printer_ids = '[]'")
+    else:
+        await _safe_execute(conn, "ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_printer_ids JSON")
+        await _safe_execute(conn, "UPDATE users SET allowed_printer_ids = NULL WHERE allowed_printer_ids::text = '[]'")
 
     # Migration: Make password_hash nullable for LDAP users (#794)
     # LDAP users have no local password — the column must allow NULL so auto-provisioning

@@ -773,6 +773,7 @@ export interface ArchiveStats {
   time_accuracy_by_printer: Record<string, number> | null;
   total_energy_kwh: number;
   total_energy_cost: number;
+  energy_source?: 'smart_plug_live' | 'smart_plug_snapshots' | 'print_logs' | string | null;
   // True when a date-filtered total-consumption query is running on incomplete
   // snapshot history (e.g. right after upgrade, before hourly snapshots have
   // a baseline). UI should explain why the number may undercount.
@@ -3600,6 +3601,7 @@ export interface UserResponse {
   auth_source: string;  // "local" or "ldap"
   groups: GroupBrief[];
   permissions: Permission[];  // All permissions from groups
+  allowed_printer_ids?: number[] | null;
   created_at: string;
 }
 
@@ -3609,6 +3611,7 @@ export interface UserCreate {
   email?: string;
   role: string;
   group_ids?: number[];
+  allowed_printer_ids?: number[] | null;
 }
 
 export interface UserUpdate {
@@ -3618,6 +3621,7 @@ export interface UserUpdate {
   role?: string;
   is_active?: boolean;
   group_ids?: number[];
+  allowed_printer_ids?: number[] | null;
 }
 
 export interface SetupRequest {
@@ -5669,6 +5673,11 @@ export const api = {
     request<InventorySpool>(`/inventory/spools/${id}/restore`, { method: 'POST' }),
   resetSpoolConsumedCounter: (id: number) =>
     request<InventorySpool>(`/inventory/spools/${id}/reset-consumed-counter`, { method: 'POST' }),
+  refillSpool: (id: number, data: { added_weight: number; note?: string | null }) =>
+    request<InventorySpool>(`/inventory/spools/${id}/refill`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   bulkResetSpoolConsumedCounter: (spoolIds: number[]) =>
     request<{ reset: number }>(`/inventory/spools/reset-consumed-counter-bulk`, {
       method: 'POST',
@@ -5693,6 +5702,17 @@ export const api = {
     request<{ restored: number; already_active: number[]; not_found: number[] }>(`/inventory/spools/bulk-restore`, {
       method: 'POST',
       body: JSON.stringify({ ids }),
+    }),
+  mergeSpools: (targetId: number, sourceIds: number[]) =>
+    request<{
+      target_id: number;
+      merged: number;
+      source_ids: number[];
+      archived: number[];
+      reassigned: Record<string, number>;
+    }>('/inventory/spools/merge', {
+      method: 'POST',
+      body: JSON.stringify({ target_id: targetId, source_ids: sourceIds }),
     }),
   getSpoolKProfiles: (spoolId: number) =>
     request<SpoolKProfile[]>(`/inventory/spools/${spoolId}/k-profiles`),
@@ -5868,6 +5888,11 @@ export const api = {
     request<InventorySpool>(`/spoolman/inventory/spools/${id}/restore`, { method: 'POST' }),
   resetSpoolmanInventorySpoolConsumedCounter: (id: number) =>
     request<InventorySpool>(`/spoolman/inventory/spools/${id}/reset-consumed-counter`, { method: 'POST' }),
+  refillSpoolmanInventorySpool: (id: number, data: { added_weight: number; note?: string | null }) =>
+    request<InventorySpool>(`/spoolman/inventory/spools/${id}/refill`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   bulkResetSpoolmanInventorySpoolConsumedCounter: (spoolIds: number[]) =>
     request<{ reset: number }>(`/spoolman/inventory/spools/reset-consumed-counter-bulk`, {
       method: 'POST',

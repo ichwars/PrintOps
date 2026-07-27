@@ -89,6 +89,7 @@ from backend.app.models.spool import Spool
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spool_catalog import SpoolCatalogEntry
 from backend.app.models.spool_k_profile import SpoolKProfile
+from backend.app.models.spool_refill_event import SpoolRefillEvent
 from backend.app.models.spool_usage_history import SpoolUsageHistory
 from backend.app.models.spoolbuddy_device import SpoolBuddyDevice
 from backend.app.models.stock_reservation import (
@@ -141,6 +142,7 @@ __all__ = [
     "SpoolKProfile",
     "SpoolAssignment",
     "SpoolCatalogEntry",
+    "SpoolRefillEvent",
     "SpoolUsageHistory",
     "ColorCatalogEntry",
     "SpoolBuddyDevice",

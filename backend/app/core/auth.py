@@ -1741,6 +1741,24 @@ def require_camera_stream_token_if_auth_enabled():
 RequireCameraStreamTokenIfAuthEnabled = Depends(require_camera_stream_token_if_auth_enabled())
 
 
+def allowed_printer_ids_for_user(user: User | None) -> set[int] | None:
+    """Return the user's printer scope, or None when all printers are allowed."""
+    if user is None:
+        return None
+    allowed = getattr(user, "allowed_printer_ids", None)
+    if not allowed:
+        return None
+    return {int(printer_id) for printer_id in allowed}
+
+
+def user_can_access_printer(user: User | None, printer_id: int | None) -> bool:
+    """Check printer scope for printer-bound resources."""
+    if user is None or printer_id is None:
+        return True
+    allowed = allowed_printer_ids_for_user(user)
+    return allowed is None or int(printer_id) in allowed
+
+
 def require_ownership_permission(
     all_permission: str | Permission,
     own_permission: str | Permission,

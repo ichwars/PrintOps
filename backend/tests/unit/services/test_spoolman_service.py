@@ -5,6 +5,7 @@ functionality that controls whether remaining_weight is updated.
 Also includes tests for is_bambu_lab_spool RFID detection.
 """
 
+import json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -395,6 +396,22 @@ class TestSpoolmanClient:
             mock_get.assert_not_called()  # Should NOT call get_spools
 
     @pytest.mark.asyncio
+    async def test_find_spool_by_tag_checks_separate_bambu_extra_fields(self, client):
+        cached = [
+            {"id": 1, "extra": {"tag": json.dumps("LEGACY")}},
+            {"id": 2, "extra": {"bambu_tray_uuid": json.dumps("AABBCCDDEEFF0011AABBCCDDEEFF0011")}},
+            {"id": 3, "extra": {"bambu_tag_uid": json.dumps("2728C17B")}},
+        ]
+
+        with patch.object(client, "get_spools", AsyncMock()) as mock_get:
+            by_uuid = await client.find_spool_by_tag("aabbccddeeff0011aabbccddeeff0011", cached_spools=cached)
+            by_uid = await client.find_spool_by_tag("2728c17b", cached_spools=cached)
+
+        assert by_uuid["id"] == 2
+        assert by_uid["id"] == 3
+        mock_get.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_find_spool_by_tag_without_cached_spools(self, client):
         """Verify find_spool_by_tag fetches spools when cache not provided."""
         mock_spools = [{"id": 1, "extra": {"tag": '"ABC123"'}}]
@@ -403,6 +420,33 @@ class TestSpoolmanClient:
             result = await client.find_spool_by_tag("ABC123")
             assert result["id"] == 1
             mock_get.assert_called_once()  # Should call get_spools
+
+    @pytest.mark.asyncio
+    async def test_sync_ams_tray_new_spool_preserves_both_bambu_tags(self, client, mock_filament):
+        tray = AMSTray(
+            ams_id=0,
+            tray_id=0,
+            tray_type="PLA",
+            tray_sub_brands="PLA Basic",
+            tray_color="FF0000FF",
+            remain=50,
+            tag_uid="2728C17B",
+            tray_uuid="AABBCCDDEEFF0011AABBCCDDEEFF0011",
+            tray_info_idx="GFA00",
+            tray_weight=1000,
+        )
+
+        with (
+            patch.object(client, "find_spool_by_tag", AsyncMock(return_value=None)),
+            patch.object(client, "_find_or_create_filament", AsyncMock(return_value=mock_filament)),
+            patch.object(client, "create_spool", AsyncMock(return_value={"id": 99})) as mock_create,
+        ):
+            await client.sync_ams_tray(tray, "TestPrinter")
+
+        extra = mock_create.call_args.kwargs["extra"]
+        assert json.loads(extra["tag"]) == "AABBCCDDEEFF0011AABBCCDDEEFF0011"
+        assert json.loads(extra["bambu_tray_uuid"]) == "AABBCCDDEEFF0011AABBCCDDEEFF0011"
+        assert json.loads(extra["bambu_tag_uid"]) == "2728C17B"
 
     @pytest.mark.asyncio
     async def test_find_spools_by_location_prefix_with_cached_spools(self, client):

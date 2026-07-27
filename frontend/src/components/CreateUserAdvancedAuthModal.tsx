@@ -4,10 +4,11 @@ import { X, Plus, Loader2, Users as UsersIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader } from './Card';
 import { Button } from './Button';
 import { LdapUserPicker } from './LdapUserPicker';
-import type { Group, UserCreate, UserResponse } from '../api/client';
+import type { Group, Printer, UserCreate, UserResponse } from '../api/client';
 
 interface AdvancedAuthFormData extends UserCreate {
   group_ids: number[];
+  allowed_printer_ids?: number[];
   confirmPassword: string;
   email?: string;
 }
@@ -16,6 +17,7 @@ interface CreateUserAdvancedAuthModalProps {
   formData: AdvancedAuthFormData;
   setFormData: (data: AdvancedAuthFormData) => void;
   groups: Group[];
+  printers?: Printer[];
   onClose: () => void;
   onCreate: () => void;
   isCreating: boolean;
@@ -33,6 +35,7 @@ export function CreateUserAdvancedAuthModal({
   formData,
   setFormData,
   groups,
+  printers = [],
   onClose,
   onCreate,
   isCreating,
@@ -60,6 +63,16 @@ export function CreateUserAdvancedAuthModal({
       group_ids: formData.group_ids.includes(groupId)
         ? formData.group_ids.filter(id => id !== groupId)
         : [...formData.group_ids, groupId],
+    });
+  };
+
+  const togglePrinter = (printerId: number) => {
+    const current = formData.allowed_printer_ids ?? [];
+    setFormData({
+      ...formData,
+      allowed_printer_ids: current.includes(printerId)
+        ? current.filter(id => id !== printerId)
+        : [...current, printerId],
     });
   };
 
@@ -197,6 +210,34 @@ export function CreateUserAdvancedAuthModal({
                 {groups.length === 0 && (
                   <p className="text-sm text-bambu-gray">{t('users.noGroupsAvailable')}</p>
                 )}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">
+                {t('users.form.printerScope', 'Printer access')}
+              </label>
+              <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
+                <label className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer">
+                  <Checkbox
+                    checked={!formData.allowed_printer_ids?.length}
+                    onChange={() => setFormData({ ...formData, allowed_printer_ids: undefined })}
+                    className="w-4 h-4 rounded border-bambu-gray text-bambu-green focus:ring-bambu-green focus:ring-offset-0 bg-bambu-dark"
+                  />
+                  <span className="text-sm text-white">{t('users.form.allPrinters', 'All printers')}</span>
+                </label>
+                {printers.map(printer => (
+                  <label
+                    key={printer.id}
+                    className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={formData.allowed_printer_ids?.includes(printer.id) ?? false}
+                      onChange={() => togglePrinter(printer.id)}
+                      className="w-4 h-4 rounded border-bambu-gray text-bambu-green focus:ring-bambu-green focus:ring-offset-0 bg-bambu-dark"
+                    />
+                    <span className="text-sm text-white">{printer.name}</span>
+                  </label>
+                ))}
               </div>
             </div>
           </div>

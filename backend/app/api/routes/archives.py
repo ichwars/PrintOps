@@ -16,7 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.core.auth import (
     RequireCameraStreamTokenIfAuthEnabled,
     RequirePermissionIfAuthEnabled,
+    allowed_printer_ids_for_user,
     require_ownership_permission,
+    user_can_access_printer,
 )
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
@@ -144,7 +146,7 @@ def _ensure_archive_visible(
     """
     if not archive or archive.deleted_at is not None:
         raise HTTPException(404, "Archive not found")
-    if can_read_all:
+    if can_read_all and user_can_access_printer(user, archive.printer_id):
         return archive
     # Auth enabled, caller has _OWN only.
     if user is None:
@@ -153,6 +155,8 @@ def _ensure_archive_visible(
         # non-None when can_read_all is False.
         raise HTTPException(404, "Archive not found")
     if archive.created_by_id is None or archive.created_by_id != user.id:
+        raise HTTPException(404, "Archive not found")
+    if not user_can_access_printer(user, archive.printer_id):
         raise HTTPException(404, "Archive not found")
     return archive
 
@@ -363,6 +367,7 @@ async def list_archives(
     """List archived prints."""
     user, can_read_all = auth_result
     visible_to_user_id = user.id if (user is not None and not can_read_all) else None
+    allowed_printer_ids = allowed_printer_ids_for_user(user)
     service = ArchiveService(db)
     archives = await service.list_archives(
         printer_id=printer_id,
@@ -372,6 +377,7 @@ async def list_archives(
         limit=limit,
         offset=offset,
         visible_to_user_id=visible_to_user_id,
+        allowed_printer_ids=allowed_printer_ids,
     )
 
     # Get sets of duplicate hashes and duplicate (name, hash) pairs (efficient single queries)
@@ -1173,12 +1179,14 @@ async def get_archive_stats(
 
     total_energy_kwh: float = 0.0
     total_energy_cost: float = 0.0
+    energy_source: str | None = None
     energy_data_warming_up = False
 
     if energy_tracking_mode == "total" and not date_from and not date_to:
         # All-time total consumption — read live lifetime counters.
         total_energy_kwh = await _sum_live_plug_totals(db)
         total_energy_cost = total_energy_kwh * energy_cost_per_kwh
+        energy_source = "smart_plug_live"
     elif energy_tracking_mode == "total":
         # Total consumption mode with a date filter (#941): use hourly snapshots
         # to compute per-plug (endpoint - baseline) deltas.
@@ -1188,6 +1196,7 @@ async def get_archive_stats(
             dt_to=(datetime.combine(date_to, time.max, tzinfo=timezone.utc) if date_to else None),
         )
         total_energy_cost = total_energy_kwh * energy_cost_per_kwh
+        energy_source = "smart_plug_snapshots"
     else:
         # Per-print mode: sum the per-run energy column from PrintLogEntry.
         energy_kwh_result = await db.execute(select(func.sum(PrintLogEntry.energy_kwh)).where(*base_conditions))
@@ -1195,6 +1204,7 @@ async def get_archive_stats(
 
         energy_cost_result = await db.execute(select(func.sum(PrintLogEntry.energy_cost)).where(*base_conditions))
         total_energy_cost = energy_cost_result.scalar() or 0
+        energy_source = "print_logs"
 
     return ArchiveStats(
         total_prints=total_prints,
@@ -1210,6 +1220,7 @@ async def get_archive_stats(
         time_accuracy_by_printer=accuracy_by_printer if accuracy_by_printer else None,
         total_energy_kwh=round(total_energy_kwh, 3),
         total_energy_cost=round(total_energy_cost, 3),
+        energy_source=energy_source,
         energy_data_warming_up=energy_data_warming_up,
     )
 

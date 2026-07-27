@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -28,6 +29,9 @@ from backend.app.models.spool import Spool
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spool_catalog import SpoolCatalogEntry
 from backend.app.models.spool_k_profile import SpoolKProfile
+from backend.app.models.spool_refill_event import SpoolRefillEvent
+from backend.app.models.spool_usage_history import SpoolUsageHistory
+from backend.app.models.stock_reservation import StockReservationAllocation
 from backend.app.models.user import User
 from backend.app.schemas.location import LocationCreate, LocationResponse, LocationUpdate
 from backend.app.schemas.spool import (
@@ -397,6 +401,11 @@ class CatalogEntryUpdate(BaseModel):
 
 class BulkDeleteIdsRequest(BaseModel):
     ids: list[int]
+
+
+class SpoolRefillRequest(BaseModel):
+    added_weight: float = Field(..., gt=0, le=100_000)
+    note: str | None = Field(default=None, max_length=500)
 
 
 # ── Color Catalog Schemas ──────────────────────────────────────────────────
@@ -1431,6 +1440,39 @@ async def restore_spool(
     return result.scalar_one()
 
 
+@router.post("/spools/{spool_id}/refill", response_model=SpoolResponse)
+async def refill_spool(
+    spool_id: int,
+    data: SpoolRefillRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+):
+    """Record a refill and reduce the spool's consumed weight."""
+    result = await db.execute(select(Spool).where(Spool.id == spool_id))
+    spool = result.scalar_one_or_none()
+    if not spool:
+        raise HTTPException(404, "Spool not found")
+
+    before = float(spool.weight_used or 0)
+    after = max(0.0, before - data.added_weight)
+    spool.weight_used = after
+    spool.weight_locked = True
+    db.add(
+        SpoolRefillEvent(
+            spool_id=spool.id,
+            before_weight_used=before,
+            after_weight_used=after,
+            added_weight=data.added_weight,
+            note=data.note,
+            created_by_id=current_user.id if current_user else None,
+        )
+    )
+    await db.commit()
+    result = await db.execute(select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id == spool_id))
+    await ws_manager.broadcast({"type": "inventory_changed"})
+    return result.scalar_one()
+
+
 @router.post("/spools/{spool_id}/reset-consumed-counter", response_model=SpoolResponse)
 async def reset_spool_consumed_counter(
     spool_id: int,
@@ -1498,6 +1540,12 @@ class BulkUpdateRequest(BaseModel):
 
 class BulkIdsRequest(BaseModel):
     ids: list[int] = Field(..., min_length=1, max_length=500)
+
+
+class SpoolMergeRequest(BaseModel):
+    target_id: int = Field(..., gt=0)
+    source_ids: list[int] = Field(..., min_length=1, max_length=500)
+    archive_sources: bool = True
 
 
 @router.post("/spools/bulk-update")
@@ -1609,6 +1657,90 @@ async def bulk_restore_spools(
     if restored:
         await ws_manager.broadcast({"type": "inventory_changed"})
     return {"restored": len(restored), "already_active": already, "not_found": not_found}
+
+
+@router.post("/spools/merge")
+async def merge_spools(
+    payload: SpoolMergeRequest,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+):
+    """Merge duplicate local spools into a chosen target spool.
+
+    The target spool remains the canonical row. Dependent records are reassigned
+    and source rows are soft-archived by default, so history stays inspectable
+    and foreign keys remain intact.
+    """
+    source_ids = list(dict.fromkeys(payload.source_ids))
+    if payload.target_id in source_ids:
+        raise HTTPException(status_code=400, detail="target_id cannot be included in source_ids")
+
+    requested_ids = [payload.target_id, *source_ids]
+    result = await db.execute(select(Spool).where(Spool.id.in_(requested_ids)))
+    spools = {spool.id: spool for spool in result.scalars().all()}
+    missing = [sid for sid in requested_ids if sid not in spools]
+    if missing:
+        raise HTTPException(status_code=404, detail={"missing": missing})
+
+    target = spools[payload.target_id]
+    sources = [spools[sid] for sid in source_ids]
+
+    reassigned: dict[str, int] = {}
+    for model, name in (
+        (SpoolUsageHistory, "usage_history"),
+        (SpoolAssignment, "assignments"),
+        (SpoolKProfile, "k_profiles"),
+        (StockReservationAllocation, "stock_allocations"),
+    ):
+        rows = (
+            (
+                await db.execute(
+                    select(model).where(model.spool_id.in_(source_ids))  # type: ignore[attr-defined]
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for row in rows:
+            row.spool_id = target.id
+        reassigned[name] = len(rows)
+
+    max_weight_used = max([float(target.weight_used or 0), *[float(source.weight_used or 0) for source in sources]])
+    max_baseline = max(
+        [float(target.weight_used_baseline or 0), *[float(source.weight_used_baseline or 0) for source in sources]]
+    )
+    target.weight_used = max_weight_used
+    target.weight_used_baseline = max_baseline
+    target.weight_locked = target.weight_locked or any(bool(source.weight_locked) for source in sources)
+    target.last_used = max(
+        [value for value in [target.last_used, *[source.last_used for source in sources]] if value is not None],
+        default=target.last_used,
+    )
+    for field_name in ("tag_uid", "tray_uuid", "data_origin", "tag_type", "encode_time", "cost_per_kg"):
+        if getattr(target, field_name) is None:
+            for source in sources:
+                source_value = getattr(source, field_name)
+                if source_value is not None:
+                    setattr(target, field_name, source_value)
+                    break
+
+    archived_ids: list[int] = []
+    if payload.archive_sources:
+        now = datetime.now(timezone.utc)
+        for source in sources:
+            if source.archived_at is None:
+                source.archived_at = now
+            archived_ids.append(source.id)
+
+    await db.commit()
+    await ws_manager.broadcast({"type": "inventory_changed"})
+    return {
+        "target_id": target.id,
+        "merged": len(sources),
+        "source_ids": source_ids,
+        "archived": archived_ids,
+        "reassigned": reassigned,
+    }
 
 
 # ── K-Profiles ───────────────────────────────────────────────────────────────

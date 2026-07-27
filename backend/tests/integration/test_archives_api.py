@@ -80,6 +80,59 @@ class TestArchivesAPI:
         data = response.json()
         assert all(a["printer_id"] == printer1.id for a in data)
 
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_list_archives_respects_user_printer_scope(
+        self, async_client: AsyncClient, archive_factory, printer_factory, db_session
+    ):
+        """A user's printer scope narrows archive visibility after permissions."""
+        await async_client.post(
+            "/api/v1/auth/setup",
+            json={
+                "auth_enabled": True,
+                "admin_username": "archive_scope_admin",
+                "admin_password": "AdminPass1!",
+            },
+        )
+        admin_login = await async_client.post(
+            "/api/v1/auth/login",
+            json={"username": "archive_scope_admin", "password": "AdminPass1!"},
+        )
+        admin_token = admin_login.json()["access_token"]
+
+        printer_a = await printer_factory(name="Archive Scoped A")
+        printer_b = await printer_factory(name="Archive Scoped B")
+        archive_a = await archive_factory(printer_a.id, print_name="Visible Archive")
+        archive_b = await archive_factory(printer_b.id, print_name="Hidden Archive")
+
+        created = await async_client.post(
+            "/api/v1/users/",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "username": "archive_scope_user",
+                "password": "ScopedPass1!",
+                "role": "admin",
+                "allowed_printer_ids": [printer_a.id],
+            },
+        )
+        assert created.status_code == 201, created.text
+
+        scoped_login = await async_client.post(
+            "/api/v1/auth/login",
+            json={"username": "archive_scope_user", "password": "ScopedPass1!"},
+        )
+        scoped_token = scoped_login.json()["access_token"]
+
+        response = await async_client.get(
+            "/api/v1/archives/",
+            headers={"Authorization": f"Bearer {scoped_token}"},
+        )
+
+        assert response.status_code == 200, response.text
+        ids = {item["id"] for item in response.json()}
+        assert archive_a.id in ids
+        assert archive_b.id not in ids
+
     # ========================================================================
     # Get single endpoint
     # ========================================================================

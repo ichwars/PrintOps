@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, JSON, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.core.database import Base
@@ -38,6 +38,10 @@ class User(Base):
     # Set whenever the local password is changed/reset — used to invalidate JWTs
     # issued before the change (M-R7-B).  NULL means no password change recorded yet.
     password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # NULL means all printers. A non-empty JSON list narrows printer-bound
+    # resources after the regular Own/All permission check.
+    allowed_printer_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     # Per-user Bambu Cloud credentials (when auth is enabled, each user has their own)
     cloud_token: Mapped[str | None] = mapped_column(String(500), nullable=True, default=None)

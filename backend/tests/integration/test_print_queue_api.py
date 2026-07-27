@@ -108,6 +108,57 @@ class TestPrintQueueAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_list_queue_respects_user_printer_scope(
+        self, async_client: AsyncClient, printer_factory, queue_item_factory
+    ):
+        """A user's printer scope narrows queue visibility after permissions."""
+        await async_client.post(
+            "/api/v1/auth/setup",
+            json={
+                "auth_enabled": True,
+                "admin_username": "scopeadmin",
+                "admin_password": "AdminPass1!",
+            },
+        )
+        admin_login = await async_client.post(
+            "/api/v1/auth/login",
+            json={"username": "scopeadmin", "password": "AdminPass1!"},
+        )
+        admin_token = admin_login.json()["access_token"]
+
+        printer_a = await printer_factory(name="Scoped Printer A")
+        printer_b = await printer_factory(name="Scoped Printer B")
+        await queue_item_factory(printer_id=printer_a.id)
+        await queue_item_factory(printer_id=printer_b.id)
+
+        scoped_user = await async_client.post(
+            "/api/v1/users/",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "username": "queue_scope_user",
+                "password": "ScopedPass1!",
+                "role": "admin",
+                "allowed_printer_ids": [printer_a.id],
+            },
+        )
+        assert scoped_user.status_code == 201, scoped_user.text
+
+        scoped_login = await async_client.post(
+            "/api/v1/auth/login",
+            json={"username": "queue_scope_user", "password": "ScopedPass1!"},
+        )
+        scoped_token = scoped_login.json()["access_token"]
+
+        response = await async_client.get(
+            "/api/v1/queue/",
+            headers={"Authorization": f"Bearer {scoped_token}"},
+        )
+
+        assert response.status_code == 200, response.text
+        assert {item["printer_id"] for item in response.json()} == {printer_a.id}
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_add_to_queue(self, async_client: AsyncClient, printer_factory, archive_factory, db_session):
         """Verify item can be added to queue."""
         printer = await printer_factory()

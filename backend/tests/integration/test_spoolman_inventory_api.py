@@ -4,11 +4,15 @@ These tests verify that /api/v1/spoolman/inventory/spools/* correctly
 translates between Spoolman's data model and PrintOps's InventorySpool format.
 """
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
 from httpx import AsyncClient
+from sqlalchemy import select
+
+from backend.app.models.spool_refill_event import SpoolRefillEvent
 
 # ---------------------------------------------------------------------------
 # Shared fixtures
@@ -175,6 +179,36 @@ class TestSpoolmanInventoryMapping:
         response = await async_client.get("/api/v1/spoolman/inventory/spools?include_archived=true")
         spool = response.json()[0]
         assert spool["archived_at"] is not None
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_refill_patches_used_weight_and_records_event(
+        self,
+        async_client: AsyncClient,
+        spoolman_settings,
+        mock_spoolman_client,
+        db_session,
+    ):
+        updated = {**SAMPLE_SPOOLMAN_SPOOL, "used_weight": 0.0, "remaining_weight": 1000.0}
+        mock_spoolman_client.update_spool_full = AsyncMock(return_value=updated)
+
+        response = await async_client.post(
+            "/api/v1/spoolman/inventory/spools/42/refill",
+            json={"added_weight": 500, "note": "cardboard refill"},
+        )
+
+        assert response.status_code == 200, response.text
+        mock_spoolman_client.update_spool_full.assert_awaited_once_with(spool_id=42, used_weight=0.0)
+        events = (
+            (await db_session.execute(select(SpoolRefillEvent).where(SpoolRefillEvent.external_spool_id == "42")))
+            .scalars()
+            .all()
+        )
+        assert len(events) == 1
+        assert events[0].before_weight_used == 250.0
+        assert events[0].after_weight_used == 0.0
+        assert events[0].added_weight == 500.0
+        assert events[0].note == "cardboard refill"
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -1984,6 +2018,29 @@ class TestLinkTagDuplicate:
         )
         assert resp.status_code == 200
         mock_spoolman_client.update_spool_full.assert_called_once()
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_link_tag_preserves_tray_uuid_and_tag_uid(
+        self, async_client: AsyncClient, spoolman_settings, mock_spoolman_client
+    ):
+        tray_uuid = "11223344556677889900AABBCCDDEEFF"
+        tag_uid = "2728C17B"
+
+        resp = await async_client.patch(
+            "/api/v1/spoolman/inventory/spools/42/tag",
+            json={"tray_uuid": tray_uuid, "tag_uid": tag_uid},
+        )
+
+        assert resp.status_code == 200
+        kwargs = mock_spoolman_client.update_spool_full.call_args.kwargs
+        extra = kwargs["extra"]
+        assert json.loads(extra["tag"]) == tray_uuid
+        assert json.loads(extra["bambu_tray_uuid"]) == tray_uuid
+        assert json.loads(extra["bambu_tag_uid"]) == tag_uid
+        mock_spoolman_client.ensure_extra_field.assert_any_call("tag")
+        mock_spoolman_client.ensure_extra_field.assert_any_call("bambu_tray_uuid")
+        mock_spoolman_client.ensure_extra_field.assert_any_call("bambu_tag_uid")
 
     @pytest.mark.asyncio
     @pytest.mark.integration

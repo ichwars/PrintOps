@@ -531,6 +531,8 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [bulkConfirmAction, setBulkConfirmAction] = useState<'delete' | 'archive' | 'restore' | 'reset-consumed-counter' | null>(null);
+  const [mergingSpools, setMergingSpools] = useState(false);
+  const [refillingSpoolId, setRefillingSpoolId] = useState<number | null>(null);
   const toggleSelected = useCallback((id: number) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -942,6 +944,58 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
       if (is404) showToast(t('inventory.syncWeightSpoolNotFound'), 'error');
       else if (is503) showToast(t('inventory.syncWeightSpoolmanUnreachable'), 'error');
       else showToast(t('inventory.syncWeightFailed'), 'error');
+    }
+  };
+
+  const handleRefillSpool = async (spool: InventorySpool) => {
+    const defaultAmount = Math.max(1, Math.round(spool.label_weight - Math.max(0, spool.label_weight - spool.weight_used)));
+    const input = window.prompt(
+      t('inventory.refillPrompt', { id: spool.id, defaultValue: 'Added refill weight in grams' }),
+      String(defaultAmount),
+    );
+    if (input == null) return;
+    const addedWeight = Number(input.replace(',', '.'));
+    if (!Number.isFinite(addedWeight) || addedWeight <= 0) {
+      showToast(t('inventory.refillInvalidWeight', 'Enter a weight greater than 0g'), 'error');
+      return;
+    }
+    try {
+      setRefillingSpoolId(spool.id);
+      if (spoolmanMode) await api.refillSpoolmanInventorySpool(spool.id, { added_weight: addedWeight });
+      else await api.refillSpool(spool.id, { added_weight: addedWeight });
+      refreshSpoolQueries();
+      showToast(t('inventory.refillSuccess', 'Spool refill recorded'), 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : t('inventory.refillFailed', 'Spool refill failed'), 'error');
+    } finally {
+      setRefillingSpoolId(null);
+    }
+  };
+
+  const handleMergeSelected = async () => {
+    const ids = [...selectedIds];
+    if (ids.length < 2 || spoolmanMode) return;
+    const input = window.prompt(
+      t('inventory.bulk.mergeTargetPrompt', { ids: ids.join(', '), defaultValue: 'Target spool ID' }),
+      String(ids[0]),
+    );
+    if (input == null) return;
+    const targetId = Number(input);
+    if (!Number.isInteger(targetId) || !selectedIds.has(targetId)) {
+      showToast(t('inventory.bulk.mergeInvalidTarget', 'Choose one of the selected spool IDs as target'), 'error');
+      return;
+    }
+    const sourceIds = ids.filter((id) => id !== targetId);
+    try {
+      setMergingSpools(true);
+      const result = await api.mergeSpools(targetId, sourceIds);
+      refreshSpoolQueries();
+      clearSelection();
+      showToast(t('inventory.bulk.mergeSuccess', { count: result.merged, defaultValue: 'Spools merged' }), 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : t('inventory.bulk.mergeFailed', 'Merge failed'), 'error');
+    } finally {
+      setMergingSpools(false);
     }
   };
 
@@ -1839,6 +1893,12 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
               <Eraser className="w-3.5 h-3.5 mr-1.5" />
               {t('inventory.bulk.resetUsage')}
             </Button>
+            {!spoolmanMode && selectedIds.size > 1 && (
+              <Button size="sm" variant="secondary" onClick={handleMergeSelected} disabled={mergingSpools}>
+                {mergingSpools ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Group className="w-3.5 h-3.5 mr-1.5" />}
+                {t('inventory.bulk.merge', 'Merge')}
+              </Button>
+            )}
             {archiveFilter === 'archived' ? (
               <Button size="sm" variant="secondary" onClick={() => setBulkConfirmAction('restore')}>
                 <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
@@ -1941,6 +2001,8 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                                 onClick={() => setFormModal({ spool, mode: 'edit' })}
                                 onPrintLabel={() => setLabelPickerSpoolIds([spool.id])}
                                 onCopy={() => setFormModal({ spool: spool, mode: 'copy' })}
+                                onRefill={() => handleRefillSpool(spool)}
+                                refilling={refillingSpoolId === spool.id}
                                 t={t}
                               />
                             );
@@ -1962,6 +2024,8 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                     onClick={() => setFormModal({ spool, mode: 'edit' })}
                     onPrintLabel={() => setLabelPickerSpoolIds([spool.id])}
                     onCopy={() => setFormModal({ spool: spool, mode: 'copy' })}
+                    onRefill={() => handleRefillSpool(spool)}
+                    refilling={refillingSpoolId === spool.id}
                     t={t}
                   />
                 );
@@ -2083,6 +2147,8 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                           onDelete={(id) => setConfirmAction({ type: 'delete', spoolId: id })}
                           onPrintLabel={(id) => setLabelPickerSpoolIds([id])}
                           onResetConsumedCounter={(id) => setConfirmAction({ type: 'reset-consumed-counter', spoolId: id })}
+                          onRefill={(spool) => handleRefillSpool(spool)}
+                          refillingSpoolId={refillingSpoolId}
                           visibleColumns={visibleColumns}
                           assignmentMap={assignmentMap}
                           catalogMap={catalogMap}
@@ -2111,6 +2177,8 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                         onDelete={() => setConfirmAction({ type: 'delete', spoolId: spool.id })}
                         onPrintLabel={() => setLabelPickerSpoolIds([spool.id])}
                         onResetConsumedCounter={() => setConfirmAction({ type: 'reset-consumed-counter', spoolId: spool.id })}
+                        onRefill={() => handleRefillSpool(spool)}
+                        refilling={refillingSpoolId === spool.id}
                         visibleColumns={visibleColumns}
                         assignmentMap={assignmentMap}
                         catalogMap={catalogMap}
@@ -2417,7 +2485,7 @@ function PaginationBar({
 
 /* Spool card for cards view */
 function SpoolCard({
-  spool, remaining, pct, onClick, onPrintLabel, onCopy, t,
+  spool, remaining, pct, onClick, onPrintLabel, onCopy, onRefill, refilling, t,
 }: {
   spool: InventorySpool;
   remaining: number;
@@ -2425,6 +2493,8 @@ function SpoolCard({
   onClick: () => void;
   onPrintLabel?: () => void;
   onCopy?: () => void;
+  onRefill?: () => void;
+  refilling?: boolean;
   t: (key: string, opts?: Record<string, unknown>) => string;
 }) {
   const bannerStyle = buildFilamentBackground({
@@ -2471,6 +2541,17 @@ function SpoolCard({
                 aria-label={t('inventory.labels.printOne')}
               >
                 <Printer className="w-4 h-4" />
+              </button>
+            )}
+            {onRefill && !spool.archived_at && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onRefill(); }}
+                disabled={!!refilling}
+                className="p-1 text-bambu-gray hover:text-bambu-green rounded transition-colors disabled:opacity-50"
+                title={t('inventory.refill')}
+                aria-label={t('inventory.refill')}
+              >
+                {refilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
               </button>
             )}
             <span className="text-xs font-mono text-bambu-gray bg-bambu-dark-tertiary px-2 py-1 rounded">
@@ -2523,7 +2604,7 @@ function SpoolCard({
 /* Single spool row for table view */
 function SpoolTableRow({
   spool, remaining, pct, isSelected, onToggleSelected,
-  onEdit, onCopy, onRestore, onArchive, onDelete, onPrintLabel, onResetConsumedCounter,
+  onEdit, onCopy, onRestore, onArchive, onDelete, onPrintLabel, onResetConsumedCounter, onRefill, refilling,
   visibleColumns, assignmentMap, catalogMap, currencySymbol, dateFormat, t, onSyncWeight,
 }: {
   spool: InventorySpool;
@@ -2538,6 +2619,8 @@ function SpoolTableRow({
   onDelete: () => void;
   onPrintLabel?: () => void;
   onResetConsumedCounter?: () => void;
+  onRefill?: () => void;
+  refilling?: boolean;
   visibleColumns: string[];
   assignmentMap: Record<number, LocationDisplay>;
   catalogMap: Record<number, SpoolCatalogEntry>;
@@ -2591,6 +2674,16 @@ function SpoolTableRow({
               <Eraser className="w-4 h-4" />
             </button>
           )}
+          {onRefill && !spool.archived_at && (
+            <button
+              onClick={onRefill}
+              disabled={!!refilling}
+              className="p-1.5 text-bambu-gray hover:text-bambu-green rounded transition-colors disabled:opacity-50"
+              title={t('inventory.refill')}
+            >
+              {refilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            </button>
+          )}
           {spool.archived_at ? (
             <button onClick={onRestore} className="p-1.5 text-bambu-gray hover:text-bambu-green rounded transition-colors" title={t('inventory.restore')}>
               <RotateCcw className="w-4 h-4" />
@@ -2612,7 +2705,7 @@ function SpoolTableRow({
 /* Grouped spool rows for table view */
 function SpoolTableGroup({
   spools, headerSpool, remaining, pct, isExpanded, onToggle,
-  onEdit, onCopy, onArchive, onDelete, onPrintLabel, onResetConsumedCounter,
+  onEdit, onCopy, onArchive, onDelete, onPrintLabel, onResetConsumedCounter, onRefill, refillingSpoolId,
   visibleColumns, assignmentMap, catalogMap, currencySymbol, dateFormat, t, onSyncWeight,
   selectedIds, onToggleSelected, onToggleGroupSelected,
 }: {
@@ -2630,6 +2723,8 @@ function SpoolTableGroup({
   onDelete: (id: number) => void;
   onPrintLabel?: (spoolId: number) => void;
   onResetConsumedCounter?: (id: number) => void;
+  onRefill?: (spool: InventorySpool) => void;
+  refillingSpoolId?: number | null;
   visibleColumns: string[];
   assignmentMap: Record<number, LocationDisplay>;
   catalogMap: Record<number, SpoolCatalogEntry>;
@@ -2699,6 +2794,8 @@ function SpoolTableGroup({
             onDelete={() => onDelete(spool.id)}
             onPrintLabel={onPrintLabel ? () => onPrintLabel(spool.id) : undefined}
             onResetConsumedCounter={onResetConsumedCounter ? () => onResetConsumedCounter(spool.id) : undefined}
+            onRefill={onRefill ? () => onRefill(spool) : undefined}
+            refilling={refillingSpoolId === spool.id}
             visibleColumns={visibleColumns}
             assignmentMap={assignmentMap}
             catalogMap={catalogMap}
