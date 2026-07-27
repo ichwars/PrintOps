@@ -7246,6 +7246,9 @@ export interface LibraryFileListItem {
   created_by_id: number | null;
   created_by_username: string | null;
   created_at: string;
+  // Real on-disk modification time (#2680). Null for managed uploads; the date
+  // sort and "Modified" column use `fs_modified_at ?? created_at`.
+  fs_modified_at: string | null;
   print_name: string | null;
   print_time_seconds: number | null;
   filament_used_grams: number | null;

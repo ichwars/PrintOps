@@ -50,6 +50,7 @@ import {
   Weight,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   List,
   GanttChart,
   Code,
@@ -311,6 +312,8 @@ function SortableQueueItem({
   onStop,
   onRequeue,
   onStart,
+  onMoveUp,
+  onMoveDown,
   timeFormat = 'system',
   isSelected = false,
   onToggleSelect,
@@ -327,6 +330,11 @@ function SortableQueueItem({
   onStop: () => void;
   onRequeue: () => void;
   onStart: () => void;
+  // Mobile tap-to-reorder (#2667). Undefined = at a list boundary (button
+  // shown disabled) or reordering isn't available; the desktop drag handle
+  // is unaffected. Move one step among siblings, then persist via reorder.
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   timeFormat?: TimeFormat;
   isSelected?: boolean;
   onToggleSelect?: () => void;
@@ -415,6 +423,37 @@ function SortableQueueItem({
       )}
 
       <div className="flex items-start sm:items-center gap-2 sm:gap-4 p-3 sm:p-4">
+        {/* Mobile reorder arrows (#2667). The desktop drag handle is hidden on
+            phones and touch-drag is unreliable there, so pending rows get
+            tap-to-move up/down controls instead. Shown only below `sm`. */}
+        {isPending && (onMoveUp || onMoveDown) && (
+          <div
+            className="flex sm:hidden flex-col shrink-0 -my-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={onMoveUp}
+              disabled={!onMoveUp}
+              title={t('queue.moveUp')}
+              aria-label={t('queue.moveUp')}
+              className="flex items-center justify-center w-8 h-7 rounded-lg text-bambu-gray hover:text-white hover:bg-bambu-dark disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+            >
+              <ChevronUp className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={!onMoveDown}
+              title={t('queue.moveDown')}
+              aria-label={t('queue.moveDown')}
+              className="flex items-center justify-center w-8 h-7 rounded-lg text-bambu-gray hover:text-white hover:bg-bambu-dark disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+            >
+              <ChevronDown className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
         {/* Mobile selection indicator — left accent bar only, no tick */}
 
         {/* Selection checkbox for pending items - hidden on mobile, tap card instead */}
@@ -439,7 +478,7 @@ function SortableQueueItem({
           <div
             {...attributes}
             {...listeners}
-            className="hidden sm:flex items-center justify-center w-8 h-8 rounded-lg bg-bambu-dark cursor-grab active:cursor-grabbing hover:bg-bambu-dark-tertiary transition-colors touch-manipulation shrink-0"
+            className="hidden sm:flex items-center justify-center w-8 h-8 rounded-lg bg-bambu-dark cursor-grab active:cursor-grabbing hover:bg-bambu-dark-tertiary transition-colors touch-none shrink-0"
           >
             <GripVertical className="w-4 h-4 text-bambu-gray" />
           </div>
@@ -770,6 +809,13 @@ interface QueueRowRenderProps {
   canModify: (resource: any, action: any, createdById?: number | null) => boolean;
   t: (key: string, options?: Record<string, unknown>) => string;
   aggregateForRows: (rows: QueueRow[]) => { count: number; time: number; weight: number };
+  // Mobile tap-to-reorder (#2667). onMoveUp/onMoveDown move this whole row
+  // (single item or batch) one step among its siblings; onMoveBlock is the
+  // low-level primitive SortableBatchRow uses to move a child within the
+  // batch. All undefined when reordering isn't available (non-manual sort).
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onMoveBlock?: (movingIds: number[], anchorId: number, placeAfter: boolean) => void;
 }
 
 /** Renders either a single item or a collapsible batch group containing N
@@ -787,6 +833,8 @@ function QueueRowRender(props: QueueRowRenderProps) {
     hasPermission,
     canModify,
     t,
+    onMoveUp,
+    onMoveDown,
   } = props;
 
   if (row.kind === 'item') {
@@ -799,6 +847,8 @@ function QueueRowRender(props: QueueRowRenderProps) {
         onStop={() => {}}
         onRequeue={() => {}}
         onStart={() => startMutation.mutate({ id: row.item.id })}
+        onMoveUp={onMoveUp}
+        onMoveDown={onMoveDown}
         timeFormat={timeFormat}
         isSelected={selectedItems.includes(row.item.id)}
         onToggleSelect={() => handleToggleSelect(row.item.id)}
@@ -830,6 +880,9 @@ function SortableBatchRow({
   canModify,
   t,
   aggregateForRows,
+  onMoveUp,
+  onMoveDown,
+  onMoveBlock,
 }: QueueRowRenderProps) {
   // Dispatcher (QueueRowRender) only mounts this with row.kind === 'batch';
   // narrow up-front so the hook below can reference batchId unconditionally.
@@ -872,6 +925,32 @@ function SortableBatchRow({
     >
       {/* Parent header */}
       <div className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4">
+        {/* Mobile reorder arrows for the whole group (#2667), mirroring the
+            desktop drag handle which is hidden on phones. */}
+        {canReorder && (onMoveUp || onMoveDown) && (
+          <div className="flex sm:hidden flex-col shrink-0 -my-1">
+            <button
+              type="button"
+              onClick={onMoveUp}
+              disabled={!onMoveUp}
+              title={t('queue.moveUp')}
+              aria-label={t('queue.moveUp')}
+              className="flex items-center justify-center w-8 h-7 rounded-lg text-bambu-gray hover:text-white hover:bg-bambu-dark disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+            >
+              <ChevronUp className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={!onMoveDown}
+              title={t('queue.moveDown')}
+              aria-label={t('queue.moveDown')}
+              className="flex items-center justify-center w-8 h-7 rounded-lg text-bambu-gray hover:text-white hover:bg-bambu-dark disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+            >
+              <ChevronDown className="w-5 h-5" />
+            </button>
+          </div>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -896,7 +975,7 @@ function SortableBatchRow({
           <div
             {...attributes}
             {...listeners}
-            className="hidden sm:flex items-center justify-center w-8 h-8 rounded-lg bg-bambu-dark cursor-grab active:cursor-grabbing hover:bg-bambu-dark-tertiary transition-colors touch-manipulation shrink-0"
+            className="hidden sm:flex items-center justify-center w-8 h-8 rounded-lg bg-bambu-dark cursor-grab active:cursor-grabbing hover:bg-bambu-dark-tertiary transition-colors touch-none shrink-0"
             title={t('queue.batch.dragGroup', { defaultValue: 'Drag group' })}
           >
             <GripVertical className="w-4 h-4 text-bambu-gray" />
@@ -966,7 +1045,7 @@ function SortableBatchRow({
       {/* Children (only when expanded) */}
       {!collapsed && (
         <div className="border-t border-bambu-dark-tertiary bg-black/20 p-2 sm:p-3 space-y-2">
-          {batchRow.items.map((child) => (
+          {batchRow.items.map((child, ci) => (
             <SortableQueueItem
               key={child.id}
               item={child}
@@ -976,6 +1055,16 @@ function SortableBatchRow({
               onStop={() => {}}
               onRequeue={() => {}}
               onStart={() => startMutation.mutate({ id: child.id })}
+              onMoveUp={
+                onMoveBlock && ci > 0
+                  ? () => onMoveBlock([child.id], batchRow.items[ci - 1].id, false)
+                  : undefined
+              }
+              onMoveDown={
+                onMoveBlock && ci < batchRow.items.length - 1
+                  ? () => onMoveBlock([child.id], batchRow.items[ci + 1].id, true)
+                  : undefined
+              }
               timeFormat={timeFormat}
               isSelected={selectedItems.includes(child.id)}
               onToggleSelect={() => handleToggleSelect(child.id)}
@@ -1785,6 +1874,68 @@ export function QueuePage() {
     return rows;
   }, [pendingItems, t]);
 
+  // Mobile tap-to-reorder (#2667). The desktop drag handle is hidden on
+  // phones and touch-drag is unreliable, so pending rows get up/down arrows.
+  // Reordering only has a defined meaning in the manual "position" sort with
+  // SJF off — any other sort re-orders the list itself, so we don't offer it.
+  const canReorderManually =
+    hasPermission('queue:reorder') &&
+    pendingSortBy === 'position' &&
+    !settings?.queue_shortest_first;
+
+  const rowItemIds = (row: QueueRow): number[] =>
+    row.kind === 'item' ? [row.item.id] : row.items.map((i) => i.id);
+
+  // Move a block of items to sit immediately before (or after) an anchor item
+  // in the global pending order, then persist — the same remove-and-reinsert
+  // shape as handleDragEnd, so arrows and drag agree. Anchoring to a real item
+  // id keeps it correct in the printer-grouped layout, where a bucket's rows
+  // aren't contiguous in the global order.
+  const moveBlockRelativeTo = (
+    movingIds: number[],
+    anchorId: number,
+    placeAfter: boolean,
+  ) => {
+    const remaining = pendingItems.filter((i) => !movingIds.includes(i.id));
+    let insertAt = remaining.findIndex((i) => i.id === anchorId);
+    if (insertAt === -1) return;
+    if (placeAfter) insertAt += 1;
+    const movingItems = movingIds
+      .map((id) => pendingItems.find((i) => i.id === id))
+      .filter((x): x is PrintQueueItem => !!x);
+    const reordered = [
+      ...remaining.slice(0, insertAt),
+      ...movingItems,
+      ...remaining.slice(insertAt),
+    ];
+    reorderMutation.mutate(
+      reordered.map((item, index) => ({ id: item.id, position: index + 1 })),
+    );
+  };
+
+  // Build up/down thunks for the row at `idx` within its displayed sibling
+  // list (the flat list, or a single printer bucket). Undefined at a boundary
+  // (button rendered disabled) or when manual reorder isn't available.
+  const rowMovers = (
+    rows: QueueRow[],
+    idx: number,
+  ): { onMoveUp?: () => void; onMoveDown?: () => void } => {
+    if (!canReorderManually) return {};
+    const moving = rowItemIds(rows[idx]);
+    const onMoveUp =
+      idx > 0
+        ? () => moveBlockRelativeTo(moving, rowItemIds(rows[idx - 1])[0], false)
+        : undefined;
+    const onMoveDown =
+      idx < rows.length - 1
+        ? () => {
+            const next = rowItemIds(rows[idx + 1]);
+            moveBlockRelativeTo(moving, next[next.length - 1], true);
+          }
+        : undefined;
+    return { onMoveUp, onMoveDown };
+  };
+
   // SortableContext ID list.
   // - Standalone pending items: their numeric id.
   // - Batch parents: the synthetic `batch-<id>` string, always present so the
@@ -2328,7 +2479,7 @@ export function QueuePage() {
                 >
                   {activeLayout === 'position' ? (
                     <div className="space-y-2 sm:space-y-3">
-                      {groupedRows.map((row) => (
+                      {groupedRows.map((row, idx) => (
                         <QueueRowRender
                           key={row.kind === 'item' ? `item-${row.item.id}` : `batch-${row.batchId}`}
                           row={row}
@@ -2345,6 +2496,8 @@ export function QueuePage() {
                           canModify={canModify}
                           t={t}
                           aggregateForRows={aggregateForRows}
+                          {...rowMovers(groupedRows, idx)}
+                          onMoveBlock={canReorderManually ? moveBlockRelativeTo : undefined}
                         />
                       ))}
                     </div>
@@ -2364,7 +2517,7 @@ export function QueuePage() {
                               </span>
                             </div>
                             <div className="bg-bambu-dark/40 border border-t-0 border-bambu-dark-tertiary rounded-b-lg p-2 space-y-2">
-                              {bucket.rows.map((row) => (
+                              {bucket.rows.map((row, idx) => (
                                 <QueueRowRender
                                   key={row.kind === 'item' ? `item-${row.item.id}` : `batch-${row.batchId}`}
                                   row={row}
@@ -2381,6 +2534,8 @@ export function QueuePage() {
                                   canModify={canModify}
                                   t={t}
                                   aggregateForRows={aggregateForRows}
+                                  {...rowMovers(bucket.rows, idx)}
+                                  onMoveBlock={canReorderManually ? moveBlockRelativeTo : undefined}
                                 />
                               ))}
                             </div>

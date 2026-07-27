@@ -3554,6 +3554,21 @@ async def run_migrations(conn):
         await _safe_execute(conn, "ALTER TABLE oidc_providers ADD COLUMN is_autologin BOOLEAN DEFAULT false")
         await _safe_execute(conn, "ALTER TABLE oidc_providers ADD COLUMN allow_private_network BOOLEAN DEFAULT false")
 
+    # Migration: real filesystem mtime for library files/folders (#2680). The
+    # folder tree's "sort by recent activity" and the file pane's date sort must
+    # track the on-disk mtime (``ls -t``), not Bambuddy's DB ``updated_at`` — for
+    # a bulk external scan every row's ``updated_at`` is the same scan instant, so
+    # ordering was arbitrary. Nullable; the timestamp type differs by dialect
+    # (SQLite DATETIME vs Postgres TIMESTAMP) so an existing-DB upgrade doesn't hit
+    # "type datetime does not exist" on Postgres. On a fresh DB create_all() already
+    # built the column, so the ALTER is swallowed as "already exists".
+    if is_sqlite():
+        await _safe_execute(conn, "ALTER TABLE library_files ADD COLUMN fs_modified_at DATETIME")
+        await _safe_execute(conn, "ALTER TABLE library_folders ADD COLUMN fs_modified_at DATETIME")
+    else:
+        await _safe_execute(conn, "ALTER TABLE library_files ADD COLUMN fs_modified_at TIMESTAMP")
+        await _safe_execute(conn, "ALTER TABLE library_folders ADD COLUMN fs_modified_at TIMESTAMP")
+
     # Migration: Disambiguate the four ``user_print_*`` notification template
     # names by appending " Email" (#1792). See ``_migrate_rename_user_print_template_names``.
     await _migrate_rename_user_print_template_names(conn)
