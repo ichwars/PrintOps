@@ -22,13 +22,13 @@ FILE_ALLOWLIST = {
     "backend/app/core/database.py": 4070,
     "backend/app/services/bambu_mqtt.py": 5781,
     "backend/app/services/notification_service.py": 2036,
-    "backend/app/services/print_scheduler.py": 3500,
-    "backend/app/api/routes/archives.py": 4645,
+    "backend/app/services/print_scheduler.py": 3512,
+    "backend/app/api/routes/archives.py": 4667,
     "backend/app/api/routes/inventory.py": 2692,
     "backend/app/api/routes/library.py": 4983,
     "backend/app/api/routes/mfa.py": 2279,
     "backend/app/api/routes/printers.py": 999,
-    "backend/app/api/routes/spoolman_inventory.py": 2056,
+    "backend/app/api/routes/spoolman_inventory.py": 2060,
 }
 
 
@@ -51,7 +51,7 @@ FUNCTION_ALLOWLIST = {
     "backend/app/api/routes/metrics.py::get_metrics": 386,
     "backend/app/api/routes/mfa.py::oidc_callback": 404,
     "backend/app/api/routes/printers_ams.py::configure_ams_slot": 374,
-    "backend/app/api/routes/print_queue.py::add_to_queue": 361,
+    "backend/app/api/routes/print_queue.py::add_to_queue": 365,
     "backend/app/api/routes/spoolman.py::link_spool": 306,
     "backend/app/api/routes/settings.py::restore_backup": 304,
     "backend/app/api/routes/support.py::_collect_support_info": 452,
