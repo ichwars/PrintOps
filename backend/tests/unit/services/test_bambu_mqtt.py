@@ -6277,6 +6277,8 @@ class TestLastLayerFinishPhotoTrigger:
 
 
 class TestKProfileResponseDoesNotClobberNozzle:
+    """#2663: K-profile probe responses echo the requested nozzle size, not hardware."""
+
     @pytest.fixture
     def mqtt_client(self):
         from backend.app.services.bambu_mqtt import BambuMQTTClient
@@ -6325,6 +6327,13 @@ class TestKProfileResponseDoesNotClobberNozzle:
 
         assert len(mqtt_client.state.kprofiles) == 1
         assert mqtt_client.state.kprofiles[0].filament_id == "GFA00"
+
+    def test_genuine_pushall_still_updates_nozzle(self, mqtt_client):
+        mqtt_client.state.nozzles[0].nozzle_diameter = "0.8"
+
+        mqtt_client._process_message({"print": {"nozzle_diameter": "0.4"}})
+
+        assert mqtt_client.state.nozzles[0].nozzle_diameter == "0.4"
 
 
 class TestAmsHtBitmaskRemoval:
