@@ -9,7 +9,7 @@ banner so logs stay focused on the real error.
 
 import asyncio
 
-from backend.app.api.routes.camera import _read_ffmpeg_stderr, _summarize_ffmpeg_stderr
+from backend.app.api.routes.camera import _is_nearly_black_jpeg, _read_ffmpeg_stderr, _summarize_ffmpeg_stderr
 
 _FAKE_BANNER = """ffmpeg version 7.1.3-0+deb13u1 Copyright (c) 2000-2025 the FFmpeg developers
   built with gcc 14 (Debian 14.2.0-19)
@@ -120,3 +120,30 @@ async def test_read_stderr_returns_none_for_banner_only_output():
     """Banner with no actionable lines summarizes to empty -> None."""
     proc = _FakeProcess(_reader_with(_FAKE_BANNER.encode(), eof=True))
     assert await _read_ffmpeg_stderr(proc) is None
+
+
+class TestBlackFrameDetection:
+    def test_detects_nearly_black_jpeg(self):
+        from io import BytesIO
+
+        from PIL import Image
+
+        image = Image.new("RGB", (16, 16), (1, 1, 1))
+        out = BytesIO()
+        image.save(out, format="JPEG")
+
+        assert _is_nearly_black_jpeg(out.getvalue()) is True
+
+    def test_keeps_non_black_jpeg(self):
+        from io import BytesIO
+
+        from PIL import Image
+
+        image = Image.new("RGB", (16, 16), (32, 32, 32))
+        out = BytesIO()
+        image.save(out, format="JPEG")
+
+        assert _is_nearly_black_jpeg(out.getvalue()) is False
+
+    def test_invalid_jpeg_is_not_treated_as_black(self):
+        assert _is_nearly_black_jpeg(b"\xff\xd8not really a jpeg\xff\xd9") is False

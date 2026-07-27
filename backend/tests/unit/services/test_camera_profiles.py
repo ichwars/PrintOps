@@ -92,6 +92,11 @@ class TestGetCameraProfile:
                 "whether the change is intentional before shipping."
             )
 
+    def test_h2s_internal_code_keeps_default_profile(self):
+        """Dark chambers can produce valid near-black frames, so H2S must
+        not reconnect healthy streams based on darkness alone."""
+        assert get_camera_profile("O1S") is DEFAULT_PROFILE
+
 
 class TestCameraProfileShape:
     def test_profile_is_frozen(self):

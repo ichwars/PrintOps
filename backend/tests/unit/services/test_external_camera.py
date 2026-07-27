@@ -4,7 +4,8 @@ Tests for the external camera service.
 These tests cover pure functions and frame parsing logic.
 """
 
-from unittest.mock import patch
+import asyncio
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -77,6 +78,41 @@ def _patch_mjpeg_session(response):
         return _FakeMjpegSession(response)
 
     return patch("backend.app.services.external_camera.aiohttp.ClientSession", _factory)
+
+
+class _FakeUsbStdout:
+    def __init__(self, frame: bytes):
+        self._frame = frame
+        self._sent = False
+
+    async def read(self, _size):
+        if not self._sent:
+            self._sent = True
+            return self._frame
+        await asyncio.sleep(3600)
+        return b""
+
+
+class _FakeUsbProcess:
+    def __init__(self, frame: bytes):
+        self.returncode = None
+        self.stdout = _FakeUsbStdout(frame)
+        self.stderr = AsyncMock()
+        self.terminated = False
+        self.killed = False
+        self.wait_count = 0
+
+    def terminate(self):
+        self.terminated = True
+
+    def kill(self):
+        self.killed = True
+        self.returncode = -9
+
+    async def wait(self):
+        self.wait_count += 1
+        self.returncode = 0
+        return self.returncode
 
 
 class TestCaptureMjpegFrameWarmupSkip:
@@ -591,6 +627,33 @@ class TestUsbCameraHandling:
 
         result = await capture_frame("http://example.com", "usb", timeout=1)
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_closing_usb_stream_terminates_ffmpeg_process(self):
+        """Regression for #2675: when the browser/client disconnects from
+        a USB camera stream, the async generator must terminate its ffmpeg
+        subprocess instead of leaving it orphaned."""
+        from backend.app.services.external_camera import _stream_usb
+
+        frame = _make_jpeg(b"\x33" * 128)
+        process = _FakeUsbProcess(frame)
+
+        with (
+            patch("backend.app.services.external_camera.get_ffmpeg_path", return_value="/usr/bin/ffmpeg"),
+            patch("backend.app.services.external_camera.Path.exists", return_value=True),
+            patch("backend.app.services.external_camera.asyncio.sleep", new=AsyncMock()),
+            patch(
+                "backend.app.services.external_camera.asyncio.create_subprocess_exec",
+                new=AsyncMock(return_value=process),
+            ),
+        ):
+            stream = _stream_usb("/dev/video0", fps=10)
+            assert await stream.__anext__() == frame
+            await stream.aclose()
+
+        assert process.terminated is True
+        assert process.killed is False
+        assert process.wait_count == 1
 
 
 def _encode_image(ext: str) -> bytes:

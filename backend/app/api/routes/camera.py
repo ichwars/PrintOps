@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 from collections.abc import AsyncGenerator
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
@@ -309,6 +310,38 @@ async def _read_ffmpeg_stderr(process: asyncio.subprocess.Process) -> str | None
     return _summarize_ffmpeg_stderr(b"".join(chunks).decode(errors="replace")) or None
 
 
+def _is_nearly_black_jpeg(
+    frame: bytes, *, mean_threshold: float = 6.0, bright_fraction_threshold: float = 0.005
+) -> bool:
+    """Return True when a decoded JPEG is effectively black.
+
+    Used only as a reconnect signal for model profiles with known black-frame
+    RTSP failures; decode failures are not treated as black so corrupt frames
+    keep following the normal stream/error path.
+    """
+    try:
+        from PIL import Image, UnidentifiedImageError
+    except ImportError:
+        return False
+
+    try:
+        with Image.open(BytesIO(frame)) as image:
+            image.thumbnail((64, 64))
+            gray = image.convert("L")
+            histogram = gray.histogram()
+    except (OSError, UnidentifiedImageError):
+        return False
+
+    total_pixels = sum(histogram)
+    if total_pixels <= 0:
+        return False
+
+    mean = sum(value * count for value, count in enumerate(histogram)) / total_pixels
+    bright_pixels = sum(histogram[int(mean_threshold) + 1 :])
+    bright_fraction = bright_pixels / total_pixels
+    return mean <= mean_threshold and bright_fraction <= bright_fraction_threshold
+
+
 async def generate_rtsp_mjpeg_stream(
     ip_address: str,
     access_code: str,
@@ -463,6 +496,7 @@ async def generate_rtsp_mjpeg_stream(
 
             # Read JPEG frames from ffmpeg stdout
             buffer = b""
+            black_frame_streak = 0
             stream_ended = False
             client_gone = False
 
@@ -503,6 +537,21 @@ async def generate_rtsp_mjpeg_stream(
                         buffer = buffer[end_idx + 2 :]
                         got_any_frames = True
 
+                        if profile.black_frame_reconnect_threshold > 0:
+                            if await asyncio.to_thread(_is_nearly_black_jpeg, frame):
+                                black_frame_streak += 1
+                                if black_frame_streak >= profile.black_frame_reconnect_threshold:
+                                    logger.warning(
+                                        "RTSP stream for %s (stream_id=%s) produced %d consecutive black frames; reconnecting",
+                                        ip_address,
+                                        stream_id,
+                                        black_frame_streak,
+                                    )
+                                    stream_ended = True
+                                    break
+                            else:
+                                black_frame_streak = 0
+
                         if printer_id is not None:
                             import time
 
@@ -517,6 +566,8 @@ async def generate_rtsp_mjpeg_stream(
                             b"Content-Length: " + str(len(frame)).encode() + b"\r\n"
                             b"\r\n" + frame + b"\r\n"
                         )
+                    if stream_ended:
+                        break
 
                 except TimeoutError:
                     stderr_text = await _read_ffmpeg_stderr(process)

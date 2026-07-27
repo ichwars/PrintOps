@@ -63,6 +63,10 @@ class CameraProfile:
     # changing the dataclass shape. Tuple, not list, so the dataclass
     # stays hashable / frozen-friendly.
     extra_ffmpeg_input_args: tuple[str, ...] = field(default_factory=tuple)
+    # Consecutive near-black decoded JPEG frames that should force an RTSP
+    # reconnect. 0 disables detection; enabled only for models with a proven
+    # black-frame stream failure so dark rooms don't churn healthy streams.
+    black_frame_reconnect_threshold: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -104,6 +108,7 @@ _PROFILES: dict[str, CameraProfile] = {
 # call site needing to know the code→name map.
 _MODEL_ALIASES: dict[str, str] = {
     "N7": "P2S",  # P2S internal SSDP code
+    "O1S": "H2S",  # H2S internal SSDP code
 }
 
 
