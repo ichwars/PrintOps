@@ -1578,7 +1578,7 @@ async def delete_reference(
 def _scan_bambu_ffmpeg_pids() -> list[int]:
     """Scan /proc for ffmpeg processes that are ours.
 
-    Matches Bambu RTSP streams and external USB streams started via v4l2.
+    Matches Bambu RTSP streams and PrintOps-spawned external USB streams.
     This catches orphans that survive app restarts and are not in any tracking dict.
     """
     import os
@@ -1593,10 +1593,13 @@ def _scan_bambu_ffmpeg_pids() -> list[int]:
                     cmdline = f.read()
                 if b"ffmpeg" not in cmdline:
                     continue
-                # Match both rtsp:// (via TLS proxy), rtsps:// (direct), and
-                # external USB streams whose ffmpeg input uses v4l2.
-                if b"rtsp://bblp:" in cmdline or b"rtsps://bblp:" in cmdline or b"v4l2" in cmdline:
-                    pids.append(int(entry))
+                pid = int(entry)
+                # Match both rtsp:// (via TLS proxy) and rtsps:// (direct).
+                # For USB/v4l2 streams, only touch PIDs PrintOps spawned in
+                # this session; a generic `ffmpeg -f v4l2` may belong to
+                # another host application.
+                if b"rtsp://bblp:" in cmdline or b"rtsps://bblp:" in cmdline or pid in _spawned_ffmpeg_pids:
+                    pids.append(pid)
             except (OSError, PermissionError, ValueError):
                 continue
     except OSError:

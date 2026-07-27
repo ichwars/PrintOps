@@ -198,7 +198,11 @@ class TestSpoolmanInventoryMapping:
         )
 
         assert response.status_code == 200, response.text
-        mock_spoolman_client.update_spool_full.assert_awaited_once_with(spool_id=42, used_weight=0.0)
+        mock_spoolman_client.update_spool_full.assert_awaited_once_with(
+            spool_id=42,
+            used_weight=0.0,
+            remaining_weight=1000.0,
+        )
         events = (
             (await db_session.execute(select(SpoolRefillEvent).where(SpoolRefillEvent.external_spool_id == "42")))
             .scalars()

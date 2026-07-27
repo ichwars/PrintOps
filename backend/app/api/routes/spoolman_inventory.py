@@ -985,7 +985,11 @@ async def refill_spool(
         current = await client.get_spool(spool_id)
         before = float(current.get("used_weight") or 0)
         after = max(0.0, before - data.added_weight)
-        spool = await client.update_spool_full(spool_id=spool_id, used_weight=after)
+        effective_refill = before - after
+        update_payload: dict[str, float] = {"used_weight": after}
+        if current.get("remaining_weight") is not None:
+            update_payload["remaining_weight"] = float(current.get("remaining_weight") or 0) + effective_refill
+        spool = await client.update_spool_full(spool_id=spool_id, **update_payload)
     try:
         mapped = _map_spoolman_spool(spool)
     except ValueError as exc:

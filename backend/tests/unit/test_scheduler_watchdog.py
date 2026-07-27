@@ -310,11 +310,13 @@ class TestWatchdogRevertsWhenStuck:
         async with db_session() as db:
             item = await db.get(PrintQueueItem, 1)
             item.dispatch_attempts = DISPATCH_MAX_ATTEMPTS - 1
+            item.auto_off_after = True
             await db.commit()
 
         get_status = MagicMock(return_value=_status("FINISH", "OLD_SUBTASK"))
         client = MagicMock()
         notify_gave_up = AsyncMock()
+        power_off = AsyncMock()
 
         with (
             patch("backend.app.services.print_scheduler.printer_manager.get_status", get_status),
@@ -322,6 +324,7 @@ class TestWatchdogRevertsWhenStuck:
             patch("backend.app.services.print_scheduler.async_session", db_session),
             patch("backend.app.core.database.async_session", db_session),
             patch("backend.app.services.print_scheduler.scheduler._notify_dispatch_gave_up", notify_gave_up),
+            patch("backend.app.services.print_scheduler.scheduler._power_off_if_needed", power_off),
         ):
             await PrintScheduler._watchdog_print_start(
                 queue_item_id=1,
@@ -339,6 +342,8 @@ class TestWatchdogRevertsWhenStuck:
             assert "never started printing" in item.error_message
 
         notify_gave_up.assert_awaited_once()
+        power_off.assert_awaited_once()
+        assert power_off.await_args.args[1].id == 1
         client.force_reconnect_stale_session.assert_called_once()
 
 

@@ -191,6 +191,14 @@ def _apply_run_user_filter(conditions: list, created_by_id: int | None):
             conditions.append(PrintLogEntry.created_by_id == created_by_id)
 
 
+def _printer_scope_condition(printer_id_column, user: User | None):
+    """Return the SQL visibility condition for a user's printer scope."""
+    allowed_printer_ids = allowed_printer_ids_for_user(user)
+    if allowed_printer_ids is None:
+        return None
+    return or_(printer_id_column.is_(None), printer_id_column.in_(allowed_printer_ids))
+
+
 def compute_time_accuracy(archive: PrintArchive, run_aggregate: dict | None = None) -> dict:
     """Compute actual print time and accuracy for an archive.
 
@@ -512,6 +520,9 @@ async def no_3mf_warning(
     ]
     if user is not None and not can_read_all:
         conditions.append(PrintArchive.created_by_id == user.id)
+    printer_scope = _printer_scope_condition(PrintArchive.printer_id, user)
+    if printer_scope is not None:
+        conditions.append(printer_scope)
     result = await db.execute(select(PrintArchive.extra_data).where(*conditions))
     for (extra_data,) in result.all():
         if extra_data and extra_data.get("no_3mf_available"):
@@ -563,6 +574,9 @@ async def list_archives_slim(
         dt_to = datetime.combine(date_to, time.max, tzinfo=timezone.utc)
         filters.append(PrintLogEntry.created_at <= dt_to)
     _apply_run_user_filter(filters, created_by_id)
+    printer_scope = _printer_scope_condition(PrintLogEntry.printer_id, current_user)
+    if printer_scope is not None:
+        filters.append(printer_scope)
 
     query = (
         select(
@@ -712,6 +726,9 @@ async def search_archives(
             query = query.where(PrintArchive.status == status)
         if own_only:
             query = query.where(PrintArchive.created_by_id == user.id)
+        printer_scope = _printer_scope_condition(PrintArchive.printer_id, user)
+        if printer_scope is not None:
+            query = query.where(printer_scope)
 
         query = query.limit(limit).offset(offset)
         result = await db.execute(query)
@@ -732,6 +749,9 @@ async def search_archives(
     )
     if own_only:
         query = query.where(PrintArchive.created_by_id == user.id)
+    printer_scope = _printer_scope_condition(PrintArchive.printer_id, user)
+    if printer_scope is not None:
+        query = query.where(printer_scope)
 
     # Apply additional filters
     if printer_id:
@@ -837,6 +857,7 @@ async def analyze_failures(
         printer_id=printer_id,
         project_id=project_id,
         created_by_id=created_by_id,
+        allowed_printer_ids=allowed_printer_ids_for_user(current_user),
     )
 
 
@@ -874,19 +895,12 @@ async def compare_archives(
     if len(ids) > 5:
         raise HTTPException(400, "Maximum 5 archives can be compared at once")
 
-    # Verify the caller is allowed to see every archive in the comparison —
-    # one not-owned id in the list would otherwise leak its full detail block.
-    # _ensure_archive_visible raises 404 on the first miss (same 404 the
-    # single-archive endpoint would return).
-    if user is not None and not can_read_all:
-        existing = await db.execute(
-            select(PrintArchive.id, PrintArchive.created_by_id, PrintArchive.deleted_at).where(PrintArchive.id.in_(ids))
-        )
-        owners_by_id = {row.id: row for row in existing.all()}
-        for archive_id in ids:
-            row = owners_by_id.get(archive_id)
-            if row is None or row.deleted_at is not None or row.created_by_id != user.id:
-                raise HTTPException(404, "Archive not found")
+    # Verify the caller is allowed to see every archive in the comparison.
+    # This also applies printer scope for ARCHIVES_READ_ALL callers.
+    existing = await db.execute(select(PrintArchive).where(PrintArchive.id.in_(ids)))
+    archives_by_id = {archive.id: archive for archive in existing.scalars().all()}
+    for archive_id in ids:
+        _ensure_archive_visible(archives_by_id.get(archive_id), user, can_read_all)
 
     service = ArchiveComparisonService(db)
     try:
@@ -960,6 +974,7 @@ async def export_archives(
             date_to=date_to_dt,
             search=search,
             visible_to_user_id=visible_to_user_id,
+            allowed_printer_ids=allowed_printer_ids_for_user(user),
         )
     except ImportError as e:
         raise HTTPException(500, str(e))
@@ -999,6 +1014,7 @@ async def export_stats(
             printer_id=printer_id,
             project_id=project_id,
             created_by_id=created_by_id,
+            allowed_printer_ids=allowed_printer_ids_for_user(current_user),
         )
     except ImportError as e:
         raise HTTPException(500, str(e))
@@ -1038,6 +1054,9 @@ async def get_archive_stats(
         dt_to = datetime.combine(date_to, time.max, tzinfo=timezone.utc)
         base_conditions.append(PrintLogEntry.created_at <= dt_to)
     _apply_run_user_filter(base_conditions, created_by_id)
+    printer_scope = _printer_scope_condition(PrintLogEntry.printer_id, current_user)
+    if printer_scope is not None:
+        base_conditions.append(printer_scope)
 
     # Total counts (one row per print event).
     total_result = await db.execute(select(func.count(PrintLogEntry.id)).where(*base_conditions))
@@ -1364,6 +1383,9 @@ async def get_all_tags(
     tag_conditions = [PrintArchive.tags.isnot(None), PrintArchive.deleted_at.is_(None)]
     if user is not None and not can_read_all:
         tag_conditions.append(PrintArchive.created_by_id == user.id)
+    printer_scope = _printer_scope_condition(PrintArchive.printer_id, user)
+    if printer_scope is not None:
+        tag_conditions.append(printer_scope)
     result = await db.execute(select(PrintArchive.tags).where(*tag_conditions))
     all_tags_rows = result.all()
 

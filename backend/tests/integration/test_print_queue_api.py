@@ -128,8 +128,8 @@ class TestPrintQueueAPI:
 
         printer_a = await printer_factory(name="Scoped Printer A")
         printer_b = await printer_factory(name="Scoped Printer B")
-        await queue_item_factory(printer_id=printer_a.id)
-        await queue_item_factory(printer_id=printer_b.id)
+        item_a = await queue_item_factory(printer_id=printer_a.id)
+        item_b = await queue_item_factory(printer_id=printer_b.id)
 
         scoped_user = await async_client.post(
             "/api/v1/users/",
@@ -156,6 +156,32 @@ class TestPrintQueueAPI:
 
         assert response.status_code == 200, response.text
         assert {item["printer_id"] for item in response.json()} == {printer_a.id}
+
+        hidden_update = await async_client.patch(
+            f"/api/v1/queue/{item_b.id}",
+            headers={"Authorization": f"Bearer {scoped_token}"},
+            json={"manual_start": True},
+        )
+        assert hidden_update.status_code == 404
+
+        visible_update = await async_client.patch(
+            f"/api/v1/queue/{item_a.id}",
+            headers={"Authorization": f"Bearer {scoped_token}"},
+            json={"manual_start": True},
+        )
+        assert visible_update.status_code == 200, visible_update.text
+
+        hidden_delete = await async_client.delete(
+            f"/api/v1/queue/{item_b.id}",
+            headers={"Authorization": f"Bearer {scoped_token}"},
+        )
+        assert hidden_delete.status_code == 404
+
+        hidden_resume = await async_client.post(
+            f"/api/v1/queue/printer/{printer_b.id}/resume",
+            headers={"Authorization": f"Bearer {scoped_token}"},
+        )
+        assert hidden_resume.status_code == 404
 
     @pytest.mark.asyncio
     @pytest.mark.integration

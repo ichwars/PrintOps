@@ -3442,6 +3442,18 @@ class PrintScheduler:
                 DISPATCH_MAX_ATTEMPTS,
             )
             await scheduler._notify_dispatch_gave_up(queue_item_id, printer_id, created_by_id)
+
+            async def _schedule_auto_off(db):
+                item = await db.get(PrintQueueItem, queue_item_id)
+                if item:
+                    await scheduler._power_off_if_needed(db, item)
+
+            try:
+                await run_with_retry(_schedule_auto_off, label=f"watchdog auto-off item={queue_item_id}")
+            except Exception as e:
+                logger.warning(
+                    "Queue item %s: failed to schedule auto-off after watchdog give-up: %s", queue_item_id, e
+                )
         elif revert_outcome == "reverted":
             if landed_on_subtask:
                 logger.warning(

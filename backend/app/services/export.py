@@ -3,7 +3,7 @@ import io
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -81,6 +81,7 @@ class ExportService:
         date_to: datetime | None = None,
         search: str | None = None,
         visible_to_user_id: int | None = None,
+        allowed_printer_ids: set[int] | None = None,
     ) -> tuple[bytes, str, str]:
         """Export archives to CSV or Excel format.
 
@@ -95,6 +96,7 @@ class ExportService:
             search: Search filter
             visible_to_user_id: Scope rows to those owned by this user (used
                 when the caller has ARCHIVES_READ_OWN but not _ALL).
+            allowed_printer_ids: Optional printer scope for the caller.
 
         Returns:
             Tuple of (file_bytes, filename, content_type)
@@ -117,6 +119,10 @@ class ExportService:
             query = query.where(PrintArchive.created_at <= date_to)
         if visible_to_user_id is not None:
             query = query.where(PrintArchive.created_by_id == visible_to_user_id)
+        if allowed_printer_ids is not None:
+            query = query.where(
+                or_(PrintArchive.printer_id.is_(None), PrintArchive.printer_id.in_(allowed_printer_ids))
+            )
         if search:
             like_pattern = f"%{search}%"
             query = query.where(
@@ -164,6 +170,7 @@ class ExportService:
         printer_id: int | None = None,
         project_id: int | None = None,
         created_by_id: int | None = None,
+        allowed_printer_ids: set[int] | None = None,
     ) -> tuple[bytes, str, str]:
         """Export statistics summary to CSV or Excel format.
 
@@ -173,6 +180,7 @@ class ExportService:
             printer_id: Filter by printer
             project_id: Filter by project
             created_by_id: Filter by user who created the print (-1 for no user)
+            allowed_printer_ids: Optional printer scope for the caller.
 
         Returns:
             Tuple of (file_bytes, filename, content_type)
@@ -186,6 +194,7 @@ class ExportService:
             printer_id=printer_id,
             project_id=project_id,
             created_by_id=created_by_id,
+            allowed_printer_ids=allowed_printer_ids,
         )
 
         # Build stats rows

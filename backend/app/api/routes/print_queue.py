@@ -54,6 +54,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/queue", tags=["queue"])
 
 
+def _ensure_queue_printer_access(user: User | None, item: PrintQueueItem) -> None:
+    if not user_can_access_printer(user, item.printer_id):
+        raise HTTPException(404, "Queue item not found")
+
+
 def _extract_filament_types_from_3mf(file_path: Path, plate_id: int | None = None) -> list[str]:
     """Extract unique filament types from a 3MF file.
 
@@ -416,6 +421,8 @@ async def add_to_queue(
         assigned_printer = result.scalar_one_or_none()
         if assigned_printer is None:
             raise HTTPException(400, "Printer not found")
+        if not user_can_access_printer(current_user, assigned_printer.id):
+            raise HTTPException(404, "Printer not found")
         assigned_printer_model = assigned_printer.model
 
     # Validate target_model has active printers
@@ -433,6 +440,8 @@ async def add_to_queue(
         archive = result.scalar_one_or_none()
         if not archive:
             raise HTTPException(400, "Archive not found")
+        if not user_can_access_printer(current_user, archive.printer_id):
+            raise HTTPException(404, "Archive not found")
         # IDOR fix (maziggy/printops-security #2): without this check, a
         # caller with QUEUE_CREATE could queue any user's archive even
         # without ARCHIVES_READ on it — Landon's PoC enumerated this on
@@ -779,8 +788,11 @@ async def bulk_update_queue_items(
     # Validate printer_id if being changed
     if "printer_id" in update_data and update_data["printer_id"] is not None:
         result = await db.execute(select(Printer).where(Printer.id == update_data["printer_id"]))
-        if not result.scalar_one_or_none():
+        printer = result.scalar_one_or_none()
+        if not printer:
             raise HTTPException(400, "Printer not found")
+        if not user_can_access_printer(user, printer.id):
+            raise HTTPException(404, "Printer not found")
 
     # Fetch existing IDs first so skipped_count keeps the legacy behavior of
     # ignoring unknown IDs while still applying edits atomically below.
@@ -798,6 +810,11 @@ async def bulk_update_queue_items(
         ]
         if not can_modify_all:
             conditions.append(PrintQueueItem.created_by_id == user.id)
+        allowed_printer_ids = allowed_printer_ids_for_user(user)
+        if allowed_printer_ids is not None:
+            conditions.append(
+                or_(PrintQueueItem.printer_id.is_(None), PrintQueueItem.printer_id.in_(allowed_printer_ids))
+            )
 
         result = await db.execute(update(PrintQueueItem).where(*conditions).values(**update_data))
         if result.rowcount:
@@ -1098,6 +1115,7 @@ async def update_queue_item(
     if not can_modify_all:
         if item.created_by_id != user.id:
             raise HTTPException(403, "You can only update your own queue items")
+    _ensure_queue_printer_access(user, item)
 
     if item.status != "pending":
         raise HTTPException(400, "Can only update pending items")
@@ -1128,6 +1146,8 @@ async def update_queue_item(
         new_printer = result.scalar_one_or_none()
         if new_printer is None:
             raise HTTPException(400, "Printer not found")
+        if not user_can_access_printer(user, new_printer.id):
+            raise HTTPException(404, "Printer not found")
         new_printer_model = new_printer.model
 
     # Validate target_model has active printers
@@ -1233,6 +1253,7 @@ async def delete_queue_item(
     if not can_modify_all:
         if item.created_by_id != user.id:
             raise HTTPException(403, "You can only delete your own queue items")
+    _ensure_queue_printer_access(user, item)
 
     if item.status == "printing":
         raise HTTPException(400, "Cannot delete item that is currently printing")
@@ -1248,13 +1269,13 @@ async def delete_queue_item(
 async def reorder_queue(
     data: PrintQueueReorder,
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_UPDATE_ALL),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_UPDATE_ALL),
 ):
     """Bulk update positions for queue items."""
     for reorder_item in data.items:
         result = await db.execute(select(PrintQueueItem).where(PrintQueueItem.id == reorder_item.id))
         item = result.scalar_one_or_none()
-        if item and item.status == "pending":
+        if item and item.status == "pending" and user_can_access_printer(current_user, item.printer_id):
             item.position = reorder_item.position
 
     await db.commit()
@@ -1266,7 +1287,7 @@ async def reorder_queue(
 async def resume_queue_after_failure(
     printer_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_UPDATE_ALL),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_UPDATE_ALL),
 ):
     """Clear the previous-success gate for a printer and restore skipped items.
 
@@ -1285,6 +1306,8 @@ async def resume_queue_after_failure(
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
     printer = result.scalar_one_or_none()
     if not printer:
+        raise HTTPException(404, "Printer not found")
+    if not user_can_access_printer(current_user, printer.id):
         raise HTTPException(404, "Printer not found")
 
     ack_result = await db.execute(
@@ -1343,6 +1366,7 @@ async def cancel_queue_item(
     if not can_modify_all:
         if item.created_by_id != user.id:
             raise HTTPException(403, "You can only cancel your own queue items")
+    _ensure_queue_printer_access(user, item)
 
     if item.status not in ("pending",):
         raise HTTPException(400, f"Cannot cancel item with status '{item.status}'")
@@ -1389,6 +1413,7 @@ async def stop_queue_item(
     if not can_modify_all and user is not None:
         if item.created_by_id is None or item.created_by_id != user.id:
             raise HTTPException(403, "You can only stop your own queue items")
+    _ensure_queue_printer_access(user, item)
 
     if item.status != "printing":
         raise HTTPException(400, f"Can only stop items that are printing, current status: '{item.status}'")
@@ -1492,6 +1517,7 @@ async def start_queue_item(
     if not can_modify_all and user is not None:
         if item.created_by_id is not None and item.created_by_id != user.id:
             raise HTTPException(403, "You can only start your own queue items")
+    _ensure_queue_printer_access(user, item)
 
     if item.status != "pending":
         raise HTTPException(400, f"Can only start pending items, current status: '{item.status}'")
