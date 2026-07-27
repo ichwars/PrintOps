@@ -14,12 +14,12 @@ tick.
 """
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from backend.app.models.print_queue import PrintQueueItem
-from backend.app.services.print_scheduler import PrintScheduler
+from backend.app.services.print_scheduler import DISPATCH_MAX_ATTEMPTS, PrintScheduler
 
 
 @pytest.fixture
@@ -301,6 +301,45 @@ class TestWatchdogRevertsWhenStuck:
         # File landed (subtask_id advance proves this), so a forced reconnect
         # would trigger 0500_4003 mid-parse (#1150) — skip.
         client.force_reconnect_stale_session.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_retry_cap_marks_item_failed(self, db_session):
+        """Regression for #2555: a printer that keeps accepting project_file
+        without ever entering an active print state must not upload forever.
+        """
+        async with db_session() as db:
+            item = await db.get(PrintQueueItem, 1)
+            item.dispatch_attempts = DISPATCH_MAX_ATTEMPTS - 1
+            await db.commit()
+
+        get_status = MagicMock(return_value=_status("FINISH", "OLD_SUBTASK"))
+        client = MagicMock()
+        notify_gave_up = AsyncMock()
+
+        with (
+            patch("backend.app.services.print_scheduler.printer_manager.get_status", get_status),
+            patch("backend.app.services.print_scheduler.printer_manager.get_client", MagicMock(return_value=client)),
+            patch("backend.app.services.print_scheduler.async_session", db_session),
+            patch("backend.app.core.database.async_session", db_session),
+            patch("backend.app.services.print_scheduler.scheduler._notify_dispatch_gave_up", notify_gave_up),
+        ):
+            await PrintScheduler._watchdog_print_start(
+                queue_item_id=1,
+                printer_id=42,
+                pre_state="FINISH",
+                pre_subtask_id="OLD_SUBTASK",
+                timeout=0.2,
+                poll_interval=0.05,
+            )
+
+        async with db_session() as db:
+            item = await db.get(PrintQueueItem, 1)
+            assert item.status == "failed"
+            assert item.dispatch_attempts == DISPATCH_MAX_ATTEMPTS
+            assert "never started printing" in item.error_message
+
+        notify_gave_up.assert_awaited_once()
+        client.force_reconnect_stale_session.assert_called_once()
 
 
 class TestWatchdogFallbackBehaviour:

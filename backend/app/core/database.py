@@ -3490,6 +3490,11 @@ async def run_migrations(conn):
     else:
         await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN gate_acknowledged BOOLEAN DEFAULT false")
 
+    # Migration: bounded dispatch retry counter for print_queue (#2555).
+    # Counts watchdog reverts from "printing" back to "pending" so a printer
+    # that accepts a file but never starts cannot re-upload forever.
+    await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN dispatch_attempts INTEGER DEFAULT 0")
+
     # Migration: business-profile document, tax, and payment settings.
     await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN tax_mode VARCHAR(16) DEFAULT 'standard'")
     await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN default_tax_rate NUMERIC(5, 2) DEFAULT 0")

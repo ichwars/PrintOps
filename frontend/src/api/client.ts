@@ -1283,6 +1283,8 @@ export interface AppSettings {
   require_plate_clear: boolean;
   // Shortest job first scheduling
   queue_shortest_first: boolean;
+  // Queue upload concurrency
+  queue_max_concurrent_uploads: number;
   // Preheat / heat-soak before queued prints (#1468). Master toggle is the
   // default for new queue items; per-item PrintQueueItem.preheat_override can
   // flip the decision per print. Chamber target derives from the loaded AMS

@@ -65,6 +65,11 @@ class PrintQueueItem(Base):
     # Auto-print G-code injection (#422)
     gcode_injection: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # How many times the start-watchdog has reverted this item from "printing"
+    # back to "pending". Bounds retry loops when a printer accepts a file but
+    # never actually transitions into an active print state.
+    dispatch_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
     # H2C dual-nozzle-rack slicer pick preservation (#1780). BambuStudio's
     # project_file MQTT command for rack-swap-capable models (O1C2 today)
     # carries per-filament physical nozzle position IDs in `nozzle_mapping`,
