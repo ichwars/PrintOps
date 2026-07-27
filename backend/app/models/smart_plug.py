@@ -72,8 +72,10 @@ class SmartPlug(Base):
         Float, server_default="1.0"
     )  # Unit conversion (e.g., 0.001 for Wh→kWh)
 
-    # Link to printer (multiple plugs/scripts can be linked to one printer)
+    # Link to a controlled target. Printer automation still uses printer_id;
+    # equipment_id is used for standalone equipment such as filament dryers.
     printer_id: Mapped[int | None] = mapped_column(ForeignKey("printers.id", ondelete="SET NULL"), nullable=True)
+    equipment_id: Mapped[int | None] = mapped_column(ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True)
 
     # Automation settings
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -131,6 +133,8 @@ class SmartPlug(Base):
 
     # Relationship
     printer: Mapped["Printer"] = relationship(back_populates="smart_plugs")
+    equipment: Mapped["Equipment"] = relationship()
 
 
+from backend.app.models.equipment import Equipment  # noqa: E402
 from backend.app.models.printer import Printer  # noqa: E402

@@ -1,10 +1,11 @@
-"""Integration tests for Smart Plugs API endpoints.
-
-Tests the full request/response cycle for /api/v1/smart-plugs/ endpoints.
-"""
+from datetime import date, datetime, timezone
+from decimal import Decimal
+from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
+
+from backend.app.models.equipment import Equipment
 
 
 class TestSmartPlugsAPI:
@@ -77,6 +78,53 @@ class TestSmartPlugsAPI:
         assert response.status_code == 200
         result = response.json()
         assert result["printer_id"] == printer.id
+        assert result["equipment_id"] is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_create_smart_plug_with_filament_dryer(self, async_client: AsyncClient, db_session):
+        """Verify smart plug can be linked to a filament dryer."""
+        dryer = Equipment(
+            equipment_type="dryer",
+            name="Dryer S2",
+            acquisition_date=date(2025, 1, 1),
+            acquisition_value=Decimal("120.00"),
+            service_years=Decimal("5"),
+            annual_hours=Decimal("300"),
+            maintenance_rate=Decimal("0"),
+            nominal_power_watts=Decimal("350"),
+        )
+        db_session.add(dryer)
+        await db_session.commit()
+        await db_session.refresh(dryer)
+
+        data = {
+            "name": "Dryer Plug",
+            "ip_address": "192.168.1.102",
+            "equipment_id": dryer.id,
+        }
+
+        response = await async_client.post("/api/v1/smart-plugs/", json=data)
+
+        assert response.status_code == 200
+        result = response.json()
+        assert result["equipment_id"] == dryer.id
+        assert result["printer_id"] is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_create_plug_rejects_invalid_filament_dryer(self, async_client: AsyncClient):
+        """Verify creating plug with non-existent dryer fails."""
+        data = {
+            "name": "Dryer Plug",
+            "ip_address": "192.168.1.103",
+            "equipment_id": 9999,
+        }
+
+        response = await async_client.post("/api/v1/smart-plugs/", json=data)
+
+        assert response.status_code == 400
+        assert "Filament dryer not found" in response.json()["detail"]
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -234,6 +282,76 @@ class TestSmartPlugsAPI:
         assert result["name"] == "New Name"
         assert result["auto_on"] is False
         assert result["auto_off"] is False
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_update_plug_moves_from_printer_to_filament_dryer(
+        self, async_client: AsyncClient, smart_plug_factory, printer_factory, db_session
+    ):
+        """Verify a plug can be reassigned from printer automation to a dryer."""
+        printer = await printer_factory(name="Test Printer")
+        plug = await smart_plug_factory(printer_id=printer.id)
+        dryer = Equipment(
+            equipment_type="dryer",
+            name="Dryer S4",
+            acquisition_date=date(2025, 1, 1),
+            acquisition_value=Decimal("180.00"),
+            service_years=Decimal("5"),
+            annual_hours=Decimal("300"),
+            maintenance_rate=Decimal("0"),
+            nominal_power_watts=Decimal("450"),
+        )
+        db_session.add(dryer)
+        await db_session.commit()
+        await db_session.refresh(dryer)
+
+        response = await async_client.patch(
+            f"/api/v1/smart-plugs/{plug.id}",
+            json={"printer_id": None, "equipment_id": dryer.id},
+        )
+
+        assert response.status_code == 200
+        result = response.json()
+        assert result["printer_id"] is None
+        assert result["equipment_id"] == dryer.id
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_update_plug_to_filament_dryer_cancels_pending_printer_auto_off(
+        self, async_client: AsyncClient, smart_plug_factory, printer_factory, db_session
+    ):
+        """Verify moving a plug away from a printer clears pending auto-off state."""
+        printer = await printer_factory(name="Test Printer")
+        plug = await smart_plug_factory(
+            printer_id=printer.id,
+            auto_off_pending=True,
+            auto_off_pending_since=datetime.now(timezone.utc),
+        )
+        dryer = Equipment(
+            equipment_type="dryer",
+            name="Dryer S5",
+            acquisition_date=date(2025, 1, 1),
+            acquisition_value=Decimal("180.00"),
+            service_years=Decimal("5"),
+            annual_hours=Decimal("300"),
+            maintenance_rate=Decimal("0"),
+            nominal_power_watts=Decimal("450"),
+        )
+        db_session.add(dryer)
+        await db_session.commit()
+        await db_session.refresh(dryer)
+
+        with patch("backend.app.api.routes.smart_plugs.smart_plug_manager.cancel_pending_off") as cancel_pending:
+            response = await async_client.patch(
+                f"/api/v1/smart-plugs/{plug.id}",
+                json={"printer_id": None, "equipment_id": dryer.id},
+            )
+
+        assert response.status_code == 200
+        cancel_pending.assert_called_once_with(plug.id)
+        await db_session.refresh(plug)
+        assert plug.auto_off_pending is False
+        assert plug.auto_off_pending_since is None
 
     # ========================================================================
     # Control endpoints

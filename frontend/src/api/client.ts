@@ -1893,6 +1893,7 @@ export interface SmartPlug {
   rest_energy_path: string | null;
   rest_energy_multiplier: number;
   printer_id: number | null;
+  equipment_id: number | null;
   enabled: boolean;
   auto_on: boolean;
   auto_off: boolean;
@@ -1967,6 +1968,7 @@ export interface SmartPlugCreate {
   rest_energy_path?: string | null;
   rest_energy_multiplier?: number;
   printer_id?: number | null;
+  equipment_id?: number | null;
   enabled?: boolean;
   auto_on?: boolean;
   auto_off?: boolean;
@@ -2033,6 +2035,7 @@ export interface SmartPlugUpdate {
   rest_energy_path?: string | null;
   rest_energy_multiplier?: number;
   printer_id?: number | null;
+  equipment_id?: number | null;
   enabled?: boolean;
   auto_on?: boolean;
   auto_off?: boolean;

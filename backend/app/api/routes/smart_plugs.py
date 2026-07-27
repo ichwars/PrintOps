@@ -13,6 +13,7 @@ from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.core.tasks import spawn_background_task
+from backend.app.models.equipment import Equipment
 from backend.app.models.printer import Printer
 from backend.app.models.smart_plug import SmartPlug
 from backend.app.models.user import User
@@ -38,11 +39,61 @@ from backend.app.services.mqtt_smart_plug import subscribe_plug_to_mqtt
 from backend.app.services.notification_service import notification_service
 from backend.app.services.printer_manager import printer_manager
 from backend.app.services.rest_smart_plug import rest_smart_plug_service
+from backend.app.services.smart_plug_manager import smart_plug_manager
 from backend.app.services.tasmota import tasmota_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/smart-plugs", tags=["smart-plugs"])
+
+
+async def _validate_link_target(
+    db: AsyncSession,
+    *,
+    printer_id: int | None,
+    equipment_id: int | None,
+    plug_type: str,
+    current_plug_id: int | None = None,
+) -> None:
+    if printer_id and equipment_id:
+        raise HTTPException(400, "A smart plug can only be linked to one target")
+
+    if printer_id:
+        result = await db.execute(select(Printer).where(Printer.id == printer_id))
+        if not result.scalar_one_or_none():
+            raise HTTPException(400, "Printer not found")
+
+        if plug_type == "tasmota":
+            query = select(SmartPlug).where(
+                SmartPlug.printer_id == printer_id,
+                SmartPlug.plug_type == "tasmota",
+            )
+            if current_plug_id is not None:
+                query = query.where(SmartPlug.id != current_plug_id)
+            result = await db.execute(query)
+            if result.scalar_one_or_none():
+                raise HTTPException(400, "This printer already has a Tasmota plug assigned")
+
+    if equipment_id:
+        result = await db.execute(
+            select(Equipment).where(
+                Equipment.id == equipment_id,
+                Equipment.equipment_type == "dryer",
+            )
+        )
+        if not result.scalar_one_or_none():
+            raise HTTPException(400, "Filament dryer not found")
+
+        if plug_type == "tasmota":
+            query = select(SmartPlug).where(
+                SmartPlug.equipment_id == equipment_id,
+                SmartPlug.plug_type == "tasmota",
+            )
+            if current_plug_id is not None:
+                query = query.where(SmartPlug.id != current_plug_id)
+            result = await db.execute(query)
+            if result.scalar_one_or_none():
+                raise HTTPException(400, "This filament dryer already has a Tasmota plug assigned")
 
 
 @router.get("/", response_model=list[SmartPlugResponse])
@@ -62,24 +113,12 @@ async def create_smart_plug(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_CREATE),
 ):
     """Create a new smart plug."""
-    # Validate printer_id if provided
-    if data.printer_id:
-        result = await db.execute(select(Printer).where(Printer.id == data.printer_id))
-        if not result.scalar_one_or_none():
-            raise HTTPException(400, "Printer not found")
-
-        # Check if printer already has a plug assigned
-        # Tasmota plugs: only one per printer (physical power device)
-        # HA entities: allow multiple per printer (for different automations)
-        if data.plug_type == "tasmota":
-            result = await db.execute(
-                select(SmartPlug).where(
-                    SmartPlug.printer_id == data.printer_id,
-                    SmartPlug.plug_type == "tasmota",
-                )
-            )
-            if result.scalar_one_or_none():
-                raise HTTPException(400, "This printer already has a Tasmota plug assigned")
+    await _validate_link_target(
+        db,
+        printer_id=data.printer_id,
+        equipment_id=data.equipment_id,
+        plug_type=data.plug_type,
+    )
 
     # For MQTT plugs, ensure MQTT broker is configured and service is connected
     if data.plug_type == "mqtt":
@@ -419,29 +458,17 @@ async def update_smart_plug(
 
     update_data = data.model_dump(exclude_unset=True)
 
-    # Validate new printer_id if being changed
-    if "printer_id" in update_data and update_data["printer_id"]:
-        new_printer_id = update_data["printer_id"]
-
-        # Check printer exists
-        result = await db.execute(select(Printer).where(Printer.id == new_printer_id))
-        if not result.scalar_one_or_none():
-            raise HTTPException(400, "Printer not found")
-
-        # Check if that printer already has a different Tasmota plug assigned
-        # Tasmota plugs: only one per printer (physical power device)
-        # HA entities: allow multiple per printer (for different automations)
-        new_plug_type = update_data.get("plug_type", plug.plug_type)
-        if new_plug_type == "tasmota":
-            result = await db.execute(
-                select(SmartPlug).where(
-                    SmartPlug.printer_id == new_printer_id,
-                    SmartPlug.id != plug_id,
-                    SmartPlug.plug_type == "tasmota",
-                )
-            )
-            if result.scalar_one_or_none():
-                raise HTTPException(400, "This printer already has a Tasmota plug assigned")
+    target_printer_id = update_data.get("printer_id", plug.printer_id)
+    target_equipment_id = update_data.get("equipment_id", plug.equipment_id)
+    target_plug_type = update_data.get("plug_type", plug.plug_type)
+    printer_changed = target_printer_id != plug.printer_id
+    await _validate_link_target(
+        db,
+        printer_id=target_printer_id,
+        equipment_id=target_equipment_id,
+        plug_type=target_plug_type,
+        current_plug_id=plug_id,
+    )
 
     # Track old MQTT settings for comparison
     old_plug_type = plug.plug_type
@@ -459,6 +486,11 @@ async def update_smart_plug(
 
     for field, value in update_data.items():
         setattr(plug, field, value)
+
+    if printer_changed:
+        smart_plug_manager.cancel_pending_off(plug.id)
+        plug.auto_off_pending = False
+        plug.auto_off_pending_since = None
 
     await db.commit()
     await db.refresh(plug)
