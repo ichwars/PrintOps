@@ -100,9 +100,6 @@ _PROFILES: dict[str, CameraProfile] = {
         analyzeduration=500_000,
         extra_ffmpeg_input_args=("-use_wallclock_as_timestamps", "1"),
     ),
-    "H2S": CameraProfile(
-        black_frame_reconnect_threshold=30,
-    ),
 }
 
 # SSDP internal codes that should resolve to a display-name profile.
