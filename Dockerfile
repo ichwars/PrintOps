@@ -1,5 +1,7 @@
-# Build frontend
-FROM node:22-bookworm-slim AS frontend-builder
+# Build frontend. The Vite output is static and architecture-independent, so
+# keep this stage on the native build platform during multi-arch container
+# releases instead of rebuilding it under QEMU for every target platform.
+FROM --platform=$BUILDPLATFORM node:22-bookworm-slim AS frontend-builder
 
 WORKDIR /app/frontend
 
