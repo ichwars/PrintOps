@@ -15,6 +15,7 @@ import pytest
 
 from backend.app.services.spoolman_tracking import (
     _snapshot_tray_remain,
+    _spoolman_usage_cost,
     store_print_data,
 )
 
@@ -214,6 +215,10 @@ class TestReportUsageRemainDelta:
     is missing (no-3MF print), gated on a resolvable Spoolman spool and a
     sane current remain%."""
 
+    @pytest.mark.parametrize("price", ["NaN", "Infinity", "-Infinity"])
+    def test_spoolman_usage_cost_rejects_non_finite_prices(self, price):
+        assert _spoolman_usage_cost({"price": price}, 100.0) is None
+
     @pytest.mark.asyncio
     async def test_remain_delta_writes_to_resolved_spool(self):
         """Print started at remain=80% on a 1000g filament, finished at 60%.
@@ -261,6 +266,119 @@ class TestReportUsageRemainDelta:
             await report_usage(printer_id=1, archive_id=42)
 
         client.use_spool.assert_awaited_once_with(7, 200.0)
+
+    @pytest.mark.asyncio
+    async def test_remain_delta_adds_spoolman_price_to_archive_cost(self):
+        """Regression for #2591: Spoolman mode must price completed
+        filament usage from the linked Spoolman spool, not from the local
+        filament catalog/default fallback."""
+        from backend.app.services.spoolman_tracking import report_usage
+
+        tracking = SimpleNamespace(
+            filament_usage=None,
+            ams_trays={"0": {"tray_uuid": "AAAA", "tag_uid": "11", "tray_type": "PLA"}},
+            slot_to_tray=None,
+            tray_remain_start={"0-0": {"remain": 80, "tray_uuid": "AAAA"}},
+        )
+        archive = SimpleNamespace(id=42, cost=None, filament_used_grams=200.0)
+
+        db = AsyncMock()
+        tracking_result = MagicMock()
+        tracking_result.scalar_one_or_none.return_value = tracking
+        archive_result = MagicMock()
+        archive_result.scalar_one_or_none.return_value = archive
+        count_result = MagicMock()
+        count_result.scalar.return_value = 0
+        db.execute = AsyncMock(side_effect=[tracking_result, archive_result, count_result])
+        db.delete = AsyncMock()
+        db.commit = AsyncMock()
+
+        client = AsyncMock()
+        client.get_spool = AsyncMock(
+            return_value={"id": 7, "price": 40.0, "filament": {"weight": 1000.0, "color_hex": "00FF00"}}
+        )
+        client.use_spool = AsyncMock()
+
+        printer_manager = MagicMock()
+        printer_manager.get_status.return_value = SimpleNamespace(
+            raw_data={"ams": [{"id": 0, "tray": [{"id": 0, "tray_uuid": "AAAA", "remain": 60}]}]}
+        )
+
+        with (
+            patch("backend.app.services.spoolman_tracking.async_session", lambda: _AsyncCtx(db)),
+            patch("backend.app.api.routes.settings.get_setting", AsyncMock(return_value="true")),
+            patch(
+                "backend.app.services.spoolman_tracking._get_spoolman_client_with_fallback",
+                AsyncMock(return_value=client),
+            ),
+            patch("backend.app.services.spoolman_tracking._get_printer_serial", AsyncMock(return_value="serial")),
+            patch(
+                "backend.app.services.spoolman_tracking._resolve_spool_id_via_slot_assignment",
+                AsyncMock(return_value=7),
+            ),
+            patch("backend.app.services.printer_manager.printer_manager", printer_manager),
+        ):
+            await report_usage(printer_id=1, archive_id=42)
+
+        assert archive.cost == 8.0
+        assert db.commit.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_remain_delta_keeps_archive_cost_on_reprint(self):
+        """Reprints should keep the archive card's first-run cost. The
+        current run's Spoolman cost is still collected for the eventual
+        PrintLogEntry path, but report_usage runs before that row exists."""
+        from backend.app.services.spoolman_tracking import report_usage
+
+        tracking = SimpleNamespace(
+            filament_usage=None,
+            ams_trays={"0": {"tray_uuid": "AAAA", "tag_uid": "11", "tray_type": "PLA"}},
+            slot_to_tray=None,
+            tray_remain_start={"0-0": {"remain": 80, "tray_uuid": "AAAA"}},
+        )
+        archive = SimpleNamespace(id=42, cost=12.5, filament_used_grams=200.0)
+
+        db = AsyncMock()
+        tracking_result = MagicMock()
+        tracking_result.scalar_one_or_none.return_value = tracking
+        archive_result = MagicMock()
+        archive_result.scalar_one_or_none.return_value = archive
+        count_result = MagicMock()
+        count_result.scalar.return_value = 1
+        db.execute = AsyncMock(side_effect=[tracking_result, archive_result, count_result])
+        db.delete = AsyncMock()
+        db.commit = AsyncMock()
+
+        client = AsyncMock()
+        client.get_spool = AsyncMock(
+            return_value={"id": 7, "price": 40.0, "filament": {"weight": 1000.0, "color_hex": "00FF00"}}
+        )
+        client.use_spool = AsyncMock()
+
+        printer_manager = MagicMock()
+        printer_manager.get_status.return_value = SimpleNamespace(
+            raw_data={"ams": [{"id": 0, "tray": [{"id": 0, "tray_uuid": "AAAA", "remain": 60}]}]}
+        )
+
+        with (
+            patch("backend.app.services.spoolman_tracking.async_session", lambda: _AsyncCtx(db)),
+            patch("backend.app.api.routes.settings.get_setting", AsyncMock(return_value="true")),
+            patch(
+                "backend.app.services.spoolman_tracking._get_spoolman_client_with_fallback",
+                AsyncMock(return_value=client),
+            ),
+            patch("backend.app.services.spoolman_tracking._get_printer_serial", AsyncMock(return_value="serial")),
+            patch(
+                "backend.app.services.spoolman_tracking._resolve_spool_id_via_slot_assignment",
+                AsyncMock(return_value=7),
+            ),
+            patch("backend.app.services.printer_manager.printer_manager", printer_manager),
+        ):
+            await report_usage(printer_id=1, archive_id=42)
+
+        client.use_spool.assert_awaited_once_with(7, 200.0)
+        assert archive.cost == 12.5
+        assert db.commit.await_count == 1
 
     @pytest.mark.asyncio
     async def test_remain_delta_skips_swapped_spool(self):
