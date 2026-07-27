@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import io
+import zipfile
 
 import httpx
 import pytest
@@ -228,7 +230,7 @@ class TestSliceWithProfiles:
             captured["body"] = request.content
             return httpx.Response(
                 status_code=200,
-                content=b"3MF-BYTES",
+                content=_valid_3mf_zip(),
                 headers={"x-print-time-seconds": "0", "x-filament-used-g": "0", "x-filament-used-mm": "0"},
             )
 
@@ -360,6 +362,98 @@ class TestSliceWithProfiles:
         assert result.print_time_seconds == 0
         assert result.filament_used_g == 0.0
         assert result.filament_used_mm == 0.0
+
+
+def _valid_3mf_zip() -> bytes:
+    """Minimal ZIP accepted as a 3MF container by zipfile.is_zipfile()."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("[Content_Types].xml", "<Types/>")
+        zf.writestr("Metadata/plate_1.gcode", "; G-CODE\nG28\n")
+    return buf.getvalue()
+
+
+class TestSliceOutputValidation:
+    """#2671: a 200 with a non-3MF body must not be persisted as a slice."""
+
+    _SLICE_KW = {
+        "model_bytes": b"solid Cube\n",
+        "model_filename": "Cube.stl",
+        "printer_profile_json": "{}",
+        "process_profile_json": "{}",
+        "filament_profile_jsons": ["{}"],
+    }
+
+    @pytest.mark.asyncio
+    async def test_413_gives_actionable_reverse_proxy_message(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=413, content=b"<html>413 Request Entity Too Large</html>")
+
+        service = SlicerApiService("http://sidecar:3000", client=_mock_client(handler))
+
+        with pytest.raises(SlicerInputError) as exc_info:
+            await service.slice_with_profiles(export_3mf=True, **self._SLICE_KW)
+
+        msg = str(exc_info.value)
+        assert "413" in msg
+        assert "client_max_body_size" in msg
+        assert "proxy" in msg.lower()
+
+    @pytest.mark.asyncio
+    async def test_export_3mf_rejects_non_zip_200_body(self):
+        body = b'{"detail":"Not Found"}xxxxxx'
+        assert len(body) == 28
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=body)
+
+        service = SlicerApiService("http://sidecar:3000", client=_mock_client(handler))
+
+        with pytest.raises(SlicerApiServerError) as exc_info:
+            await service.slice_with_profiles(export_3mf=True, **self._SLICE_KW)
+
+        msg = str(exc_info.value)
+        assert "not a valid" in msg.lower()
+        assert "28 bytes" in msg
+
+    @pytest.mark.asyncio
+    async def test_export_3mf_accepts_valid_zip_body(self):
+        zip_bytes = _valid_3mf_zip()
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=zip_bytes, headers={"x-print-time-seconds": "656"})
+
+        service = SlicerApiService("http://sidecar:3000", client=_mock_client(handler))
+
+        result = await service.slice_with_profiles(export_3mf=True, **self._SLICE_KW)
+
+        assert result.content == zip_bytes
+        assert result.print_time_seconds == 656
+
+    @pytest.mark.asyncio
+    async def test_raw_gcode_body_not_zip_validated(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=b"; G-CODE\nG28\n")
+
+        service = SlicerApiService("http://sidecar:3000", client=_mock_client(handler))
+
+        result = await service.slice_with_profiles(**self._SLICE_KW)
+
+        assert result.content == b"; G-CODE\nG28\n"
+
+    @pytest.mark.asyncio
+    async def test_without_profiles_also_rejects_non_zip_200_body(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=b"nope")
+
+        service = SlicerApiService("http://sidecar:3000", client=_mock_client(handler))
+
+        with pytest.raises(SlicerApiServerError):
+            await service.slice_without_profiles(
+                model_bytes=b"solid Cube\n",
+                model_filename="Cube.stl",
+                export_3mf=True,
+            )
 
 
 class TestHealth:

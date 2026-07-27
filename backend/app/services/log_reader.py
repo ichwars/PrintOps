@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 # The trace_id is left as part of the message group — callers that need it can
 # parse it out; the log-health scanner does not.
 LOG_LINE_PATTERN = re.compile(r"^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d{3})\s+(\w+)\s+\[([^\]]+)\]\s+(.*)$")
+_LDAP_RDN = r"(?:CN|OU|DC|UID|O|L|ST|C|SN|GN|DN|E|MAIL|STREET|GIVENNAME|SURNAME)=[^,\n<>;+:]+"
+_LDAP_DN_PATTERN = re.compile(rf"(?i)\b{_LDAP_RDN}(?:\s*,\s*{_LDAP_RDN})+")
 
 
 class LogEntry(BaseModel):
@@ -140,8 +142,8 @@ def sanitize_log_content(content: str, sensitive_strings: dict[str, str] | None 
 
     ``sensitive_strings`` maps known exact values (printer names, serials, etc.)
     to replacement labels; pass the result of :func:`collect_sensitive_strings`.
-    Regex passes additionally redact credentials in URLs, emails, serials, and
-    IP addresses that were not captured by exact matching.
+    Regex passes additionally redact credentials in URLs, emails, LDAP DNs,
+    serials, and IP addresses that were not captured by exact matching.
     """
     # First, replace known sensitive values (database-aware exact matching)
     # This catches printer names, usernames, and other arbitrary user-chosen strings
@@ -176,6 +178,9 @@ def sanitize_log_content(content: str, sensitive_strings: dict[str, str] | None 
 
     # Replace email addresses
     content = re.sub(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", "[EMAIL]", content)
+
+    # Replace LDAP distinguished names
+    content = _LDAP_DN_PATTERN.sub("[DN]", content)
 
     # Replace Bambu Lab printer serial numbers (format: 00M/01D/01S/01P/03W + alphanumeric, 12-16 chars total)
     content = re.sub(r"\b0[0-3][A-Z0-9][A-Z0-9]{9,13}\b", "[SERIAL]", content, flags=re.IGNORECASE)

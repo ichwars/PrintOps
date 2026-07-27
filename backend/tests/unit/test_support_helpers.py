@@ -330,6 +330,60 @@ class TestSanitizeLogContent:
         assert "/home/[user]/" in result
         assert "[IP]" in result
 
+    def test_ldap_dn_redacted_from_auth_report_line(self):
+        """LDAP distinguished names in auth logs are replaced with [DN]."""
+        from backend.app.services.log_reader import sanitize_log_content as _sanitize_log_content
+
+        content = (
+            "LDAP authentication successful for user: alice (DN: CN=Alice Smith,OU=Users,DC=example,DC=com, groups: 2)"
+        )
+
+        result = _sanitize_log_content(content)
+
+        assert "CN=Alice Smith" not in result
+        assert "OU=Users" not in result
+        assert "DC=example" not in result
+        assert "DN: [DN]" in result
+
+    def test_ldap_dn_redacted_from_exception_string(self):
+        """LDAP DNs embedded in exception messages are redacted."""
+        from backend.app.services.log_reader import sanitize_log_content as _sanitize_log_content
+
+        content = "LDAP bind failed for UID=alice,OU=People,DC=example,DC=org: invalid credentials"
+
+        result = _sanitize_log_content(content)
+
+        assert "UID=alice" not in result
+        assert "DC=example" not in result
+        assert "[DN]: invalid credentials" in result
+
+    def test_ldap_group_dn_redacted(self):
+        """Group distinguished names are redacted as a single DN."""
+        from backend.app.services.log_reader import sanitize_log_content as _sanitize_log_content
+
+        content = "Resolved group CN=PrintOps Admins,OU=Groups,O=Example,C=DE"
+
+        result = _sanitize_log_content(content)
+
+        assert "PrintOps Admins" not in result
+        assert result == "Resolved group [DN]"
+
+    def test_non_dn_key_value_not_redacted(self):
+        """Unrelated key=value pairs are not treated as LDAP DNs."""
+        from backend.app.services.log_reader import sanitize_log_content as _sanitize_log_content
+
+        content = "status=ok printer=left-bench retries=1"
+
+        assert _sanitize_log_content(content) == content
+
+    def test_single_ldap_rdn_not_redacted(self):
+        """A lone LDAP RDN is not enough to infer a full DN."""
+        from backend.app.services.log_reader import sanitize_log_content as _sanitize_log_content
+
+        content = "LDAP lookup returned CN=Alice Smith"
+
+        assert _sanitize_log_content(content) == content
+
 
 class TestCollectSupportInfo:
     """Tests for _collect_support_info() new diagnostic sections."""

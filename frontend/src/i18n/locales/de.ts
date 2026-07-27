@@ -1247,6 +1247,8 @@ export default {
     history: {
       emptyTitle: 'Noch kein Verlauf',
       emptyDescription: 'Abgeschlossene, abgebrochene und fehlgeschlagene Drucke erscheinen hier.',
+      showMore: 'Mehr anzeigen',
+      showingCount: '{{shown}} von {{total}} werden angezeigt',
     },
     dragGhost: {
       multiCount: '{{count}} Einträge',
@@ -5597,6 +5599,8 @@ export default {
     noDryer: 'Kein Trockner',
     linkingDescription: 'Verknüpfung ermöglicht automatisches Ein-/Ausschalten bei Druckstart/-ende',
     printerLinkingDescription: 'Verknüpfung ermöglicht automatisches Ein-/Ausschalten bei Druckstart/-ende',
+    controlsPrinterPower: 'Steuert Druckerstrom',
+    controlsPrinterPowerDescription: 'Nur für den Stecker aktivieren, der wirklich den Drucker versorgt',
     dryerLinkingDescription: 'Verknüpfung ordnet diesen Smart Plug einem Filament-Trockner für manuelle und geplante Steuerung zu',
     powerAlerts: 'Leistungsalarme',
     alertAbove: 'Alarm wenn über (W)',

@@ -1210,6 +1210,8 @@ export default {
     history: {
       emptyTitle: 'Aucun historique',
       emptyDescription: 'Les impressions terminées, annulées et échouées apparaîtront ici.',
+      showMore: 'Afficher plus',
+      showingCount: '{{shown}} sur {{total}} affichés',
     },
     dragGhost: {
       multiCount: '{{count}} éléments',
@@ -5550,6 +5552,8 @@ export default {
     noDryer: 'Aucun sécheur',
     linkingDescription: 'La liaison permet l\'allumage/extinction automatique au début/fin de l\'impression',
     printerLinkingDescription: 'La liaison permet l\'allumage/extinction automatique au début/fin de l\'impression',
+    controlsPrinterPower: "Contrôle l'alimentation de l'imprimante",
+    controlsPrinterPowerDescription: "À activer uniquement pour la prise qui alimente réellement l'imprimante",
     dryerLinkingDescription: 'Lie cette prise à un sécheur de filament pour le contrôle manuel et planifié',
     powerAlerts: 'Alertes de puissance',
     alertAbove: 'Alerte si au-dessus (W)',

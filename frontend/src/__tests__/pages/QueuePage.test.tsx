@@ -249,6 +249,44 @@ describe('QueuePage', () => {
     });
   });
 
+  describe('history pagination', () => {
+    const manyHistory = Array.from({ length: 60 }, (_, i) => ({
+      ...mockQueueItems[2],
+      id: 100 + i,
+      batch_id: null,
+      archive_name: `History Item ${String(i).padStart(2, '0')}`,
+      completed_at: new Date(Date.UTC(2024, 0, 1, 0, 0, 0) - i * 60000).toISOString(),
+    }));
+
+    beforeEach(() => {
+      server.use(
+        http.get('/api/v1/queue/', () => {
+          return HttpResponse.json(manyHistory);
+        })
+      );
+    });
+
+    it('caps the History list at one page and reveals the rest on Show more', async () => {
+      const user = userEvent.setup();
+      render(<QueuePage />);
+
+      await user.click(await screen.findByRole('button', { name: /^History/ }));
+
+      await waitFor(() => {
+        expect(screen.getByText('History Item 00')).toBeInTheDocument();
+      });
+      expect(screen.queryByText('History Item 59')).not.toBeInTheDocument();
+      expect(screen.getByText('Showing 50 of 60')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: /show more/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('History Item 59')).toBeInTheDocument();
+      });
+      expect(screen.queryByRole('button', { name: /show more/i })).not.toBeInTheDocument();
+    });
+  });
+
   describe('empty state', () => {
     it('shows empty state when no queue items', async () => {
       server.use(

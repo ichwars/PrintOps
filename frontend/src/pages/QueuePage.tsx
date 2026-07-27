@@ -997,6 +997,8 @@ type HistoryRow =
 interface HistorySectionProps {
   items: PrintQueueItem[];
   collapsed: boolean;
+  visibleCount: number;
+  onShowMore: () => void;
   sortBy: 'date' | 'name' | 'printer';
   sortAsc: boolean;
   onSortByChange: (v: 'date' | 'name' | 'printer') => void;
@@ -1015,6 +1017,8 @@ interface HistorySectionProps {
 
 function HistorySection({
   items,
+  visibleCount,
+  onShowMore,
   sortBy,
   sortAsc,
   onSortByChange,
@@ -1043,7 +1047,7 @@ function HistorySection({
   // position from the parent's sort selector.
   const rows: HistoryRow[] = [];
   const seenBatches = new Set<number>();
-  for (const item of items.slice(0, 50)) {
+  for (const item of items.slice(0, visibleCount)) {
     if (item.batch_id != null) {
       if (seenBatches.has(item.batch_id)) continue;
       seenBatches.add(item.batch_id);
@@ -1191,9 +1195,24 @@ function HistorySection({
           );
         })}
       </div>
+      {items.length > visibleCount && (
+        <div className="mt-4 flex flex-col items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={onShowMore}>
+            {t('queue.history.showMore')}
+          </Button>
+          <span className="text-xs text-bambu-gray">
+            {t('queue.history.showingCount', {
+              shown: Math.min(visibleCount, items.length),
+              total: items.length,
+            })}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
+
+const HISTORY_PAGE_SIZE = 50;
 
 export function QueuePage() {
   const { t } = useTranslation();
@@ -1227,6 +1246,7 @@ export function QueuePage() {
     const saved = localStorage.getItem('queue.historySortAsc');
     return saved !== null ? saved === 'true' : false;
   });
+  const [historyVisibleCount, setHistoryVisibleCount] = useState(HISTORY_PAGE_SIZE);
   const [pendingSortBy, setPendingSortBy] = useState<'position' | 'name' | 'printer' | 'time'>(() => {
     const saved = localStorage.getItem('queue.pendingSortBy');
     return (saved as 'position' | 'name' | 'printer' | 'time') || 'position';
@@ -1283,6 +1303,10 @@ export function QueuePage() {
   useEffect(() => {
     localStorage.setItem('queue.historySortAsc', String(historySortAsc));
   }, [historySortAsc]);
+
+  useEffect(() => {
+    setHistoryVisibleCount(HISTORY_PAGE_SIZE);
+  }, [historySortBy, historySortAsc, filterLocation]);
 
   useEffect(() => {
     localStorage.setItem('queue.pendingSortBy', pendingSortBy);
@@ -2150,6 +2174,8 @@ export function QueuePage() {
         <HistorySection
           items={historyItems}
           collapsed={false}
+          visibleCount={historyVisibleCount}
+          onShowMore={() => setHistoryVisibleCount((count) => count + HISTORY_PAGE_SIZE)}
           sortBy={historySortBy}
           sortAsc={historySortAsc}
           onSortByChange={setHistorySortBy}

@@ -3304,6 +3304,14 @@ async def run_migrations(conn):
             "ALTER TABLE smart_plugs ADD COLUMN IF NOT EXISTS off_delay_after_drying_minutes INTEGER DEFAULT 10",
         )
 
+    if is_sqlite():
+        await _safe_execute(conn, "ALTER TABLE smart_plugs ADD COLUMN controls_printer_power BOOLEAN DEFAULT 1")
+    else:
+        await _safe_execute(
+            conn,
+            "ALTER TABLE smart_plugs ADD COLUMN IF NOT EXISTS controls_printer_power BOOLEAN DEFAULT true",
+        )
+
     equipment_sql = (
         "ALTER TABLE smart_plugs ADD COLUMN equipment_id INTEGER REFERENCES equipment(id) ON DELETE SET NULL"
     )

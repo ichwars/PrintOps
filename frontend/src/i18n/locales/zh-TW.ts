@@ -1210,6 +1210,8 @@ export default {
     history: {
       emptyTitle: '目前沒有歷史記錄',
       emptyDescription: '已完成、已取消與失敗的列印將顯示於此。',
+      showMore: '顯示更多',
+      showingCount: '正在顯示 {{total}} 項中的 {{shown}} 項',
     },
     dragGhost: {
       multiCount: '{{count}} 項',
@@ -5549,6 +5551,8 @@ export default {
     noDryer: '無乾燥機',
     linkingDescription: '連結後可在列印開始/完成時自動開關',
     printerLinkingDescription: '連結後可在列印開始/完成時自動開關',
+    controlsPrinterPower: '控制印表機電源',
+    controlsPrinterPowerDescription: '僅針對實際為印表機供電的插座啟用',
     dryerLinkingDescription: '將此插座連結到耗材乾燥機，用於手動和排程控制',
     powerAlerts: '功率警報',
     alertAbove: '高於時警報（W）',

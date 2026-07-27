@@ -9,7 +9,9 @@ under the hood, response body is raw G-code or 3MF with metadata in the
 """
 
 import asyncio
+import io
 import logging
+import zipfile
 from collections.abc import Callable
 from typing import NamedTuple
 
@@ -72,6 +74,40 @@ def _format_sidecar_error(response: httpx.Response) -> str:
     if message and details:
         return f"{message}: {details}"[:500]
     return (message or details or response.text)[:500]
+
+
+def _handle_slice_response(response: httpx.Response, *, export_3mf: bool) -> SliceResult:
+    """Turn a sidecar ``/slice`` response into a validated ``SliceResult``."""
+    if response.status_code == 413:
+        raise SlicerInputError(
+            "The slice request was rejected as too large (HTTP 413). A reverse proxy "
+            "in front of the slicer sidecar is capping the request body - raise "
+            "'client_max_body_size' (nginx/SWAG) or the equivalent on the proxy that "
+            "sits directly in front of the sidecar, then reload it. If the sidecar is "
+            "behind Cloudflare, note its request-size cap."
+        )
+    if response.status_code >= 500:
+        raise SlicerApiServerError(f"Slicer CLI failed ({response.status_code}): {_format_sidecar_error(response)}")
+    if response.status_code >= 400:
+        raise SlicerInputError(f"Slicer rejected input ({response.status_code}): {_format_sidecar_error(response)}")
+
+    content = response.content
+    if export_3mf and not zipfile.is_zipfile(io.BytesIO(content)):
+        detail = _format_sidecar_error(response) if len(content) <= 500 else ""
+        raise SlicerApiServerError(
+            f"Slicer sidecar returned HTTP {response.status_code} but the body is not a valid "
+            f"3MF ({len(content)} bytes). This usually means a misconfigured sidecar, an "
+            f"OrcaSlicer/BambuStudio CLI crash producing no output, or a reverse proxy returning "
+            f"an error page or truncating the response - verify the sidecar URL and any proxy in "
+            f"front of it." + (f" Body: {detail}" if detail else "")
+        )
+
+    return SliceResult(
+        content=content,
+        print_time_seconds=_safe_int(response.headers.get("x-print-time-seconds")),
+        filament_used_g=_safe_float(response.headers.get("x-filament-used-g")),
+        filament_used_mm=_safe_float(response.headers.get("x-filament-used-mm")),
+    )
 
 
 def set_shared_http_client(client: httpx.AsyncClient | None) -> None:
@@ -294,17 +330,7 @@ class SlicerApiService:
                 except (asyncio.CancelledError, Exception):
                     pass  # Polling errors must not fail the slice.
 
-        if response.status_code >= 500:
-            raise SlicerApiServerError(f"Slicer CLI failed ({response.status_code}): {_format_sidecar_error(response)}")
-        if response.status_code >= 400:
-            raise SlicerInputError(f"Slicer rejected input ({response.status_code}): {_format_sidecar_error(response)}")
-
-        return SliceResult(
-            content=response.content,
-            print_time_seconds=_safe_int(response.headers.get("x-print-time-seconds")),
-            filament_used_g=_safe_float(response.headers.get("x-filament-used-g")),
-            filament_used_mm=_safe_float(response.headers.get("x-filament-used-mm")),
-        )
+        return _handle_slice_response(response, export_3mf=export_3mf)
 
     async def slice_without_profiles(
         self,
@@ -372,17 +398,7 @@ class SlicerApiService:
                 except (asyncio.CancelledError, Exception):
                     pass
 
-        if response.status_code >= 500:
-            raise SlicerApiServerError(f"Slicer CLI failed ({response.status_code}): {_format_sidecar_error(response)}")
-        if response.status_code >= 400:
-            raise SlicerInputError(f"Slicer rejected input ({response.status_code}): {_format_sidecar_error(response)}")
-
-        return SliceResult(
-            content=response.content,
-            print_time_seconds=_safe_int(response.headers.get("x-print-time-seconds")),
-            filament_used_g=_safe_float(response.headers.get("x-filament-used-g")),
-            filament_used_mm=_safe_float(response.headers.get("x-filament-used-mm")),
-        )
+        return _handle_slice_response(response, export_3mf=export_3mf)
 
 
 def _safe_int(value: str | None) -> int:

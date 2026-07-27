@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { render } from '../utils';
 import { ModelViewerModal } from '../../components/ModelViewerModal';
+import { setStreamToken } from '../../api/client';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
 
@@ -85,6 +86,7 @@ describe('ModelViewerModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    setStreamToken(null);
     server.use(
       http.get('/api/v1/archives/:id/capabilities', () => {
         return HttpResponse.json(mockCapabilities);
@@ -383,6 +385,26 @@ describe('ModelViewerModal', () => {
         // The selected button should have the green border class
         expect(allPlatesButton).toHaveClass('border-bambu-green');
       });
+    });
+
+    it('appends the camera stream token to plate thumbnail URLs', async () => {
+      setStreamToken('tok-2661');
+
+      render(
+        <ModelViewerModal
+          archiveId={1}
+          title="Test Model"
+          onClose={mockOnClose}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Plate 1')).toBeInTheDocument();
+      });
+
+      const thumb = screen.getByAltText('Plate 1') as HTMLImageElement;
+      expect(thumb.src).toContain('/api/v1/archives/1/plates/1/thumbnail');
+      expect(thumb.src).toContain('token=tok-2661');
     });
 
     it('allows plate selection via click', async () => {

@@ -1,6 +1,37 @@
+import { api } from '../../api/client';
 import type { SlicerSetting, LocalPreset, BuiltinFilament } from '../../api/client';
-import type { ColorPreset, FilamentOption } from './types';
+import { installedNozzleDiameters } from '../../utils/amsHelpers';
+import type { CalibrationProfile, ColorPreset, FilamentOption } from './types';
 import { KNOWN_VARIANTS, DEFAULT_BRANDS, RECENT_COLORS_KEY, MAX_RECENT_COLORS } from './constants';
+
+export async function fetchPrinterCalibrations(
+  printerId: number,
+  status: { nozzles?: { nozzle_diameter?: string }[] } | null | undefined,
+): Promise<CalibrationProfile[]> {
+  const diameters = installedNozzleDiameters(status);
+  const toFetch = diameters.length > 0 ? diameters : ['0.4'];
+  const responses = await Promise.all(
+    toFetch.map((diameter) => api.getKProfiles(printerId, diameter).catch(() => null)),
+  );
+
+  const calibrations: CalibrationProfile[] = [];
+  for (const res of responses) {
+    if (!res) continue;
+    for (const profile of res.profiles) {
+      calibrations.push({
+        cali_idx: profile.slot_id,
+        filament_id: profile.filament_id,
+        setting_id: profile.setting_id || '',
+        name: profile.name,
+        k_value: parseFloat(profile.k_value) || 0,
+        n_coef: parseFloat(profile.n_coef) || 0,
+        extruder_id: profile.extruder_id,
+        nozzle_diameter: profile.nozzle_diameter,
+      });
+    }
+  }
+  return calibrations;
+}
 
 // Fallback filament presets when cloud is not available
 const FALLBACK_PRESETS: FilamentOption[] = [

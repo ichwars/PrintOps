@@ -1336,14 +1336,44 @@ class TestApplyTrayExistBitsHelper:
         assert units[0]["tray"][0]["state"] == 9
         assert isinstance(units[0]["tray"][0]["state"], int)
 
-    def test_ams_ht_unit_skipped(self):
-        """AMS-HT (id >= 128) uses a different addressing scheme."""
+    def test_ams_ht_unit_handled(self):
+        """AMS-HT (id 128-135) clears via its packed presence bit (#2670)."""
         from backend.app.services.bambu_mqtt import apply_tray_exist_bits
 
         units = [{"id": 128, "tray": [{"id": 0, "tray_type": "PLA"}]}]
         cleared = apply_tray_exist_bits(units, "0", power_on_flag=True)
-        assert cleared == 0
+        assert cleared == 1
+        assert units[0]["tray"][0]["tray_type"] == ""
+
+    def test_ht_unit_presence_bit_is_16_not_ams_id_times_4(self):
+        from backend.app.services.bambu_mqtt import apply_tray_exist_bits
+
+        loaded = [{"id": 128, "tray": [{"id": 0, "tray_type": "PLA", "tray_color": "000000FF"}]}]
+        assert apply_tray_exist_bits(loaded, "10f7f", power_on_flag=False, annotate_exists=True) == 0
+        assert loaded[0]["tray"][0]["tray_type"] == "PLA"
+        assert loaded[0]["tray"][0]["exists"] is True
+
+        empty = [{"id": 128, "tray": [{"id": 0, "tray_type": "PLA", "tray_color": "000000FF"}]}]
+        assert apply_tray_exist_bits(empty, "f7f", power_on_flag=False, annotate_exists=True) == 1
+        assert empty[0]["tray"][0]["tray_type"] == ""
+        assert empty[0]["tray"][0]["state"] == 9
+        assert empty[0]["tray"][0]["exists"] is False
+
+    def test_ht_second_unit_is_bit_17(self):
+        from backend.app.services.bambu_mqtt import apply_tray_exist_bits
+
+        units = [{"id": 129, "tray": [{"id": 0, "tray_type": "PETG", "tray_color": "00FF00FF"}]}]
+        assert apply_tray_exist_bits(units, "20000", power_on_flag=False, annotate_exists=True) == 0
+        assert units[0]["tray"][0]["tray_type"] == "PETG"
+        assert units[0]["tray"][0]["exists"] is True
+
+    def test_unknown_ams_id_range_is_left_untouched(self):
+        from backend.app.services.bambu_mqtt import apply_tray_exist_bits
+
+        units = [{"id": 200, "tray": [{"id": 0, "tray_type": "PLA"}]}]
+        assert apply_tray_exist_bits(units, "0", power_on_flag=True, annotate_exists=True) == 0
         assert units[0]["tray"][0]["tray_type"] == "PLA"
+        assert "exists" not in units[0]["tray"][0]
 
     def test_string_ids_handled(self):
         """Bridge cache stores ids as strings (JSON wire format)."""
@@ -6244,3 +6274,89 @@ class TestLastLayerFinishPhotoTrigger:
 
         assert len(events) == 1
         assert len(completion_events) == 1
+
+
+class TestKProfileResponseDoesNotClobberNozzle:
+    @pytest.fixture
+    def mqtt_client(self):
+        from backend.app.services.bambu_mqtt import BambuMQTTClient
+
+        return BambuMQTTClient(
+            ip_address="192.168.1.100",
+            serial_number="A1TEST",
+            access_code="12345678",
+        )
+
+    def test_kprofile_response_does_not_overwrite_nozzle_diameter(self, mqtt_client):
+        mqtt_client._process_message({"print": {"nozzle_diameter": "0.4"}})
+        assert mqtt_client.state.nozzles[0].nozzle_diameter == "0.4"
+
+        mqtt_client._process_message(
+            {
+                "print": {
+                    "command": "extrusion_cali_get",
+                    "nozzle_diameter": "0.8",
+                    "filaments": [],
+                    "sequence_id": "1501",
+                }
+            }
+        )
+
+        assert mqtt_client.state.nozzles[0].nozzle_diameter == "0.4"
+
+    def test_kprofile_response_is_still_parsed(self, mqtt_client):
+        mqtt_client._process_message(
+            {
+                "print": {
+                    "command": "extrusion_cali_get",
+                    "nozzle_diameter": "0.4",
+                    "filaments": [
+                        {
+                            "cali_idx": 0,
+                            "nozzle_diameter": "0.4",
+                            "filament_id": "GFA00",
+                            "name": "PLA",
+                            "k_value": "0.020000",
+                        }
+                    ],
+                }
+            }
+        )
+
+        assert len(mqtt_client.state.kprofiles) == 1
+        assert mqtt_client.state.kprofiles[0].filament_id == "GFA00"
+
+
+class TestAmsHtBitmaskRemoval:
+    @pytest.fixture
+    def mqtt_client(self):
+        from backend.app.services.bambu_mqtt import BambuMQTTClient
+
+        return BambuMQTTClient(
+            ip_address="192.168.1.100",
+            serial_number="H2DTEST",
+            access_code="12345678",
+        )
+
+    def test_bitmask_only_ht_removal_fires_on_ams_change(self, mqtt_client):
+        from unittest.mock import Mock
+
+        mqtt_client.on_ams_change = Mock()
+        loaded = {
+            "ams": [{"id": 128, "tray": [{"id": 0, "tray_type": "PLA", "tag_uid": "C7EFC10300000100", "remain": 75}]}],
+            "tray_exist_bits": "10000",
+            "power_on_flag": True,
+        }
+        mqtt_client._handle_ams_data(loaded)
+        assert mqtt_client.state.raw_data["ams"][0]["tray"][0]["tray_type"] == "PLA"
+        mqtt_client.on_ams_change.reset_mock()
+
+        bitmask_only_removal = {
+            "ams": [{"id": 128, "tray": [{"id": 0, "tray_type": "PLA", "tag_uid": "C7EFC10300000100", "remain": 75}]}],
+            "tray_exist_bits": "0",
+            "power_on_flag": True,
+        }
+        mqtt_client._handle_ams_data(bitmask_only_removal)
+
+        assert mqtt_client.state.raw_data["ams"][0]["tray"][0]["tray_type"] == ""
+        mqtt_client.on_ams_change.assert_called_once()

@@ -1151,6 +1151,8 @@ export default {
     history: {
       emptyTitle: '아직 기록이 없습니다',
       emptyDescription: '완료·취소·실패한 인쇄가 여기에 표시됩니다.',
+      showMore: '더 보기',
+      showingCount: '{{total}}개 중 {{shown}}개 표시 중',
     },
     dragGhost: {
       multiCount: '{{count}}개 항목',
@@ -5286,6 +5288,8 @@ export default {
     noDryer: '건조기 없음',
     linkingDescription: '연결하면 인쇄 시작/완료 시 자동 켜기/끄기가 활성화됩니다',
     printerLinkingDescription: '연결하면 인쇄 시작/완료 시 자동 켜기/끄기가 활성화됩니다',
+    controlsPrinterPower: '프린터 전원 제어',
+    controlsPrinterPowerDescription: '실제로 프린터에 전원을 공급하는 플러그에서만 활성화하세요',
     dryerLinkingDescription: '이 플러그를 필라멘트 건조기에 연결하여 수동 및 예약 제어에 사용합니다',
     powerAlerts: '전력 알림',
     alertAbove: '초과 시 알림 (W)',

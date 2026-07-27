@@ -669,10 +669,8 @@ class PrinterManager:
 
         if printer_id in self._clients:
             client = self._clients[printer_id]
-            if client.state.connected:
+            if client.mark_power_off():
                 logger.info("Marking printer %s as offline (smart plug power off)", printer_id)
-                client.state.connected = False
-                client.state.state = "unknown"
                 # Trigger the status change callback to broadcast via WebSocket
                 if self._on_status_change:
                     self._schedule_async(self._on_status_change(printer_id, client.state))
@@ -1054,6 +1052,7 @@ def printer_state_to_dict(
                         "drying_temp": tray.get("drying_temp"),
                         "drying_time": tray.get("drying_time"),
                         "state": state_val,
+                        "exists": tray.get("exists"),
                     }
                 )
             # Prefer humidity_raw (actual percentage) over humidity (index 1-5)

@@ -63,6 +63,7 @@ class SmartPlugBase(BaseModel):
 
     printer_id: int | None = None
     equipment_id: int | None = None
+    controls_printer_power: bool = True
     enabled: bool = True
     auto_on: bool = True
     auto_off: bool = True
@@ -158,6 +159,7 @@ class SmartPlugUpdate(BaseModel):
     rest_energy_multiplier: float | None = Field(default=None, ge=0.0001, le=10000)
     printer_id: int | None = None
     equipment_id: int | None = None
+    controls_printer_power: bool | None = None
     enabled: bool | None = None
     auto_on: bool | None = None
     auto_off: bool | None = None

@@ -1209,6 +1209,8 @@ export default {
     history: {
       emptyTitle: '履歴はまだありません',
       emptyDescription: '完了・キャンセル・失敗した印刷がここに表示されます。',
+      showMore: 'さらに表示',
+      showingCount: '{{total}} 件中 {{shown}} 件を表示中',
     },
     dragGhost: {
       multiCount: '{{count}}件',
@@ -5561,6 +5563,8 @@ export default {
     noDryer: 'ドライヤーなし',
     linkingDescription: 'リンクすると印刷開始/完了時に自動でオン/オフできます',
     printerLinkingDescription: 'リンクすると印刷開始/完了時に自動でオン/オフできます',
+    controlsPrinterPower: 'プリンター電源を制御',
+    controlsPrinterPowerDescription: '実際にプリンターへ給電しているプラグでのみ有効にしてください',
     dryerLinkingDescription: 'このプラグをフィラメントドライヤーに割り当て、手動およびスケジュール制御に使用します',
     powerAlerts: '電力アラート',
     alertAbove: '上限アラート（W）',

@@ -60,6 +60,7 @@ def apply_tray_exist_bits(
     *,
     power_on_flag: bool = True,
     log_label: str | None = None,
+    annotate_exists: bool = False,
 ) -> int:
     """Wipe stale per-tray filament fields on slots whose `tray_exist_bits` bit is 0.
 
@@ -84,12 +85,16 @@ def apply_tray_exist_bits(
     is valid idle-printer state (#1365 — X1C between prints) and MUST be applied
     so spool removal is detected without requiring a manual reconnect.
 
-    AMS-HT units (``id >= 128``) use a separate addressing scheme and are
-    skipped here.
+    AMS-HT units (``id`` 128-135) are single-tray dry boxes whose presence bit
+    is packed at ``16 + (ams_id - 128)`` instead of ``ams_id * 4`` (#2670).
 
     `tray_exist_bits_str` is expected as a hex string (firmware sends it that
     way). Ints are tolerated for defensive symmetry but typically not seen
     on the wire. ``None`` / empty / unparseable → no-op.
+
+    ``annotate_exists`` writes each processed slot's physical presence bit. The
+    printer-card path uses it to distinguish a present unconfigured spool from
+    a genuinely empty slot.
 
     Mutates ``units`` in place. Returns the number of slots cleared.
     """
@@ -118,8 +123,10 @@ def apply_tray_exist_bits(
             ams_id = int(ams_id_raw) if isinstance(ams_id_raw, str) else ams_id_raw
         except (ValueError, TypeError):
             continue
-        if not isinstance(ams_id, int) or ams_id >= 128:
-            # Skip AMS-HT (id >= 128) — separate addressing scheme.
+        if not isinstance(ams_id, int):
+            continue
+        is_ht = 128 <= ams_id <= 135
+        if not is_ht and not (0 <= ams_id <= 15):
             continue
         for tray in ams_unit.get("tray", []):
             if not isinstance(tray, dict):
@@ -133,8 +140,10 @@ def apply_tray_exist_bits(
                 continue
             if not isinstance(tray_id, int):
                 continue
-            global_bit = ams_id * 4 + tray_id
+            global_bit = (16 + (ams_id - 128)) if is_ht else (ams_id * 4 + tray_id)
             slot_exists = (tray_exist_bits >> global_bit) & 1
+            if annotate_exists:
+                tray["exists"] = bool(slot_exists)
             if slot_exists:
                 continue
             tray["state"] = 9
@@ -555,6 +564,7 @@ class BambuMQTTClient:
         # to once per client lifetime so the stale loop doesn't spam it (#1465).
         self._report_messages_since_connect: int = 0
         self._zero_report_hint_logged: bool = False
+        self._state_before_power_off: str | None = None
         # Raw-message fan-out for VP MQTT bridge (non-proxy modes republish the
         # printer's pushes verbatim to slicers connected to a virtual printer).
         # Handlers receive (topic, payload_bytes) before JSON parsing.
@@ -651,6 +661,29 @@ class BambuMQTTClient:
             return False  # Never received a message yet
         time_since_last = time.time() - self._last_message_time
         return time_since_last > self.STALE_TIMEOUT
+
+    def mark_power_off(self) -> bool:
+        """Presume the printer lost power and remember the previous state."""
+        if not self.state.connected:
+            return False
+        previous = self.state.state
+        self.state.connected = False
+        self.state.state = "unknown"
+        if self._state_before_power_off is None and previous not in ("", "unknown"):
+            self._state_before_power_off = previous
+        return True
+
+    def _restore_state_after_false_power_off(self) -> bool:
+        """Restore state when report traffic proves the printer stayed online."""
+        previous = self._state_before_power_off
+        self._state_before_power_off = None
+        if previous is None or self.state.state != "unknown":
+            return False
+        logger.info(
+            "[%s] Printer still responding after presumed power-off, restoring state %s", self.serial_number, previous
+        )
+        self.state.state = previous
+        return True
 
     # Minimum seconds between stale reconnect attempts.  Frontend polls
     # status every few seconds — without a cooldown, each poll would
@@ -806,6 +839,7 @@ class BambuMQTTClient:
             self._dev_mode_probe_failures = 0
             self._connect_time = time.monotonic()
             self._report_messages_since_connect = 0
+            self._state_before_power_off = None
             self._last_ams_cmd_time = 0.0
             self._ams_cmd_unanswered = 0
             client.subscribe(self.topic_subscribe)
@@ -952,6 +986,9 @@ class BambuMQTTClient:
             # "printer never sent a report" apart from a mid-session quiet gap.
             if msg.topic == self.topic_subscribe:
                 self._report_messages_since_connect += 1
+                if self._state_before_power_off is not None:
+                    if self._restore_state_after_false_power_off() and self.on_state_change:
+                        self.on_state_change(self.state)
 
             # Log message if logging is enabled
             if self._logging_enabled:
@@ -1198,10 +1235,12 @@ class BambuMQTTClient:
                 elif cmd == "ams_filament_setting":
                     self._last_ams_cmd_time = 0.0
                     self._ams_cmd_unanswered = 0
-            if "command" in print_data and print_data.get("command") == "extrusion_cali_get":
+            is_kprofile_response = "command" in print_data and print_data.get("command") == "extrusion_cali_get"
+            if is_kprofile_response:
                 self._handle_kprofile_response(print_data)
 
-            self._update_state(print_data)
+            if not is_kprofile_response:
+                self._update_state(print_data)
 
     def _handle_system_response(self, data: dict):
         """Handle system responses including accessories info.
@@ -2021,6 +2060,7 @@ class BambuMQTTClient:
                 ams_data.get("tray_exist_bits"),
                 power_on_flag=ams_data.get("power_on_flag", True),
                 log_label=self.serial_number,
+                annotate_exists=True,
             )
 
         self.state.raw_data["ams"] = merged_ams
@@ -2127,9 +2167,10 @@ class BambuMQTTClient:
                 if self.on_drying_complete:
                     self.on_drying_complete(ams_id)
 
-        # Create a hash of relevant AMS data to detect changes
+        # Create a hash of relevant AMS data to detect changes. Hash the merged
+        # state so tray_exist_bits-only clears still fire the AMS-change callback.
         ams_hash_data = []
-        for ams_unit in ams_list:
+        for ams_unit in merged_ams:
             for tray in ams_unit.get("tray", []):
                 # Include fields that matter for filament tracking
                 ams_hash_data.append(

@@ -1261,6 +1261,8 @@ export default {
     history: {
       emptyTitle: 'No history yet',
       emptyDescription: 'Completed, cancelled, and failed prints will appear here.',
+      showMore: 'Show more',
+      showingCount: 'Showing {{shown}} of {{total}}',
     },
     // Drag ghost label when multi-dragging
     dragGhost: {
@@ -5641,6 +5643,8 @@ export default {
     noDryer: 'No dryer',
     linkingDescription: 'Linking enables automatic on/off when prints start/complete',
     printerLinkingDescription: 'Linking enables automatic on/off when prints start/complete',
+    controlsPrinterPower: 'Controls Printer Power',
+    controlsPrinterPowerDescription: 'Only enable for the plug that actually powers the printer',
     dryerLinkingDescription: 'Linking assigns this plug to a filament dryer for manual and scheduled control',
     powerAlerts: 'Power Alerts',
     alertAbove: 'Alert if above (W)',

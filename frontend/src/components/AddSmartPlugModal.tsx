@@ -87,6 +87,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
   );
   const [printerId, setPrinterId] = useState<number | null>(plug?.printer_id || null);
   const [equipmentId, setEquipmentId] = useState<number | null>(plug?.equipment_id || null);
+  const [controlsPrinterPower, setControlsPrinterPower] = useState(plug?.controls_printer_power ?? true);
   const [testResult, setTestResult] = useState<{ success: boolean; state?: string | null; device_name?: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -406,6 +407,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
       password: plugType === 'tasmota' ? (password.trim() || null) : null,
       printer_id: linkTarget === 'printer' ? printerId : null,
       equipment_id: linkTarget === 'dryer' ? equipmentId : null,
+      controls_printer_power: controlsPrinterPower,
       // Power alerts
       power_alert_enabled: powerAlertEnabled,
       power_alert_high: powerAlertHigh ? parseFloat(powerAlertHigh) : null,
@@ -1517,6 +1519,19 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                   <p className="text-xs text-bambu-gray mt-1">
                     {t('smartPlugs.printerLinkingDescription')}
                   </p>
+                  {printerId !== null && (
+                    <div className="flex items-center justify-between mt-3">
+                      <div className="pr-3">
+                        <p className="text-sm text-white">{t('smartPlugs.controlsPrinterPower')}</p>
+                        <p className="text-xs text-bambu-gray">{t('smartPlugs.controlsPrinterPowerDescription')}</p>
+                      </div>
+                      <Switch
+                        ariaLabel={t('smartPlugs.controlsPrinterPower')}
+                        checked={controlsPrinterPower}
+                        onChange={(e) => setControlsPrinterPower(e.target.checked)}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 

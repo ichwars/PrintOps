@@ -1210,6 +1210,8 @@ export default {
     history: {
       emptyTitle: 'Sem histórico ainda',
       emptyDescription: 'Impressões concluídas, canceladas e com falha aparecerão aqui.',
+      showMore: 'Mostrar mais',
+      showingCount: 'Mostrando {{shown}} de {{total}}',
     },
     dragGhost: {
       multiCount: '{{count}} itens',
@@ -5549,6 +5551,8 @@ export default {
     noDryer: 'Sem secador',
     linkingDescription: 'A vinculação permite ligar/desligar automaticamente ao iniciar/terminar impressão',
     printerLinkingDescription: 'A vinculação permite ligar/desligar automaticamente ao iniciar/terminar impressão',
+    controlsPrinterPower: 'Controla a energia da impressora',
+    controlsPrinterPowerDescription: 'Ative apenas no plugue que realmente alimenta a impressora',
     dryerLinkingDescription: 'Vincula este plug a um secador de filamento para controle manual e agendado',
     powerAlerts: 'Alertas de potência',
     alertAbove: 'Alertar se acima (W)',

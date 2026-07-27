@@ -313,6 +313,9 @@ class TestPrinterManager:
     def test_mark_printer_offline_updates_state(self, manager, mock_client):
         """Verify mark_printer_offline updates client state."""
         mock_client.state.connected = True
+        mock_client.mark_power_off.side_effect = lambda: (
+            setattr(mock_client.state, "connected", False) or setattr(mock_client.state, "state", "unknown") or True
+        )
         manager._clients[1] = mock_client
 
         manager.mark_printer_offline(1)
@@ -323,6 +326,9 @@ class TestPrinterManager:
     def test_mark_printer_offline_triggers_callback(self, manager, mock_client):
         """Verify mark_printer_offline triggers status callback."""
         mock_client.state.connected = True
+        mock_client.mark_power_off.side_effect = lambda: (
+            setattr(mock_client.state, "connected", False) or setattr(mock_client.state, "state", "unknown") or True
+        )
         manager._clients[1] = mock_client
 
         # Callback must return a coroutine
@@ -350,6 +356,7 @@ class TestPrinterManager:
     def test_mark_printer_offline_skips_already_offline(self, manager, mock_client):
         """Verify mark_printer_offline skips already offline printer."""
         mock_client.state.connected = False
+        mock_client.mark_power_off.return_value = False
         manager._clients[1] = mock_client
 
         manager.mark_printer_offline(1)
@@ -971,6 +978,19 @@ class TestPrinterStateToDict:
         result = printer_state_to_dict(mock_state)
 
         assert result["ams"][0]["tray"][0]["tag_uid"] is None
+
+    def test_exists_bit_is_serialized_for_websocket(self, mock_state):
+        mock_state.raw_data = {
+            "ams": [
+                {"id": 128, "tray": [{"id": 0, "state": 9, "tray_type": "", "exists": False}]},
+                {"id": 0, "tray": [{"id": 0, "state": 10, "tray_type": "", "exists": True}]},
+            ]
+        }
+
+        result = printer_state_to_dict(mock_state)
+
+        assert result["ams"][0]["tray"][0]["exists"] is False
+        assert result["ams"][1]["tray"][0]["exists"] is True
 
     def test_vt_tray_parsing(self, mock_state):
         """Verify virtual tray is parsed correctly as a list."""

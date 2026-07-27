@@ -1216,6 +1216,8 @@ export default {
     history: {
       emptyTitle: 'Sin historial todavía',
       emptyDescription: 'Las impresiones completadas, canceladas y fallidas aparecerán aquí.',
+      showMore: 'Mostrar más',
+      showingCount: 'Mostrando {{shown}} de {{total}}',
     },
     dragGhost: {
       multiCount: '{{count}} elementos',
@@ -5575,6 +5577,8 @@ export default {
     noDryer: 'Sin secador',
     linkingDescription: 'La vinculación activa el encendido/apagado automático cuando las impresiones comienzan/terminan',
     printerLinkingDescription: 'La vinculación activa el encendido/apagado automático cuando las impresiones comienzan/terminan',
+    controlsPrinterPower: 'Controla la alimentación de la impresora',
+    controlsPrinterPowerDescription: 'Actívalo solo para el enchufe que realmente alimenta la impresora',
     dryerLinkingDescription: 'Vincula este enchufe a un secador de filamento para control manual y programado',
     powerAlerts: 'Alertas de potencia',
     alertAbove: 'Alertar si supera (W)',

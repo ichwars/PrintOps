@@ -343,6 +343,20 @@ export function filterFilamentsByNozzle<T extends { extruderId?: number }>(
   );
 }
 
+export function installedNozzleDiameters(
+  status: { nozzles?: { nozzle_diameter?: string }[] } | null | undefined,
+): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const nozzle of status?.nozzles ?? []) {
+    const raw = (nozzle?.nozzle_diameter ?? '').trim();
+    if (!raw || !(parseFloat(raw) > 0) || seen.has(raw)) continue;
+    seen.add(raw);
+    result.push(raw);
+  }
+  return result;
+}
+
 /**
  * Detect Bambu Lab RFID-tagged spool by tray_uuid (32 hex) or tag_uid (16 hex).
  *

@@ -1210,6 +1210,8 @@ export default {
     history: {
       emptyTitle: '暂无历史',
       emptyDescription: '已完成、已取消和失败的打印将在此显示。',
+      showMore: '显示更多',
+      showingCount: '正在显示 {{total}} 项中的 {{shown}} 项',
     },
     dragGhost: {
       multiCount: '{{count}} 项',
@@ -5549,6 +5551,8 @@ export default {
     noDryer: '无干燥机',
     linkingDescription: '关联后可在打印开始/完成时自动开关',
     printerLinkingDescription: '关联后可在打印开始/完成时自动开关',
+    controlsPrinterPower: '控制打印机电源',
+    controlsPrinterPowerDescription: '仅对实际为打印机供电的插座启用',
     dryerLinkingDescription: '将此插座关联到耗材干燥机，用于手动和定时控制',
     powerAlerts: '功率警报',
     alertAbove: '高于时警报（W）',

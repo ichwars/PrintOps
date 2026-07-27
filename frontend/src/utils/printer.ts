@@ -34,12 +34,14 @@ import type { PrintQueueItem } from '../api/client';
  * @param items - Array of queue items to filter
  * @param loadedFilamentTypes - Set of loaded filament types (e.g., "PLA", "PETG")
  * @param loadedFilaments - Set of loaded filament type+color pairs (e.g., "PLA:ffffff", "PETG:ff0000")
+ * @param loadedVariants - Set of loaded type+color+tray_info_idx triples
  * @returns Array of compatible queue items
  */
 export function filterCompatibleQueueItems(
   items: PrintQueueItem[],
   loadedFilamentTypes?: Set<string>,
-  loadedFilaments?: Set<string>
+  loadedFilaments?: Set<string>,
+  loadedVariants?: Set<string>
 ): PrintQueueItem[] {
   return items.filter(item => {
     // Type check: all required filament types must be loaded
@@ -56,12 +58,16 @@ export function filterCompatibleQueueItems(
       const forceOverrides = item.filament_overrides.filter(o => o.force_color_match === true);
       const prefOverrides = item.filament_overrides.filter(o => o.force_color_match !== true);
 
-      // All force-matched slots must have exact type+color on this printer
+      // All force-matched slots must have exact type+color on this printer.
       if (forceOverrides.length > 0) {
         const allForceMatch = forceOverrides.every(o => {
           const oType = (o.type || '').toUpperCase();
           const oColor = (o.color || '').replace('#', '').toLowerCase().slice(0, 6);
-          return loadedFilaments.has(`${oType}:${oColor}`);
+          const oIdx = o.tray_info_idx || '';
+          if (!oIdx || loadedVariants === undefined) {
+            return loadedFilaments.has(`${oType}:${oColor}`);
+          }
+          return loadedVariants.has(`${oType}:${oColor}:${oIdx}`) || loadedVariants.has(`${oType}:${oColor}:`);
         });
         if (!allForceMatch) return false;
       }

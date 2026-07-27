@@ -8,7 +8,16 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getPrinterImage } from '../../utils/printer';
+import { filterCompatibleQueueItems, getPrinterImage } from '../../utils/printer';
+import type { PrintQueueItem } from '../../api/client';
+
+function queueItem(overrides: PrintQueueItem['filament_overrides']): PrintQueueItem {
+  return {
+    id: 1,
+    required_filament_types: ['PLA'],
+    filament_overrides: overrides,
+  } as PrintQueueItem;
+}
 
 describe('getPrinterImage', () => {
   describe('X2D (#988)', () => {
@@ -95,5 +104,49 @@ describe('getPrinterImage', () => {
         '/img/printers/default.png',
       );
     });
+  });
+});
+
+describe('filterCompatibleQueueItems', () => {
+  it('requires the force-color tray_info_idx when variant data is available', () => {
+    const item = queueItem([
+      {
+        slot_id: 1,
+        type: 'PLA',
+        color: '#FFFFFF',
+        tray_info_idx: 'GFA01',
+        force_color_match: true,
+      },
+    ]);
+
+    const result = filterCompatibleQueueItems(
+      [item],
+      new Set(['PLA']),
+      new Set(['PLA:ffffff']),
+      new Set(['PLA:ffffff:GFA00']),
+    );
+
+    expect(result).toEqual([]);
+  });
+
+  it('lets blank loaded variants satisfy force-color fallback', () => {
+    const item = queueItem([
+      {
+        slot_id: 1,
+        type: 'PLA',
+        color: '#FFFFFF',
+        tray_info_idx: 'GFA01',
+        force_color_match: true,
+      },
+    ]);
+
+    const result = filterCompatibleQueueItems(
+      [item],
+      new Set(['PLA']),
+      new Set(['PLA:ffffff']),
+      new Set(['PLA:ffffff:']),
+    );
+
+    expect(result).toEqual([item]);
   });
 });

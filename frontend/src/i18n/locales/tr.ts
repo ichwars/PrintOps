@@ -1209,6 +1209,8 @@ export default {
     history: {
       emptyTitle: 'Henüz geçmiş yok',
       emptyDescription: 'Tamamlanan, iptal edilen ve başarısız baskılar burada görünür.',
+      showMore: 'Daha fazla göster',
+      showingCount: '{{total}} öğeden {{shown}} tanesi gösteriliyor',
     },
     dragGhost: {
       multiCount: '{{count}} öğe',
@@ -5522,6 +5524,8 @@ export default {
     noDryer: 'Kurutucu yok',
     linkingDescription: 'Bağlama, baskılar başladığında/tamamlandığında otomatik açma/kapamayı etkinleştirir',
     printerLinkingDescription: 'Bağlama, baskılar başladığında/tamamlandığında otomatik açma/kapamayı etkinleştirir',
+    controlsPrinterPower: 'Yazıcı gücünü kontrol eder',
+    controlsPrinterPowerDescription: 'Yalnızca yazıcıya gerçekten güç veren priz için etkinleştirin',
     dryerLinkingDescription: 'Bu prizi manuel ve zamanlanmış kontrol için bir filament kurutucuya bağlar',
     powerAlerts: 'Güç Uyarıları',
     alertAbove: 'Üstündeyse uyar (W)',

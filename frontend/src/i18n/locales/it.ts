@@ -1210,6 +1210,8 @@ export default {
     history: {
       emptyTitle: 'Nessuna cronologia',
       emptyDescription: 'Le stampe completate, annullate e fallite appariranno qui.',
+      showMore: 'Mostra altro',
+      showingCount: '{{shown}} di {{total}} visualizzati',
     },
     dragGhost: {
       multiCount: '{{count}} elementi',
@@ -5549,6 +5551,8 @@ export default {
     noDryer: 'Nessun essiccatore',
     linkingDescription: 'Il collegamento abilita accensione/spegnimento automatico all\'inizio/fine stampa',
     printerLinkingDescription: 'Il collegamento abilita accensione/spegnimento automatico all\'inizio/fine stampa',
+    controlsPrinterPower: "Controlla l'alimentazione della stampante",
+    controlsPrinterPowerDescription: "Attiva solo per la presa che alimenta davvero la stampante",
     dryerLinkingDescription: 'Collega questa presa a un essiccatore filamento per controllo manuale e programmato',
     powerAlerts: 'Avvisi potenza',
     alertAbove: 'Avviso se sopra (W)',

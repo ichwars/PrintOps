@@ -394,6 +394,7 @@ export interface AMSTray {
   drying_temp: number | null;      // RFID-recommended drying temp
   drying_time: number | null;      // RFID-recommended drying time (hours)
   state: number | null;            // AMS tray state: 9=empty, 10=spool present not loaded, 11=loaded
+  exists?: boolean | null;         // Physical spool presence from tray_exist_bits, if available
 }
 
 export interface AMSUnit {
@@ -1895,6 +1896,7 @@ export interface SmartPlug {
   rest_energy_multiplier: number;
   printer_id: number | null;
   equipment_id: number | null;
+  controls_printer_power: boolean;
   enabled: boolean;
   auto_on: boolean;
   auto_off: boolean;
@@ -1970,6 +1972,7 @@ export interface SmartPlugCreate {
   rest_energy_multiplier?: number;
   printer_id?: number | null;
   equipment_id?: number | null;
+  controls_printer_power?: boolean;
   enabled?: boolean;
   auto_on?: boolean;
   auto_off?: boolean;
@@ -2037,6 +2040,7 @@ export interface SmartPlugUpdate {
   rest_energy_multiplier?: number;
   printer_id?: number | null;
   equipment_id?: number | null;
+  controls_printer_power?: boolean;
   enabled?: boolean;
   auto_on?: boolean;
   auto_off?: boolean;
@@ -2150,7 +2154,7 @@ export interface PrintQueueItem {
   // PrintModal's deficit warning was acknowledged.
   skip_filament_check: boolean;
   ams_mapping: number[] | null;  // AMS slot mapping for multi-color prints
-  filament_overrides: Array<{ slot_id: number; type: string; color: string; color_name?: string; force_color_match?: boolean }> | null;  // Filament overrides for model-based assignment
+  filament_overrides: Array<{ slot_id: number; type: string; color: string; color_name?: string; tray_info_idx?: string; force_color_match?: boolean }> | null;  // Filament overrides for model-based assignment
   plate_id: number | null;  // Plate ID for multi-plate 3MF files
   // Print options
   bed_levelling: boolean;

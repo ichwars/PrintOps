@@ -684,6 +684,7 @@ async def camera_stream(
     # Check for external camera first
     if printer.external_camera_enabled and printer.external_camera_url:
         import time
+        import uuid
 
         from backend.app.services.external_camera import generate_mjpeg_stream
 
@@ -693,21 +694,49 @@ async def camera_stream(
             "Using external camera (%s) for printer %s at %s fps", printer.external_camera_type, printer_id, fps
         )
 
+        stream_id = f"{printer_id}-ext-{uuid.uuid4().hex[:8]}"
+        stop_event = asyncio.Event()
+        _disconnect_events[stream_id] = stop_event
+
         # Track stream start
         _stream_start_times[printer_id] = time.time()
         _active_external_streams.add(printer_id)
+
+        current_proc: dict[str, asyncio.subprocess.Process] = {}
+
+        def _register_external_process(proc: asyncio.subprocess.Process) -> None:
+            prev = current_proc.get("proc")
+            if prev is not None and prev.pid != proc.pid:
+                _spawned_ffmpeg_pids.pop(prev.pid, None)
+            current_proc["proc"] = proc
+            _active_streams[stream_id] = proc
+            _spawned_ffmpeg_pids[proc.pid] = time.time()
+            _stream_last_frame_times[stream_id] = time.time()
 
         async def external_stream_wrapper():
             """Wrap external stream to track start/stop and update frame times."""
             try:
                 async for frame in generate_mjpeg_stream(
-                    printer.external_camera_url, printer.external_camera_type, fps
+                    printer.external_camera_url,
+                    printer.external_camera_type,
+                    fps,
+                    on_process=_register_external_process,
+                    stop_event=stop_event,
                 ):
                     # generate_mjpeg_stream already handles rate limiting;
-                    # just track frame times for stall detection
-                    _last_frame_times[printer_id] = time.time()
+                    # just track frame times for stall detection.
+                    now = time.time()
+                    _last_frame_times[printer_id] = now
+                    _stream_last_frame_times[stream_id] = now
                     yield frame
             finally:
+                stop_event.set()
+                proc = current_proc.get("proc")
+                if proc is not None:
+                    _spawned_ffmpeg_pids.pop(proc.pid, None)
+                _active_streams.pop(stream_id, None)
+                _disconnect_events.pop(stream_id, None)
+                _stream_last_frame_times.pop(stream_id, None)
                 _active_external_streams.discard(printer_id)
                 logger.info("External camera stream ended for printer %s", printer_id)
 
@@ -1547,9 +1576,9 @@ async def delete_reference(
 
 
 def _scan_bambu_ffmpeg_pids() -> list[int]:
-    """Scan /proc for ffmpeg processes with Bambu RTSP URLs.
+    """Scan /proc for ffmpeg processes that are ours.
 
-    These are definitely ours — no other software connects to rtsp(s)://bblp:.
+    Matches Bambu RTSP streams and external USB streams started via v4l2.
     This catches orphans that survive app restarts and are not in any tracking dict.
     """
     import os
@@ -1562,8 +1591,11 @@ def _scan_bambu_ffmpeg_pids() -> list[int]:
             try:
                 with open(f"/proc/{entry}/cmdline", "rb") as f:
                     cmdline = f.read()
-                # Match both rtsp:// (via TLS proxy) and rtsps:// (direct)
-                if b"ffmpeg" in cmdline and (b"rtsp://bblp:" in cmdline or b"rtsps://bblp:" in cmdline):
+                if b"ffmpeg" not in cmdline:
+                    continue
+                # Match both rtsp:// (via TLS proxy), rtsps:// (direct), and
+                # external USB streams whose ffmpeg input uses v4l2.
+                if b"rtsp://bblp:" in cmdline or b"rtsps://bblp:" in cmdline or b"v4l2" in cmdline:
                     pids.append(int(entry))
             except (OSError, PermissionError, ValueError):
                 continue
