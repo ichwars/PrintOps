@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
+from backend.app.models.smart_plug import SmartPlug
 from backend.app.models.user import User
 from backend.app.schemas.equipment import EquipmentCreate, EquipmentRead, EquipmentUpdate
 from backend.app.services import equipment as equipment_service
@@ -58,5 +60,6 @@ async def delete_equipment(
     item = await equipment_service.get_equipment(db, equipment_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Equipment not found")
+    await db.execute(update(SmartPlug).where(SmartPlug.equipment_id == equipment_id).values(equipment_id=None))
     await db.delete(item)
     await db.commit()

@@ -657,6 +657,10 @@ class SmartPlugManager:
             # Clear pending state in database
             spawn_background_task(self._mark_auto_off_pending(plug_id, False), name=f"plug-auto-off-pending-{plug_id}")
 
+    def cancel_pending_off(self, plug_id: int):
+        """Cancel any pending off task for this plug."""
+        self._cancel_pending_off(plug_id)
+
     def cancel_all_pending(self):
         """Cancel all pending turn-off tasks."""
         for plug_id in list(self._pending_off.keys()):

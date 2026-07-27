@@ -11,6 +11,7 @@ const mockSmartPlugs = [
     name: 'Test Plug',
     ip_address: '192.168.1.100',
     printer_id: 1,
+    equipment_id: null,
     enabled: true,
     auto_on: true,
     auto_off: true,
@@ -145,6 +146,10 @@ export const handlers = [
         total: 100.0,
       },
     });
+  }),
+
+  http.get('/api/v1/equipment/', () => {
+    return HttpResponse.json([]);
   }),
 
   http.post('/api/v1/smart-plugs/:id/control', async ({ request }) => {

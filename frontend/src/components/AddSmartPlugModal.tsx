@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { X, Save, Loader2, Wifi, WifiOff, CheckCircle, Bell, Clock, LayoutGrid, Search, Plug, Power, Home, Radio, Eye, Globe } from 'lucide-react';
+import { X, Save, Loader2, Wifi, WifiOff, CheckCircle, Bell, Clock, LayoutGrid, Search, Plug, Power, Home, Radio, Eye, Globe, Wind } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import type { SmartPlug, SmartPlugCreate, SmartPlugUpdate, DiscoveredTasmotaDevice } from '../api/client';
@@ -82,7 +82,11 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
   const [isEnergyTotalDropdownOpen, setIsEnergyTotalDropdownOpen] = useState(false);
   const energyTotalDropdownRef = useRef<HTMLDivElement>(null);
 
+  const [linkTarget, setLinkTarget] = useState<'none' | 'printer' | 'dryer'>(
+    plug?.equipment_id ? 'dryer' : plug?.printer_id ? 'printer' : 'none'
+  );
   const [printerId, setPrinterId] = useState<number | null>(plug?.printer_id || null);
+  const [equipmentId, setEquipmentId] = useState<number | null>(plug?.equipment_id || null);
   const [testResult, setTestResult] = useState<{ success: boolean; state?: string | null; device_name?: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -110,6 +114,12 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
   const { data: printers } = useQuery({
     queryKey: ['printers'],
     queryFn: api.getPrinters,
+  });
+
+  // Fetch filament dryers for linking
+  const { data: dryers } = useQuery({
+    queryKey: ['equipment', 'active'],
+    queryFn: () => api.getEquipment(true),
   });
 
   // Fetch existing plugs to check for conflicts
@@ -307,6 +317,16 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
     return true;
   });
 
+  const availableDryers = dryers?.filter(d => {
+    if (plugType === 'tasmota') {
+      const hasTasmotaPlug = existingPlugs?.some(
+        ep => ep.equipment_id === d.id && ep.id !== plug?.id && ep.plug_type === 'tasmota'
+      );
+      return !hasTasmotaPlug;
+    }
+    return true;
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -384,7 +404,8 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
       rest_energy_multiplier: plugType === 'rest' ? (parseFloat(restEnergyMultiplier) || 1) : 1,
       username: plugType === 'tasmota' ? (username.trim() || null) : null,
       password: plugType === 'tasmota' ? (password.trim() || null) : null,
-      printer_id: printerId,
+      printer_id: linkTarget === 'printer' ? printerId : null,
+      equipment_id: linkTarget === 'dryer' ? equipmentId : null,
       // Power alerts
       power_alert_enabled: powerAlertEnabled,
       power_alert_high: powerAlertHigh ? parseFloat(powerAlertHigh) : null,
@@ -1457,25 +1478,73 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
             </>
           )}
 
-          {/* Link to Printer - not shown for MQTT plugs (monitor-only) */}
+          {/* Link target - not shown for MQTT plugs (monitor-only) */}
           {plugType !== 'mqtt' && (
-            <div>
-              <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.linkToPrinter')}</label>
-              <LegacySelect
-                value={printerId ?? ''}
-                onChange={(e) => setPrinterId(e.target.value ? Number(e.target.value) : null)}
-                className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-              >
-                <option value="">{t('smartPlugs.noPrinter')}</option>
-                {availablePrinters?.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </LegacySelect>
-              <p className="text-xs text-bambu-gray mt-1">
-                {t('smartPlugs.linkingDescription')}
-              </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.linkTarget')}</label>
+                <LegacySelect
+                  value={linkTarget}
+                  onChange={(e) => {
+                    const nextTarget = e.target.value as 'none' | 'printer' | 'dryer';
+                    setLinkTarget(nextTarget);
+                    if (nextTarget !== 'printer') setPrinterId(null);
+                    if (nextTarget !== 'dryer') setEquipmentId(null);
+                  }}
+                  className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+                >
+                  <option value="none">{t('smartPlugs.noTarget')}</option>
+                  <option value="printer">{t('smartPlugs.targetPrinter')}</option>
+                  <option value="dryer">{t('smartPlugs.targetDryer')}</option>
+                </LegacySelect>
+              </div>
+
+              {linkTarget === 'printer' && (
+                <div>
+                  <label className="block text-sm text-bambu-gray mb-1">{t('smartPlugs.selectPrinter')}</label>
+                  <LegacySelect
+                    value={printerId ?? ''}
+                    onChange={(e) => setPrinterId(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+                  >
+                    <option value="">{t('smartPlugs.noPrinter')}</option>
+                    {availablePrinters?.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </LegacySelect>
+                  <p className="text-xs text-bambu-gray mt-1">
+                    {t('smartPlugs.printerLinkingDescription')}
+                  </p>
+                </div>
+              )}
+
+              {linkTarget === 'dryer' && (
+                <div>
+                  <label className="block text-sm text-bambu-gray mb-1">
+                    <span className="inline-flex items-center gap-1">
+                      <Wind className="w-3.5 h-3.5" />
+                      {t('smartPlugs.selectDryer')}
+                    </span>
+                  </label>
+                  <LegacySelect
+                    value={equipmentId ?? ''}
+                    onChange={(e) => setEquipmentId(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+                  >
+                    <option value="">{t('smartPlugs.noDryer')}</option>
+                    {availableDryers?.map((dryer) => (
+                      <option key={dryer.id} value={dryer.id}>
+                        {dryer.name}
+                      </option>
+                    ))}
+                  </LegacySelect>
+                  <p className="text-xs text-bambu-gray mt-1">
+                    {t('smartPlugs.dryerLinkingDescription')}
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

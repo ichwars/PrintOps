@@ -32,3 +32,35 @@ async def test_equipment_crud_and_derived_costs(async_client):
 
     deleted = await async_client.delete(f"/api/v1/equipment/{equipment['id']}")
     assert deleted.status_code == 204
+
+
+async def test_delete_equipment_clears_smart_plug_link(async_client):
+    payload = {
+        "equipment_type": "dryer",
+        "name": "Dryer B",
+        "acquisition_date": "2026-01-01",
+        "acquisition_value": "400",
+        "service_years": "4",
+        "annual_hours": "500",
+        "maintenance_rate": "0.10",
+        "nominal_power_watts": "250",
+    }
+    created = await async_client.post("/api/v1/equipment/", json=payload)
+    assert created.status_code == 201, created.text
+    equipment = created.json()
+
+    plug_payload = {
+        "name": "Dryer Plug",
+        "ip_address": "192.168.1.120",
+        "equipment_id": equipment["id"],
+    }
+    plug_created = await async_client.post("/api/v1/smart-plugs/", json=plug_payload)
+    assert plug_created.status_code == 200, plug_created.text
+    plug = plug_created.json()
+
+    deleted = await async_client.delete(f"/api/v1/equipment/{equipment['id']}")
+    assert deleted.status_code == 204
+
+    fetched = await async_client.get(f"/api/v1/smart-plugs/{plug['id']}")
+    assert fetched.status_code == 200
+    assert fetched.json()["equipment_id"] is None

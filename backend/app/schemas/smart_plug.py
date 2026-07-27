@@ -62,6 +62,7 @@ class SmartPlugBase(BaseModel):
     rest_energy_multiplier: float = Field(default=1.0, ge=0.0001, le=10000)
 
     printer_id: int | None = None
+    equipment_id: int | None = None
     enabled: bool = True
     auto_on: bool = True
     auto_off: bool = True
@@ -106,6 +107,8 @@ class SmartPlugBase(BaseModel):
         if self.plug_type == "rest":
             if not self.rest_on_url and not self.rest_off_url:
                 raise ValueError("At least one of ON URL or OFF URL is required for REST plugs")
+        if self.printer_id and self.equipment_id:
+            raise ValueError("A smart plug can only be linked to one target")
         return self
 
 
@@ -154,6 +157,7 @@ class SmartPlugUpdate(BaseModel):
     rest_energy_path: str | None = None
     rest_energy_multiplier: float | None = Field(default=None, ge=0.0001, le=10000)
     printer_id: int | None = None
+    equipment_id: int | None = None
     enabled: bool | None = None
     auto_on: bool | None = None
     auto_off: bool | None = None

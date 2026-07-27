@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { Plug, Power, PowerOff, Loader2, Trash2, Settings2, Thermometer, Clock, Wifi, WifiOff, Edit2, Bell, Calendar, LayoutGrid, ExternalLink, Home, Radio, Eye, Globe } from 'lucide-react';
+import { Plug, Power, PowerOff, Loader2, Trash2, Settings2, Thermometer, Clock, Wifi, WifiOff, Edit2, Bell, Calendar, LayoutGrid, ExternalLink, Home, Radio, Eye, Globe, Wind } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import type { SmartPlug, SmartPlugUpdate } from '../api/client';
@@ -36,7 +36,13 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
     queryFn: api.getPrinters,
   });
 
+  const { data: dryers } = useQuery({
+    queryKey: ['equipment'],
+    queryFn: () => api.getEquipment(false),
+  });
+
   const linkedPrinter = printers?.find(p => p.id === plug.printer_id);
+  const linkedDryer = dryers?.find(d => d.id === plug.equipment_id);
 
   // Control mutation with optimistic updates
   const controlMutation = useMutation({
@@ -201,11 +207,18 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
             </div>
           </div>
 
-          {/* Linked Printer */}
-          {linkedPrinter && (
-            <div className="mb-3 px-2 py-1.5 bg-bambu-dark rounded-lg">
-              <span className="text-xs text-bambu-gray">{t('smartPlugs.linkedTo')} </span>
-              <span className="text-sm text-white">{linkedPrinter.name}</span>
+          {/* Linked target */}
+          {(linkedPrinter || linkedDryer) && (
+            <div className="mb-3 px-2 py-1.5 bg-bambu-dark rounded-lg flex items-center gap-2">
+              {linkedDryer ? (
+                <Wind className="w-3.5 h-3.5 text-bambu-green" />
+              ) : (
+                <Plug className="w-3.5 h-3.5 text-bambu-green" />
+              )}
+              <div className="min-w-0">
+                <span className="text-xs text-bambu-gray">{t('smartPlugs.linkedTo')} </span>
+                <span className="text-sm text-white">{linkedDryer?.name || linkedPrinter?.name}</span>
+              </div>
             </div>
           )}
 

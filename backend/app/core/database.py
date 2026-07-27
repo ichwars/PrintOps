@@ -3262,10 +3262,7 @@ async def run_migrations(conn):
             """)
         )
 
-    # Migration: smart_plugs gets per-plug auto-off-after-drying toggle and
-    # delay (#1349). Fires whenever any AMS attached to the linked printer
-    # finishes a dry cycle. Plain ANSI ALTER TABLE works on both SQLite and
-    # Postgres for INTEGER/BOOLEAN with simple defaults.
+    # Migration: per-plug auto-off-after-drying settings (#1349).
     if is_sqlite():
         await _safe_execute(conn, "ALTER TABLE smart_plugs ADD COLUMN auto_off_after_drying BOOLEAN DEFAULT 0")
         await _safe_execute(
@@ -3281,12 +3278,13 @@ async def run_migrations(conn):
             "ALTER TABLE smart_plugs ADD COLUMN IF NOT EXISTS off_delay_after_drying_minutes INTEGER DEFAULT 10",
         )
 
-    # Migration: Add per-user Orca Cloud credential columns. Mirrors the Bambu
-    # Cloud columns but adds refresh_token + expires_at (Supabase PKCE issues
-    # short-lived access tokens with rotating refresh tokens), plus three
-    # transient PKCE state columns held during the auth handshake. DATETIME
-    # is SQLite-only — Postgres uses TIMESTAMP, so the datetime columns are
-    # dialect-branched per project convention.
+    equipment_sql = (
+        "ALTER TABLE smart_plugs ADD COLUMN equipment_id INTEGER REFERENCES equipment(id) ON DELETE SET NULL"
+    )
+    await _safe_execute(conn, equipment_sql)
+    await _safe_execute(conn, "CREATE INDEX IF NOT EXISTS ix_smart_plugs_equipment_id ON smart_plugs(equipment_id)")
+
+    # Migration: per-user Orca Cloud credential and transient PKCE columns.
     await _safe_execute(conn, "ALTER TABLE users ADD COLUMN orca_cloud_token VARCHAR(2000)")
     await _safe_execute(conn, "ALTER TABLE users ADD COLUMN orca_cloud_refresh_token VARCHAR(128)")
     if is_sqlite():
