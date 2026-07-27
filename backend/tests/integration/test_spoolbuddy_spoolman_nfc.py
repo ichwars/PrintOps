@@ -265,6 +265,7 @@ class TestLinkTagToSpoolmanSpool:
         # get_all_spools returns empty list — no duplicate tags in Spoolman.
         client.get_all_spools = AsyncMock(return_value=[])
         client.get_spool = AsyncMock(return_value=_spoolman_spool(spool_id))
+        client.ensure_extra_field = AsyncMock(return_value=True)
         client.update_spool_full = AsyncMock(return_value=_spoolman_spool(spool_id))
         return client
 
@@ -288,7 +289,10 @@ class TestLinkTagToSpoolmanSpool:
         assert resp.status_code == 200
         mock_client.update_spool_full.assert_called_once()
         _, kwargs = mock_client.update_spool_full.call_args
-        assert kwargs.get("extra", {}).get("tag") == _json.dumps("AABB1122334455FF")
+        sent_extra = kwargs.get("extra", {})
+        assert sent_extra.get("tag") == _json.dumps("AABB1122334455FF")
+        assert sent_extra.get("bambu_tag_uid") == _json.dumps("AABB1122334455FF")
+        assert "bambu_tray_uuid" not in sent_extra
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -313,7 +317,10 @@ class TestLinkTagToSpoolmanSpool:
         assert resp.status_code == 200
         mock_client.update_spool_full.assert_called_once()
         _, kwargs = mock_client.update_spool_full.call_args
-        assert kwargs.get("extra", {}).get("tag") == _json.dumps("DEADBEEFDEADBEEFDEADBEEFDEADBEEF")
+        sent_extra = kwargs.get("extra", {})
+        assert sent_extra.get("tag") == _json.dumps("DEADBEEFDEADBEEFDEADBEEFDEADBEEF")
+        assert sent_extra.get("bambu_tray_uuid") == _json.dumps("DEADBEEFDEADBEEFDEADBEEFDEADBEEF")
+        assert sent_extra.get("bambu_tag_uid") == _json.dumps("AABB1122334455FF")
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -398,4 +405,7 @@ class TestLinkTagToSpoolmanSpool:
         assert resp.status_code == 200
         mock_client.update_spool_full.assert_called_once()
         _, kwargs = mock_client.update_spool_full.call_args
-        assert kwargs.get("extra", {}).get("tag") == _json.dumps("2728C17B")
+        sent_extra = kwargs.get("extra", {})
+        assert sent_extra.get("tag") == _json.dumps("2728C17B")
+        assert sent_extra.get("bambu_tag_uid") == _json.dumps("2728C17B")
+        assert "bambu_tray_uuid" not in sent_extra
