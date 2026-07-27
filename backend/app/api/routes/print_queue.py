@@ -344,7 +344,9 @@ async def list_queue(
         query = query.where(PrintQueueItem.created_by_id == user.id)
     allowed_printer_ids = allowed_printer_ids_for_user(user)
     if allowed_printer_ids is not None:
-        query = query.where(or_(PrintQueueItem.printer_id.is_(None), PrintQueueItem.printer_id.in_(allowed_printer_ids)))
+        query = query.where(
+            or_(PrintQueueItem.printer_id.is_(None), PrintQueueItem.printer_id.in_(allowed_printer_ids))
+        )
 
     if printer_id is not None:
         if printer_id == -1:

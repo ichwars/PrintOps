@@ -137,9 +137,7 @@ class TestSumSnapshotDeltas:
         assert total == pytest.approx(5.0)
 
     @pytest.mark.asyncio
-    async def test_stats_response_reports_snapshot_energy_source(
-        self, db_session, smart_plug_factory, monkeypatch
-    ):
+    async def test_stats_response_reports_snapshot_energy_source(self, db_session, smart_plug_factory, monkeypatch):
         plug = await smart_plug_factory(name="A")
         t0 = datetime(2026, 4, 10, 12, 0, tzinfo=timezone.utc)
         db_session.add(_snap(plug.id, t0, 500.0))
