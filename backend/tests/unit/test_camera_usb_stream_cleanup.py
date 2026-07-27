@@ -142,11 +142,23 @@ async def test_cleanup_janitor_reaps_stale_external_usb_stream(monkeypatch):
         camera._disconnect_events.pop(stream_id, None)
 
 
-def test_scan_matches_v4l2_ffmpeg(monkeypatch):
+def test_scan_matches_tracked_v4l2_ffmpeg(monkeypatch):
     cmdline = b"ffmpeg\x00-f\x00v4l2\x00-i\x00/dev/video0\x00-f\x00mjpeg\x00-\x00"
     monkeypatch.setattr("os.listdir", lambda _path: ["52020"])
+    camera._spawned_ffmpeg_pids[52020] = time.time()
+    try:
+        with patch("builtins.open", mock_open(read_data=cmdline)):
+            assert 52020 in camera._scan_bambu_ffmpeg_pids()
+    finally:
+        camera._spawned_ffmpeg_pids.pop(52020, None)
+
+
+def test_scan_ignores_untracked_v4l2_ffmpeg(monkeypatch):
+    cmdline = b"ffmpeg\x00-f\x00v4l2\x00-i\x00/dev/video0\x00-f\x00mjpeg\x00-\x00"
+    monkeypatch.setattr("os.listdir", lambda _path: ["52020"])
+    camera._spawned_ffmpeg_pids.pop(52020, None)
     with patch("builtins.open", mock_open(read_data=cmdline)):
-        assert 52020 in camera._scan_bambu_ffmpeg_pids()
+        assert camera._scan_bambu_ffmpeg_pids() == []
 
 
 def test_scan_ignores_unrelated_ffmpeg(monkeypatch):
