@@ -11,7 +11,7 @@ import asyncio
 import logging
 import re
 import shutil
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -603,13 +603,23 @@ async def test_connection(url: str, camera_type: str) -> dict:
         return {"success": False, "error": f"Connection failed: {error_type}"}
 
 
-async def generate_mjpeg_stream(url: str, camera_type: str, fps: int = 10) -> AsyncGenerator[bytes, None]:
+async def generate_mjpeg_stream(
+    url: str,
+    camera_type: str,
+    fps: int = 10,
+    *,
+    on_process: Callable[[asyncio.subprocess.Process], None] | None = None,
+    stop_event: asyncio.Event | None = None,
+) -> AsyncGenerator[bytes, None]:
     """Generator yielding MJPEG frames for streaming.
 
     Args:
         url: Camera URL or USB device path
         camera_type: "mjpeg", "rtsp", "snapshot", or "usb"
         fps: Target frames per second
+        on_process: Called with spawned ffmpeg processes so callers can register
+            external RTSP/USB streams for explicit stop and orphan cleanup.
+        stop_event: Stops reconnect loops after an explicit stop/client cleanup.
 
     Yields:
         MJPEG frame data with HTTP multipart boundaries
@@ -628,7 +638,7 @@ async def generate_mjpeg_stream(url: str, camera_type: str, fps: int = 10) -> As
                 if current_time - last_frame_time >= frame_interval:
                     last_frame_time = current_time
                     yield _format_mjpeg_frame(frame)
-            if not frame_yielded or attempt == max_retries:
+            if not frame_yielded or attempt == max_retries or (stop_event is not None and stop_event.is_set()):
                 break
             logger.warning(
                 "External MJPEG stream ended, reconnecting (attempt %d/%d)...",
@@ -642,10 +652,10 @@ async def generate_mjpeg_stream(url: str, camera_type: str, fps: int = 10) -> As
         max_retries = 3
         for attempt in range(max_retries + 1):
             frame_yielded = False
-            async for frame in _stream_rtsp(url, fps):
+            async for frame in _stream_rtsp(url, fps, on_process=on_process):
                 frame_yielded = True
                 yield _format_mjpeg_frame(frame)
-            if not frame_yielded or attempt == max_retries:
+            if not frame_yielded or attempt == max_retries or (stop_event is not None and stop_event.is_set()):
                 break
             logger.warning(
                 "External RTSP stream ended, reconnecting (attempt %d/%d)...",
@@ -656,7 +666,7 @@ async def generate_mjpeg_stream(url: str, camera_type: str, fps: int = 10) -> As
 
     elif camera_type == "usb":
         # Use ffmpeg to stream from USB camera
-        async for frame in _stream_usb(url, fps):
+        async for frame in _stream_usb(url, fps, on_process=on_process):
             yield _format_mjpeg_frame(frame)
 
     elif camera_type == "snapshot":
@@ -735,7 +745,12 @@ async def _stream_mjpeg(url: str) -> AsyncGenerator[bytes, None]:
         logger.error("MJPEG stream error: %s", e)
 
 
-async def _stream_rtsp(url: str, fps: int) -> AsyncGenerator[bytes, None]:
+async def _stream_rtsp(
+    url: str,
+    fps: int,
+    *,
+    on_process: Callable[[asyncio.subprocess.Process], None] | None = None,
+) -> AsyncGenerator[bytes, None]:
     """Stream frames from RTSP URL via ffmpeg.
 
     For rtsps:// URLs, a local TLS proxy (Python OpenSSL) is used instead
@@ -816,6 +831,8 @@ async def _stream_rtsp(url: str, fps: int) -> AsyncGenerator[bytes, None]:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+        if on_process is not None:
+            on_process(process)
 
         # Brief check for immediate startup failures
         await asyncio.sleep(0.1)
@@ -876,7 +893,12 @@ async def _stream_rtsp(url: str, fps: int) -> AsyncGenerator[bytes, None]:
             await proxy_server.wait_closed()
 
 
-async def _stream_usb(device: str, fps: int) -> AsyncGenerator[bytes, None]:
+async def _stream_usb(
+    device: str,
+    fps: int,
+    *,
+    on_process: Callable[[asyncio.subprocess.Process], None] | None = None,
+) -> AsyncGenerator[bytes, None]:
     """Stream frames from USB camera via ffmpeg."""
     ffmpeg = get_ffmpeg_path()
     if not ffmpeg:
@@ -918,6 +940,8 @@ async def _stream_usb(device: str, fps: int) -> AsyncGenerator[bytes, None]:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+        if on_process is not None:
+            on_process(process)
 
         # Give ffmpeg a moment to start and check for immediate failures
         await asyncio.sleep(0.5)

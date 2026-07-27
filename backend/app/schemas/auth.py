@@ -52,6 +52,7 @@ class UserCreate(BaseModel):
     email: str | None = Field(default=None, max_length=254)  # L-NEW-5: RFC 5321 max
     role: str = "user"
     group_ids: list[int] | None = None
+    allowed_printer_ids: list[int] | None = None
 
     @field_validator("password")
     @classmethod
@@ -68,6 +69,7 @@ class UserUpdate(BaseModel):
     role: str | None = None
     is_active: bool | None = None
     group_ids: list[int] | None = None
+    allowed_printer_ids: list[int] | None = None
 
     @field_validator("password")
     @classmethod
@@ -87,6 +89,7 @@ class UserResponse(BaseModel):
     auth_source: str = "local"  # "local" or "ldap"
     groups: list[GroupBrief] = []
     permissions: list[str] = []  # All permissions from groups
+    allowed_printer_ids: list[int] | None = None
     created_at: str
 
     class Config:

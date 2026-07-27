@@ -1884,6 +1884,24 @@ async def run_migrations(conn):
     except (OperationalError, ProgrammingError):
         pass  # Already applied
 
+    # Migration: Audit events for spool refills (#1817)
+    await _safe_execute(
+        conn,
+        """
+        CREATE TABLE IF NOT EXISTS spool_refill_events (
+            id INTEGER PRIMARY KEY,
+            spool_id INTEGER REFERENCES spool(id) ON DELETE SET NULL,
+            external_spool_id VARCHAR(64),
+            before_weight_used REAL NOT NULL,
+            after_weight_used REAL NOT NULL,
+            added_weight REAL NOT NULL,
+            note VARCHAR(500),
+            created_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+    )
+
     # Migration: Migrate single virtual printer key-value settings to virtual_printers table
     try:
         async with conn.begin_nested():
@@ -2324,6 +2342,14 @@ async def run_migrations(conn):
 
     # Migration: Add auth_source column to users for LDAP support (#794)
     await _safe_execute(conn, "ALTER TABLE users ADD COLUMN auth_source VARCHAR(20) DEFAULT 'local' NOT NULL")
+
+    # Migration: Add optional printer scope to users (#1727/#1620)
+    if is_sqlite():
+        await _safe_execute(conn, "ALTER TABLE users ADD COLUMN allowed_printer_ids JSON")
+        await _safe_execute(conn, "UPDATE users SET allowed_printer_ids = NULL WHERE allowed_printer_ids = '[]'")
+    else:
+        await _safe_execute(conn, "ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_printer_ids JSON")
+        await _safe_execute(conn, "UPDATE users SET allowed_printer_ids = NULL WHERE allowed_printer_ids::text = '[]'")
 
     # Migration: Make password_hash nullable for LDAP users (#794)
     # LDAP users have no local password — the column must allow NULL so auto-provisioning
@@ -3278,6 +3304,14 @@ async def run_migrations(conn):
             "ALTER TABLE smart_plugs ADD COLUMN IF NOT EXISTS off_delay_after_drying_minutes INTEGER DEFAULT 10",
         )
 
+    if is_sqlite():
+        await _safe_execute(conn, "ALTER TABLE smart_plugs ADD COLUMN controls_printer_power BOOLEAN DEFAULT 1")
+    else:
+        await _safe_execute(
+            conn,
+            "ALTER TABLE smart_plugs ADD COLUMN IF NOT EXISTS controls_printer_power BOOLEAN DEFAULT true",
+        )
+
     equipment_sql = (
         "ALTER TABLE smart_plugs ADD COLUMN equipment_id INTEGER REFERENCES equipment(id) ON DELETE SET NULL"
     )
@@ -3456,6 +3490,11 @@ async def run_migrations(conn):
     else:
         await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN gate_acknowledged BOOLEAN DEFAULT false")
 
+    # Migration: bounded dispatch retry counter for print_queue (#2555).
+    # Counts watchdog reverts from "printing" back to "pending" so a printer
+    # that accepts a file but never starts cannot re-upload forever.
+    await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN dispatch_attempts INTEGER DEFAULT 0")
+
     # Migration: business-profile document, tax, and payment settings.
     await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN tax_mode VARCHAR(16) DEFAULT 'standard'")
     await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN default_tax_rate NUMERIC(5, 2) DEFAULT 0")
@@ -3519,6 +3558,21 @@ async def run_migrations(conn):
     else:
         await _safe_execute(conn, "ALTER TABLE oidc_providers ADD COLUMN is_autologin BOOLEAN DEFAULT false")
         await _safe_execute(conn, "ALTER TABLE oidc_providers ADD COLUMN allow_private_network BOOLEAN DEFAULT false")
+
+    # Migration: real filesystem mtime for library files/folders (#2680). The
+    # folder tree's "sort by recent activity" and the file pane's date sort must
+    # track the on-disk mtime (``ls -t``), not Bambuddy's DB ``updated_at`` — for
+    # a bulk external scan every row's ``updated_at`` is the same scan instant, so
+    # ordering was arbitrary. Nullable; the timestamp type differs by dialect
+    # (SQLite DATETIME vs Postgres TIMESTAMP) so an existing-DB upgrade doesn't hit
+    # "type datetime does not exist" on Postgres. On a fresh DB create_all() already
+    # built the column, so the ALTER is swallowed as "already exists".
+    if is_sqlite():
+        await _safe_execute(conn, "ALTER TABLE library_files ADD COLUMN fs_modified_at DATETIME")
+        await _safe_execute(conn, "ALTER TABLE library_folders ADD COLUMN fs_modified_at DATETIME")
+    else:
+        await _safe_execute(conn, "ALTER TABLE library_files ADD COLUMN fs_modified_at TIMESTAMP")
+        await _safe_execute(conn, "ALTER TABLE library_folders ADD COLUMN fs_modified_at TIMESTAMP")
 
     # Migration: Disambiguate the four ``user_print_*`` notification template
     # names by appending " Email" (#1792). See ``_migrate_rename_user_print_template_names``.

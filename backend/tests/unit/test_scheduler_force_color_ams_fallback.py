@@ -101,9 +101,8 @@ class TestBuildOverrideDirectMapping:
         result = scheduler._build_override_direct_mapping(overrides, status)
         assert result == [254]
 
-    def test_tray_info_idx_is_not_used_for_direct_mapping(self, scheduler):
-        """Direct-override mapping clears tray_info_idx so matching falls back
-        to colour rather than pinning to a specific spool ID from the 3MF."""
+    def test_missing_tray_info_idx_falls_back_to_colour_for_direct_mapping(self, scheduler):
+        """Direct mapping without tray_info_idx still falls back to colour."""
         status = self._status(
             ams=[
                 {
@@ -123,6 +122,33 @@ class TestBuildOverrideDirectMapping:
         result = scheduler._build_override_direct_mapping(overrides, status)
         # Should match by colour (#CBC6B8 ≈ CBC6B8FF after strip), not by tray_info_idx.
         assert result == [0]
+
+    def test_force_override_tray_info_idx_pins_variant_for_direct_mapping(self, scheduler):
+        """Force-color fallback keeps tray_info_idx to pick the right same-colour variant."""
+        status = self._status(
+            ams=[
+                {
+                    "id": 0,
+                    "tray": [
+                        {"id": 0, "tray_type": "PLA", "tray_color": "FFFFFFFF", "tray_info_idx": "GFA00"},
+                        {"id": 1, "tray_type": "PLA", "tray_color": "FFFFFFFF", "tray_info_idx": "GFA01"},
+                    ],
+                }
+            ]
+        )
+        overrides = [
+            {
+                "slot_id": 1,
+                "type": "PLA",
+                "color": "#FFFFFF",
+                "tray_info_idx": "GFA01",
+                "force_color_match": True,
+            }
+        ]
+
+        result = scheduler._build_override_direct_mapping(overrides, status)
+
+        assert result == [1]
 
 
 class TestComputeAmsMappingFallback:
@@ -228,6 +254,40 @@ class TestComputeAmsMappingFallback:
 
     @pytest.mark.asyncio
     @patch("backend.app.services.print_scheduler.printer_manager")
+    async def test_force_override_keeps_tray_info_idx_when_reqs_available(self, mock_pm, scheduler):
+        """Force-color overrides keep variant ID so matching pins the intended tray."""
+        mock_pm.get_status.return_value = MagicMock(
+            raw_data={
+                "ams": [
+                    {
+                        "id": 0,
+                        "tray": [
+                            {"id": 0, "tray_type": "PLA", "tray_color": "FFFFFFFF", "tray_info_idx": "GFA00"},
+                            {"id": 1, "tray_type": "PLA", "tray_color": "FFFFFFFF", "tray_info_idx": "GFA01"},
+                        ],
+                    }
+                ]
+            }
+        )
+        item = self._make_item(
+            filament_overrides_json=(
+                '[{"slot_id": 1, "type": "PLA", "color": "#FFFFFF", '
+                '"tray_info_idx": "GFA01", "force_color_match": true}]'
+            )
+        )
+        db = AsyncMock()
+        filament_reqs = [{"slot_id": 1, "type": "PLA", "color": "#FFFFFF", "tray_info_idx": "GFA00"}]
+
+        with (
+            patch.object(scheduler, "_get_filament_requirements", return_value=filament_reqs),
+            patch.object(scheduler, "_get_bool_setting", new=AsyncMock(return_value=False)),
+        ):
+            result = await scheduler._compute_ams_mapping_for_printer(db, 5, item)
+
+        assert result == [1]
+
+    @pytest.mark.asyncio
+    @patch("backend.app.services.print_scheduler.printer_manager")
     async def test_fallback_returns_none_when_printer_status_unavailable(self, mock_pm, scheduler):
         """When the printer has no status, the fallback also returns None gracefully."""
         mock_pm.get_status.return_value = None
@@ -241,3 +301,48 @@ class TestComputeAmsMappingFallback:
             result = await scheduler._compute_ams_mapping_for_printer(db, 5, item)
 
         assert result is None
+
+
+class TestGetMissingForceColorSlotsVariant:
+    """force_color_match must distinguish PLA variants that share base type+colour (#2650)."""
+
+    @pytest.fixture
+    def scheduler(self):
+        return PrintScheduler()
+
+    def _status(self, trays: list[dict]) -> MagicMock:
+        return MagicMock(raw_data={"ams": [{"id": 0, "tray": trays}]})
+
+    @staticmethod
+    def _white(idx: str) -> dict:
+        return {"id": 0, "tray_type": "PLA", "tray_color": "FFFFFFFF", "tray_info_idx": idx}
+
+    def _override(self, idx: str | None) -> list[dict]:
+        override = {"slot_id": 1, "type": "PLA", "color": "#FFFFFF", "force_color_match": True}
+        if idx is not None:
+            override["tray_info_idx"] = idx
+        return [override]
+
+    @patch("backend.app.services.print_scheduler.printer_manager")
+    def test_matte_requirement_rejects_basic_and_silk(self, mock_pm, scheduler):
+        mock_pm.get_status.return_value = self._status([self._white("GFA00"), self._white("GFA06")])
+
+        assert scheduler._get_missing_force_color_slots(5, self._override("GFA01")) == ["PLA (#FFFFFF)"]
+
+    @patch("backend.app.services.print_scheduler.printer_manager")
+    def test_matte_requirement_accepts_matte(self, mock_pm, scheduler):
+        mock_pm.get_status.return_value = self._status([self._white("GFA00"), self._white("GFA01")])
+
+        assert scheduler._get_missing_force_color_slots(5, self._override("GFA01")) == []
+
+    @patch("backend.app.services.print_scheduler.printer_manager")
+    def test_blank_loaded_idx_falls_back_to_type_and_colour(self, mock_pm, scheduler):
+        mock_pm.get_status.return_value = self._status([self._white("")])
+
+        assert scheduler._get_missing_force_color_slots(5, self._override("GFA01")) == []
+
+    @patch("backend.app.services.print_scheduler.printer_manager")
+    def test_requirement_without_idx_keeps_type_colour_behaviour(self, mock_pm, scheduler):
+        mock_pm.get_status.return_value = self._status([self._white("GFA06")])
+
+        assert scheduler._get_missing_force_color_slots(5, self._override(None)) == []

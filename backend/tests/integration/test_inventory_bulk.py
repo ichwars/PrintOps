@@ -17,6 +17,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.spool import Spool
+from backend.app.models.spool_assignment import SpoolAssignment
+from backend.app.models.spool_k_profile import SpoolKProfile
+from backend.app.models.spool_refill_event import SpoolRefillEvent
+from backend.app.models.spool_usage_history import SpoolUsageHistory
 
 
 @pytest.fixture
@@ -115,6 +119,94 @@ class TestBulkUpdate:
             json={"ids": [], "update": {"brand": "X"}},
         )
         assert resp.status_code == 422
+
+
+class TestSpoolRefill:
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_refill_reduces_used_weight_and_records_event(
+        self, async_client: AsyncClient, spool_factory, db_session
+    ):
+        spool = await spool_factory(label_weight=1000, weight_used=740)
+
+        resp = await async_client.post(
+            f"/api/v1/inventory/spools/{spool.id}/refill",
+            json={"added_weight": 500, "note": "cardboard refill"},
+        )
+
+        assert resp.status_code == 200, resp.text
+        await db_session.refresh(spool)
+        assert spool.weight_used == 240
+
+        events = (
+            (await db_session.execute(select(SpoolRefillEvent).where(SpoolRefillEvent.spool_id == spool.id)))
+            .scalars()
+            .all()
+        )
+        assert len(events) == 1
+        assert events[0].before_weight_used == 740
+        assert events[0].after_weight_used == 240
+        assert events[0].added_weight == 500
+        assert events[0].note == "cardboard refill"
+
+
+class TestSpoolMerge:
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_merge_reassigns_related_records_and_archives_sources(
+        self, async_client: AsyncClient, spool_factory, printer_factory, db_session
+    ):
+        target = await spool_factory(weight_used=100, weight_locked=False)
+        source = await spool_factory(weight_used=420, weight_locked=True, tag_uid="2728C17B")
+        printer = await printer_factory()
+        usage = SpoolUsageHistory(spool_id=source.id, printer_id=printer.id, print_name="duplicate", weight_used=12.5)
+        assignment = SpoolAssignment(spool_id=source.id, printer_id=printer.id, ams_id=0, tray_id=0)
+        k_profile = SpoolKProfile(
+            spool_id=source.id,
+            printer_id=printer.id,
+            nozzle_diameter="0.4",
+            k_value=0.02,
+            name="source kp",
+        )
+        db_session.add_all([usage, assignment, k_profile])
+        await db_session.commit()
+
+        resp = await async_client.post(
+            "/api/v1/inventory/spools/merge",
+            json={"target_id": target.id, "source_ids": [source.id]},
+        )
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["merged"] == 1
+        assert body["reassigned"]["usage_history"] == 1
+        assert body["reassigned"]["assignments"] == 1
+        assert body["reassigned"]["k_profiles"] == 1
+
+        await db_session.refresh(target)
+        await db_session.refresh(source)
+        await db_session.refresh(usage)
+        await db_session.refresh(assignment)
+        await db_session.refresh(k_profile)
+        assert source.archived_at is not None
+        assert usage.spool_id == target.id
+        assert assignment.spool_id == target.id
+        assert k_profile.spool_id == target.id
+        assert target.weight_used == 420
+        assert target.weight_locked is True
+        assert target.tag_uid == "2728C17B"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_merge_rejects_target_as_source(self, async_client: AsyncClient, spool_factory):
+        target = await spool_factory()
+
+        resp = await async_client.post(
+            "/api/v1/inventory/spools/merge",
+            json={"target_id": target.id, "source_ids": [target.id]},
+        )
+
+        assert resp.status_code == 400
 
 
 class TestBulkDelete:

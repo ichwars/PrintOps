@@ -14,6 +14,7 @@ import {
   FolderPlus,
   FileBox,
   Clock,
+  CalendarClock,
   HardDrive,
   File,
   MoveRight,
@@ -69,7 +70,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { usePageFileDrop } from '../hooks/usePageFileDrop';
 import { useAuth } from '../contexts/AuthContext';
-import { formatDuration, parseUTCDate } from '../utils/date';
+import { formatDuration, parseUTCDate, formatDate } from '../utils/date';
 import { formatFileSize } from '../utils/file';
 import { Checkbox, LegacySelect, TextField } from '../components/ui';
 
@@ -738,10 +739,11 @@ interface FileCardProps {
   hasPermission: (permission: Permission) => boolean;
   canModify: (resource: 'queue' | 'archives' | 'library', action: 'update' | 'delete' | 'reprint', createdById: number | null | undefined) => boolean;
   authEnabled: boolean;
+  showModified: boolean;
   t: TFunction;
 }
 
-function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, onPrint, onSlice, onRunPipeline, useSlicerApi, onPreview3d, onRename, onGenerateThumbnail, onTagClick, thumbnailVersion, hasPermission, canModify, authEnabled, t }: FileCardProps) {
+function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, onPrint, onSlice, onRunPipeline, useSlicerApi, onPreview3d, onRename, onGenerateThumbnail, onTagClick, thumbnailVersion, hasPermission, canModify, authEnabled, showModified, t }: FileCardProps) {
   const [showActions, setShowActions] = useState(false);
 
   return (
@@ -806,6 +808,14 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
           <div className="mt-1 text-xs text-bambu-gray flex items-center gap-1">
             <User className="w-3 h-3" />
             {file.created_by_username}
+          </div>
+        )}
+        {/* #2680: last-modified date, toggled from the toolbar. Uses the real
+            on-disk mtime when known, else the DB created_at. */}
+        {showModified && (
+          <div className="mt-1 text-xs text-bambu-gray flex items-center gap-1" title={t('fileManager.lastModified')}>
+            <CalendarClock className="w-3 h-3" />
+            {formatDate(file.fs_modified_at ?? file.created_at)}
           </div>
         )}
         {(file.tags?.length ?? 0) > 0 && (
@@ -1075,6 +1085,10 @@ export function FileManagerPage() {
     const saved = localStorage.getItem('library-sort-direction');
     return (saved as SortDirection) || 'asc';
   });
+  // Show/hide the last-modified date on each file card (#2680). Persisted.
+  const [showModified, setShowModified] = useState<boolean>(
+    () => localStorage.getItem('library-show-modified') === 'true'
+  );
 
   // Mobile detection for touch-friendly UI
   const isMobile = useIsMobile();
@@ -1263,7 +1277,11 @@ export function FileManagerPage() {
           comparison = (a.print_name || a.filename).localeCompare(b.print_name || b.filename);
           break;
         case 'date':
-          comparison = (parseUTCDate(a.created_at)?.getTime() ?? 0) - (parseUTCDate(b.created_at)?.getTime() ?? 0);
+          // #2680: sort by real on-disk mtime (matches `ls -t`), falling back to
+          // the DB created_at for managed uploads that have no filesystem mtime.
+          comparison =
+            (parseUTCDate(a.fs_modified_at ?? a.created_at)?.getTime() ?? 0) -
+            (parseUTCDate(b.fs_modified_at ?? b.created_at)?.getTime() ?? 0);
           break;
         case 'size':
           comparison = a.file_size - b.file_size;
@@ -2112,6 +2130,20 @@ export function FileManagerPage() {
                     <SortDesc className="w-4 h-4 text-white" />
                   )}
                 </button>
+                <button
+                  onClick={() => setShowModified((v) => {
+                    const next = !v;
+                    localStorage.setItem('library-show-modified', String(next));
+                    return next;
+                  })}
+                  className={`p-1.5 rounded bg-bambu-dark border transition-colors ${
+                    showModified ? 'border-bambu-green text-bambu-green' : 'border-bambu-dark-tertiary text-white hover:border-bambu-green'
+                  }`}
+                  title={showModified ? t('fileManager.hideModified') : t('fileManager.showModified')}
+                  aria-pressed={showModified}
+                >
+                  <CalendarClock className="w-4 h-4" />
+                </button>
               </div>
 
               {/* Results count */}
@@ -2300,6 +2332,7 @@ export function FileManagerPage() {
                     hasPermission={hasPermission}
                     canModify={canModify}
                     authEnabled={authEnabled}
+                    showModified={showModified}
                   />
                 ))}
               </div>
@@ -2376,6 +2409,14 @@ export function FileManagerPage() {
                       </div>
                       <div className="min-w-0">
                         <div className="text-sm text-white truncate">{file.print_name || file.filename}</div>
+                        {/* #2680: last-modified date under the name, toggled from
+                            the toolbar. Real on-disk mtime when known, else created_at. */}
+                        {showModified && (
+                          <div className="text-xs text-bambu-gray flex items-center gap-1 mt-0.5" title={t('fileManager.lastModified')}>
+                            <CalendarClock className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate">{formatDate(file.fs_modified_at ?? file.created_at)}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     {/* Uploaded By - only show when auth is enabled */}

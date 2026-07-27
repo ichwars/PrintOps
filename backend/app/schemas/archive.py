@@ -163,6 +163,7 @@ class ArchiveStats(BaseModel):
     # Energy stats
     total_energy_kwh: float = 0.0
     total_energy_cost: float = 0.0
+    energy_source: str | None = None
     # Set when the date-range query in "total consumption" mode is running on
     # incomplete snapshot history — e.g. right after a fresh upgrade before the
     # hourly snapshot loop has built up a baseline. Frontend shows a tooltip.

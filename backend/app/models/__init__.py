@@ -57,8 +57,26 @@ from backend.app.models.document_configuration import (
     PaymentPolicy,
     TaxPolicy,
 )
+from backend.app.models.document_layout import (
+    DocumentLayoutAsset,
+    DocumentLayoutAssetLink,
+    DocumentLayoutAuditReceipt,
+    DocumentLayoutConfiguration,
+    DocumentLayoutPublication,
+    DocumentPreviewJob,
+    LayoutFooterRules,
+    LayoutHeaderRules,
+    LayoutNotesRules,
+    LayoutPageRules,
+    LayoutPositionRules,
+    LayoutTechnicalRules,
+    LayoutTitleRules,
+    LayoutTotalsRules,
+    LayoutTypographyRules,
+)
 from backend.app.models.equipment import Equipment
 from backend.app.models.filament import Filament
+from backend.app.models.filament_sku_settings import FilamentSkuSettings
 from backend.app.models.github_backup import GitHubBackupConfig, GitHubBackupLog
 from backend.app.models.group import Group, user_groups
 from backend.app.models.kprofile_note import KProfileNote
@@ -89,6 +107,7 @@ from backend.app.models.spool import Spool
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spool_catalog import SpoolCatalogEntry
 from backend.app.models.spool_k_profile import SpoolKProfile
+from backend.app.models.spool_refill_event import SpoolRefillEvent
 from backend.app.models.spool_usage_history import SpoolUsageHistory
 from backend.app.models.spoolbuddy_device import SpoolBuddyDevice
 from backend.app.models.stock_reservation import (
@@ -106,6 +125,7 @@ __all__ = [
     "Printer",
     "PrintArchive",
     "Filament",
+    "FilamentSkuSettings",
     "Settings",
     "SmartPlug",
     "SmartPlugEnergySnapshot",
@@ -141,6 +161,7 @@ __all__ = [
     "SpoolKProfile",
     "SpoolAssignment",
     "SpoolCatalogEntry",
+    "SpoolRefillEvent",
     "SpoolUsageHistory",
     "ColorCatalogEntry",
     "SpoolBuddyDevice",
@@ -194,6 +215,21 @@ __all__ = [
     "EInvoicePolicy",
     "CustomerDocumentPreference",
     "ConfigurationPublication",
+    "DocumentLayoutConfiguration",
+    "LayoutPageRules",
+    "LayoutTypographyRules",
+    "LayoutHeaderRules",
+    "LayoutTitleRules",
+    "LayoutPositionRules",
+    "LayoutTotalsRules",
+    "LayoutTechnicalRules",
+    "LayoutNotesRules",
+    "LayoutFooterRules",
+    "DocumentLayoutAsset",
+    "DocumentLayoutAssetLink",
+    "DocumentLayoutPublication",
+    "DocumentLayoutAuditReceipt",
+    "DocumentPreviewJob",
     "NumberSequence",
     "Equipment",
     "SmallPartCategory",

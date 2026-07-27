@@ -841,12 +841,10 @@ class TestPushStatusCache:
         await bridge.stop()
 
     @pytest.mark.asyncio
-    async def test_tray_exist_bits_skips_ams_ht_units(self):
-        """AMS-HT units (id >= 128) use a separate addressing scheme and
-        must not be touched by the bitmask cleanup — bit math at
-        global_bit = ams_id * 4 + tray_id would overrun normal AMS bits.
-        Pin the skip so future AMS-HT support doesn't accidentally wipe
-        loaded HT slots.
+    async def test_tray_exist_bits_clears_empty_ams_ht_units(self):
+        """AMS-HT units use bit 16+(ams_id-128), so bitmask cleanup must clear
+        removed HT spools without adding PrintOps-only exists metadata to the
+        virtual-printer cache.
         """
         server = _make_server()
         bridge = _make_bridge(server)
@@ -878,9 +876,8 @@ class TestPushStatusCache:
 
         cached = bridge.get_latest_print_state()
         ht_slot = cached["ams"]["ams"][0]["tray"][0]
-        # tray_exist_bits="0" alone would normally wipe — but AMS-HT is
-        # skipped, so the HT slot keeps its loaded data.
-        assert ht_slot["tray_type"] == "PLA"
+        assert ht_slot["tray_type"] == ""
+        assert "exists" not in ht_slot
 
         await bridge.stop()
 

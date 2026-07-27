@@ -26,6 +26,7 @@ from backend.app.services.spoolman import (
     SpoolmanClientError,
     SpoolmanNotFoundError,
     SpoolmanUnavailableError,
+    bambu_tag_extra_values,
     close_spoolman_client,
     get_spoolman_client,
     init_spoolman_client,
@@ -811,7 +812,15 @@ async def link_spool(
         raise HTTPException(status_code=503, detail="Spoolman is not reachable")
 
     # Resolve and validate spool tag (supports tray_uuid=32 hex and tag_uid=16 hex)
-    spool_tag = (request.spool_tag or request.tray_uuid or request.tag_uid or "").strip()
+    raw_spool_tag = (request.spool_tag or "").strip()
+    tray_uuid = (request.tray_uuid or "").strip().upper()
+    tag_uid = (request.tag_uid or "").strip().upper()
+    if raw_spool_tag:
+        if len(raw_spool_tag) == 32 and not tray_uuid:
+            tray_uuid = raw_spool_tag.upper()
+        elif not tag_uid:
+            tag_uid = raw_spool_tag.upper()
+    spool_tag = tray_uuid or tag_uid
     if not spool_tag:
         raise HTTPException(status_code=400, detail="Missing spool tag (tray_uuid or tag_uid)")
     if len(spool_tag) not in (16, 32):
@@ -823,8 +832,6 @@ async def link_spool(
 
     if set(spool_tag) == {"0"}:
         raise HTTPException(status_code=400, detail="Invalid spool tag format (all-zero tag is not linkable)")
-
-    spool_tag = spool_tag.upper()
 
     # Validate printer context when provided, but do NOT write spool.location —
     # that field is user-managed in Spoolman. Slot assignment is stored locally.
@@ -838,7 +845,9 @@ async def link_spool(
         printer_context = (request.printer_id, request.ams_id, request.tray_id)
 
     try:
-        await client.merge_spool_extra(spool_id, {"tag": json.dumps(spool_tag)})
+        if not await client.ensure_tag_extra_field():
+            raise HTTPException(status_code=502, detail="Spoolman tag extra fields are unavailable")
+        await client.merge_spool_extra(spool_id, bambu_tag_extra_values(tray_uuid=tray_uuid, tag_uid=tag_uid))
     except SpoolmanNotFoundError:
         raise HTTPException(status_code=404, detail="Spool not found in Spoolman")
     except SpoolmanClientError:

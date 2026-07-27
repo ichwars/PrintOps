@@ -1347,6 +1347,7 @@ class ArchiveService:
         limit: int = 50,
         offset: int = 0,
         visible_to_user_id: int | None = None,
+        allowed_printer_ids: set[int] | None = None,
     ) -> list[PrintArchive]:
         """List archives with optional filtering.
 
@@ -1382,6 +1383,11 @@ class ArchiveService:
 
         if visible_to_user_id is not None:
             query = query.where(PrintArchive.created_by_id == visible_to_user_id)
+
+        if allowed_printer_ids is not None:
+            query = query.where(
+                or_(PrintArchive.printer_id.is_(None), PrintArchive.printer_id.in_(allowed_printer_ids))
+            )
 
         query = query.limit(limit).offset(offset)
         result = await self.db.execute(query)

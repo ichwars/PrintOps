@@ -474,7 +474,13 @@ class TestSpoolmanAPI:
         assert data["success"] is True
         assert "linked" in data["message"].lower()
 
-        mock_spoolman_client.merge_spool_extra.assert_called_once_with(1, {"tag": '"A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4"'})
+        mock_spoolman_client.merge_spool_extra.assert_called_once_with(
+            1,
+            {
+                "tag": '"A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4"',
+                "bambu_tray_uuid": '"A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4"',
+            },
+        )
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -525,7 +531,13 @@ class TestSpoolmanAPI:
             json={"tray_uuid": "A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4"},
         )
         assert response.status_code == 200
-        mock_spoolman_client.merge_spool_extra.assert_called_once_with(5, {"tag": '"A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4"'})
+        mock_spoolman_client.merge_spool_extra.assert_called_once_with(
+            5,
+            {
+                "tag": '"A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4"',
+                "bambu_tray_uuid": '"A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4"',
+            },
+        )
 
     @pytest.mark.asyncio
     @pytest.mark.integration

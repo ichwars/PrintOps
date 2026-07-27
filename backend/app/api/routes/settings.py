@@ -167,6 +167,7 @@ async def _build_settings_response(db: AsyncSession, is_api_key: bool = False) -
             "mqtt_port",
             "stagger_group_size",
             "stagger_interval_minutes",
+            "queue_max_concurrent_uploads",
             "forecast_global_lead_time_days",
             "session_max_hours",
             "pipeline_max_copies",

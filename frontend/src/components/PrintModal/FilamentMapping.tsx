@@ -244,7 +244,7 @@ export function FilamentMapping({
                   <Circle className="w-3 h-3" fill={item.color} stroke={item.color} />
                 </span>
                 {/* Required type + grams + nozzle badge */}
-                <span className="text-white truncate flex items-center gap-1">
+                <span className="text-white flex items-center gap-1 min-w-0">
                   {isDualNozzle && item.nozzle_id != null && (
                     <span
                       className="inline-flex items-center justify-center w-3.5 h-3.5 rounded text-[9px] font-bold leading-none bg-bambu-gray/20 text-bambu-gray shrink-0"
@@ -253,7 +253,8 @@ export function FilamentMapping({
                       {item.nozzle_id === 1 ? t('printModal.leftNozzle') : t('printModal.rightNozzle')}
                     </span>
                   )}
-                  {resolvedName} <span className="text-bambu-gray">({item.used_grams}g)</span>
+                  <span className="truncate min-w-0" title={resolvedName}>{resolvedName}</span>
+                  <span className="text-bambu-gray shrink-0 whitespace-nowrap">({item.used_grams}g)</span>
                 </span>
                 {/* Arrow */}
                 <span className="text-bambu-gray">→</span>

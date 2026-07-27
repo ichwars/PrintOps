@@ -470,6 +470,24 @@ class TestGiteaBackendApiBase:
         assert owner == "owner"
         assert repo == "repo"
 
+    def test_parse_url_subpath_hosted(self):
+        owner, repo = self.backend.parse_repo_url("https://git.example.com/gitea/user/repo")
+        assert owner == "user"
+        assert repo == "repo"
+
+    def test_parse_url_subpath_hosted_with_git_suffix(self):
+        owner, repo = self.backend.parse_repo_url("https://git.example.com/gitea/user/repo.git")
+        assert owner == "user"
+        assert repo == "repo"
+
+    def test_derives_api_base_subpath_hosted(self):
+        result = self.backend.get_api_base("https://git.example.com/gitea/user/repo")
+        assert result == "https://git.example.com/gitea/api/v1"
+
+    def test_derives_api_base_subpath_hosted_with_port(self):
+        result = self.backend.get_api_base("https://git.example.com:3000/gitea/user/repo")
+        assert result == "https://git.example.com:3000/gitea/api/v1"
+
 
 class TestGiteaBackendPushFiles:
     def setup_method(self):
@@ -1364,6 +1382,15 @@ class TestForgejoBackendApiBase:
         owner, repo = self.backend.parse_repo_url("https://forgejo.example.com/owner/repo")
         assert owner == "owner"
         assert repo == "repo"
+
+    def test_parse_url_subpath_hosted(self):
+        owner, repo = self.backend.parse_repo_url("https://forgejo.example.com/forgejo/user/repo")
+        assert owner == "user"
+        assert repo == "repo"
+
+    def test_derives_api_base_subpath_hosted(self):
+        result = self.backend.get_api_base("https://forgejo.example.com/forgejo/user/repo")
+        assert result == "https://forgejo.example.com/forgejo/api/v1"
 
 
 class TestForgejoTestConnection:

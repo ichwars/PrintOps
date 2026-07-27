@@ -14,10 +14,11 @@ import { CreateUserAdvancedAuthModal } from '../components/CreateUserAdvancedAut
 import { LdapUserPicker } from '../components/LdapUserPicker';
 import { Checkbox, TextField } from '../components/ui';
 
-interface FormData extends UserCreate {
+interface FormData extends Omit<UserCreate, 'allowed_printer_ids'> {
   group_ids: number[];
   confirmPassword: string;
   email?: string;
+  allowed_printer_ids?: number[];
 }
 
 export function UsersPage() {

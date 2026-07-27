@@ -1,7 +1,7 @@
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.print_log import PrintLogEntry
@@ -29,6 +29,7 @@ class FailureAnalysisService:
         printer_id: int | None = None,
         project_id: int | None = None,
         created_by_id: int | None = None,
+        allowed_printer_ids: set[int] | None = None,
     ) -> dict:
         """Analyze failure patterns across logged print events."""
         # Build base query — separate date vs non-date filters for trend reuse
@@ -50,6 +51,10 @@ class FailureAnalysisService:
             base_filter.append(PrintLogEntry.created_at >= cutoff_date)
         if printer_id:
             non_date_filter.append(PrintLogEntry.printer_id == printer_id)
+        if allowed_printer_ids is not None:
+            non_date_filter.append(
+                or_(PrintLogEntry.printer_id.is_(None), PrintLogEntry.printer_id.in_(allowed_printer_ids))
+            )
         # project_id is an archive-level concept; PrintLogEntry has no project
         # link, so we resolve it by archive_id where present.
         if project_id:

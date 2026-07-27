@@ -132,6 +132,7 @@ function QuickStatsWidget({
     total_cost: number;
     total_energy_kwh: number;
     total_energy_cost: number;
+    energy_source?: string | null;
     energy_data_warming_up?: boolean;
   } | undefined;
   currency: string;
@@ -140,6 +141,13 @@ function QuickStatsWidget({
 
   const warmingUp = stats?.energy_data_warming_up === true;
   const warmingUpTooltip = warmingUp ? t('stats.energyWarmingUpTooltip') : undefined;
+  const energySource = stats?.energy_source
+    ? ({
+      smart_plug_live: t('stats.energySource.smartPlugLive'),
+      smart_plug_snapshots: t('stats.energySource.smartPlugSnapshots'),
+      print_logs: t('stats.energySource.printLogs'),
+    } as Record<string, string>)[stats.energy_source] ?? stats.energy_source
+    : undefined;
 
   const items = [
     { icon: Package, color: 'text-bambu-green', label: t('stats.totalPrints'), value: `${stats?.total_prints || 0}` },
@@ -151,6 +159,7 @@ function QuickStatsWidget({
       color: 'text-yellow-600 dark:text-yellow-400',
       label: t('stats.energyUsed'),
       value: `${stats?.total_energy_kwh?.toFixed(3) ?? '0.000'} kWh`,
+      detail: energySource,
       warning: warmingUp,
       tooltip: warmingUpTooltip,
     },
@@ -159,6 +168,7 @@ function QuickStatsWidget({
       color: 'text-yellow-500',
       label: t('stats.energyCost'),
       value: `${currency} ${stats?.total_energy_cost?.toFixed(2) ?? '0.00'}`,
+      detail: energySource,
       warning: warmingUp,
       tooltip: warmingUpTooltip,
     },
@@ -177,6 +187,7 @@ function QuickStatsWidget({
               {item.warning && <AlertTriangle className="w-3 h-3 text-yellow-600 dark:text-yellow-400" aria-label={item.tooltip} />}
             </p>
             <p className="text-xl font-bold text-white">{item.value}</p>
+            {item.detail && <p className="mt-0.5 text-xs text-bambu-gray">{item.detail}</p>}
           </div>
         </div>
       ))}

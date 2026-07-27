@@ -44,6 +44,7 @@ from backend.app.core.websocket import ws_manager
 from backend.app.models.ams_label import AmsLabel
 from backend.app.models.printer import Printer
 from backend.app.models.settings import Settings
+from backend.app.models.spool_refill_event import SpoolRefillEvent
 from backend.app.models.spoolman_k_profile import SpoolmanKProfile
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.models.user import User
@@ -57,10 +58,13 @@ from backend.app.services.location_service import (
 from backend.app.services.printer_manager import printer_manager
 from backend.app.services.slicer_filament_resolver import resolve_slicer_filament
 from backend.app.services.spoolman import (
+    BAMBU_TAG_EXTRA_FIELDS,
     SpoolmanClient,
     SpoolmanClientError,
     SpoolmanNotFoundError,
     SpoolmanUnavailableError,
+    _extra_string_value,
+    bambu_tag_extra_values,
     get_spoolman_client,
     init_spoolman_client,
 )
@@ -123,14 +127,15 @@ async def _clear_stale_tag_links(
         if not spool_id or spool_id == keep_spool_id:
             continue
         extra = spool.get("extra") or {}
-        raw_tag = extra.get("tag", "")
-        if not raw_tag:
-            continue
-        clean_tag = raw_tag.strip('"').upper()
-        if clean_tag != tag_upper:
+        clear_fields = {
+            field_name: json.dumps("")
+            for field_name in BAMBU_TAG_EXTRA_FIELDS
+            if _extra_string_value(extra, field_name) == tag_upper
+        }
+        if not clear_fields:
             continue
         try:
-            await client.merge_spool_extra(spool_id, {"tag": json.dumps("")})
+            await client.merge_spool_extra(spool_id, clear_fields)
             cleared += 1
             logger.info(
                 "Cleared stale tag '%s' from Spoolman spool %s (%s; reassigned to spool %s)",
@@ -402,6 +407,11 @@ class SpoolmanInventoryBulkCreate(BaseModel):
 
 class SpoolWeightUpdate(BaseModel):
     weight_grams: float = Field(..., ge=0.0, le=100_000.0)
+
+
+class SpoolRefillRequest(BaseModel):
+    added_weight: float = Field(..., gt=0.0, le=100_000.0)
+    note: str | None = Field(default=None, max_length=500)
 
 
 class SpoolTagLinkRequest(BaseModel):
@@ -962,6 +972,44 @@ async def reset_spool_consumed_counter(
     return mapped
 
 
+@router.post("/spools/{spool_id}/refill")
+async def refill_spool(
+    spool_id: int = Path(..., gt=0),
+    data: SpoolRefillRequest = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+) -> dict:
+    """Record a refill and reduce Spoolman's used_weight for this spool."""
+    client = await _get_client(db)
+    async with _translate_spoolman_errors():
+        current = await client.get_spool(spool_id)
+        before = float(current.get("used_weight") or 0)
+        after = max(0.0, before - data.added_weight)
+        effective_refill = before - after
+        update_payload: dict[str, float] = {"used_weight": after}
+        if current.get("remaining_weight") is not None:
+            update_payload["remaining_weight"] = float(current.get("remaining_weight") or 0) + effective_refill
+        spool = await client.update_spool_full(spool_id=spool_id, **update_payload)
+    try:
+        mapped = _map_spoolman_spool(spool)
+    except ValueError as exc:
+        logger.warning("Malformed Spoolman spool (id=%r): %s", spool_id, exc)
+        raise HTTPException(status_code=502, detail="Spoolman returned malformed spool data") from exc
+    db.add(
+        SpoolRefillEvent(
+            external_spool_id=str(spool_id),
+            before_weight_used=before,
+            after_weight_used=after,
+            added_weight=data.added_weight,
+            note=data.note,
+            created_by_id=current_user.id if current_user else None,
+        )
+    )
+    await db.commit()
+    await ws_manager.broadcast({"type": "inventory_changed"})
+    return mapped
+
+
 class SpoolmanBulkUpdateRequest(BaseModel):
     ids: list[int] = Field(..., min_length=1, max_length=500)
     update: SpoolmanInventoryUpdate
@@ -1161,16 +1209,21 @@ async def link_tag_to_spoolman_spool(
     Uses extra_lock to serialise against concurrent extra-field writes.
     """
     client = await _get_client(db)
-    tag = (data.tray_uuid or data.tag_uid).upper()
-    tag_json = json.dumps(tag)
+    tray_uuid = data.tray_uuid.upper() if data.tray_uuid else None
+    tag_uid = data.tag_uid.upper() if data.tag_uid else None
+    tag = tray_uuid or tag_uid
+    if not tag:
+        raise HTTPException(status_code=422, detail="tag_uid or tray_uuid is required")
 
     async with client.extra_lock(spool_id):
         # Duplicate check: scan all spools for the same tag on a different spool.
         async with _translate_spoolman_errors():
             all_spools = await client.get_all_spools()
         for s in all_spools:
-            s_tag = (s.get("extra") or {}).get("tag", "")
-            if s_tag.strip('"').upper() == tag and s.get("id") != spool_id:
+            s_extra = s.get("extra") or {}
+            if s.get("id") != spool_id and any(
+                _extra_string_value(s_extra, field_name) == tag for field_name in BAMBU_TAG_EXTRA_FIELDS
+            ):
                 raise HTTPException(
                     status_code=409,
                     detail=f"Tag is already assigned to spool {s['id']}",
@@ -1180,7 +1233,10 @@ async def link_tag_to_spoolman_spool(
         async with _translate_spoolman_errors():
             current = await client.get_spool(spool_id)
         cur_extra = dict(current.get("extra") or {})
-        cur_extra["tag"] = tag_json
+        for field_name in BAMBU_TAG_EXTRA_FIELDS:
+            if not await client.ensure_extra_field(field_name):
+                raise HTTPException(status_code=502, detail=f"Spoolman extra field {field_name!r} is unavailable")
+        cur_extra.update(bambu_tag_extra_values(tray_uuid=tray_uuid, tag_uid=tag_uid))
         async with _translate_spoolman_errors():
             updated = await client.update_spool_full(spool_id=spool_id, extra=cur_extra)
 

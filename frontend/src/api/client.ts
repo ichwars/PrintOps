@@ -394,6 +394,7 @@ export interface AMSTray {
   drying_temp: number | null;      // RFID-recommended drying temp
   drying_time: number | null;      // RFID-recommended drying time (hours)
   state: number | null;            // AMS tray state: 9=empty, 10=spool present not loaded, 11=loaded
+  exists?: boolean | null;         // Physical spool presence from tray_exist_bits, if available
 }
 
 export interface AMSUnit {
@@ -773,6 +774,7 @@ export interface ArchiveStats {
   time_accuracy_by_printer: Record<string, number> | null;
   total_energy_kwh: number;
   total_energy_cost: number;
+  energy_source?: 'smart_plug_live' | 'smart_plug_snapshots' | 'print_logs' | string | null;
   // True when a date-filtered total-consumption query is running on incomplete
   // snapshot history (e.g. right after upgrade, before hourly snapshots have
   // a baseline). UI should explain why the number may undercount.
@@ -1281,6 +1283,8 @@ export interface AppSettings {
   require_plate_clear: boolean;
   // Shortest job first scheduling
   queue_shortest_first: boolean;
+  // Queue upload concurrency
+  queue_max_concurrent_uploads: number;
   // Preheat / heat-soak before queued prints (#1468). Master toggle is the
   // default for new queue items; per-item PrintQueueItem.preheat_override can
   // flip the decision per print. Chamber target derives from the loaded AMS
@@ -1894,6 +1898,7 @@ export interface SmartPlug {
   rest_energy_multiplier: number;
   printer_id: number | null;
   equipment_id: number | null;
+  controls_printer_power: boolean;
   enabled: boolean;
   auto_on: boolean;
   auto_off: boolean;
@@ -1969,6 +1974,7 @@ export interface SmartPlugCreate {
   rest_energy_multiplier?: number;
   printer_id?: number | null;
   equipment_id?: number | null;
+  controls_printer_power?: boolean;
   enabled?: boolean;
   auto_on?: boolean;
   auto_off?: boolean;
@@ -2036,6 +2042,7 @@ export interface SmartPlugUpdate {
   rest_energy_multiplier?: number;
   printer_id?: number | null;
   equipment_id?: number | null;
+  controls_printer_power?: boolean;
   enabled?: boolean;
   auto_on?: boolean;
   auto_off?: boolean;
@@ -2149,7 +2156,7 @@ export interface PrintQueueItem {
   // PrintModal's deficit warning was acknowledged.
   skip_filament_check: boolean;
   ams_mapping: number[] | null;  // AMS slot mapping for multi-color prints
-  filament_overrides: Array<{ slot_id: number; type: string; color: string; color_name?: string; force_color_match?: boolean }> | null;  // Filament overrides for model-based assignment
+  filament_overrides: Array<{ slot_id: number; type: string; color: string; color_name?: string; tray_info_idx?: string; force_color_match?: boolean }> | null;  // Filament overrides for model-based assignment
   plate_id: number | null;  // Plate ID for multi-plate 3MF files
   // Print options
   bed_levelling: boolean;
@@ -3600,6 +3607,7 @@ export interface UserResponse {
   auth_source: string;  // "local" or "ldap"
   groups: GroupBrief[];
   permissions: Permission[];  // All permissions from groups
+  allowed_printer_ids?: number[] | null;
   created_at: string;
 }
 
@@ -3609,6 +3617,7 @@ export interface UserCreate {
   email?: string;
   role: string;
   group_ids?: number[];
+  allowed_printer_ids?: number[] | null;
 }
 
 export interface UserUpdate {
@@ -3618,6 +3627,7 @@ export interface UserUpdate {
   role?: string;
   is_active?: boolean;
   group_ids?: number[];
+  allowed_printer_ids?: number[] | null;
 }
 
 export interface SetupRequest {
@@ -5669,6 +5679,11 @@ export const api = {
     request<InventorySpool>(`/inventory/spools/${id}/restore`, { method: 'POST' }),
   resetSpoolConsumedCounter: (id: number) =>
     request<InventorySpool>(`/inventory/spools/${id}/reset-consumed-counter`, { method: 'POST' }),
+  refillSpool: (id: number, data: { added_weight: number; note?: string | null }) =>
+    request<InventorySpool>(`/inventory/spools/${id}/refill`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   bulkResetSpoolConsumedCounter: (spoolIds: number[]) =>
     request<{ reset: number }>(`/inventory/spools/reset-consumed-counter-bulk`, {
       method: 'POST',
@@ -5693,6 +5708,17 @@ export const api = {
     request<{ restored: number; already_active: number[]; not_found: number[] }>(`/inventory/spools/bulk-restore`, {
       method: 'POST',
       body: JSON.stringify({ ids }),
+    }),
+  mergeSpools: (targetId: number, sourceIds: number[]) =>
+    request<{
+      target_id: number;
+      merged: number;
+      source_ids: number[];
+      archived: number[];
+      reassigned: Record<string, number>;
+    }>('/inventory/spools/merge', {
+      method: 'POST',
+      body: JSON.stringify({ target_id: targetId, source_ids: sourceIds }),
     }),
   getSpoolKProfiles: (spoolId: number) =>
     request<SpoolKProfile[]>(`/inventory/spools/${spoolId}/k-profiles`),
@@ -5868,6 +5894,11 @@ export const api = {
     request<InventorySpool>(`/spoolman/inventory/spools/${id}/restore`, { method: 'POST' }),
   resetSpoolmanInventorySpoolConsumedCounter: (id: number) =>
     request<InventorySpool>(`/spoolman/inventory/spools/${id}/reset-consumed-counter`, { method: 'POST' }),
+  refillSpoolmanInventorySpool: (id: number, data: { added_weight: number; note?: string | null }) =>
+    request<InventorySpool>(`/spoolman/inventory/spools/${id}/refill`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   bulkResetSpoolmanInventorySpoolConsumedCounter: (spoolIds: number[]) =>
     request<{ reset: number }>(`/spoolman/inventory/spools/reset-consumed-counter-bulk`, {
       method: 'POST',
@@ -7217,6 +7248,9 @@ export interface LibraryFileListItem {
   created_by_id: number | null;
   created_by_username: string | null;
   created_at: string;
+  // Real on-disk modification time (#2680). Null for managed uploads; the date
+  // sort and "Modified" column use `fs_modified_at ?? created_at`.
+  fs_modified_at: string | null;
   print_name: string | null;
   print_time_seconds: number | null;
   filament_used_grams: number | null;

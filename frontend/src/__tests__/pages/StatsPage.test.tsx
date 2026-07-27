@@ -546,7 +546,11 @@ describe('StatsPage', () => {
     it('shows a warning icon with tooltip next to energy stats when warming up', async () => {
       server.use(
         http.get('/api/v1/archives/stats', () => {
-          return HttpResponse.json({ ...mockStats, energy_data_warming_up: true });
+          return HttpResponse.json({
+            ...mockStats,
+            energy_source: 'smart_plug_snapshots',
+            energy_data_warming_up: true,
+          });
         })
       );
 
@@ -560,6 +564,7 @@ describe('StatsPage', () => {
       // tooltip accessible via aria-label.
       const icons = await screen.findAllByLabelText(/still collecting hourly snapshots/i);
       expect(icons.length).toBe(2);
+      expect(screen.getAllByText('Smart plug snapshots').length).toBeGreaterThan(0);
     });
 
     it('does not decorate other stats with the energy warming-up warning', async () => {

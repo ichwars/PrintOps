@@ -444,6 +444,144 @@ class TestExternalFolderScan:
         assert subfolder["external_readonly"] is True
 
 
+class TestExternalFolderModifiedTime:
+    """Filesystem mtime capture + recursive activity sort (#2680).
+
+    The folder tree's "sort by recent activity" and the file pane's date sort
+    must track the real on-disk mtime (``ls -t``), not the DB ``updated_at`` (the
+    scan instant, identical across a bulk scan).
+    """
+
+    @staticmethod
+    def _set_mtime(path: Path, epoch: float) -> None:
+        os.utime(path, (epoch, epoch))
+
+    @pytest.fixture
+    async def make_folder(self, async_client, db_session):
+        async def _make(ext_dir: Path, name: str = "MTime Test") -> dict:
+            data = {
+                "name": name,
+                "external_path": str(ext_dir),
+                "readonly": True,
+                "show_hidden": False,
+            }
+            resp = await async_client.post("/api/v1/library/folders/external", json=data)
+            assert resp.status_code == 200
+            return resp.json()
+
+        return _make
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_scan_captures_file_fs_mtime(self, async_client, db_session, tmp_path, make_folder):
+        """Each scanned file carries its real on-disk mtime, not the scan time."""
+        ext = tmp_path / "prints"
+        ext.mkdir()
+        old = ext / "old.3mf"
+        new = ext / "new.3mf"
+        old.write_bytes(b"a")
+        new.write_bytes(b"b")
+        # old.3mf modified 2021-01-01, new.3mf modified 2024-01-01.
+        self._set_mtime(old, 1609459200.0)  # 2021-01-01T00:00:00Z
+        self._set_mtime(new, 1704067200.0)  # 2024-01-01T00:00:00Z
+
+        folder = await make_folder(ext)
+        await async_client.post(f"/api/v1/library/folders/{folder['id']}/scan")
+
+        resp = await async_client.get(f"/api/v1/library/files?folder_id={folder['id']}")
+        files = {f["filename"]: f for f in resp.json()}
+        assert files["old.3mf"]["fs_modified_at"] is not None
+        assert files["new.3mf"]["fs_modified_at"] is not None
+        # The real mtime, not "now": the 2021 file must predate the 2024 file.
+        assert files["old.3mf"]["fs_modified_at"] < files["new.3mf"]["fs_modified_at"]
+        assert files["old.3mf"]["fs_modified_at"].startswith("2021")
+        assert files["new.3mf"]["fs_modified_at"].startswith("2024")
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_rescan_refreshes_changed_file_mtime(self, async_client, db_session, tmp_path, make_folder):
+        """A file edited over the mount re-sorts on the next scan (#2680)."""
+        ext = tmp_path / "prints"
+        ext.mkdir()
+        f = ext / "part.3mf"
+        f.write_bytes(b"a")
+        self._set_mtime(f, 1609459200.0)  # 2021
+
+        folder = await make_folder(ext)
+        await async_client.post(f"/api/v1/library/folders/{folder['id']}/scan")
+
+        # File touched later (samba edit); re-scan must pick up the new mtime.
+        self._set_mtime(f, 1704067200.0)  # 2024
+        await async_client.post(f"/api/v1/library/folders/{folder['id']}/scan")
+
+        resp = await async_client.get(f"/api/v1/library/files?folder_id={folder['id']}")
+        got = resp.json()[0]
+        assert got["fs_modified_at"].startswith("2024")
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_recursive_activity_bubbles_deep_file_to_root(self, async_client, db_session, tmp_path, make_folder):
+        """A freshly-added deep file lifts every ancestor's activity (#2680).
+
+        ``a`` holds only an OLD file directly but a NEW file three levels down;
+        ``b`` holds a MIDDLE-aged file directly. Recursive bubble must rank ``a``
+        (newest descendant) ahead of ``b`` even though a's own direct file and
+        directory are older.
+        """
+        root = tmp_path / "root"
+        deep = root / "a" / "x" / "y"
+        deep.mkdir(parents=True)
+        (root / "b").mkdir()
+
+        a_direct = root / "a" / "shallow.3mf"
+        deep_file = deep / "deep.3mf"
+        b_direct = root / "b" / "mid.3mf"
+        for p, data in ((a_direct, b"1"), (deep_file, b"2"), (b_direct, b"3")):
+            p.write_bytes(data)
+
+        self._set_mtime(a_direct, 1609459200.0)  # 2021 (oldest)
+        self._set_mtime(b_direct, 1656633600.0)  # 2022-07 (middle)
+        self._set_mtime(deep_file, 1704067200.0)  # 2024 (newest, deep under a)
+        # Directory mtimes are all old so only the deep FILE can lift branch a.
+        for d in (root, root / "a", root / "a" / "x", deep, root / "b"):
+            self._set_mtime(d, 1609459200.0)
+
+        folder = await make_folder(root)
+        await async_client.post(f"/api/v1/library/folders/{folder['id']}/scan")
+
+        tree = (await async_client.get("/api/v1/library/folders")).json()
+        top = find_folder_in_tree(tree, folder["name"])
+        assert top is not None
+        children = {c["name"]: c for c in top["children"]}
+        assert "a" in children and "b" in children
+        # Branch a's activity == the deep 2024 file; b's == its 2022 file.
+        assert children["a"]["latest_activity_at"] > children["b"]["latest_activity_at"]
+        assert children["a"]["latest_activity_at"].startswith("2024")
+        # The root itself bubbles up to the newest descendant anywhere inside it.
+        assert top["latest_activity_at"].startswith("2024")
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_scan_captures_folder_fs_mtime(self, async_client, db_session, tmp_path, make_folder):
+        """An empty-but-recently-touched subfolder still carries a real mtime."""
+        root = tmp_path / "root"
+        sub = root / "sub"
+        sub.mkdir(parents=True)
+        # A file so the subfolder survives the empty-subfolder cleanup.
+        (sub / "keep.3mf").write_bytes(b"a")
+        self._set_mtime(sub / "keep.3mf", 1609459200.0)  # 2021
+        self._set_mtime(sub, 1704067200.0)  # dir touched 2024
+
+        folder = await make_folder(root)
+        await async_client.post(f"/api/v1/library/folders/{folder['id']}/scan")
+
+        tree = (await async_client.get("/api/v1/library/folders")).json()
+        subfolder = find_folder_in_tree(tree, "sub")
+        assert subfolder is not None
+        # Dir mtime (2024) beats the single 2021 file → folder activity is 2024.
+        assert subfolder["latest_activity_at"].startswith("2024")
+
+
 class TestExternalFolderProtections:
     """Tests for read-only protections on external folders."""
 

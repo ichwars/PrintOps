@@ -1,0 +1,1 @@
+var e=`bg-bambu-dark-tertiary/60 text-left text-[11px] font-semibold uppercase tracking-wide`,t=`border-b border-bambu-dark-tertiary`,n=`px-4 py-3 align-middle font-semibold text-[#86a0b6]`,r=`px-3 py-3 align-middle font-semibold text-[#86a0b6]`,i=`px-4 py-3 align-middle text-right font-semibold text-[#86a0b6]`;export{t as a,e as i,n,r,i as t};

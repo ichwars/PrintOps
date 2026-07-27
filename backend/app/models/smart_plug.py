@@ -76,6 +76,7 @@ class SmartPlug(Base):
     # equipment_id is used for standalone equipment such as filament dryers.
     printer_id: Mapped[int | None] = mapped_column(ForeignKey("printers.id", ondelete="SET NULL"), nullable=True)
     equipment_id: Mapped[int | None] = mapped_column(ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True)
+    controls_printer_power: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
 
     # Automation settings
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)

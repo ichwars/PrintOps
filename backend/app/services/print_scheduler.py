@@ -126,6 +126,11 @@ class _UploadProgressBridge:
 # briefly in SLICING between PREPARE and RUNNING while parsing the g-code.
 _ACTIVE_PRINT_STATES: frozenset[str] = frozenset({"PREPARE", "SLICING", "RUNNING", "PAUSE"})
 
+# Bound retries for printers that accept a project_file but never transition
+# into an active print state. Each retry costs a full 3MF upload plus watchdog
+# wait, so unbounded retries can starve the rest of a farm.
+DISPATCH_MAX_ATTEMPTS = 3
+
 # Filament type equivalence groups — types within the same group are
 # interchangeable on the printer side (Bambu Lab firmware treats them as compatible).
 _FILAMENT_TYPE_GROUPS: list[list[str]] = [
@@ -163,6 +168,7 @@ class PrintScheduler:
     def __init__(self):
         self._running = False
         self._check_interval = 30  # seconds
+        self._fast_check_interval = 3  # seconds after productive queue passes
         self._power_on_wait_time = 180  # seconds to wait for printer after power on (3 min)
         self._power_on_check_interval = 10  # seconds between connection checks
         # Track which printers are currently auto-drying (printer_id -> start timestamp)
@@ -185,6 +191,10 @@ class PrintScheduler:
         # Matches the watchdog timeout (90 s) plus a safety margin so the
         # watchdog runs first on the unhappy path.
         self._dispatch_max_hold = 180.0
+        # item_id -> (upload task, printer_id). Uploads stay pending until the
+        # FTP transfer completes, so each queue tick excludes these reservations
+        # from re-selection and launches only free pool slots.
+        self._inflight: dict[int, tuple[asyncio.Task, int | None]] = {}
 
     async def run(self):
         """Main loop - check queue every interval."""
@@ -194,12 +204,13 @@ class PrintScheduler:
         await self._clear_stale_dispatch_claims()
 
         while self._running:
+            dispatched = False
             try:
-                await self.check_queue()
+                dispatched = await self.check_queue()
             except Exception as e:
                 logger.error("Scheduler error: %s", e)
 
-            await asyncio.sleep(self._check_interval)
+            await asyncio.sleep(self._fast_check_interval if dispatched else self._check_interval)
 
     def stop(self):
         """Stop the scheduler."""
@@ -249,8 +260,12 @@ class PrintScheduler:
         except Exception as exc:
             logger.warning("Queue item %s: failed to clear dispatch claim: %s", item_id, exc)
 
-    async def check_queue(self):
-        """Check for prints ready to start."""
+    async def check_queue(self) -> bool:
+        """Check for prints ready to start.
+
+        Returns True while this pass launched or is still tracking uploads so
+        the run loop can refill the upload pool promptly.
+        """
         async with async_session() as db:
             # Check if shortest-job-first scheduling is enabled
             sjf_enabled = await self._get_bool_setting(db, "queue_shortest_first")
@@ -283,6 +298,10 @@ class PrintScheduler:
                 )
             items = list(result.scalars().all())
 
+            if self._inflight:
+                inflight_ids = set(self._inflight)
+                items = [item for item in items if item.id not in inflight_ids]
+
             # Read plate-clear setting once per queue check. Default MUST be
             # False to match the schema (SettingsSchema.require_plate_clear
             # defaults False) and the frontend (toggle + card badge both treat a
@@ -293,9 +312,12 @@ class PrintScheduler:
             require_plate_clear = await self._get_bool_setting(db, "require_plate_clear", default=False)
 
             if not items:
-                # No pending items — still check auto-drying on idle printers
-                await self._check_auto_drying(db, [], set(), require_plate_clear=require_plate_clear)
-                return
+                # No dispatchable pending items — still check auto-drying, but
+                # hold printers with uploads in flight out of it because their
+                # print is imminent.
+                inflight_printers = {pid for (_task, pid) in self._inflight.values() if pid is not None}
+                await self._check_auto_drying(db, [], inflight_printers, require_plate_clear=require_plate_clear)
+                return bool(self._inflight)
 
             logger.info(
                 "Queue check: found %d pending items: %s",
@@ -330,8 +352,31 @@ class PrintScheduler:
                 if self._printer_in_dispatch_hold(held_printer_id):
                     busy_printers.add(held_printer_id)
 
+            for _task, inflight_printer_id in self._inflight.values():
+                if inflight_printer_id is not None:
+                    busy_printers.add(inflight_printer_id)
+
             # Log skip reasons once per queue check (not per item)
             skip_reasons: dict[str, int] = {}
+            dispatch_ids: list[int] = []
+            dispatch_libs: set[int] = set()
+            consumed_libs: set[int] = set()
+
+            def _library_row_conflict(candidate: PrintQueueItem) -> bool:
+                lib_id = candidate.library_file_id
+                if lib_id is None:
+                    return False
+                if candidate.cleanup_library_after_dispatch:
+                    return lib_id in dispatch_libs
+                return lib_id in consumed_libs
+
+            def _claim_library_row(candidate: PrintQueueItem) -> None:
+                lib_id = candidate.library_file_id
+                if lib_id is None:
+                    return
+                dispatch_libs.add(lib_id)
+                if candidate.cleanup_library_after_dispatch:
+                    consumed_libs.add(lib_id)
 
             for item in items:
                 # Check scheduled time first (scheduled_time is stored in UTC from ISO string)
@@ -363,11 +408,11 @@ class PrintScheduler:
                         auto_on_plugs = [p for p in plugs if p.auto_on and p.enabled]
                         if auto_on_plugs:
                             logger.info("Printer %s offline, attempting to power on via smart plug(s)", item.printer_id)
-                            # Power on using the first auto_on plug (the printer power plug)
-                            powered_on = await self._power_on_and_wait(auto_on_plugs[0], item.printer_id, db)
+                            primary_plug = self._pick_power_plug(auto_on_plugs)
+                            powered_on = await self._power_on_and_wait(primary_plug, item.printer_id, db)
                             if powered_on:
                                 # Also turn on any remaining auto_on plugs (e.g., filter)
-                                for extra_plug in auto_on_plugs[1:]:
+                                for extra_plug in [p for p in auto_on_plugs if p.id != primary_plug.id]:
                                     try:
                                         service = await smart_plug_manager.get_service_for_plug(extra_plug, db)
                                         await service.turn_on(extra_plug)
@@ -446,9 +491,13 @@ class PrintScheduler:
                     if await self._block_on_filament_deficit(db, item):
                         continue
 
-                    # Start the print
-                    if not await self._dispatch_with_claim(db, item):
+                    if _library_row_conflict(item):
+                        skip_reasons["library_row_in_use"] = skip_reasons.get("library_row_in_use", 0) + 1
+                        busy_printers.add(item.printer_id)
                         continue
+
+                    _claim_library_row(item)
+                    dispatch_ids.append(item.id)
                     busy_printers.add(item.printer_id)
 
                     # SJF starvation guard: mark items that were jumped
@@ -536,6 +585,10 @@ class PrintScheduler:
                             )
 
                     if printer_id:
+                        if _library_row_conflict(item):
+                            skip_reasons["library_row_in_use"] = skip_reasons.get("library_row_in_use", 0) + 1
+                            continue
+
                         # Check condition (previous print success) before assigning
                         if item.require_previous_success:
                             if not await self._check_previous_success(db, item):
@@ -588,8 +641,8 @@ class PrintScheduler:
                         if await self._block_on_filament_deficit(db, item):
                             continue
 
-                        if not await self._dispatch_with_claim(db, item):
-                            continue
+                        _claim_library_row(item)
+                        dispatch_ids.append(item.id)
                         busy_printers.add(printer_id)
 
                         # SJF starvation guard: mark model-based items that were jumped
@@ -629,8 +682,52 @@ class PrintScheduler:
                         awaiting,
                     )
 
+            upload_limit = max(1, await self._get_int_setting(db, "queue_max_concurrent_uploads", default=4))
+            await db.commit()
+
+            if dispatch_ids:
+                item_printers = {item.id: item.printer_id for item in items}
+                self._launch_uploads(dispatch_ids, item_printers, upload_limit)
+
             # Auto-drying: start drying on idle printers that have no pending queue items
             await self._check_auto_drying(db, items, busy_printers, require_plate_clear=require_plate_clear)
+
+            return bool(dispatch_ids) or bool(self._inflight)
+
+    def _launch_uploads(self, item_ids: list[int], item_printers: dict[int, int | None], limit: int) -> None:
+        free = limit - len(self._inflight)
+        if free <= 0:
+            logger.info(
+                "Upload pool full (%d/%d in flight) — deferring %d item(s): %s",
+                len(self._inflight),
+                limit,
+                len(item_ids),
+                item_ids,
+            )
+            return
+
+        to_launch = item_ids[:free]
+        deferred = item_ids[free:]
+        logger.info(
+            "Launching %d queue upload(s) (pool %d/%d in flight)%s",
+            len(to_launch),
+            len(self._inflight),
+            limit,
+            f" — deferring {deferred}" if deferred else "",
+        )
+
+        for item_id in to_launch:
+            task = spawn_background_task(self._dispatch_one(item_id), name=f"queue-upload-{item_id}")
+            self._inflight[item_id] = (task, item_printers.get(item_id))
+            task.add_done_callback(lambda _task, iid=item_id: self._inflight.pop(iid, None))
+
+    async def _dispatch_one(self, item_id: int) -> None:
+        async with async_session() as item_db:
+            item = await item_db.get(PrintQueueItem, item_id)
+            if not item:
+                logger.info("Queue item %s vanished before dispatch — skipping", item_id)
+                return
+            await self._dispatch_with_claim(item_db, item)
 
     async def _find_idle_printer_for_model(
         self,
@@ -829,6 +926,11 @@ class PrintScheduler:
         to carry ``force_color_match: True``.  The printer must have **every** such slot loaded
         with an exact type+color match.
 
+        When both the override and a candidate tray carry a ``tray_info_idx``, they must also
+        match on it: Bambu reports PLA variants as ``tray_type == "PLA"``, while Basic/Matte/Silk
+        live in ``tray_info_idx`` (GFA00/GFA01/GFA06/...). If either side lacks an idx we keep
+        the historic type+colour behaviour for custom spools and older 3MFs (#2650).
+
         Returns:
             List of ``"TYPE (color)"`` strings for unmatched slots (empty list means all match).
         """
@@ -836,26 +938,32 @@ class PrintScheduler:
         if not status:
             return [f"{o.get('type', '?')} ({o.get('color_name') or o.get('color', '?')})" for o in force_overrides]
 
-        # Build set of loaded type+colour pairs from AMS and external spool
-        loaded: set[tuple[str, str]] = set()
+        # Build loaded (type, colour, tray_info_idx) triples from AMS and external spool.
+        loaded: list[tuple[str, str, str]] = []
         for ams_unit in status.raw_data.get("ams", []):
             for tray in ams_unit.get("tray", []):
                 tray_type = tray.get("tray_type")
-                tray_color = tray.get("tray_color", "")
                 if tray_type:
-                    color_norm = tray_color.replace("#", "").lower()[:6]
-                    loaded.add((_canonical_filament_type(tray_type), color_norm))
+                    color_norm = (tray.get("tray_color", "") or "").replace("#", "").lower()[:6]
+                    loaded.append(
+                        (_canonical_filament_type(tray_type), color_norm, tray.get("tray_info_idx", "") or "")
+                    )
         for vt in status.raw_data.get("vt_tray") or []:
             vt_type = vt.get("tray_type")
             if vt_type:
                 color_norm = (vt.get("tray_color", "") or "").replace("#", "").lower()[:6]
-                loaded.add((_canonical_filament_type(vt_type), color_norm))
+                loaded.append((_canonical_filament_type(vt_type), color_norm, vt.get("tray_info_idx", "") or ""))
 
         missing = []
         for o in force_overrides:
             o_type = _canonical_filament_type(o.get("type") or "")
             o_color = (o.get("color") or "").replace("#", "").lower()[:6]
-            if (o_type, o_color) not in loaded:
+            o_idx = o.get("tray_info_idx") or ""
+            satisfied = any(
+                t_type == o_type and t_color == o_color and (not o_idx or not t_idx or o_idx == t_idx)
+                for t_type, t_color, t_idx in loaded
+            )
+            if not satisfied:
                 color_label = o.get("color_name") or o.get("color", "?")
                 missing.append(f"{o_type} ({color_label})")
         return missing
@@ -995,9 +1103,13 @@ class PrintScheduler:
                         override = override_map[req["slot_id"]]
                         req["type"] = override["type"]
                         req["color"] = override["color"]
-                        # Clear tray_info_idx so matching uses type+color instead of
-                        # the original 3MF's tray_info_idx (which would match the old filament)
-                        req["tray_info_idx"] = ""
+                        # Manual/preference overrides swap the slot's filament, so the
+                        # original 3MF tray_info_idx would point at the old spool. Force-color
+                        # overrides carry the intended variant, so keep it to pin the right
+                        # same-colour spool when possible.
+                        req["tray_info_idx"] = (
+                            override.get("tray_info_idx", "") if override.get("force_color_match") else ""
+                        )
                         logger.debug(
                             "Queue item %s: Override slot %d -> %s %s",
                             item.id,
@@ -1061,7 +1173,7 @@ class PrintScheduler:
                 "slot_id": o["slot_id"],
                 "type": o.get("type", ""),
                 "color": o.get("color", ""),
-                "tray_info_idx": "",
+                "tray_info_idx": o.get("tray_info_idx", ""),
             }
             for o in force_overrides
         ]
@@ -2029,6 +2141,14 @@ class PrintScheduler:
         """Get all smart plugs associated with a printer."""
         result = await db.execute(select(SmartPlug).where(SmartPlug.printer_id == printer_id))
         return list(result.scalars().all())
+
+    @staticmethod
+    def _pick_power_plug(auto_on_plugs: list[SmartPlug]) -> SmartPlug:
+        """Pick the plug that actually powers the printer, falling back to first."""
+        for plug in auto_on_plugs:
+            if plug.controls_printer_power:
+                return plug
+        return auto_on_plugs[0]
 
     # Bundled defaults for preheat_filament_targets (#1468). Values are the
     # chamber-temperature recommendations BambuStudio ships for the matching
@@ -3127,6 +3247,39 @@ class PrintScheduler:
 
             await self._power_off_if_needed(db, item)
 
+    async def _notify_dispatch_gave_up(
+        self,
+        queue_item_id: int,
+        printer_id: int,
+        created_by_id: int | None,
+    ) -> None:
+        try:
+            async with async_session() as db:
+                item = await db.get(PrintQueueItem, queue_item_id)
+                if not item:
+                    return
+                job_name = await self._get_job_name(db, item)
+                printer = await self._get_printer(db, printer_id)
+                await notification_service.on_queue_job_failed(
+                    job_name=job_name,
+                    printer_id=printer_id,
+                    printer_name=printer.name if printer else "Unknown",
+                    reason="Printer accepted the file but never started printing",
+                    db=db,
+                )
+        except Exception as exc:
+            logger.warning("Queue item %s: give-up notification failed: %s", queue_item_id, exc)
+
+        try:
+            await ws_manager.send_queue_item_failed(
+                user_id=created_by_id,
+                queue_item_id=queue_item_id,
+                printer_id=printer_id,
+                reason="never_started",
+            )
+        except Exception:
+            pass
+
     @staticmethod
     async def _watchdog_print_start(
         queue_item_id: int,
@@ -3245,8 +3398,19 @@ class PrintScheduler:
             item = await db.get(PrintQueueItem, queue_item_id)
             if not item or item.status != "printing":
                 return "already_moved_on"
-            item.status = "pending"
+            item.dispatch_attempts = (item.dispatch_attempts or 0) + 1
             item.started_at = None
+            if item.dispatch_attempts >= DISPATCH_MAX_ATTEMPTS:
+                item.status = "failed"
+                item.error_message = (
+                    "The printer accepted the file but never started printing, after "
+                    f"{item.dispatch_attempts} attempts. Check the printer's screen for a prompt or error, "
+                    "confirm its SD card is readable, and start the job again."
+                )
+                item.completed_at = datetime.now(timezone.utc)
+                await db.commit()
+                return "gave_up"
+            item.status = "pending"
             await db.commit()
             return "reverted"
 
@@ -3270,7 +3434,27 @@ class PrintScheduler:
             return
 
         total_timeout = timeout + (phase_b_timeout if landed_on_subtask else 0.0)
-        if revert_outcome == "reverted":
+        if revert_outcome == "gave_up":
+            logger.warning(
+                "Queue item %s: printer %d never started after %d dispatch attempts — marking failed (#2555)",
+                queue_item_id,
+                printer_id,
+                DISPATCH_MAX_ATTEMPTS,
+            )
+            await scheduler._notify_dispatch_gave_up(queue_item_id, printer_id, created_by_id)
+
+            async def _schedule_auto_off(db):
+                item = await db.get(PrintQueueItem, queue_item_id)
+                if item:
+                    await scheduler._power_off_if_needed(db, item)
+
+            try:
+                await run_with_retry(_schedule_auto_off, label=f"watchdog auto-off item={queue_item_id}")
+            except Exception as e:
+                logger.warning(
+                    "Queue item %s: failed to schedule auto-off after watchdog give-up: %s", queue_item_id, e
+                )
+        elif revert_outcome == "reverted":
             if landed_on_subtask:
                 logger.warning(
                     "Queue item %s: printer %d accepted project_file (subtask_id "

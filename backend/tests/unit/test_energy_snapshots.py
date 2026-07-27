@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import select
 
-from backend.app.api.routes.archives import _sum_snapshot_deltas
+from backend.app.api.routes.archives import _sum_snapshot_deltas, get_archive_stats
 from backend.app.models.archive import PrintArchive
 from backend.app.models.smart_plug_energy_snapshot import SmartPlugEnergySnapshot
 
@@ -135,6 +135,30 @@ class TestSumSnapshotDeltas:
         # Baseline is last snapshot <= range_start → the t0 one at 100
         # Endpoint is last snapshot <= range_end → the day-1 one at 105
         assert total == pytest.approx(5.0)
+
+    @pytest.mark.asyncio
+    async def test_stats_response_reports_snapshot_energy_source(self, db_session, smart_plug_factory, monkeypatch):
+        plug = await smart_plug_factory(name="A")
+        t0 = datetime(2026, 4, 10, 12, 0, tzinfo=timezone.utc)
+        db_session.add(_snap(plug.id, t0, 500.0))
+        db_session.add(_snap(plug.id, t0 + timedelta(hours=6), 502.0))
+        await db_session.commit()
+
+        async def fake_get_setting(_db, key: str):
+            return {"energy_tracking_mode": "total", "energy_cost_per_kwh": "0.30"}.get(key)
+
+        monkeypatch.setattr("backend.app.api.routes.settings.get_setting", fake_get_setting)
+
+        stats = await get_archive_stats(
+            date_from=t0.date(),
+            date_to=t0.date(),
+            created_by_id=None,
+            db=db_session,
+            current_user=None,
+        )
+
+        assert stats.energy_data_warming_up is True
+        assert stats.energy_source == "smart_plug_snapshots"
 
 
 class TestPerPrintRestartResilience:

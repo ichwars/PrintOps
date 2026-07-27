@@ -849,6 +849,7 @@ class VirtualPrinterInstance:
                                         "slot_id": r["slot_id"],
                                         "type": r.get("type", ""),
                                         "color": r.get("color", ""),
+                                        "tray_info_idx": r.get("tray_info_idx", ""),
                                         "force_color_match": True,
                                     }
                                     for r in requirements

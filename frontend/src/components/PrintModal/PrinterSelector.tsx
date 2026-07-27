@@ -161,8 +161,9 @@ function InlineMappingEditor({
           <span title={`Required: ${req.type} - ${getColorName(req.color)}`}>
             <Circle className="w-3 h-3" fill={req.color} stroke={req.color} />
           </span>
-          <span className="text-white truncate">
-            {req.type} <span className="text-bambu-gray">({req.used_grams}g)</span>
+          <span className="text-white flex items-center gap-1 min-w-0">
+            <span className="truncate min-w-0" title={req.type}>{req.type}</span>
+            <span className="text-bambu-gray shrink-0 whitespace-nowrap">({req.used_grams}g)</span>
           </span>
           <span className="text-bambu-gray">→</span>
           <LegacySelect

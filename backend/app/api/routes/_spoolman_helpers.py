@@ -226,14 +226,25 @@ def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
     vendor: dict = filament.get("vendor") or {}
     extra: dict = spool.get("extra") or {}
 
-    # RFID tag stored as JSON-encoded string in Spoolman extra.tag.
+    # RFID tags are stored as JSON-encoded strings in Spoolman extra fields.
+    # Newer PrintOps versions preserve Bambu Lab's two hardware identifiers
+    # separately while still reading the legacy extra.tag fallback.
+    raw_tray_uuid: str = _extract_extra_str(extra, "bambu_tray_uuid").upper()
+    raw_tag_uid: str = _extract_extra_str(extra, "bambu_tag_uid").upper()
+    raw_tag: str = _extract_extra_str(extra, "tag").upper()
+
     # 32-char hex → Bambu Lab tray UUID; 8–30-char hex → NFC tag UID.
     # Accepting the full realistic UID range (4-byte = 8 chars, 7-byte = 14 chars,
     # 10-byte = 20 chars) avoids silently dropping valid SpoolBuddy-written tags.
-    raw_tag: str = (extra.get("tag") or "").strip('"').upper()
-    _raw_is_hex = bool(_TAG_HEX_RE.match(raw_tag))
-    tag_uid = raw_tag if _raw_is_hex and 8 <= len(raw_tag) <= 30 else None
-    tray_uuid = raw_tag if _raw_is_hex and len(raw_tag) == 32 else None
+    _raw_tag_is_hex = bool(_TAG_HEX_RE.match(raw_tag))
+    _raw_tag_uid_is_hex = bool(_TAG_HEX_RE.match(raw_tag_uid))
+    _raw_tray_uuid_is_hex = bool(_TAG_HEX_RE.match(raw_tray_uuid))
+    tag_uid = raw_tag_uid if _raw_tag_uid_is_hex and 8 <= len(raw_tag_uid) <= 30 else None
+    tray_uuid = raw_tray_uuid if _raw_tray_uuid_is_hex and len(raw_tray_uuid) == 32 else None
+    if tag_uid is None and _raw_tag_is_hex and 8 <= len(raw_tag) <= 30:
+        tag_uid = raw_tag
+    if tray_uuid is None and _raw_tag_is_hex and len(raw_tag) == 32:
+        tray_uuid = raw_tag
 
     # Subtype = filament name with material prefix stripped
     material: str = (filament.get("material") or "").strip()

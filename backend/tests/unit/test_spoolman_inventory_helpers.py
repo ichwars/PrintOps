@@ -1,5 +1,6 @@
 """Unit tests for _safe_int, _safe_float, and _map_spoolman_spool helpers."""
 
+import json
 import math
 
 import pytest
@@ -156,6 +157,21 @@ class TestMapSpoolmanSpool:
     def test_numeric_string_id_accepted(self):
         result = _map_spoolman_spool({**MINIMAL_SPOOL, "id": "42"})
         assert result["id"] == 42
+
+    def test_preserves_separate_bambu_tag_identifiers(self):
+        spool = {
+            **MINIMAL_SPOOL,
+            "extra": {
+                "tag": json.dumps("AABBCCDDEEFF0011AABBCCDDEEFF0011"),
+                "bambu_tray_uuid": json.dumps("AABBCCDDEEFF0011AABBCCDDEEFF0011"),
+                "bambu_tag_uid": json.dumps("2728C17B"),
+            },
+        }
+
+        result = _map_spoolman_spool(spool)
+
+        assert result["tray_uuid"] == "AABBCCDDEEFF0011AABBCCDDEEFF0011"
+        assert result["tag_uid"] == "2728C17B"
 
     def test_zero_price_not_converted_to_none(self):
         spool = {**MINIMAL_SPOOL, "price": 0.0}

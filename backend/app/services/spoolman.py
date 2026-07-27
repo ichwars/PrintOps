@@ -1,6 +1,7 @@
 """Spoolman integration service for syncing AMS filament data."""
 
 import asyncio
+import json
 import logging
 import weakref
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 BAMBU_RFID_TAG_LENGTH = 32
+BAMBU_TAG_EXTRA_FIELDS = ("tag", "bambu_tray_uuid", "bambu_tag_uid")
 
 
 @dataclass
@@ -92,6 +94,35 @@ def _filament_subtype_part(name: str, material: str) -> str:
     if m and s.upper().startswith(m.upper() + " "):
         return s[len(m) + 1 :].strip().lower()
     return s.lower()
+
+
+def _extra_string_value(extra: dict, key: str) -> str:
+    """Return a normalised string from Spoolman's JSON-encoded extra values."""
+    raw = extra.get(key)
+    if not isinstance(raw, str):
+        return ""
+    try:
+        decoded = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        decoded = raw
+    if not isinstance(decoded, str):
+        return ""
+    return decoded.strip('"').upper()
+
+
+def bambu_tag_extra_values(*, tray_uuid: str | None = None, tag_uid: str | None = None) -> dict[str, str]:
+    """Build Spoolman extra values while preserving both Bambu tag identifiers."""
+    clean_tray_uuid = (tray_uuid or "").strip().upper()
+    clean_tag_uid = (tag_uid or "").strip().upper()
+    preferred = clean_tray_uuid or clean_tag_uid
+    values: dict[str, str] = {}
+    if preferred:
+        values["tag"] = json.dumps(preferred)
+    if clean_tray_uuid:
+        values["bambu_tray_uuid"] = json.dumps(clean_tray_uuid)
+    if clean_tag_uid:
+        values["bambu_tag_uid"] = json.dumps(clean_tag_uid)
+    return values
 
 
 class SpoolmanClient:
@@ -681,6 +712,7 @@ class SpoolmanClient:
         location: str | None = None,
         clear_location: bool = False,
         extra: dict | None = None,
+        used_weight: float | None = None,
         spool_weight: float | None = None,
         clear_spool_weight: bool = False,
     ) -> dict:
@@ -700,6 +732,8 @@ class SpoolmanClient:
             data["location"] = location
         if extra is not None:
             data["extra"] = extra
+        if used_weight is not None:
+            data["used_weight"] = used_weight
         if clear_spool_weight:
             data["spool_weight"] = None
         elif spool_weight is not None:
@@ -846,12 +880,10 @@ class SpoolmanClient:
         for spool in spools:
             extra = spool.get("extra", {})
             if extra:
-                stored_tag = extra.get("tag", "")
-                # Normalize stored tag (strip quotes, uppercase)
-                if stored_tag:
-                    normalized_tag = stored_tag.strip('"').upper()
+                for key in ("bambu_tray_uuid", "bambu_tag_uid", "tag"):
+                    normalized_tag = _extra_string_value(extra, key)
                     if normalized_tag == search_tag:
-                        logger.debug("Found spool %s matching tag %s", spool["id"], tag_uid)
+                        logger.debug("Found spool %s matching tag %s via extra.%s", spool["id"], tag_uid, key)
                         return spool
         return None
 
@@ -933,8 +965,11 @@ class SpoolmanClient:
         return vendor["id"] if vendor else None
 
     async def ensure_tag_extra_field(self) -> bool:
-        """Register the 'tag' extra field in Spoolman if not present; returns True on success."""
-        return await self.ensure_extra_field("tag")
+        """Register tag-related extra fields in Spoolman if not present."""
+        ok = True
+        for field_name in BAMBU_TAG_EXTRA_FIELDS:
+            ok = bool(await self.ensure_extra_field(field_name)) and ok
+        return ok
 
     async def ensure_extra_field(self, name: str, field_type: str = "text") -> bool:
         """Register a custom extra field in Spoolman if not present.
@@ -1162,13 +1197,11 @@ class SpoolmanClient:
                 logger.error("Failed to find or create filament for %s", tray.tray_sub_brands)
                 return None
 
-            import json
-
             return await self.create_spool(
                 filament_id=filament_id,
                 remaining_weight=remaining,
                 comment="Created by PrintOps",
-                extra={"tag": json.dumps(spool_tag)},
+                extra=bambu_tag_extra_values(tray_uuid=tray.tray_uuid, tag_uid=tray.tag_uid),
             )
 
         # No-RFID fallback: use the spool ID resolved from the local slot-assignment table.

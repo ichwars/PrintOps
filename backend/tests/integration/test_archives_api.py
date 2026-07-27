@@ -80,6 +80,112 @@ class TestArchivesAPI:
         data = response.json()
         assert all(a["printer_id"] == printer1.id for a in data)
 
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_list_archives_respects_user_printer_scope(
+        self, async_client: AsyncClient, archive_factory, printer_factory, db_session
+    ):
+        """A user's printer scope narrows archive visibility after permissions."""
+        await async_client.post(
+            "/api/v1/auth/setup",
+            json={
+                "auth_enabled": True,
+                "admin_username": "archive_scope_admin",
+                "admin_password": "AdminPass1!",
+            },
+        )
+        admin_login = await async_client.post(
+            "/api/v1/auth/login",
+            json={"username": "archive_scope_admin", "password": "AdminPass1!"},
+        )
+        admin_token = admin_login.json()["access_token"]
+
+        printer_a = await printer_factory(name="Archive Scoped A")
+        printer_b = await printer_factory(name="Archive Scoped B")
+        archive_a = await archive_factory(printer_a.id, print_name="Visible Archive", tags="scope-visible")
+        archive_a2 = await archive_factory(printer_a.id, print_name="Visible Archive Two", tags="scope-visible")
+        archive_b = await archive_factory(printer_b.id, print_name="Hidden Archive", tags="scope-hidden")
+
+        created = await async_client.post(
+            "/api/v1/users/",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "username": "archive_scope_user",
+                "password": "ScopedPass1!",
+                "role": "admin",
+                "allowed_printer_ids": [printer_a.id],
+            },
+        )
+        assert created.status_code == 201, created.text
+
+        scoped_login = await async_client.post(
+            "/api/v1/auth/login",
+            json={"username": "archive_scope_user", "password": "ScopedPass1!"},
+        )
+        scoped_token = scoped_login.json()["access_token"]
+
+        response = await async_client.get(
+            "/api/v1/archives/",
+            headers={"Authorization": f"Bearer {scoped_token}"},
+        )
+
+        assert response.status_code == 200, response.text
+        ids = {item["id"] for item in response.json()}
+        assert archive_a.id in ids
+        assert archive_b.id not in ids
+
+        search_response = await async_client.get(
+            "/api/v1/archives/search?q=Archive",
+            headers={"Authorization": f"Bearer {scoped_token}"},
+        )
+        assert search_response.status_code == 200, search_response.text
+        search_ids = {item["id"] for item in search_response.json()}
+        assert archive_a.id in search_ids
+        assert archive_a2.id in search_ids
+        assert archive_b.id not in search_ids
+
+        slim_response = await async_client.get(
+            "/api/v1/archives/slim",
+            headers={"Authorization": f"Bearer {scoped_token}"},
+        )
+        assert slim_response.status_code == 200, slim_response.text
+        slim_names = {item["print_name"] for item in slim_response.json()}
+        assert "Visible Archive" in slim_names
+        assert "Visible Archive Two" in slim_names
+        assert "Hidden Archive" not in slim_names
+
+        stats_response = await async_client.get(
+            "/api/v1/archives/stats",
+            headers={"Authorization": f"Bearer {scoped_token}"},
+        )
+        assert stats_response.status_code == 200, stats_response.text
+        assert stats_response.json()["total_prints"] == 2
+
+        export_response = await async_client.get(
+            "/api/v1/archives/export",
+            headers={"Authorization": f"Bearer {scoped_token}"},
+        )
+        assert export_response.status_code == 200, export_response.text
+        export_text = export_response.text
+        assert "Visible Archive" in export_text
+        assert "Visible Archive Two" in export_text
+        assert "Hidden Archive" not in export_text
+
+        tags_response = await async_client.get(
+            "/api/v1/archives/tags",
+            headers={"Authorization": f"Bearer {scoped_token}"},
+        )
+        assert tags_response.status_code == 200, tags_response.text
+        tag_names = {tag["name"] for tag in tags_response.json()}
+        assert "scope-visible" in tag_names
+        assert "scope-hidden" not in tag_names
+
+        compare_response = await async_client.get(
+            f"/api/v1/archives/compare?archive_ids={archive_a.id},{archive_b.id}",
+            headers={"Authorization": f"Bearer {scoped_token}"},
+        )
+        assert compare_response.status_code == 404
+
     # ========================================================================
     # Get single endpoint
     # ========================================================================

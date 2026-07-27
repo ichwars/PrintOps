@@ -257,9 +257,8 @@ def authenticate_ldap_user(config: LDAPConfig, username: str, password: str) -> 
 
         info = _extract_user_info(service_conn, config, user_entry, username)
         logger.info(
-            "LDAP authentication successful for user: %s (DN: %s, groups: %d)",
+            "LDAP authentication successful for user: %s (groups: %d)",
             info.username,
-            user_dn,
             len(info.groups),
         )
         return info

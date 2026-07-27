@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Settings as SettingsIcon, Cog, QrCode, Workflow, Info, Building2, PanelsTopLeft } from 'lucide-react';
+import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Settings as SettingsIcon, Cog, QrCode, Workflow, Info, Building2, PanelsTopLeft, UploadCloud } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import { api } from '../api/client';
@@ -110,6 +110,7 @@ registerSettingsSearch({ labelKey: 'settings.defaultPrintOptions', labelFallback
 registerSettingsSearch({ labelKey: 'settings.tempFanPresetsTitle', labelFallback: 'Temperature & Fan Presets', tab: 'printers-production', printerProductionSubTab: 'print-process', keywords: 'temperature fan presets nozzle bed chamber quick buttons popover', anchor: 'card-temp-fan-presets' });
 registerSettingsSearch({ labelKey: 'settings.staggeredStart', labelFallback: 'Staggered Start', tab: 'printers-production', printerProductionSubTab: 'print-process', keywords: 'staggered batch delay start queue group', anchor: 'card-staggered' });
 registerSettingsSearch({ labelKey: 'settings.plateClear', labelFallback: 'Plate-Clear Confirmation', tab: 'printers-production', printerProductionSubTab: 'print-process', keywords: 'plate clear confirm auto queue', anchor: 'card-plate' });
+registerSettingsSearch({ labelKey: 'settings.concurrentUploadsTitle', labelFallback: 'Concurrent Uploads', tab: 'printers-production', printerProductionSubTab: 'print-process', keywords: 'concurrent parallel upload transfer ftp queue farm simultaneous', anchor: 'card-concurrent-uploads' });
 registerSettingsSearch({ labelKey: 'settings.gcodeInjection', labelFallback: 'G-code Injection', tab: 'printers-production', printerProductionSubTab: 'print-process', keywords: 'gcode injection start end autoprint farmloop swapmod autoclear printflow', anchor: 'card-gcode' });
 registerSettingsSearch({ labelKey: 'settings.slicerCard', labelFallback: 'Slicer', tab: 'printers-production', printerProductionSubTab: 'print-process', keywords: 'slicer orcaslicer bambustudio orca bambu api sidecar url docker preferred', anchor: 'card-slicer' });
 registerSettingsSearch({ labelKey: 'settings.queueDrying', tab: 'warehouse-material', warehouseMaterialSubTab: 'filament', keywords: 'drying presets temperature time humidity ams', anchor: 'card-drying' });
@@ -1043,6 +1044,7 @@ export function SettingsPage() {
     confirmPassword: string;
     role: string;
     group_ids: number[];
+    allowed_printer_ids?: number[];
   }>({
     username: '',
     password: '',
@@ -1050,6 +1052,7 @@ export function SettingsPage() {
     confirmPassword: '',
     role: 'user',
     group_ids: [],
+    allowed_printer_ids: undefined,
   });
 
   // Group management state
@@ -1473,6 +1476,7 @@ export function SettingsPage() {
       email: userFormData.email || undefined,
       role: userFormData.role,
       group_ids: userFormData.group_ids.length > 0 ? userFormData.group_ids : undefined,
+      allowed_printer_ids: userFormData.allowed_printer_ids?.length ? userFormData.allowed_printer_ids : null,
     });
   };
 
@@ -1501,6 +1505,7 @@ export function SettingsPage() {
       email: userFormData.email || undefined,
       role: userFormData.role,
       group_ids: userFormData.group_ids,
+      allowed_printer_ids: userFormData.allowed_printer_ids?.length ? userFormData.allowed_printer_ids : null,
     };
     if (!updateData.password) {
       delete updateData.password;
@@ -1517,6 +1522,7 @@ export function SettingsPage() {
       confirmPassword: '',
       role: userToEdit.role,
       group_ids: userToEdit.groups?.map(g => g.id) || [],
+      allowed_printer_ids: userToEdit.allowed_printer_ids ?? undefined,
     });
     setShowEditUserModal(true);
   };
@@ -1528,6 +1534,22 @@ export function SettingsPage() {
         ? prev.group_ids.filter(id => id !== groupId)
         : [...prev.group_ids, groupId],
     }));
+  };
+
+  const toggleUserPrinterScope = (printerId: number) => {
+    setUserFormData(prev => {
+      const current = prev.allowed_printer_ids ?? [];
+      return {
+        ...prev,
+        allowed_printer_ids: current.includes(printerId)
+          ? current.filter(id => id !== printerId)
+          : [...current, printerId],
+      };
+    });
+  };
+
+  const clearUserPrinterScope = () => {
+    setUserFormData(prev => ({ ...prev, allowed_printer_ids: undefined }));
   };
 
   const applyUpdateMutation = useMutation({
@@ -1720,6 +1742,7 @@ export function SettingsPage() {
       (settings.stagger_group_size ?? 2) !== (localSettings.stagger_group_size ?? 2) ||
       (settings.stagger_interval_minutes ?? 5) !== (localSettings.stagger_interval_minutes ?? 5) ||
       (settings.require_plate_clear ?? false) !== (localSettings.require_plate_clear ?? false) ||
+      (settings.queue_max_concurrent_uploads ?? 4) !== (localSettings.queue_max_concurrent_uploads ?? 4) ||
       (settings.preheat_enabled ?? false) !== (localSettings.preheat_enabled ?? false) ||
       (settings.preheat_filament_targets ?? '') !== (localSettings.preheat_filament_targets ?? '') ||
       (settings.preheat_max_wait_seconds ?? 900) !== (localSettings.preheat_max_wait_seconds ?? 900) ||
@@ -1801,6 +1824,7 @@ export function SettingsPage() {
         stagger_group_size: localSettings!.stagger_group_size,
         stagger_interval_minutes: localSettings!.stagger_interval_minutes,
         require_plate_clear: localSettings!.require_plate_clear,
+        queue_max_concurrent_uploads: localSettings!.queue_max_concurrent_uploads,
         preheat_enabled: localSettings!.preheat_enabled,
         preheat_filament_targets: localSettings!.preheat_filament_targets,
         preheat_max_wait_seconds: localSettings!.preheat_max_wait_seconds,
@@ -5550,6 +5574,35 @@ export function SettingsPage() {
             </CardContent>
           </Card>
 
+          <Card id="card-concurrent-uploads">
+            <CardHeader>
+              <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                <UploadCloud className="w-4 h-4 text-bambu-green" />
+                {t('settings.concurrentUploadsTitle', 'Concurrent Uploads')}
+              </h3>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-bambu-gray">
+                {t('settings.concurrentUploadsDescription', 'How many printers the queue may send files to at the same time. Higher values help larger farms avoid waiting for one slow FTP transfer at a time; lower values reduce load on weaker hosts or networks.')}
+              </p>
+              <div className="w-full sm:w-1/2">
+                <label className="block text-xs text-bambu-gray mb-1">
+                  {t('settings.concurrentUploadsLabel', 'Printers uploaded to at once')}
+                </label>
+                <NumberField
+                  min={1}
+                  max={16}
+                  value={localSettings.queue_max_concurrent_uploads ?? 4}
+                  onChange={(e) => updateSetting('queue_max_concurrent_uploads', Math.max(1, Math.min(16, parseInt(e.target.value) || 1)))}
+                  className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
+                />
+                <p className="text-xs text-bambu-gray mt-1">
+                  {t('settings.concurrentUploadsHelp', 'Default is 4. Set to 1 to send files serially.')}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Preheat & Heat Soak (#1468) */}
           <Card id="card-preheat">
             <CardHeader>
@@ -6567,6 +6620,11 @@ export function SettingsPage() {
                                     {group.name}
                                   </span>
                                 ))}
+                                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-bambu-dark text-bambu-gray">
+                                  {userItem.allowed_printer_ids?.length
+                                    ? t('users.form.printerScopeCount', { count: userItem.allowed_printer_ids.length, defaultValue: `${userItem.allowed_printer_ids.length} printers` })
+                                    : t('users.form.allPrinters', 'All printers')}
+                                </span>
                               </div>
                             </div>
                             <div className="flex items-center gap-1 ml-4">
@@ -6911,6 +6969,30 @@ export function SettingsPage() {
                     )}
                   </div>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">{t('users.form.printerScope', 'Printer access')}</label>
+                  <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
+                    <label className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer">
+                      <Checkbox
+                        checked={!userFormData.allowed_printer_ids?.length}
+                        onChange={clearUserPrinterScope}
+                      />
+                      <span className="text-sm text-white">{t('users.form.allPrinters', 'All printers')}</span>
+                    </label>
+                    {(printers ?? []).map(printer => (
+                      <label
+                        key={printer.id}
+                        className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={userFormData.allowed_printer_ids?.includes(printer.id) ?? false}
+                          onChange={() => toggleUserPrinterScope(printer.id)}
+                        />
+                        <span className="text-sm text-white">{printer.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div className="mt-6 flex justify-end gap-3">
                 <Button
@@ -6952,6 +7034,7 @@ export function SettingsPage() {
           formData={userFormData}
           setFormData={setUserFormData}
           groups={groupsData}
+          printers={printers ?? []}
           onClose={() => {
             setShowCreateUserModal(false);
             setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
@@ -7120,6 +7203,30 @@ export function SettingsPage() {
                         {group.is_system && (
                           <span className="text-xs text-yellow-700 dark:text-yellow-400">({t('users.system') || 'System'})</span>
                         )}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">{t('users.form.printerScope', 'Printer access')}</label>
+                  <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
+                    <label className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer">
+                      <Checkbox
+                        checked={!userFormData.allowed_printer_ids?.length}
+                        onChange={clearUserPrinterScope}
+                      />
+                      <span className="text-sm text-white">{t('users.form.allPrinters', 'All printers')}</span>
+                    </label>
+                    {(printers ?? []).map(printer => (
+                      <label
+                        key={printer.id}
+                        className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={userFormData.allowed_printer_ids?.includes(printer.id) ?? false}
+                          onChange={() => toggleUserPrinterScope(printer.id)}
+                        />
+                        <span className="text-sm text-white">{printer.name}</span>
                       </label>
                     ))}
                   </div>

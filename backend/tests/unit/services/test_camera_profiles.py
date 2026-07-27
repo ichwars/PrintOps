@@ -86,7 +86,7 @@ class TestGetCameraProfile:
         must use the default profile until proven otherwise. Anything
         else means we silently changed behaviour for a model the user
         hasn't reported a problem on."""
-        for model in ("X1", "X1C", "X1E", "X2D", "H2C", "H2D", "H2D PRO", "H2S"):
+        for model in ("X1", "X1C", "X1E", "X2D", "H2C", "H2D", "H2D PRO"):
             assert get_camera_profile(model) is DEFAULT_PROFILE, (
                 f"{model} unexpectedly has a non-default profile — review "
                 "whether the change is intentional before shipping."
