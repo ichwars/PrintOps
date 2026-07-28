@@ -196,11 +196,12 @@ access to the [PrintOps repository](https://github.com/ichwars/PrintOps).
 Approvers are the maintainers assigned to the protected GitHub `release`
 environment and SignPath signing policy.
 
-PrintOps is a local, self-hosted application. It does not transfer information
-to networked systems unless the person installing or operating it configures or
-requests that connection, such as printer access, Bambu Cloud login, Spoolman,
-smart plugs, notification providers, update checks, backups or release
-downloads.
+PrintOps is a local, self-hosted application. Fresh installations check GitHub
+for available PrintOps updates by default on page load and then hourly; this
+can be disabled in Settings. Other outbound connections happen only when the
+person installing or operating PrintOps configures or requests them, such as
+printer access, Bambu Cloud login, Spoolman, smart plugs, notification
+providers, backups or release downloads.
 
 ## Development
 

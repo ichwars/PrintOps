@@ -118,7 +118,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [verify-release-tag, build]
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     environment: release
     permissions:
       actions: read
