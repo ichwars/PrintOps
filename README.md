@@ -23,6 +23,7 @@
   <a href="#available-today">Capabilities</a> ·
   <a href="#where-printops-is-going">Direction</a> ·
   <a href="#quick-start">Quick start</a> ·
+  <a href="#code-signing-policy">Code signing</a> ·
   <a href="docs/README.md">Documentation</a>
 </p>
 
@@ -179,6 +180,28 @@ installer builds must stage them before startup; PrintOps never downloads a
 renderer or validator while processing a document. The readiness endpoint
 /api/v1/document-render/readiness reports the installed versions and blocks
 final release when a required component is unavailable.
+
+## Code signing policy
+
+Free code signing is provided by SignPath.io, certificate by SignPath
+Foundation. Windows installer releases are built by GitHub Actions from this
+repository, submitted to SignPath as GitHub workflow artifacts, manually
+approved by the configured release approvers, Authenticode-signed, verified
+with SignTool and published with SHA-256 checksums and GitHub artifact
+attestations. The release workflow can also use Azure Artifact Signing when a
+project operator configures that paid provider instead of SignPath.
+
+Committers and reviewers are the maintainers with write or administrative
+access to the [PrintOps repository](https://github.com/ichwars/PrintOps).
+Approvers are the maintainers assigned to the protected GitHub `release`
+environment and SignPath signing policy.
+
+PrintOps is a local, self-hosted application. Fresh installations check GitHub
+for available PrintOps updates by default on page load and then hourly; this
+can be disabled in Settings. Other outbound connections happen only when the
+person installing or operating PrintOps configures or requests them, such as
+printer access, Bambu Cloud login, Spoolman, smart plugs, notification
+providers, backups or release downloads.
 
 ## Development
 
