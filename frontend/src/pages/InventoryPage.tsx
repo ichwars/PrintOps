@@ -25,7 +25,7 @@ import { BulkEditSpoolsModal } from '../components/BulkEditSpoolsModal';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { resolveSpoolColorName } from '../utils/colors';
-import { getCurrencySymbol } from '../utils/currency';
+import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { formatDateInput, parseUTCDate, type DateFormat } from '../utils/date';
 import { formatSlotLabel } from '../utils/amsHelpers';
 import { filterSpoolsByQuery } from '../utils/inventorySearch';
@@ -1063,7 +1063,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const inPrinterCount =
     (assignments?.length ?? 0) + (spoolmanMode ? spoolmanSlotAssignments.length : 0);
 
-  const currencySymbol = getCurrencySymbol(settings?.currency || 'USD');
+  const { currencySymbol } = useDisplayCurrency(settings?.currency);
 
   // Map spool_id -> location display data for the LOCATION column.
   // Local SpoolAssignment entries first, then Spoolman SlotAssignment fills in

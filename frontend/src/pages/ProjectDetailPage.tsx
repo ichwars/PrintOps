@@ -47,7 +47,7 @@ import { PrintModal } from '../components/PrintModal';
 
 // Project edit modal (reused from ProjectsPage)
 import { ProjectModal } from './ProjectsPage';
-import { getCurrencySymbol } from '../utils/currency';
+import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 
 // Returns true for sliced (printable) files: .gcode and .gcode.3mf
 function isSlicedFilename(filename: string): boolean {
@@ -269,7 +269,7 @@ export function ProjectDetailPage() {
     return map;
   }, [allProjectFiles]);
 
-  const currency = getCurrencySymbol(settings?.currency || 'USD');
+  const { currencySymbol: currency } = useDisplayCurrency(settings?.currency);
   const timeFormat: TimeFormat = settings?.time_format || 'system';
 
   const updateMutation = useMutation({

@@ -361,7 +361,8 @@ async def get_printer_cover(
     """Get the cover image for the current print job.
 
     Args:
-        view: Optional view type. Use "top" for top-down build plate view (useful for skip objects).
+        view: Optional view type. Use "top" for top-down build plate view or
+              "pick" for the slicer's object-ID mask used by skip objects.
               Default returns angled 3D perspective view.
     """
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -541,10 +542,11 @@ async def get_printer_cover(
             if plate_num is None:
                 plate_num = 1
 
-            # Try common thumbnail paths in 3MF files
-            # Use plate_num to get the correct plate's thumbnail for multi-plate projects
-            # Use top-down view if requested (better for skip objects modal)
-            if view == "top":
+            # Try common thumbnail paths in 3MF files. view=pick must never
+            # fall back to a thumbnail: the UI decodes object IDs from pixels.
+            if view == "pick":
+                thumbnail_paths = [f"Metadata/pick_{plate_num}.png"]
+            elif view == "top":
                 thumbnail_paths = [
                     f"Metadata/top_{plate_num}.png",
                     # Fall back to plate 1 if specific plate not found
@@ -574,6 +576,10 @@ async def get_printer_cover(
                     return Response(content=image_data, media_type="image/png")
                 except KeyError:
                     continue
+
+            if view == "pick":
+                _cover_404_cache.setdefault(printer_id, set()).add(cache_key)
+                raise HTTPException(404, f"No object pick mask found for plate {plate_num}")
 
             # If no specific thumbnail found, try any PNG in Metadata
             for name in zf.namelist():

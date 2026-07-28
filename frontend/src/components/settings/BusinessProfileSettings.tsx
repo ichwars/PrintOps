@@ -57,6 +57,7 @@ export function BusinessProfileSettings() {
       queryClient.invalidateQueries({ queryKey: ['business-profiles', false], exact: true }),
       queryClient.invalidateQueries({ queryKey: ['business-profiles', true], exact: true }),
       queryClient.invalidateQueries({ queryKey: ['business-profile-options'], exact: true }),
+      queryClient.invalidateQueries({ queryKey: ['display-currency'], exact: true }),
     ]);
   };
   const localizedError = (error: unknown) => {

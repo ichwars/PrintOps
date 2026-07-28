@@ -62,7 +62,7 @@ import { SliceModal } from '../components/SliceModal';
 import { RunWithPipelineModal } from '../components/RunWithPipelineModal';
 import { openInSlicer, type SlicerType } from '../utils/slicer';
 import { formatDateTime, formatDateOnly, parseUTCDate, type TimeFormat, formatDuration } from '../utils/date';
-import { getCurrencySymbol } from '../utils/currency';
+import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { getBedTypeInfo } from '../utils/bedType';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { usePageFileDrop } from '../hooks/usePageFileDrop';
@@ -2778,7 +2778,7 @@ export function ArchivesPage() {
   // preferred_slicer for the sidecar.
   const preferredSlicer: SlicerType = settings?.open_in_slicer || settings?.preferred_slicer || 'bambu_studio';
   const useSlicerApi = settings?.use_slicer_api ?? false;
-  const currency = getCurrencySymbol(settings?.currency || 'USD');
+  const { currencySymbol: currency } = useDisplayCurrency(settings?.currency);
 
   const bulkDeleteMutation = useMutation({
     mutationFn: async (ids: number[]) => {

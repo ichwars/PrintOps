@@ -225,6 +225,7 @@ async def async_client(test_engine, db_session) -> AsyncGenerator[AsyncClient, N
     with (
         patch("backend.app.core.database.async_session", test_async_session),
         patch("backend.app.core.auth.async_session", test_async_session),
+        patch("backend.app.api.routes.cloud.async_session", test_async_session),
         patch("backend.app.main.async_session", test_async_session),
         patch("backend.app.main.init_printer_connections", mock_init_printer_connections),
     ):

@@ -199,12 +199,13 @@ class RESTSmartPlugService:
     async def get_energy(self, plug: "SmartPlug") -> dict | None:
         """Get energy monitoring data.
 
-        Each value (power, energy) can come from its own URL or fall back to the shared status URL.
-        Multipliers are applied to convert units (e.g., Wh → kWh with multiplier 0.001).
+        Each value (power, today, total) can come from its own URL or fall back
+        to the shared status URL. Multipliers are applied to convert units
+        (e.g., Wh to kWh with multiplier 0.001).
 
         Returns dict with energy data or None if not available.
         """
-        if not plug.rest_power_path and not plug.rest_energy_path:
+        if not plug.rest_power_path and not plug.rest_energy_path and not plug.rest_energy_total_path:
             return None
 
         headers = self._parse_headers(plug.rest_headers)
@@ -212,30 +213,36 @@ class RESTSmartPlugService:
 
         power_url = plug.rest_power_url or plug.rest_status_url if plug.rest_power_path else None
         energy_url = plug.rest_energy_url or plug.rest_status_url if plug.rest_energy_path else None
+        total_url = plug.rest_energy_url or plug.rest_status_url if plug.rest_energy_total_path else None
 
         # Fetch data — deduplicate when both resolve to the same URL
         fetched: dict[str, Any] = {}
 
-        for url in {power_url, energy_url} - {None}:
+        for url in {power_url, energy_url, total_url} - {None}:
             fetched[url] = await self._fetch_json(url, headers)
 
-        # Extract power value
-        if plug.rest_power_path and power_url and fetched.get(power_url) is not None:
-            raw = self._extract_json_path(fetched[power_url], plug.rest_power_path)
-            if raw is not None:
-                try:
-                    energy["power"] = float(raw) * (plug.rest_power_multiplier or 1.0)
-                except (ValueError, TypeError):
-                    pass
+        def read_value(path: str | None, url: str | None, multiplier: float | None) -> float | None:
+            if not path or not url or fetched.get(url) is None:
+                return None
+            raw = self._extract_json_path(fetched[url], path)
+            if raw is None:
+                return None
+            try:
+                return float(raw) * (multiplier or 1.0)
+            except (ValueError, TypeError):
+                return None
 
-        # Extract energy value
-        if plug.rest_energy_path and energy_url and fetched.get(energy_url) is not None:
-            raw = self._extract_json_path(fetched[energy_url], plug.rest_energy_path)
-            if raw is not None:
-                try:
-                    energy["today"] = float(raw) * (plug.rest_energy_multiplier or 1.0)
-                except (ValueError, TypeError):
-                    pass
+        power = read_value(plug.rest_power_path, power_url, plug.rest_power_multiplier)
+        if power is not None:
+            energy["power"] = power
+
+        today = read_value(plug.rest_energy_path, energy_url, plug.rest_energy_multiplier)
+        if today is not None:
+            energy["today"] = today
+
+        total = read_value(plug.rest_energy_total_path, total_url, plug.rest_energy_total_multiplier)
+        if total is not None:
+            energy["total"] = total
 
         return energy if energy else None
 

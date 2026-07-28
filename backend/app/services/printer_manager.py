@@ -209,27 +209,33 @@ _DRYING_MIN_FIRMWARE: dict[str, str] = {
     "O1C2": "01.02.00.00",  # H2C dual-nozzle SSDP model code
     "X1": "01.09.00.00",
     "X1C": "01.09.00.00",
-    "P1P": "01.08.00.00",
-    "P1S": "01.08.00.00",
     "P2S": "01.02.00.00",
     "N7": "01.02.00.00",  # P2S internal model code
 }
 # Models that definitely don't support AMS drying (no AMS 2 Pro / AMS-HT compatibility)
 _DRYING_UNSUPPORTED_MODELS = frozenset({"A1", "A1MINI", "A1-MINI", "A1 MINI", "O1S", "N1", "N2S"})
+_DRYING_SCREEN_ONLY_MODELS = frozenset({"P1P", "P1S"})
+
+
+def drying_screen_only(model: str | None) -> bool:
+    """True when AMS drying can only be controlled on the printer screen."""
+    if not model:
+        return False
+    return model.strip().upper() in _DRYING_SCREEN_ONLY_MODELS
 
 
 def supports_drying(model: str | None, firmware: str | None) -> bool:
-    """Check if a printer model supports AMS drying commands.
+    """Check if a printer model supports remote AMS drying commands.
 
     Known models with confirmed min firmware get version-gated.
-    Known unsupported models are blocked.
+    Known unsupported and screen-only models are blocked.
     All other models (H2D Pro, X1E, future models) are allowed —
     the command fails gracefully with result: "fail" if unsupported.
     """
     if not model:
         return False
     model_upper = model.strip().upper()
-    if model_upper in _DRYING_UNSUPPORTED_MODELS:
+    if model_upper in _DRYING_UNSUPPORTED_MODELS or model_upper in _DRYING_SCREEN_ONLY_MODELS:
         return False
     if model_upper in _DRYING_MIN_FIRMWARE:
         return bool(firmware and firmware >= _DRYING_MIN_FIRMWARE[model_upper])
@@ -974,6 +980,42 @@ def resolve_plate_id(state) -> int | None:
     return parse_plate_id(state.gcode_file)
 
 
+def resolve_expected_tray(
+    raw_slot: int | None,
+    ams_layout: list[tuple[int, bool]],
+    mapping_raw: object,
+) -> int | None:
+    """Resolve raw tray_tar/tray_pre values to global tray IDs for runout UI."""
+    if raw_slot is None or raw_slot in (255, -1):
+        return None
+    if raw_slot == 254:
+        return 254
+    if 128 <= raw_slot <= 135:
+        return raw_slot
+    if 0 <= raw_slot <= 3:
+        regular = [ams_id for ams_id, is_ht in ams_layout if not is_ht]
+        if len(regular) == 1:
+            return regular[0] * 4 + raw_slot
+        if len(regular) > 1:
+            if not isinstance(mapping_raw, list):
+                return None
+            candidates: set[int] = set()
+            for value in mapping_raw:
+                if not isinstance(value, int) or value >= 65535:
+                    continue
+                ams_hw_id = value >> 8
+                slot = value & 0xFF
+                if 0 <= ams_hw_id <= 3 and (slot & 0x03) == raw_slot:
+                    candidates.add(ams_hw_id * 4 + raw_slot)
+                elif 128 <= ams_hw_id <= 135 and raw_slot == 0:
+                    candidates.add(ams_hw_id)
+            return candidates.pop() if len(candidates) == 1 else None
+        return None
+    if 4 <= raw_slot <= 15:
+        return raw_slot
+    return None
+
+
 def printer_state_to_dict(
     state: PrinterState,
     printer_id: int | None = None,
@@ -1217,6 +1259,24 @@ def printer_state_to_dict(
         "ams_status_main": state.ams_status_main,
         "ams_status_sub": state.ams_status_sub,
         "tray_now": state.tray_now,
+        "expected_tray": (
+            resolve_expected_tray(
+                state.tray_tar,
+                [(u["id"], u.get("is_ams_ht", False)) for u in ams_units],
+                raw_data.get("mapping"),
+            )
+            if state.state == "PAUSE"
+            else None
+        ),
+        "previous_tray": (
+            resolve_expected_tray(
+                state.tray_pre,
+                [(u["id"], u.get("is_ams_ht", False)) for u in ams_units],
+                raw_data.get("mapping"),
+            )
+            if state.state == "PAUSE"
+            else None
+        ),
         # Per-AMS extruder map: {ams_id: extruder_id} where 0=right, 1=left
         "ams_extruder_map": ams_extruder_map,
         # WiFi signal strength
@@ -1262,6 +1322,7 @@ def printer_state_to_dict(
         # AMS drying support
         "supports_drying": supports_drying(model, state.firmware_version),
         "supports_drying_while_printing": supports_drying_while_printing(model, state.firmware_version),
+        "drying_screen_only": drying_screen_only(model),
         # 1-indexed plate number parsed from gcode_file (e.g. /Metadata/plate_2.gcode).
         # Pushed via WebSocket so the printer card picks up plate transitions within
         # a multi-plate 3MF without waiting for the 30 s REST poll (#881 follow-up).

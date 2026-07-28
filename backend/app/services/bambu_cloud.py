@@ -4,7 +4,10 @@ Bambu Lab Cloud API Service
 Handles authentication and profile management with Bambu Lab's cloud services.
 """
 
+import hashlib
 import logging
+import time
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -13,6 +16,21 @@ logger = logging.getLogger(__name__)
 
 BAMBU_API_BASE = "https://api.bambulab.com"
 BAMBU_API_BASE_CN = "https://api.bambulab.cn"
+_VALIDATION_TTL_SECONDS = 300
+_validation_cache: dict[str, tuple[float, bool]] = {}
+
+
+def _validation_cache_key(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def invalidate_validation_cache(token: str | None = None) -> None:
+    """Drop cached token-validation verdicts."""
+    if token is None:
+        _validation_cache.clear()
+    else:
+        _validation_cache.pop(_validation_cache_key(token), None)
+
 
 # Client identity sent to Bambu Lab's cloud services. We identify honestly as
 # PrintOps — the URL in parens makes the source unambiguous so Bambu can
@@ -108,11 +126,17 @@ def set_shared_http_client(client: httpx.AsyncClient | None) -> None:
 class BambuCloudService:
     """Service for interacting with Bambu Lab Cloud API."""
 
-    def __init__(self, region: str = "global", client: httpx.AsyncClient | None = None):
+    def __init__(
+        self,
+        region: str = "global",
+        client: httpx.AsyncClient | None = None,
+        on_auth_failure: Callable[[], Awaitable[None]] | None = None,
+    ):
         self.base_url = BAMBU_API_BASE if region == "global" else BAMBU_API_BASE_CN
         self.access_token: str | None = None
         self.refresh_token: str | None = None
         self.token_expiry: datetime | None = None
+        self._on_auth_failure = on_auth_failure
         # Prefer an explicitly-injected client (tests), else fall back to the
         # app-scoped shared client (production), and finally create our own so
         # scripts / tests that skip the lifespan still get a working service.
@@ -334,7 +358,44 @@ class BambuCloudService:
     def set_token(self, access_token: str):
         """Set access token directly (for stored tokens)."""
         self.access_token = access_token
-        self.token_expiry = datetime.now(timezone.utc) + timedelta(days=30)
+        self.token_expiry = None
+
+    async def _notify_auth_failure(self) -> None:
+        if self._on_auth_failure is None:
+            return
+        try:
+            await self._on_auth_failure()
+        except Exception:
+            logger.exception("Bambu Cloud auth-failure callback failed")
+
+    async def validate_token(self) -> bool | None:
+        """Ask Bambu whether the stored token is still accepted.
+
+        Returns True/False for an authoritative answer and None for transient
+        reachability/server problems.
+        """
+        if not self.access_token:
+            return False
+        now = time.monotonic()
+        cache_key = _validation_cache_key(self.access_token)
+        cached = _validation_cache.get(cache_key)
+        if cached and cached[0] > now:
+            return cached[1]
+        try:
+            response = await self._client.get(
+                f"{self.base_url}/v1/design-user-service/my/preference",
+                headers=self._get_headers(),
+            )
+        except httpx.RequestError:
+            return None
+        if response.status_code == 200:
+            _validation_cache[cache_key] = (now + _VALIDATION_TTL_SECONDS, True)
+            return True
+        if response.status_code == 401:
+            _validation_cache[cache_key] = (now + _VALIDATION_TTL_SECONDS, False)
+            await self._notify_auth_failure()
+            return False
+        return None
 
     def logout(self):
         """Clear authentication state."""

@@ -316,14 +316,26 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
       {/* Toast Container — to the left of the bug-report bubble (bottom-4 right-4 w-12).
           The kiosk layout suppresses this entire viewport so SpoolBuddy displays stay
-          free of main-app notifications. */}
-      <div className={`fixed bottom-4 right-20 z-[60] flex flex-col items-end gap-2 ${viewportSuppressed ? 'hidden' : ''}`}>
+          free of main-app notifications. Position is safe-area-aware so an
+          installed PWA clears the home indicator and landscape notches. */}
+      <div
+        data-testid="toast-viewport"
+        className={`fixed z-[60] flex flex-col items-end gap-2 ${viewportSuppressed ? 'hidden' : ''}`}
+        style={{
+          bottom: 'calc(1rem + env(safe-area-inset-bottom))',
+          right: 'calc(5rem + env(safe-area-inset-right))',
+        }}
+      >
         {toasts.map((toast) => (
           <div
             key={toast.id}
             className={`rounded-lg border shadow-lg backdrop-blur-sm animate-slide-in ${bgColors[toast.type]} ${
               toast.dispatchData ? 'w-[420px] p-3' : 'flex items-center gap-3 px-4 py-3'
             }`}
+            style={{
+              maxWidth:
+                'calc(100vw - 6rem - env(safe-area-inset-left) - env(safe-area-inset-right))',
+            }}
             data-testid={toast.dispatchData ? 'dispatch-toast-wrapper' : undefined}
           >
             {toast.dispatchData ? (
@@ -389,11 +401,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                           data-testid={`dispatch-toast-job-${job.jobId}`}
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs text-white truncate" title={job.sourceName}>
+                            <span className="text-xs text-white truncate min-w-0 flex-1" title={job.sourceName}>
                               {job.sourceName}
                             </span>
                             <span
-                              className="text-[11px] uppercase tracking-wide text-bambu-gray"
+                              className="text-[11px] uppercase tracking-wide text-bambu-gray shrink-0"
                               data-testid={`dispatch-toast-status-${job.jobId}`}
                             >
                               {t(`dispatchToast.status.${job.status}`)}

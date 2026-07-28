@@ -38,6 +38,7 @@ class CloudAuthStatus(BaseModel):
     is_authenticated: bool
     email: str | None = None
     region: Region | None = None
+    sign_in_expired: bool = False
 
 
 class CloudTokenRequest(BaseModel):

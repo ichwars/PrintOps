@@ -10,6 +10,7 @@ import pytest
 
 from backend.app.services.printer_manager import (
     PrinterManager,
+    drying_screen_only,
     get_derived_status_name,
     has_stg_cur_idle_bug,
     init_printer_connections,
@@ -1510,7 +1511,6 @@ class TestSupportsDrying:
     def test_known_supported_with_firmware(self):
         """Verify known models with sufficient firmware return True."""
         assert supports_drying("X1C", "01.09.00.00") is True
-        assert supports_drying("P1S", "01.08.00.00") is True
         assert supports_drying("H2D", "01.02.30.00") is True
         assert supports_drying("H2S", "01.02.00.00") is True
         assert supports_drying("H2C", "01.02.00.00") is True
@@ -1534,6 +1534,14 @@ class TestSupportsDrying:
         """Verify known models with no firmware return False."""
         assert supports_drying("X1C", None) is False
         assert supports_drying("P2S", None) is False
+
+    def test_p1_drying_is_screen_only(self):
+        """P1 models support AMS drying only from the printer screen."""
+        assert supports_drying("P1P", "01.08.00.00") is False
+        assert supports_drying("P1S", "01.08.00.00") is False
+        assert drying_screen_only("P1P") is True
+        assert drying_screen_only("P1S") is True
+        assert drying_screen_only("X1C") is False
 
     def test_unsupported_models(self):
         """Verify models without AMS drying support return False regardless of firmware."""

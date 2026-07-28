@@ -3546,29 +3546,35 @@ async def _run_slicer_with_fallback(
         SlicerInputError,
     )
 
+    is_3mf = model_filename.lower().endswith(".3mf")
+    if request.use_embedded_settings and not is_3mf:
+        raise HTTPException(status_code=400, detail="Embedded settings can only be used with 3MF files")
+    embedded_mode = bool(request.use_embedded_settings and is_3mf)
     user: User | None = None
     presets: dict[str, str] = {}
     filament_jsons: list[str] = []
-    # Resolve each slot via the source-aware resolver. The schema
-    # validator has already normalised legacy `*_preset_id: int`
-    # fields into `PresetRef(source='local', id=str(int))`, so all
-    # three are guaranteed non-None here.
     if current_user_id is not None:
         user = await db.get(User, current_user_id)
 
-    refs = {
-        "printer": request.printer_preset,
-        "process": request.process_preset,
-    }
-    for slot, ref in refs.items():
-        assert ref is not None, "schema validator guarantees PresetRef is set"
-        presets[slot] = await resolve_preset_ref(db, user, ref, slot)
-    # Multi-color: resolve each filament slot in plate order. The schema
-    # validator backfilled `filament_presets` from the legacy `filament_preset`
-    # field for single-color callers, so this list is always non-empty.
-    for ref in request.filament_presets:
-        assert ref is not None, "schema validator guarantees filament list is non-None"
-        filament_jsons.append(await resolve_preset_ref(db, user, ref, "filament"))
+    if not embedded_mode:
+        # Resolve each slot via the source-aware resolver. The schema
+        # validator has already normalised legacy `*_preset_id: int`
+        # fields into `PresetRef(source='local', id=str(int))`, so all
+        # three are guaranteed non-None here unless embedded settings were
+        # requested, which bypasses profile loading entirely.
+        refs = {
+            "printer": request.printer_preset,
+            "process": request.process_preset,
+        }
+        for slot, ref in refs.items():
+            assert ref is not None, "schema validator guarantees PresetRef is set"
+            presets[slot] = await resolve_preset_ref(db, user, ref, slot)
+        # Multi-color: resolve each filament slot in plate order. The schema
+        # validator backfilled `filament_presets` from the legacy `filament_preset`
+        # field for single-color callers, so this list is always non-empty.
+        for ref in request.filament_presets:
+            assert ref is not None, "schema validator guarantees filament list is non-None"
+            filament_jsons.append(await resolve_preset_ref(db, user, ref, "filament"))
 
     # Bed-type override (#1337): patch curr_bed_type onto the resolved
     # process JSON so the slicer's StaticPrintConfig pass picks up the
@@ -3576,7 +3582,7 @@ async def _run_slicer_with_fallback(
     # Without this, slicing an STL of ABS onto a process preset whose
     # default is "Cool Plate" fails with "Plate 1: Cool Plate does not
     # support filament 1" — the reporter's exact scenario.
-    if request.bed_type:
+    if request.bed_type and not embedded_mode:
         presets["process"] = _patch_process_bed_type(presets["process"], request.bed_type)
 
     # Slicer routing — pick the sidecar URL by preferred_slicer.
@@ -3612,7 +3618,6 @@ async def _run_slicer_with_fallback(
     # Forwarding the original bytes lets --load-settings override the
     # specific fields the user changed (printer/process/filament) while
     # the embedded plate / model definitions remain intact.
-    is_3mf = model_filename.lower().endswith(".3mf")
     primary_bytes = model_bytes
     if is_3mf:
         # Strip "-1" inherit-from-parent sentinels from
@@ -3630,7 +3635,8 @@ async def _run_slicer_with_fallback(
         # without patching, the source's `enable_support: 1` + support-slot
         # assignments get discarded and the slice comes out single-material
         # with a PVA slot loaded but never used.
-        presets["process"] = _patch_process_support_settings(presets["process"], primary_bytes)
+        if not embedded_mode:
+            presets["process"] = _patch_process_support_settings(presets["process"], primary_bytes)
 
     used_embedded_settings = False
     service = SlicerApiService(api_url)
@@ -3650,7 +3656,7 @@ async def _run_slicer_with_fallback(
     # orthogonal so this decision doesn't interact with the #1337 build-
     # plate override.
     cross_class_arrange = False
-    if is_3mf:
+    if is_3mf and not embedded_mode:
         from backend.app.services.slicer_3mf_convert import (
             extract_source_printer_model,
         )
@@ -3713,7 +3719,17 @@ async def _run_slicer_with_fallback(
 
     try:
         try:
-            if use_cross_class_slice_all:
+            if embedded_mode:
+                result = await service.slice_without_profiles(
+                    model_bytes=primary_bytes,
+                    model_filename=model_filename,
+                    plate=request.plate,
+                    export_3mf=request.export_3mf,
+                    request_id=progress_request_id,
+                    on_progress=progress_callback,
+                )
+                used_embedded_settings = True
+            elif use_cross_class_slice_all:
                 from backend.app.services.slicer_3mf_convert import (
                     count_plates_in_3mf,
                     merge_plate_3mfs,
@@ -3815,7 +3831,7 @@ async def _run_slicer_with_fallback(
                 # (e.g. re-slicing an H2D model for an X1C: the object is off
                 # the smaller bed). Surface the slicer's reason instead.
                 raise HTTPException(status_code=400, detail=rejection) from exc
-            if not is_3mf:
+            if not is_3mf or embedded_mode:
                 raise
             logger.warning(
                 "Slicer CLI failed on the --load-settings path for %s (%s); retrying with embedded settings",

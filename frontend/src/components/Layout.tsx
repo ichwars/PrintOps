@@ -12,6 +12,7 @@ import { getIconByName } from './IconPicker';
 import { useIsSidebarCompact } from '../hooks/useIsSidebarCompact';
 import { useColorCatalogVersion } from '../hooks/useColorCatalogVersion';
 import { useSponsorPrompt } from '../hooks/useSponsorPrompt';
+import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { useUnknownTagPrompt } from '../hooks/useUnknownTagPrompt';
 import { UnknownSpoolModal } from './UnknownSpoolModal';
 import { useAuth } from '../contexts/AuthContext';
@@ -198,9 +199,10 @@ export function Layout() {
   });
   const showDeveloperLanWarning = uiPreferences?.show_developer_lan_warning ?? true;
   const showSponsorPrompts = uiPreferences?.show_sponsor_prompts ?? false;
+  const { currencyCode: displayCurrencyCode } = useDisplayCurrency(settings?.currency ?? 'EUR');
 
   // Sponsor-prompt toast — fires once per session post-auth if a milestone is eligible.
-  useSponsorPrompt(settings?.currency ?? 'EUR', showSponsorPrompts);
+  useSponsorPrompt(displayCurrencyCode, showSponsorPrompts);
 
   // Unknown-spool prompt — surfaces a confirmation modal when the AMS reports a
   // tag with no inventory match (only when `auto_add_unknown_rfid` is off).

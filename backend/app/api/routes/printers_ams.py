@@ -16,6 +16,7 @@ from backend.app.models.slot_preset import SlotPresetMapping
 from backend.app.schemas.printer import (
     AmsLabelBody,
 )
+from backend.app.utils.filament_ids import filament_id_to_setting_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["printers"])
@@ -201,6 +202,9 @@ async def configure_ams_slot(
         effective_tray_info_idx = kprofile_filament_id
         if kprofile_setting_id:
             effective_setting_id = kprofile_setting_id
+
+    if effective_tray_info_idx and not effective_setting_id:
+        effective_setting_id = filament_id_to_setting_id(effective_tray_info_idx)
 
     # Always send ams_set_filament_setting — the user explicitly clicked
     # "Configure Slot", so honor that.  Previous versions skipped this for

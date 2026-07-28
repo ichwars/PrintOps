@@ -873,6 +873,8 @@ function getEmptySlotKind(
   return (tray?.state === 9 || tray?.state === 10) ? 'physical' : 'reset';
 }
 
+const DRY_START_CONFIRM_MS = 30_000;
+
 
 function CoverImage({
   url,
@@ -1839,6 +1841,7 @@ function PrinterCard({
   const [dryingDuration, setDryingDuration] = useState(4);
   const [dryingRotateTray, setDryingRotateTray] = useState(false);
   const [dryingPopoverPos, setDryingPopoverPos] = useState<{ top: number; left: number } | null>(null);
+  const [dryStartWatch, setDryStartWatch] = useState<{ amsId: number } | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isDropUploading, setIsDropUploading] = useState(false);
   const printerActionsMenuRef = useRef<HTMLDivElement>(null);
@@ -2073,6 +2076,23 @@ function PrinterCard({
   }, [status?.ams]);
   const amsData = (status?.ams && status.ams.length > 0) ? status.ams : cachedAmsData.current;
 
+  useEffect(() => {
+    if (!dryStartWatch) return;
+    const unit = amsData.find(a => a.id === dryStartWatch.amsId);
+    if (unit && (unit.dry_time > 0 || unit.dry_status > 0)) {
+      setDryStartWatch(null);
+    }
+  }, [dryStartWatch, amsData]);
+
+  useEffect(() => {
+    if (!dryStartWatch) return;
+    const timer = setTimeout(() => {
+      setDryStartWatch(null);
+      showToast(t('printers.drying.toastNotStarted'), 'error');
+    }, DRY_START_CONFIRM_MS);
+    return () => clearTimeout(timer);
+  }, [dryStartWatch, showToast, t]);
+
   // Cache tray_now to prevent flickering when undefined values come in
   // Valid tray IDs: 0-253 for AMS, 254 for external spool
   // tray_now=255 means "no tray loaded" (Bambu protocol sentinel) — never active
@@ -2087,6 +2107,25 @@ function PrinterCard({
   const effectiveTrayNow = (currentTrayNow !== undefined && currentTrayNow !== 255)
     ? currentTrayNow
     : cachedTrayNow.current;
+  const expectedTray = status?.expected_tray ?? null;
+  const previousTray = status?.previous_tray ?? null;
+  const formatRunoutSlotLabel = (globalId: number | null): string | null => {
+    if (globalId === null) return null;
+    if (globalId === 254) return t('printers.expectedSlot.external');
+    if (globalId >= 128 && globalId <= 135) {
+      return amsLabels?.[globalId] || getAmsLabel(globalId, 1);
+    }
+    const amsId = Math.floor(globalId / 4);
+    const slot = globalId % 4;
+    const amsName = amsLabels?.[amsId] || getAmsLabel(amsId, 4);
+    return t('printers.expectedSlot.label', { ams: amsName, slot: slot + 1 });
+  };
+  const runoutGuidance = status?.state === 'PAUSE'
+    ? {
+        expectedSlotLabel: formatRunoutSlotLabel(expectedTray),
+        ranOutSlotLabel: formatRunoutSlotLabel(previousTray),
+      }
+    : null;
 
   // Fetch smart plug for this printer
   const { data: smartPlug } = useQuery({
@@ -2231,8 +2270,10 @@ function PrinterCard({
   const startDryingMutation = useMutation({
     mutationFn: ({ amsId, temp, duration, filament, rotateTray }: { amsId: number; temp: number; duration: number; filament: string; rotateTray: boolean }) =>
       api.startDrying(printer.id, amsId, temp, duration, filament, rotateTray),
-    onSuccess: () => {
+    onSuccess: (_data, { amsId }) => {
       setDryingPopoverAmsId(null);
+      setDryStartWatch({ amsId });
+      showToast(t('printers.drying.toastStarted'), 'success');
       queryClient.invalidateQueries({ queryKey: ['printerStatus', printer.id] });
     },
     onError: (error: Error) => showToast(error.message || t('printers.toast.failedToSendCommand'), 'error'),
@@ -2241,6 +2282,8 @@ function PrinterCard({
   const stopDryingMutation = useMutation({
     mutationFn: (amsId: number) => api.stopDrying(printer.id, amsId),
     onSuccess: () => {
+      setDryStartWatch(null);
+      showToast(t('printers.drying.toastStopped'), 'success');
       queryClient.invalidateQueries({ queryKey: ['printerStatus', printer.id] });
     },
     onError: (error: Error) => showToast(error.message || t('printers.toast.failedToSendCommand'), 'error'),
@@ -4525,9 +4568,9 @@ function PrinterCard({
                                     </div>
                                   )}
                                   {/* Drying button — only for AMS 2 Pro (n3f) and AMS-HT (n3s) */}
-                                  {status.supports_drying && (ams.module_type === 'n3f' || ams.module_type === 'n3s') && hasPermission('printers:control') && (
+                                  {(status.supports_drying || status.drying_screen_only) && (ams.module_type === 'n3f' || ams.module_type === 'n3s') && hasPermission('printers:control') && (
                                     <button
-                                      disabled={!!(ams.dry_sf_reason?.length && ams.dry_time === 0)}
+                                      disabled={status.drying_screen_only || !!(ams.dry_sf_reason?.length && ams.dry_time === 0)}
                                       onClick={(e) => {
                                         if (ams.dry_time > 0) {
                                           stopDryingMutation.mutate(ams.id);
@@ -4551,11 +4594,11 @@ function PrinterCard({
                                       className={`ml-1 flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] transition-colors ${
                                         ams.dry_time > 0
                                           ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400'
-                                          : ams.dry_sf_reason?.length
+                                          : status.drying_screen_only || ams.dry_sf_reason?.length
                                             ? 'bg-bambu-dark text-bambu-gray/50 cursor-not-allowed'
                                             : 'bg-bambu-dark text-bambu-gray hover:text-white hover:bg-bambu-dark/80'
                                       }`}
-                                      title={ams.dry_time > 0 ? t('printers.drying.stop') : ams.dry_sf_reason?.length ? t('printers.drying.powerRequired') : t('printers.drying.start')}
+                                      title={status.drying_screen_only ? t('printers.drying.screenOnly') : ams.dry_time > 0 ? t('printers.drying.stop') : ams.dry_sf_reason?.length ? t('printers.drying.powerRequired') : t('printers.drying.start')}
                                     >
                                       <Flame className="w-3 h-3" />
                                     </button>
@@ -4580,14 +4623,16 @@ function PrinterCard({
                                       : `${ams.dry_time}m`
                                   })}
                                 </span>
-                                <button
-                                  onClick={() => stopDryingMutation.mutate(ams.id)}
-                                  disabled={stopDryingMutation.isPending}
-                                  className="ml-auto text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 transition-colors disabled:opacity-50"
-                                  title={t('printers.drying.stop')}
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
+                                {!status.drying_screen_only && (
+                                  <button
+                                    onClick={() => stopDryingMutation.mutate(ams.id)}
+                                    disabled={stopDryingMutation.isPending}
+                                    className="ml-auto text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 transition-colors disabled:opacity-50"
+                                    title={t('printers.drying.stop')}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                )}
                               </div>
                             )}
                             {/* Slots grid: 4 columns - always render 4 slots */}
@@ -4603,6 +4648,8 @@ function PrinterCard({
                                 // Global tray ID = ams.id * 4 + slot index (for standard AMS)
                                 const globalTrayId = ams.id * 4 + slotIdx;
                                 const isActive = effectiveTrayNow === globalTrayId;
+                                const isExpectedSlot = expectedTray !== null && expectedTray === globalTrayId;
+                                const isRanOutSlot = previousTray !== null && previousTray === globalTrayId;
                                 // Get cloud preset info if available
                                 const cloudInfo = tray?.tray_info_idx ? filamentInfo?.[tray.tray_info_idx] : null;
                                 // Get saved slot preset mapping (for user-configured slots)
@@ -4674,8 +4721,25 @@ function PrinterCard({
                                 // Slot visual content (goes inside hover card)
                                 const slotVisual = (
                                   <div
-                                    className={`relative w-full bg-bambu-dark-secondary rounded-lg p-1 text-center ${isEmpty ? 'opacity-50' : ''} ${isActive ? 'ring-2 ring-bambu-green ring-offset-1 ring-offset-bambu-dark' : ''}`}
+                                    className={`relative w-full bg-bambu-dark-secondary rounded-lg p-1 text-center ${isEmpty ? 'opacity-50' : ''} ${
+                                      isExpectedSlot
+                                        ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-bambu-dark animate-pulse'
+                                        : isRanOutSlot
+                                          ? 'ring-2 ring-red-500/60 ring-offset-1 ring-offset-bambu-dark'
+                                          : isActive
+                                            ? 'ring-2 ring-bambu-green ring-offset-1 ring-offset-bambu-dark'
+                                            : ''
+                                    }`}
                                   >
+                                    {isExpectedSlot && (
+                                      <span
+                                        aria-label={t('printers.expectedSlot.ariaLabel', { n: slotIdx + 1 })}
+                                        title={t('printers.expectedSlot.title')}
+                                        className="absolute top-0.5 left-0.5 px-1 py-px text-[8px] font-bold text-bambu-dark bg-amber-400 rounded pointer-events-none leading-none"
+                                      >
+                                        !
+                                      </span>
+                                    )}
                                     {activePrintSlotLabel && (
                                       <span
                                         aria-label={t('printers.activeJobSlot.ariaLabel', { n: activePrintSlotIdx + 1 })}
@@ -4884,6 +4948,8 @@ function PrinterCard({
                       // Check if this is the currently loaded tray
                       const globalTrayId = getGlobalTrayId(ams.id, tray?.id ?? 0, false);
                       const isActive = effectiveTrayNow === globalTrayId;
+                      const isExpectedSlot = expectedTray !== null && expectedTray === globalTrayId;
+                      const isRanOutSlot = previousTray !== null && previousTray === globalTrayId;
                       // Get cloud preset info if available
                       const cloudInfo = tray?.tray_info_idx ? filamentInfo?.[tray.tray_info_idx] : null;
                       // Get saved slot preset mapping (for user-configured slots)
@@ -4946,8 +5012,25 @@ function PrinterCard({
                         // Slot visual content (goes inside hover card)
                         const slotVisual = (
                           <div
-                            className={`relative w-full bg-bambu-dark-secondary rounded-lg p-1 text-center ${isEmpty ? 'opacity-50' : ''} ${isActive ? 'ring-2 ring-bambu-green ring-offset-1 ring-offset-bambu-dark' : ''}`}
+                            className={`relative w-full bg-bambu-dark-secondary rounded-lg p-1 text-center ${isEmpty ? 'opacity-50' : ''} ${
+                              isExpectedSlot
+                                ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-bambu-dark animate-pulse'
+                                : isRanOutSlot
+                                  ? 'ring-2 ring-red-500/60 ring-offset-1 ring-offset-bambu-dark'
+                                  : isActive
+                                    ? 'ring-2 ring-bambu-green ring-offset-1 ring-offset-bambu-dark'
+                                    : ''
+                            }`}
                           >
+                            {isExpectedSlot && (
+                              <span
+                                aria-label={t('printers.expectedSlot.ariaLabel', { n: 1 })}
+                                title={t('printers.expectedSlot.title')}
+                                className="absolute top-0.5 left-0.5 px-1 py-px text-[8px] font-bold text-bambu-dark bg-amber-400 rounded pointer-events-none leading-none"
+                              >
+                                !
+                              </span>
+                            )}
                             {htActivePrintSlotLabel && (
                               <span
                                 aria-label={t('printers.activeJobSlot.ariaLabel', { n: htActivePrintSlotIdx + 1 })}
@@ -5011,9 +5094,10 @@ function PrinterCard({
                                 )}
                               </div>
                               {/* Drying button for HT AMS */}
-                              {status.supports_drying && (ams.module_type === 'n3f' || ams.module_type === 'n3s') && hasPermission('printers:control') && (
+                              {(status.supports_drying || status.drying_screen_only) && (ams.module_type === 'n3f' || ams.module_type === 'n3s') && hasPermission('printers:control') && (
                                 <div className="relative ml-auto">
                                   <button
+                                    disabled={status.drying_screen_only}
                                     onClick={(e) => {
                                       if (ams.dry_time > 0) {
                                         stopDryingMutation.mutate(ams.id);
@@ -5037,9 +5121,11 @@ function PrinterCard({
                                     className={`flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] transition-colors ${
                                       ams.dry_time > 0
                                         ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400'
-                                        : 'bg-bambu-dark text-bambu-gray hover:text-white hover:bg-bambu-dark/80'
+                                        : status.drying_screen_only
+                                          ? 'bg-bambu-dark text-bambu-gray/50 cursor-not-allowed'
+                                          : 'bg-bambu-dark text-bambu-gray hover:text-white hover:bg-bambu-dark/80'
                                     }`}
-                                    title={ams.dry_time > 0 ? t('printers.drying.stop') : t('printers.drying.start')}
+                                    title={status.drying_screen_only ? t('printers.drying.screenOnly') : ams.dry_time > 0 ? t('printers.drying.stop') : t('printers.drying.start')}
                                   >
                                     <Flame className="w-3 h-3" />
                                   </button>
@@ -5060,14 +5146,16 @@ function PrinterCard({
                                     ? `${Math.floor(ams.dry_time / 60)}h ${ams.dry_time % 60}m`
                                     : `${ams.dry_time}m`}
                                 </span>
-                                <button
-                                  onClick={() => stopDryingMutation.mutate(ams.id)}
-                                  disabled={stopDryingMutation.isPending}
-                                  className="ml-auto text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 transition-colors disabled:opacity-50 shrink-0"
-                                  title={t('printers.drying.stop')}
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
+                                {!status.drying_screen_only && (
+                                  <button
+                                    onClick={() => stopDryingMutation.mutate(ams.id)}
+                                    disabled={stopDryingMutation.isPending}
+                                    className="ml-auto text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 transition-colors disabled:opacity-50 shrink-0"
+                                    title={t('printers.drying.stop')}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                )}
                               </div>
                             )}
                             {/* Row 2: Slot (left) + Stats (right stacked) */}
@@ -6196,6 +6284,7 @@ function PrinterCard({
           onClose={() => setShowHMSModal(false)}
           printerId={printer.id}
           hasPermission={hasPermission}
+          runoutGuidance={runoutGuidance}
         />
       )}
 

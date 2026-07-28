@@ -152,3 +152,9 @@ class TestPresetsRequired:
     def test_empty_request_rejected(self):
         with pytest.raises(ValidationError):
             SliceRequest()
+
+    def test_embedded_settings_do_not_require_external_presets(self):
+        req = SliceRequest(use_embedded_settings=True)
+        assert req.printer_preset is None
+        assert req.process_preset is None
+        assert req.filament_presets == []

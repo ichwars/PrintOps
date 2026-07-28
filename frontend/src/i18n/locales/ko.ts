@@ -463,7 +463,9 @@ export default {
       waitForLayer: '객체를 건너뛰려면 2층 이상을 기다리세요 (현재 {{layer}}층)',
       skip: '건너뛰기',
       confirmTitle: '객체를 건너뛰시겠습니까?',
-      confirmMessage: '"{{name}}"을(를) 건너뛰시겠습니까? 이 작업은 취소할 수 없습니다.'
+      confirmMessage: '"{{name}}"을(를) 건너뛰시겠습니까? 이 작업은 취소할 수 없습니다.',
+      confirmAllMessage: '남아 있는 모든 개체가 선택되었습니다. 인쇄 작업이 중지됩니다. 계속하시겠습니까?',
+      confirmMultipleMessage: '선택한 {{count}}개의 객체를 건너뛰시겠습니까? 이 작업은 취소할 수 없습니다.',
     },
     confirm: {
       deleteTitle: '프린터 삭제',
@@ -559,6 +561,10 @@ export default {
       powerRequired: '건조를 활성화하려면 AMS 전원 어댑터를 연결하세요',
       startingDrying: '건조 시작 중...',
       stoppingDrying: '건조 정지 중...',
+      toastStarted: '건조가 시작되었습니다',
+      toastStopped: '건조가 중지되었습니다',
+      toastNotStarted: '프린터가 명령을 수락했지만 AMS가 건조를 시작하지 않았습니다. AMS 전원 어댑터가 연결되어 있고 프린터가 유휴 상태인지 확인하세요.',
+      screenOnly: '건조는 이 프린터의 화면에서만 제어할 수 있습니다',
       rotateTray: '건조 중 스풀 회전',
       rotateUnavailableReason: '사용할 수 없음 — 이 AMS의 슬롯이 툴헤드로 로드되어 있습니다. 스풀이 공급 튜브에 의해 고정되어 회전할 수 없습니다. 먼저 필라멘트를 뺀 후 다시 시도하십시오.'
     },
@@ -581,6 +587,12 @@ export default {
     activeJobSlot: {
       title: '이 슬롯은 활성 인쇄의 필라멘트 {{n}}입니다',
       ariaLabel: '활성 인쇄 슬롯 {{n}}'
+    },
+    expectedSlot: {
+      external: '외부 스풀',
+      label: '{{ams}} · 슬롯 {{slot}}',
+      title: '일시정지된 인쇄가 이 슬롯의 필라멘트를 기다립니다',
+      ariaLabel: '예상 교체 슬롯 {{n}}'
     },
     filaments: '필라멘트',
     openCameraOverlay: '카메라 오버레이 열기',
@@ -2904,6 +2916,9 @@ export default {
     noErrors: '오류 없음',
     viewOnWiki: 'Bambu Lab 위키에서 보기',
     unknownCode: '알 수 없는 HMS 코드 — 자세한 내용은 Bambu Lab 위키를 참조하세요.',
+    runoutExpectedSlot: '{{ranOut}}의 필라멘트가 소진되었습니다. 출력은 이제 {{expected}}의 필라멘트를 기다립니다.',
+    runoutExpectedSlotOnly: '필라멘트가 소진되었습니다. 출력은 이제 {{expected}}의 필라멘트를 기다립니다.',
+    runoutSlotUnknown: '필라멘트가 소진되었습니다. 어떤 AMS 슬롯이 필요한지 프린터에서 확인하세요.',
     clearInstructions: '오류를 해제하려면 프린터에서 오류를 지우세요.',
     clearErrors: '오류 지우기',
     clearSuccess: 'HMS 오류가 지워졌습니다',
@@ -3423,6 +3438,7 @@ export default {
       noSearchResults: '검색어와 일치하는 프리셋이 없습니다'
     },
     connectedAs: '연결된 계정',
+    signInExpired: 'Bambu Cloud 로그인이 만료되었습니다. 클라우드 프리셋을 사용하려면 다시 로그인하세요.',
     logout: '로그아웃',
     noLogoutPermission: '로그아웃 권한이 없습니다',
     failedToLoad: '프로필 불러오기 실패',
@@ -4080,6 +4096,8 @@ export default {
     refreshPresets: '새로 고침',
     refreshPresetsTitle: '프리셋 새로 고침 — 최신 클라우드 및 번들 목록 가져오기 (Bambu Studio 또는 Bambu Handy에서 프리셋 삭제 후 사용)',
     allPresetsRequired: '모든 프리셋을 선택해야 합니다',
+    useEmbedded: '파일의 내장 설정 사용',
+    useEmbeddedHint: '위 프로필 대신 디자이너가 설정한 방식(벽, 인필, 필라멘트)으로 슬라이스합니다. 프린터가 파일과 일치하므로 제공됩니다.',
     enqueuing: '슬라이싱 작업 제출 중…',
     queued: '대기 중…',
     failed: '슬라이싱 실패. 슬라이서 사이드카 로그를 확인하세요.',
@@ -5361,6 +5379,8 @@ export default {
     restEnergyUrl: '에너지 URL',
     restEnergyPath: '에너지 JSON 경로',
     restEnergyMultiplier: '에너지 배수',
+    restEnergyTotalPath: '총 에너지 JSON 경로',
+    restEnergyTotalMultiplier: '총 에너지 배수',
     restUrlRequired: 'REST 플러그에는 URL(ON 또는 OFF) 중 하나 이상이 필요합니다',
     restHeadersHint: '예: {"Authorization": "Bearer your-token"}',
     restBodyHint: '예: ON, {"state": "on"}',
@@ -5527,6 +5547,8 @@ export default {
     userKey: '사용자 키',
     appToken: '앱 토큰',
     priority: '우선순위',
+    pushoverRetry: '긴급 재알림 (초)',
+    pushoverExpire: '긴급 만료 (초)',
     botToken: '봇 토큰',
     chatId: '채팅 ID',
     smtpServer: 'SMTP 서버',

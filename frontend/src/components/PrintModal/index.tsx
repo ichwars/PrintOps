@@ -13,7 +13,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { buildLoadedFilaments, useFilamentMapping } from '../../hooks/useFilamentMapping';
 import { useMultiPrinterFilamentMapping, type PerPrinterConfig } from '../../hooks/useMultiPrinterFilamentMapping';
 import { getColorName } from '../../utils/colors';
-import { getCurrencySymbol } from '../../utils/currency';
+import { useDisplayCurrency } from '../../hooks/useDisplayCurrency';
 import { getBedTypeInfo } from '../../utils/bedType';
 import { toDateTimeLocalValue, parseUTCDate } from '../../utils/date';
 import { getGlobalTrayId, isPlaceholderDate, effectivePreferLowest } from '../../utils/amsHelpers';
@@ -259,7 +259,7 @@ export function PrintModal({
     }));
   }, [settings, mode]);
 
-  const currencySymbol = getCurrencySymbol(settings?.currency || 'USD');
+  const { currencySymbol } = useDisplayCurrency(settings?.currency);
   const defaultCostPerKg = settings?.default_filament_cost ?? 0;
 
   const { data: printers, isLoading: loadingPrinters } = useQuery({

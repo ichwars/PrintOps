@@ -1208,6 +1208,30 @@ async def test_options_are_safe_and_static_route_wins(async_client: AsyncClient)
 
 
 @pytest.mark.asyncio
+async def test_display_currency_is_available_to_authenticated_viewers(async_client: AsyncClient, db_session):
+    payload = profile_payload()
+    payload["default_currency"] = "CHF"
+    created = await async_client.post(BASE_URL + "/", json=payload)
+    assert created.status_code == 201, created.text
+    token = await create_permission_user(
+        db_session,
+        username="display-currency-archive-viewer",
+        permissions=[Permission.ARCHIVES_READ_OWN.value],
+    )
+
+    with patch("backend.app.core.auth.is_auth_enabled", return_value=True):
+        anonymous = await async_client.get(BASE_URL + "/display-currency")
+        response = await async_client.get(
+            BASE_URL + "/display-currency",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert anonymous.status_code == 401
+    assert response.status_code == 200, response.text
+    assert response.json() == {"currency": "CHF"}
+
+
+@pytest.mark.asyncio
 async def test_not_found_problem_details(async_client: AsyncClient):
     missing_update = profile_payload()
     missing_update["version"] = 1
