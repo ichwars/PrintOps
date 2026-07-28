@@ -1,17 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
-import { getCurrencySymbol, resolveDisplayCurrencyCode } from '../utils/currency';
+import { getCurrencySymbol } from '../utils/currency';
 
 export function useDisplayCurrency(fallbackCurrency?: string | null) {
-  const canLoadProfiles = typeof api.getBusinessProfileOptions === 'function';
-  const { data: profiles } = useQuery({
-    queryKey: ['business-profile-options'],
-    queryFn: () => api.getBusinessProfileOptions(),
-    enabled: canLoadProfiles,
+  const canLoadDisplayCurrency = typeof api.getDisplayCurrency === 'function';
+  const { data } = useQuery({
+    queryKey: ['display-currency'],
+    queryFn: () => api.getDisplayCurrency(),
+    enabled: canLoadDisplayCurrency,
     retry: false,
   });
 
-  const currencyCode = resolveDisplayCurrencyCode(profiles, fallbackCurrency);
+  const currencyCode = data?.currency || fallbackCurrency || 'EUR';
   return {
     currencyCode,
     currencySymbol: getCurrencySymbol(currencyCode),

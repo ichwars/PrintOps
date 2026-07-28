@@ -89,6 +89,10 @@ const mockPrinters = [
 ];
 
 export const handlers = [
+  http.get('/api/v1/business-profiles/display-currency', () => {
+    return HttpResponse.json({ currency: 'EUR' });
+  }),
+
   // ========================================================================
   // Smart Plugs
   // ========================================================================

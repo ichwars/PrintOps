@@ -3315,6 +3315,10 @@ export interface BusinessProfileOption {
   is_active: boolean;
 }
 
+export interface DisplayCurrencyResponse {
+  currency: string | null;
+}
+
 export type NumberSequenceKey = 'customer' | 'offer' | 'order' | 'invoice';
 export type NumberSequenceResetPolicy = 'none' | 'yearly' | 'monthly';
 
@@ -6191,6 +6195,7 @@ export const api = {
       `/business-profiles/${includeInactive ? '?includeInactive=true' : ''}`,
     ),
   getBusinessProfileOptions: () => request<BusinessProfileOption[]>('/business-profiles/options'),
+  getDisplayCurrency: () => request<DisplayCurrencyResponse>('/business-profiles/display-currency'),
   getNumberSequences: (profileId: number) =>
     request<NumberSequence[]>(`/business-profiles/${profileId}/number-sequences`),
   createNumberSequence: (profileId: number, data: NumberSequenceCreate) =>

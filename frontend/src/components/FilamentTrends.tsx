@@ -171,7 +171,7 @@ export function FilamentTrends({ archives, currency = '$', dateFrom, dateTo }: F
     archives.forEach(archive => {
       const type = archive.filament_type || 'Unknown';
       const types = type.split(', ');
-      const seconds = (archive.actual_time_seconds || archive.print_time_seconds || 0) / types.length;
+      const seconds = (archive.actual_time_seconds ?? archive.print_time_seconds ?? 0) / types.length;
       types.forEach(t => {
         dataMap.set(t, (dataMap.get(t) || 0) + seconds);
       });

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.core.auth import (
     RequireAnyPermissionIfAuthEnabled,
     RequirePermissionIfAuthEnabled,
+    require_auth_if_enabled,
 )
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
@@ -221,6 +222,18 @@ async def list_business_profile_options(
         )
         for profile in profiles
     ]
+
+
+@router.get("/display-currency")
+async def get_display_currency(
+    db: AsyncSession = Depends(get_db),
+    _: User | None = Depends(require_auth_if_enabled),
+) -> dict[str, str | None]:
+    profiles = await business_profile_service.list_business_profiles(db)
+    profile = next((item for item in profiles if item.is_default and item.is_active), None)
+    if profile is None:
+        profile = next((item for item in profiles if item.is_active), None)
+    return {"currency": profile.default_currency if profile is not None else None}
 
 
 @router.post("/", response_model=BusinessProfileResponse, status_code=status.HTTP_201_CREATED)

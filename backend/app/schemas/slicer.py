@@ -117,6 +117,8 @@ class SliceRequest(BaseModel):
             ref = getattr(self, ref_attr)
             legacy_id = getattr(self, legacy_attr)
             if ref is None and legacy_id is None:
+                if self.use_embedded_settings:
+                    continue
                 raise ValueError(
                     f"{slot} preset is required: provide '{ref_attr}' (preferred) or legacy '{legacy_attr}'"
                 )
@@ -135,6 +137,8 @@ class SliceRequest(BaseModel):
                 fallback = PresetRef(source="local", id=str(self.filament_preset_id))
                 self.filament_preset = fallback
                 self.filament_presets = [fallback]
+            elif self.use_embedded_settings:
+                return self
             else:
                 raise ValueError(
                     "filament preset is required: provide 'filament_presets' (preferred), "

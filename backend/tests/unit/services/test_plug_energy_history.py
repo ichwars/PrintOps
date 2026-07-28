@@ -65,6 +65,21 @@ async def test_yesterday_is_empty_until_two_midnights_exist(db_session):
     assert yesterday is None
 
 
+async def test_derives_midnight_baseline_from_adjacent_snapshots(db_session):
+    plug = await _plug(db_session)
+    now = datetime(2026, 7, 28, 10, 0, tzinfo=timezone.utc)
+    midnight_today = local_day_start(now)
+
+    await _snapshot(db_session, plug.id, local_day_start(now, days_ago=1), 100.0)
+    await _snapshot(db_session, plug.id, midnight_today - timedelta(hours=1), 101.0)
+    await _snapshot(db_session, plug.id, midnight_today + timedelta(minutes=5), 102.0)
+
+    today, yesterday = await derive_today_yesterday(db_session, plug.id, live_total_kwh=104.0, now_utc=now)
+
+    assert today == pytest.approx(2.0769, rel=1e-3)
+    assert yesterday == pytest.approx(1.9231, rel=1e-3)
+
+
 async def test_nothing_derivable_before_first_midnight_baseline(db_session):
     plug = await _plug(db_session)
     now = datetime.now(timezone.utc)

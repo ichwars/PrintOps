@@ -558,7 +558,7 @@ function PrinterStatsWidget({
       const id = String(a.printer_id);
       const entry = map.get(id) || { prints: 0, weight: 0, time: 0 };
       entry.weight += a.filament_used_grams || 0;
-      entry.time += a.actual_time_seconds || a.print_time_seconds || 0;
+      entry.time += a.actual_time_seconds ?? a.print_time_seconds ?? 0;
       if (!stats?.prints_by_printer) entry.prints++;
       map.set(id, entry);
     });
@@ -599,8 +599,8 @@ function PrinterStatsWidget({
   const durationData = useMemo(() => {
     const counts = DURATION_BUCKETS.map(b => ({ name: b.key, count: 0 }));
     archives.forEach(a => {
-      const seconds = a.actual_time_seconds || a.print_time_seconds;
-      if (!seconds || seconds <= 0) return;
+      const seconds = a.actual_time_seconds ?? a.print_time_seconds;
+      if (seconds == null || seconds <= 0) return;
       for (let i = 0; i < DURATION_BUCKETS.length; i++) {
         if (seconds <= DURATION_BUCKETS[i].max) {
           counts[i].count++;
@@ -621,7 +621,7 @@ function PrinterStatsWidget({
       if (day < 0) day = 6;
       if (habitsMetric === 'prints') dayValues[day]++;
       else if (habitsMetric === 'weight') dayValues[day] += a.filament_used_grams || 0;
-      else dayValues[day] += (a.actual_time_seconds || a.print_time_seconds || 0) / 3600;
+      else dayValues[day] += (a.actual_time_seconds ?? a.print_time_seconds ?? 0) / 3600;
       const weekStart = new Date(date);
       weekStart.setDate(date.getDate() - ((date.getDay() + 6) % 7));
       weeksSet.add(`${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`);
