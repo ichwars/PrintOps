@@ -1302,6 +1302,33 @@ async def _setup_totp_user(client: AsyncClient, username: str, password: str) ->
 class TestTOTPReplay:
     """The same TOTP code must not be accepted twice within one 30-second window."""
 
+    @pytest.mark.integration
+    def test_replay_helper_records_previous_window_counter(self):
+        """A previous-window code must be matched to its own counter, not now()."""
+        from fastapi import HTTPException
+
+        from backend.app.api.routes import mfa as mfa_routes
+        from backend.app.models.user_totp import UserTOTP
+
+        secret = pyotp.random_base32()
+        totp = pyotp.TOTP(secret)
+        accepted_counter = 60_000_000
+        code = totp.generate_otp(accepted_counter)
+
+        class FixedDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return cls.fromtimestamp((accepted_counter + 1) * totp.interval + 1, tz=tz)
+
+        record = UserTOTP(user_id=1, _secret_enc="unused", is_enabled=True)
+        record.last_totp_counter = accepted_counter
+
+        with patch.object(mfa_routes, "datetime", FixedDateTime), pytest.raises(HTTPException) as exc:
+            mfa_routes._assert_totp_not_replayed(totp, record, code)
+
+        assert exc.value.status_code == 400
+        assert exc.value.detail == "TOTP code already used"
+
     @pytest.mark.asyncio
     @pytest.mark.integration
     async def test_totp_replay_rejected_on_verify(self, async_client: AsyncClient):
