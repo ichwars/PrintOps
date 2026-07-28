@@ -435,7 +435,7 @@ def _assert_totp_not_replayed(totp_obj: pyotp.TOTP, totp_record: UserTOTP, code:
     for offset in (0, -1):  # current window first, then previous
         candidate_time = now.timestamp() + offset * totp_obj.interval
         candidate_counter = totp_obj.timecode(datetime.fromtimestamp(candidate_time, tz=timezone.utc))
-        if totp_obj.at(candidate_counter) == code:
+        if totp_obj.generate_otp(candidate_counter) == code:
             accepted_counter = candidate_counter
             break
     if accepted_counter is None:
