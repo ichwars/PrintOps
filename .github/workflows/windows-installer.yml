@@ -6,9 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
-# Build jobs never receive a release token. Signing and publication are split
-# into protected jobs; prerelease tags may publish unsigned installers when no
-# trusted-signing provider is configured, but the artifact is marked as such.
+# Windows installers are published unsigned. Release artifacts still include
+# SHA-256 checksums, an explicit unsigned notice and GitHub artifact
+# attestations, but no SignPath/Azure secrets or certificate setup is required.
 permissions:
   contents: read
 
@@ -17,62 +17,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  verify-release-tag:
-    if: startsWith(github.ref, 'refs/tags/v')
+  build:
     runs-on: windows-latest
-    timeout-minutes: 5
-    environment: release
+    timeout-minutes: 30
     permissions:
       contents: read
 
     steps:
-      - name: Checkout tag objects
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Restore annotated tag object
+      - name: Validate release tag
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
-        run: |
-          $tagRefSpec = "+refs/tags/{0}:refs/tags/{0}" -f $env:GITHUB_REF_NAME
-          git fetch --force origin $tagRefSpec
-          if ($LASTEXITCODE -ne 0) { throw "failed to restore annotated release tag" }
-
-      - name: Verify signed annotated release tag
-        shell: pwsh
-        env:
-          RELEASE_TAG_SSH_PUBLIC_KEY: ${{ vars.RELEASE_TAG_SSH_PUBLIC_KEY }}
         run: |
           if ($env:GITHUB_REF_NAME -notmatch '^v\d+\.\d+\.\d+(?:\.\d+)?(?:(?:a|alpha|b|beta|rc)\d+)?(?:-daily\.\d{8})?$') {
             throw "unsupported release tag: $env:GITHUB_REF_NAME"
           }
-          if ($env:RELEASE_TAG_SSH_PUBLIC_KEY -notmatch '^(ssh-|ecdsa-sha2-|sk-ssh-)') {
-            throw 'RELEASE_TAG_SSH_PUBLIC_KEY is missing or invalid'
-          }
-          $tagRef = "refs/tags/$env:GITHUB_REF_NAME"
-          if ((git cat-file -t $tagRef) -ne 'tag') { throw "$tagRef is not an annotated tag" }
-          $peeledCommit = git rev-parse "$tagRef^{}"
-          if ($LASTEXITCODE -ne 0) { throw "failed to resolve release tag target" }
-          if ($peeledCommit.Trim() -ne $env:GITHUB_SHA) {
-            throw "release tag $env:GITHUB_REF_NAME points to $peeledCommit, expected $env:GITHUB_SHA"
-          }
-          $allowedSigners = Join-Path $env:RUNNER_TEMP 'release-signers.allowed'
-          "release@printops $env:RELEASE_TAG_SSH_PUBLIC_KEY" | Set-Content -Encoding ascii $allowedSigners
-          git -c gpg.format=ssh -c "gpg.ssh.allowedSignersFile=$allowedSigners" verify-tag $tagRef
-          if ($LASTEXITCODE -ne 0) { throw "release tag signature verification failed" }
 
-  build:
-    needs: verify-release-tag
-    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs['verify-release-tag'].result == 'success') }}
-    runs-on: windows-latest
-    timeout-minutes: 30
-    outputs:
-      unsigned-artifact-id: ${{ steps.upload-unsigned-artifact.outputs.artifact-id }}
-    permissions:
-      contents: read
-
-    steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -105,205 +64,31 @@ jobs:
           if (-not $versioned) { throw "no versioned installer .exe found" }
           Copy-Item $versioned.FullName "printops-windows-x64-setup.exe"
 
-      - name: Upload unsigned build artifact
-        id: upload-unsigned-artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: printops-windows-installer-unsigned
-          path: installers/windows/build/output/*.exe
-          if-no-files-found: error
-          retention-days: 1
-
-  sign:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [verify-release-tag, build]
-    runs-on: windows-latest
-    timeout-minutes: 45
-    environment: release
-    permissions:
-      actions: read
-      contents: read
-      id-token: write
-      attestations: write
-      artifact-metadata: write
-
-    steps:
-      - name: Download unsigned build artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: printops-windows-installer-unsigned
-          path: release
-
-      - name: Resolve release signing mode
-        id: signing-config
-        shell: pwsh
-        env:
-          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          SIGNING_ENDPOINT: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
-          SIGNING_ACCOUNT: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
-          SIGNING_PROFILE: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE }}
-          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
-          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-        run: |
-          $azureRequired = @(
-            'AZURE_CLIENT_ID',
-            'AZURE_TENANT_ID',
-            'AZURE_SUBSCRIPTION_ID',
-            'SIGNING_ENDPOINT',
-            'SIGNING_ACCOUNT',
-            'SIGNING_PROFILE'
-          )
-          $signPathRequired = @(
-            'SIGNPATH_API_TOKEN',
-            'SIGNPATH_ORGANIZATION_ID',
-            'SIGNPATH_PROJECT_SLUG',
-            'SIGNPATH_SIGNING_POLICY_SLUG'
-          )
-          $azureMissing = $azureRequired | Where-Object {
-            [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_))
-          }
-          $azureConfigured = $azureRequired | Where-Object {
-            -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_))
-          }
-          $signPathMissing = $signPathRequired | Where-Object {
-            [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_))
-          }
-          $signPathConfigured = $signPathRequired | Where-Object {
-            -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_))
-          }
-          $azureReady = $azureMissing.Count -eq 0
-          $signPathReady = $signPathMissing.Count -eq 0
-          $isPrereleaseTag = $env:GITHUB_REF_NAME -match '(?:a|alpha|b|beta|rc)\d+|-daily\.\d{8}$'
-
-          if ($azureConfigured.Count -gt 0 -and -not $azureReady) {
-            throw "Incomplete Azure signing configuration. Missing protected release variables: $($azureMissing -join ', ')"
-          }
-          if ($signPathConfigured.Count -gt 0 -and -not $signPathReady) {
-            throw "Incomplete SignPath signing configuration. Missing protected release variables/secrets: $($signPathMissing -join ', ')"
-          }
-          if ($azureReady -and $signPathReady) {
-            throw "Both Azure and SignPath signing are configured. Configure exactly one signing provider for the release environment."
-          }
-          if (-not $azureReady -and -not $signPathReady -and $isPrereleaseTag) {
-            Write-Warning "Trusted signing is not configured; publishing unsigned Windows prerelease installer."
-            "status=unsigned" >> $env:GITHUB_OUTPUT
-            "provider=unsigned" >> $env:GITHUB_OUTPUT
-            "unsigned" | Set-Content -Encoding ascii release\SIGNING_STATUS.txt
-            @(
-              "PrintOps Windows installer is unsigned."
-              ""
-              "No trusted signing provider is configured for this release environment."
-              "Windows may show an unknown-publisher warning."
-            ) | Set-Content -Encoding utf8 release\WINDOWS_INSTALLER_SIGNING.txt
-            exit 0
-          }
-          if (-not $azureReady -and -not $signPathReady) {
-            throw "No trusted signing provider is configured. Stable Windows releases require Azure Artifact Signing or SignPath OSS signing."
-          }
-          if ($azureReady) {
-            "provider=azure" >> $env:GITHUB_OUTPUT
-            "PrintOps Windows installer is Authenticode-signed via Azure Artifact Signing." | Set-Content -Encoding utf8 release\WINDOWS_INSTALLER_SIGNING.txt
-          } else {
-            "provider=signpath" >> $env:GITHUB_OUTPUT
-            "PrintOps Windows installer is Authenticode-signed via SignPath.io and SignPath Foundation." | Set-Content -Encoding utf8 release\WINDOWS_INSTALLER_SIGNING.txt
-          }
-          "status=signed" >> $env:GITHUB_OUTPUT
-          "signed" | Set-Content -Encoding ascii release\SIGNING_STATUS.txt
-
-      - name: Authenticate to Azure with OIDC
-        if: steps.signing-config.outputs.provider == 'azure'
-        uses: azure/login@1384c340ab2dda50fed2bee3041d1d87018aa5e8 # v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Sign installers with Azure Artifact Signing
-        if: steps.signing-config.outputs.provider == 'azure'
-        uses: azure/artifact-signing-action@b443cf8ea4124818d2ea9f043cba29fc3ec47b16 # v1
-        with:
-          endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
-          signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
-          certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE }}
-          files-folder: ${{ github.workspace }}\release
-          files-folder-filter: exe
-          files-folder-recurse: false
-          file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
-          timestamp-digest: SHA256
-
-      - name: Sign installers with SignPath OSS
-        id: signpath
-        if: steps.signing-config.outputs.provider == 'signpath'
-        uses: signpath/github-action-submit-signing-request@b9d91eadd323de506c0c81cf0c7fe7438f3360fd # v2.2
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
-          github-artifact-id: ${{ needs.build.outputs.unsigned-artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: signed-release
-          wait-for-completion-timeout-in-seconds: 1800
-          parameters: |
-            version: ${{ toJSON(github.ref_name) }}
-
-      - name: Replace unsigned installers with SignPath output
-        if: steps.signing-config.outputs.provider == 'signpath'
+      - name: Prepare unsigned release artifact
         shell: pwsh
         run: |
-          $signedInstallers = Get-ChildItem signed-release -File -Filter '*.exe'
-          if (-not $signedInstallers) { throw "SignPath did not return signed installer .exe files" }
-          Remove-Item release\*.exe -Force
-          Copy-Item signed-release\*.exe release\
-          @(
-            "SignPath signing request:"
-            "${{ steps.signpath.outputs.signing-request-web-url }}"
-          ) | Set-Content -Encoding utf8 release\SIGNPATH_SIGNING_REQUEST.txt
-
-      - name: Verify installers and write checksums
-        shell: pwsh
-        working-directory: release
-        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item installers\windows\build\output\*.exe release\
+          Push-Location release
           $installers = Get-ChildItem -File -Filter '*.exe'
           if (-not $installers) { throw "no installer .exe found" }
-          $status = (Get-Content SIGNING_STATUS.txt -Raw).Trim()
-          if ($status -eq 'signed') {
-            $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse |
-              Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
-              Sort-Object FullName -Descending |
-              Select-Object -First 1
-            if (-not $signTool) { throw "signtool.exe not found" }
-            foreach ($installer in $installers) {
-              & $signTool.FullName verify /pa /all /v $installer.FullName
-              if ($LASTEXITCODE -ne 0) { throw "Authenticode verification failed: $($installer.Name)" }
-            }
-          } elseif ($status -eq 'unsigned') {
-            Write-Warning "Publishing unsigned Windows installer."
-            foreach ($installer in $installers) {
-              if ($installer.BaseName.EndsWith("-unsigned", [StringComparison]::OrdinalIgnoreCase)) { continue }
-              $unsignedName = "$($installer.BaseName)-unsigned$($installer.Extension)"
-              Rename-Item $installer.FullName $unsignedName
-            }
-            $installers = Get-ChildItem -File -Filter '*.exe'
-          } else {
-            throw "unknown signing status: $status"
+          foreach ($installer in $installers) {
+            if ($installer.BaseName.EndsWith("-unsigned", [StringComparison]::OrdinalIgnoreCase)) { continue }
+            $unsignedName = "$($installer.BaseName)-unsigned$($installer.Extension)"
+            Rename-Item $installer.FullName $unsignedName
           }
-
-          $installers |
+          "unsigned" | Set-Content -Encoding ascii SIGNING_STATUS.txt
+          @(
+            "PrintOps Windows installer is unsigned."
+            ""
+            "Windows SmartScreen may show an unknown-publisher warning."
+            "Verify the downloaded installer against SHA256SUMS.txt before installing."
+          ) | Set-Content -Encoding utf8 WINDOWS_INSTALLER_UNSIGNED.txt
+          Get-ChildItem -File -Filter '*.exe' |
             Get-FileHash -Algorithm SHA256 |
             ForEach-Object { "$($_.Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($_.Path))" } |
             Set-Content -Encoding ascii SHA256SUMS.txt
-
-      - name: Attest Windows installers
-        uses: actions/attest@36051bcae73b7c2a8a6945a48cbf80953c6baa35 # v4
-        with:
-          subject-path: release/*.exe
+          Pop-Location
 
       - name: Upload Windows release artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -315,12 +100,15 @@ jobs:
 
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: sign
+    needs: build
     runs-on: windows-latest
     timeout-minutes: 10
     environment: release
     permissions:
       contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
 
     steps:
       - name: Download Windows release artifact
@@ -335,21 +123,7 @@ jobs:
           $installers = Get-ChildItem release -File -Filter '*.exe'
           if (-not $installers) { throw "no installer .exe found" }
           $status = (Get-Content release\SIGNING_STATUS.txt -Raw).Trim()
-          if ($status -eq 'signed') {
-            $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse |
-              Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
-              Sort-Object FullName -Descending |
-              Select-Object -First 1
-            if (-not $signTool) { throw "signtool.exe not found" }
-            $installers | ForEach-Object {
-              & $signTool.FullName verify /pa /all /v $_.FullName
-              if ($LASTEXITCODE -ne 0) { throw "Authenticode verification failed: $($_.Name)" }
-            }
-          } elseif ($status -eq 'unsigned') {
-            Write-Warning "Publishing unsigned Windows installer."
-          } else {
-            throw "unknown signing status: $status"
-          }
+          if ($status -ne 'unsigned') { throw "unexpected signing status: $status" }
 
           $expected = @{}
           Get-Content release\SHA256SUMS.txt | ForEach-Object {
@@ -360,6 +134,11 @@ jobs:
             $actual = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($expected[$installer.Name] -ne $actual) { throw "checksum mismatch: $($installer.Name)" }
           }
+
+      - name: Attest Windows installers
+        uses: actions/attest@36051bcae73b7c2a8a6945a48cbf80953c6baa35 # v4
+        with:
+          subject-path: release/*.exe
 
       - name: Remove stale Windows release assets
         shell: pwsh
@@ -378,7 +157,7 @@ jobs:
             if ($_.Exception.Response.StatusCode.value__ -eq 404) { exit 0 }
             throw
           }
-          $assetNamePattern = '^(printops.*windows.*setup.*\.exe|SHA256SUMS\.txt|SIGNING_STATUS\.txt|WINDOWS_INSTALLER_SIGNING\.txt|WINDOWS_INSTALLER_UNSIGNED\.txt|SIGNPATH_SIGNING_REQUEST\.txt)$'
+          $assetNamePattern = '^(printops.*windows.*setup.*\.exe|SHA256SUMS\.txt|SIGNING_STATUS\.txt|WINDOWS_INSTALLER_UNSIGNED\.txt|WINDOWS_INSTALLER_SIGNING\.txt|SIGNPATH_SIGNING_REQUEST\.txt)$'
           foreach ($asset in $release.assets) {
             if ($asset.name -match $assetNamePattern) {
               Invoke-RestMethod -Method Delete -Headers $headers -Uri $asset.url
