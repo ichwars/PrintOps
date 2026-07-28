@@ -5362,10 +5362,10 @@ export function SettingsPage() {
           {printerProductionSubTab === 'pipelines' && <SlicerPipelinesPanel />}
           {printerProductionSubTab === 'print-process' && localSettings && (
         <>
-        {archiveSettingsCard}
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
           {/* Left Column */}
           <div className="lg:w-1/2 space-y-3">
+          {archiveSettingsCard}
           {/* Default Print Options */}
           <Card id="card-print-options">
             <CardHeader>
@@ -6216,7 +6216,7 @@ export function SettingsPage() {
       )}
 
       {activeTab === 'warehouse-material' && warehouseMaterialSubTab === 'catalogs' && (
-        <div className="max-w-5xl space-y-3">
+        <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2 2xl:items-start">
           <SpoolCatalogSettings />
           <ColorCatalogSettings />
         </div>
