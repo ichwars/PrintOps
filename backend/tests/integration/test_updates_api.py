@@ -817,6 +817,23 @@ class TestUpdatesAPI:
         }
         assert _find_windows_installer_asset(release) == "https://x/v.exe"
 
+    def test_find_windows_installer_asset_prefers_unsigned_versioned(self):
+        from backend.app.api.routes.updates import _find_windows_installer_asset
+
+        release = {
+            "assets": [
+                {
+                    "name": "printops-1.2.7-windows-x64-setup-unsigned.exe",
+                    "browser_download_url": "https://x/v-unsigned.exe",
+                },
+                {
+                    "name": "printops-windows-x64-setup-unsigned.exe",
+                    "browser_download_url": "https://x/alias-unsigned.exe",
+                },
+            ],
+        }
+        assert _find_windows_installer_asset(release) == "https://x/v-unsigned.exe"
+
     def test_find_windows_installer_asset_falls_back_to_alias(self):
         from backend.app.api.routes.updates import _find_windows_installer_asset
 
@@ -826,6 +843,19 @@ class TestUpdatesAPI:
             ],
         }
         assert _find_windows_installer_asset(release) == "https://x/alias.exe"
+
+    def test_find_windows_installer_asset_falls_back_to_unsigned_alias(self):
+        from backend.app.api.routes.updates import _find_windows_installer_asset
+
+        release = {
+            "assets": [
+                {
+                    "name": "printops-windows-x64-setup-unsigned.exe",
+                    "browser_download_url": "https://x/alias-unsigned.exe",
+                },
+            ],
+        }
+        assert _find_windows_installer_asset(release) == "https://x/alias-unsigned.exe"
 
     def test_find_windows_installer_asset_none_when_missing(self):
         from backend.app.api.routes.updates import _find_windows_installer_asset

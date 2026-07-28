@@ -103,6 +103,7 @@ jobs:
     needs: build
     runs-on: windows-latest
     timeout-minutes: 10
+    environment: release
     permissions:
       contents: write
       id-token: write

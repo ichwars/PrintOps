@@ -195,12 +195,10 @@ def _is_windows_installer_install() -> bool:
 def _find_windows_installer_asset(release_data: dict) -> str | None:
     """Pick the Windows installer .exe out of a GitHub release's assets list.
 
-    Both filenames the workflow uploads end in ``windows-x64-setup.exe``
-    (versioned ``printops-<version>-windows-x64-setup.exe`` and the
-    unversioned alias ``printops-windows-x64-setup.exe`` on non-daily tags
-    only). Either works as a download URL; we prefer the versioned form
-    because it's the one guaranteed to exist on every release including
-    dailies.
+    Signed builds historically ended in ``windows-x64-setup.exe``. Current
+    unsigned builds end in ``windows-x64-setup-unsigned.exe``. Either works as
+    a download URL; we prefer the versioned form because it's the one
+    guaranteed to exist on every release including dailies.
     """
     assets = release_data.get("assets") or []
     versioned: str | None = None
@@ -210,9 +208,15 @@ def _find_windows_installer_asset(release_data: dict) -> str | None:
         url = asset.get("browser_download_url")
         if not isinstance(name, str) or not isinstance(url, str):
             continue
-        if not name.endswith("windows-x64-setup.exe"):
+        if not (
+            name.endswith("windows-x64-setup.exe")
+            or name.endswith("windows-x64-setup-unsigned.exe")
+        ):
             continue
-        if name == "printops-windows-x64-setup.exe":
+        if name in {
+            "printops-windows-x64-setup.exe",
+            "printops-windows-x64-setup-unsigned.exe",
+        }:
             unversioned = url
         else:
             versioned = url
