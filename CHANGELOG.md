@@ -7,7 +7,7 @@ All notable changes to PrintOps will be documented in this file.
 ## [1.2.7] - 2026-07-28
 
 ### Added
-- **SignPath OSS signing path for stable Windows releases** - The Windows installer workflow can now use SignPath.io with a SignPath Foundation certificate as the free OSS Authenticode provider, while keeping Azure Artifact Signing as an optional paid provider. Stable `v*` releases fail closed when no trusted provider is configured; prerelease and daily tags may still publish clearly marked unsigned test installers.
+- **Simplified unsigned Windows release path** - The Windows installer workflow no longer requires SignPath, Azure Artifact Signing, certificate setup or release-signing secrets. Stable and prerelease Windows installers publish as clearly marked unsigned artifacts with SHA-256 checksums and GitHub attestations.
 - **Cost, power and energy-overview release work** - The cost-tracking pass now treats electricity as a first-class production cost again, connects energy counters to printer and smart-plug reporting, and documents the release path for the improved cost/power overview that was hardened across the v1.2.6 release-candidate series.
 - **Printer visibility and permission groundwork** - Printer-scoped visibility, API-key permission hardening and user/group access checks were aligned so printer-specific views can be narrowed without weakening administrator defaults or breaking existing operator workflows.
 - **Inventory and procurement workflow rollup** - Material inventory, supplier offers, stock movements, refill/unknown-spool handling and procurement-facing data were expanded across the release candidates, giving the warehouse side enough structure for purchasing and production planning instead of only filament lookup.
@@ -21,7 +21,7 @@ All notable changes to PrintOps will be documented in this file.
 - **Immutable document evidence and backup coverage** - Published layouts, asset hashes, document snapshots, PDF/XML artifacts, renderer/validator receipts and validation reports are retained and included in local/private-Git backups with integrity manifests.
 
 ### Security
-- **Public code-signing policy for SignPath Foundation** - The README now documents the project code-signing policy, release approver model and privacy posture required for SignPath Foundation OSS signing, while the release-security guide explains the SignPath setup, GitHub trusted-build verification and stable-release signing failure modes.
+- **Release integrity documentation without external signing providers** - The README and release-security guide now document the unsigned Windows installer posture, checksum verification, GitHub attestations and container provenance without requiring SignPath Foundation or Azure setup.
 - **No silent plaintext writes for high-value secrets** - Legacy plaintext TOTP/OIDC rows remain readable, but creating or updating those secrets now fails closed when no MFA encryption key is available. Operators who must preserve the old fallback during recovery have to opt in with `MFA_ALLOW_PLAINTEXT_FALLBACK=true`.
 - **Hardened document rendering and assets** - Rejects arbitrary HTML/CSS, SSRF and unregistered file URLs, active PDF content, cross-profile assets, traversal paths, oversized uploads, stale layout versions and guessed preview jobs. Preview caches are actor/profile scoped and final export accepts only immutable snapshots plus published layouts.
 

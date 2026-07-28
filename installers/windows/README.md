@@ -102,22 +102,20 @@ command may attempt a network connection.
 
 Output: `installers\windows\build\output\printops-windows-setup.exe`
 
-## Testing without signing
+## Unsigned installers
 
-The installer can be built and run unsigned. Windows SmartScreen will
-show "Windows protected your PC" on first run. Click **More info** →
-**Run anyway** to proceed. This is expected and harmless for testing.
-Production builds must use a trusted Authenticode signing provider. The
-GitHub release workflow supports SignPath OSS signing through SignPath.io and
-SignPath Foundation, or Azure Artifact Signing when that paid provider is
-configured. Stable release tags fail closed if neither provider is available.
+The installer is currently built and published unsigned. Windows SmartScreen
+will show "Windows protected your PC" on first run. Click **More info** →
+**Run anyway** to proceed. Release artifacts include `SHA256SUMS.txt` and
+`WINDOWS_INSTALLER_UNSIGNED.txt` so operators can verify the download and
+understand the warning before installing.
 
 ## CI build
 
 See `.github/workflows/windows-installer.yml` for the automated build.
 The workflow runs on every tag matching `v*` and uploads the installer
-as a release asset. Release candidates may publish clearly marked unsigned
-installers for testing, while stable releases require a verified signature.
+as a release asset. All Windows installers are clearly marked unsigned until
+the project adopts a practical code-signing provider.
 
 ## Known limitations / open questions
 
