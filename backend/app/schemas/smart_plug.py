@@ -60,6 +60,8 @@ class SmartPlugBase(BaseModel):
     rest_energy_url: str | None = Field(default=None, max_length=500)
     rest_energy_path: str | None = Field(default=None, max_length=200)
     rest_energy_multiplier: float = Field(default=1.0, ge=0.0001, le=10000)
+    rest_energy_total_path: str | None = Field(default=None, max_length=200)
+    rest_energy_total_multiplier: float = Field(default=1.0, ge=0.0001, le=10000)
 
     printer_id: int | None = None
     equipment_id: int | None = None
@@ -157,6 +159,8 @@ class SmartPlugUpdate(BaseModel):
     rest_energy_url: str | None = None
     rest_energy_path: str | None = None
     rest_energy_multiplier: float | None = Field(default=None, ge=0.0001, le=10000)
+    rest_energy_total_path: str | None = None
+    rest_energy_total_multiplier: float | None = Field(default=None, ge=0.0001, le=10000)
     printer_id: int | None = None
     equipment_id: int | None = None
     controls_printer_power: bool | None = None

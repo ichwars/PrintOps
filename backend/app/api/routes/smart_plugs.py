@@ -37,10 +37,12 @@ from backend.app.services.homeassistant import homeassistant_service
 from backend.app.services.mqtt_relay import mqtt_relay
 from backend.app.services.mqtt_smart_plug import subscribe_plug_to_mqtt
 from backend.app.services.notification_service import notification_service
+from backend.app.services.plug_energy_history import fill_derived_energy
 from backend.app.services.printer_manager import printer_manager
 from backend.app.services.rest_smart_plug import rest_smart_plug_service
 from backend.app.services.smart_plug_manager import smart_plug_manager
 from backend.app.services.tasmota import tasmota_service
+from backend.app.utils.local_time import utcnow_naive
 
 logger = logging.getLogger(__name__)
 
@@ -613,10 +615,10 @@ async def control_smart_plug(
         plug.last_state = expected_state
         if expected_state == "ON":
             plug.auto_off_executed = False  # Reset flag when manually turning on
-        elif expected_state == "OFF" and plug.printer_id:
+        elif expected_state == "OFF" and plug.printer_id and plug.controls_printer_power:
             # Mark printer offline immediately for faster UI update
             printer_manager.mark_printer_offline(plug.printer_id)
-    plug.last_checked = datetime.now(timezone.utc)
+    plug.last_checked = utcnow_naive()
     await db.commit()
 
     # Trigger associated scripts if this is a main (non-script) plug
@@ -703,14 +705,18 @@ async def get_plug_status(
             # Update last state in database
             if is_reachable and data.state:
                 plug.last_state = data.state
-                plug.last_checked = datetime.now(timezone.utc)
+                plug.last_checked = utcnow_naive()
                 await db.commit()
 
             energy_data = None
             if data.power is not None or data.energy is not None:
+                energy = {
+                    "power": data.power,
+                    "today": data.energy,
+                }
+                energy = await fill_derived_energy(db, plug.id, energy)
                 energy_data = SmartPlugEnergy(
-                    power=data.power,
-                    today=data.energy,
+                    **energy,
                 )
                 # Check power alerts
                 if data.power is not None:
@@ -738,7 +744,7 @@ async def get_plug_status(
     # Update last state in database
     if status["reachable"]:
         plug.last_state = status["state"]
-        plug.last_checked = datetime.now(timezone.utc)
+        plug.last_checked = utcnow_naive()
         await db.commit()
 
     # Fetch energy data if device is reachable
@@ -746,6 +752,7 @@ async def get_plug_status(
     if status["reachable"]:
         energy = await service.get_energy(plug)
         if energy:
+            energy = await fill_derived_energy(db, plug.id, energy)
             energy_data = SmartPlugEnergy(**energy)
 
             # Check power alerts
@@ -791,7 +798,7 @@ async def check_power_alerts(plug: SmartPlug, current_power: float | None, db: A
         threshold = plug.power_alert_low
 
     if alert_triggered:
-        plug.power_alert_last_triggered = datetime.now(timezone.utc)
+        plug.power_alert_last_triggered = utcnow_naive()
         await db.commit()
 
         # Send notification

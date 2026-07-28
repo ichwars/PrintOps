@@ -121,6 +121,7 @@ from backend.app.services.printer_manager import (
     parse_plate_id,
     printer_manager,
     printer_state_to_dict,
+    resolve_plate_id,
 )
 from backend.app.services.smart_plug_manager import smart_plug_manager
 from backend.app.services.spool_assignment_notifications import (
@@ -2244,19 +2245,24 @@ def _load_objects_from_archive(archive, printer_id: int, logger) -> None:
     try:
         from backend.app.services.archive import extract_printable_objects_from_3mf
 
+        client = printer_manager.get_client(printer_id)
+        if not client:
+            return
+
         file_path = app_settings.base_dir / archive.file_path
         if file_path.is_file() and str(file_path).endswith(".3mf"):
             with open(file_path, "rb") as f:
                 threemf_data = f.read()
-            # Extract with positions for UI overlay
-            printable_objects, bbox_all = extract_printable_objects_from_3mf(threemf_data, include_positions=True)
+            printable_objects, bbox_all = extract_printable_objects_from_3mf(
+                threemf_data,
+                plate_number=resolve_plate_id(client.state),
+                include_positions=True,
+            )
             if printable_objects:
-                client = printer_manager.get_client(printer_id)
-                if client:
-                    client.state.printable_objects = printable_objects
-                    client.state.printable_objects_bbox_all = bbox_all
-                    client.state.skipped_objects = []
-                    logger.info("Loaded %s printable objects for printer %s", len(printable_objects), printer_id)
+                client.state.printable_objects = printable_objects
+                client.state.printable_objects_bbox_all = bbox_all
+                client.state.skipped_objects = []
+                logger.info("Loaded %s printable objects for printer %s", len(printable_objects), printer_id)
     except Exception as e:
         logger.debug("Failed to extract printable objects from archive: %s", e)
 
@@ -3291,16 +3297,16 @@ async def on_print_start(printer_id: int, data: dict):
                 try:
                     from backend.app.services.archive import extract_printable_objects_from_3mf
 
-                    with open(temp_path, "rb") as f:
-                        threemf_data = f.read()
-                    # Extract with positions for UI overlay
-                    printable_objects, bbox_all = extract_printable_objects_from_3mf(
-                        threemf_data, include_positions=True
-                    )
-                    if printable_objects:
-                        # Store objects in printer state
-                        client = printer_manager.get_client(printer_id)
-                        if client:
+                    client = printer_manager.get_client(printer_id)
+                    if client:
+                        with open(temp_path, "rb") as f:
+                            threemf_data = f.read()
+                        printable_objects, bbox_all = extract_printable_objects_from_3mf(
+                            threemf_data,
+                            plate_number=resolve_plate_id(client.state),
+                            include_positions=True,
+                        )
+                        if printable_objects:
                             client.state.printable_objects = printable_objects
                             client.state.printable_objects_bbox_all = bbox_all
                             client.state.skipped_objects = []  # Reset skipped objects for new print
@@ -4571,6 +4577,8 @@ async def on_print_complete(printer_id: int, data: dict):
             if hms_errors:
                 logger.info("[ARCHIVE] HMS errors at failure: %s", hms_errors)
             failure_reason = derive_failure_reason(status, hms_errors)
+            if data.get("_reconciled"):
+                failure_reason = "Stale - reconciled after reconnect, end time unknown"
             if failure_reason:
                 logger.info("[ARCHIVE] failure_reason=%r (status=%s)", failure_reason, status)
             elif status == "failed" and hms_errors:
@@ -4671,6 +4679,7 @@ async def on_print_complete(printer_id: int, data: dict):
                     thumbnail_path=archive.thumbnail_path,
                     created_by_id=archive.created_by_id,
                     created_by_username=_print_user_info.get("username") if _print_user_info else None,
+                    reconciled=bool(data.get("_reconciled")),
                 )
                 await db.commit()
                 logger.info("[PRINT_LOG] Log entry written for archive %s", archive_id)

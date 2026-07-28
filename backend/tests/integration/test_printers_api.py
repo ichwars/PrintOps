@@ -506,6 +506,82 @@ class TestPrintersAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_cover_pick_view_serves_active_plate_pick_mask(
+        self, async_client: AsyncClient, printer_factory, db_session, tmp_path
+    ):
+        """view=pick must serve the slicer's object-ID mask for the active
+        plate, not the human thumbnail, so plate clicks map to real object IDs."""
+        import zipfile
+        from unittest.mock import MagicMock, patch
+
+        from backend.app.services.bambu_ftp import cache_3mf_download
+        from backend.app.services.bambu_mqtt import PrinterState
+
+        printer = await printer_factory()
+
+        threemf_path = tmp_path / "Pickable.3mf"
+        with zipfile.ZipFile(threemf_path, "w") as zf:
+            zf.writestr("Metadata/plate_2.png", b"PLATE_2_PNG")
+            zf.writestr("Metadata/pick_2.png", b"PICK_2_MASK")
+
+        cache_3mf_download(printer.id, "Pickable.3mf", threemf_path)
+
+        state = PrinterState()
+        state.connected = True
+        state.state = "RUNNING"
+        state.subtask_name = "Pickable"
+        state.gcode_file = "Pickable.3mf"
+        state.dispatched_plate_id = 2
+        state.dispatched_subtask = "Pickable"
+
+        with patch("backend.app.api.routes.printers.printer_manager") as mock_pm:
+            mock_pm.get_status = MagicMock(return_value=state)
+            mock_pm.is_awaiting_plate_clear = MagicMock(return_value=False)
+
+            response = await async_client.get(f"/api/v1/printers/{printer.id}/cover?view=pick")
+
+        assert response.status_code == 200
+        assert response.content == b"PICK_2_MASK"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_cover_pick_view_does_not_fallback_to_thumbnail(
+        self, async_client: AsyncClient, printer_factory, db_session, tmp_path
+    ):
+        """A thumbnail returned as a pick mask could decode to arbitrary object
+        IDs, so missing Metadata/pick_N.png must stay a 404."""
+        import zipfile
+        from unittest.mock import MagicMock, patch
+
+        from backend.app.services.bambu_ftp import cache_3mf_download
+        from backend.app.services.bambu_mqtt import PrinterState
+
+        printer = await printer_factory()
+
+        threemf_path = tmp_path / "NoPickMask.3mf"
+        with zipfile.ZipFile(threemf_path, "w") as zf:
+            zf.writestr("Metadata/plate_1.png", b"PLATE_1_PNG")
+            zf.writestr("Metadata/thumbnail.png", b"THUMBNAIL_PNG")
+
+        cache_3mf_download(printer.id, "NoPickMask.3mf", threemf_path)
+
+        state = PrinterState()
+        state.connected = True
+        state.state = "RUNNING"
+        state.subtask_name = "NoPickMask"
+        state.gcode_file = "NoPickMask.3mf"
+
+        with patch("backend.app.api.routes.printers.printer_manager") as mock_pm:
+            mock_pm.get_status = MagicMock(return_value=state)
+            mock_pm.is_awaiting_plate_clear = MagicMock(return_value=False)
+
+            response = await async_client.get(f"/api/v1/printers/{printer.id}/cover?view=pick")
+
+        assert response.status_code == 404
+        assert "pick mask" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_cover_negative_cache_skips_repeat_ftp_fanout(
         self, async_client: AsyncClient, printer_factory, db_session
     ):
@@ -1279,6 +1355,39 @@ class TestConfigureAMSSlotAPI:
             assert response.status_code == 200
             call_kwargs = mock_client.ams_set_filament_setting.call_args
             assert call_kwargs.kwargs["tray_info_idx"] == "GFG99"
+            assert call_kwargs.kwargs["setting_id"] == "GFSG99"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_configure_builtin_empty_setting_id_is_derived(self, async_client: AsyncClient, printer_factory):
+        """Built-in GF* presets with no setting_id get the matching GFS* id (#2604)."""
+        printer = await printer_factory(name="X1C")
+
+        mock_client = MagicMock()
+        mock_client.ams_set_filament_setting.return_value = True
+        mock_client.extrusion_cali_sel.return_value = True
+        mock_client.request_status_update.return_value = True
+
+        with patch("backend.app.api.routes.printers.printer_manager") as mock_pm:
+            mock_pm.get_client.return_value = mock_client
+            mock_pm.get_status.return_value = None
+
+            response = await async_client.post(
+                f"/api/v1/printers/{printer.id}/slots/0/1/configure",
+                params={
+                    "tray_info_idx": "GFB99",
+                    "tray_type": "ABS",
+                    "tray_sub_brands": "Generic ABS",
+                    "tray_color": "000000FF",
+                    "nozzle_temp_min": 240,
+                    "nozzle_temp_max": 280,
+                },
+            )
+
+            assert response.status_code == 200
+            call_kwargs = mock_client.ams_set_filament_setting.call_args
+            assert call_kwargs.kwargs["tray_info_idx"] == "GFB99"
+            assert call_kwargs.kwargs["setting_id"] == "GFSB99"
 
     @pytest.mark.asyncio
     @pytest.mark.integration

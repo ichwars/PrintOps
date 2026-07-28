@@ -70,7 +70,13 @@ class SmartPlug(Base):
     rest_energy_path: Mapped[str | None] = mapped_column(String(200), nullable=True)  # JSON path for energy (kWh)
     rest_energy_multiplier: Mapped[float] = mapped_column(
         Float, server_default="1.0"
-    )  # Unit conversion (e.g., 0.001 for Wh→kWh)
+    )  # Unit conversion (e.g., 0.001 for Wh to kWh)
+    rest_energy_total_path: Mapped[str | None] = mapped_column(
+        String(200), nullable=True
+    )  # JSON path for lifetime energy counter
+    rest_energy_total_multiplier: Mapped[float] = mapped_column(
+        Float, server_default="1.0"
+    )  # Unit conversion for lifetime counter
 
     # Link to a controlled target. Printer automation still uses printer_id;
     # equipment_id is used for standalone equipment such as filament dryers.

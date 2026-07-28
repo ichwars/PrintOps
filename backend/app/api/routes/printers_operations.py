@@ -12,11 +12,14 @@ from backend.app.core.permissions import Permission
 from backend.app.models.printer import Printer
 from backend.app.models.slot_preset import SlotPresetMapping
 from backend.app.services.printer_manager import (
+    drying_screen_only,
     supports_drying,
 )
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["printers"])
+
+_DRYING_SCREEN_ONLY_DETAIL = "This printer only supports AMS drying from its own screen"
 
 
 class _PrinterManagerProxy:
@@ -130,6 +133,8 @@ async def start_drying(
     # Server-side guard: reject if this model/firmware doesn't support drying
     live_state = printer_manager.get_status(printer_id)
     firmware = live_state.firmware_version if live_state else None
+    if drying_screen_only(printer.model):
+        raise HTTPException(400, _DRYING_SCREEN_ONLY_DETAIL)
     if not supports_drying(printer.model, firmware):
         raise HTTPException(400, "Drying not supported for this printer model or firmware version")
 
@@ -201,6 +206,9 @@ async def stop_drying(
     printer = result.scalar_one_or_none()
     if not printer:
         raise HTTPException(404, "Printer not found")
+
+    if drying_screen_only(printer.model):
+        raise HTTPException(400, _DRYING_SCREEN_ONLY_DETAIL)
 
     success = printer_manager.send_drying_command(printer_id, ams_id, temp=0, duration=0, mode=0)
     if not success:

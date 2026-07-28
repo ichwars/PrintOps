@@ -48,6 +48,7 @@ class User(Base):
     cloud_email: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
     # "global" or "china"; NULL treated as "global" for legacy rows.
     cloud_region: Mapped[str | None] = mapped_column(String(10), nullable=True, default=None)
+    cloud_token_invalid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 
     # Per-user Orca Cloud credentials. Unlike Bambu Cloud, Orca uses Supabase PKCE
     # with short-lived access tokens (1h) and rotating single-use refresh tokens,

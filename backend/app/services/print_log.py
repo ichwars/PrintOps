@@ -33,11 +33,20 @@ async def write_log_entry(
     thumbnail_path: str | None = None,
     created_by_id: int | None = None,
     created_by_username: str | None = None,
+    reconciled: bool = False,
 ) -> PrintLogEntry:
-    """Write a print log entry."""
-    duration = None
-    if started_at and completed_at:
+    """Write a print log entry.
+
+    Reconciled completions are synthetic reconnect cleanups. Their real end
+    time is unknown, so store 0 instead of charging the disconnect gap as print
+    time.
+    """
+    if reconciled:
+        duration: int | None = 0
+    elif started_at and completed_at:
         duration = int((completed_at - started_at).total_seconds())
+    else:
+        duration = None
 
     entry = PrintLogEntry(
         archive_id=archive_id,

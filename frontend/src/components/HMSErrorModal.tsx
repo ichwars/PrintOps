@@ -14,7 +14,19 @@ interface HMSErrorModalProps {
   onClose: () => void;
   printerId: number;
   hasPermission: (permission: Permission) => boolean;
+  runoutGuidance?: {
+    expectedSlotLabel: string | null;
+    ranOutSlotLabel: string | null;
+  } | null;
 }
+
+const AMS_RUNOUT_SHORT_CODES = new Set([
+  '0700_8011', '0701_8011', '0702_8011', '0703_8011', '0704_8011',
+  '0705_8011', '0706_8011', '0707_8011', '07FF_8011',
+  '1200_8011', '1201_8011', '1202_8011', '1203_8011', '12FF_8011',
+  '1800_8011', '1801_8011', '1802_8011', '1803_8011', '1804_8011',
+  '1805_8011', '1806_8011', '1807_8011',
+]);
 
 // Comprehensive error code database (short format: XXXX_YYYY)
 // Auto-generated from ha-bambulab - 853 codes
@@ -917,7 +929,7 @@ function getHMSHomeUrl(): string {
   return `https://wiki.bambulab.com/en/hms/home`;
 }
 
-export function HMSErrorModal({ printerName, errors, onClose, printerId, hasPermission }: HMSErrorModalProps) {
+export function HMSErrorModal({ printerName, errors, onClose, printerId, hasPermission, runoutGuidance }: HMSErrorModalProps) {
   const { t } = useTranslation();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
@@ -1003,7 +1015,21 @@ export function HMSErrorModal({ printerName, errors, onClose, printerId, hasPerm
                 const { label, color, bgColor, Icon } = getSeverityInfo(error.severity);
                 const codeNum = parseInt(error.code.replace('0x', ''), 16) || 0;
                 const shortCode = getShortCode(error.attr, codeNum);
-                const description = ERROR_DESCRIPTIONS[shortCode] ?? t('hmsErrors.unknownCode');
+                let description = ERROR_DESCRIPTIONS[shortCode] ?? t('hmsErrors.unknownCode');
+                if (runoutGuidance && AMS_RUNOUT_SHORT_CODES.has(shortCode)) {
+                  if (runoutGuidance.expectedSlotLabel && runoutGuidance.ranOutSlotLabel) {
+                    description = t('hmsErrors.runoutExpectedSlot', {
+                      expected: runoutGuidance.expectedSlotLabel,
+                      ranOut: runoutGuidance.ranOutSlotLabel,
+                    });
+                  } else if (runoutGuidance.expectedSlotLabel) {
+                    description = t('hmsErrors.runoutExpectedSlotOnly', {
+                      expected: runoutGuidance.expectedSlotLabel,
+                    });
+                  } else {
+                    description = t('hmsErrors.runoutSlotUnknown');
+                  }
+                }
                 const hmsHomeUrl = getHMSHomeUrl();
                 const displayCode = shortCode.replace('_', '-');
 

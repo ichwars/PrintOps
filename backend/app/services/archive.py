@@ -69,8 +69,22 @@ def resolve_display_stem(filename: str) -> str:
     return Path(name).stem
 
 
+def _read_plate_index(plate) -> int | None:
+    """Return the 1-based index of a slice_info.config <plate> element."""
+    for meta in plate.findall("metadata"):
+        if meta.get("key") == "index":
+            value = meta.get("value")
+            if not value:
+                return None
+            try:
+                return int(value)
+            except ValueError:
+                return None
+    return None
+
+
 def peek_plate_index_in_3mf(file_path: Path) -> int | None:
-    """Return the plate index recorded inside a Bambu 3MF, or None.
+    """Return the plate index a single-plate Bambu 3MF represents, or None.
 
     Reads only ``Metadata/slice_info.config`` to keep this cheap — used by
     the print-start callback to verify that the 3MF we just downloaded over
@@ -83,20 +97,12 @@ def peek_plate_index_in_3mf(file_path: Path) -> int | None:
                 return None
             content = zf.read("Metadata/slice_info.config").decode()
             root = ET.fromstring(content)
-            plate = root.find(".//plate")
-            if plate is None:
+            plates = root.findall(".//plate")
+            if len(plates) != 1:
                 return None
-            for meta in plate.findall("metadata"):
-                if meta.get("key") == "index":
-                    value = meta.get("value")
-                    if value:
-                        try:
-                            return int(value)
-                        except ValueError:
-                            return None
+            return _read_plate_index(plates[0])
     except Exception:
         return None
-    return None
 
 
 _PLATE_SUFFIX_RE = re.compile(r"^(.*?)(\s*-\s*Plate\s+|_plate_)(\d+)$", re.IGNORECASE)
@@ -615,26 +621,16 @@ def extract_printable_objects_from_3mf(
             content = zf.read("Metadata/slice_info.config").decode()
             root = ET.fromstring(content)
 
-            # Find the correct plate
-            if plate_number:
-                plate = root.find(f".//plate[@plate_idx='{plate_number}']")
-                if plate is None:
-                    plate = root.find(".//plate")
-            else:
-                plate = root.find(".//plate")
-
-            if plate is None:
+            plates = root.findall(".//plate")
+            if not plates:
                 return printable_objects
+            plate = None
+            if plate_number is not None:
+                plate = next((p for p in plates if _read_plate_index(p) == plate_number), None)
+            if plate is None:
+                plate = plates[0]
 
-            # Get actual plate index from metadata (sliced files only have one plate)
-            plate_idx = plate_number or 1
-            for meta in plate.findall("metadata"):
-                if meta.get("key") == "index":
-                    try:
-                        plate_idx = int(meta.get("value", "1"))
-                    except ValueError:
-                        pass  # Use default plate_idx if value is non-numeric
-                    break
+            plate_idx = _read_plate_index(plate) or 1
 
             # Load position data from plate_N.json if we need positions
             # Build a lookup by name - use list to handle duplicate names

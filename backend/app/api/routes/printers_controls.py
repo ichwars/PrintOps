@@ -16,6 +16,7 @@ from backend.app.schemas.printer import (
     HmsActionBody,
 )
 from backend.app.services.printer_manager import (
+    resolve_plate_id,
     supports_chamber_heater,
 )
 
@@ -679,7 +680,11 @@ async def get_printable_objects(
                 if downloaded and temp_path.exists():
                     with open(temp_path, "rb") as f:
                         data = f.read()
-                    objects, bbox_all = extract_printable_objects_from_3mf(data, include_positions=True)
+                    objects, bbox_all = extract_printable_objects_from_3mf(
+                        data,
+                        plate_number=resolve_plate_id(client.state),
+                        include_positions=True,
+                    )
                     if objects:
                         client.state.printable_objects = objects
                         client.state.printable_objects_bbox_all = bbox_all

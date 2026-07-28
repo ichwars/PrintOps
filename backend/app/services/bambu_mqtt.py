@@ -323,6 +323,9 @@ class PrinterState:
     active_extruder: int = 0
     # Currently loaded tray (global ID): 254/255 = external spools, 255 = no filament on legacy printers
     tray_now: int = 255
+    # Raw firmware target/previous slot for paused AMS runout guidance.
+    tray_tar: int = 255
+    tray_pre: int = 255
     # Last valid tray_now (0-253) — survives unload (255) for usage tracking after print completes
     last_loaded_tray: int = -1
     # Pending load target - used to track what tray we're loading for H2D disambiguation
@@ -1691,6 +1694,26 @@ class BambuMQTTClient:
                     f"[{self.serial_number}] ams_status: {self.state.ams_status} "
                     f"(main={self.state.ams_status_main}, sub={self.state.ams_status_sub})"
                 )
+
+            for tray_key, attr in (("tray_tar", "tray_tar"), ("tray_pre", "tray_pre")):
+                if tray_key in ams_data:
+                    raw_value = ams_data[tray_key]
+                    if isinstance(raw_value, str):
+                        try:
+                            parsed_value = int(raw_value)
+                        except ValueError:
+                            parsed_value = 255
+                    else:
+                        parsed_value = raw_value if raw_value is not None else 255
+                    previous = getattr(self.state, attr)
+                    setattr(self.state, attr, parsed_value)
+                    if parsed_value != previous and parsed_value not in (255, -1) and self.state.state == "PAUSE":
+                        logger.info(
+                            "[%s] AMS %s changed to %s while paused",
+                            self.serial_number,
+                            tray_key,
+                            parsed_value,
+                        )
 
             # Parse tray_now from AMS dict - this is the currently loaded tray global ID
             # Note: tray_tar is also available but on H2D it's just slot number (0-3), not global ID

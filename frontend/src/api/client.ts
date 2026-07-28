@@ -529,6 +529,8 @@ export interface PrinterStatus {
   fila_switch: FilaSwitchState | null;
   // Currently loaded tray (global tray ID, 255 = no filament loaded, 254 = external spool)
   tray_now: number;
+  expected_tray: number | null;
+  previous_tray: number | null;
   // AMS status for filament change tracking (0=idle, 1=filament_change, 2=rfid_identifying, 3=assist, 4=calibration)
   ams_status_main: number;
   // AMS sub-status for filament change step (when main=1): 4=retraction, 6=load verification, 7=purge
@@ -555,6 +557,7 @@ export interface PrinterStatus {
   awaiting_plate_clear: boolean;
   // AMS drying support
   supports_drying: boolean;
+  drying_screen_only?: boolean;
   // Active chamber heater (responds to M141). True only for H2C/H2D/H2DPro/H2S/X2D.
   supports_chamber_heater?: boolean;
 }
@@ -1339,6 +1342,7 @@ export interface CloudAuthStatus {
   is_authenticated: boolean;
   email: string | null;
   region?: 'global' | 'china' | null;
+  sign_in_expired?: boolean;
 }
 
 export interface CloudLoginResponse {
@@ -1548,6 +1552,9 @@ export interface SliceRequest {
   // "Textured PEI Plate", "Smooth PEI Plate", "Cool Plate (SuperTack)",
   // "Supertack Plate".
   bed_type?: string | null;
+  // 3MF only: honour the file's embedded project settings instead of the
+  // selected profile triplet.
+  use_embedded_settings?: boolean;
 }
 
 // GET /api/v1/slicer/presets — unified listing across cloud / local / standard.
@@ -1896,6 +1903,8 @@ export interface SmartPlug {
   rest_energy_url: string | null;
   rest_energy_path: string | null;
   rest_energy_multiplier: number;
+  rest_energy_total_path: string | null;
+  rest_energy_total_multiplier: number;
   printer_id: number | null;
   equipment_id: number | null;
   controls_printer_power: boolean;
@@ -1972,6 +1981,8 @@ export interface SmartPlugCreate {
   rest_energy_url?: string | null;
   rest_energy_path?: string | null;
   rest_energy_multiplier?: number;
+  rest_energy_total_path?: string | null;
+  rest_energy_total_multiplier?: number;
   printer_id?: number | null;
   equipment_id?: number | null;
   controls_printer_power?: boolean;
@@ -2040,6 +2051,8 @@ export interface SmartPlugUpdate {
   rest_energy_url?: string | null;
   rest_energy_path?: string | null;
   rest_energy_multiplier?: number;
+  rest_energy_total_path?: string | null;
+  rest_energy_total_multiplier?: number;
   printer_id?: number | null;
   equipment_id?: number | null;
   controls_printer_power?: boolean;

@@ -365,6 +365,8 @@ class PrinterStatus(BaseModel):
     fila_switch: FilaSwitchResponse | None = None
     # Currently loaded tray (global ID): 254 = external spool, 255 = no filament
     tray_now: int = 255
+    expected_tray: int | None = None
+    previous_tray: int | None = None
     # AMS status for filament change tracking
     # Main status: 0=idle, 1=filament_change, 2=rfid_identifying, 3=assist, 4=calibration
     ams_status_main: int = 0
@@ -398,6 +400,7 @@ class PrinterStatus(BaseModel):
     # AMS "Print While Drying" — drying mid-print. Verified per Bambu wiki release notes;
     # see _DRY_WHILE_PRINTING_MIN_FIRMWARE in printer_manager.py for the matrix.
     supports_drying_while_printing: bool = False
+    drying_screen_only: bool = False
     # Active chamber heater (responds to M141). True only for H2C/H2D/H2DPro/H2S/X2D.
     supports_chamber_heater: bool = False
     # Linked archive for the active print (resolved via subtask_id). Frontend uses

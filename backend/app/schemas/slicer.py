@@ -82,6 +82,13 @@ class SliceRequest(BaseModel):
         default=False,
         description="If true, request a 3MF response with embedded G-code instead of raw G-code.",
     )
+    use_embedded_settings: bool = Field(
+        default=False,
+        description=(
+            "3MF only. Slice using the file's embedded project_settings.config "
+            "instead of the picked printer/process/filament profile triplet."
+        ),
+    )
     bed_type: str | None = Field(
         default=None,
         max_length=64,

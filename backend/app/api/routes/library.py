@@ -3633,6 +3633,7 @@ async def _run_slicer_with_fallback(
         presets["process"] = _patch_process_support_settings(presets["process"], primary_bytes)
 
     used_embedded_settings = False
+    embedded_mode = bool(request.use_embedded_settings and is_3mf)
     service = SlicerApiService(api_url)
 
     # #1493: cross-nozzle-class re-slice (single <-> dual). Without
@@ -3713,7 +3714,17 @@ async def _run_slicer_with_fallback(
 
     try:
         try:
-            if use_cross_class_slice_all:
+            if embedded_mode:
+                result = await service.slice_without_profiles(
+                    model_bytes=primary_bytes,
+                    model_filename=model_filename,
+                    plate=request.plate,
+                    export_3mf=request.export_3mf,
+                    request_id=progress_request_id,
+                    on_progress=progress_callback,
+                )
+                used_embedded_settings = True
+            elif use_cross_class_slice_all:
                 from backend.app.services.slicer_3mf_convert import (
                     count_plates_in_3mf,
                     merge_plate_3mfs,
@@ -3815,7 +3826,7 @@ async def _run_slicer_with_fallback(
                 # (e.g. re-slicing an H2D model for an X1C: the object is off
                 # the smaller bed). Surface the slicer's reason instead.
                 raise HTTPException(status_code=400, detail=rejection) from exc
-            if not is_3mf:
+            if not is_3mf or embedded_mode:
                 raise
             logger.warning(
                 "Slicer CLI failed on the --load-settings path for %s (%s); retrying with embedded settings",

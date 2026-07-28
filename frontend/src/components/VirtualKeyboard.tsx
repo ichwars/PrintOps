@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import Keyboard from 'react-simple-keyboard';
+import KeyboardImport from 'react-simple-keyboard';
 import 'react-simple-keyboard/build/css/index.css';
 import './VirtualKeyboard.css';
+import { resolveInteropDefault } from '../utils/interopDefault';
+
+const Keyboard = resolveInteropDefault<typeof KeyboardImport>(KeyboardImport, ['KeyboardReact']);
 
 const FOCUSABLE_TYPES = new Set(['text', 'password', 'email', 'search', 'url', 'number']);
 

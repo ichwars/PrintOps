@@ -2960,7 +2960,14 @@ export function ProfilesPage() {
           )}
 
           {!status?.is_authenticated ? (
-            <LoginForm onSuccess={handleLoginSuccess} t={t} />
+            <>
+              {status?.sign_in_expired && (
+                <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                  {t('profiles.signInExpired')}
+                </div>
+              )}
+              <LoginForm onSuccess={handleLoginSuccess} t={t} />
+            </>
           ) : settingsLoading ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="w-8 h-8 text-bambu-green animate-spin" />

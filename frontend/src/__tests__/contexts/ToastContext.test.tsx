@@ -118,8 +118,7 @@ describe('ToastContext viewport suppression', () => {
       </ToastProvider>
     );
 
-    // Toast viewport is the fixed-position container with bottom-4 right-20.
-    const findViewport = () => container.querySelector('div.fixed.bottom-4.right-20');
+    const findViewport = () => container.querySelector('[data-testid="toast-viewport"]');
     expect(findViewport()?.className).not.toContain('hidden');
 
     act(() => {
@@ -139,5 +138,23 @@ describe('ToastContext viewport suppression', () => {
       getByTestId('suppress-off').click();
     });
     expect(findViewport()?.className).not.toContain('hidden');
+  });
+
+  it('caps every toast to the viewport width so it cannot run off-screen (#2612)', () => {
+    const { container, getByTestId } = render(
+      <ToastProvider>
+        <ViewportProbe />
+      </ToastProvider>
+    );
+
+    act(() => {
+      getByTestId('show-toast').click();
+    });
+
+    const viewport = container.querySelector('[data-testid="toast-viewport"]');
+    const toast = viewport?.querySelector<HTMLElement>('div[style]');
+    expect(toast?.style.maxWidth).toContain('100vw');
+    expect(toast?.style.maxWidth).toContain('safe-area-inset-left');
+    expect(toast?.style.maxWidth).toContain('safe-area-inset-right');
   });
 });

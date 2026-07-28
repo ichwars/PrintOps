@@ -23,6 +23,8 @@ from backend.app.schemas.printer import (
 from backend.app.services.printer_diagnostic import run_connection_diagnostic
 from backend.app.services.printer_manager import (
     get_derived_status_name,
+    drying_screen_only,
+    resolve_expected_tray,
     resolve_plate_id,
     supports_chamber_heater,
     supports_chamber_temp,
@@ -222,6 +224,24 @@ async def get_printer_status(
         ams_mapping=ams_mapping,
         ams_extruder_map=ams_extruder_map,
         tray_now=tray_now,
+        expected_tray=(
+            resolve_expected_tray(
+                state.tray_tar,
+                [(unit.id, unit.is_ams_ht) for unit in ams_units],
+                raw_data.get("mapping"),
+            )
+            if state.state == "PAUSE"
+            else None
+        ),
+        previous_tray=(
+            resolve_expected_tray(
+                state.tray_pre,
+                [(unit.id, unit.is_ams_ht) for unit in ams_units],
+                raw_data.get("mapping"),
+            )
+            if state.state == "PAUSE"
+            else None
+        ),
         ams_status_main=state.ams_status_main,
         ams_status_sub=state.ams_status_sub,
         mc_print_sub_stage=state.mc_print_sub_stage,
@@ -237,6 +257,7 @@ async def get_printer_status(
         awaiting_plate_clear=printer_manager.is_awaiting_plate_clear(printer_id),
         supports_drying=supports_drying(printer.model, state.firmware_version),
         supports_drying_while_printing=supports_drying_while_printing(printer.model, state.firmware_version),
+        drying_screen_only=drying_screen_only(printer.model),
         supports_chamber_heater=supports_chamber_heater(printer.model),
         current_archive_id=current_archive_id,
         current_plate_id=current_plate_id,

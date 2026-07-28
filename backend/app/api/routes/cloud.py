@@ -6,12 +6,13 @@ Handles authentication and profile management with Bambu Cloud.
 
 import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import (
@@ -21,7 +22,7 @@ from backend.app.core.auth import (
     require_permission_if_auth_enabled,
     security,
 )
-from backend.app.core.database import get_db
+from backend.app.core.database import async_session, get_db
 from backend.app.core.permissions import Permission
 from backend.app.models.api_key import APIKey
 from backend.app.models.settings import Settings
@@ -46,6 +47,7 @@ from backend.app.services.bambu_cloud import (
     BambuCloudAuthError,
     BambuCloudError,
     BambuCloudService,
+    invalidate_validation_cache,
 )
 from backend.app.utils.filament_ids import filament_id_to_setting_id
 
@@ -167,11 +169,48 @@ router = APIRouter(prefix="/cloud", tags=["cloud"], dependencies=[Depends(_cloud
 CLOUD_TOKEN_KEY = "bambu_cloud_token"
 CLOUD_EMAIL_KEY = "bambu_cloud_email"
 CLOUD_REGION_KEY = "bambu_cloud_region"
+CLOUD_TOKEN_INVALID_KEY = "bambu_cloud_token_invalid_at"
 
 
 def _normalise_region(region: str | None) -> str:
     """Treat NULL/empty as 'global' for legacy rows that predate the region column."""
     return region if region in ("global", "china") else "global"
+
+
+async def is_cloud_token_invalid(db: AsyncSession, user: User | None = None) -> bool:
+    if user is not None:
+        return user.cloud_token_invalid_at is not None
+    result = await db.execute(select(Settings).where(Settings.key == CLOUD_TOKEN_INVALID_KEY))
+    row = result.scalar_one_or_none()
+    return bool(row and row.value)
+
+
+async def mark_cloud_token_invalid(user_id: int | None) -> None:
+    now = datetime.now(timezone.utc)
+    try:
+        async with async_session() as db:
+            if user_id is not None:
+                await db.execute(update(User).where(User.id == user_id).values(cloud_token_invalid_at=now))
+            else:
+                result = await db.execute(select(Settings).where(Settings.key == CLOUD_TOKEN_INVALID_KEY))
+                row = result.scalar_one_or_none()
+                if row:
+                    row.value = now.isoformat()
+                else:
+                    db.add(Settings(key=CLOUD_TOKEN_INVALID_KEY, value=now.isoformat()))
+            await db.commit()
+    except Exception:
+        logger.exception("Could not record Bambu Cloud token as invalid")
+
+
+async def _clear_cloud_token_invalid(db: AsyncSession, user: User | None) -> None:
+    if user is not None:
+        await db.execute(update(User).where(User.id == user.id).values(cloud_token_invalid_at=None))
+        return
+    result = await db.execute(select(Settings).where(Settings.key == CLOUD_TOKEN_INVALID_KEY))
+    row = result.scalar_one_or_none()
+    if row:
+        await db.delete(row)
 
 
 async def get_stored_token(db: AsyncSession, user: User | None = None) -> tuple[str | None, str | None, str]:
@@ -204,13 +243,14 @@ async def store_token(db: AsyncSession, token: str, email: str, region: str, use
     When user is None (auth disabled), stores in global Settings table.
     """
     region = _normalise_region(region)
+    invalidate_validation_cache(token)
     if user is not None:
         # User object is from the auth dependency's session (detached),
         # so use a direct UPDATE via the route's db session.
-        from sqlalchemy import update
-
         await db.execute(
-            update(User).where(User.id == user.id).values(cloud_token=token, cloud_email=email, cloud_region=region)
+            update(User)
+            .where(User.id == user.id)
+            .values(cloud_token=token, cloud_email=email, cloud_region=region, cloud_token_invalid_at=None)
         )
         await db.commit()
         return
@@ -223,6 +263,7 @@ async def store_token(db: AsyncSession, token: str, email: str, region: str, use
             setting.value = value
         else:
             db.add(Settings(key=key, value=value))
+    await _clear_cloud_token_invalid(db, None)
     await db.commit()
 
 
@@ -232,18 +273,24 @@ async def clear_token(db: AsyncSession, user: User | None = None) -> None:
     When a user is provided (auth enabled), clears that user's credentials.
     When user is None (auth disabled), clears from global Settings table.
     """
-    if user is not None:
-        from sqlalchemy import update
+    token, _email, _region = await get_stored_token(db, user)
+    if token:
+        invalidate_validation_cache(token)
 
+    if user is not None:
         await db.execute(
-            update(User).where(User.id == user.id).values(cloud_token=None, cloud_email=None, cloud_region=None)
+            update(User)
+            .where(User.id == user.id)
+            .values(cloud_token=None, cloud_email=None, cloud_region=None, cloud_token_invalid_at=None)
         )
         await db.commit()
         return
 
     # Fallback: global storage (auth disabled)
     result = await db.execute(
-        select(Settings).where(Settings.key.in_([CLOUD_TOKEN_KEY, CLOUD_EMAIL_KEY, CLOUD_REGION_KEY]))
+        select(Settings).where(
+            Settings.key.in_([CLOUD_TOKEN_KEY, CLOUD_EMAIL_KEY, CLOUD_REGION_KEY, CLOUD_TOKEN_INVALID_KEY])
+        )
     )
     for setting in result.scalars().all():
         await db.delete(setting)
@@ -288,7 +335,8 @@ async def build_authenticated_cloud(db: AsyncSession, user: User | None) -> Bamb
     token, _email, region = await get_stored_token(db, user)
     if not token:
         return None
-    cloud = BambuCloudService(region=region)
+    user_id = user.id if user is not None else None
+    cloud = BambuCloudService(region=region, on_auth_failure=lambda: mark_cloud_token_invalid(user_id))
     cloud.set_token(token)
     return cloud
 
@@ -307,19 +355,26 @@ async def get_auth_status(
     """
     token, email, region = await get_stored_token(db, current_user)
     if not token:
-        return CloudAuthStatus(is_authenticated=False, email=None, region=None)
+        return CloudAuthStatus(is_authenticated=False, email=None, region=None, sign_in_expired=False)
 
-    cloud = BambuCloudService(region=region)
+    known_invalid = await is_cloud_token_invalid(db, current_user)
+    user_id = current_user.id if current_user is not None else None
+    cloud = BambuCloudService(region=region, on_auth_failure=lambda: mark_cloud_token_invalid(user_id))
     cloud.set_token(token)
     try:
-        authenticated = cloud.is_authenticated
-        return CloudAuthStatus(
-            is_authenticated=authenticated,
-            email=email if authenticated else None,
-            region=region if authenticated else None,
-        )
+        accepted = False if known_invalid else await cloud.validate_token()
     finally:
         await cloud.close()
+
+    if accepted is None:
+        accepted = not known_invalid
+
+    return CloudAuthStatus(
+        is_authenticated=bool(accepted),
+        email=email if accepted else None,
+        region=region if accepted else None,
+        sign_in_expired=not accepted,
+    )
 
 
 @router.post("/login", response_model=CloudLoginResponse)

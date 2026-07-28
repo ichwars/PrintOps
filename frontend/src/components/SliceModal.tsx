@@ -220,6 +220,7 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
   // incompatible with high-temp filaments like ABS / ASA / PC, and the
   // user had no way to switch plates without cloning the preset.
   const [bedType, setBedType] = useState<string | null>(null);
+  const [useEmbedded, setUseEmbedded] = useState(false);
 
   // Slicer Pipelines (#1425) — apply a saved preset bundle to all four slots
   // with one pick, or save the current selection as a new pipeline.
@@ -381,6 +382,16 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
   const embeddedPrinter = platesQuery.data?.embedded_printer ?? null;
   const embeddedProcess = platesQuery.data?.embedded_process ?? null;
 
+  const canUseEmbedded = useMemo<boolean>(() => {
+    if (!embeddedPrinter || !embeddedProcess || !selectedPrinterName) return false;
+    const norm = (s: string) => s.replace(/^#\s*/, '').trim().toLowerCase();
+    return norm(selectedPrinterName) === norm(embeddedPrinter);
+  }, [embeddedPrinter, embeddedProcess, selectedPrinterName]);
+
+  useEffect(() => {
+    if (!canUseEmbedded) setUseEmbedded(false);
+  }, [canUseEmbedded]);
+
   // Printer pre-pick: defaults to the printer the 3MF was prepared for when
   // that preset is available, else the first listed printer. Runs once when
   // presets first arrive; later re-renders preserve any manual choice.
@@ -477,6 +488,7 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
       filament_presets: filamentPresets as PresetRef[],
       ...(plate != null ? { plate } : {}),
       ...(bedType != null ? { bed_type: bedType } : {}),
+      ...(useEmbedded && canUseEmbedded ? { use_embedded_settings: true } : {}),
     };
   }
 
@@ -711,15 +723,30 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
                 data={presetsQuery.data}
                 value={printerPreset}
                 onChange={setPrinterPreset}
-                disabled={isEnqueuing}
+                disabled={isEnqueuing || useEmbedded}
               />
+              {canUseEmbedded && (
+                <label className="flex items-start gap-2 text-sm text-bambu-gray cursor-pointer select-none">
+                  <Checkbox
+                    checked={useEmbedded}
+                    onChange={(e) => setUseEmbedded(e.target.checked)}
+                    disabled={isEnqueuing}
+                  />
+                  <span>
+                    {t('slice.useEmbedded')}
+                    <span className="block text-xs text-bambu-gray/70">
+                      {t('slice.useEmbeddedHint')}
+                    </span>
+                  </span>
+                </label>
+              )}
               <PresetDropdown
                 label={t('slice.process')}
                 slot="process"
                 data={presetsQuery.data}
                 value={processPreset}
                 onChange={setProcessPreset}
-                disabled={isEnqueuing}
+                disabled={isEnqueuing || useEmbedded}
                 selectedPrinterName={selectedPrinterName}
                 compatIndex={compatIndex}
               />
@@ -729,7 +756,7 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
               <BedTypeDropdown
                 value={bedType}
                 onChange={setBedType}
-                disabled={isEnqueuing}
+                disabled={isEnqueuing || useEmbedded}
               />
               {/* Filament reqs may need a server-side preview-slice for
                   unsliced project files (single-pass, then cached). Show a
@@ -776,7 +803,7 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
                           return next;
                         })
                       }
-                      disabled={isEnqueuing || !isUsed}
+                      disabled={isEnqueuing || !isUsed || useEmbedded}
                       swatchColor={filamentSlots.length > 1 ? slot.color : undefined}
                       selectedPrinterName={selectedPrinterName}
                       compatIndex={compatIndex}
