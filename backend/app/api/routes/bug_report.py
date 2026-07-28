@@ -16,7 +16,7 @@ from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.database import async_session
 from backend.app.core.permissions import Permission
 from backend.app.models.user import User
-from backend.app.services.bug_report import submit_report
+from backend.app.services.bug_report import get_bug_report_status, submit_report
 from backend.app.services.printer_manager import printer_manager
 
 router = APIRouter(prefix="/bug-report", tags=["bug-report"])
@@ -38,6 +38,12 @@ class BugReportResponse(BaseModel):
     issue_number: int | None = None
 
 
+class BugReportStatusResponse(BaseModel):
+    repository: str
+    relay_configured: bool
+    issue_url: str
+
+
 class StartLoggingResponse(BaseModel):
     started: bool
     was_debug: bool
@@ -45,6 +51,14 @@ class StartLoggingResponse(BaseModel):
 
 class StopLoggingResponse(BaseModel):
     logs: str
+
+
+@router.get("/status", response_model=BugReportStatusResponse)
+async def get_status(
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_READ),
+):
+    """Return bug-reporting destination and automatic relay status."""
+    return BugReportStatusResponse(**get_bug_report_status())
 
 
 @router.post("/start-logging", response_model=StartLoggingResponse)

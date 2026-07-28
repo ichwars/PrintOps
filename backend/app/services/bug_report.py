@@ -45,6 +45,15 @@ def _manual_issue_url() -> str:
     return f"https://github.com/{GITHUB_REPO}/issues/new/choose"
 
 
+def get_bug_report_status() -> dict:
+    """Return public bug-reporting configuration state for the admin UI."""
+    return {
+        "repository": GITHUB_REPO,
+        "relay_configured": bool(BUG_REPORT_RELAY_URL.strip()),
+        "issue_url": _manual_issue_url(),
+    }
+
+
 async def submit_report(
     description: str,
     reporter_email: str | None,

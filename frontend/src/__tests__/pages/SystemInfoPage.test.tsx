@@ -6,14 +6,29 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { render } from '../utils';
 import { SystemInfoPage } from '../../pages/SystemInfoPage';
-import { api } from '../../api/client';
+import { api, bugReportApi } from '../../api/client';
 
 // Mock the API client
 vi.mock('../../api/client', () => ({
   api: {
     getSystemInfo: vi.fn(),
     getSettings: vi.fn().mockResolvedValue({}),
+    getLibraryStats: vi.fn().mockResolvedValue({ total_size_bytes: 0, total_files: 0, total_folders: 0 }),
+    getPrinters: vi.fn().mockResolvedValue([]),
+    getSystemHealth: vi.fn().mockResolvedValue({
+      findings: [],
+      scanned_entries: 0,
+      log_available: true,
+      summary: { total: 0, layer8: 0, environment: 0, bug: 0 },
+    }),
     updateSettings: vi.fn().mockResolvedValue({}),
+  },
+  bugReportApi: {
+    getStatus: vi.fn().mockResolvedValue({
+      repository: 'ichwars/PrintOps',
+      relay_configured: false,
+      issue_url: 'https://github.com/ichwars/PrintOps/issues/new/choose',
+    }),
   },
   supportApi: {
     getDebugLoggingState: vi.fn().mockResolvedValue({ enabled: false, enabled_at: null, duration_seconds: null }),
@@ -96,6 +111,11 @@ const mockSystemInfo = {
 describe('SystemInfoPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (bugReportApi.getStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
+      repository: 'ichwars/PrintOps',
+      relay_configured: false,
+      issue_url: 'https://github.com/ichwars/PrintOps/issues/new/choose',
+    });
   });
 
   it('renders loading state initially', async () => {
@@ -303,6 +323,38 @@ describe('SystemInfoPage', () => {
     expect(screen.getByText(/Python package versions/)).toBeInTheDocument();
     expect(screen.getByText(/Database health checks/)).toBeInTheDocument();
     expect(screen.getByText(/Docker environment details/)).toBeInTheDocument();
+  });
+
+  it('shows bug report destination status and issue form link', async () => {
+    (api.getSystemInfo as ReturnType<typeof vi.fn>).mockResolvedValue(mockSystemInfo);
+
+    render(<SystemInfoPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Bug Report Destination')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Manual GitHub issue form is used')).toBeInTheDocument();
+    expect(screen.getByText('ichwars/PrintOps')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /open issue form/i })).toHaveAttribute(
+      'href',
+      'https://github.com/ichwars/PrintOps/issues/new/choose'
+    );
+  });
+
+  it('shows configured state when automatic bug reporting relay is enabled', async () => {
+    (api.getSystemInfo as ReturnType<typeof vi.fn>).mockResolvedValue(mockSystemInfo);
+    (bugReportApi.getStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
+      repository: 'ichwars/PrintOps',
+      relay_configured: true,
+      issue_url: 'https://github.com/ichwars/PrintOps/issues/new/choose',
+    });
+
+    render(<SystemInfoPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Automatic GitHub issue creation is configured')).toBeInTheDocument();
+    });
   });
 
   it('applies danger color for critical disk usage', async () => {

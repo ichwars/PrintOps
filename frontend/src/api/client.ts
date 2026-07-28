@@ -8014,7 +8014,14 @@ export interface BugReportResponse {
   issue_number?: number;
 }
 
+export interface BugReportStatusResponse {
+  repository: string;
+  relay_configured: boolean;
+  issue_url: string;
+}
+
 export const bugReportApi = {
+  getStatus: () => request<BugReportStatusResponse>('/bug-report/status'),
   submit: (data: BugReportRequest) =>
     request<BugReportResponse>('/bug-report/submit', {
       method: 'POST',

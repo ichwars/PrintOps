@@ -8,6 +8,29 @@ import pytest
 class TestBugReportService:
     """Tests for bug_report.submit_report()."""
 
+    def test_status_reports_manual_issue_url_without_leaking_relay_url(self):
+        """Status exposes destination state without returning the private relay URL."""
+        from backend.app.services.bug_report import get_bug_report_status
+
+        with patch("backend.app.services.bug_report.BUG_REPORT_RELAY_URL", ""):
+            result = get_bug_report_status()
+
+        assert result == {
+            "repository": "ichwars/PrintOps",
+            "relay_configured": False,
+            "issue_url": "https://github.com/ichwars/PrintOps/issues/new/choose",
+        }
+
+    def test_status_marks_configured_relay_without_exposing_endpoint(self):
+        """Configured relay is shown as a boolean only."""
+        from backend.app.services.bug_report import get_bug_report_status
+
+        with patch("backend.app.services.bug_report.BUG_REPORT_RELAY_URL", "https://relay.example/report"):
+            result = get_bug_report_status()
+
+        assert result["relay_configured"] is True
+        assert "relay.example" not in str(result)
+
     def test_issue_url_must_match_issue_number(self):
         """Relay success data must point to the exact claimed issue."""
         from backend.app.services.bug_report import _issue_url_points_at_expected_repo
