@@ -2,7 +2,7 @@ import { CreditCard, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { DunningPolicyDraft, PaymentPolicyDraft, PolicyFinding, SourcedValue } from '../../../api/documentManagement';
-import { Button, NumberField, Select, Switch, TextArea } from '../../ui';
+import { Button, NumberField, Select, Switch, TextArea, TextField } from '../../ui';
 import { InheritanceField } from './InheritanceField';
 
 interface PaymentPolicySectionProps {
@@ -46,7 +46,10 @@ export function PaymentPolicySection({ payment, dunning, effectivePayment = {}, 
             { value: 'delivery_date', label: t('settings.documents.basic.dates.delivery', 'Delivery date') },
           ]} onValueChange={(value) => onChange('payment.due_date_basis', value)} />
         </InheritanceField>
-        <NumberField label={t('settings.documents.payment.bankAccount', 'Bank account ID')} value={payment.bank_account_id ?? ''} min={1} disabled={disabled} onValueChange={(value) => onChange('payment.bank_account_id', value === '' ? null : Number(value))} />
+        <TextField label={t('settings.documents.payment.bankAccount', 'Bank account ID')} value={payment.bank_account_id ?? ''} inputMode="numeric" pattern="[0-9]*" disabled={disabled} onValueChange={(value) => {
+          const digits = value.replace(/\D/g, '');
+          onChange('payment.bank_account_id', digits === '' ? null : Number(digits));
+        }} />
         <NumberField label={t('settings.documents.payment.discountDays', 'Cash discount period')} value={payment.discount_days} min={0} max={3650} suffix={t('common.days', 'days')} disabled={disabled} error={finding('payment.discount_days')} onValueChange={(value) => onChange('payment.discount_days', Number(value))} />
         <NumberField label={t('settings.documents.payment.discountPercent', 'Cash discount')} value={payment.discount_percent} min={0} max={100} step="0.01" suffix="%" disabled={disabled} error={finding('payment.discount_percent')} onValueChange={(value) => onChange('payment.discount_percent', value)} />
         <NumberField label={t('settings.documents.payment.prepayment', 'Advance payment')} value={payment.prepayment_percent} min={0} max={100} step="0.01" suffix="%" disabled={disabled} onValueChange={(value) => onChange('payment.prepayment_percent', value)} />

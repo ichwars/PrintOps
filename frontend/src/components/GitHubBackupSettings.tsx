@@ -709,86 +709,70 @@ export function GitHubBackupSettings() {
             {/* What to backup */}
             <div>
               <label className="block text-sm text-bambu-gray mb-2">{t('backup.includeInBackup')}</label>
-              <div className="space-y-2">
-                <label className={`flex items-start gap-2 ${noPrintersConnected ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                  <Checkbox
-                    checked={backupKProfiles}
-                    onChange={(e) => setBackupKProfiles(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
-                    disabled={noPrintersConnected}
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm ${noPrintersConnected ? 'text-bambu-gray' : 'text-white'}`}>{t('backup.kProfiles')}</span>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Checkbox
+                  checked={backupKProfiles}
+                  onChange={(e) => setBackupKProfiles(e.target.checked)}
+                  disabled={noPrintersConnected}
+                  className="rounded-lg px-2 py-1 hover:bg-bambu-dark/40"
+                  label={(
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className={noPrintersConnected ? 'text-bambu-gray' : 'text-white'}>{t('backup.kProfiles')}</span>
                       {noPrintersConnected && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400">
-                          <AlertTriangle className="w-3 h-3" />
+                        <span className="inline-flex items-center gap-1 rounded bg-yellow-100 px-1.5 py-0.5 text-xs text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400">
+                          <AlertTriangle className="h-3 w-3" />
                           {t('backup.noPrintersConnected')}
                         </span>
                       )}
                       {somePrintersDisconnected && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400">
-                          <AlertTriangle className="w-3 h-3" />
+                        <span className="inline-flex items-center gap-1 rounded bg-yellow-100 px-1.5 py-0.5 text-xs text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400">
+                          <AlertTriangle className="h-3 w-3" />
                           {t('backup.printersConnected', { connected: connectedPrinters, total: totalPrinters })}
                         </span>
                       )}
-                    </div>
-                    <p className="text-xs text-bambu-gray">{t('backup.kProfilesDescription')}</p>
-                  </div>
-                </label>
-                <label className={`flex items-start gap-2 ${!cloudStatus?.is_authenticated ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                  <Checkbox
-                    checked={backupCloudProfiles}
-                    onChange={(e) => setBackupCloudProfiles(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
-                    disabled={!cloudStatus?.is_authenticated}
-                  />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm ${cloudStatus?.is_authenticated ? 'text-white' : 'text-bambu-gray'}`}>{t('backup.cloudProfiles')}</span>
+                    </span>
+                  )}
+                  helperText={t('backup.kProfilesDescription')}
+                />
+                <Checkbox
+                  checked={backupCloudProfiles}
+                  onChange={(e) => setBackupCloudProfiles(e.target.checked)}
+                  disabled={!cloudStatus?.is_authenticated}
+                  className="rounded-lg px-2 py-1 hover:bg-bambu-dark/40"
+                  label={(
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className={cloudStatus?.is_authenticated ? 'text-white' : 'text-bambu-gray'}>{t('backup.cloudProfiles')}</span>
                       {!cloudStatus?.is_authenticated && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400">
-                          <AlertTriangle className="w-3 h-3" />
+                        <span className="inline-flex items-center gap-1 rounded bg-yellow-100 px-1.5 py-0.5 text-xs text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400">
+                          <AlertTriangle className="h-3 w-3" />
                           {t('backup.cloudLoginRequiredShort')}
                         </span>
                       )}
-                    </div>
-                    <p className="text-xs text-bambu-gray">{t('backup.cloudProfilesDescription')}</p>
-                  </div>
-                </label>
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <Checkbox
-                    checked={backupSettings}
-                    onChange={(e) => setBackupSettings(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
-                  />
-                  <div>
-                    <span className="text-white text-sm">{t('backup.appSettings')}</span>
-                    <p className="text-xs text-bambu-gray">{t('backup.appSettingsDescription')}</p>
-                  </div>
-                </label>
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <Checkbox
-                    checked={backupSpools}
-                    onChange={(e) => setBackupSpools(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
-                  />
-                  <div>
-                    <span className="text-white text-sm">{t('backup.spoolInventory')}</span>
-                    <p className="text-xs text-bambu-gray">{t('backup.spoolInventoryDescription')}</p>
-                  </div>
-                </label>
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <Checkbox
-                    checked={backupArchives}
-                    onChange={(e) => setBackupArchives(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
-                  />
-                  <div>
-                    <span className="text-white text-sm">{t('backup.printArchives')}</span>
-                    <p className="text-xs text-bambu-gray">{t('backup.printArchivesDescription')}</p>
-                  </div>
-                </label>
+                    </span>
+                  )}
+                  helperText={t('backup.cloudProfilesDescription')}
+                />
+                <Checkbox
+                  checked={backupSettings}
+                  onChange={(e) => setBackupSettings(e.target.checked)}
+                  className="rounded-lg px-2 py-1 hover:bg-bambu-dark/40"
+                  label={<span className="text-white">{t('backup.appSettings')}</span>}
+                  helperText={t('backup.appSettingsDescription')}
+                />
+                <Checkbox
+                  checked={backupSpools}
+                  onChange={(e) => setBackupSpools(e.target.checked)}
+                  className="rounded-lg px-2 py-1 hover:bg-bambu-dark/40"
+                  label={<span className="text-white">{t('backup.spoolInventory')}</span>}
+                  helperText={t('backup.spoolInventoryDescription')}
+                />
+                <Checkbox
+                  checked={backupArchives}
+                  onChange={(e) => setBackupArchives(e.target.checked)}
+                  className="rounded-lg px-2 py-1 hover:bg-bambu-dark/40"
+                  label={<span className="text-white">{t('backup.printArchives')}</span>}
+                  helperText={t('backup.printArchivesDescription')}
+                />
               </div>
             </div>
 

@@ -12,6 +12,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+.coverage
 venv/
 .venv/
 env/
@@ -70,7 +71,7 @@ firmware/
 # Node modules
 node_modules/
 
-data/
+/data/
 /calculations/
 
 # Local-dev runtime caches (matplotlib MPLCONFIGDIR lands here when DATA_DIR
