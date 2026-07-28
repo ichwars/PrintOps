@@ -4,6 +4,8 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+## [1.2.7] - 2026-07-28
+
 ### Added
 - **SignPath OSS signing path for stable Windows releases** - The Windows installer workflow can now use SignPath.io with a SignPath Foundation certificate as the free OSS Authenticode provider, while keeping Azure Artifact Signing as an optional paid provider. Stable `v*` releases fail closed when no trusted provider is configured; prerelease and daily tags may still publish clearly marked unsigned test installers.
 - **Cost, power and energy-overview release work** - The cost-tracking pass now treats electricity as a first-class production cost again, connects energy counters to printer and smart-plug reporting, and documents the release path for the improved cost/power overview that was hardened across the v1.2.6 release-candidate series.
