@@ -3779,6 +3779,12 @@ export default {
   support: {
     debugLoggingActive: 'Hata ayıklama kaydı aktif',
     manageLogs: 'Yönet',
+    bugReportDestination: 'Hata bildirimi hedefi',
+    bugReportRelayConfigured: 'Otomatik GitHub issue oluşturma yapılandırılmış',
+    bugReportManualFallback: 'Manuel GitHub issue formu kullanılır',
+    bugReportStatusLoading: 'Hata bildirimi yapılandırması denetleniyor...',
+    bugReportStatusUnavailable: 'Hata bildirimi yapılandırması şu anda kullanılamıyor',
+    openIssueForm: 'Issue formunu aç',
     collectItem7: 'Yazıcı bağlantısı ve firmware sürümleri',
     collectItem8: 'Entegrasyon durumu (Spoolman, MQTT, HA)',
     collectItem9: 'Ağ arayüzleri (yalnızca alt ağlar)',

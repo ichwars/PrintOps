@@ -3850,6 +3850,12 @@ export default {
   support: {
     debugLoggingActive: 'Debug logging is active',
     manageLogs: 'Manage',
+    bugReportDestination: 'Bug Report Destination',
+    bugReportRelayConfigured: 'Automatic GitHub issue creation is configured',
+    bugReportManualFallback: 'Manual GitHub issue form is used',
+    bugReportStatusLoading: 'Checking bug report configuration...',
+    bugReportStatusUnavailable: 'Bug report configuration is currently unavailable',
+    openIssueForm: 'Open issue form',
     collectItem7: 'Printer connectivity and firmware versions',
     collectItem8: 'Integration status (Spoolman, MQTT, HA)',
     collectItem9: 'Network interfaces (subnets only)',

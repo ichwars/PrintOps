@@ -3772,6 +3772,12 @@ export default {
   support: {
     debugLoggingActive: 'Log debug attivo',
     manageLogs: 'Gestisci',
+    bugReportDestination: 'Destinazione delle segnalazioni bug',
+    bugReportRelayConfigured: 'La creazione automatica di issue GitHub è configurata',
+    bugReportManualFallback: 'Viene usato il modulo manuale per issue GitHub',
+    bugReportStatusLoading: 'Controllo della configurazione delle segnalazioni bug...',
+    bugReportStatusUnavailable: 'La configurazione delle segnalazioni bug non è attualmente disponibile',
+    openIssueForm: 'Apri modulo issue',
     collectItem7: 'Connettività stampante e versioni firmware',
     collectItem8: 'Stato integrazioni (Spoolman, MQTT, HA)',
     collectItem9: 'Interfacce di rete (solo subnet)',

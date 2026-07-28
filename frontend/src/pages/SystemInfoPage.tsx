@@ -23,8 +23,9 @@ import {
   FolderOpen,
   Stethoscope,
   HeartPulse,
+  ExternalLink,
 } from 'lucide-react';
-import { api, supportApi, type Printer as PrinterModel } from '../api/client';
+import { api, bugReportApi, supportApi, type Printer as PrinterModel } from '../api/client';
 import { Card } from '../components/Card';
 import { LogViewer } from '../components/LogViewer';
 import { ConnectionDiagnosticModal } from '../components/ConnectionDiagnostic';
@@ -115,6 +116,16 @@ export function SystemInfoPage() {
     queryFn: supportApi.getDebugLoggingState,
     staleTime: 10 * 1000, // 10 seconds
     refetchInterval: 10 * 1000,
+  });
+
+  const {
+    data: bugReportStatus,
+    isLoading: bugReportStatusLoading,
+    isError: bugReportStatusError,
+  } = useQuery({
+    queryKey: ['bugReportStatus'],
+    queryFn: bugReportApi.getStatus,
+    staleTime: 60 * 1000,
   });
 
   const { data: settings } = useQuery({
@@ -246,6 +257,55 @@ export function SystemInfoPage() {
           <p className="text-sm text-bambu-gray">
             {t('support.description', 'Enable debug logging to capture detailed information, then download a support bundle to share when reporting issues.')}
           </p>
+
+          {/* Bug report destination */}
+          <div className="flex items-center justify-between gap-4 p-4 bg-bambu-dark rounded-lg">
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={`p-2 rounded-lg ${
+                  bugReportStatus?.relay_configured
+                    ? 'bg-bambu-green/20 text-bambu-green'
+                    : 'bg-bambu-dark-tertiary text-bambu-gray'
+                }`}
+              >
+                {bugReportStatus?.relay_configured ? (
+                  <CheckCircle2 className="w-5 h-5" />
+                ) : (
+                  <Bug className="w-5 h-5" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="font-medium text-white">
+                  {t('support.bugReportDestination', 'Bug Report Destination')}
+                </p>
+                <p className="text-sm text-bambu-gray">
+                  {bugReportStatusLoading
+                    ? t('support.bugReportStatusLoading', 'Checking bug report configuration...')
+                    : bugReportStatusError
+                    ? t('support.bugReportStatusUnavailable', 'Bug report configuration is currently unavailable')
+                    : bugReportStatus?.relay_configured
+                    ? t('support.bugReportRelayConfigured', 'Automatic GitHub issue creation is configured')
+                    : t('support.bugReportManualFallback', 'Manual GitHub issue form is used')}
+                </p>
+                {bugReportStatus?.repository && (
+                  <p className="text-xs text-bambu-gray/70 truncate">
+                    {bugReportStatus.repository}
+                  </p>
+                )}
+              </div>
+            </div>
+            {bugReportStatus?.issue_url && (
+              <a
+                href={bugReportStatus.issue_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-bambu-dark-secondary hover:bg-bambu-dark-tertiary text-white rounded-lg transition-colors flex-shrink-0"
+              >
+                <ExternalLink className="w-4 h-4" />
+                {t('support.openIssueForm', 'Open issue form')}
+              </a>
+            )}
+          </div>
 
           {/* Debug Logging Toggle */}
           <div className="flex items-center justify-between p-4 bg-bambu-dark rounded-lg">
