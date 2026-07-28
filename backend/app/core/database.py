@@ -2222,7 +2222,7 @@ async def run_migrations(conn):
     await _safe_execute(conn, "ALTER TABLE users ADD COLUMN cloud_token VARCHAR(500)")
     await _safe_execute(conn, "ALTER TABLE users ADD COLUMN cloud_email VARCHAR(255)")
     await _safe_execute(conn, "ALTER TABLE users ADD COLUMN cloud_region VARCHAR(10)")
-    if dialect == "sqlite":
+    if is_sqlite():
         await _safe_execute(conn, "ALTER TABLE users ADD COLUMN cloud_token_invalid_at DATETIME")
     else:
         await _safe_execute(conn, "ALTER TABLE users ADD COLUMN IF NOT EXISTS cloud_token_invalid_at TIMESTAMP")

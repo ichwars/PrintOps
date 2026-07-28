@@ -31,6 +31,7 @@ def invalidate_validation_cache(token: str | None = None) -> None:
     else:
         _validation_cache.pop(_validation_cache_key(token), None)
 
+
 # Client identity sent to Bambu Lab's cloud services. We identify honestly as
 # PrintOps — the URL in parens makes the source unambiguous so Bambu can
 # distinguish our traffic from impersonators. This is the opposite of what the

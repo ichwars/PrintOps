@@ -22,8 +22,8 @@ from backend.app.schemas.printer import (
 )
 from backend.app.services.printer_diagnostic import run_connection_diagnostic
 from backend.app.services.printer_manager import (
-    get_derived_status_name,
     drying_screen_only,
+    get_derived_status_name,
     resolve_expected_tray,
     resolve_plate_id,
     supports_chamber_heater,

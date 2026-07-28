@@ -5,7 +5,7 @@ import { getCurrencySymbol, resolveDisplayCurrencyCode } from '../utils/currency
 export function useDisplayCurrency(fallbackCurrency?: string | null) {
   const canLoadProfiles = typeof api.getBusinessProfileOptions === 'function';
   const { data: profiles } = useQuery({
-    queryKey: ['businessProfileOptions'],
+    queryKey: ['business-profile-options'],
     queryFn: () => api.getBusinessProfileOptions(),
     enabled: canLoadProfiles,
     retry: false,
