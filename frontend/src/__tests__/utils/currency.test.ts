@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getCurrencySymbol, SUPPORTED_CURRENCIES } from '../../utils/currency';
+import { getCurrencySymbol, resolveDisplayCurrencyCode, SUPPORTED_CURRENCIES } from '../../utils/currency';
 
 describe('getCurrencySymbol', () => {
   it('returns $ for USD', () => {
@@ -63,5 +63,23 @@ describe('SUPPORTED_CURRENCIES', () => {
 
   it('has 31 entries', () => {
     expect(SUPPORTED_CURRENCIES).toHaveLength(31);
+  });
+});
+
+describe('resolveDisplayCurrencyCode', () => {
+  it('prefers the active default business profile currency', () => {
+    expect(resolveDisplayCurrencyCode([
+      { default_currency: 'USD', is_default: false, is_active: true },
+      { default_currency: 'eur', is_default: true, is_active: true },
+    ], 'CHF')).toBe('EUR');
+  });
+
+  it('falls back to the configured app currency when no business profile is available', () => {
+    expect(resolveDisplayCurrencyCode([], 'CHF')).toBe('CHF');
+    expect(resolveDisplayCurrencyCode(undefined, 'USD')).toBe('USD');
+  });
+
+  it('uses EUR as the final display fallback', () => {
+    expect(resolveDisplayCurrencyCode([], null)).toBe('EUR');
   });
 });

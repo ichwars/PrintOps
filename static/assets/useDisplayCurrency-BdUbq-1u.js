@@ -1,0 +1,1 @@
+import{t as e}from"./useQuery-0JmC7pUl.js";import{n as t}from"./client-CXPvxdD7.js";import{n,r}from"./currency-BqLqPTNA.js";function i(i){let{data:a}=e({queryKey:[`businessProfileOptions`],queryFn:()=>t.getBusinessProfileOptions(),enabled:typeof t.getBusinessProfileOptions==`function`,retry:!1}),o=r(a,i);return{currencyCode:o,currencySymbol:n(o)}}export{i as t};

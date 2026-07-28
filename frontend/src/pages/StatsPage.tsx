@@ -39,7 +39,7 @@ import { api, type ArchiveSlim } from '../api/client';
 import { PrintCalendar } from '../components/PrintCalendar';
 import { FilamentTrends } from '../components/FilamentTrends';
 import { Dashboard, type DashboardWidget } from '../components/Dashboard';
-import { getCurrencySymbol } from '../utils/currency';
+import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { formatWeight } from '../utils/weight';
 import { parseUTCDate, formatDuration } from '../utils/date';
 import { MetricToggle, type Metric } from '../components/MetricToggle';
@@ -1109,7 +1109,7 @@ export function StatsPage() {
 
   const isRefetching = (isStatsFetching || isArchivesFetching) && !isLoading;
 
-  const currency = getCurrencySymbol(settings?.currency || 'USD');
+  const { currencySymbol: currency } = useDisplayCurrency(settings?.currency);
   const printerMap = new Map(printers?.map((p) => [String(p.id), p.name]) || []);
   const printDates = useMemo(() => archives?.map((a) => a.created_at) || [], [archives]);
 

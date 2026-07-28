@@ -87,7 +87,7 @@ export function SuppliersPage() {
       <Card>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-            <div className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-bambu-gray" /><TextField type="search" aria-label={t('suppliers.searchLabel')} value={query} onValueChange={setQuery} placeholder={t('suppliers.searchPlaceholder')} className="pl-9" /></div>
+            <div className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-[34px] h-4 w-4 text-bambu-gray" /><TextField type="search" label={t('suppliers.searchLabel')} value={query} onValueChange={setQuery} placeholder={t('suppliers.searchPlaceholder')} className="pl-9" /></div>
             <Select value={activeFilter} label={t('suppliers.activeFilter')} onValueChange={setActiveFilter} options={[
               { value: 'active', label: t('suppliers.filters.active') },
               { value: 'inactive', label: t('suppliers.filters.inactive') },

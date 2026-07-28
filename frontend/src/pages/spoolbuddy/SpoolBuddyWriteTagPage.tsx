@@ -14,7 +14,7 @@ import {
   type SlicerSetting,
   type SpoolCatalogEntry,
 } from '../../api/client';
-import { getCurrencySymbol } from '../../utils/currency';
+import { useDisplayCurrency } from '../../hooks/useDisplayCurrency';
 import { getSwatchStyle } from '../../utils/colors';
 import { FilamentSection } from '../../components/spool-form/FilamentSection';
 import { ColorSection } from '../../components/spool-form/ColorSection';
@@ -90,7 +90,7 @@ export function SpoolBuddyWriteTagPage() {
 
   const device = devices[0];
   const deviceOnline = sbState.deviceOnline;
-  const currencySymbol = getCurrencySymbol(settings?.currency || 'USD');
+  const { currencySymbol } = useDisplayCurrency(settings?.currency);
 
   // Filter spools based on tab
   const filteredSpools = useMemo(() => {

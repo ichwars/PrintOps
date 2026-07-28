@@ -31,7 +31,7 @@ import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
-import { getCurrencySymbol } from '../utils/currency';
+import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 
 const PROJECT_COLORS = [
   '#ef4444', // red
@@ -859,7 +859,7 @@ export function ProjectsPage() {
     queryFn: api.getSettings,
   });
 
-  const currencySymbol = getCurrencySymbol(settings?.currency || 'USD');
+  const { currencySymbol } = useDisplayCurrency(settings?.currency);
 
   const { data: projects, isLoading } = useQuery({
     queryKey: ['projects', statusFilter === 'all' ? undefined : statusFilter],
