@@ -82,10 +82,10 @@ async def test_derives_midnight_baseline_from_adjacent_snapshots(db_session):
 
 async def test_nothing_derivable_before_first_midnight_baseline(db_session):
     plug = await _plug(db_session)
-    now = datetime.now(timezone.utc)
+    now = datetime(2026, 7, 28, 10, 0, tzinfo=timezone.utc)
     await _snapshot(db_session, plug.id, now - timedelta(minutes=30), 102.0)
 
-    today, yesterday = await derive_today_yesterday(db_session, plug.id, live_total_kwh=103.5)
+    today, yesterday = await derive_today_yesterday(db_session, plug.id, live_total_kwh=103.5, now_utc=now)
 
     assert today is None
     assert yesterday is None
