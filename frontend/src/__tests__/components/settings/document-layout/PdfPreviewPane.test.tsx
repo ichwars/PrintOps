@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getPreviewReport: vi.fn(),
   downloadPreviewPdf: vi.fn(),
   getDocument: vi.fn(),
+  pageRender: vi.fn(),
   renderCancel: vi.fn(),
   documentDestroy: vi.fn(),
 }));
@@ -83,6 +84,7 @@ beforeEach(() => {
     blob: new Blob(['pdf'], { type: 'application/pdf' }),
     etag: '"pdf-v1"',
   });
+  mocks.pageRender.mockImplementation(() => ({ promise: Promise.resolve(), cancel: mocks.renderCancel }));
   mocks.getDocument.mockImplementation(() => ({
     promise: Promise.resolve({
       numPages: 2,
@@ -91,7 +93,7 @@ beforeEach(() => {
           width: 595 * scale,
           height: 842 * scale,
         }),
-        render: vi.fn(() => ({ promise: Promise.resolve(), cancel: mocks.renderCancel })),
+        render: mocks.pageRender,
         pageNumber,
       })),
       cleanup: mocks.documentDestroy,
@@ -185,6 +187,7 @@ describe('PdfPreviewPane', () => {
   it('revokes blob URLs and cancels PDF resources on replacement and unmount', async () => {
     const view = renderPane();
     await screen.findByText('Page 1 of 2');
+    await waitFor(() => expect(mocks.pageRender).toHaveBeenCalled());
 
     view.unmount();
 
