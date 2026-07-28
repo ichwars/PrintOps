@@ -586,16 +586,23 @@ class TestCloudRouteRegionPlumbing:
         'Connected (China)' after a reload."""
         from backend.app.api.routes.cloud import store_token
         from backend.app.core.database import async_session
+        from backend.app.services.bambu_cloud import set_shared_http_client
 
-        with patch("backend.app.core.auth.is_auth_enabled", return_value=False):
-            async with async_session() as db:
-                await store_token(db, "cn-token", "token-auth", "china", user=None)
+        mock_client, _captured_urls = self._capturing_client({"ok": True})
+        set_shared_http_client(mock_client)
+        try:
+            with patch("backend.app.core.auth.is_auth_enabled", return_value=False):
+                async with async_session() as db:
+                    await store_token(db, "cn-token", "token-auth", "china", user=None)
 
-            response = await async_client.get("/api/v1/cloud/status")
-            assert response.status_code == 200
-            data = response.json()
-            assert data["is_authenticated"] is True
-            assert data["region"] == "china"
+                response = await async_client.get("/api/v1/cloud/status")
+                assert response.status_code == 200
+                data = response.json()
+                assert data["is_authenticated"] is True
+                assert data["region"] == "china"
+        finally:
+            set_shared_http_client(None)
+            await mock_client.aclose()
 
     @pytest.mark.asyncio
     @pytest.mark.integration
