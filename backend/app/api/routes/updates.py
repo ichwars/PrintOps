@@ -208,10 +208,7 @@ def _find_windows_installer_asset(release_data: dict) -> str | None:
         url = asset.get("browser_download_url")
         if not isinstance(name, str) or not isinstance(url, str):
             continue
-        if not (
-            name.endswith("windows-x64-setup.exe")
-            or name.endswith("windows-x64-setup-unsigned.exe")
-        ):
+        if not (name.endswith("windows-x64-setup.exe") or name.endswith("windows-x64-setup-unsigned.exe")):
             continue
         if name in {
             "printops-windows-x64-setup.exe",
