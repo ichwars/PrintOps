@@ -105,7 +105,7 @@ class TestBugReportService:
 
         assert result["success"] is False
         assert "unexpected GitHub repository" in result["message"]
-        assert result["issue_url"] is None
+        assert result["issue_url"] == "https://github.com/ichwars/PrintOps/issues/new/choose"
         mock_db.add.assert_called_once()
 
     @pytest.mark.asyncio
@@ -128,6 +128,7 @@ class TestBugReportService:
 
         assert result["success"] is False
         assert "Rate limit" in result["message"]
+        assert result["issue_url"] == "https://github.com/ichwars/PrintOps/issues/new/choose"
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -148,6 +149,7 @@ class TestBugReportService:
 
         assert result["success"] is False
         assert "not configured" in result["message"]
+        assert result["issue_url"] == "https://github.com/ichwars/PrintOps/issues/new/choose"
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -186,6 +188,7 @@ class TestBugReportService:
 
         assert result["success"] is False
         assert "not available" in result["message"]
+        assert result["issue_url"] == "https://github.com/ichwars/PrintOps/issues/new/choose"
         mock_db.add.assert_called_once()
 
     @pytest.mark.asyncio
@@ -222,6 +225,7 @@ class TestBugReportService:
 
         assert result["success"] is False
         assert "Failed to submit" in result["message"]
+        assert result["issue_url"] == "https://github.com/ichwars/PrintOps/issues/new/choose"
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -264,6 +268,7 @@ class TestBugReportService:
 
         assert result["success"] is False
         assert "GitHub API error" in result["message"]
+        assert result["issue_url"] == "https://github.com/ichwars/PrintOps/issues/new/choose"
 
 
 class TestStartLogging:

@@ -40,6 +40,11 @@ def _issue_url_points_at_expected_repo(issue_url: object, issue_number: int) -> 
     return parsed.path.lower() == expected_path.lower()
 
 
+def _manual_issue_url() -> str:
+    """Return the GitHub issue chooser URL for manual fallback reporting."""
+    return f"https://github.com/{GITHUB_REPO}/issues/new/choose"
+
+
 async def submit_report(
     description: str,
     reporter_email: str | None,
@@ -51,15 +56,15 @@ async def submit_report(
         return {
             "success": False,
             "message": "Rate limit exceeded. Please try again later.",
-            "issue_url": None,
+            "issue_url": _manual_issue_url(),
             "issue_number": None,
         }
 
     if not BUG_REPORT_RELAY_URL:
         return {
             "success": False,
-            "message": "Bug reporting is not configured. BUG_REPORT_RELAY_URL is not set.",
-            "issue_url": None,
+            "message": "Automatic bug reporting is not configured. Please open the GitHub issue form.",
+            "issue_url": _manual_issue_url(),
             "issue_number": None,
         }
 
@@ -90,7 +95,7 @@ async def submit_report(
                 return {
                     "success": False,
                     "message": "Bug report relay is not available. Please try again later.",
-                    "issue_url": None,
+                    "issue_url": _manual_issue_url(),
                     "issue_number": None,
                 }
             relay_data = resp.json()
@@ -109,7 +114,7 @@ async def submit_report(
         return {
             "success": False,
             "message": "Failed to submit bug report. Please try again later.",
-            "issue_url": None,
+            "issue_url": _manual_issue_url(),
             "issue_number": None,
         }
 
@@ -127,7 +132,7 @@ async def submit_report(
         return {
             "success": False,
             "message": relay_data.get("message", "Failed to create bug report."),
-            "issue_url": None,
+            "issue_url": _manual_issue_url(),
             "issue_number": None,
         }
 
@@ -153,7 +158,7 @@ async def submit_report(
         return {
             "success": False,
             "message": "Bug report relay returned an unexpected GitHub repository. Please check the relay configuration.",
-            "issue_url": None,
+            "issue_url": _manual_issue_url(),
             "issue_number": None,
         }
 
