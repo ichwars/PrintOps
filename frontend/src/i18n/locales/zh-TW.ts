@@ -3772,6 +3772,12 @@ export default {
   support: {
     debugLoggingActive: '偵錯日誌紀錄已啟用',
     manageLogs: '管理',
+    bugReportDestination: '錯誤回報目標',
+    bugReportRelayConfigured: '已設定自動建立 GitHub Issue',
+    bugReportManualFallback: '將使用手動 GitHub Issue 表單',
+    bugReportStatusLoading: '正在檢查錯誤回報設定...',
+    bugReportStatusUnavailable: '錯誤回報設定目前無法使用',
+    openIssueForm: '開啟 Issue 表單',
     collectItem7: '印表機連線和韌體版本',
     collectItem8: '整合狀態（Spoolman、MQTT、HA）',
     collectItem9: '網路介面（僅子網）',

@@ -3597,6 +3597,12 @@ export default {
   support: {
     debugLoggingActive: '디버그 로깅이 활성화되어 있습니다',
     manageLogs: '관리',
+    bugReportDestination: '버그 신고 대상',
+    bugReportRelayConfigured: 'GitHub 이슈 자동 생성이 구성되어 있습니다',
+    bugReportManualFallback: '수동 GitHub 이슈 양식을 사용합니다',
+    bugReportStatusLoading: '버그 신고 구성을 확인하는 중...',
+    bugReportStatusUnavailable: '현재 버그 신고 구성을 사용할 수 없습니다',
+    openIssueForm: '이슈 양식 열기',
     collectItem7: '프린터 연결 및 펌웨어 버전',
     collectItem8: '통합 상태 (Spoolman, MQTT, HA)',
     collectItem9: '네트워크 인터페이스 (서브넷만)',

@@ -357,6 +357,32 @@ describe('SystemInfoPage', () => {
     });
   });
 
+  it('shows bug report configuration loading state before status is available', async () => {
+    (api.getSystemInfo as ReturnType<typeof vi.fn>).mockResolvedValue(mockSystemInfo);
+    (bugReportApi.getStatus as ReturnType<typeof vi.fn>).mockImplementation(
+      () => new Promise(() => {})
+    );
+
+    render(<SystemInfoPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Checking bug report configuration...')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Manual GitHub issue form is used')).not.toBeInTheDocument();
+  });
+
+  it('shows bug report configuration error state without claiming manual mode', async () => {
+    (api.getSystemInfo as ReturnType<typeof vi.fn>).mockResolvedValue(mockSystemInfo);
+    (bugReportApi.getStatus as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('status failed'));
+
+    render(<SystemInfoPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Bug report configuration is currently unavailable')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Manual GitHub issue form is used')).not.toBeInTheDocument();
+  });
+
   it('applies danger color for critical disk usage', async () => {
     const criticalDiskUsage = {
       ...mockSystemInfo,

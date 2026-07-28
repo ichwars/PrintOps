@@ -3821,6 +3821,12 @@ export default {
   support: {
     debugLoggingActive: 'Debug-Protokollierung ist aktiv',
     manageLogs: 'Verwalten',
+    bugReportDestination: 'Ziel für Fehlermeldungen',
+    bugReportRelayConfigured: 'Automatische GitHub-Issue-Erstellung ist konfiguriert',
+    bugReportManualFallback: 'Manuelles GitHub-Issue-Formular wird verwendet',
+    bugReportStatusLoading: 'Fehlermelde-Konfiguration wird geprüft...',
+    bugReportStatusUnavailable: 'Fehlermelde-Konfiguration ist derzeit nicht verfügbar',
+    openIssueForm: 'Issue-Formular öffnen',
     collectItem7: 'Drucker-Verbindungsstatus und Firmware-Versionen',
     collectItem8: 'Integrationsstatus (Spoolman, MQTT, HA)',
     collectItem9: 'Netzwerkschnittstellen (nur Subnetze)',

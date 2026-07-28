@@ -3793,6 +3793,12 @@ export default {
   support: {
     debugLoggingActive: 'El registro de depuración está activo',
     manageLogs: 'Gestionar',
+    bugReportDestination: 'Destino de informes de errores',
+    bugReportRelayConfigured: 'La creación automática de incidencias en GitHub está configurada',
+    bugReportManualFallback: 'Se usa el formulario manual de incidencias de GitHub',
+    bugReportStatusLoading: 'Comprobando la configuración de informes de errores...',
+    bugReportStatusUnavailable: 'La configuración de informes de errores no está disponible actualmente',
+    openIssueForm: 'Abrir formulario de incidencia',
     collectItem7: 'Conectividad de la impresora y versiones de firmware',
     collectItem8: 'Estado de las integraciones (Spoolman, MQTT, HA)',
     collectItem9: 'Interfaces de red (solo subredes)',

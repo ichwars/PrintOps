@@ -3772,6 +3772,12 @@ export default {
   support: {
     debugLoggingActive: '调试日志记录已激活',
     manageLogs: '管理',
+    bugReportDestination: '错误报告目标',
+    bugReportRelayConfigured: '已配置自动创建 GitHub Issue',
+    bugReportManualFallback: '将使用手动 GitHub Issue 表单',
+    bugReportStatusLoading: '正在检查错误报告配置...',
+    bugReportStatusUnavailable: '错误报告配置当前不可用',
+    openIssueForm: '打开 Issue 表单',
     collectItem7: '打印机连接和固件版本',
     collectItem8: '集成状态（Spoolman、MQTT、HA）',
     collectItem9: '网络接口（仅子网）',

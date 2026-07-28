@@ -118,7 +118,11 @@ export function SystemInfoPage() {
     refetchInterval: 10 * 1000,
   });
 
-  const { data: bugReportStatus } = useQuery({
+  const {
+    data: bugReportStatus,
+    isLoading: bugReportStatusLoading,
+    isError: bugReportStatusError,
+  } = useQuery({
     queryKey: ['bugReportStatus'],
     queryFn: bugReportApi.getStatus,
     staleTime: 60 * 1000,
@@ -275,13 +279,19 @@ export function SystemInfoPage() {
                   {t('support.bugReportDestination', 'Bug Report Destination')}
                 </p>
                 <p className="text-sm text-bambu-gray">
-                  {bugReportStatus?.relay_configured
+                  {bugReportStatusLoading
+                    ? t('support.bugReportStatusLoading', 'Checking bug report configuration...')
+                    : bugReportStatusError
+                    ? t('support.bugReportStatusUnavailable', 'Bug report configuration is currently unavailable')
+                    : bugReportStatus?.relay_configured
                     ? t('support.bugReportRelayConfigured', 'Automatic GitHub issue creation is configured')
                     : t('support.bugReportManualFallback', 'Manual GitHub issue form is used')}
                 </p>
-                <p className="text-xs text-bambu-gray/70 truncate">
-                  {bugReportStatus?.repository ?? 'ichwars/PrintOps'}
-                </p>
+                {bugReportStatus?.repository && (
+                  <p className="text-xs text-bambu-gray/70 truncate">
+                    {bugReportStatus.repository}
+                  </p>
+                )}
               </div>
             </div>
             {bugReportStatus?.issue_url && (

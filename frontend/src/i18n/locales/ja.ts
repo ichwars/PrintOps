@@ -3784,6 +3784,12 @@ export default {
   support: {
     debugLoggingActive: 'デバッグログが有効です',
     manageLogs: '管理',
+    bugReportDestination: 'バグ報告先',
+    bugReportRelayConfigured: 'GitHub Issue の自動作成が設定されています',
+    bugReportManualFallback: '手動の GitHub Issue フォームを使用します',
+    bugReportStatusLoading: 'バグ報告設定を確認しています...',
+    bugReportStatusUnavailable: 'バグ報告設定は現在利用できません',
+    openIssueForm: 'Issue フォームを開く',
     collectItem7: 'プリンター接続状態とファームウェアバージョン',
     collectItem8: '連携状態（Spoolman、MQTT、HA）',
     collectItem9: 'ネットワークインターフェース（サブネットのみ）',

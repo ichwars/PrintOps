@@ -3773,6 +3773,12 @@ export default {
   support: {
     debugLoggingActive: 'Débogage actif',
     manageLogs: 'Gérer',
+    bugReportDestination: 'Destination des rapports de bug',
+    bugReportRelayConfigured: 'La création automatique d’issues GitHub est configurée',
+    bugReportManualFallback: 'Le formulaire manuel d’issue GitHub est utilisé',
+    bugReportStatusLoading: 'Vérification de la configuration des rapports de bug...',
+    bugReportStatusUnavailable: 'La configuration des rapports de bug est actuellement indisponible',
+    openIssueForm: 'Ouvrir le formulaire d’issue',
     collectItem7: 'Connectivité et versions firmware',
     collectItem8: 'Statut intégrations (Spoolman, MQTT, HA)',
     collectItem9: 'Interfaces réseau (sous-réseaux)',

@@ -55,7 +55,7 @@ class StopLoggingResponse(BaseModel):
 
 @router.get("/status", response_model=BugReportStatusResponse)
 async def get_status(
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_READ),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.SYSTEM_READ),
 ):
     """Return bug-reporting destination and automatic relay status."""
     return BugReportStatusResponse(**get_bug_report_status())
