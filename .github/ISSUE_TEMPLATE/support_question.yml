@@ -1,0 +1,80 @@
+name: Support Question
+description: Ask a setup or usage question that is not a confirmed bug.
+title: "[Question]: "
+labels: ["question", "support"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form when you need help with setup or usage and you are not sure this is a PrintOps bug.
+
+        If you already have a reproducible defect, please use the Bug Report form instead.
+
+  - type: dropdown
+    id: product
+    attributes:
+      label: Product
+      options:
+        - PrintOps
+        - SpoolBuddy
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Printer connection / setup
+        - Print start / dispatch
+        - Filament / AMS / Spoolman
+        - Slicer integration (Bambu Studio / OrcaSlicer)
+        - Virtual Printer (VP)
+        - Camera / live view / timelapse
+        - Archives / library / files
+        - Statistics
+        - Cost Tracking / Energy Overview
+        - Order Management / Documents
+        - Suppliers / Procurement
+        - Print Queue / scheduling
+        - Notifications
+        - Authentication / users / permissions
+        - Updates / firmware check
+        - UI / display / theme / i18n
+        - API / integrations
+        - Windows Installer / Updates
+        - Docker / Deployment
+        - SpoolBuddy
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Installed Version
+      description: If PrintOps or SpoolBuddy is already installed, add the version from Settings or System Info.
+      placeholder: e.g., 1.2.7
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What are you trying to do, and where are you stuck?
+      placeholder: Describe the setup, command, screen, or workflow you need help with.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Include screenshots, logs, docker-compose snippets, or a support package if relevant.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and the wiki first.
+          required: true

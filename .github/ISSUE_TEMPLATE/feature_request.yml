@@ -8,6 +8,16 @@ body:
       value: |
         Thanks for suggesting a feature! Please fill out the form below.
 
+  - type: dropdown
+    id: product
+    attributes:
+      label: Product
+      options:
+        - PrintOps
+        - SpoolBuddy
+    validations:
+      required: true
+
   - type: textarea
     id: problem
     attributes:
@@ -34,32 +44,32 @@ body:
       placeholder: I've tried...
 
   - type: dropdown
-    id: category
+    id: area
     attributes:
-      label: Feature Category
+      label: Area
       description: What area does this feature relate to?
       options:
-        - Print Archiving
-        - Monitoring & Stats
-        - Print Queue & Scheduling
-        - Smart Plugs
+        - Printer connection / setup
+        - Print start / dispatch
+        - Filament / AMS / Spoolman
+        - Slicer integration (Bambu Studio / OrcaSlicer)
+        - Virtual Printer (VP)
+        - Camera / live view / timelapse
+        - Archives / library / files
+        - Statistics
+        - Cost Tracking / Energy Overview
+        - Order Management / Documents
+        - Suppliers / Procurement
+        - Print Queue / scheduling
         - Notifications
-        - Spool Inventory
-        - Spoolman Integration
-        - Cloud Profiles
-        - K-Profiles
-        - Maintenance Tracking
-        - File Manager
-        - SpoolBuddy - Dashboard
-        - SpoolBuddy - AMS Management
-        - SpoolBuddy - NFC / Tag Writing
-        - SpoolBuddy - Scale / Calibration
-        - SpoolBuddy - Inventory
-        - SpoolBuddy - Settings / Updates
-        - SpoolBuddy - Hardware / Installation
-        - UI/UX
-        - API
-        - Other
+        - Authentication / users / permissions
+        - Updates / firmware check
+        - UI / display / theme / i18n
+        - API / integrations
+        - Windows Installer / Updates
+        - Docker / Deployment
+        - SpoolBuddy
+        - Other / not sure
     validations:
       required: true
 

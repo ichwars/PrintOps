@@ -206,6 +206,8 @@ export function BugReportBubble() {
         setIssueNumber(result.issue_number || null);
         setViewState('success');
       } else {
+        setIssueUrl(result.issue_url || null);
+        setIssueNumber(result.issue_number || null);
         setErrorMessage(result.message);
         setViewState('error');
       }
@@ -537,6 +539,16 @@ export function BugReportBubble() {
                   <AlertCircle className="w-12 h-12 text-red-500" />
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">{t('bugReport.submitFailed')}</p>
                   <p className="text-sm text-gray-600 dark:text-gray-400 text-center">{errorMessage}</p>
+                  {issueUrl && (
+                    <a
+                      href={issueUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-500 hover:text-blue-600 underline"
+                    >
+                      {t('bugReport.title')}
+                    </a>
+                  )}
                   <div className="flex gap-2 mt-4">
                     <button
                       onClick={() => setViewState('form')}

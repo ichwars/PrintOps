@@ -206,7 +206,7 @@ describe('BugReportBubble', () => {
         return HttpResponse.json({
           success: false,
           message: 'Relay not available',
-          issue_url: null,
+          issue_url: 'https://github.com/ichwars/PrintOps/issues/new/choose',
           issue_number: null,
         });
       })
@@ -236,6 +236,9 @@ describe('BugReportBubble', () => {
       },
       { timeout: 10000 }
     );
+    expect(
+      document.querySelector('a[href="https://github.com/ichwars/PrintOps/issues/new/choose"]')
+    ).toBeInTheDocument();
   });
 
   it('has expandable data collection notice', async () => {

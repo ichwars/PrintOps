@@ -1,5 +1,5 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
-  - name: Upstream PrintOps documentation
+  - name: PrintOps documentation
     url: https://github.com/ichwars/PrintOps/wiki/
-    about: Technical reference for inherited PrintOps functionality while PrintOps documentation is being built.
+    about: Check the project wiki before opening a bug report or support question.

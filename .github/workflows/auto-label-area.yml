@@ -1,19 +1,18 @@
-# Auto-apply area:* label from the "Area" dropdown in bug_report.yml.
+# Auto-apply product:* and area:* labels from GitHub issue forms.
 #
-# The bug-report issue form renders dropdown values into the issue body as a
+# The issue forms render dropdown values into the issue body as a
 # section like:
 #
 #   ### Area
 #
 #   Printer connection / setup
 #
-# This workflow parses that section after issue creation/edit and adds the
-# matching area:* label. Frees the maintainer from typing the same label on
-# every new bug.
+# This workflow parses the Product and Area sections after issue creation/edit
+# and adds the matching labels. Frees the maintainer from typing the same
+# labels on every new issue.
 #
-# Labels referenced here must already exist in the repo — see the
-# `gh label create` commands in CHANGELOG for [0.2.5b1].
-name: Auto-label Issue Area
+# Labels referenced here are provisioned by issue-labels.yml.
+name: Auto-label Issue Metadata
 
 on:
   issues:
@@ -23,18 +22,25 @@ permissions:
   issues: write
 
 jobs:
-  apply-area-label:
+  apply-issue-labels:
     runs-on: ubuntu-latest
     if: github.event.issue.pull_request == null
     steps:
-      - name: Apply area:* label from Area dropdown
+      - name: Apply product:* and area:* labels from form dropdowns
         uses: actions/github-script@v9
         with:
           script: |
             const body = context.payload.issue.body || '';
+            const labelsToAdd = [];
+
+            const productMap = {
+              'printops': 'product:printops',
+              'spoolbuddy': 'product:spoolbuddy',
+            };
+            let desiredProductLabel = null;
 
             // Map of Area dropdown value (lowercased, trimmed) → area:* label.
-            // Keep in lockstep with .github/ISSUE_TEMPLATE/bug_report.yml.
+            // Keep in lockstep with .github/ISSUE_TEMPLATE/*.yml Area fields.
             const areaMap = {
               'printer connection / setup':                    'area:connection',
               'print start / dispatch':                        'area:print-dispatch',
@@ -44,51 +50,111 @@ jobs:
               'camera / live view / timelapse':                'area:camera',
               'archives / library / files':                    'area:archives',
               'statistics':                                    'area:stats',
+              'cost tracking / energy overview':               'area:costs',
+              'order management / documents':                  'area:orders',
+              'suppliers / procurement':                       'area:procurement',
               'print queue / scheduling':                      'area:queue',
               'notifications':                                 'area:notifications',
               'authentication / users / permissions':          'area:auth',
               'updates / firmware check':                      'area:updates',
               'ui / display / theme / i18n':                   'area:ui',
               'api / integrations (home assistant, mqtt export, obico, ...)': 'area:integrations',
+              'api / integrations':                            'area:integrations',
+              'windows installer / updates':                   'area:installer',
+              'docker / deployment':                           'area:deployment',
               'spoolbuddy kiosk / display':                    'area:spoolbuddy',
+              'spoolbuddy':                                    'area:spoolbuddy',
               'other / not sure':                              'area:unsorted',
             };
+            let desiredAreaLabel = null;
+            const productLabels = new Set(Object.values(productMap));
+            const areaLabels = new Set(Object.values(areaMap));
 
             // GitHub issue forms render dropdown answers under a level-3 heading
             // matching the field label. Capture the first non-blank line of the
             // section. Tolerant of trailing whitespace and CRLF endings.
-            const match = body.match(/###\s+Area\s*\r?\n\s*\r?\n\s*([^\r\n]+)/i);
-            if (!match) {
-              core.info('No "Area" section found in issue body — skipping.');
-              return;
-            }
-            const picked = match[1].trim().toLowerCase();
-
-            // Strip any markdown bold the form might add (rare) and tolerate
-            // a "_No response_" placeholder some renderers insert for required-
-            // but-empty fields (shouldn't happen, the field is required).
-            if (picked === '_no response_' || picked === '') {
-              core.info('Area field empty — skipping.');
-              return;
+            const productMatch = body.match(/###\s+Product\s*\r?\n\s*\r?\n\s*([^\r\n]+)/i);
+            if (productMatch) {
+              const pickedProduct = productMatch[1].trim().toLowerCase();
+              const productLabel = productMap[pickedProduct];
+              if (productLabel) {
+                desiredProductLabel = productLabel;
+                labelsToAdd.push(productLabel);
+              } else if (pickedProduct && pickedProduct !== '_no response_') {
+                core.warning(`Unrecognised Product value: "${pickedProduct}". Update productMap in auto-label-area.yml.`);
+              }
             }
 
-            const label = areaMap[picked];
-            if (!label) {
-              core.warning(`Unrecognised Area value: "${picked}". Update areaMap in auto-label-area.yml.`);
+            const areaMatch = body.match(/###\s+Area\s*\r?\n\s*\r?\n\s*([^\r\n]+)/i);
+            if (!areaMatch) {
+              core.info('No "Area" section found in issue body.');
+            } else {
+              const picked = areaMatch[1].trim().toLowerCase();
+
+              // Tolerate a "_No response_" placeholder some renderers insert
+              // for required-but-empty fields.
+              if (picked === '_no response_' || picked === '') {
+                core.info('Area field empty.');
+              } else {
+                const label = areaMap[picked];
+                if (!label) {
+                  core.warning(`Unrecognised Area value: "${picked}". Update areaMap in auto-label-area.yml.`);
+                } else {
+                  desiredAreaLabel = label;
+                  labelsToAdd.push(label);
+                }
+              }
+            }
+
+            if (labelsToAdd.length === 0) {
+              core.info('No metadata labels to apply.');
               return;
             }
 
-            // Don't re-add if already present (issue edit path).
-            const existing = (context.payload.issue.labels || []).map(l => l.name);
-            if (existing.includes(label)) {
-              core.info(`Label "${label}" already present — nothing to do.`);
+            const existing = new Set((context.payload.issue.labels || []).map(l => l.name));
+            const stale = [...existing].filter(label =>
+              (productLabels.has(label) && desiredProductLabel && label !== desiredProductLabel) ||
+              (areaLabels.has(label) && desiredAreaLabel && label !== desiredAreaLabel)
+            );
+
+            for (const label of stale) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.payload.issue.number,
+                  name: label,
+                });
+                existing.delete(label);
+                core.info(`Removed stale metadata label "${label}".`);
+              } catch (error) {
+                if (error.status === 404) {
+                  existing.delete(label);
+                  core.info(`Stale metadata label "${label}" was already absent.`);
+                  continue;
+                }
+                throw error;
+              }
+            }
+
+            const missing = [...new Set(labelsToAdd)].filter(label => !existing.has(label));
+            if (missing.length === 0) {
+              core.info('All metadata labels already present.');
               return;
             }
 
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo:  context.repo.repo,
-              issue_number: context.payload.issue.number,
-              labels: [label],
-            });
-            core.info(`Applied label "${label}" to issue #${context.payload.issue.number}.`);
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                issue_number: context.payload.issue.number,
+                labels: missing,
+              });
+            } catch (error) {
+              if (error.status === 404) {
+                core.warning(`Could not apply labels ${missing.join(', ')}. Run the "Sync issue labels" workflow first.`);
+                return;
+              }
+              throw error;
+            }
+            core.info(`Applied labels ${missing.join(', ')} to issue #${context.payload.issue.number}.`);
