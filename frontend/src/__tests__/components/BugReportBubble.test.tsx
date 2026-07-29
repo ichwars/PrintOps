@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '../utils';
 import userEvent from '@testing-library/user-event';
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
 import { BugReportBubble } from '../../components/BugReportBubble';
 
@@ -79,7 +79,7 @@ describe('BugReportBubble', () => {
     expect(await screen.findByText('Report through GitHub')).toBeInTheDocument();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Start Debug Logging' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /open github issue/i })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: /open github issue/i })).toHaveAttribute(
       'href',
       'https://github.com/ichwars/PrintOps/issues/new/choose'
     );
@@ -98,6 +98,36 @@ describe('BugReportBubble', () => {
         'https://github.com/ichwars/PrintOps/issues/new?template=bug_report.yml'
       );
     });
+  });
+
+  it('waits for pre-report checks before enabling the GitHub issue link', async () => {
+    const user = userEvent.setup();
+    setupBugReportStatus();
+    server.use(
+      http.get('*/printers/', async () => {
+        await delay(100);
+        return HttpResponse.json([]);
+      }),
+      http.get('*/system/health', async () => {
+        await delay(100);
+        return HttpResponse.json({
+          findings: [],
+          scanned_entries: 0,
+          log_available: true,
+          summary: { total: 0, layer8: 0, environment: 0, bug: 0 },
+        });
+      })
+    );
+
+    render(<BugReportBubble />);
+    await user.click(screen.getByRole('button'));
+
+    expect(await screen.findByRole('button', { name: /open github issue/i })).toBeDisabled();
+    expect(screen.queryByRole('link', { name: /open github issue/i })).not.toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /open github issue/i })).toHaveAttribute(
+      'href',
+      'https://github.com/ichwars/PrintOps/issues/new/choose'
+    );
   });
 
   it('closes panel when X button is clicked', async () => {

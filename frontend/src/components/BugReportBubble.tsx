@@ -58,6 +58,7 @@ export function BugReportBubble() {
   });
   const issueUrl = bugReportStatus.data?.issue_url || FALLBACK_ISSUE_URL;
   const repository = bugReportStatus.data?.repository || 'ichwars/PrintOps';
+  const preReportChecksRunning = diagnosticScan.isLoading || logHealthScan.isLoading;
 
   const handleOpen = () => setIsOpen(true);
   const handleClose = () => setIsOpen(false);
@@ -194,15 +195,25 @@ export function BugReportBubble() {
                 >
                   {t('common.cancel')}
                 </button>
-                <a
-                  href={issueUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  {t('bugReport.openIssueForm')}
-                </a>
+                {preReportChecksRunning ? (
+                  <button
+                    disabled
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-500 opacity-50 cursor-not-allowed rounded-lg transition-colors"
+                  >
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {t('bugReport.openIssueForm')}
+                  </button>
+                ) : (
+                  <a
+                    href={issueUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    {t('bugReport.openIssueForm')}
+                  </a>
+                )}
               </div>
             </div>
           </div>
