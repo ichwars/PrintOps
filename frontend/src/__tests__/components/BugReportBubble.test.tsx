@@ -5,32 +5,19 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '../utils';
 import userEvent from '@testing-library/user-event';
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
 import { BugReportBubble } from '../../components/BugReportBubble';
 
-function getDescriptionTextarea() {
-  return document.querySelector('textarea') as HTMLTextAreaElement;
-}
-
-function getSubmitButton() {
-  const buttons = screen.getAllByRole('button');
-  return buttons.find(
-    (b) =>
-      b.className.includes('bg-red-500') &&
-      !b.className.includes('rounded-full') &&
-      b.textContent !== ''
-  );
-}
-
-function setupLoggingEndpoints() {
+function setupBugReportStatus(issueUrl = 'https://github.com/ichwars/PrintOps/issues/new/choose') {
   server.use(
-    http.post('*/bug-report/start-logging', () => {
-      return HttpResponse.json({ started: true, was_debug: false });
-    }),
-    http.post('*/bug-report/stop-logging', () => {
-      return HttpResponse.json({ logs: 'test debug logs' });
-    })
+    http.get('*/bug-report/status', () =>
+      HttpResponse.json({
+        repository: 'ichwars/PrintOps',
+        relay_configured: false,
+        issue_url: issueUrl,
+      })
+    )
   );
 }
 
@@ -82,13 +69,65 @@ describe('BugReportBubble', () => {
     expect(button.className).toContain('focus-visible:bg-red-500');
   });
 
-  it('opens panel when bubble is clicked', async () => {
+  it('opens a manual GitHub issue panel when bubble is clicked', async () => {
     const user = userEvent.setup();
+    setupBugReportStatus();
 
     render(<BugReportBubble />);
     await user.click(screen.getByRole('button'));
 
-    expect(getDescriptionTextarea()).toBeInTheDocument();
+    expect(await screen.findByText('Report through GitHub')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start Debug Logging' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /open github issue/i })).toHaveAttribute(
+      'href',
+      'https://github.com/ichwars/PrintOps/issues/new/choose'
+    );
+  });
+
+  it('uses the configured issue form URL from the backend status endpoint', async () => {
+    const user = userEvent.setup();
+    setupBugReportStatus('https://github.com/ichwars/PrintOps/issues/new?template=bug_report.yml');
+
+    render(<BugReportBubble />);
+    await user.click(screen.getByRole('button'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /open github issue/i })).toHaveAttribute(
+        'href',
+        'https://github.com/ichwars/PrintOps/issues/new?template=bug_report.yml'
+      );
+    });
+  });
+
+  it('waits for pre-report checks before enabling the GitHub issue link', async () => {
+    const user = userEvent.setup();
+    setupBugReportStatus();
+    server.use(
+      http.get('*/printers/', async () => {
+        await delay(100);
+        return HttpResponse.json([]);
+      }),
+      http.get('*/system/health', async () => {
+        await delay(100);
+        return HttpResponse.json({
+          findings: [],
+          scanned_entries: 0,
+          log_available: true,
+          summary: { total: 0, layer8: 0, environment: 0, bug: 0 },
+        });
+      })
+    );
+
+    render(<BugReportBubble />);
+    await user.click(screen.getByRole('button'));
+
+    expect(await screen.findByRole('button', { name: /open github issue/i })).toBeDisabled();
+    expect(screen.queryByRole('link', { name: /open github issue/i })).not.toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /open github issue/i })).toHaveAttribute(
+      'href',
+      'https://github.com/ichwars/PrintOps/issues/new/choose'
+    );
   });
 
   it('closes panel when X button is clicked', async () => {
@@ -96,159 +135,16 @@ describe('BugReportBubble', () => {
 
     render(<BugReportBubble />);
 
-    // Open
     await user.click(screen.getByRole('button'));
-    expect(getDescriptionTextarea()).toBeInTheDocument();
+    expect(await screen.findByText('Report through GitHub')).toBeInTheDocument();
 
-    // Close via the X button
     const buttons = screen.getAllByRole('button');
     const closeButton = buttons.find((b) => b.querySelector('.lucide-x'));
     if (closeButton) await user.click(closeButton);
 
     await waitFor(() => {
-      expect(document.querySelector('textarea')).not.toBeInTheDocument();
+      expect(screen.queryByText('Report through GitHub')).not.toBeInTheDocument();
     });
-  });
-
-  it('disables submit when description is empty', async () => {
-    const user = userEvent.setup();
-
-    render(<BugReportBubble />);
-    await user.click(screen.getByRole('button'));
-
-    expect(getSubmitButton()).toBeDisabled();
-  });
-
-  it('enables submit when description is provided', async () => {
-    const user = userEvent.setup();
-
-    render(<BugReportBubble />);
-    await user.click(screen.getByRole('button'));
-
-    await user.type(getDescriptionTextarea(), 'Something is broken');
-
-    expect(getSubmitButton()).not.toBeDisabled();
-  });
-
-  it('shows logging state with step indicators after start', async () => {
-    const user = userEvent.setup();
-    setupLoggingEndpoints();
-
-    render(<BugReportBubble />);
-    await user.click(screen.getByRole('button'));
-
-    await user.type(getDescriptionTextarea(), 'Test bug report');
-
-    const submitBtn = getSubmitButton();
-    if (submitBtn) await user.click(submitBtn);
-
-    // Should show step indicators and elapsed timer
-    await waitFor(() => {
-      const reproduceText = screen.queryByText(/reproduce|Reproduce|reproduzieren|reproduire|riproduci|再現|reproduza|重现/i);
-      expect(reproduceText).toBeInTheDocument();
-    });
-
-    // Should show elapsed timer (00:00 format)
-    await waitFor(() => {
-      const timer = screen.queryByText(/00:0/);
-      expect(timer).toBeInTheDocument();
-    });
-  });
-
-  it('shows success state after successful submission', async () => {
-    const user = userEvent.setup();
-
-    setupLoggingEndpoints();
-    server.use(
-      http.post('*/bug-report/submit', () => {
-        return HttpResponse.json({
-          success: true,
-          message: 'Bug report submitted successfully!',
-          issue_url: 'https://github.com/ichwars/PrintOps/issues/42',
-          issue_number: 42,
-        });
-      })
-    );
-
-    render(<BugReportBubble />);
-    await user.click(screen.getByRole('button'));
-
-    await user.type(getDescriptionTextarea(), 'Test bug');
-
-    const submitBtn = getSubmitButton();
-    if (submitBtn) await user.click(submitBtn);
-
-    // Wait for logging state, then click stop
-    await waitFor(() => {
-      expect(screen.queryByText(/reproduce|Reproduce|reproduzieren|reproduire|riproduci|再現|reproduza|重现/i)).toBeInTheDocument();
-    });
-
-    // Find and click the Stop & Submit button
-    const stopBtn = screen.getAllByRole('button').find(
-      (b) => b.className.includes('bg-red-500') && !b.className.includes('rounded-full')
-    );
-    if (stopBtn) await user.click(stopBtn);
-
-    await waitFor(
-      () => {
-        expect(screen.getByText(/#42/)).toBeInTheDocument();
-      },
-      { timeout: 10000 }
-    );
-  });
-
-  it('shows error state after failed submission', async () => {
-    const user = userEvent.setup();
-
-    setupLoggingEndpoints();
-    server.use(
-      http.post('*/bug-report/submit', () => {
-        return HttpResponse.json({
-          success: false,
-          message: 'Relay not available',
-          issue_url: 'https://github.com/ichwars/PrintOps/issues/new/choose',
-          issue_number: null,
-        });
-      })
-    );
-
-    render(<BugReportBubble />);
-    await user.click(screen.getByRole('button'));
-
-    await user.type(getDescriptionTextarea(), 'Test bug');
-
-    const submitBtn = getSubmitButton();
-    if (submitBtn) await user.click(submitBtn);
-
-    // Wait for logging state, then click stop
-    await waitFor(() => {
-      expect(screen.queryByText(/reproduce|Reproduce|reproduzieren|reproduire|riproduci|再現|reproduza|重现/i)).toBeInTheDocument();
-    });
-
-    const stopBtn = screen.getAllByRole('button').find(
-      (b) => b.className.includes('bg-red-500') && !b.className.includes('rounded-full')
-    );
-    if (stopBtn) await user.click(stopBtn);
-
-    await waitFor(
-      () => {
-        expect(screen.getByText(/Relay not available/)).toBeInTheDocument();
-      },
-      { timeout: 10000 }
-    );
-    expect(
-      document.querySelector('a[href="https://github.com/ichwars/PrintOps/issues/new/choose"]')
-    ).toBeInTheDocument();
-  });
-
-  it('has expandable data collection notice', async () => {
-    const user = userEvent.setup();
-
-    render(<BugReportBubble />);
-    await user.click(screen.getByRole('button'));
-
-    const details = document.querySelector('details');
-    expect(details).toBeInTheDocument();
   });
 
   it('lists affected printers as collapsed rows, not stacked checklists', async () => {
@@ -265,18 +161,14 @@ describe('BugReportBubble', () => {
     render(<BugReportBubble />);
     await user.click(screen.getByRole('button'));
 
-    // Summary counts problem printers against all scanned printers.
     expect(
       await screen.findByText('2 of 3 printers have connection issues')
     ).toBeInTheDocument();
-    // Affected printers are listed by name; the healthy one is not.
     expect(screen.getByText('Printer Alpha')).toBeInTheDocument();
     expect(screen.getByText('Printer Beta')).toBeInTheDocument();
     expect(screen.queryByText('Printer Gamma')).not.toBeInTheDocument();
-    // With more than one problem the per-printer checklists stay collapsed.
     expect(screen.queryByText(/Found problems that explain/)).not.toBeInTheDocument();
 
-    // Expanding a row reveals just that printer's checklist.
     await user.click(screen.getByText('Printer Alpha'));
     expect(await screen.findByText(/Found problems that explain/)).toBeInTheDocument();
   });
@@ -291,7 +183,6 @@ describe('BugReportBubble', () => {
     expect(
       await screen.findByText('1 of 1 printers have connection issues')
     ).toBeInTheDocument();
-    // Single problem → the checklist is expanded without a click.
     expect(await screen.findByText(/Found problems that explain/)).toBeInTheDocument();
   });
 
