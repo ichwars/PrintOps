@@ -342,7 +342,7 @@ describe('SystemInfoPage', () => {
     );
   });
 
-  it('shows configured state when automatic bug reporting relay is enabled', async () => {
+  it('keeps the manual issue form state even when a relay is configured', async () => {
     (api.getSystemInfo as ReturnType<typeof vi.fn>).mockResolvedValue(mockSystemInfo);
     (bugReportApi.getStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
       repository: 'ichwars/PrintOps',
@@ -353,8 +353,9 @@ describe('SystemInfoPage', () => {
     render(<SystemInfoPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Automatic GitHub issue creation is configured')).toBeInTheDocument();
+      expect(screen.getByText('Manual GitHub issue form is used')).toBeInTheDocument();
     });
+    expect(screen.queryByText('Automatic GitHub issue creation is configured')).not.toBeInTheDocument();
   });
 
   it('shows bug report configuration loading state before status is available', async () => {
