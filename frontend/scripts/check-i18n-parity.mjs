@@ -113,6 +113,43 @@ const placeholderRe = /\{\{[^{}]+\}\}/g;
 const ORDER_MANAGEMENT_ENGLISH_FALLBACK_LOCALES = new Set([
   'es', 'fr', 'it', 'ja', 'ko', 'pt-BR', 'tr', 'zh-CN', 'zh-TW',
 ]);
+const PRINTER_CONTROL_ENGLISH_FALLBACK_KEYS = new Set([
+  'printers.localControlUnavailable',
+  'printers.localControlBadge',
+  'printers.localControlBadgeTitle',
+  'printers.localControlUnavailableCloudCandidate',
+  'printers.localControlUnavailableCloudNotImplemented',
+  'printers.localControlUnavailableCloudUncertain',
+  'printers.localControlUnavailableLocalOnly',
+  'printers.cloudControlActionTitle',
+  'printers.cloudControlConfigured',
+  'printers.cloudControlConfiguredTitle',
+  'printers.controlPathTitle',
+  'printers.controlPath.local',
+  'printers.controlPath.cloud',
+  'printers.controlPath.none',
+  'printers.controlMatrix.title',
+  'printers.controlMatrix.toggle',
+  'printers.controlMatrix.action',
+  'printers.controlMatrix.local',
+  'printers.controlMatrix.cloud',
+  'printers.controlMatrix.printops',
+  'printers.controlMatrix.status',
+  'printers.controlMatrix.statusOnly',
+  'printers.controlMatrix.localCloudFallback',
+  'printers.controlMatrix.cloudNotImplemented',
+  'printers.controlMatrix.localOnly',
+  'printers.controlMatrix.available',
+  'printers.controlMatrix.uncertain',
+  'printers.controlCapabilities.status',
+  'printers.controlCapabilities.startPrint',
+  'printers.controlCapabilities.temperature',
+  'printers.controlCapabilities.fan',
+  'printers.controlCapabilities.light',
+  'printers.controlCapabilities.camera',
+  'printers.controlCapabilities.fileManagement',
+  'printers.controlCapabilities.amsSlot',
+]);
 const ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS = new Set([
   'orders.default',
   'orders.businessProfile.title',
@@ -408,7 +445,11 @@ function isAllowedOrderManagementEnglishFallback(locale, key) {
     || key === 'settings.orderManagementSubTabDescriptions.formatPreview'
     || key.startsWith('settings.documentLayout.');
   return ORDER_MANAGEMENT_ENGLISH_FALLBACK_LOCALES.has(locale)
-    && (ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.has(key) || isDocumentLayoutFallback);
+    && (
+      ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.has(key)
+      || PRINTER_CONTROL_ENGLISH_FALLBACK_KEYS.has(key)
+      || isDocumentLayoutFallback
+    );
 }
 
 // Heuristic: values that are ALWAYS allowed to match en, regardless of locale.
