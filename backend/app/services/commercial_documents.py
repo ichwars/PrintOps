@@ -17,8 +17,8 @@ from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.commercial_document import (
     CommercialDocument,
     CommercialDocumentLine,
-    DocumentPayment,
     DocumentNumberReservation,
+    DocumentPayment,
     DocumentRelation,
 )
 from backend.app.models.customer import Customer, CustomerAccount
