@@ -82,7 +82,11 @@ def _correlation_id(request: Request) -> str:
     return str(uuid4())
 
 
-def _read(document: CommercialDocument) -> CommercialDocumentRead:
+def _can_read_payments(user: User | None) -> bool:
+    return user is None or user.has_all_permissions(Permission.PAYMENTS_READ.value)
+
+
+def _read(document: CommercialDocument, *, include_payments: bool = True) -> CommercialDocumentRead:
     return CommercialDocumentRead(
         id=document.id,
         document_type=document.document_type,
@@ -111,7 +115,7 @@ def _read(document: CommercialDocument) -> CommercialDocumentRead:
         updated_at=document.updated_at,
         lines=[CommercialDocumentLineRead.model_validate(item) for item in document.lines],
         artifacts=[_artifact_read(item) for item in document.artifacts],
-        payments=[DocumentPaymentRead.model_validate(item) for item in document.payments],
+        payments=[DocumentPaymentRead.model_validate(item) for item in document.payments] if include_payments else [],
         snapshot_sha256=document.snapshot.sha256 if document.snapshot is not None else None,
     )
 
@@ -282,7 +286,7 @@ async def list_documents(
     document_type: str | None = None,
     technical_status: str | None = Query(default=None, alias="status"),
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
 ) -> list[CommercialDocumentRead]:
     statement = select(CommercialDocument).options(*_LOAD_OPTIONS)
     if business_profile_id is not None:
@@ -294,7 +298,8 @@ async def list_documents(
     if technical_status is not None:
         statement = statement.where(CommercialDocument.technical_status == technical_status)
     rows = (await db.scalars(statement.order_by(CommercialDocument.created_at.desc()))).all()
-    return [_read(row) for row in rows]
+    include_payments = _can_read_payments(current_user)
+    return [_read(row, include_payments=include_payments) for row in rows]
 
 
 @router.post("", response_model=CommercialDocumentRead, status_code=status.HTTP_201_CREATED)
@@ -319,7 +324,7 @@ async def create_document(
             correlation_id=_correlation_id(request),
         )
         await db.commit()
-        return _read(await _load(db, document.id))
+        return _read(await _load(db, document.id), include_payments=True)
     except Exception as error:
         await db.rollback()
         await _raise_domain_error(request, error)
@@ -330,10 +335,10 @@ async def get_document(
     document_id: int,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
 ) -> CommercialDocumentRead:
     try:
-        return _read(await _load(db, document_id))
+        return _read(await _load(db, document_id), include_payments=_can_read_payments(current_user))
     except Exception as error:
         await _raise_domain_error(request, error)
 
@@ -644,7 +649,7 @@ async def issue_commercial_document(
             command.idempotency_key,
             _correlation_id(request),
         )
-        return _read(document)
+        return _read(document, include_payments=True)
     except Exception as error:
         await _raise_domain_error(request, error, db=db, document_id=document_id)
 

@@ -1058,7 +1058,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
       totalWeight += remaining;
       const pct = s.label_weight > 0 ? (remaining / s.label_weight) * 100 : 0;
       const threshold = s.low_stock_threshold_pct ?? lowStockThreshold;
-      if (pct < threshold) lowStock++;
+      if (pct <= threshold) lowStock++;
       const mat = s.material || 'Unknown';
       if (!byMaterial[mat]) byMaterial[mat] = { count: 0, weight: 0 };
       byMaterial[mat].count++;
@@ -1150,7 +1150,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
         const remaining = Math.max(0, s.label_weight - s.weight_used);
         const pct = s.label_weight > 0 ? (remaining / s.label_weight) * 100 : 0;
         const threshold = s.low_stock_threshold_pct ?? lowStockThreshold;
-        return pct < threshold;
+        return pct <= threshold;
       });
     }
 
@@ -1203,7 +1203,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
         const remaining = Math.max(0, s.label_weight - s.weight_used);
         const pct = s.label_weight > 0 ? (remaining / s.label_weight) * 100 : 0;
         const threshold = s.low_stock_threshold_pct ?? lowStockThreshold;
-        return s.label_weight > 0 && pct < threshold;
+        return s.label_weight > 0 && pct <= threshold;
       });
     } else if (focusFilter === 'missing-cost') {
       filtered = filtered.filter((s) => !s.cost_per_kg || s.cost_per_kg <= 0);

@@ -381,9 +381,7 @@ async def create_draft(
     document = CommercialDocument(
         **data.model_dump(exclude={"lines"}),
         technical_status="draft",
-        payment_status=(
-            "unpaid" if DOCUMENT_CAPABILITIES[DocumentType(data.document_type)].has_payment_terms else "not_applicable"
-        ),
+        payment_status=_initial_payment_status(DocumentType(data.document_type)),
         subtotal_amount=subtotal,
         tax_amount=tax,
         total_amount=total,
@@ -442,6 +440,20 @@ async def validate_draft(
     return validate_document(_to_draft(await _load_document(session, document_id)))
 
 
+_PAYMENT_RECORDABLE_TYPES = frozenset(
+    {
+        DocumentType.ADVANCE_INVOICE,
+        DocumentType.PROGRESS_INVOICE,
+        DocumentType.FINAL_INVOICE,
+        DocumentType.INVOICE,
+    }
+)
+
+
+def _initial_payment_status(document_type: DocumentType) -> str:
+    return "unpaid" if document_type in _PAYMENT_RECORDABLE_TYPES else "not_applicable"
+
+
 def _payment_status(total: Decimal, paid: Decimal) -> tuple[str, Decimal]:
     open_amount = total - paid
     if paid <= 0:
@@ -461,8 +473,12 @@ async def record_payment(
     actor_id: int | None,
 ) -> CommercialDocument:
     document = await _load_document(session, document_id, lock=True)
-    if document.payment_status == "not_applicable":
+    document_type = DocumentType(document.document_type)
+    if document_type not in _PAYMENT_RECORDABLE_TYPES or document.technical_status != "issued":
         raise InvalidDocumentTransition("This commercial document does not support payments")
+    if document.payment_status == "not_applicable":
+        document.payment_status = "unpaid"
+        document.open_amount = document.total_amount
     if document.currency.upper() != document.currency:
         document.currency = document.currency.upper()
 
@@ -544,6 +560,7 @@ async def create_successor(
         business_profile_id=source.business_profile_id,
         customer_id=source.customer_id,
         technical_status="draft",
+        payment_status=_initial_payment_status(target_type),
         language=source.language,
         currency=source.currency,
         service_date=source.service_date,

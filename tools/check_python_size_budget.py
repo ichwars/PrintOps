@@ -23,7 +23,7 @@ FILE_ALLOWLIST = {
     "backend/app/services/bambu_mqtt.py": 5804,
     "backend/app/services/notification_service.py": 2053,
     "backend/app/services/print_scheduler.py": 3512,
-    "backend/app/api/routes/archives.py": 4804,
+    "backend/app/api/routes/archives.py": 4806,
     "backend/app/api/routes/inventory.py": 2700,
     "backend/app/api/routes/library.py": 4999,
     "backend/app/api/routes/mfa.py": 2279,

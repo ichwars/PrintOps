@@ -43,6 +43,7 @@ import {
   type Supplier,
 } from '../api/procurement';
 import { Select } from '../components/ui';
+import { useAuth } from '../contexts/AuthContext';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { formatMoney } from '../utils/calculationFormatting';
 
@@ -245,6 +246,12 @@ const snapshotPart = (snapshot: Record<string, unknown> | undefined, key: string
 
 const readRevisionValue = (offer: Offer, key: string): number => asNumber(snapshotPart(offer.snapshot, 'revision')[key]);
 const readAcceptedRevisionValue = (order: CustomerOrder, key: string): number => asNumber(snapshotPart(order.accepted_snapshot, 'revision')[key]);
+const readRevisionCurrency = (offer: Offer): string => String(snapshotPart(offer.snapshot, 'revision').currency ?? '').toUpperCase();
+const readAcceptedRevisionCurrency = (order: CustomerOrder): string => String(snapshotPart(order.accepted_snapshot, 'revision').currency ?? '').toUpperCase();
+const hasDisplayCurrency = (currency: string | null | undefined, displayCurrency: string) => {
+  const normalized = String(currency ?? '').trim().toUpperCase();
+  return normalized === '' || normalized === displayCurrency.toUpperCase();
+};
 const readRevisionText = (snapshot: Record<string, unknown> | undefined, key: string): string => {
   const revision = snapshotPart(snapshot, 'revision');
   const calculation = snapshotPart(snapshot, 'calculation');
@@ -321,15 +328,24 @@ function createPreviousDateRange(days: number, currentStart: Date) {
 
 function isInDateRange(value: string | null | undefined, start: Date, end: Date) {
   if (!value) return false;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return false;
+  const date = parseBusinessDate(value);
+  if (!date) return false;
   return date.getTime() >= start.getTime() && date.getTime() <= end.getTime();
+}
+
+function parseBusinessDate(value: string | null | undefined) {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const date = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 const daysSince = (value: string | null | undefined, today: Date) => {
   if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
+  const date = parseBusinessDate(value);
+  if (!date) return null;
   return Math.max(0, Math.floor((today.getTime() - date.getTime()) / 86400000));
 };
 
@@ -348,6 +364,7 @@ function createTrend(
   stats: ArchiveStats | undefined,
   rangeStart: Date,
   rangeEnd: Date,
+  currency: string,
 ): TrendPoint[] {
   const bucketCount = 7;
   const rangeMs = Math.max(rangeEnd.getTime() - rangeStart.getTime(), 86400000);
@@ -367,6 +384,7 @@ function createTrend(
   });
   orders
     .filter((order) => order.status !== 'cancelled' && isInDateRange(order.updated_at || order.created_at, rangeStart, rangeEnd))
+    .filter((order) => hasDisplayCurrency(readAcceptedRevisionCurrency(order), currency))
     .forEach((order) => {
       const date = new Date(order.updated_at || order.created_at);
       const index = clamp(Math.floor((date.getTime() - rangeStart.getTime()) / bucketMs), 0, bucketCount - 1);
@@ -450,12 +468,14 @@ function createRevenueRows(
   offers: Offer[],
   documents: CommercialDocument[],
   today: Date,
+  currency: string,
 ): RevenueRow[] {
   const documentRows = documents
     .filter(isPaymentDocument)
+    .filter((document) => hasDisplayCurrency(document.currency, currency))
     .map((document) => {
       const openAmount = asNumber(document.open_amount);
-      const dueDate = document.due_date ? new Date(document.due_date) : null;
+      const dueDate = parseBusinessDate(document.due_date);
       const overdue = openAmount > 0 && dueDate !== null && dueDate.getTime() < today.getTime();
       const documentFilter = openAmount > 0 ? 'open' : 'paid';
       return {
@@ -475,6 +495,7 @@ function createRevenueRows(
     });
   const orderRows = orders
     .filter((order) => order.status !== 'cancelled')
+    .filter((order) => hasDisplayCurrency(readAcceptedRevisionCurrency(order), currency))
     .map((order) => ({
       number: order.number,
       customer: displayCustomer(order.customer_id),
@@ -485,6 +506,7 @@ function createRevenueRows(
     }));
   const offerRows = offers
     .filter((offer) => offer.status === 'sent' || offer.status === 'draft')
+    .filter((offer) => hasDisplayCurrency(readRevisionCurrency(offer), currency))
     .map((offer) => ({
       number: offer.number,
       customer: displayCustomer(offer.customer_id),
@@ -1346,6 +1368,7 @@ function Overview({
 
 export function BusinessDashboardPage() {
   const { i18n } = useTranslation();
+  const { hasAllPermissions, hasAnyPermission } = useAuth();
   const locale = i18n.language || 'de-DE';
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTabParam = searchParams.get('tab');
@@ -1357,6 +1380,13 @@ export function BusinessDashboardPage() {
     isDateRangeValue(initialRangeParam) ? initialRangeParam : '30',
   );
   const today = useMemo(() => new Date(), []);
+  const canReadBusinessDashboard = hasAllPermissions(
+    'stats:read',
+    'orders:read',
+    'inventory:read',
+    'commercial_documents:read',
+    'payments:read',
+  ) && hasAnyPermission('archives:read', 'archives:read_own', 'archives:read_all');
   const selectedDateRange = dateRangeOptions.find((option) => option.value === dateRangeValue) ?? dateRangeOptions[1];
   const { start: rangeStart, end: rangeEnd, dateFrom, dateTo } = useMemo(
     () => createDateRange(selectedDateRange.days, today),
@@ -1421,51 +1451,65 @@ export function BusinessDashboardPage() {
   }, [activeTab, dateRangeValue, searchParams]);
 
   const settingsQuery = useQuery({ queryKey: ['settings'], queryFn: () => api.getSettings() });
+  const energyTrackingMode = settingsQuery.data?.energy_tracking_mode ?? 'total';
   const statsQuery = useQuery<ArchiveStats>({
     queryKey: ['business-dashboard', 'archive-stats', dateFrom, dateTo],
     queryFn: () => api.getArchiveStats({ dateFrom, dateTo }),
+    enabled: canReadBusinessDashboard,
   });
   const previousStatsQuery = useQuery<ArchiveStats>({
     queryKey: ['business-dashboard', 'archive-stats-previous', previousDateFrom, previousDateTo],
     queryFn: () => api.getArchiveStats({ dateFrom: previousDateFrom, dateTo: previousDateTo }),
+    enabled: canReadBusinessDashboard,
   });
   const archiveEventsQuery = useQuery<ArchiveSlim[]>({
     queryKey: ['business-dashboard', 'archive-events', dateFrom, dateTo],
     queryFn: () => api.getArchivesSlim(dateFrom, dateTo),
+    enabled: canReadBusinessDashboard,
   });
   const energyHistoryQuery = useQuery<ArchiveEnergyHistoryPoint[]>({
     queryKey: ['business-dashboard', 'energy-history', dateFrom, dateTo],
     queryFn: () => api.getArchiveEnergyHistory({ dateFrom, dateTo, bucket: 'hour' }),
+    enabled: canReadBusinessDashboard && energyTrackingMode === 'total',
   });
   const spoolsQuery = useQuery<InventorySpool[]>({
     queryKey: ['business-dashboard', 'spools'],
     queryFn: () => api.getSpools(false),
+    enabled: canReadBusinessDashboard,
   });
   const skuSettingsQuery = useQuery<FilamentSkuSettings[]>({
     queryKey: ['business-dashboard', 'sku-settings'],
     queryFn: () => api.getSkuSettings(),
+    enabled: canReadBusinessDashboard,
   });
   const suppliersQuery = useQuery({
     queryKey: ['business-dashboard', 'suppliers'],
     queryFn: () => suppliersApi.list({ active: true, limit: 200 }),
+    enabled: canReadBusinessDashboard,
   });
   const offersQuery = useQuery<Offer[]>({
     queryKey: ['business-dashboard', 'offers'],
     queryFn: () => offersApi.list(),
+    enabled: canReadBusinessDashboard,
   });
   const ordersQuery = useQuery<CustomerOrder[]>({
     queryKey: ['business-dashboard', 'orders'],
     queryFn: () => ordersApi.list(),
+    enabled: canReadBusinessDashboard,
   });
   const documentsQuery = useQuery<CommercialDocument[]>({
     queryKey: ['business-dashboard', 'commercial-documents'],
     queryFn: () => documentManagementApi.listDocuments(),
+    enabled: canReadBusinessDashboard,
   });
   const { currencyCode } = useDisplayCurrency(settingsQuery.data?.currency);
   const stats = statsQuery.data;
   const previousStats = previousStatsQuery.data;
   const archiveEvents = useMemo(() => archiveEventsQuery.data ?? [], [archiveEventsQuery.data]);
-  const energyHistory = useMemo(() => energyHistoryQuery.data ?? [], [energyHistoryQuery.data]);
+  const energyHistory = useMemo(
+    () => (energyTrackingMode === 'total' ? energyHistoryQuery.data ?? [] : []),
+    [energyHistoryQuery.data, energyTrackingMode],
+  );
   const spools = useMemo(() => spoolsQuery.data ?? [], [spoolsQuery.data]);
   const skuSettings = useMemo(() => skuSettingsQuery.data ?? [], [skuSettingsQuery.data]);
   const suppliers = useMemo(() => suppliersQuery.data?.items ?? [], [suppliersQuery.data]);
@@ -1496,7 +1540,7 @@ export function BusinessDashboardPage() {
       );
       return offerGroups;
     },
-    enabled: procurementResources.length > 0,
+    enabled: canReadBusinessDashboard && procurementResources.length > 0,
   });
   const procurementOfferGroups = useMemo(() => procurementOffersQuery.data ?? [], [procurementOffersQuery.data]);
   const periodOrders = useMemo(
@@ -1522,16 +1566,10 @@ export function BusinessDashboardPage() {
     () => offers.filter((offer) => isInDateRange(offer.accepted_at || offer.sent_at || offer.updated_at || offer.created_at, previousRangeStart, previousRangeEnd)),
     [offers, previousRangeEnd, previousRangeStart],
   );
-  const previousPeriodDocuments = useMemo(
-    () => documents.filter((document) =>
-      isInDateRange(document.issue_date || document.created_at, previousRangeStart, previousRangeEnd)
-      || document.payments.some((payment) => isInDateRange(payment.paid_at, previousRangeStart, previousRangeEnd)),
-    ),
-    [documents, previousRangeEnd, previousRangeStart],
-  );
-
   const derived = useMemo(() => {
-    const activeOrders = periodOrders.filter((order) => order.status !== 'cancelled');
+    const activeOrders = periodOrders
+      .filter((order) => order.status !== 'cancelled')
+      .filter((order) => hasDisplayCurrency(readAcceptedRevisionCurrency(order), currencyCode));
     const currentOpenOrders = orders.filter((order) => order.status === 'active');
     const completedOrders = activeOrders.filter((order) => order.status === 'completed');
     const runningOrders = activeOrders.filter((order) => order.status === 'active');
@@ -1539,17 +1577,18 @@ export function BusinessDashboardPage() {
     const activeOrderRevenue = runningOrders.reduce((sum, order) => sum + readAcceptedRevisionValue(order, 'selling_price'), 0);
     const acceptedRevenue = activeOrders.reduce((sum, order) => sum + readAcceptedRevisionValue(order, 'selling_price'), 0);
     const acceptedCost = activeOrders.reduce((sum, order) => sum + readAcceptedRevisionValue(order, 'production_cost'), 0);
-    const quoteValue = periodOffers.reduce((sum, offer) => sum + readRevisionValue(offer, 'selling_price'), 0);
-    const draftRevenue = periodOffers
+    const displayCurrencyOffers = periodOffers.filter((offer) => hasDisplayCurrency(readRevisionCurrency(offer), currencyCode));
+    const quoteValue = displayCurrencyOffers.reduce((sum, offer) => sum + readRevisionValue(offer, 'selling_price'), 0);
+    const draftRevenue = displayCurrencyOffers
       .filter((offer) => offer.status === 'draft')
       .reduce((sum, offer) => sum + readRevisionValue(offer, 'selling_price'), 0);
-    const sentRevenue = periodOffers
+    const sentRevenue = displayCurrencyOffers
       .filter((offer) => offer.status === 'sent')
       .reduce((sum, offer) => sum + readRevisionValue(offer, 'selling_price'), 0);
-    const acceptedOfferRevenue = periodOffers
+    const acceptedOfferRevenue = displayCurrencyOffers
       .filter((offer) => offer.status === 'accepted')
       .reduce((sum, offer) => sum + readRevisionValue(offer, 'selling_price'), 0);
-    const pipelineRevenue = periodOffers
+    const pipelineRevenue = displayCurrencyOffers
       .filter((offer) => offer.status === 'draft' || offer.status === 'sent' || offer.status === 'accepted')
       .reduce((sum, offer) => sum + readRevisionValue(offer, 'selling_price'), 0);
     const materialUsage = deriveMaterialUsage(spools);
@@ -1565,9 +1604,13 @@ export function BusinessDashboardPage() {
     }).length;
     const reservedLines = currentOpenOrders.reduce((sum, order) => sum + order.reservations.length, 0);
     const consumedGrams = materialUsage.reduce((sum, item) => sum + item.grams, 0);
-    const margin = acceptedRevenue > 0 ? ((acceptedRevenue - acceptedCost - (stats?.total_energy_cost ?? 0)) / acceptedRevenue) * 100 : 0;
-    const paymentDocuments = periodDocuments.filter(isPaymentDocument);
-    const revenueRows = createRevenueRows(periodOrders, periodOffers, periodDocuments, today);
+    const archiveProductionCost = (stats?.total_cost ?? 0) + (stats?.total_energy_cost ?? 0);
+    const productionCost = acceptedCost > 0 ? acceptedCost : archiveProductionCost;
+    const margin = acceptedRevenue > 0 ? ((acceptedRevenue - productionCost) / acceptedRevenue) * 100 : 0;
+    const paymentDocuments = documents
+      .filter(isPaymentDocument)
+      .filter((document) => hasDisplayCurrency(document.currency, currencyCode));
+    const revenueRows = createRevenueRows(periodOrders, periodOffers, periodDocuments, today, currencyCode);
     const paymentEffectiveRevenue = paymentDocuments.reduce(
       (sum, document) => sum + document.payments
         .filter((payment) => isInDateRange(payment.paid_at, rangeStart, rangeEnd))
@@ -1578,11 +1621,10 @@ export function BusinessDashboardPage() {
     const overdueRevenue = paymentDocuments
       .filter((document) => {
         if (!document.due_date || asNumber(document.open_amount) <= 0) return false;
-        return new Date(document.due_date).getTime() < today.getTime();
+        return (parseBusinessDate(document.due_date)?.getTime() ?? Number.POSITIVE_INFINITY) < today.getTime();
       })
       .reduce((sum, document) => sum + asNumber(document.open_amount), 0);
     const missingPaymentSource = paymentDocuments.length === 0 && (activeOrders.length > 0 || offers.length > 0);
-    const productionCost = acceptedCost + (stats?.total_cost ?? 0) + (stats?.total_energy_cost ?? 0);
     const energyCost = stats?.total_energy_cost ?? 0;
     const reservedValue = currentOpenOrders.reduce(
       (sum, order) => sum + order.reservations.reduce((reservationSum, reservation) => {
@@ -1605,9 +1647,9 @@ export function BusinessDashboardPage() {
       .slice(0, 6);
 
     const costSlices: CostSlice[] = [
-      { label: 'Material', value: stats?.total_cost ?? 0, color: '#00a14a' },
-      { label: 'Produktion', value: Math.max(acceptedCost - (stats?.total_cost ?? 0), 0), color: '#38a8d5' },
-      { label: 'Energie', value: energyCost, color: '#21b7cf' },
+      { label: 'Material', value: acceptedCost > 0 ? 0 : stats?.total_cost ?? 0, color: '#00a14a' },
+      { label: 'Auftragskalkulation', value: acceptedCost, color: '#38a8d5' },
+      { label: 'Energie', value: acceptedCost > 0 ? 0 : energyCost, color: '#21b7cf' },
       { label: 'Reservierung', value: reservedValue, color: '#8d73d9' },
     ];
 
@@ -1627,6 +1669,7 @@ export function BusinessDashboardPage() {
       activeOrderRevenue,
       paymentDocuments,
       acceptedRevenue,
+      acceptedCost,
       quoteValue,
       pipelineRevenue,
       materialUsage,
@@ -1646,25 +1689,31 @@ export function BusinessDashboardPage() {
       costSlices,
       pipelineStages,
     };
-  }, [currencyCode, locale, offers, orders, periodDocuments, periodOffers, periodOrders, rangeEnd, rangeStart, spools, stats, today]);
+  }, [currencyCode, documents, locale, offers, orders, periodDocuments, periodOffers, periodOrders, rangeEnd, rangeStart, spools, stats, today]);
 
   const previousDerived = useMemo(() => {
-    const activeOrders = previousPeriodOrders.filter((order) => order.status !== 'cancelled');
+    const activeOrders = previousPeriodOrders
+      .filter((order) => order.status !== 'cancelled')
+      .filter((order) => hasDisplayCurrency(readAcceptedRevisionCurrency(order), currencyCode));
     const completedOrders = activeOrders.filter((order) => order.status === 'completed');
     const acceptedRevenue = activeOrders.reduce((sum, order) => sum + readAcceptedRevisionValue(order, 'selling_price'), 0);
     const acceptedCost = activeOrders.reduce((sum, order) => sum + readAcceptedRevisionValue(order, 'production_cost'), 0);
     const completedRevenue = completedOrders.reduce((sum, order) => sum + readAcceptedRevisionValue(order, 'selling_price'), 0);
     const pipelineRevenue = previousPeriodOffers
+      .filter((offer) => hasDisplayCurrency(readRevisionCurrency(offer), currencyCode))
       .filter((offer) => offer.status === 'draft' || offer.status === 'sent' || offer.status === 'accepted')
       .reduce((sum, offer) => sum + readRevisionValue(offer, 'selling_price'), 0);
-    const paymentDocuments = previousPeriodDocuments.filter(isPaymentDocument);
+    const paymentDocuments = documents
+      .filter(isPaymentDocument)
+      .filter((document) => hasDisplayCurrency(document.currency, currencyCode));
     const paymentEffectiveRevenue = paymentDocuments.reduce(
       (sum, document) => sum + document.payments
         .filter((payment) => isInDateRange(payment.paid_at, previousRangeStart, previousRangeEnd))
         .reduce((paymentSum, payment) => paymentSum + asNumber(payment.amount), 0),
       0,
     );
-    const productionCost = acceptedCost + (previousStats?.total_cost ?? 0) + (previousStats?.total_energy_cost ?? 0);
+    const archiveProductionCost = (previousStats?.total_cost ?? 0) + (previousStats?.total_energy_cost ?? 0);
+    const productionCost = acceptedCost > 0 ? acceptedCost : archiveProductionCost;
     return {
       acceptedRevenue,
       completedRevenue,
@@ -1676,11 +1725,11 @@ export function BusinessDashboardPage() {
       energyKwh: previousStats?.total_energy_kwh ?? 0,
       energyCost: previousStats?.total_energy_cost ?? 0,
     };
-  }, [previousPeriodDocuments, previousPeriodOffers, previousPeriodOrders, previousRangeEnd, previousRangeStart, previousStats]);
+  }, [currencyCode, documents, previousPeriodOffers, previousPeriodOrders, previousRangeEnd, previousRangeStart, previousStats]);
 
   const trend = useMemo(
-    () => createTrend(periodOrders, archiveEvents, energyHistory, stats, rangeStart, rangeEnd),
-    [archiveEvents, energyHistory, periodOrders, rangeEnd, rangeStart, stats],
+    () => createTrend(periodOrders, archiveEvents, energyHistory, stats, rangeStart, rangeEnd, currencyCode),
+    [archiveEvents, currencyCode, energyHistory, periodOrders, rangeEnd, rangeStart, stats],
   );
   const energyPerHour = (stats?.total_print_time_hours ?? 0) > 0
     ? (stats?.total_energy_kwh ?? 0) / (stats?.total_print_time_hours ?? 1)
@@ -1688,7 +1737,7 @@ export function BusinessDashboardPage() {
   const completionRate = derived.acceptedRevenue > 0
     ? (derived.completedRevenue / derived.acceptedRevenue) * 100
     : 0;
-  const energyMode = settingsQuery.data?.energy_tracking_mode === 'total' ? 'Gesamtverbrauch' : 'Druckverbrauch';
+  const energyMode = energyTrackingMode === 'total' ? 'Gesamtverbrauch' : 'Druckverbrauch';
   const trendLabels = {
     paymentEffectiveRevenue: createMetricTrend(derived.paymentEffectiveRevenue, previousDerived.paymentEffectiveRevenue, (value) => formatMoney(value, locale, currencyCode)),
     acceptedRevenue: createMetricTrend(derived.acceptedRevenue, previousDerived.acceptedRevenue, (value) => formatMoney(value, locale, currencyCode)),
@@ -1856,10 +1905,9 @@ export function BusinessDashboardPage() {
         .find((candidate) => candidate.supplier !== null) ?? null;
       const supplier = assignment?.supplier ?? null;
       const leadTimeDays = assignment?.leadTimeDays ?? 0;
-      const dailyUse = item.grams / Math.max(selectedDateRange.days, 1);
       const targetDays = Math.max(leadTimeDays + 14, 30);
       const reorderGrams = item.days < targetDays
-        ? Math.max(1000, Math.ceil(((targetDays - item.days) * Math.max(dailyUse, 25)) / 100) * 100)
+        ? Math.max(1000, Math.ceil(((targetDays - item.days) * Math.max(item.remaining / Math.max(item.days, 1), 25)) / 100) * 100)
         : 0;
       return {
         label: item.label,
@@ -1887,16 +1935,16 @@ export function BusinessDashboardPage() {
   const openReceivableDocuments = [...derived.paymentDocuments]
     .filter((document) => asNumber(document.open_amount) > 0)
     .sort((left, right) => {
-      const leftDue = left.due_date ? new Date(left.due_date).getTime() : Number.MAX_SAFE_INTEGER;
-      const rightDue = right.due_date ? new Date(right.due_date).getTime() : Number.MAX_SAFE_INTEGER;
+      const leftDue = parseBusinessDate(left.due_date)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      const rightDue = parseBusinessDate(right.due_date)?.getTime() ?? Number.MAX_SAFE_INTEGER;
       return leftDue - rightDue;
     });
   const overdueDocuments = openReceivableDocuments.filter((document) =>
-    document.due_date ? new Date(document.due_date).getTime() < today.getTime() : false,
+    document.due_date ? (parseBusinessDate(document.due_date)?.getTime() ?? Number.POSITIVE_INFINITY) < today.getTime() : false,
   );
   const dueSoonDocuments = openReceivableDocuments.filter((document) => {
     if (!document.due_date) return false;
-    const due = new Date(document.due_date).getTime();
+    const due = parseBusinessDate(document.due_date)?.getTime() ?? Number.POSITIVE_INFINITY;
     const days = Math.ceil((due - today.getTime()) / 86400000);
     return days >= 0 && days <= 7;
   });
@@ -1904,17 +1952,20 @@ export function BusinessDashboardPage() {
     .flatMap((document) => document.payments
       .filter((payment) => isInDateRange(payment.paid_at, rangeStart, rangeEnd))
       .map((payment) => ({ document, payment })))
-    .sort((left, right) => new Date(right.payment.paid_at).getTime() - new Date(left.payment.paid_at).getTime())
+    .sort((left, right) =>
+      (parseBusinessDate(right.payment.paid_at)?.getTime() ?? 0)
+      - (parseBusinessDate(left.payment.paid_at)?.getTime() ?? 0),
+    )
     .slice(0, 8)
     .map(({ document, payment }) => [
-      new Date(payment.paid_at).toLocaleDateString(locale),
+      parseBusinessDate(payment.paid_at)?.toLocaleDateString(locale) ?? payment.paid_at,
       <EntityLink to={invoiceListUrl('paid')}>{document.number ?? `Dokument #${document.id}`}</EntityLink>,
       displayCustomer(document.customer_id),
       formatMoney(asNumber(payment.amount), locale, payment.currency || currencyCode),
       payment.method,
     ] as Array<ReactNode>);
   const receivableRows = openReceivableDocuments.slice(0, 8).map((document) => {
-    const dueDate = document.due_date ? new Date(document.due_date) : null;
+    const dueDate = parseBusinessDate(document.due_date);
     const daysUntilDue = dueDate ? Math.ceil((dueDate.getTime() - today.getTime()) / 86400000) : null;
     return [
       <EntityLink to={invoicePaymentUrl(document.id)}>{document.number ?? `Dokument #${document.id}`}</EntityLink>,
@@ -2080,7 +2131,7 @@ export function BusinessDashboardPage() {
   ] as Array<Array<ReactNode>>;
   const costControlRows = [
     ['Archivkosten', formatMoney(stats?.total_cost ?? 0, locale, currencyCode), stats?.total_prints ? `${stats.total_prints} Drucke` : 'keine Drucke', (stats?.total_cost ?? 0) > 0 ? <EntityLink to="/archives">prüfen</EntityLink> : 'OK'],
-    ['Auftragskalkulation', formatMoney(derived.acceptedRevenue > 0 ? Math.max(derived.productionCost - (stats?.total_cost ?? 0) - (stats?.total_energy_cost ?? 0), 0) : 0, locale, currencyCode), <EntityLink to="/orders/calculation">Kalkulation</EntityLink>, 'Kostenbasis'],
+    ['Auftragskalkulation', formatMoney(derived.acceptedCost, locale, currencyCode), <EntityLink to="/orders/calculation">Kalkulation</EntityLink>, 'Kostenbasis'],
     ['Energieanteil', formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode), formatKwh(stats?.total_energy_kwh ?? 0, locale), (stats?.total_energy_cost ?? 0) > 0 ? <EntityLink to={dashboardTabUrl('energy')}>Energie ansehen</EntityLink> : 'keine Kosten'],
     ['Lagerbindung', formatMoney(derived.reservedValue, locale, currencyCode), `${derived.reservedLines} Positionen`, derived.reservedLines > 0 ? <EntityLink to={dashboardTabUrl('inventory')}>Reservierungen prüfen</EntityLink> : 'OK'],
   ] as Array<Array<ReactNode>>;
@@ -2159,7 +2210,10 @@ export function BusinessDashboardPage() {
   const forecastProductionCost = derived.productionCost * forecastScale30;
   const forecastEnergyKwh = (stats?.total_energy_kwh ?? 0) * forecastScale30;
   const forecastEnergyCost = (stats?.total_energy_cost ?? 0) * forecastScale30;
-  const forecastMaterialGrams = derived.consumedGrams * forecastScale30;
+  const forecastMaterialGrams = derived.materialUsage.reduce((sum, item) => {
+    const dailyUse = item.remaining / Math.max(item.days, 1);
+    return sum + (Number.isFinite(dailyUse) ? dailyUse * 30 : 0);
+  }, 0);
   const openDueSoonValue = dueSoonDocuments.reduce((sum, document) => sum + asNumber(document.open_amount), 0);
   const overviewForecastRows = [
     [
@@ -2479,7 +2533,7 @@ export function BusinessDashboardPage() {
         <Panel icon={Factory} title="Kostentreiber">
           <div className="space-y-4">
             <ProgressRow label="Archivkosten" value={stats?.total_cost ?? 0} max={Math.max(derived.productionCost, 1)} suffix={formatMoney(stats?.total_cost ?? 0, locale, currencyCode)} tone="green" />
-            <ProgressRow label="Auftragskalkulation" value={derived.acceptedRevenue > 0 ? Math.max(derived.productionCost - (stats?.total_cost ?? 0) - (stats?.total_energy_cost ?? 0), 0) : 0} max={Math.max(derived.productionCost, 1)} suffix={formatMoney(derived.acceptedRevenue > 0 ? Math.max(derived.productionCost - (stats?.total_cost ?? 0) - (stats?.total_energy_cost ?? 0), 0) : 0, locale, currencyCode)} tone="blue" />
+            <ProgressRow label="Auftragskalkulation" value={derived.acceptedCost} max={Math.max(derived.productionCost, 1)} suffix={formatMoney(derived.acceptedCost, locale, currencyCode)} tone="blue" />
             <ProgressRow label="Energie" value={stats?.total_energy_cost ?? 0} max={Math.max(derived.productionCost, 1)} suffix={formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode)} tone="cyan" />
             <ProgressRow label="Reservierter Lagerwert" value={derived.reservedValue} max={Math.max(derived.stockValue, derived.productionCost, 1)} suffix={formatMoney(derived.reservedValue, locale, currencyCode)} tone="amber" />
           </div>
@@ -2742,7 +2796,15 @@ export function BusinessDashboardPage() {
           </div>
         </header>
 
-        {activeTab === 'overview' ? (
+        {!canReadBusinessDashboard ? (
+          <div className="mt-6">
+            <Panel icon={AlertTriangle} title="Keine Berechtigung" subtitle="Für das Business Dashboard werden Kennzahlen aus Aufträgen, Zahlungen, Lager und Archiv gemeinsam benötigt.">
+              <EmptyState label="Bitte Rolle/Rechte prüfen: Statistik, Aufträge, Lager, Rechnungen, Zahlungen und Archivzugriff." />
+            </Panel>
+          </div>
+        ) : null}
+
+        {canReadBusinessDashboard && activeTab === 'overview' ? (
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
             <MetricCard icon={Receipt} label="Zahlungswirksam" value={formatMoney(derived.paymentEffectiveRevenue, locale, currencyCode)} detail={derived.paymentDocuments.length > 0 ? `${derived.paymentDocuments.length} Rechnungen` : derived.missingPaymentSource ? 'Zahlungsquelle fehlt' : 'keine Buchungen'} tone={derived.paymentEffectiveRevenue > 0 ? 'green' : 'neutral'} to={dashboardTabUrl('revenue')} trend={trendLabels.paymentEffectiveRevenue} />
             <MetricCard icon={TrendingUp} label="Auftragswert" value={formatMoney(derived.acceptedRevenue, locale, currencyCode)} detail={`${derived.activeOrders.length} Aufträge`} tone="green" to={dashboardTabUrl('revenue')} trend={trendLabels.acceptedRevenue} />
@@ -2755,7 +2817,7 @@ export function BusinessDashboardPage() {
           </div>
         ) : null}
 
-        {activeTab === 'overview' ? (
+        {canReadBusinessDashboard && activeTab === 'overview' ? (
           <Overview
             trend={trend}
             costSlices={derived.costSlices}
@@ -2777,10 +2839,10 @@ export function BusinessDashboardPage() {
             forecastRows={overviewForecastRows}
           />
         ) : null}
-        {activeTab === 'revenue' ? revenueTab : null}
-        {activeTab === 'margin' ? marginTab : null}
-        {activeTab === 'inventory' ? inventoryTab : null}
-        {activeTab === 'energy' ? energyTab : null}
+        {canReadBusinessDashboard && activeTab === 'revenue' ? revenueTab : null}
+        {canReadBusinessDashboard && activeTab === 'margin' ? marginTab : null}
+        {canReadBusinessDashboard && activeTab === 'inventory' ? inventoryTab : null}
+        {canReadBusinessDashboard && activeTab === 'energy' ? energyTab : null}
       </div>
     </div>
   );

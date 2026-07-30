@@ -6,6 +6,7 @@ import { Calculator, Check, ClipboardList, FileText, Receipt, X } from 'lucide-r
 import { Card, CardContent, CardHeader } from '../components/Card';
 import { LegacyDatePicker, Select, TextArea, TextField } from '../components/ui';
 import { tableHeaderCellClass, tableHeaderClass, tableHeaderRowClass } from '../components/ui/tableStyles';
+import { useAuth } from '../contexts/AuthContext';
 import {
   documentManagementApi,
   type CommercialDocument,
@@ -120,7 +121,7 @@ function amountValue(value: string | number | null | undefined) {
 
 function dateValue(value: string | null | undefined) {
   if (!value) return Number.POSITIVE_INFINITY;
-  const parsed = new Date(value).getTime();
+  const parsed = parseBusinessDate(value)?.getTime() ?? Number.NaN;
   return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
 }
 
@@ -157,7 +158,24 @@ function statusClass(status: string) {
 }
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseBusinessDate(value: string | null | undefined) {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const date = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function normalizeDecimalInput(value: string) {
+  return value.trim().replace(/\s/g, '').replace(',', '.');
 }
 
 function getSection(pathname: string): OrderSectionId {
@@ -169,6 +187,7 @@ function getSection(pathname: string): OrderSectionId {
 
 export function OrdersPage() {
   const { i18n } = useTranslation();
+  const { hasPermission } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -176,6 +195,7 @@ export function OrdersPage() {
   const copy = i18n.resolvedLanguage?.startsWith('de') ? COPY.de : COPY.en;
   const locale = i18n.language || 'de-DE';
   const columns = copy.page[activeSection].columns;
+  const canManagePayments = hasPermission('payments:manage');
   const [paymentTarget, setPaymentTarget] = useState<CommercialDocument | null>(null);
   const initialInvoiceParams = new URLSearchParams(location.search);
   const [paymentDraft, setPaymentDraft] = useState<RecordPaymentInput>({
@@ -317,10 +337,10 @@ export function OrdersPage() {
     if (!document) return;
 
     setHandledPaymentParam(paymentParam);
-    if (document.open_amount !== '0.00' && document.payment_status !== 'paid') {
+    if (canManagePayments && document.open_amount !== '0.00' && document.payment_status !== 'paid') {
       openPaymentDialog(document);
     }
-  }, [activeSection, handledPaymentParam, invoiceDocuments, openPaymentDialog, paymentDocumentId, paymentParam]);
+  }, [activeSection, canManagePayments, handledPaymentParam, invoiceDocuments, openPaymentDialog, paymentDocumentId, paymentParam]);
 
   useEffect(() => {
     const nextFilter = isInvoiceFilterMode(invoiceFilterParam) ? invoiceFilterParam : 'all';
@@ -362,11 +382,11 @@ export function OrdersPage() {
   };
 
   const submitPayment = () => {
-    if (!paymentTarget || !paymentDraft.amount) return;
+    if (!canManagePayments || !paymentTarget || !paymentDraft.amount) return;
     recordPayment.mutate({
       documentId: paymentTarget.id,
       input: {
-        amount: paymentDraft.amount,
+        amount: normalizeDecimalInput(paymentDraft.amount),
         paid_at: paymentDraft.paid_at,
         method: paymentDraft.method,
         reference: paymentDraft.reference?.trim() || null,
@@ -487,8 +507,9 @@ export function OrdersPage() {
                           <button
                             type="button"
                             className="mt-3 inline-flex items-center gap-2 rounded bg-bambu-green px-3 py-2 text-xs font-semibold text-bambu-dark transition-colors hover:bg-bambu-green/90 disabled:cursor-not-allowed disabled:opacity-50"
-                            disabled={document.open_amount === '0.00' || document.payment_status === 'paid'}
+                            disabled={!canManagePayments || document.open_amount === '0.00' || document.payment_status === 'paid'}
                             onClick={() => openPaymentDialog(document)}
+                            title={!canManagePayments ? 'Keine Berechtigung zum Erfassen von Zahlungen' : undefined}
                           >
                             <Check className="h-3.5 w-3.5" />
                             Zahlung bestätigen
@@ -584,7 +605,7 @@ export function OrdersPage() {
               <button
                 type="button"
                 className="inline-flex items-center gap-2 rounded bg-bambu-green px-4 py-2 text-sm font-semibold text-bambu-dark transition-colors hover:bg-bambu-green/90 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!paymentDraft.amount || !paymentDraft.paid_at || recordPayment.isPending}
+                disabled={!canManagePayments || !paymentDraft.amount || !paymentDraft.paid_at || recordPayment.isPending}
                 onClick={submitPayment}
               >
                 <Check className="h-4 w-4" />

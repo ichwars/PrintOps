@@ -756,6 +756,8 @@ async def get_archive_energy_history(
     from backend.app.api.routes.settings import get_setting
 
     current_user, can_read_all = auth_result
+    if current_user is not None and not can_read_all:
+        return []
     dt_from = datetime.combine(date_from, time.min, tzinfo=timezone.utc) if date_from else None
     dt_to = datetime.combine(date_to, time.max, tzinfo=timezone.utc) if date_to else None
     energy_cost_per_kwh_str = await get_setting(db, "energy_cost_per_kwh")

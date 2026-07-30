@@ -392,7 +392,7 @@ export function Layout() {
     // request (#1755).
     const navPermissions: Record<string, Permission | Permission[]> = {
       dashboard: 'stats:read',
-      'business-dashboard': ['stats:read', 'orders:read', 'inventory:read', 'commercial_documents:read'],
+      'business-dashboard': ['stats:read', 'orders:read', 'inventory:read', 'commercial_documents:read', 'payments:read'],
       archives: ['archives:read', 'archives:read_own', 'archives:read_all'],
       queue: ['queue:read', 'queue:read_own', 'queue:read_all'],
       profiles: 'kprofiles:read',
@@ -436,7 +436,18 @@ export function Layout() {
       // don't get hidden from users who only hold the granular variant (#1755).
       if (authEnabled && id in navPermissions) {
         const required = navPermissions[id];
-        const granted = Array.isArray(required)
+        const granted = id === 'business-dashboard'
+          ? hasPermission('stats:read')
+            && hasPermission('orders:read')
+            && hasPermission('inventory:read')
+            && hasPermission('commercial_documents:read')
+            && hasPermission('payments:read')
+            && (
+              hasPermission('archives:read')
+              || hasPermission('archives:read_own')
+              || hasPermission('archives:read_all')
+            )
+          : Array.isArray(required)
           ? required.some((p) => hasPermission(p))
           : hasPermission(required);
         if (!granted) return true;
