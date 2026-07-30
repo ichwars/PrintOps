@@ -4,6 +4,11 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+## [1.2.7.2] - 2026-07-29
+
+### Fixed
+- **Bug reporting now uses GitHub issues directly** - The floating bug-report panel and Support page now use the public GitHub issue form as the standard reporting path instead of exposing a per-installation relay submission flow. This keeps official builds zero-config for users, avoids misleading "automatic reporting not configured" errors, and still preserves the pre-report printer and log-health checks that can help users self-triage before opening an issue.
+
 ## [1.2.7] - 2026-07-28
 
 ### Added

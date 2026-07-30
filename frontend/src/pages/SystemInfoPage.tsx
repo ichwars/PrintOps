@@ -261,18 +261,8 @@ export function SystemInfoPage() {
           {/* Bug report destination */}
           <div className="flex items-center justify-between gap-4 p-4 bg-bambu-dark rounded-lg">
             <div className="flex items-center gap-3 min-w-0">
-              <div
-                className={`p-2 rounded-lg ${
-                  bugReportStatus?.relay_configured
-                    ? 'bg-bambu-green/20 text-bambu-green'
-                    : 'bg-bambu-dark-tertiary text-bambu-gray'
-                }`}
-              >
-                {bugReportStatus?.relay_configured ? (
-                  <CheckCircle2 className="w-5 h-5" />
-                ) : (
-                  <Bug className="w-5 h-5" />
-                )}
+              <div className="p-2 rounded-lg bg-bambu-dark-tertiary text-bambu-gray">
+                <Bug className="w-5 h-5" />
               </div>
               <div className="min-w-0">
                 <p className="font-medium text-white">
@@ -283,8 +273,6 @@ export function SystemInfoPage() {
                     ? t('support.bugReportStatusLoading', 'Checking bug report configuration...')
                     : bugReportStatusError
                     ? t('support.bugReportStatusUnavailable', 'Bug report configuration is currently unavailable')
-                    : bugReportStatus?.relay_configured
-                    ? t('support.bugReportRelayConfigured', 'Automatic GitHub issue creation is configured')
                     : t('support.bugReportManualFallback', 'Manual GitHub issue form is used')}
                 </p>
                 {bugReportStatus?.repository && (
