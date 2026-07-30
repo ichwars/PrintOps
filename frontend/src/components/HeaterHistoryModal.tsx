@@ -8,12 +8,12 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
   Legend,
 } from 'recharts';
 import { api, type HeaterSensorKind, type PrinterSensorHistoryResponse } from '../api/client';
 import { parseUTCDate, applyTimeFormat, type TimeFormat } from '../utils/date';
 import { useTranslation } from 'react-i18next';
+import { MeasuredResponsiveContainer } from './charts/MeasuredResponsiveContainer';
 
 interface HeaterHistoryModalProps {
   isOpen: boolean;
@@ -272,7 +272,7 @@ export function HeaterHistoryModal({
                 {t('printers.heaterHistory.empty', 'No data recorded yet')}
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={300}>
+              <MeasuredResponsiveContainer width="100%" height={300}>
                 <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={borderColor} />
                   <XAxis
@@ -333,7 +333,7 @@ export function HeaterHistoryModal({
                     isAnimationActive={false}
                   />
                 </LineChart>
-              </ResponsiveContainer>
+              </MeasuredResponsiveContainer>
             )}
           </div>
         </div>

@@ -126,6 +126,16 @@ class TaxOverrideDocumentCommand(ReasonedDocumentCommand):
     tax_decision: dict[str, Any]
 
 
+class RecordPaymentCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    amount: Decimal = Field(gt=0)
+    paid_at: date
+    method: Literal["bank_transfer", "cash", "card", "paypal", "other"] = "bank_transfer"
+    reference: str | None = Field(default=None, max_length=255)
+    note: str | None = Field(default=None, max_length=2000)
+
+
 class CommercialDocumentLineRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -160,6 +170,21 @@ class CommercialDocumentArtifactRead(BaseModel):
     created_at: datetime
 
 
+class DocumentPaymentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    document_id: int
+    amount: Decimal
+    currency: str
+    paid_at: date
+    method: Literal["bank_transfer", "cash", "card", "paypal", "other"]
+    reference: str | None
+    note: str | None
+    recorded_by_id: int | None
+    created_at: datetime
+
+
 class CommercialDocumentRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -190,6 +215,7 @@ class CommercialDocumentRead(BaseModel):
     updated_at: datetime
     lines: list[CommercialDocumentLineRead]
     artifacts: list[CommercialDocumentArtifactRead]
+    payments: list[DocumentPaymentRead] = Field(default_factory=list)
     snapshot_sha256: str | None = None
 
 

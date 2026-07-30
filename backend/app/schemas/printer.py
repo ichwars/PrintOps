@@ -316,6 +316,17 @@ class PrintOptionsResponse(BaseModel):
     filament_tangle_detect: bool = False
 
 
+class PrinterControlConnection(BaseModel):
+    """Current control-channel availability for a printer card."""
+
+    local_status_available: bool = False
+    local_control_available: bool = False
+    developer_lan: bool | None = None
+    cloud_configured: bool = False
+    cloud_device_id: str | None = None
+    active_control_path: str = "none"  # "local" | "cloud" | "none"
+
+
 class PrinterStatus(BaseModel):
     id: int
     name: str
@@ -388,6 +399,7 @@ class PrinterStatus(BaseModel):
     firmware_version: str | None = None
     # Developer LAN mode: True = enabled, False = disabled (MQTT encryption), None = unknown
     developer_mode: bool | None = None
+    control_connection: PrinterControlConnection | None = None
     # AMS Filament Backup ("auto-switch" to a second spool when one runs out).
     # True = ON, False = OFF, None = unknown / unsupported (A1 family — protocol field
     # not yet identified). UI treats None as "status unavailable", not as a hard disable.

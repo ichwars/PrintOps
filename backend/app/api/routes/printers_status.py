@@ -4,18 +4,22 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.api.routes.cloud import get_stored_token, resolve_api_key_cloud_owner
 from backend.app.core.auth import (
     RequirePermissionIfAuthEnabled,
+    is_auth_enabled,
 )
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.models.printer import Printer
+from backend.app.models.user import User
 from backend.app.schemas.printer import (
     DiagnosticRequest,
     FilaSwitchResponse,
     HMSErrorResponse,
     NozzleInfoResponse,
     NozzleRackSlot,
+    PrinterControlConnection,
     PrinterDiagnosticResult,
     PrinterStatus,
     PrintOptionsResponse,
@@ -50,7 +54,8 @@ printer_manager = _PrinterManagerProxy()
 @router.get("/{printer_id}/status", response_model=PrinterStatus)
 async def get_printer_status(
     printer_id: int,
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
+    cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """Get real-time status of a printer."""
@@ -59,12 +64,27 @@ async def get_printer_status(
     if not printer:
         raise HTTPException(404, "Printer not found")
 
+    cloud_user = current_user or cloud_owner
+    if cloud_user is None and await is_auth_enabled(db):
+        cloud_configured = False
+    else:
+        cloud_token, _cloud_email, _cloud_region = await get_stored_token(db, cloud_user)
+        cloud_configured = bool(cloud_token)
+
     state = printer_manager.get_status(printer_id)
     if not state:
         return PrinterStatus(
             id=printer_id,
             name=printer.name,
             connected=False,
+            control_connection=PrinterControlConnection(
+                local_status_available=False,
+                local_control_available=False,
+                developer_lan=None,
+                cloud_configured=cloud_configured,
+                cloud_device_id=printer.serial_number,
+                active_control_path="cloud" if cloud_configured else "none",
+            ),
         )
 
     # Determine cover URL if there's an active print (including paused)
@@ -186,6 +206,16 @@ async def get_printer_status(
             )
             current_archive_id = archive_row.scalar_one_or_none()
 
+    local_control_available = state.connected and state.developer_mode is not False
+    control_connection = PrinterControlConnection(
+        local_status_available=state.connected,
+        local_control_available=local_control_available,
+        developer_lan=state.developer_mode if state else None,
+        cloud_configured=cloud_configured,
+        cloud_device_id=printer.serial_number,
+        active_control_path="local" if local_control_available else "cloud" if cloud_configured else "none",
+    )
+
     return PrinterStatus(
         id=printer_id,
         name=printer.name,
@@ -253,6 +283,7 @@ async def get_printer_status(
         heatbreak_fan_speed=state.heatbreak_fan_speed,
         firmware_version=state.firmware_version,
         developer_mode=state.developer_mode if state else None,
+        control_connection=control_connection,
         ams_filament_backup=state.ams_filament_backup if state else None,
         awaiting_plate_clear=printer_manager.is_awaiting_plate_clear(printer_id),
         supports_drying=supports_drying(printer.model, state.firmware_version),

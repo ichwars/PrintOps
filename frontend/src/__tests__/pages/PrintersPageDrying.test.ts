@@ -248,6 +248,13 @@ describe('rotate tray gate (per-AMS tray.state === 11)', () => {
     return (targetAms?.tray ?? []).some(tray => tray.state === 11);
   }
 
+  function isRotateTrayButtonDisabled(
+    amsData: AmsLike[],
+    targetAmsId: number | null,
+  ): boolean {
+    return isTrayLoadedInThisAms(amsData, targetAmsId);
+  }
+
   it('returns false when AMS id is null (modal closed)', () => {
     const ams = [{ id: 0, tray: [{ state: 11 }] }];
     expect(isTrayLoadedInThisAms(ams, null)).toBe(false);
@@ -276,6 +283,16 @@ describe('rotate tray gate (per-AMS tray.state === 11)', () => {
     // this tray's state stays at 11. The whole AMS is mechanically locked.
     const ams = [{ id: 0, tray: [{ state: 10 }, { state: 11 }, { state: 9 }, { state: 10 }] }];
     expect(isTrayLoadedInThisAms(ams, 0)).toBe(true);
+  });
+
+  it('disables the rotate-tray button when targeted AMS has a loaded tray', () => {
+    const ams = [{ id: 0, tray: [{ state: 10 }, { state: 11 }] }];
+    expect(isRotateTrayButtonDisabled(ams, 0)).toBe(true);
+  });
+
+  it('keeps the rotate-tray button enabled for spools present but not loaded', () => {
+    const ams = [{ id: 0, tray: [{ state: 10 }, { state: 10 }] }];
+    expect(isRotateTrayButtonDisabled(ams, 0)).toBe(false);
   });
 
   it('returns true when targeted AMS-B has a loaded tray (per-AMS isolation)', () => {
@@ -322,5 +339,27 @@ describe('rotate tray gate (per-AMS tray.state === 11)', () => {
     const submittedValue = userToggleState && !trayLoaded;
     expect(trayLoaded).toBe(false);
     expect(submittedValue).toBe(true);
+  });
+});
+
+describe('local printer control availability', () => {
+  function isLocalPrinterControlUnavailable(status: { connected?: boolean; developer_mode?: boolean | null } | null | undefined): boolean {
+    return status?.connected === true && status.developer_mode === false;
+  }
+
+  it('blocks local control when connected printer reports Developer LAN disabled', () => {
+    expect(isLocalPrinterControlUnavailable({ connected: true, developer_mode: false })).toBe(true);
+  });
+
+  it('allows local control when Developer LAN is enabled', () => {
+    expect(isLocalPrinterControlUnavailable({ connected: true, developer_mode: true })).toBe(false);
+  });
+
+  it('does not block while Developer LAN state is still unknown', () => {
+    expect(isLocalPrinterControlUnavailable({ connected: true, developer_mode: null })).toBe(false);
+  });
+
+  it('does not report a local-control issue for disconnected printers', () => {
+    expect(isLocalPrinterControlUnavailable({ connected: false, developer_mode: false })).toBe(false);
   });
 });

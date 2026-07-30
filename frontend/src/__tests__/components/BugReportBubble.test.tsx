@@ -34,6 +34,18 @@ function setupLoggingEndpoints() {
   );
 }
 
+function setupBugReportStatus(relayConfigured = true) {
+  server.use(
+    http.get('*/bug-report/status', () =>
+      HttpResponse.json({
+        repository: 'ichwars/PrintOps',
+        relay_configured: relayConfigured,
+        issue_url: 'https://github.com/ichwars/PrintOps/issues/new/choose',
+      })
+    )
+  );
+}
+
 /** Mocks the printer list and per-printer diagnostic the form scans on open. */
 function setupDiagnosticEndpoints(
   printers: { id: number; name: string }[],
@@ -128,6 +140,23 @@ describe('BugReportBubble', () => {
     await user.type(getDescriptionTextarea(), 'Something is broken');
 
     expect(getSubmitButton()).not.toBeDisabled();
+  });
+
+  it('opens the manual GitHub issue form when automatic reporting is not configured', async () => {
+    const user = userEvent.setup();
+    setupBugReportStatus(false);
+
+    render(<BugReportBubble />);
+    await user.click(screen.getByRole('button'));
+
+    expect(await screen.findByText('Automatic reporting is not configured')).toBeInTheDocument();
+    expect(screen.getByText(/cannot send bug reports directly to GitHub/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start Debug Logging' })).not.toBeInTheDocument();
+    const manualLink = screen.getByRole('link', { name: 'Open GitHub issue' });
+    expect(manualLink).toHaveAttribute(
+      'href',
+      'https://github.com/ichwars/PrintOps/issues/new/choose'
+    );
   });
 
   it('shows logging state with step indicators after start', async () => {

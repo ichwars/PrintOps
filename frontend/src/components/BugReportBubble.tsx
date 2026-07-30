@@ -99,6 +99,16 @@ export function BugReportBubble() {
   });
   const logFindings = logHealthScan.data?.findings ?? [];
 
+  const bugReportStatus = useQuery({
+    queryKey: ['bugReportStatus'],
+    enabled: isOpen,
+    staleTime: 60_000,
+    queryFn: bugReportApi.getStatus,
+  });
+  const manualIssueUrl = bugReportStatus.data?.issue_url;
+  const automaticReportingUnavailable =
+    bugReportStatus.data !== undefined && !bugReportStatus.data.relay_configured;
+
   // Elapsed timer for logging phase — auto-stop at 5 minutes
   useEffect(() => {
     if (viewState !== 'logging') return;
@@ -168,6 +178,7 @@ export function BugReportBubble() {
 
   const handleStartLogging = async () => {
     if (!description.trim()) return;
+    if (automaticReportingUnavailable) return;
     try {
       const result = await bugReportApi.startLogging();
       setWasDebug(result.was_debug);
@@ -334,6 +345,20 @@ export function BugReportBubble() {
                     </div>
                   )}
 
+                  {automaticReportingUnavailable && (
+                    <div className="flex items-start gap-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3">
+                      <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+                      <div>
+                        <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                          {t('bugReport.manualFallbackTitle')}
+                        </p>
+                        <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
+                          {t('bugReport.manualFallbackDescription')}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Description */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -435,13 +460,33 @@ export function BugReportBubble() {
                     >
                       {t('common.cancel')}
                     </button>
-                    <button
-                      onClick={handleStartLogging}
-                      disabled={!description.trim()}
-                      className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
-                    >
-                      {t('bugReport.startLogging')}
-                    </button>
+                    {automaticReportingUnavailable ? (
+                      manualIssueUrl ? (
+                        <a
+                          href={manualIssueUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+                        >
+                          {t('bugReport.openIssueForm')}
+                        </a>
+                      ) : (
+                        <button
+                          disabled
+                          className="px-4 py-2 text-sm font-medium text-white bg-red-500 opacity-50 cursor-not-allowed rounded-lg transition-colors"
+                        >
+                          {t('bugReport.openIssueForm')}
+                        </button>
+                      )
+                    ) : (
+                      <button
+                        onClick={handleStartLogging}
+                        disabled={!description.trim()}
+                        className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                      >
+                        {t('bugReport.startLogging')}
+                      </button>
+                    )}
                   </div>
                 </>
               )}
@@ -546,7 +591,7 @@ export function BugReportBubble() {
                       rel="noopener noreferrer"
                       className="text-sm text-blue-500 hover:text-blue-600 underline"
                     >
-                      {t('bugReport.title')}
+                      {t('bugReport.openIssueForm')}
                     </a>
                   )}
                   <div className="flex gap-2 mt-4">

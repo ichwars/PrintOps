@@ -5,16 +5,20 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.api.routes.cloud import build_authenticated_cloud, resolve_api_key_cloud_owner
 from backend.app.core.auth import (
     RequirePermissionIfAuthEnabled,
+    is_auth_enabled,
 )
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.models.printer import Printer
+from backend.app.models.user import User
 from backend.app.schemas.printer import (
     HmsActionBody,
 )
+from backend.app.services.bambu_cloud import BambuCloudAuthError, BambuCloudError
 from backend.app.services.printer_manager import (
     resolve_plate_id,
     supports_chamber_heater,
@@ -38,6 +42,90 @@ def _hms_action_ack_wait_seconds() -> float:
     from backend.app.api.routes import printers as printers_routes
 
     return printers_routes.HMS_ACTION_ACK_WAIT_SECONDS
+
+
+async def _publish_cloud_print_command(
+    printer: Printer,
+    payload: dict | list[dict],
+    db: AsyncSession,
+    current_user: User | None,
+) -> dict:
+    if current_user is None and await is_auth_enabled(db):
+        raise HTTPException(
+            403,
+            {
+                "code": "cloud_control_scope_required",
+                "message": "Cloud control requires a signed-in user or an API key with cloud access.",
+            },
+        )
+    cloud = await build_authenticated_cloud(db, current_user)
+    if cloud is None or not cloud.is_authenticated:
+        raise HTTPException(
+            400,
+            {
+                "code": "cloud_control_not_configured",
+                "message": "Bambu Cloud is not configured for this user.",
+            },
+        )
+    try:
+        payloads = payload if isinstance(payload, list) else [payload]
+        for command_payload in payloads:
+            await cloud.publish_mqtt_command(printer.serial_number, command_payload)
+        return {"success": True, "control_channel": "cloud"}
+    except BambuCloudAuthError as exc:
+        raise HTTPException(
+            401,
+            {
+                "code": "cloud_control_auth_failed",
+                "message": str(exc),
+            },
+        ) from exc
+    except BambuCloudError as exc:
+        raise HTTPException(
+            502,
+            {
+                "code": "cloud_control_failed",
+                "message": str(exc),
+            },
+        ) from exc
+    finally:
+        await cloud.close()
+
+
+async def _send_print_command_with_cloud_fallback(
+    printer_id: int,
+    *,
+    command: dict | list[dict],
+    local_send,
+    local_failure_message: str,
+    success_message: str,
+    db: AsyncSession,
+    current_user: User | None,
+) -> dict:
+    result = await db.execute(select(Printer).where(Printer.id == printer_id))
+    printer = result.scalar_one_or_none()
+    if not printer:
+        raise HTTPException(404, "Printer not found")
+
+    state = printer_manager.get_status(printer_id)
+    client = printer_manager.get_client(printer_id)
+    if client and state and state.connected and state.developer_mode is not False:
+        success = local_send(client)
+        if not success:
+            raise HTTPException(500, local_failure_message)
+        return {"success": True, "message": success_message, "control_channel": "local"}
+
+    if state and state.connected and state.developer_mode is False:
+        cloud_result = await _publish_cloud_print_command(printer, command, db, current_user)
+        return {
+            **cloud_result,
+            "message": f"{success_message} via Bambu Cloud",
+        }
+
+    if not client:
+        raise HTTPException(400, "Printer not connected")
+
+    raise HTTPException(400, "Local printer control unavailable")
 
 
 @router.post("/{printer_id}/debug/simulate-print-complete")
@@ -91,22 +179,20 @@ async def debug_simulate_print_complete(
 @router.post("/{printer_id}/print/stop")
 async def stop_print(
     printer_id: int,
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """Stop/cancel the current print job."""
-    result = await db.execute(select(Printer).where(Printer.id == printer_id))
-    printer = result.scalar_one_or_none()
-    if not printer:
-        raise HTTPException(404, "Printer not found")
-
-    client = printer_manager.get_client(printer_id)
-    if not client:
-        raise HTTPException(400, "Printer not connected")
-
-    success = client.stop_print()
-    if not success:
-        raise HTTPException(500, "Failed to stop print")
+    result = await _send_print_command_with_cloud_fallback(
+        printer_id,
+        command={"print": {"command": "stop", "sequence_id": "0"}},
+        local_send=lambda client: client.stop_print(),
+        local_failure_message="Failed to stop print",
+        success_message="Print stop command sent",
+        db=db,
+        current_user=current_user or cloud_owner,
+    )
 
     # Mark this printer as user-stopped so on_print_complete reclassifies
     # the resulting "failed"/"aborted" MQTT status as "cancelled" — otherwise
@@ -119,7 +205,7 @@ async def stop_print(
     except Exception as _mark_err:
         logger.warning("Failed to mark printer %s as user-stopped: %s", printer_id, _mark_err)
 
-    return {"success": True, "message": "Print stop command sent"}
+    return result
 
 
 @router.post("/{printer_id}/clear-plate")
@@ -161,72 +247,63 @@ async def clear_plate(
 @router.post("/{printer_id}/print/pause")
 async def pause_print(
     printer_id: int,
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """Pause the current print job."""
-    result = await db.execute(select(Printer).where(Printer.id == printer_id))
-    printer = result.scalar_one_or_none()
-    if not printer:
-        raise HTTPException(404, "Printer not found")
-
-    client = printer_manager.get_client(printer_id)
-    if not client:
-        raise HTTPException(400, "Printer not connected")
-
-    success = client.pause_print()
-    if not success:
-        raise HTTPException(500, "Failed to pause print")
-
-    return {"success": True, "message": "Print pause command sent"}
+    return await _send_print_command_with_cloud_fallback(
+        printer_id,
+        command={"print": {"command": "pause", "sequence_id": "0"}},
+        local_send=lambda client: client.pause_print(),
+        local_failure_message="Failed to pause print",
+        success_message="Print pause command sent",
+        db=db,
+        current_user=current_user or cloud_owner,
+    )
 
 
 @router.post("/{printer_id}/print/resume")
 async def resume_print(
     printer_id: int,
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """Resume a paused print job."""
-    result = await db.execute(select(Printer).where(Printer.id == printer_id))
-    printer = result.scalar_one_or_none()
-    if not printer:
-        raise HTTPException(404, "Printer not found")
-
-    client = printer_manager.get_client(printer_id)
-    if not client:
-        raise HTTPException(400, "Printer not connected")
-
-    success = client.resume_print()
-    if not success:
-        raise HTTPException(500, "Failed to resume print")
-
-    return {"success": True, "message": "Print resume command sent"}
+    return await _send_print_command_with_cloud_fallback(
+        printer_id,
+        command={"print": {"command": "resume", "sequence_id": "0"}},
+        local_send=lambda client: client.resume_print(),
+        local_failure_message="Failed to resume print",
+        success_message="Print resume command sent",
+        db=db,
+        current_user=current_user or cloud_owner,
+    )
 
 
 @router.post("/{printer_id}/print-speed")
 async def set_print_speed(
     printer_id: int,
     mode: int = Query(..., description="Speed mode (1=silent, 2=standard, 3=sport, 4=ludicrous)"),
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """Set the print speed mode."""
-    result = await db.execute(select(Printer).where(Printer.id == printer_id))
-    printer = result.scalar_one_or_none()
-    if not printer:
-        raise HTTPException(404, "Printer not found")
-
-    client = printer_manager.get_client(printer_id)
-    if not client:
-        raise HTTPException(400, "Printer not connected")
-
-    success = client.set_print_speed(mode)
-    if not success:
-        raise HTTPException(500, "Failed to set print speed")
+    if mode not in (1, 2, 3, 4):
+        raise HTTPException(422, "Invalid speed mode")
 
     speed_names = {1: "Silent", 2: "Standard", 3: "Sport", 4: "Ludicrous"}
-    return {"success": True, "message": f"Print speed set to {speed_names.get(mode, 'Unknown')}"}
+    return await _send_print_command_with_cloud_fallback(
+        printer_id,
+        command={"print": {"command": "print_speed", "param": str(mode), "sequence_id": "0"}},
+        local_send=lambda client: client.set_print_speed(mode),
+        local_failure_message="Failed to set print speed",
+        success_message=f"Print speed set to {speed_names.get(mode, 'Unknown')}",
+        db=db,
+        current_user=current_user or cloud_owner,
+    )
 
 
 @router.post("/{printer_id}/temperature/nozzle")
@@ -234,55 +311,48 @@ async def set_nozzle_temperature(
     printer_id: int,
     target: int = Query(..., ge=0, le=320, description="Target nozzle temperature in Celsius; 0 turns heating off"),
     nozzle: int = Query(0, ge=0, le=1, description="Nozzle/extruder index (0=right/default, 1=left)"),
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """Set a nozzle target temperature."""
-    result = await db.execute(select(Printer).where(Printer.id == printer_id))
-    printer = result.scalar_one_or_none()
-    if not printer:
-        raise HTTPException(404, "Printer not found")
-
-    client = printer_manager.get_client(printer_id)
-    if not client:
-        raise HTTPException(400, "Printer not connected")
-
-    success = client.set_nozzle_temperature(target, nozzle)
-    if not success:
-        raise HTTPException(500, "Failed to set nozzle temperature")
-
-    return {"success": True, "message": f"Nozzle temperature set to {target}°C"}
+    return await _send_print_command_with_cloud_fallback(
+        printer_id,
+        command={"print": {"command": "gcode_line", "param": f"M104 T{nozzle} S{target}", "sequence_id": "0"}},
+        local_send=lambda client: client.set_nozzle_temperature(target, nozzle),
+        local_failure_message="Failed to set nozzle temperature",
+        success_message=f"Nozzle temperature set to {target}°C",
+        db=db,
+        current_user=current_user or cloud_owner,
+    )
 
 
 @router.post("/{printer_id}/temperature/bed")
 async def set_bed_temperature(
     printer_id: int,
     target: int = Query(..., ge=0, le=140, description="Target bed temperature in Celsius; 0 turns heating off"),
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """Set the bed target temperature."""
-    result = await db.execute(select(Printer).where(Printer.id == printer_id))
-    printer = result.scalar_one_or_none()
-    if not printer:
-        raise HTTPException(404, "Printer not found")
-
-    client = printer_manager.get_client(printer_id)
-    if not client:
-        raise HTTPException(400, "Printer not connected")
-
-    success = client.set_bed_temperature(target)
-    if not success:
-        raise HTTPException(500, "Failed to set bed temperature")
-
-    return {"success": True, "message": f"Bed temperature set to {target}°C"}
+    return await _send_print_command_with_cloud_fallback(
+        printer_id,
+        command={"print": {"command": "gcode_line", "param": f"M140 S{target}", "sequence_id": "0"}},
+        local_send=lambda client: client.set_bed_temperature(target),
+        local_failure_message="Failed to set bed temperature",
+        success_message=f"Bed temperature set to {target}°C",
+        db=db,
+        current_user=current_user or cloud_owner,
+    )
 
 
 @router.post("/{printer_id}/temperature/chamber")
 async def set_chamber_temperature(
     printer_id: int,
     target: int = Query(..., ge=0, le=60, description="Target chamber temperature in Celsius; 0 turns heating off"),
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """Set the chamber target temperature.
@@ -300,15 +370,15 @@ async def set_chamber_temperature(
     if not supports_chamber_heater(printer.model):
         raise HTTPException(400, f"Model {printer.model or 'unknown'} does not have an active chamber heater")
 
-    client = printer_manager.get_client(printer_id)
-    if not client:
-        raise HTTPException(400, "Printer not connected")
-
-    success = client.set_chamber_temperature(target)
-    if not success:
-        raise HTTPException(500, "Failed to set chamber temperature")
-
-    return {"success": True, "message": f"Chamber temperature set to {target}°C"}
+    return await _send_print_command_with_cloud_fallback(
+        printer_id,
+        command={"print": {"command": "gcode_line", "param": f"M141 S{target}", "sequence_id": "0"}},
+        local_send=lambda client: client.set_chamber_temperature(target),
+        local_failure_message="Failed to set chamber temperature",
+        success_message=f"Chamber temperature set to {target}°C",
+        db=db,
+        current_user=current_user or cloud_owner,
+    )
 
 
 @router.post("/{printer_id}/fan-speed")
@@ -316,7 +386,8 @@ async def set_fan_speed(
     printer_id: int,
     fan: str = Query(..., description="Fan to control: part, aux, or chamber"),
     speed: int = Query(..., ge=0, le=100, description="Fan speed percentage"),
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """Set a fan speed by percentage."""
@@ -325,22 +396,17 @@ async def set_fan_speed(
     if fan_id is None:
         raise HTTPException(400, "fan must be 'part', 'aux', or 'chamber'")
 
-    result = await db.execute(select(Printer).where(Printer.id == printer_id))
-    printer = result.scalar_one_or_none()
-    if not printer:
-        raise HTTPException(404, "Printer not found")
-
-    client = printer_manager.get_client(printer_id)
-    if not client:
-        raise HTTPException(400, "Printer not connected")
-
     pwm_speed = round(speed * 255 / 100)
-    success = client.set_fan_speed(fan_id, pwm_speed)
-    if not success:
-        raise HTTPException(500, "Failed to set fan speed")
-
     fan_names = {"part": "Part cooling fan", "aux": "Auxiliary fan", "chamber": "Chamber fan"}
-    return {"success": True, "message": f"{fan_names[fan]} set to {speed}%"}
+    return await _send_print_command_with_cloud_fallback(
+        printer_id,
+        command={"print": {"command": "gcode_line", "param": f"M106 P{fan_id} S{pwm_speed}", "sequence_id": "0"}},
+        local_send=lambda client: client.set_fan_speed(fan_id, pwm_speed),
+        local_failure_message="Failed to set fan speed",
+        success_message=f"{fan_names[fan]} set to {speed}%",
+        db=db,
+        current_user=current_user or cloud_owner,
+    )
 
 
 @router.post("/{printer_id}/select-extruder")
@@ -398,24 +464,36 @@ async def set_airduct_mode(
 async def set_chamber_light(
     printer_id: int,
     on: bool = Query(..., description="True to turn on, False to turn off"),
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """Turn the chamber light on or off."""
-    result = await db.execute(select(Printer).where(Printer.id == printer_id))
-    printer = result.scalar_one_or_none()
-    if not printer:
-        raise HTTPException(404, "Printer not found")
-
-    client = printer_manager.get_client(printer_id)
-    if not client:
-        raise HTTPException(400, "Printer not connected")
-
-    success = client.set_chamber_light(on)
-    if not success:
-        raise HTTPException(500, "Failed to control chamber light")
-
-    return {"success": True, "message": f"Chamber light {'on' if on else 'off'}"}
+    mode = "on" if on else "off"
+    light_commands = [
+        {
+            "system": {
+                "command": "ledctrl",
+                "led_node": led_node,
+                "led_mode": mode,
+                "led_on_time": 500,
+                "led_off_time": 500,
+                "loop_times": 0,
+                "interval_time": 0,
+                "sequence_id": str(index),
+            }
+        }
+        for index, led_node in enumerate(["chamber_light", "chamber_light2"])
+    ]
+    return await _send_print_command_with_cloud_fallback(
+        printer_id,
+        command=light_commands,
+        local_send=lambda client: client.set_chamber_light(on),
+        local_failure_message="Failed to control chamber light",
+        success_message=f"Chamber light {'on' if on else 'off'}",
+        db=db,
+        current_user=current_user or cloud_owner,
+    )
 
 
 @router.post("/{printer_id}/bed-jog")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from hashlib import sha256
 from unittest.mock import patch
 
@@ -152,6 +153,52 @@ async def test_invalid_document_returns_field_rule_and_correlation(async_client,
     assert detail["findings"][0]["field_path"]
     assert detail["findings"][0]["code"]
     assert detail["correlation_id"]
+
+
+async def test_manual_payment_updates_document_balance(async_client, db_session):
+    profile = await _profile(db_session)
+    document = CommercialDocument(
+        document_type="invoice",
+        business_profile_id=profile.id,
+        technical_status="issued",
+        payment_status="unpaid",
+        number="RE-2026-0042",
+        issue_date=date(2026, 7, 22),
+        due_date=date(2026, 8, 5),
+        language="de-DE",
+        currency="EUR",
+        total_amount=Decimal("119.00"),
+        open_amount=Decimal("119.00"),
+    )
+    db_session.add(document)
+    await db_session.commit()
+
+    partial = await async_client.post(
+        f"{BASE_URL}/{document.id}/payments",
+        json={
+            "amount": "50.00",
+            "paid_at": "2026-08-01",
+            "method": "bank_transfer",
+            "reference": "Kontoauszug 1",
+        },
+    )
+    assert partial.status_code == 200
+    assert partial.json()["payment_status"] == "partially_paid"
+    assert partial.json()["open_amount"] == "69.00"
+    assert partial.json()["payments"][0]["amount"] == "50.00"
+
+    rest = await async_client.post(
+        f"{BASE_URL}/{document.id}/payments",
+        json={
+            "amount": "69.00",
+            "paid_at": "2026-08-02",
+            "method": "bank_transfer",
+        },
+    )
+    assert rest.status_code == 200
+    assert rest.json()["payment_status"] == "paid"
+    assert rest.json()["open_amount"] == "0.00"
+    assert len(rest.json()["payments"]) == 2
 
 
 async def test_artifact_list_manifest_download_and_integrity_audit(

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router';
-import { Printer, Archive, ListOrdered, BarChart3, Cloud, Settings, Sun, Moon, Monitor, ChevronLeft, ChevronRight, ChevronDown, Keyboard, Github, ArrowUpCircle, Wrench, FolderKanban, FolderOpen, X, Menu, Info, Plug, Bug, LogOut, Key, Loader2, ShieldAlert, Globe, Bell, Warehouse, ClipboardList, Package, Boxes, PackageCheck, FileText, Calculator, Users, Receipt, Database, Truck, type LucideIcon } from 'lucide-react';
+import { Printer, Archive, ListOrdered, BarChart3, Cloud, Settings, Sun, Moon, Monitor, ChevronLeft, ChevronRight, ChevronDown, Keyboard, Github, ArrowUpCircle, Wrench, FolderKanban, FolderOpen, X, Menu, Info, Plug, Bug, LogOut, Key, Loader2, ShieldAlert, Globe, Bell, Warehouse, ClipboardList, Package, Boxes, PackageCheck, FileText, Calculator, Users, Receipt, Database, Truck, CircleDollarSign, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
@@ -47,6 +47,7 @@ const UPDATE_SETTINGS_ROUTE = '/settings?tab=operations';
 
 export const defaultNavItems: NavItem[] = [
   { id: 'dashboard', to: '/dashboard', icon: BarChart3, labelKey: 'printops.nav.dashboard', defaultLabel: 'Dashboard', defaultLabelDe: 'Dashboard' },
+  { id: 'business-dashboard', to: '/business-dashboard', icon: CircleDollarSign, labelKey: 'printops.nav.businessDashboard', defaultLabel: 'Business', defaultLabelDe: 'Business' },
   { id: 'printers', to: '/printers', icon: Printer, labelKey: 'nav.printers' },
   { id: 'archives', to: '/archives', icon: Archive, labelKey: 'nav.archives', parentId: 'printers' },
   { id: 'queue', to: '/queue', icon: ListOrdered, labelKey: 'nav.queue', parentId: 'printers' },
@@ -391,6 +392,7 @@ export function Layout() {
     // request (#1755).
     const navPermissions: Record<string, Permission | Permission[]> = {
       dashboard: 'stats:read',
+      'business-dashboard': ['stats:read', 'orders:read', 'inventory:read', 'commercial_documents:read'],
       archives: ['archives:read', 'archives:read_own', 'archives:read_all'],
       queue: ['queue:read', 'queue:read_own', 'queue:read_all'],
       profiles: 'kprofiles:read',

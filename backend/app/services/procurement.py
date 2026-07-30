@@ -41,6 +41,7 @@ class ResolvedResource:
     small_part_id: int | None
     filament_sku_settings_id: int | None
     small_part: SmallPart | None = None
+    filament_settings: FilamentSkuSettings | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,6 +154,7 @@ async def resolve_resource(
         resource_key=f"filament:{settings.id}",
         small_part_id=None,
         filament_sku_settings_id=settings.id,
+        filament_settings=settings,
     )
 
 
@@ -293,6 +295,8 @@ async def replace_offers(
     preferred = next((draft for draft in drafts if draft.is_active and draft.is_preferred), None)
     if preferred is not None and resolved.small_part is not None:
         resolved.small_part.unit_cost = preferred.net_price
+    if resolved.filament_settings is not None:
+        resolved.filament_settings.default_supplier_id = preferred.supplier_id if preferred is not None else None
 
     await session.flush()
     return await _offers_for_resource(session, resolved.resource_key, active=True)
@@ -302,6 +306,10 @@ async def deactivate_offer(session: AsyncSession, offer_id: int) -> bool:
     offer = await session.get(ProcurementOffer, offer_id)
     if offer is None:
         return False
+    if offer.filament_sku_settings_id is not None and offer.is_preferred:
+        settings = await session.get(FilamentSkuSettings, offer.filament_sku_settings_id)
+        if settings is not None and settings.default_supplier_id == offer.supplier_id:
+            settings.default_supplier_id = None
     offer.is_active = False
     offer.is_preferred = False
     await session.flush()

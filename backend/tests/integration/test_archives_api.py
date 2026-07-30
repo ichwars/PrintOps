@@ -1089,6 +1089,8 @@ class TestArchivesSlimAPI:
             filament_used_grams=50.0,
             print_time_seconds=3600,
             cost=1.50,
+            energy_kwh=0.42,
+            energy_cost=0.13,
             quantity=2,
         )
 
@@ -1108,6 +1110,8 @@ class TestArchivesSlimAPI:
         assert item["filament_used_grams"] == 50.0
         assert item["print_time_seconds"] == 3600
         assert item["cost"] == 1.50
+        assert item["energy_kwh"] == 0.42
+        assert item["energy_cost"] == 0.13
         # quantity is per-event semantics now (each PrintLogEntry = one run);
         # the archive's quantity field is no longer surfaced through this
         # endpoint after the #1390 per-event migration.

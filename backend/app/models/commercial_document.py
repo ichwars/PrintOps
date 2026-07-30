@@ -131,6 +131,12 @@ class CommercialDocument(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    payments: Mapped[list[DocumentPayment]] = relationship(
+        back_populates="document",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="DocumentPayment.paid_at",
+    )
     source_offer = relationship(
         "Offer",
         foreign_keys=[source_offer_id],
@@ -165,6 +171,35 @@ class CommercialDocumentLine(Base):
     internal_calculation: Mapped[dict] = mapped_column(JSON, default=dict)
 
     document: Mapped[CommercialDocument] = relationship(back_populates="lines")
+
+
+class DocumentPayment(Base):
+    __tablename__ = "document_payments"
+    __table_args__ = (
+        CheckConstraint(
+            "method IN ('bank_transfer','cash','card','paypal','other')",
+            name="ck_document_payment_method",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("commercial_documents.id", ondelete="CASCADE"),
+        index=True,
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    currency: Mapped[str] = mapped_column(String(3))
+    paid_at: Mapped[date] = mapped_column(Date)
+    method: Mapped[str] = mapped_column(String(24), default="bank_transfer")
+    reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recorded_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    document: Mapped[CommercialDocument] = relationship(back_populates="payments")
 
 
 class DocumentRelation(Base):

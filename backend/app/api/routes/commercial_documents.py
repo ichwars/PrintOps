@@ -29,7 +29,9 @@ from backend.app.schemas.commercial_document import (
     CommercialDocumentLineRead,
     CommercialDocumentRead,
     DocumentAuditEventRead,
+    DocumentPaymentRead,
     IssueDocumentCommand,
+    RecordPaymentCommand,
     ReasonedDocumentCommand,
     SuccessorDocumentCommand,
     TaxOverrideDocumentCommand,
@@ -47,6 +49,7 @@ from backend.app.services.commercial_documents import (
     create_successor,
     issue_document,
     mark_ready,
+    record_payment,
     update_draft,
     validate_draft,
 )
@@ -64,6 +67,7 @@ _LOAD_OPTIONS = (
     selectinload(CommercialDocument.lines),
     selectinload(CommercialDocument.artifacts),
     selectinload(CommercialDocument.snapshot),
+    selectinload(CommercialDocument.payments),
 )
 
 
@@ -107,6 +111,7 @@ def _read(document: CommercialDocument) -> CommercialDocumentRead:
         updated_at=document.updated_at,
         lines=[CommercialDocumentLineRead.model_validate(item) for item in document.lines],
         artifacts=[_artifact_read(item) for item in document.artifacts],
+        payments=[DocumentPaymentRead.model_validate(item) for item in document.payments],
         snapshot_sha256=document.snapshot.sha256 if document.snapshot is not None else None,
     )
 
@@ -331,6 +336,67 @@ async def get_document(
         return _read(await _load(db, document_id))
     except Exception as error:
         await _raise_domain_error(request, error)
+
+
+@router.get("/{document_id}/payments", response_model=list[DocumentPaymentRead])
+async def list_document_payments(
+    document_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.PAYMENTS_READ),
+) -> list[DocumentPaymentRead]:
+    try:
+        document = await _load(db, document_id)
+        return [DocumentPaymentRead.model_validate(item) for item in document.payments]
+    except Exception as error:
+        await _raise_domain_error(request, error)
+
+
+@router.post("/{document_id}/payments", response_model=CommercialDocumentRead)
+async def record_document_payment(
+    document_id: int,
+    command: RecordPaymentCommand,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    actor: User | None = RequirePermissionIfAuthEnabled(Permission.PAYMENTS_MANAGE),
+) -> CommercialDocumentRead:
+    try:
+        before = await _load(db, document_id, lock=True)
+        before_state = {
+            "payment_status": before.payment_status,
+            "open_amount": str(before.open_amount),
+            "lock_version": before.lock_version,
+        }
+        document = await record_payment(
+            db,
+            document_id,
+            command,
+            actor_id=_actor_id(actor),
+        )
+        await append_audit(
+            db,
+            action="record_payment",
+            object_type="commercial_document",
+            object_id=document.id,
+            actor_id=_actor_id(actor),
+            reason=command.note,
+            before=before_state,
+            after={
+                "payment_status": document.payment_status,
+                "open_amount": str(document.open_amount),
+                "amount": str(command.amount),
+                "paid_at": command.paid_at.isoformat(),
+                "method": command.method,
+                "reference": command.reference,
+                "lock_version": document.lock_version,
+            },
+            correlation_id=_correlation_id(request),
+        )
+        await db.commit()
+        return _read(await _load(db, document.id))
+    except Exception as error:
+        await db.rollback()
+        await _raise_domain_error(request, error, db=db, document_id=document_id)
 
 
 @router.get(

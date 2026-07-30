@@ -79,7 +79,7 @@ async def test_replaces_material_offers_with_one_preferred(async_client, procure
 
 
 @pytest.mark.asyncio
-async def test_filament_descriptor_reuses_sku_identity(async_client, procurement_resources):
+async def test_filament_descriptor_reuses_sku_identity(async_client, db_session, procurement_resources):
     descriptor = {
         "kind": "filament",
         "material": "PLA",
@@ -102,6 +102,16 @@ async def test_filament_descriptor_reuses_sku_identity(async_client, procurement
     assert first.status_code == second.status_code == 200
     assert second.json()[0]["id"] == first.json()[0]["id"]
     assert second.json()[0]["resource_key"].startswith("filament:")
+    settings = await db_session.scalar(
+        select(FilamentSkuSettings).where(
+            FilamentSkuSettings.material == "PLA",
+            FilamentSkuSettings.subtype == "Matte",
+            FilamentSkuSettings.brand == "Poly",
+            FilamentSkuSettings.color_name == "Black",
+        )
+    )
+    assert settings is not None
+    assert settings.default_supplier_id == procurement_resources["supplier_ids"][0]
 
 
 @pytest.mark.asyncio
@@ -223,6 +233,43 @@ async def test_delete_soft_deactivates_offer(async_client, db_session, procureme
     assert stored is not None
     assert stored.is_active is False
     assert stored.is_preferred is False
+
+
+@pytest.mark.asyncio
+async def test_delete_preferred_filament_offer_clears_default_supplier(
+    async_client, db_session, procurement_resources
+):
+    descriptor = {
+        "kind": "filament",
+        "material": "PETG",
+        "subtype": "HF",
+        "brand": "Poly",
+        "color_name": "Natural",
+    }
+    created = await async_client.put(
+        "/api/v1/procurement-offers/resource",
+        json={
+            "resource": descriptor,
+            "offers": [{"supplier_id": procurement_resources["supplier_ids"][0], "is_preferred": True}],
+        },
+    )
+    assert created.status_code == 200
+    settings = await db_session.scalar(
+        select(FilamentSkuSettings).where(
+            FilamentSkuSettings.material == "PETG",
+            FilamentSkuSettings.subtype == "HF",
+            FilamentSkuSettings.brand == "Poly",
+            FilamentSkuSettings.color_name == "Natural",
+        )
+    )
+    assert settings is not None
+    assert settings.default_supplier_id == procurement_resources["supplier_ids"][0]
+
+    response = await async_client.delete(f"/api/v1/procurement-offers/{created.json()[0]['id']}")
+    await db_session.refresh(settings)
+
+    assert response.status_code == 204
+    assert settings.default_supplier_id is None
 
 
 @pytest.mark.asyncio

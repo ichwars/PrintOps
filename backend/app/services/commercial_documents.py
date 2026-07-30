@@ -17,6 +17,7 @@ from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.commercial_document import (
     CommercialDocument,
     CommercialDocumentLine,
+    DocumentPayment,
     DocumentNumberReservation,
     DocumentRelation,
 )
@@ -26,6 +27,7 @@ from backend.app.schemas.commercial_document import (
     CommercialDocumentDraft,
     CommercialDocumentLineDraft,
     IssuedDocumentSnapshot,
+    RecordPaymentCommand,
     SnapshotLine,
 )
 from backend.app.services.document_audit import append_audit
@@ -173,6 +175,7 @@ _LOAD_OPTIONS = (
     selectinload(CommercialDocument.outgoing_relations),
     selectinload(CommercialDocument.snapshot),
     selectinload(CommercialDocument.artifacts),
+    selectinload(CommercialDocument.payments),
 )
 
 
@@ -437,6 +440,49 @@ async def validate_draft(
     document_id: int,
 ) -> tuple[DocumentFinding, ...]:
     return validate_document(_to_draft(await _load_document(session, document_id)))
+
+
+def _payment_status(total: Decimal, paid: Decimal) -> tuple[str, Decimal]:
+    open_amount = total - paid
+    if paid <= 0:
+        return "unpaid", total
+    if open_amount > 0:
+        return "partially_paid", open_amount
+    if open_amount == 0:
+        return "paid", Decimal("0.00")
+    return "overpaid", Decimal("0.00")
+
+
+async def record_payment(
+    session: AsyncSession,
+    document_id: int,
+    command: RecordPaymentCommand,
+    *,
+    actor_id: int | None,
+) -> CommercialDocument:
+    document = await _load_document(session, document_id, lock=True)
+    if document.payment_status == "not_applicable":
+        raise InvalidDocumentTransition("This commercial document does not support payments")
+    if document.currency.upper() != document.currency:
+        document.currency = document.currency.upper()
+
+    amount = command.amount.quantize(Decimal("0.01"))
+    payment = DocumentPayment(
+        document_id=document.id,
+        amount=amount,
+        currency=document.currency,
+        paid_at=command.paid_at,
+        method=command.method,
+        reference=command.reference,
+        note=command.note,
+        recorded_by_id=actor_id,
+    )
+    document.payments.append(payment)
+    total_paid = sum((entry.amount for entry in document.payments), Decimal("0.00"))
+    document.payment_status, document.open_amount = _payment_status(document.total_amount, total_paid)
+    document.lock_version += 1
+    await session.flush()
+    return document
 
 
 async def transition_document(

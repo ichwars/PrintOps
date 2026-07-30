@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Search, Trash2, Truck } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router';
 
 import { suppliersApi, type Supplier, type SupplierInput } from '../api/procurement';
 import { Card, CardContent } from '../components/Card';
@@ -17,6 +18,10 @@ interface EditorState {
 }
 
 const SUPPLIER_PAGE_SIZE = 50;
+
+function isActiveFilter(value: string | null): value is ActiveFilter {
+  return value === 'active' || value === 'inactive' || value === 'all';
+}
 
 async function loadAllSuppliers(q: string, active: boolean | undefined): Promise<Supplier[]> {
   const items: Supplier[] = [];
@@ -38,8 +43,21 @@ export function SuppliersPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { hasPermission, loading: authLoading } = useAuth();
-  const [query, setQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<ActiveFilter>('active');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>(() => {
+    const activeParam = searchParams.get('active');
+    return isActiveFilter(activeParam) ? activeParam : 'active';
+  });
+  const supplierSearchKey = searchParams.toString();
+  const supplierUrlState = useMemo(() => {
+    const params = new URLSearchParams(supplierSearchKey);
+    const activeParam = params.get('active');
+    return {
+      query: params.get('q') ?? '',
+      activeFilter: isActiveFilter(activeParam) ? activeParam : 'active',
+    };
+  }, [supplierSearchKey]);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const canRead = hasPermission('inventory:read');
   const canCreate = hasPermission('inventory:create');
@@ -52,6 +70,38 @@ export function SuppliersPage() {
     enabled: !authLoading && canRead,
   });
   const items = suppliers.data ?? [];
+
+  useEffect(() => {
+    setQuery((current) => (current === supplierUrlState.query ? current : supplierUrlState.query));
+    setActiveFilter((current) => (
+      current === supplierUrlState.activeFilter ? current : supplierUrlState.activeFilter
+    ));
+  }, [supplierUrlState.activeFilter, supplierUrlState.query]);
+
+  const updateSupplierParams = (nextQuery: string, nextActiveFilter: ActiveFilter) => {
+    const next = new URLSearchParams(searchParams);
+    const trimmedQuery = nextQuery.trim();
+    if (trimmedQuery) {
+      next.set('q', trimmedQuery);
+    } else {
+      next.delete('q');
+    }
+    if (nextActiveFilter === 'active') {
+      next.delete('active');
+    } else {
+      next.set('active', nextActiveFilter);
+    }
+    setSearchParams(next, { replace: true });
+  };
+
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+  };
+
+  const handleActiveFilterChange = (value: ActiveFilter) => {
+    setActiveFilter(value);
+    updateSupplierParams(query, value);
+  };
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['suppliers'] });
   const save = async (input: SupplierInput) => {
@@ -87,8 +137,8 @@ export function SuppliersPage() {
       <Card>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-            <div className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-[34px] h-4 w-4 text-bambu-gray" /><TextField type="search" label={t('suppliers.searchLabel')} value={query} onValueChange={setQuery} placeholder={t('suppliers.searchPlaceholder')} className="pl-9" /></div>
-            <Select value={activeFilter} label={t('suppliers.activeFilter')} onValueChange={setActiveFilter} options={[
+            <div className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-[34px] h-4 w-4 text-bambu-gray" /><TextField type="search" label={t('suppliers.searchLabel')} value={query} onValueChange={handleQueryChange} placeholder={t('suppliers.searchPlaceholder')} className="pl-9" /></div>
+            <Select value={activeFilter} label={t('suppliers.activeFilter')} onValueChange={(value) => handleActiveFilterChange(value as ActiveFilter)} options={[
               { value: 'active', label: t('suppliers.filters.active') },
               { value: 'inactive', label: t('suppliers.filters.inactive') },
               { value: 'all', label: t('suppliers.filters.all') },
