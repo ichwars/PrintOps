@@ -2357,6 +2357,7 @@ class FilamentSkuSettingsResponse(BaseModel):
     subtype: str | None
     brand: str | None
     color_name: str | None
+    default_supplier_id: int | None = None
     lead_time_days: int
     safety_margin_value: int
     safety_margin_unit: str
@@ -2371,6 +2372,7 @@ class FilamentSkuSettingsUpsert(BaseModel):
     subtype: str | None = None
     brand: str | None = None
     color_name: str | None = None
+    default_supplier_id: int | None = None
     lead_time_days: int = 0
     safety_margin_value: int = 14
     safety_margin_unit: str = "days"
@@ -2401,6 +2403,10 @@ async def upsert_sku_settings(
 ):
     """Create or update reorder settings for a filament SKU (material/subtype/brand)."""
     from backend.app.models.filament_sku_settings import FilamentSkuSettings
+    from backend.app.models.procurement import Supplier
+
+    if data.default_supplier_id is not None and await db.get(Supplier, data.default_supplier_id) is None:
+        raise HTTPException(status_code=422, detail="Default supplier was not found")
 
     result = await db.execute(
         select(FilamentSkuSettings).where(
@@ -2412,6 +2418,7 @@ async def upsert_sku_settings(
     )
     row = result.scalar_one_or_none()
     if row:
+        row.default_supplier_id = data.default_supplier_id
         row.lead_time_days = data.lead_time_days
         row.safety_margin_value = data.safety_margin_value
         row.safety_margin_unit = data.safety_margin_unit
@@ -2422,6 +2429,7 @@ async def upsert_sku_settings(
             subtype=data.subtype,
             brand=data.brand,
             color_name=data.color_name,
+            default_supplier_id=data.default_supplier_id,
             lead_time_days=data.lead_time_days,
             safety_margin_value=data.safety_margin_value,
             safety_margin_unit=data.safety_margin_unit,

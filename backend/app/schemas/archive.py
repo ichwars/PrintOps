@@ -136,6 +136,8 @@ class ArchiveSlim(BaseModel):
     started_at: datetime | None
     completed_at: datetime | None
     cost: float | None
+    energy_kwh: float | None = None
+    energy_cost: float | None = None
     quantity: int = 1
     created_at: datetime | None
 
@@ -168,6 +170,16 @@ class ArchiveStats(BaseModel):
     # incomplete snapshot history — e.g. right after a fresh upgrade before the
     # hourly snapshot loop has built up a baseline. Frontend shows a tooltip.
     energy_data_warming_up: bool = False
+
+
+class ArchiveEnergyHistoryPoint(BaseModel):
+    """Aggregated energy consumption bucket from smart-plug history."""
+
+    bucket_start: datetime
+    energy_kwh: float
+    energy_cost: float
+    source: str = "smart_plug_snapshots"
+    sample_count: int = 0
 
 
 class ProjectPageImage(BaseModel):

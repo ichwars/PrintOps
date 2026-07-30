@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import select
 
-from backend.app.api.routes.archives import _sum_snapshot_deltas, get_archive_stats
+from backend.app.api.routes.archives import _energy_history_points, _sum_snapshot_deltas, get_archive_stats
 from backend.app.models.archive import PrintArchive
 from backend.app.models.smart_plug_energy_snapshot import SmartPlugEnergySnapshot
 
@@ -159,6 +159,29 @@ class TestSumSnapshotDeltas:
 
         assert stats.energy_data_warming_up is True
         assert stats.energy_source == "smart_plug_snapshots"
+
+    @pytest.mark.asyncio
+    async def test_energy_history_buckets_apply_existing_kwh_price(self, db_session, smart_plug_factory):
+        plug = await smart_plug_factory(name="A")
+        t0 = datetime(2026, 4, 10, 10, 0, tzinfo=timezone.utc)
+        db_session.add(_snap(plug.id, t0, 100.0))
+        db_session.add(_snap(plug.id, t0 + timedelta(hours=1), 101.5))
+        db_session.add(_snap(plug.id, t0 + timedelta(hours=2), 102.0))
+        await db_session.commit()
+
+        points = await _energy_history_points(
+            db_session,
+            dt_from=t0,
+            dt_to=t0 + timedelta(hours=3),
+            bucket="hour",
+            energy_cost_per_kwh=0.20,
+            user=None,
+            can_read_all=True,
+        )
+
+        assert [point.energy_kwh for point in points] == [pytest.approx(1.5), pytest.approx(0.5)]
+        assert [point.energy_cost for point in points] == [pytest.approx(0.3), pytest.approx(0.1)]
+        assert all(point.source == "smart_plug_snapshots" for point in points)
 
 
 class TestPerPrintRestartResilience:

@@ -30,7 +30,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
 } from 'recharts';
 import { Button } from '../components/Button';
 import { useToast } from '../contexts/ToastContext';
@@ -44,6 +43,7 @@ import { formatWeight } from '../utils/weight';
 import { parseUTCDate, formatDuration } from '../utils/date';
 import { MetricToggle, type Metric } from '../components/MetricToggle';
 import { LegacyDatePicker } from '../components/ui';
+import { MeasuredResponsiveContainer } from '../components/charts/MeasuredResponsiveContainer';
 
 // Timeframe types and helpers
 type TimeframePreset = 'today' | 'this-week' | 'this-month' | 'last-7' | 'last-30' | 'last-90' | 'this-year' | 'all-time' | 'custom';
@@ -651,7 +651,7 @@ function PrinterStatsWidget({
           <MetricToggle value={printerMetric} onChange={setPrinterMetric} />
         </div>
         {printerData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={Math.max(140, printerData.length * 40)}>
+          <MeasuredResponsiveContainer width="100%" height={Math.max(140, printerData.length * 40)}>
             <BarChart data={printerData} layout="vertical" margin={{ left: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#3d3d3d" />
               <XAxis type="number" stroke="#9ca3af" tick={{ fontSize: 11 }} unit={ps.unit} />
@@ -665,7 +665,7 @@ function PrinterStatsWidget({
               />
               <Bar dataKey="value" fill={ps.color} radius={[0, 4, 4, 0]} />
             </BarChart>
-          </ResponsiveContainer>
+          </MeasuredResponsiveContainer>
         ) : (
           <p className="text-bambu-gray text-center py-4">{t('stats.noPrinterData')}</p>
         )}
@@ -676,7 +676,7 @@ function PrinterStatsWidget({
         <div className="bg-bambu-dark rounded-lg p-4">
           <h4 className="text-sm font-medium text-bambu-gray mb-3">{t('stats.printDuration')}</h4>
           {archives.length > 0 ? (
-            <ResponsiveContainer width="100%" height={160}>
+            <MeasuredResponsiveContainer width="100%" height={160}>
               <BarChart data={durationData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#3d3d3d" />
                 <XAxis dataKey="name" stroke="#9ca3af" tick={{ fontSize: 11 }} />
@@ -684,7 +684,7 @@ function PrinterStatsWidget({
                 <Tooltip contentStyle={RECHARTS_TOOLTIP_STYLE} />
                 <Bar dataKey="count" name={t('common.prints')} fill="#00ae42" radius={[4, 4, 0, 0]} />
               </BarChart>
-            </ResponsiveContainer>
+            </MeasuredResponsiveContainer>
           ) : (
             <p className="text-bambu-gray text-center py-4">{t('stats.noArchiveData')}</p>
           )}
@@ -697,7 +697,7 @@ function PrinterStatsWidget({
             <MetricToggle value={habitsMetric} onChange={setHabitsMetric} />
           </div>
           {archives.length > 0 ? (
-            <ResponsiveContainer width="100%" height={160}>
+            <MeasuredResponsiveContainer width="100%" height={160}>
               <BarChart data={habitsData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#3d3d3d" />
                 <XAxis dataKey="name" stroke="#9ca3af" tick={{ fontSize: 11 }} />
@@ -705,7 +705,7 @@ function PrinterStatsWidget({
                 <Tooltip contentStyle={RECHARTS_TOOLTIP_STYLE} formatter={(v: number | undefined) => [`${v ?? 0}${hs.unit}`, hLabel]} />
                 <Bar dataKey="avg" fill={hs.color} radius={[4, 4, 0, 0]} />
               </BarChart>
-            </ResponsiveContainer>
+            </MeasuredResponsiveContainer>
           ) : (
             <p className="text-bambu-gray text-center py-4">{t('stats.noArchiveData')}</p>
           )}
@@ -715,7 +715,7 @@ function PrinterStatsWidget({
         <div className="bg-bambu-dark rounded-lg p-4">
           <h4 className="text-sm font-medium text-bambu-gray mb-3">{t('stats.printTimeOfDay')}</h4>
           {archives.length > 0 ? (
-            <ResponsiveContainer width="100%" height={160}>
+            <MeasuredResponsiveContainer width="100%" height={160}>
               <BarChart data={hourlyData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#3d3d3d" />
                 <XAxis dataKey="label" stroke="#9ca3af" tick={{ fontSize: 10 }} interval={5} />
@@ -724,7 +724,7 @@ function PrinterStatsWidget({
                 <Bar dataKey="total" name={t('stats.totalPrints')} fill="#00ae42" radius={[2, 2, 0, 0]} />
                 <Bar dataKey="failures" name={t('stats.failed')} fill="#ef4444" radius={[2, 2, 0, 0]} />
               </BarChart>
-            </ResponsiveContainer>
+            </MeasuredResponsiveContainer>
           ) : (
             <p className="text-bambu-gray text-center py-4">{t('stats.noArchiveData')}</p>
           )}

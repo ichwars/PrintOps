@@ -236,6 +236,82 @@ export interface CommercialDocumentArtifact {
   created_at: string;
 }
 
+export type PaymentStatus = 'not_applicable' | 'unpaid' | 'partially_paid' | 'paid' | 'overpaid' | 'written_off';
+export type PaymentMethod = 'bank_transfer' | 'cash' | 'card' | 'paypal' | 'other';
+
+export interface DocumentPayment {
+  id: number;
+  document_id: number;
+  amount: string;
+  currency: string;
+  paid_at: string;
+  method: PaymentMethod;
+  reference: string | null;
+  note: string | null;
+  recorded_by_id: number | null;
+  created_at: string;
+}
+
+export interface CommercialDocumentLine {
+  id: number;
+  position: number;
+  description: string;
+  quantity: string;
+  unit_code: string;
+  unit_price: string;
+  net_amount: string;
+  tax_category_code: string;
+  tax_rate: string;
+  product_identifier: string | null;
+}
+
+export interface CommercialDocument {
+  id: number;
+  document_type: DocumentType;
+  business_profile_id: number;
+  customer_id: number | null;
+  source_offer_id: number | null;
+  source_order_id: number | null;
+  number: string | null;
+  external_issuer_number: string | null;
+  technical_status: string;
+  business_status: string;
+  payment_status: PaymentStatus;
+  issue_date: string | null;
+  service_date: string | null;
+  due_date: string | null;
+  language: string;
+  currency: string;
+  subtotal_amount: string;
+  tax_amount: string;
+  total_amount: string;
+  open_amount: string;
+  content_options: Record<string, unknown>;
+  tax_decision: Record<string, unknown>;
+  lock_version: number;
+  created_at: string;
+  updated_at: string;
+  lines: CommercialDocumentLine[];
+  artifacts: CommercialDocumentArtifact[];
+  payments: DocumentPayment[];
+  snapshot_sha256: string | null;
+}
+
+export interface DocumentFilters {
+  businessProfileId?: number;
+  customerId?: number;
+  documentType?: DocumentType;
+  status?: string;
+}
+
+export interface RecordPaymentInput {
+  amount: string;
+  paid_at: string;
+  method: PaymentMethod;
+  reference?: string | null;
+  note?: string | null;
+}
+
 export interface EInvoiceValidationReport {
   artifact_id: number;
   sha256: string;
@@ -255,6 +331,16 @@ function queryString(filters: ConfigurationFilters): string {
   if (filters.businessProfileId) params.set('business_profile_id', String(filters.businessProfileId));
   if (filters.documentType) params.set('document_type', filters.documentType);
   if (filters.language) params.set('language', filters.language);
+  if (filters.status) params.set('status', filters.status);
+  const value = params.toString();
+  return value ? `?${value}` : '';
+}
+
+function documentQueryString(filters: DocumentFilters): string {
+  const params = new URLSearchParams();
+  if (filters.businessProfileId) params.set('business_profile_id', String(filters.businessProfileId));
+  if (filters.customerId) params.set('customer_id', String(filters.customerId));
+  if (filters.documentType) params.set('document_type', filters.documentType);
   if (filters.status) params.set('status', filters.status);
   const value = params.toString();
   return value ? `?${value}` : '';
@@ -326,6 +412,16 @@ export const documentManagementApi = {
     request<EffectiveDocumentPolicy>('/document-configurations/effective', {
       method: 'POST',
       body: JSON.stringify({ document_overrides: {}, ...context }),
+    }),
+  listDocuments: (filters: DocumentFilters = {}) =>
+    request<CommercialDocument[]>(`/commercial-documents${documentQueryString(filters)}`),
+  getDocument: (documentId: number) => request<CommercialDocument>(`/commercial-documents/${documentId}`),
+  listPayments: (documentId: number) =>
+    request<DocumentPayment[]>(`/commercial-documents/${documentId}/payments`),
+  recordPayment: (documentId: number, input: RecordPaymentInput) =>
+    request<CommercialDocument>(`/commercial-documents/${documentId}/payments`, {
+      method: 'POST',
+      body: JSON.stringify(input),
     }),
   validateDocument: (documentId: number) =>
     request<ReadinessReport>(`/commercial-documents/${documentId}/validate`, { method: 'POST' }),

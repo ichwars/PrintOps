@@ -7,7 +7,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
   PieChart,
   Pie,
   Cell,
@@ -16,6 +15,7 @@ import type { ArchiveSlim } from '../api/client';
 import { MetricToggle, type Metric } from './MetricToggle';
 import { parseUTCDate } from '../utils/date';
 import { formatWeight } from '../utils/weight';
+import { MeasuredResponsiveContainer } from './charts/MeasuredResponsiveContainer';
 
 interface FilamentTrendsProps {
   archives: ArchiveSlim[];
@@ -277,7 +277,7 @@ export function FilamentTrends({ archives, currency = '$', dateFrom, dateTo }: F
       {chartData.length > 0 ? (
         <div className="bg-bambu-dark rounded-lg p-4">
           <h4 className="text-sm font-medium text-bambu-gray mb-4">{t('stats.usageOverTime')}</h4>
-          <ResponsiveContainer width="100%" height={250}>
+          <MeasuredResponsiveContainer width="100%" height={250}>
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="colorFilament" x1="0" y1="0" x2="0" y2="1">
@@ -315,7 +315,7 @@ export function FilamentTrends({ archives, currency = '$', dateFrom, dateTo }: F
                 fill="url(#colorFilament)"
               />
             </AreaChart>
-          </ResponsiveContainer>
+          </MeasuredResponsiveContainer>
         </div>
       ) : (
         <div className="bg-bambu-dark rounded-lg p-8 text-center text-bambu-gray">
@@ -333,7 +333,7 @@ export function FilamentTrends({ archives, currency = '$', dateFrom, dateTo }: F
           </div>
           {activeFilamentTypeData.length > 0 ? (
             <div className="flex items-center gap-4">
-              <ResponsiveContainer width={160} height={160}>
+              <MeasuredResponsiveContainer width={160} height={160}>
                 <PieChart>
                   <Pie
                     data={activeFilamentTypeData}
@@ -362,7 +362,7 @@ export function FilamentTrends({ archives, currency = '$', dateFrom, dateTo }: F
                     ]}
                   />
                 </PieChart>
-              </ResponsiveContainer>
+              </MeasuredResponsiveContainer>
               <div className="flex-1 space-y-2 overflow-hidden">
                 {activeFilamentTypeData.map((entry, index) => {
                   const total = activeFilamentTypeData.reduce((sum, e) => sum + e.value, 0);
@@ -434,7 +434,7 @@ export function FilamentTrends({ archives, currency = '$', dateFrom, dateTo }: F
             return (
               <div>
                 <div className="relative mx-auto" style={{ width: 160, height: 160 }}>
-                  <ResponsiveContainer width="100%" height="100%">
+                  <MeasuredResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={colorData}
@@ -461,7 +461,7 @@ export function FilamentTrends({ archives, currency = '$', dateFrom, dateTo }: F
                         ]}
                       />
                     </PieChart>
-                  </ResponsiveContainer>
+                  </MeasuredResponsiveContainer>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <span className="text-lg font-bold text-white">
                       {colorMetric === 'weight' ? formatWeight(colorTotal) : colorTotal}

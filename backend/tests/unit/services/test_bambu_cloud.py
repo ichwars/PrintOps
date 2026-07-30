@@ -1,10 +1,54 @@
 """Tests for Bambu Cloud service - TOTP and email verification flows."""
 
+import base64
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.app.services.bambu_cloud import BambuCloudService
+from backend.app.services.bambu_cloud import BambuCloudService, extract_cloud_user_id
+
+
+def _fake_jwt(payload: dict) -> str:
+    encoded = base64.urlsafe_b64encode(json.dumps(payload).encode("utf-8")).decode("ascii").rstrip("=")
+    return f"header.{encoded}.signature"
+
+
+class TestBambuCloudMqttControl:
+    def test_extract_cloud_user_id_from_flat_and_nested_payloads(self):
+        assert extract_cloud_user_id({"user_id": "12345"}) == "12345"
+        assert extract_cloud_user_id({"data": {"uid": 98765}}) == "98765"
+        assert extract_cloud_user_id({"data": {}}) is None
+
+    @pytest.mark.asyncio
+    async def test_publish_mqtt_command_uses_user_id_from_token(self):
+        cloud = BambuCloudService()
+        cloud.set_token(_fake_jwt({"uid": "42"}))
+
+        with patch.object(cloud, "_publish_mqtt_command_sync", return_value=True) as publish:
+            result = await cloud.publish_mqtt_command("00M09A111111111", {"print": {"command": "pause"}})
+
+        assert result is True
+        publish.assert_called_once()
+        assert publish.call_args.args[0] == "42"
+        assert publish.call_args.args[1] == "00M09A111111111"
+        assert publish.call_args.args[2] == {"print": {"command": "pause"}}
+
+    @pytest.mark.asyncio
+    async def test_publish_mqtt_command_falls_back_to_profile_user_id(self):
+        cloud = BambuCloudService()
+        cloud.set_token("opaque-token")
+
+        with (
+            patch.object(cloud, "get_user_profile", new_callable=AsyncMock) as profile,
+            patch.object(cloud, "_publish_mqtt_command_sync", return_value=True) as publish,
+        ):
+            profile.return_value = {"data": {"userId": "abc"}}
+            result = await cloud.publish_mqtt_command("00M09A111111111", {"print": {"command": "stop"}})
+
+        assert result is True
+        publish.assert_called_once()
+        assert publish.call_args.args[0] == "abc"
 
 
 class TestBambuCloudLogin:

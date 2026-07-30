@@ -775,6 +775,7 @@ async def run_migrations(conn):
 
     await migrate_document_layout_schema(conn)
     await migrate_number_sequence_monthly_reset_policy(conn, _safe_execute)
+    await _migrate_document_payments(conn)
     await _safe_execute(
         conn,
         "ALTER TABLE small_parts ADD COLUMN default_consumption_reason VARCHAR(120) NOT NULL DEFAULT 'Produktion'",
@@ -2903,6 +2904,7 @@ async def run_migrations(conn):
                 material VARCHAR(50) NOT NULL,
                 subtype VARCHAR(50),
                 brand VARCHAR(100),
+                default_supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
                 lead_time_days INTEGER NOT NULL DEFAULT 0,
                 safety_margin_value INTEGER NOT NULL DEFAULT 14,
                 safety_margin_unit VARCHAR(10) NOT NULL DEFAULT 'days',
@@ -2929,6 +2931,10 @@ async def run_migrations(conn):
         # fresh installs the table doesn't exist yet at this point and
         # _safe_execute does not swallow "no such table".
         await _safe_execute(conn, "ALTER TABLE filament_sku_settings ADD COLUMN color_name VARCHAR(100)")
+        await _safe_execute(
+            conn,
+            "ALTER TABLE filament_sku_settings ADD COLUMN default_supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL",
+        )
         # Backfill and drop legacy safety_margin_days column — SQLite requires a table rebuild.
         # Only run if the stale column still exists.
         cols_result = await conn.execute(text("PRAGMA table_info(filament_sku_settings)"))
@@ -2952,6 +2958,7 @@ async def run_migrations(conn):
                         subtype VARCHAR(50),
                         brand VARCHAR(100),
                         color_name VARCHAR(100),
+                        default_supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
                         lead_time_days INTEGER NOT NULL DEFAULT 0,
                         safety_margin_value INTEGER NOT NULL DEFAULT 14,
                         safety_margin_unit VARCHAR(10) NOT NULL DEFAULT 'days',
@@ -2965,9 +2972,9 @@ async def run_migrations(conn):
                 await conn.execute(
                     text(
                         """INSERT INTO filament_sku_settings_new
-                        (id, material, subtype, brand, color_name, lead_time_days, safety_margin_value,
+                        (id, material, subtype, brand, color_name, default_supplier_id, lead_time_days, safety_margin_value,
                          safety_margin_unit, alerts_snoozed, created_at, updated_at)
-                       SELECT id, material, subtype, brand, color_name, lead_time_days, safety_margin_value,
+                       SELECT id, material, subtype, brand, color_name, default_supplier_id, lead_time_days, safety_margin_value,
                               safety_margin_unit, COALESCE(alerts_snoozed, 0), created_at, updated_at
                        FROM filament_sku_settings"""
                     )
@@ -3000,6 +3007,7 @@ async def run_migrations(conn):
                         subtype VARCHAR(50),
                         brand VARCHAR(100),
                         color_name VARCHAR(100),
+                        default_supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
                         lead_time_days INTEGER NOT NULL DEFAULT 0,
                         safety_margin_value INTEGER NOT NULL DEFAULT 14,
                         safety_margin_unit VARCHAR(10) NOT NULL DEFAULT 'days',
@@ -3013,9 +3021,9 @@ async def run_migrations(conn):
                 await conn.execute(
                     text(
                         """INSERT INTO filament_sku_settings_uqfix
-                        (id, material, subtype, brand, color_name, lead_time_days, safety_margin_value,
+                        (id, material, subtype, brand, color_name, default_supplier_id, lead_time_days, safety_margin_value,
                          safety_margin_unit, alerts_snoozed, created_at, updated_at)
-                       SELECT id, material, subtype, brand, color_name, lead_time_days, safety_margin_value,
+                       SELECT id, material, subtype, brand, color_name, default_supplier_id, lead_time_days, safety_margin_value,
                               safety_margin_unit, COALESCE(alerts_snoozed, 0), created_at, updated_at
                        FROM filament_sku_settings"""
                     )
@@ -3058,6 +3066,7 @@ async def run_migrations(conn):
                 material VARCHAR(50) NOT NULL,
                 subtype VARCHAR(50),
                 brand VARCHAR(100),
+                default_supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
                 lead_time_days INTEGER NOT NULL DEFAULT 0,
                 safety_margin_value INTEGER NOT NULL DEFAULT 14,
                 safety_margin_unit VARCHAR(10) NOT NULL DEFAULT 'days',
@@ -3087,6 +3096,10 @@ async def run_migrations(conn):
         # filament_shopping_list runs AFTER that table's CREATE below — on
         # fresh installs the table doesn't exist yet at this point.
         await _safe_execute(conn, "ALTER TABLE filament_sku_settings ADD COLUMN IF NOT EXISTS color_name VARCHAR(100)")
+        await _safe_execute(
+            conn,
+            "ALTER TABLE filament_sku_settings ADD COLUMN IF NOT EXISTS default_supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL",
+        )
         # Widen UNIQUE (material, subtype, brand) → (material, subtype, brand, color_name).
         # The original constraint was declared with name="uq_filament_sku" in the
         # model, so we drop/re-add by that name. Gated on a pg_constraint lookup so
@@ -3602,6 +3615,54 @@ async def _migrate_document_configurations(conn) -> None:
     from backend.app.services.document_defaults import seed_document_configurations
 
     await seed_document_configurations(conn)
+
+
+async def _migrate_document_payments(conn) -> None:
+    """Create the manual payment ledger for commercial documents."""
+
+    if is_sqlite():
+        await _safe_execute(
+            conn,
+            """
+            CREATE TABLE IF NOT EXISTS document_payments (
+                id INTEGER PRIMARY KEY,
+                document_id INTEGER NOT NULL REFERENCES commercial_documents(id) ON DELETE CASCADE,
+                amount NUMERIC(18, 2) NOT NULL,
+                currency VARCHAR(3) NOT NULL,
+                paid_at DATE NOT NULL,
+                method VARCHAR(24) NOT NULL DEFAULT 'bank_transfer',
+                reference VARCHAR(255),
+                note TEXT,
+                recorded_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT ck_document_payment_method
+                    CHECK (method IN ('bank_transfer','cash','card','paypal','other'))
+            )
+            """,
+        )
+    else:
+        await _safe_execute(
+            conn,
+            """
+            CREATE TABLE IF NOT EXISTS document_payments (
+                id SERIAL PRIMARY KEY,
+                document_id INTEGER NOT NULL REFERENCES commercial_documents(id) ON DELETE CASCADE,
+                amount NUMERIC(18, 2) NOT NULL,
+                currency VARCHAR(3) NOT NULL,
+                paid_at DATE NOT NULL,
+                method VARCHAR(24) NOT NULL DEFAULT 'bank_transfer',
+                reference VARCHAR(255),
+                note TEXT,
+                recorded_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT ck_document_payment_method
+                    CHECK (method IN ('bank_transfer','cash','card','paypal','other'))
+            )
+            """,
+        )
+    await _safe_execute(
+        conn, "CREATE INDEX IF NOT EXISTS ix_document_payments_document_id ON document_payments(document_id)"
+    )
 
 
 _USER_PRINT_TEMPLATE_RENAMES: tuple[tuple[str, str, str], ...] = (

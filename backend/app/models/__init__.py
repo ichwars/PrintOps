@@ -32,6 +32,7 @@ from backend.app.models.commercial_document import (
     CommercialDocumentLine,
     DocumentArtifact,
     DocumentNumberReservation,
+    DocumentPayment,
     DocumentRelation,
     DocumentSnapshot,
 )
@@ -193,6 +194,7 @@ __all__ = [
     "OfferAcceptance",
     "CommercialDocument",
     "CommercialDocumentLine",
+    "DocumentPayment",
     "DocumentRelation",
     "DocumentSnapshot",
     "DocumentArtifact",

@@ -45,6 +45,7 @@ import {
 
 type ArchiveFilter = 'active' | 'archived';
 type UsageFilter = 'all' | 'used' | 'new' | 'lowstock';
+type InventoryFocusFilter = 'low-stock' | 'missing-cost' | 'missing-location' | 'used';
 type ViewMode = 'table' | 'cards' | 'forecast';
 type SortDirection = 'asc' | 'desc';
 type SortState = { column: string; direction: SortDirection } | null;
@@ -131,6 +132,10 @@ function saveColumnConfig(config: ColumnConfig[]) {
   } catch {
     // Ignore errors
   }
+}
+
+function isInventoryFocusFilter(value: string | null): value is InventoryFocusFilter {
+  return value === 'low-stock' || value === 'missing-cost' || value === 'missing-location' || value === 'used';
 }
 
 function formatWeight(g: number, useKg = false): string {
@@ -524,6 +529,8 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     } catch { return false; }
   });
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const rawFocusParam = searchParams.get('focus');
+  const focusFilter = isInventoryFocusFilter(rawFocusParam) ? rawFocusParam : null;
 
   // Bulk-selection state for batch actions on the spool list (#1795).
   // Cleared when the user switches filter/tab/page because cross-page selection
@@ -547,7 +554,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   // honest vs. what the user is actually looking at.
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [archiveFilter, usageFilter, materialFilter, brandFilter, categoryFilter, spoolFilter, stockFilter, search]);
+  }, [archiveFilter, usageFilter, materialFilter, brandFilter, categoryFilter, spoolFilter, stockFilter, search, focusFilter]);
 
   // Pagination state (pageSize persisted to localStorage)
   const [pageIndex, setPageIndex] = useState(0);
@@ -1051,7 +1058,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
       totalWeight += remaining;
       const pct = s.label_weight > 0 ? (remaining / s.label_weight) * 100 : 0;
       const threshold = s.low_stock_threshold_pct ?? lowStockThreshold;
-      if (pct < threshold) lowStock++;
+      if (pct <= threshold) lowStock++;
       const mat = s.material || 'Unknown';
       if (!byMaterial[mat]) byMaterial[mat] = { count: 0, weight: 0 };
       byMaterial[mat].count++;
@@ -1143,7 +1150,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
         const remaining = Math.max(0, s.label_weight - s.weight_used);
         const pct = s.label_weight > 0 ? (remaining / s.label_weight) * 100 : 0;
         const threshold = s.low_stock_threshold_pct ?? lowStockThreshold;
-        return pct < threshold;
+        return pct <= threshold;
       });
     }
 
@@ -1188,6 +1195,24 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
       }
     }
 
+    // Business Dashboard deep-link focus. Kept separate from the regular
+    // filter chips so dashboard links can be shared without overwriting a
+    // user's normal inventory workflow.
+    if (focusFilter === 'low-stock') {
+      filtered = filtered.filter((s) => {
+        const remaining = Math.max(0, s.label_weight - s.weight_used);
+        const pct = s.label_weight > 0 ? (remaining / s.label_weight) * 100 : 0;
+        const threshold = s.low_stock_threshold_pct ?? lowStockThreshold;
+        return s.label_weight > 0 && pct <= threshold;
+      });
+    } else if (focusFilter === 'missing-cost') {
+      filtered = filtered.filter((s) => !s.cost_per_kg || s.cost_per_kg <= 0);
+    } else if (focusFilter === 'missing-location') {
+      filtered = filtered.filter((s) => !s.location_id && !s.storage_location?.trim());
+    } else if (focusFilter === 'used') {
+      filtered = filtered.filter((s) => s.weight_used > 0);
+    }
+
     // Stock filter
     if (stockFilter === 'stock') {
       filtered = filtered.filter((s) => !s.slicer_filament);
@@ -1201,7 +1226,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     }
 
     return filtered;
-  }, [spools, archiveFilter, usageFilter, materialFilter, brandFilter, categoryFilter, spoolFilter, stockFilter, storageLocationFilter, search, lowStockThreshold, storageLocations]);
+  }, [spools, archiveFilter, usageFilter, materialFilter, brandFilter, categoryFilter, spoolFilter, stockFilter, storageLocationFilter, focusFilter, search, lowStockThreshold, storageLocations]);
 
   // Reset page on filter changes
   const resetPage = () => setPageIndex(0);
@@ -1232,7 +1257,22 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const hasUnsetStorageLocation = (spools ?? []).some((s) => !s.location_id && !s.storage_location?.trim());
 
   // Check if any filters are non-default
-  const hasActiveFilters = archiveFilter !== 'active' || usageFilter !== 'all' || !!materialFilter || !!brandFilter || !!categoryFilter || !!spoolFilter || !!storageLocationFilter || stockFilter !== 'all' || !!search;
+  const hasActiveFilters = archiveFilter !== 'active' || usageFilter !== 'all' || !!materialFilter || !!brandFilter || !!categoryFilter || !!spoolFilter || !!storageLocationFilter || !!focusFilter || stockFilter !== 'all' || !!search;
+  const focusFilterLabel = focusFilter ? {
+    'low-stock': t('inventory.businessFocus.lowStock', 'Engpässe'),
+    'missing-cost': t('inventory.businessFocus.missingCost', 'Kosten/kg fehlen'),
+    'missing-location': t('inventory.businessFocus.missingLocation', 'ohne Lagerort'),
+    used: t('inventory.businessFocus.used', 'mit Verbrauch'),
+  }[focusFilter] : '';
+
+  const clearFocusFilter = useCallback(() => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('focus');
+      return next;
+    }, { replace: true });
+    resetPage();
+  }, [setSearchParams]);
 
   const handleColumnConfigSave = (config: ColumnConfig[]) => {
     setColumnConfig(config);
@@ -1358,8 +1398,10 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     setStockFilter('all');
     setSearch('');
     setSearchParams((prev) => {
-      prev.delete('location_id');
-      return prev;
+      const next = new URLSearchParams(prev);
+      next.delete('location_id');
+      next.delete('focus');
+      return next;
     }, { replace: true });
     resetPage();
   };
@@ -1847,6 +1889,19 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
               <option value="__none__">{t('inventory.storageLocationNone')}</option>
             )}
           </LegacySelect>
+        )}
+
+        {focusFilter && (
+          <button
+            type="button"
+            onClick={clearFocusFilter}
+            className="flex items-center gap-1.5 rounded-lg border border-bambu-green/30 bg-bambu-green/10 px-3 py-1.5 text-xs font-medium text-bambu-green transition-colors hover:bg-bambu-green/20"
+            title={t('inventory.businessFocus.clear', 'Dashboard-Fokus entfernen')}
+          >
+            <AlertTriangle className="h-3.5 w-3.5" />
+            {t('inventory.businessFocus.label', 'Fokus')}: {focusFilterLabel}
+            <X className="h-3.5 w-3.5" />
+          </button>
         )}
 
         {/* Clear filters */}

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine, Legend,
+  ReferenceLine, Legend,
 } from 'recharts';
 import { api } from '../api/client';
 import type { InventorySpool, SpoolUsageRecord, FilamentSkuSettings, ShoppingListItem } from '../api/client';
@@ -24,6 +24,7 @@ import {
   type ProcurementResource,
 } from '../api/procurement';
 import { ProcurementOffersEditor } from './warehouse/ProcurementOffersEditor';
+import { MeasuredResponsiveContainer } from './charts/MeasuredResponsiveContainer';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -731,7 +732,7 @@ function UsageChart({ forecasts, days: maxDays, onDaysChange }: {
           ))}
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={220}>
+      <MeasuredResponsiveContainer width="100%" height={220}>
         <AreaChart data={trimmedData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
           <defs>
             {series.map((s) => (
@@ -805,7 +806,7 @@ function UsageChart({ forecasts, days: maxDays, onDaysChange }: {
             />
           ))}
         </AreaChart>
-      </ResponsiveContainer>
+      </MeasuredResponsiveContainer>
     </div>
   );
 }
@@ -916,7 +917,17 @@ function ForecastRow({
     : 'text-green-700 dark:text-green-400';
 
   function upsert(lead: number, marginVal: number, marginUnitArg: 'days' | 'g', alertsSnoozed = snoozed) {
-    upsertMutation.mutate({ material: f.group.material, subtype: f.group.subtype, brand: f.group.brand, color_name: f.group.colorName, lead_time_days: lead, safety_margin_value: marginVal, safety_margin_unit: marginUnitArg, alerts_snoozed: alertsSnoozed });
+    upsertMutation.mutate({
+      material: f.group.material,
+      subtype: f.group.subtype,
+      brand: f.group.brand,
+      color_name: f.group.colorName,
+      default_supplier_id: f.settings?.default_supplier_id ?? null,
+      lead_time_days: lead,
+      safety_margin_value: marginVal,
+      safety_margin_unit: marginUnitArg,
+      alerts_snoozed: alertsSnoozed,
+    });
   }
 
   function toggleSnooze(e: React.MouseEvent) {
@@ -1808,7 +1819,7 @@ function CartLogisticsRow({
           </div>
 
           {/* Chart */}
-          <ResponsiveContainer width="100%" height={180}>
+          <MeasuredResponsiveContainer width="100%" height={180}>
             <AreaChart data={chartData.points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
               <defs>
                 {/* Pre-arrival fill: red if break, amber if tight, green if ok */}
@@ -1899,7 +1910,7 @@ function CartLogisticsRow({
                 />
               )}
             </AreaChart>
-          </ResponsiveContainer>
+          </MeasuredResponsiveContainer>
 
           {/* Legend */}
           <div className="flex flex-wrap items-center gap-3 mt-2 text-[10px] text-bambu-gray">

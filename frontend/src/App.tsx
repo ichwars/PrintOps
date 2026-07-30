@@ -15,6 +15,7 @@ const PrintersPage = lazy(() => import('./pages/PrintersPage').then(({ PrintersP
 const ArchivesPage = lazy(() => import('./pages/ArchivesPage').then(({ ArchivesPage }) => ({ default: ArchivesPage })));
 const QueuePage = lazy(() => import('./pages/QueuePage').then(({ QueuePage }) => ({ default: QueuePage })));
 const StatsPage = lazy(() => import('./pages/StatsPage').then(({ StatsPage }) => ({ default: StatsPage })));
+const BusinessDashboardPage = lazy(() => import('./pages/BusinessDashboardPage').then(({ BusinessDashboardPage }) => ({ default: BusinessDashboardPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(({ SettingsPage }) => ({ default: SettingsPage })));
 const ProfilesPage = lazy(() => import('./pages/ProfilesPage').then(({ ProfilesPage }) => ({ default: ProfilesPage })));
 const MaintenancePage = lazy(() => import('./pages/MaintenancePage').then(({ MaintenancePage }) => ({ default: MaintenancePage })));
@@ -215,6 +216,7 @@ function App() {
                 <Route element={<ProtectedRoute><WebSocketProvider><Layout /></WebSocketProvider></ProtectedRoute>}>
                   <Route index element={<Navigate to={getDefaultView()} replace />} />
                   <Route path="dashboard" element={<StatsPage />} />
+                  <Route path="business-dashboard" element={<BusinessDashboardPage />} />
                   <Route path="printers" element={<PrintersPage />} />
                   <Route path="archives" element={<ArchivesPage />} />
                   <Route path="queue" element={<QueuePage />} />

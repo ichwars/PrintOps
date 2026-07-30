@@ -1727,6 +1727,40 @@ class TestChamberLightAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_chamber_light_uses_cloud_when_lan_control_is_disabled(
+        self, async_client: AsyncClient, printer_factory
+    ):
+        """LAN-mode disabled printers can still use cloud-backed light control."""
+        printer = await printer_factory(name="Cloud Printer", serial_number="CLOUD123")
+        state = MagicMock(connected=True, developer_mode=False)
+        cloud = MagicMock(is_authenticated=True)
+        cloud.publish_mqtt_command = AsyncMock()
+        cloud.close = AsyncMock()
+
+        with (
+            patch("backend.app.api.routes.printers.printer_manager") as mock_pm,
+            patch(
+                "backend.app.api.routes.printers_controls.build_authenticated_cloud",
+                new=AsyncMock(return_value=cloud),
+            ),
+        ):
+            mock_pm.get_status.return_value = state
+            mock_pm.get_client.return_value = None
+
+            response = await async_client.post(f"/api/v1/printers/{printer.id}/chamber-light?on=true")
+
+        assert response.status_code == 200
+        result = response.json()
+        assert result["success"] is True
+        assert result["control_channel"] == "cloud"
+        assert "cloud" in result["message"].lower()
+        assert cloud.publish_mqtt_command.await_count == 2
+        first_payload = cloud.publish_mqtt_command.await_args_list[0].args[1]
+        assert first_payload["system"]["command"] == "ledctrl"
+        assert first_payload["system"]["led_mode"] == "on"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_chamber_light_failure(self, async_client: AsyncClient, printer_factory):
         """Verify error handling when chamber light control fails."""
         printer = await printer_factory(name="Test Printer")
@@ -3592,6 +3626,35 @@ class TestSetNozzleTemperatureAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_nozzle_temperature_uses_cloud_when_lan_control_is_disabled(
+        self, async_client: AsyncClient, printer_factory
+    ):
+        printer = await printer_factory(name="Cloud Temp Printer", model="X1C", serial_number="CLOUDTEMP123")
+        state = MagicMock(connected=True, developer_mode=False)
+        cloud = MagicMock(is_authenticated=True)
+        cloud.publish_mqtt_command = AsyncMock()
+        cloud.close = AsyncMock()
+
+        with (
+            patch("backend.app.api.routes.printers.printer_manager") as mock_pm,
+            patch(
+                "backend.app.api.routes.printers_controls.build_authenticated_cloud",
+                new=AsyncMock(return_value=cloud),
+            ),
+        ):
+            mock_pm.get_status.return_value = state
+            mock_pm.get_client.return_value = None
+            response = await async_client.post(f"/api/v1/printers/{printer.id}/temperature/nozzle?target=220")
+
+        assert response.status_code == 200
+        result = response.json()
+        assert result["control_channel"] == "cloud"
+        payload = cloud.publish_mqtt_command.await_args.args[1]
+        assert payload["print"]["command"] == "gcode_line"
+        assert payload["print"]["param"] == "M104 T0 S220"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_target_out_of_range_rejected(self, async_client: AsyncClient, printer_factory):
         printer = await printer_factory(name="P", model="X1C")
         response = await async_client.post(f"/api/v1/printers/{printer.id}/temperature/nozzle?target=400")
@@ -3820,6 +3883,33 @@ class TestSetFanSpeedAPI:
         assert response.status_code == 200
         _called_fan_id, called_pwm = mock_client.set_fan_speed.call_args.args
         assert called_pwm == expected_pwm
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_fan_speed_uses_cloud_when_lan_control_is_disabled(self, async_client: AsyncClient, printer_factory):
+        printer = await printer_factory(name="Cloud Fan Printer", model="X1C", serial_number="CLOUDFAN123")
+        state = MagicMock(connected=True, developer_mode=False)
+        cloud = MagicMock(is_authenticated=True)
+        cloud.publish_mqtt_command = AsyncMock()
+        cloud.close = AsyncMock()
+
+        with (
+            patch("backend.app.api.routes.printers.printer_manager") as mock_pm,
+            patch(
+                "backend.app.api.routes.printers_controls.build_authenticated_cloud",
+                new=AsyncMock(return_value=cloud),
+            ),
+        ):
+            mock_pm.get_status.return_value = state
+            mock_pm.get_client.return_value = None
+            response = await async_client.post(f"/api/v1/printers/{printer.id}/fan-speed?fan=aux&speed=50")
+
+        assert response.status_code == 200
+        result = response.json()
+        assert result["control_channel"] == "cloud"
+        payload = cloud.publish_mqtt_command.await_args.args[1]
+        assert payload["print"]["command"] == "gcode_line"
+        assert payload["print"]["param"] == "M106 P2 S128"
 
     @pytest.mark.asyncio
     @pytest.mark.integration

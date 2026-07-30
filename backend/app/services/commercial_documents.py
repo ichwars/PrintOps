@@ -18,6 +18,7 @@ from backend.app.models.commercial_document import (
     CommercialDocument,
     CommercialDocumentLine,
     DocumentNumberReservation,
+    DocumentPayment,
     DocumentRelation,
 )
 from backend.app.models.customer import Customer, CustomerAccount
@@ -26,6 +27,7 @@ from backend.app.schemas.commercial_document import (
     CommercialDocumentDraft,
     CommercialDocumentLineDraft,
     IssuedDocumentSnapshot,
+    RecordPaymentCommand,
     SnapshotLine,
 )
 from backend.app.services.document_audit import append_audit
@@ -173,6 +175,7 @@ _LOAD_OPTIONS = (
     selectinload(CommercialDocument.outgoing_relations),
     selectinload(CommercialDocument.snapshot),
     selectinload(CommercialDocument.artifacts),
+    selectinload(CommercialDocument.payments),
 )
 
 
@@ -378,9 +381,7 @@ async def create_draft(
     document = CommercialDocument(
         **data.model_dump(exclude={"lines"}),
         technical_status="draft",
-        payment_status=(
-            "unpaid" if DOCUMENT_CAPABILITIES[DocumentType(data.document_type)].has_payment_terms else "not_applicable"
-        ),
+        payment_status=_initial_payment_status(DocumentType(data.document_type)),
         subtotal_amount=subtotal,
         tax_amount=tax,
         total_amount=total,
@@ -437,6 +438,67 @@ async def validate_draft(
     document_id: int,
 ) -> tuple[DocumentFinding, ...]:
     return validate_document(_to_draft(await _load_document(session, document_id)))
+
+
+_PAYMENT_RECORDABLE_TYPES = frozenset(
+    {
+        DocumentType.ADVANCE_INVOICE,
+        DocumentType.PROGRESS_INVOICE,
+        DocumentType.FINAL_INVOICE,
+        DocumentType.INVOICE,
+    }
+)
+
+
+def _initial_payment_status(document_type: DocumentType) -> str:
+    return "unpaid" if document_type in _PAYMENT_RECORDABLE_TYPES else "not_applicable"
+
+
+def _payment_status(total: Decimal, paid: Decimal) -> tuple[str, Decimal]:
+    open_amount = total - paid
+    if paid <= 0:
+        return "unpaid", total
+    if open_amount > 0:
+        return "partially_paid", open_amount
+    if open_amount == 0:
+        return "paid", Decimal("0.00")
+    return "overpaid", Decimal("0.00")
+
+
+async def record_payment(
+    session: AsyncSession,
+    document_id: int,
+    command: RecordPaymentCommand,
+    *,
+    actor_id: int | None,
+) -> CommercialDocument:
+    document = await _load_document(session, document_id, lock=True)
+    document_type = DocumentType(document.document_type)
+    if document_type not in _PAYMENT_RECORDABLE_TYPES or document.technical_status != "issued":
+        raise InvalidDocumentTransition("This commercial document does not support payments")
+    if document.payment_status == "not_applicable":
+        document.payment_status = "unpaid"
+        document.open_amount = document.total_amount
+    if document.currency.upper() != document.currency:
+        document.currency = document.currency.upper()
+
+    amount = command.amount.quantize(Decimal("0.01"))
+    payment = DocumentPayment(
+        document_id=document.id,
+        amount=amount,
+        currency=document.currency,
+        paid_at=command.paid_at,
+        method=command.method,
+        reference=command.reference,
+        note=command.note,
+        recorded_by_id=actor_id,
+    )
+    document.payments.append(payment)
+    total_paid = sum((entry.amount for entry in document.payments), Decimal("0.00"))
+    document.payment_status, document.open_amount = _payment_status(document.total_amount, total_paid)
+    document.lock_version += 1
+    await session.flush()
+    return document
 
 
 async def transition_document(
@@ -498,6 +560,7 @@ async def create_successor(
         business_profile_id=source.business_profile_id,
         customer_id=source.customer_id,
         technical_status="draft",
+        payment_status=_initial_payment_status(target_type),
         language=source.language,
         currency=source.currency,
         service_date=source.service_date,

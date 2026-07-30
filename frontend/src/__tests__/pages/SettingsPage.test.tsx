@@ -1134,6 +1134,7 @@ describe('SettingsPage', () => {
         SIDEBAR_ORDER_KEY,
         JSON.stringify([
           'dashboard',
+          'business-dashboard',
           'ext-7',
           'printers',
           'archives',
@@ -1200,6 +1201,7 @@ describe('SettingsPage', () => {
         SIDEBAR_ORDER_KEY,
         JSON.stringify([
           'dashboard',
+          'business-dashboard',
           'printers',
           'archives',
           'queue',
@@ -1284,6 +1286,7 @@ describe('SettingsPage', () => {
       expect(JSON.parse(defaultSidebarOrderPayload!)).toEqual({
         order: [
           'dashboard',
+          'business-dashboard',
           'printers',
           'archives',
           'queue',

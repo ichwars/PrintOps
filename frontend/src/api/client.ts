@@ -549,6 +549,14 @@ export interface PrinterStatus {
   firmware_version: string | null;   // Firmware version from MQTT
   // Developer LAN mode: true = enabled, false = disabled, null = unknown
   developer_mode: boolean | null;
+  control_connection?: {
+    local_status_available: boolean;
+    local_control_available: boolean;
+    developer_lan: boolean | null;
+    cloud_configured: boolean;
+    cloud_device_id: string | null;
+    active_control_path: 'local' | 'cloud' | 'none';
+  } | null;
   // AMS Filament Backup ("auto-switch" to a backup spool when one runs out).
   // true = ON, false = OFF, null = unknown / unsupported (A1 family).
   ams_filament_backup: boolean | null;
@@ -731,6 +739,8 @@ export interface ArchiveSlim {
   started_at: string | null;
   completed_at: string | null;
   cost: number | null;
+  energy_kwh: number | null;
+  energy_cost: number | null;
   quantity: number;
   created_at: string;
 }
@@ -782,6 +792,14 @@ export interface ArchiveStats {
   // snapshot history (e.g. right after upgrade, before hourly snapshots have
   // a baseline). UI should explain why the number may undercount.
   energy_data_warming_up?: boolean;
+}
+
+export interface ArchiveEnergyHistoryPoint {
+  bucket_start: string;
+  energy_kwh: number;
+  energy_cost: number;
+  source: string;
+  sample_count: number;
 }
 
 export interface TagInfo {
@@ -3054,6 +3072,7 @@ export interface FilamentSkuSettings {
   subtype: string | null;
   brand: string | null;
   color_name: string | null;
+  default_supplier_id: number | null;
   lead_time_days: number;
   safety_margin_value: number;
   safety_margin_unit: 'days' | 'g';
@@ -4498,6 +4517,14 @@ export const api = {
     if (options?.createdById !== undefined) params.set('created_by_id', String(options.createdById));
     const qs = params.toString();
     return request<ArchiveStats>(`/archives/stats${qs ? `?${qs}` : ''}`);
+  },
+  getArchiveEnergyHistory: (options?: { dateFrom?: string; dateTo?: string; bucket?: 'hour' | 'day' }) => {
+    const params = new URLSearchParams();
+    if (options?.dateFrom) params.set('date_from', options.dateFrom);
+    if (options?.dateTo) params.set('date_to', options.dateTo);
+    if (options?.bucket) params.set('bucket', options.bucket);
+    const qs = params.toString();
+    return request<ArchiveEnergyHistoryPoint[]>(`/archives/energy-history${qs ? `?${qs}` : ''}`);
   },
   // Tag management
   getTags: () => request<TagInfo[]>('/archives/tags'),

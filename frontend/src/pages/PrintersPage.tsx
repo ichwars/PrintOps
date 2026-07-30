@@ -118,6 +118,14 @@ import { PrintModal } from '../components/PrintModal';
 import { PrinterInfoModal } from '../components/PrinterInfoModal';
 import { getAmsLabel, getGlobalTrayId, getFillBarColor, getSpoolmanFillLevel, getFallbackSpoolTag, isBambuLabSpool } from '../utils/amsHelpers';
 import { getPrinterImage, getWifiStrength, filterCompatibleQueueItems } from '../utils/printer';
+import {
+  PRINTER_CONTROL_CAPABILITIES,
+  getPrinterControlCapability,
+  isCloudControlCandidate,
+  isCloudControlUncertain,
+  isPrintOpsCloudControlImplemented,
+  type PrinterControlAction,
+} from '../utils/printerControlCapabilities';
 import { FilamentSlotCircle } from '../components/FilamentSlotCircle';
 import { Collapsible } from '../components/Collapsible';
 import { ConnectionDiagnosticModal, DiagnosticChecklist } from '../components/ConnectionDiagnostic';
@@ -1812,6 +1820,7 @@ function PrinterCard({
   const [showEditModal, setShowEditModal] = useState(false);
   const [showFileManager, setShowFileManager] = useState(false);
   const [showMQTTDebug, setShowMQTTDebug] = useState(false);
+  const [showControlMatrix, setShowControlMatrix] = useState(false);
   const [showPowerOnConfirm, setShowPowerOnConfirm] = useState(false);
   const [showPowerOffConfirm, setShowPowerOffConfirm] = useState(false);
   const [haToggleConfirm, setHaToggleConfirm] = useState<SmartPlug | null>(null);
@@ -2187,6 +2196,84 @@ function PrinterCard({
   const isPrintingOrPaused = status?.state === 'RUNNING' || status?.state === 'PAUSE';
   const needsPlateClear = requirePlateClear && status?.awaiting_plate_clear === true;
   const showClearPlateButton = status?.connected && needsPlateClear && !isPrintingOrPaused;
+  const hasPrinterControlPermission = hasPermission('printers:control');
+  const localPrinterControlUnavailable = status?.connected === true && status.developer_mode === false;
+  const cloudControlConfigured = status?.control_connection?.cloud_configured === true;
+  const activeControlPath = status?.control_connection?.active_control_path ?? 'none';
+  const canUseLocalPrinterControl = status?.connected === true && hasPrinterControlPermission && !localPrinterControlUnavailable;
+  const canUsePrinterControlAction = (action: PrinterControlAction) => (
+    canUseLocalPrinterControl
+    || (
+      status?.connected === true
+      && hasPrinterControlPermission
+      && localPrinterControlUnavailable
+      && cloudControlConfigured
+      && isPrintOpsCloudControlImplemented(action)
+    )
+  );
+  const canUseTemperatureControls = canUsePrinterControlAction('temperature');
+  const canUseFanControls = canUsePrinterControlAction('fan');
+  const canUseLightControl = canUsePrinterControlAction('light');
+  const getLocalPrinterControlUnavailableTitle = (action: PrinterControlAction = 'status') => {
+    const capability = getPrinterControlCapability(action);
+    const actionLabel = t(capability.labelKey, capability.labelFallback);
+    if (isPrintOpsCloudControlImplemented(action)) {
+      return t(
+        'printers.localControlUnavailableCloudCandidate',
+        '{{action}} wird bei fehlender LAN-Steuerung über Bambu Cloud gesendet.',
+        { action: actionLabel },
+      );
+    }
+    if (isCloudControlCandidate(action)) {
+      return t(
+        'printers.localControlUnavailableCloudNotImplemented',
+        '{{action}} ist über Bambu Cloud grundsätzlich möglich, ist in PrintOps aber noch nicht als Cloud-Steuerung umgesetzt. Bitte Entwickler-LAN-Modus am Drucker aktivieren.',
+        { action: actionLabel },
+      );
+    }
+    if (isCloudControlUncertain(action)) {
+      return t(
+        'printers.localControlUnavailableCloudUncertain',
+        '{{action}} benötigt in PrintOps aktuell lokale Steuerung. Cloud-Unterstützung ist für diese Funktion noch nicht belastbar bestätigt.',
+        { action: actionLabel },
+      );
+    }
+    return t(
+      'printers.localControlUnavailableLocalOnly',
+      '{{action}} benötigt lokale Steuerung. Bitte Entwickler-LAN-Modus am Drucker aktivieren und IP-Adresse sowie Zugangscode prüfen.',
+      { action: actionLabel },
+    );
+  };
+  const getPrinterControlUnavailableTitle = (action: PrinterControlAction = 'status') => (
+    !hasPrinterControlPermission
+      ? t('printers.permission.noControl')
+      : localPrinterControlUnavailable
+        ? getLocalPrinterControlUnavailableTitle(action)
+        : !status?.connected
+          ? t('printers.connection.offline')
+          : undefined
+  );
+  const getControlActionTitle = (action: PrinterControlAction, localTitle?: string) => {
+    if (canUseLocalPrinterControl) return localTitle;
+    if (canUsePrinterControlAction(action)) {
+      const capability = getPrinterControlCapability(action);
+      return t(
+        'printers.cloudControlActionTitle',
+        '{{action}} wird über Bambu Cloud gesendet, weil die lokale LAN-Steuerung nicht verfügbar ist.',
+        { action: t(capability.labelKey, capability.labelFallback) },
+      );
+    }
+    return getPrinterControlUnavailableTitle(action);
+  };
+  const canUsePrinterControl = canUseLocalPrinterControl;
+  useEffect(() => {
+    if (canUsePrinterControl || canUseTemperatureControls || canUseFanControls || canUseLightControl) return;
+    setStatusControlMenu(null);
+    setShowAirductMenu(current => current === printer.id ? null : current);
+    setShowBedJogMenu(current => current === printer.id ? null : current);
+    setShowSpeedMenu(current => current === printer.id ? null : current);
+    setDryingPopoverAmsId(null);
+  }, [canUseFanControls, canUseLightControl, canUsePrinterControl, canUseTemperatureControls, printer.id]);
   const activePrintName = status?.current_print && isPrintingOrPaused
     ? formatPrintName(status.subtask_name || status.current_print || null, status.gcode_file, t, activePlateLabel)
     : null;
@@ -2995,17 +3082,17 @@ function PrinterCard({
         {includeRfid && (
           <button
             className={`w-full px-2 py-1.5 text-left text-xs flex items-center gap-2 rounded transition-colors ${
-              hasPermission('printers:ams_rfid')
+              hasPermission('printers:ams_rfid') && !localPrinterControlUnavailable
                 ? 'text-white hover:bg-bambu-dark-tertiary'
                 : 'text-bambu-gray/50 cursor-not-allowed'
             }`}
             onClick={(e) => {
               e.stopPropagation();
-              if (printerBusy || !hasPermission('printers:ams_rfid')) return;
+              if (printerBusy || localPrinterControlUnavailable || !hasPermission('printers:ams_rfid')) return;
               refreshAmsSlotMutation.mutate({ amsId, slotId });
             }}
-            disabled={printerBusy || isRefreshing || !hasPermission('printers:ams_rfid')}
-            title={printerBusy ? t('printers.bedJog.disabledWhilePrinting') : !hasPermission('printers:ams_rfid') ? t('printers.permission.noAmsRfid') : undefined}
+            disabled={printerBusy || isRefreshing || localPrinterControlUnavailable || !hasPermission('printers:ams_rfid')}
+            title={printerBusy ? t('printers.bedJog.disabledWhilePrinting') : localPrinterControlUnavailable ? getLocalPrinterControlUnavailableTitle('amsSlot') : !hasPermission('printers:ams_rfid') ? t('printers.permission.noAmsRfid') : undefined}
           >
             <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : ''}`} />
             {t('printers.rfid.reread')}
@@ -3013,34 +3100,34 @@ function PrinterCard({
         )}
         <button
           className={`w-full px-2 py-1.5 text-left text-xs flex items-center gap-2 rounded transition-colors ${
-            hasPermission('printers:control')
+            canUsePrinterControl
               ? 'text-white hover:bg-bambu-dark-tertiary'
               : 'text-bambu-gray/50 cursor-not-allowed'
           }`}
           onClick={(e) => {
             e.stopPropagation();
-            if (printerBusy || !hasPermission('printers:control')) return;
+            if (printerBusy || !canUsePrinterControl) return;
             loadAmsTrayMutation.mutate({ trayId: loadTrayId });
           }}
-          disabled={printerBusy || !hasPermission('printers:control')}
-          title={printerBusy ? t('printers.bedJog.disabledWhilePrinting') : !hasPermission('printers:control') ? t('printers.permission.noControl') : undefined}
+          disabled={printerBusy || !canUsePrinterControl}
+          title={printerBusy ? t('printers.bedJog.disabledWhilePrinting') : !canUsePrinterControl ? getPrinterControlUnavailableTitle('amsSlot') : undefined}
         >
           <LogIn className="w-3 h-3" />
           {t('printers.ams.load')}
         </button>
         <button
           className={`w-full px-2 py-1.5 text-left text-xs flex items-center gap-2 rounded transition-colors ${
-            hasPermission('printers:control')
+            canUsePrinterControl
               ? 'text-white hover:bg-bambu-dark-tertiary'
               : 'text-bambu-gray/50 cursor-not-allowed'
           }`}
           onClick={(e) => {
             e.stopPropagation();
-            if (printerBusy || !hasPermission('printers:control')) return;
+            if (printerBusy || !canUsePrinterControl) return;
             unloadAmsMutation.mutate();
           }}
-          disabled={printerBusy || !hasPermission('printers:control')}
-          title={printerBusy ? t('printers.bedJog.disabledWhilePrinting') : !hasPermission('printers:control') ? t('printers.permission.noControl') : undefined}
+          disabled={printerBusy || !canUsePrinterControl}
+          title={printerBusy ? t('printers.bedJog.disabledWhilePrinting') : !canUsePrinterControl ? getPrinterControlUnavailableTitle('amsSlot') : undefined}
         >
           <LogOut className="w-3 h-3" />
           {t('printers.ams.unload')}
@@ -3339,6 +3426,53 @@ function PrinterCard({
                   {status?.connected ? t('printers.connection.connected') : t('printers.connection.offline')}
                 </span>
               )}
+              {localPrinterControlUnavailable && (
+                <span
+                  className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                  title={t(
+                    'printers.localControlBadgeTitle',
+                    'Lokale Druckersteuerung ist deaktiviert. PrintOps zeigt Statusdaten, sperrt aber lokale Steuerbefehle.',
+                  )}
+                >
+                  <Cable className="w-3 h-3" />
+                  {t('printers.localControlBadge', 'LAN-Steuerung aus')}
+                </span>
+              )}
+              <span
+                className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs border ${
+                  activeControlPath === 'local'
+                    ? 'bg-status-ok/20 text-status-ok border-status-ok/20'
+                    : activeControlPath === 'cloud'
+                      ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
+                      : 'bg-bambu-dark-tertiary text-bambu-gray border-bambu-dark-tertiary'
+                }`}
+                title={t(
+                  'printers.controlPathTitle',
+                  'Aktiver Steuerweg: {{path}}',
+                  { path: t(`printers.controlPath.${activeControlPath}`, activeControlPath) },
+                )}
+              >
+                {activeControlPath === 'local' ? <Cable className="w-3 h-3" /> : <Zap className="w-3 h-3" />}
+                {t(`printers.controlPath.${activeControlPath}`, activeControlPath)}
+              </span>
+              {cloudControlConfigured && (
+                <span
+                  className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-sky-500/10 text-sky-400 border border-sky-500/20"
+                  title={t('printers.cloudControlConfiguredTitle', 'Bambu Cloud ist konfiguriert und kann für unterstützte Fallback-Aktionen genutzt werden.')}
+                >
+                  <Zap className="w-3 h-3" />
+                  {t('printers.cloudControlConfigured', 'Cloud bereit')}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowControlMatrix(open => !open)}
+                className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors"
+                title={t('printers.controlMatrix.toggle', 'Steuerwege anzeigen')}
+              >
+                <Info className="w-3 h-3" />
+                {t('printers.controlMatrix.title', 'Steuerwege')}
+              </button>
               {/* Run connection diagnostic — offered when the printer is offline, NOT in maintenance */}
               {printer.is_active !== false && !status?.connected && (
                 <button
@@ -3473,6 +3607,55 @@ function PrinterCard({
                 </span>
               )}
               </div>
+              {showControlMatrix && (
+                <div className="mt-2 overflow-hidden rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary/70">
+                  <div className="grid grid-cols-[1.4fr_0.7fr_0.9fr_1fr] gap-2 border-b border-bambu-dark-tertiary px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-bambu-gray">
+                    <span>{t('printers.controlMatrix.action', 'Aktion')}</span>
+                    <span>{t('printers.controlMatrix.local', 'LAN')}</span>
+                    <span>{t('printers.controlMatrix.cloud', 'Cloud')}</span>
+                    <span>{t('printers.controlMatrix.printops', 'PrintOps')}</span>
+                  </div>
+                  <div className="divide-y divide-bambu-dark-tertiary/70">
+                    {Object.values(PRINTER_CONTROL_CAPABILITIES).map((capability) => {
+                      const cloudCandidate = isCloudControlCandidate(capability.action);
+                      const cloudUncertain = isCloudControlUncertain(capability.action);
+                      const cloudImplemented = isPrintOpsCloudControlImplemented(capability.action);
+                      const printOpsMode = !capability.localRequired
+                        ? t('printers.controlMatrix.statusOnly', 'Status')
+                        : cloudImplemented
+                          ? t('printers.controlMatrix.localCloudFallback', 'LAN + Cloud-Fallback')
+                          : cloudCandidate
+                            ? t('printers.controlMatrix.cloudNotImplemented', 'Cloud möglich, PrintOps lokal')
+                            : t('printers.controlMatrix.localOnly', 'nur LAN');
+                      return (
+                        <div
+                          key={capability.action}
+                          className="grid grid-cols-[1.4fr_0.7fr_0.9fr_1fr] gap-2 px-3 py-2 text-xs text-bambu-gray-light"
+                        >
+                          <span className="truncate text-white">{t(capability.labelKey, capability.labelFallback)}</span>
+                          <span className={status?.control_connection?.local_control_available ? 'text-status-ok' : 'text-bambu-gray'}>
+                            {capability.localRequired
+                              ? status?.control_connection?.local_control_available
+                                ? t('common.yes', 'Ja')
+                                : t('common.no', 'Nein')
+                              : t('printers.controlMatrix.status', 'Status')}
+                          </span>
+                          <span className={cloudCandidate ? 'text-sky-400' : cloudUncertain ? 'text-status-warning' : 'text-bambu-gray'}>
+                            {cloudCandidate
+                              ? t('printers.controlMatrix.available', 'möglich')
+                              : cloudUncertain
+                                ? t('printers.controlMatrix.uncertain', 'unklar')
+                                : t('common.no', 'Nein')}
+                          </span>
+                          <span className={cloudImplemented && cloudControlConfigured ? 'text-sky-400' : cloudCandidate ? 'text-amber-300' : capability.localRequired ? 'text-bambu-gray-light' : 'text-status-ok'}>
+                            {printOpsMode}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -3764,10 +3947,14 @@ function PrinterCard({
               const rightNozzleSlot = status.nozzle_rack?.find(s => s.id === 0);
               // Single-nozzle models (H2D, H2C): use the primary nozzle (id 0)
               const singleNozzleSlot = rightNozzleSlot || leftNozzleSlot;
-              const canUseStatusControls = status.connected && hasPermission('printers:control');
-              const statusControlTitle = canUseStatusControls ? undefined : t('printers.permission.noControl');
+              const temperatureControlTitle = canUseTemperatureControls
+                ? getControlActionTitle('temperature')
+                : getPrinterControlUnavailableTitle('temperature');
+              const fanControlTitle = canUseFanControls
+                ? getControlActionTitle('fan')
+                : getPrinterControlUnavailableTitle('fan');
               const statusControlClass = `relative text-center px-2 py-1.5 bg-bambu-dark rounded-lg flex-1 flex flex-col justify-center items-center transition-colors ${
-                canUseStatusControls ? 'cursor-pointer hover:bg-bambu-dark-tertiary' : 'cursor-default opacity-80'
+                canUseTemperatureControls ? 'cursor-pointer hover:bg-bambu-dark-tertiary' : 'cursor-default opacity-80'
               }`;
               // Chamber fan only exists on enclosed Bambu models. Open-frame
               // printers (A1, A1 Mini, A2L, P1P) have no chamber fan — showing
@@ -3809,8 +3996,8 @@ function PrinterCard({
                     {/* Nozzle temp - combined for dual nozzle */}
                     <div
                       className={statusControlClass}
-                      title={statusControlTitle}
-                      onClick={() => canUseStatusControls && setStatusControlMenu(statusControlMenu === 'nozzle-temp' ? null : 'nozzle-temp')}
+                      title={temperatureControlTitle}
+                      onClick={() => canUseTemperatureControls && setStatusControlMenu(statusControlMenu === 'nozzle-temp' ? null : 'nozzle-temp')}
                     >
                       <button
                         type="button"
@@ -3895,8 +4082,8 @@ function PrinterCard({
                     </div>
                     <div
                       className={statusControlClass}
-                      title={statusControlTitle}
-                      onClick={() => canUseStatusControls && setStatusControlMenu(statusControlMenu === 'bed-temp' ? null : 'bed-temp')}
+                      title={temperatureControlTitle}
+                      onClick={() => canUseTemperatureControls && setStatusControlMenu(statusControlMenu === 'bed-temp' ? null : 'bed-temp')}
                     >
                       <button
                         type="button"
@@ -3936,9 +4123,9 @@ function PrinterCard({
                           className={hasChamberHeater
                             ? statusControlClass
                             : 'relative text-center px-2 py-1.5 bg-bambu-dark rounded-lg flex-1 flex flex-col justify-center items-center'}
-                          title={hasChamberHeater ? statusControlTitle : undefined}
+                          title={hasChamberHeater ? temperatureControlTitle : undefined}
                           onClick={hasChamberHeater
-                            ? () => canUseStatusControls && setStatusControlMenu(statusControlMenu === 'chamber-temp' ? null : 'chamber-temp')
+                            ? () => canUseTemperatureControls && setStatusControlMenu(statusControlMenu === 'chamber-temp' ? null : 'chamber-temp')
                             : undefined}
                         >
                           <button
@@ -3982,10 +4169,10 @@ function PrinterCard({
                       >
                         <div
                           className={`relative text-center px-3 py-1.5 bg-bambu-dark rounded-lg h-full flex flex-col justify-center items-center transition-colors ${
-                            canUseStatusControls ? 'cursor-pointer hover:bg-bambu-dark-tertiary' : 'cursor-default opacity-80'
+                            canUsePrinterControl ? 'cursor-pointer hover:bg-bambu-dark-tertiary' : 'cursor-default opacity-80'
                           }`}
-                          title={canUseStatusControls ? t('printers.activeNozzle', { nozzle: activeNozzle === 'L' ? t('common.left') : t('common.right') }) : statusControlTitle}
-                          onClick={() => canUseStatusControls && setStatusControlMenu(statusControlMenu === 'nozzle-select' ? null : 'nozzle-select')}
+                          title={canUsePrinterControl ? t('printers.activeNozzle', { nozzle: activeNozzle === 'L' ? t('common.left') : t('common.right') }) : getPrinterControlUnavailableTitle('amsSlot')}
+                          onClick={() => canUsePrinterControl && setStatusControlMenu(statusControlMenu === 'nozzle-select' ? null : 'nozzle-select')}
                         >
                           <NozzleIcon className="w-3.5 h-3.5 mb-0.5 text-amber-600 dark:text-amber-400" />
                           <div className="flex items-center gap-2">
@@ -4028,10 +4215,10 @@ function PrinterCard({
                         <div
                           key={key}
                           className={`relative px-2 py-1.5 bg-bambu-dark rounded-lg flex-1 min-w-0 flex items-center justify-center gap-1 transition-colors ${
-                            canUseStatusControls ? 'cursor-pointer hover:bg-bambu-dark-tertiary' : 'cursor-default opacity-80'
+                            canUseFanControls ? 'cursor-pointer hover:bg-bambu-dark-tertiary' : 'cursor-default opacity-80'
                           }`}
-                          title={canUseStatusControls ? label : statusControlTitle}
-                          onClick={() => canUseStatusControls && setStatusControlMenu(statusControlMenu === `fan-${key}` ? null : `fan-${key}`)}
+                          title={canUseFanControls ? getControlActionTitle('fan', label) : fanControlTitle}
+                          onClick={() => canUseFanControls && setStatusControlMenu(statusControlMenu === `fan-${key}` ? null : `fan-${key}`)}
                         >
                           <Icon className={`w-3 h-3 shrink-0 ${active ? activeClass : 'text-bambu-gray/50'}`} />
                           <span className={`text-[10px] leading-none ${active ? 'text-white' : 'text-bambu-gray/50'}`}>
@@ -4100,13 +4287,13 @@ function PrinterCard({
                     <div className="flex flex-wrap items-center gap-2 min-w-0">
                       <button
                         onClick={() => chamberLightMutation.mutate(!status.chamber_light)}
-                        disabled={!status.connected || chamberLightMutation.isPending || !hasPermission('printers:control')}
+                        disabled={!canUseLightControl || chamberLightMutation.isPending}
                         className={`${iconControlClass} ${
                           status.chamber_light
                             ? 'bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-500/20'
                             : 'bg-bambu-dark text-bambu-gray/50 hover:bg-bambu-dark-tertiary hover:text-white'
                         }`}
-                        title={!hasPermission('printers:control') ? t('printers.permission.noControl') : (status.chamber_light ? t('printers.chamberLightOff') : t('printers.chamberLightOn'))}
+                        title={!canUseLightControl ? getPrinterControlUnavailableTitle('light') : getControlActionTitle('light', status.chamber_light ? t('printers.chamberLightOff') : t('printers.chamberLightOn'))}
                       >
                         <ChamberLight on={status.chamber_light ?? false} className="w-4 h-4" />
                       </button>
@@ -4121,9 +4308,9 @@ function PrinterCard({
                           <div className="relative">
                             <button
                               onClick={() => setShowAirductMenu(showAirductMenu === printer.id ? null : printer.id)}
-                              disabled={!hasPermission('printers:control')}
+                              disabled={!canUsePrinterControl}
                               className={`${iconControlClass} ${bg}`}
-                              title={`${t('printers.airduct.title')}: ${isHeating ? t('printers.airduct.heating') : t('printers.airduct.cooling')}`}
+                              title={!canUsePrinterControl ? getPrinterControlUnavailableTitle('airduct') : `${t('printers.airduct.title')}: ${isHeating ? t('printers.airduct.heating') : t('printers.airduct.cooling')}`}
                             >
                               <Icon className={`w-4 h-4 ${color}`} />
                             </button>
@@ -4160,7 +4347,7 @@ function PrinterCard({
 
                       {/* Movement — compact badge, popover holds XY, Z, and home controls */}
                       {(() => {
-                        const canControl = hasPermission('printers:control');
+                        const canControl = canUsePrinterControl;
                         const disabled = isPrinting || !canControl;
                         const bambuIsPlateBelow = true; // positive Z moves plate away from nozzle
                         const jogButtonClass = 'flex h-8 w-8 items-center justify-center rounded bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 transition-colors hover:bg-indigo-200 dark:hover:bg-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-50';
@@ -4193,7 +4380,7 @@ function PrinterCard({
                                   ? 'bg-bambu-dark text-bambu-gray/50 cursor-not-allowed'
                                   : 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-500/20'
                               }`}
-                              title={!canControl ? t('printers.permission.noControl') : isPrinting ? t('printers.bedJog.disabledWhilePrinting') : t('printers.bedJog.title')}
+                              title={!canControl ? getPrinterControlUnavailableTitle('movement') : isPrinting ? t('printers.bedJog.disabledWhilePrinting') : t('printers.bedJog.title')}
                             >
                               <Move className="w-4 h-4" />
                             </button>
@@ -4364,18 +4551,20 @@ function PrinterCard({
                       </div>
 
                       {/* Print Speed */}
-                      {(() => (
+                      {(() => {
+                        const canUseSpeedControl = canUsePrinterControlAction('speed');
+                        return (
                         <div className="relative">
                           <button
                             data-testid="speed-control"
                             onClick={() => setShowSpeedMenu(showSpeedMenu === printer.id ? null : printer.id)}
-                            disabled={!isPrinting || !hasPermission('printers:control')}
+                            disabled={!isPrinting || !canUseSpeedControl}
                             className={`${iconControlClass} ${
-                              isPrinting
+                              isPrinting && canUseSpeedControl
                                 ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20'
                                 : 'bg-bambu-dark text-bambu-gray/50 cursor-not-allowed'
                             }`}
-                            title={isPrinting ? t('printers.speed.title') : undefined}
+                            title={!canUseSpeedControl ? getPrinterControlUnavailableTitle('speed') : isPrinting ? getControlActionTitle('speed', t('printers.speed.title')) : undefined}
                           >
                             <Gauge className="w-4 h-4" />
                           </button>
@@ -4408,7 +4597,8 @@ function PrinterCard({
                             </>
                           )}
                         </div>
-                      ))()}
+                        );
+                      })()}
 
                     </div>
 
@@ -4416,7 +4606,9 @@ function PrinterCard({
                     <div className="ml-auto flex items-center justify-end gap-2 flex-shrink-0">
                       {/* Pause/Resume button */}
                       {(() => {
-                        const pauseUnavailable = !isPrinting || isControlBusy || !hasPermission('printers:control');
+                        const pauseAction: PrinterControlAction = isPaused ? 'resume' : 'pause';
+                        const canUsePauseAction = canUsePrinterControlAction(pauseAction);
+                        const pauseUnavailable = !isPrinting || isControlBusy || !canUsePauseAction;
                         return (
                       <button
                         onClick={() => isPaused ? setShowResumeConfirm(true) : setShowPauseConfirm(true)}
@@ -4430,7 +4622,7 @@ function PrinterCard({
                               : 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-500/30'
                           }
                         `}
-                        title={!hasPermission('printers:control') ? t('printers.permission.noControl') : (isPaused ? t('printers.resume') : t('printers.pause'))}
+                        title={!canUsePauseAction ? getPrinterControlUnavailableTitle(pauseAction) : getControlActionTitle(pauseAction, isPaused ? t('printers.resume') : t('printers.pause'))}
                       >
                         {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
                         {isPaused ? t('printers.resume') : t('printers.pause')}
@@ -4440,7 +4632,8 @@ function PrinterCard({
 
                       {/* Stop button */}
                       {(() => {
-                        const stopUnavailable = !isPrinting || isControlBusy || !hasPermission('printers:control');
+                        const canUseStopAction = canUsePrinterControlAction('stop');
+                        const stopUnavailable = !isPrinting || isControlBusy || !canUseStopAction;
                         return (
                       <button
                         onClick={() => setShowStopConfirm(true)}
@@ -4452,7 +4645,7 @@ function PrinterCard({
                             : 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 hover:bg-red-500/30'
                           }
                         `}
-                        title={!hasPermission('printers:control') ? t('printers.permission.noControl') : t('printers.stop')}
+                        title={!canUseStopAction ? getPrinterControlUnavailableTitle('stop') : getControlActionTitle('stop', t('printers.stop'))}
                       >
                         <Square className="w-3 h-3" />
                         {t('printers.stop')}
@@ -4568,10 +4761,11 @@ function PrinterCard({
                                     </div>
                                   )}
                                   {/* Drying button — only for AMS 2 Pro (n3f) and AMS-HT (n3s) */}
-                                  {(status.supports_drying || status.drying_screen_only) && (ams.module_type === 'n3f' || ams.module_type === 'n3s') && hasPermission('printers:control') && (
+                                  {(status.supports_drying || status.drying_screen_only) && (ams.module_type === 'n3f' || ams.module_type === 'n3s') && hasPrinterControlPermission && (
                                     <button
-                                      disabled={status.drying_screen_only || !!(ams.dry_sf_reason?.length && ams.dry_time === 0)}
+                                      disabled={localPrinterControlUnavailable || status.drying_screen_only || !!(ams.dry_sf_reason?.length && ams.dry_time === 0)}
                                       onClick={(e) => {
+                                        if (!canUsePrinterControl) return;
                                         if (ams.dry_time > 0) {
                                           stopDryingMutation.mutate(ams.id);
                                         } else if (dryingPopoverAmsId === ams.id) {
@@ -4594,11 +4788,11 @@ function PrinterCard({
                                       className={`ml-1 flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] transition-colors ${
                                         ams.dry_time > 0
                                           ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400'
-                                          : status.drying_screen_only || ams.dry_sf_reason?.length
+                                          : localPrinterControlUnavailable || status.drying_screen_only || ams.dry_sf_reason?.length
                                             ? 'bg-bambu-dark text-bambu-gray/50 cursor-not-allowed'
                                             : 'bg-bambu-dark text-bambu-gray hover:text-white hover:bg-bambu-dark/80'
                                       }`}
-                                      title={status.drying_screen_only ? t('printers.drying.screenOnly') : ams.dry_time > 0 ? t('printers.drying.stop') : ams.dry_sf_reason?.length ? t('printers.drying.powerRequired') : t('printers.drying.start')}
+                                      title={localPrinterControlUnavailable ? getLocalPrinterControlUnavailableTitle('drying') : status.drying_screen_only ? t('printers.drying.screenOnly') : ams.dry_time > 0 ? t('printers.drying.stop') : ams.dry_sf_reason?.length ? t('printers.drying.powerRequired') : t('printers.drying.start')}
                                     >
                                       <Flame className="w-3 h-3" />
                                     </button>
@@ -5094,11 +5288,12 @@ function PrinterCard({
                                 )}
                               </div>
                               {/* Drying button for HT AMS */}
-                              {(status.supports_drying || status.drying_screen_only) && (ams.module_type === 'n3f' || ams.module_type === 'n3s') && hasPermission('printers:control') && (
+                              {(status.supports_drying || status.drying_screen_only) && (ams.module_type === 'n3f' || ams.module_type === 'n3s') && hasPrinterControlPermission && (
                                 <div className="relative ml-auto">
                                   <button
-                                    disabled={status.drying_screen_only}
+                                    disabled={localPrinterControlUnavailable || status.drying_screen_only}
                                     onClick={(e) => {
+                                      if (!canUsePrinterControl) return;
                                       if (ams.dry_time > 0) {
                                         stopDryingMutation.mutate(ams.id);
                                       } else if (dryingPopoverAmsId === ams.id) {
@@ -5121,11 +5316,11 @@ function PrinterCard({
                                     className={`flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] transition-colors ${
                                       ams.dry_time > 0
                                         ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400'
-                                        : status.drying_screen_only
+                                        : localPrinterControlUnavailable || status.drying_screen_only
                                           ? 'bg-bambu-dark text-bambu-gray/50 cursor-not-allowed'
                                           : 'bg-bambu-dark text-bambu-gray hover:text-white hover:bg-bambu-dark/80'
                                     }`}
-                                    title={status.drying_screen_only ? t('printers.drying.screenOnly') : ams.dry_time > 0 ? t('printers.drying.stop') : t('printers.drying.start')}
+                                    title={localPrinterControlUnavailable ? getLocalPrinterControlUnavailableTitle('drying') : status.drying_screen_only ? t('printers.drying.screenOnly') : ams.dry_time > 0 ? t('printers.drying.stop') : t('printers.drying.start')}
                                   >
                                     <Flame className="w-3 h-3" />
                                   </button>
@@ -6296,7 +6491,7 @@ function PrinterCard({
           amsUnits={status.ams}
           amsExtruderMap={status.ams_extruder_map}
           isDualNozzle={printer.nozzle_count === 2 || status?.temperatures?.nozzle_2 !== undefined}
-          canToggle={hasPermission('printers:control')}
+          canToggle={canUsePrinterControl}
           pending={setAmsBackupMutation.isPending}
           onToggle={(next) => setAmsBackupMutation.mutate(next)}
           onClose={() => setAmsBackupModalOpen(false)}
@@ -6515,20 +6710,26 @@ function PrinterCard({
                   );
                   const rotateChecked = dryingRotateTray && !trayLoadedInThisAms;
                   return (
-                    <button
-                      type="button"
-                      onClick={() => setDryingRotateTray(enabled => !enabled)}
-                      aria-pressed={rotateChecked}
-                      disabled={trayLoadedInThisAms}
-                      title={trayLoadedInThisAms ? t('printers.drying.rotateUnavailableReason') : undefined}
-                      className={`h-8 w-full rounded-lg border px-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                        rotateChecked
-                          ? 'bg-bambu-green border-bambu-green text-white'
-                          : 'bg-bambu-dark border-bambu-dark-tertiary text-white hover:bg-bambu-dark-tertiary disabled:hover:bg-bambu-dark'
-                      }`}
-                    >
-                      {t('printers.drying.rotateTray')}
-                    </button>
+                    <div title={trayLoadedInThisAms ? t('printers.drying.rotateUnavailableReason') : undefined}>
+                      <button
+                        type="button"
+                        onClick={() => setDryingRotateTray(enabled => !enabled)}
+                        aria-pressed={rotateChecked}
+                        aria-disabled={trayLoadedInThisAms}
+                        disabled={trayLoadedInThisAms}
+                        className={`min-h-10 w-full rounded-lg border px-3 py-1.5 text-[11px] font-medium leading-tight transition-colors ${
+                          rotateChecked
+                            ? 'bg-bambu-green border-bambu-green text-white'
+                            : trayLoadedInThisAms
+                              ? 'cursor-not-allowed bg-bambu-dark/80 border-bambu-dark-tertiary text-bambu-gray opacity-60'
+                              : 'bg-bambu-dark border-bambu-dark-tertiary text-white hover:bg-bambu-dark-tertiary'
+                        }`}
+                      >
+                        <span className="block whitespace-normal text-center">
+                          {t('printers.drying.rotateTray')}
+                        </span>
+                      </button>
+                    </div>
                   );
                 })()}
               </div>

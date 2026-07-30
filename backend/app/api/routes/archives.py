@@ -27,7 +27,13 @@ from backend.app.models.archive import PrintArchive
 from backend.app.models.filament import Filament
 from backend.app.models.spool_usage_history import SpoolUsageHistory
 from backend.app.models.user import User
-from backend.app.schemas.archive import ArchiveResponse, ArchiveSlim, ArchiveStats, ArchiveUpdate
+from backend.app.schemas.archive import (
+    ArchiveEnergyHistoryPoint,
+    ArchiveResponse,
+    ArchiveSlim,
+    ArchiveStats,
+    ArchiveUpdate,
+)
 from backend.app.schemas.print_log import PrintLogResponse
 from backend.app.schemas.slicer import SliceRequest
 from backend.app.services.archive import ArchiveService
@@ -197,6 +203,96 @@ def _printer_scope_condition(printer_id_column, user: User | None):
     if allowed_printer_ids is None:
         return None
     return or_(printer_id_column.is_(None), printer_id_column.in_(allowed_printer_ids))
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Treat stored naive timestamps as UTC for dashboard bucketing."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _energy_bucket_start(value: datetime, bucket: str) -> datetime:
+    utc_value = _as_utc(value)
+    if bucket == "day":
+        return utc_value.replace(hour=0, minute=0, second=0, microsecond=0)
+    return utc_value.replace(minute=0, second=0, microsecond=0)
+
+
+async def _energy_history_points(
+    db: AsyncSession,
+    *,
+    dt_from: datetime | None,
+    dt_to: datetime | None,
+    bucket: str,
+    energy_cost_per_kwh: float,
+    user: User | None,
+    can_read_all: bool,
+) -> list[ArchiveEnergyHistoryPoint]:
+    from backend.app.models.smart_plug import SmartPlug
+    from backend.app.models.smart_plug_energy_snapshot import SmartPlugEnergySnapshot
+
+    plug_query = select(SmartPlug.id)
+    if user is not None and not can_read_all:
+        scope_condition = _printer_scope_condition(SmartPlug.printer_id, user)
+        if scope_condition is not None:
+            plug_query = plug_query.where(scope_condition)
+
+    plug_ids_result = await db.execute(plug_query)
+    plug_ids = [row[0] for row in plug_ids_result.all()]
+    if not plug_ids:
+        return []
+
+    buckets: dict[datetime, dict[str, float | int]] = {}
+    for plug_id in plug_ids:
+        samples: list[tuple[datetime, float]] = []
+        if dt_from is not None:
+            baseline_result = await db.execute(
+                select(SmartPlugEnergySnapshot.recorded_at, SmartPlugEnergySnapshot.lifetime_kwh)
+                .where(
+                    SmartPlugEnergySnapshot.plug_id == plug_id,
+                    SmartPlugEnergySnapshot.recorded_at <= dt_from,
+                )
+                .order_by(SmartPlugEnergySnapshot.recorded_at.desc())
+                .limit(1)
+            )
+            baseline = baseline_result.one_or_none()
+            if baseline is not None:
+                samples.append((baseline.recorded_at, float(baseline.lifetime_kwh)))
+
+        range_conditions = [SmartPlugEnergySnapshot.plug_id == plug_id]
+        if dt_from is not None:
+            range_conditions.append(SmartPlugEnergySnapshot.recorded_at > dt_from)
+        if dt_to is not None:
+            range_conditions.append(SmartPlugEnergySnapshot.recorded_at <= dt_to)
+        rows_result = await db.execute(
+            select(SmartPlugEnergySnapshot.recorded_at, SmartPlugEnergySnapshot.lifetime_kwh)
+            .where(*range_conditions)
+            .order_by(SmartPlugEnergySnapshot.recorded_at.asc())
+        )
+        samples.extend((row.recorded_at, float(row.lifetime_kwh)) for row in rows_result.all())
+        if len(samples) < 2:
+            continue
+
+        previous_kwh = samples[0][1]
+        for recorded_at, lifetime_kwh in samples[1:]:
+            delta = max(0.0, lifetime_kwh - previous_kwh)
+            if delta > 0:
+                bucket_start = _energy_bucket_start(recorded_at, bucket)
+                current = buckets.setdefault(bucket_start, {"energy_kwh": 0.0, "sample_count": 0})
+                current["energy_kwh"] = float(current["energy_kwh"]) + delta
+                current["sample_count"] = int(current["sample_count"]) + 1
+            previous_kwh = lifetime_kwh
+
+    return [
+        ArchiveEnergyHistoryPoint(
+            bucket_start=bucket_start,
+            energy_kwh=round(float(values["energy_kwh"]), 3),
+            energy_cost=round(float(values["energy_kwh"]) * energy_cost_per_kwh, 3),
+            sample_count=int(values["sample_count"]),
+        )
+        for bucket_start, values in sorted(buckets.items(), key=lambda item: item[0])
+    ]
 
 
 def compute_time_accuracy(archive: PrintArchive, run_aggregate: dict | None = None) -> dict:
@@ -591,6 +687,8 @@ async def list_archives_slim(
             PrintLogEntry.filament_color,
             PrintLogEntry.status,
             PrintLogEntry.cost,
+            PrintLogEntry.energy_kwh,
+            PrintLogEntry.energy_cost,
             PrintLogEntry.created_at,
         )
         .outerjoin(PrintArchive, PrintArchive.id == PrintLogEntry.archive_id)
@@ -632,11 +730,47 @@ async def list_archives_slim(
             "started_at": r.started_at,
             "completed_at": r.completed_at,
             "cost": r.cost,
+            "energy_kwh": r.energy_kwh,
+            "energy_cost": r.energy_cost,
             "quantity": 1,
             "created_at": r.created_at,
         }
         for r in rows
     ]
+
+
+@router.get("/energy-history", response_model=list[ArchiveEnergyHistoryPoint])
+async def get_archive_energy_history(
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
+    bucket: str = Query("hour", pattern="^(hour|day)$"),
+    db: AsyncSession = Depends(get_db),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(
+            Permission.ARCHIVES_READ_ALL,
+            Permission.ARCHIVES_READ_OWN,
+        )
+    ),
+):
+    """Return smart-plug history buckets with costs from the existing energy price setting."""
+    from backend.app.api.routes.settings import get_setting
+
+    current_user, can_read_all = auth_result
+    if current_user is not None and not can_read_all:
+        return []
+    dt_from = datetime.combine(date_from, time.min, tzinfo=timezone.utc) if date_from else None
+    dt_to = datetime.combine(date_to, time.max, tzinfo=timezone.utc) if date_to else None
+    energy_cost_per_kwh_str = await get_setting(db, "energy_cost_per_kwh")
+    energy_cost_per_kwh = float(energy_cost_per_kwh_str) if energy_cost_per_kwh_str else 0.15
+    return await _energy_history_points(
+        db,
+        dt_from=dt_from,
+        dt_to=dt_to,
+        bucket=bucket,
+        energy_cost_per_kwh=energy_cost_per_kwh,
+        user=current_user,
+        can_read_all=can_read_all,
+    )
 
 
 @router.get("/search", response_model=list[ArchiveResponse])

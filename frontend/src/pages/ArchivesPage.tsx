@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
@@ -2568,6 +2568,7 @@ function ArchiveListRow({
 type SortOption = 'date-desc' | 'date-asc' | 'name-asc' | 'name-desc' | 'size-desc' | 'size-asc';
 type ViewMode = 'grid' | 'list' | 'calendar' | 'log';
 type Collection = 'all' | 'recent' | 'this-week' | 'this-month' | 'favorites' | 'not-printed' | 'printed' | 'failed' | 'duplicates';
+type ArchiveEnergyFocus = 'measured' | 'missing';
 
 // status values that indicate a print attempt has finished (regardless of outcome).
 // `archived` is the only status that means "uploaded but never sent to a printer."
@@ -2585,13 +2586,22 @@ const collections: { id: Collection; label: string; icon: React.ReactNode }[] = 
   { id: 'duplicates', label: 'Duplicates', icon: <Copy className="w-4 h-4" /> },
 ];
 
+function isViewMode(value: string | null): value is ViewMode {
+  return value === 'grid' || value === 'list' || value === 'calendar' || value === 'log';
+}
+
+function isArchiveEnergyFocus(value: string | null): value is ArchiveEnergyFocus {
+  return value === 'measured' || value === 'missing';
+}
+
 export function ArchivesPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { hasPermission, hasAnyPermission } = useAuth();
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [search, setSearch] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const [filterPrinter, setFilterPrinter] = useState<number | null>(() => {
     const saved = localStorage.getItem('archiveFilterPrinter');
     return saved ? Number(saved) : null;
@@ -2646,7 +2656,9 @@ export function ArchivesPage() {
   const [showBatchTag, setShowBatchTag] = useState(false);
   const [showBatchProject, setShowBatchProject] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
-    (localStorage.getItem('archiveViewMode') as ViewMode) || 'grid'
+    isViewMode(searchParams.get('view'))
+      ? searchParams.get('view') as ViewMode
+      : (localStorage.getItem('archiveViewMode') as ViewMode) || 'grid'
   );
   const [sortBy, setSortBy] = useState<SortOption>(() =>
     (localStorage.getItem('archiveSortBy') as SortOption) || 'date-desc'
@@ -2670,6 +2682,8 @@ export function ArchivesPage() {
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [highlightedArchiveId, setHighlightedArchiveId] = useState<number | null>(null);
   const [pendingNavigationArchiveId, setPendingNavigationArchiveId] = useState<number | null>(null);
+  const energyFocusParam = searchParams.get('energy');
+  const archiveEnergyFocus = isArchiveEnergyFocus(energyFocusParam) ? energyFocusParam : null;
 
   // Log view state
   const [logFilterUser, setLogFilterUser] = useState<string | null>(() =>
@@ -2699,6 +2713,46 @@ export function ArchivesPage() {
     const saved = localStorage.getItem('logPageSize');
     return saved ? Number(saved) : 25;
   });
+
+  const updateArchiveUrlParams = useCallback((updates: { q?: string; view?: ViewMode; energy?: ArchiveEnergyFocus | null }) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (updates.q !== undefined) {
+        const trimmedQuery = updates.q.trim();
+        if (trimmedQuery) next.set('q', trimmedQuery);
+        else next.delete('q');
+      }
+      if (updates.view !== undefined) {
+        if (updates.view === 'grid') next.delete('view');
+        else next.set('view', updates.view);
+      }
+      if (updates.energy !== undefined) {
+        if (updates.energy) next.set('energy', updates.energy);
+        else next.delete('energy');
+      }
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value);
+    setLogOffset(0);
+    updateArchiveUrlParams({ q: value });
+  }, [updateArchiveUrlParams]);
+
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    setViewMode(mode);
+    updateArchiveUrlParams({ view: mode });
+  }, [updateArchiveUrlParams]);
+
+  useEffect(() => {
+    const nextSearch = searchParams.get('q') ?? '';
+    const viewParam = searchParams.get('view');
+    if (nextSearch !== search) setSearch(nextSearch);
+    if (viewParam !== null && isViewMode(viewParam) && viewParam !== viewMode) {
+      setViewMode(viewParam);
+    }
+  }, [search, searchParams, viewMode]);
 
   const handleNavigateToArchive = useCallback((archiveId: number) => {
     setPendingNavigationArchiveId(archiveId);
@@ -2888,7 +2942,7 @@ export function ArchivesPage() {
   // Reset page when filters/search/sort/collection change
   useEffect(() => {
     setPageIndex(0);
-  }, [search, filterPrinter, filterMaterial, filterColors, colorFilterMode, filterFavorites, hideFailed, hideDuplicates, filterTag, filterFileType, sortBy, collection]);
+  }, [search, filterPrinter, filterMaterial, filterColors, colorFilterMode, filterFavorites, hideFailed, hideDuplicates, filterTag, filterFileType, archiveEnergyFocus, sortBy, collection]);
 
   useEffect(() => {
     try { localStorage.setItem('archivePageSize', String(pageSize)); } catch { /* ignore */ }
@@ -3030,7 +3084,12 @@ export function ArchivesPage() {
         (filterFileType === 'gcode' && isGcodeFile) ||
         (filterFileType === 'source' && !isGcodeFile);
 
-      return matchesCollection && matchesSearch && matchesMaterial && matchesColor && matchesFavorites && matchesHideFailed && matchesHideDuplicates && matchesTag && matchesFileType;
+      const hasEnergyValue = (a.energy_kwh ?? 0) > 0 || (a.energy_cost ?? 0) > 0;
+      const matchesEnergyFocus = !archiveEnergyFocus ||
+        (archiveEnergyFocus === 'measured' && hasEnergyValue) ||
+        (archiveEnergyFocus === 'missing' && (PRINTED_STATUSES as readonly string[]).includes(a.status) && !hasEnergyValue);
+
+      return matchesCollection && matchesSearch && matchesMaterial && matchesColor && matchesFavorites && matchesHideFailed && matchesHideDuplicates && matchesTag && matchesFileType && matchesEnergyFocus;
     })
     .sort((a, b) => {
       switch (sortBy) {
@@ -3122,9 +3181,10 @@ export function ArchivesPage() {
     setHideDuplicates(false);
     setFilterTag(null);
     setFilterFileType('all');
+    updateArchiveUrlParams({ q: '', energy: null });
   };
 
-  const hasTopFilters = search || filterPrinter || filterMaterial || filterFavorites || hideFailed || hideDuplicates || filterTag || filterFileType !== 'all';
+  const hasTopFilters = search || filterPrinter || filterMaterial || filterFavorites || hideFailed || hideDuplicates || filterTag || filterFileType !== 'all' || archiveEnergyFocus;
 
   // Page-wide drag-and-drop upload (#1510). The hook covers the three cancel
   // paths the previous inline implementation missed (drag-out-of-window, Escape,
@@ -3438,28 +3498,28 @@ export function ArchivesPage() {
       <div className="flex items-center border border-bambu-dark-tertiary rounded-lg overflow-hidden flex-shrink-0 w-fit mb-4">
         <button
           className={`p-2 ${viewMode === 'grid' ? 'bg-bambu-green text-white' : 'bg-bambu-dark text-bambu-gray hover:text-white'}`}
-          onClick={() => setViewMode('grid')}
+          onClick={() => handleViewModeChange('grid')}
           title={t('archives.gridView')}
         >
           <LayoutGrid className="w-4 h-4" />
         </button>
         <button
           className={`p-2 ${viewMode === 'list' ? 'bg-bambu-green text-white' : 'bg-bambu-dark text-bambu-gray hover:text-white'}`}
-          onClick={() => setViewMode('list')}
+          onClick={() => handleViewModeChange('list')}
           title={t('archives.listView')}
         >
           <List className="w-4 h-4" />
         </button>
         <button
           className={`p-2 ${viewMode === 'calendar' ? 'bg-bambu-green text-white' : 'bg-bambu-dark text-bambu-gray hover:text-white'}`}
-          onClick={() => setViewMode('calendar')}
+          onClick={() => handleViewModeChange('calendar')}
           title={t('archives.calendarView')}
         >
           <CalendarDays className="w-4 h-4" />
         </button>
         <button
           className={`p-2 ${viewMode === 'log' ? 'bg-bambu-green text-white' : 'bg-bambu-dark text-bambu-gray hover:text-white'}`}
-          onClick={() => setViewMode('log')}
+          onClick={() => handleViewModeChange('log')}
           title={t('archives.logView')}
         >
           <ClipboardList className="w-4 h-4" />
@@ -3479,7 +3539,7 @@ export function ArchivesPage() {
                 placeholder={t('archives.searchPlaceholder')}
                 className="w-full pl-10 pr-4 py-3 md:py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
               />
             </div>
             {/* Filters - horizontal scroll on mobile */}
@@ -3531,6 +3591,18 @@ export function ArchivesPage() {
                 <option value="source">Source Only</option>
               </LegacySelect>
             </div>
+            {archiveEnergyFocus && (
+              <button
+                type="button"
+                onClick={() => updateArchiveUrlParams({ energy: null })}
+                className="flex items-center gap-2 rounded-lg border border-bambu-green/30 bg-bambu-green/10 px-3 py-2 text-sm text-bambu-green transition-colors hover:bg-bambu-green/20"
+                title="Energie-Fokus entfernen"
+              >
+                <Zap className="h-4 w-4" />
+                Energie: {archiveEnergyFocus === 'measured' ? 'mit Messwerten' : 'ohne Energiebasis'}
+                <X className="h-4 w-4" />
+              </button>
+            )}
             <button
               onClick={() => setFilterFavorites(!filterFavorites)}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors flex-shrink-0 ${
@@ -3688,8 +3760,8 @@ export function ArchivesPage() {
             archives={filteredArchives || []}
             onArchiveClick={(archive) => {
               // Switch to grid view and highlight the archive
-              setSearch(''); // Clear search to show all archives
-              setViewMode('grid');
+              handleSearchChange('');
+              handleViewModeChange('grid');
               setHighlightedArchiveId(archive.id);
             }}
             highlightedArchiveId={highlightedArchiveId}
@@ -3783,7 +3855,7 @@ export function ArchivesPage() {
                     placeholder={t('archives.searchPlaceholder')}
                     className="w-full pl-10 pr-4 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none text-sm"
                     value={search}
-                    onChange={(e) => { setSearch(e.target.value); setLogOffset(0); }}
+                    onChange={(e) => handleSearchChange(e.target.value)}
                   />
                 </div>
                 {/* Printer filter */}

@@ -4,24 +4,83 @@ Bambu Lab Cloud API Service
 Handles authentication and profile management with Bambu Lab's cloud services.
 """
 
+import asyncio
+import base64
 import hashlib
+import json
 import logging
+import ssl
 import time
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 
 import httpx
+import paho.mqtt.client as mqtt
 
 logger = logging.getLogger(__name__)
 
 BAMBU_API_BASE = "https://api.bambulab.com"
 BAMBU_API_BASE_CN = "https://api.bambulab.cn"
+BAMBU_MQTT_HOST = "us.mqtt.bambulab.com"
+BAMBU_MQTT_HOST_CN = "cn.mqtt.bambulab.cn"
+BAMBU_MQTT_PORT = 8883
 _VALIDATION_TTL_SECONDS = 300
 _validation_cache: dict[str, tuple[float, bool]] = {}
 
 
 def _validation_cache_key(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _decode_jwt_payload(token: str) -> dict:
+    """Best-effort decode for JWT-like Bambu access tokens.
+
+    Some tokens are JWTs and contain the cloud user id needed for MQTT auth;
+    manually pasted tokens are not guaranteed to have that shape, so callers
+    must treat an empty dict as "not available" and fall back to the profile API.
+    """
+    parts = token.split(".")
+    if len(parts) < 2:
+        return {}
+    payload = parts[1]
+    padding = "=" * (-len(payload) % 4)
+    try:
+        decoded = base64.urlsafe_b64decode((payload + padding).encode("ascii"))
+        data = json.loads(decoded.decode("utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def extract_cloud_user_id(data: dict | None) -> str | None:
+    """Extract a Bambu Cloud user id from common API/JWT response shapes."""
+    if not isinstance(data, dict):
+        return None
+    candidates = [
+        data.get("user_id"),
+        data.get("userId"),
+        data.get("uid"),
+        data.get("id"),
+        data.get("sub"),
+    ]
+    nested = data.get("data")
+    if isinstance(nested, dict):
+        candidates.extend(
+            [
+                nested.get("user_id"),
+                nested.get("userId"),
+                nested.get("uid"),
+                nested.get("id"),
+                nested.get("sub"),
+            ]
+        )
+    for value in candidates:
+        if value is None:
+            continue
+        user_id = str(value).strip()
+        if user_id:
+            return user_id
+    return None
 
 
 def invalidate_validation_cache(token: str | None = None) -> None:
@@ -359,6 +418,122 @@ class BambuCloudService:
         """Set access token directly (for stored tokens)."""
         self.access_token = access_token
         self.token_expiry = None
+
+    def _mqtt_host(self) -> str:
+        return BAMBU_MQTT_HOST_CN if self.base_url == BAMBU_API_BASE_CN else BAMBU_MQTT_HOST
+
+    def _token_user_id(self) -> str | None:
+        if not self.access_token:
+            return None
+        return extract_cloud_user_id(_decode_jwt_payload(self.access_token))
+
+    async def get_mqtt_user_id(self) -> str | None:
+        """Resolve the cloud user id required for Bambu Cloud MQTT auth."""
+        token_user_id = self._token_user_id()
+        if token_user_id:
+            return token_user_id
+        try:
+            return extract_cloud_user_id(await self.get_user_profile())
+        except BambuCloudError:
+            raise
+        except Exception as exc:
+            raise BambuCloudError(f"Failed to resolve cloud MQTT user id: {exc}") from exc
+
+    async def publish_mqtt_command(
+        self,
+        device_id: str,
+        payload: dict,
+        *,
+        connect_timeout: float = 8.0,
+        publish_timeout: float = 8.0,
+    ) -> bool:
+        """Publish one command to Bambu Cloud MQTT.
+
+        This is intentionally single-shot: connect, publish with QoS 1, then
+        disconnect. It keeps the first Cloud-control MVP small and avoids a
+        long-lived cloud MQTT session until we have more confirmed command
+        coverage.
+        """
+        if not self.is_authenticated or not self.access_token:
+            raise BambuCloudAuthError("Not authenticated")
+        device_id = device_id.strip()
+        if not device_id:
+            raise BambuCloudError("Missing device id")
+        user_id = await self.get_mqtt_user_id()
+        if not user_id:
+            raise BambuCloudError("Could not resolve Bambu Cloud user id for MQTT auth")
+
+        return await asyncio.to_thread(
+            self._publish_mqtt_command_sync,
+            user_id,
+            device_id,
+            payload,
+            connect_timeout,
+            publish_timeout,
+        )
+
+    def _publish_mqtt_command_sync(
+        self,
+        user_id: str,
+        device_id: str,
+        payload: dict,
+        connect_timeout: float,
+        publish_timeout: float,
+    ) -> bool:
+        import threading
+        import uuid
+
+        connected = threading.Event()
+        published = threading.Event()
+        errors: list[str] = []
+        client = mqtt.Client(
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+            client_id=f"printops_cloud_{device_id}_{uuid.uuid4().hex[:10]}",
+            protocol=mqtt.MQTTv311,
+        )
+
+        def on_connect(_client, _userdata, _flags, reason_code, _properties=None):
+            if int(reason_code) == 0:
+                connected.set()
+            else:
+                errors.append(f"Cloud MQTT connect failed: {reason_code}")
+                connected.set()
+
+        def on_publish(_client, _userdata, _mid, _reason_code=None, _properties=None):
+            published.set()
+
+        client.on_connect = on_connect
+        client.on_publish = on_publish
+        client.username_pw_set(f"u_{user_id}", self.access_token)
+        client.tls_set_context(ssl.create_default_context())
+
+        try:
+            client.connect(self._mqtt_host(), BAMBU_MQTT_PORT, keepalive=30)
+            client.loop_start()
+            if not connected.wait(connect_timeout):
+                raise BambuCloudError("Timed out connecting to Bambu Cloud MQTT")
+            if errors:
+                raise BambuCloudError(errors[-1])
+
+            info = client.publish(f"device/{device_id}/request", json.dumps(payload), qos=1)
+            if info.rc != mqtt.MQTT_ERR_SUCCESS:
+                raise BambuCloudError(f"Cloud MQTT publish failed: {info.rc}")
+            if not published.wait(publish_timeout):
+                raise BambuCloudError("Timed out waiting for Bambu Cloud MQTT publish acknowledgement")
+            return True
+        except BambuCloudError:
+            raise
+        except Exception as exc:
+            raise BambuCloudError(f"Cloud MQTT command failed: {exc}") from exc
+        finally:
+            try:
+                client.disconnect()
+            except Exception:
+                pass
+            try:
+                client.loop_stop()
+            except Exception:
+                pass
 
     async def _notify_auth_failure(self) -> None:
         if self._on_auth_failure is None:

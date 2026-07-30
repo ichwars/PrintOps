@@ -8,13 +8,13 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
   Legend,
   ReferenceLine,
 } from 'recharts';
 import { api, type AMSHistoryResponse } from '../api/client';
 import { parseUTCDate, applyTimeFormat, type TimeFormat } from '../utils/date';
 import { useTranslation } from 'react-i18next';
+import { MeasuredResponsiveContainer } from './charts/MeasuredResponsiveContainer';
 
 interface AMSHistoryModalProps {
   isOpen: boolean;
@@ -316,7 +316,7 @@ export function AMSHistoryModal({
                 {t('common.noData', 'No data available for this time range')}
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={300}>
+              <MeasuredResponsiveContainer width="100%" height={300}>
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={borderColor} />
                   <XAxis
@@ -384,7 +384,7 @@ export function AMSHistoryModal({
                     connectNulls={true}
                   />
                 </LineChart>
-              </ResponsiveContainer>
+              </MeasuredResponsiveContainer>
             )}
           </div>
 
