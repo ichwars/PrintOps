@@ -236,9 +236,7 @@ async def test_delete_soft_deactivates_offer(async_client, db_session, procureme
 
 
 @pytest.mark.asyncio
-async def test_delete_preferred_filament_offer_clears_default_supplier(
-    async_client, db_session, procurement_resources
-):
+async def test_delete_preferred_filament_offer_clears_default_supplier(async_client, db_session, procurement_resources):
     descriptor = {
         "kind": "filament",
         "material": "PETG",

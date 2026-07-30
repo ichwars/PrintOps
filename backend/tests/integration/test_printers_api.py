@@ -1727,7 +1727,9 @@ class TestChamberLightAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_chamber_light_uses_cloud_when_lan_control_is_disabled(self, async_client: AsyncClient, printer_factory):
+    async def test_chamber_light_uses_cloud_when_lan_control_is_disabled(
+        self, async_client: AsyncClient, printer_factory
+    ):
         """LAN-mode disabled printers can still use cloud-backed light control."""
         printer = await printer_factory(name="Cloud Printer", serial_number="CLOUD123")
         state = MagicMock(connected=True, developer_mode=False)

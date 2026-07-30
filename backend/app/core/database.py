@@ -3660,7 +3660,9 @@ async def _migrate_document_payments(conn) -> None:
             )
             """,
         )
-    await _safe_execute(conn, "CREATE INDEX IF NOT EXISTS ix_document_payments_document_id ON document_payments(document_id)")
+    await _safe_execute(
+        conn, "CREATE INDEX IF NOT EXISTS ix_document_payments_document_id ON document_payments(document_id)"
+    )
 
 
 _USER_PRINT_TEMPLATE_RENAMES: tuple[tuple[str, str, str], ...] = (

@@ -19,7 +19,9 @@ async def test_procurement_schema_contract(test_engine):
         )
 
     async with test_engine.connect() as connection:
-        tables, checks, indexes, foreign_key_actions, sku_foreign_key_actions = await connection.run_sync(inspect_schema)
+        tables, checks, indexes, foreign_key_actions, sku_foreign_key_actions = await connection.run_sync(
+            inspect_schema
+        )
 
     assert {"suppliers", "procurement_offers"} <= tables
     assert {"ck_procurement_offer_target", "ck_procurement_offer_values"} <= checks
