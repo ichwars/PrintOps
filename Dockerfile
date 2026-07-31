@@ -50,15 +50,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN setcap cap_net_bind_service=+ep "$(readlink -f /usr/local/bin/python3)"
 
 # Install Python dependencies with cache mount.
-# pip is upgraded to >=26.1 first to close CVE-2026-6357 — the python:3.13-slim
-# base image ships pip 26.0.1, which runs its self-update check after installing
-# wheels (so a hostile wheel could hijack stdlib imports during install).
+# pip and setuptools are upgraded before dependency installation to keep the
+# build-time installer path on patched versions. Package-manager tooling is
+# removed again from the final runtime image: Docker installations update by
+# replacing the image, and dropping pip also removes pip's vendored libraries
+# from Trivy's runtime scan surface.
 COPY requirements.lock.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \
     apt-get update \
  && apt-get install -y --no-install-recommends g++ \
- && pip install --root-user-action=ignore --upgrade 'pip>=26.1.2' \
- && pip install --root-user-action=ignore --require-hashes -r requirements.lock.txt \
+ && python -m pip install --root-user-action=ignore --upgrade 'pip>=26.1.2' 'setuptools>=83.0.0' \
+ && python -m pip install --root-user-action=ignore --require-hashes -r requirements.lock.txt \
+ && python -m pip uninstall -y pip setuptools wheel \
+ && rm -rf /usr/local/lib/python*/site-packages/pip* \
+           /usr/local/lib/python*/site-packages/setuptools* \
+           /usr/local/lib/python*/site-packages/wheel* \
+ && rm -f /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.* \
  && apt-get purge -y --auto-remove g++ \
  && rm -rf /var/lib/apt/lists/*
 
