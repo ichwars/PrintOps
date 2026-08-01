@@ -30,7 +30,11 @@ from backend.app.schemas.small_part import (
     SmallPartUnitUpdate,
     SmallPartUpdate,
 )
-from backend.app.services import procurement as procurement_service, small_parts as service
+from backend.app.services import (
+    procurement as procurement_service,
+    small_parts as service,
+    warehouse_number_sequence as warehouse_number_sequence_service,
+)
 
 router = APIRouter(prefix="/small-parts", tags=["small-parts"])
 
@@ -269,7 +273,10 @@ async def create_small_part(
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_CREATE),
 ) -> SmallPartRead:
-    part = SmallPart(**data.model_dump(exclude={"opening_quantity"}))
+    payload = data.model_dump(exclude={"opening_quantity"})
+    if not payload.get("sku"):
+        payload["sku"] = await warehouse_number_sequence_service.reserve_number(db, key="material")
+    part = SmallPart(**payload)
     try:
         db.add(part)
         await db.flush()

@@ -80,6 +80,7 @@ class SmallPartBase(SmallPartSchema):
 
 
 class SmallPartCreate(SmallPartBase):
+    sku: str | None = Field(default=None, max_length=120)
     opening_quantity: Decimal = Field(default=Decimal("0"), ge=0)
 
 

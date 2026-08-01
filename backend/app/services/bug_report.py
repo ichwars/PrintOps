@@ -78,7 +78,7 @@ async def submit_report(
         }
 
     # Build relay payload — email is sent to relay for maintainer notification + issue body
-    payload: dict = {"description": description}
+    payload: dict = {"description": description, "repository": GITHUB_REPO}
     if reporter_email:
         payload["reporter_email"] = reporter_email
     if screenshot_base64:

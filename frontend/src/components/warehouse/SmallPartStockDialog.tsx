@@ -11,6 +11,12 @@ interface SmallPartStockDialogProps {
   onClose: () => void;
 }
 
+function formatWhole(value: string): string {
+  const parsed = Number(value || 0);
+  if (!Number.isFinite(parsed)) return '0';
+  return String(Math.round(parsed));
+}
+
 export function SmallPartStockDialog({ part, onClose }: SmallPartStockDialogProps) {
   const queryClient = useQueryClient();
   const [entryKind, setEntryKind] = useState<'receipt' | 'correction'>('receipt');
@@ -59,7 +65,7 @@ export function SmallPartStockDialog({ part, onClose }: SmallPartStockDialogProp
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <Select label="Buchungsart" value={entryKind} onValueChange={(value) => setEntryKind(value)} options={[{ value: 'receipt', label: 'Zugang' }, { value: 'correction', label: 'Korrektur' }]} />
-          <NumberField label="Menge" aria-label="Menge" step="0.01" required value={quantity} onValueChange={setQuantity} />
+          <NumberField label="Menge" aria-label="Menge" step="1" required value={quantity} onValueChange={setQuantity} onBlur={() => setQuantity(formatWhole(quantity))} />
         </div>
         <TextArea label="Grund" aria-label="Grund" required value={reason} onValueChange={setReason} className="min-h-20" />
         {error && <p role="alert" className="rounded-lg bg-red-950/60 px-3 py-2 text-sm text-red-300">{error}</p>}

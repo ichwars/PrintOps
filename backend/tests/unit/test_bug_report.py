@@ -83,6 +83,7 @@ class TestBugReportService:
         assert result["success"] is True
         assert result["issue_number"] == 99
         assert result["issue_url"] == "https://github.com/ichwars/PrintOps/issues/99"
+        assert mock_client.post.call_args.kwargs["json"]["repository"] == "ichwars/PrintOps"
         mock_db.add.assert_called_once()
 
     @pytest.mark.asyncio

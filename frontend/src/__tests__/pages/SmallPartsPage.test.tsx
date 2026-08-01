@@ -80,7 +80,7 @@ describe('SmallPartsPage', () => {
     expect(cryptoRandomUuid(cryptoApi)).toBe('00010203-0405-4607-8809-0a0b0c0d0e0f');
   });
 
-  it('uses Material wording and the shared field styling without a duplicate filter border', async () => {
+  it('uses Material wording and the Filament-style toolbar filters', async () => {
     server.use(
       http.get('/api/v1/small-parts', () => HttpResponse.json({ items: [], total: 0, limit: 50, offset: 0 })),
     );
@@ -89,11 +89,12 @@ describe('SmallPartsPage', () => {
     expect(await screen.findByRole('heading', { name: 'Material' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Material hinzufügen' })).toBeInTheDocument();
     const search = screen.getByRole('searchbox', { name: 'Material durchsuchen' });
-    expect(search).toHaveClass('pl-9', 'bg-bambu-dark', 'border-bambu-dark-tertiary', 'text-white');
+    expect(search).toHaveClass('pl-10', 'bg-bambu-dark', 'border-bambu-dark-tertiary', 'text-white');
     expect(search).not.toHaveClass('bg-gray-800', 'border-gray-600');
 
-    const lowStockFilter = screen.getByRole('checkbox', { name: 'Nur niedriger Bestand' }).closest('label');
-    expect(lowStockFilter).not.toHaveClass('border', 'border-gray-700');
+    expect(screen.getByRole('button', { name: /Aktiv/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Alle/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Niedrig Bestand/ })).toBeInTheDocument();
     expect(await screen.findByText('Noch kein passendes Material vorhanden.')).toBeInTheDocument();
   });
 
@@ -116,6 +117,21 @@ describe('SmallPartsPage', () => {
     await user.type(screen.getByRole('searchbox', { name: 'Material durchsuchen' }), 'M3');
 
     await waitFor(() => expect(seenQueries).toContain('M3'));
+  });
+
+  it('shows the material table view with configurable columns', async () => {
+    server.use(
+      http.get('/api/v1/small-parts', () => HttpResponse.json({ items: [part], total: 1, limit: 50, offset: 0 })),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: /Tabelle/ }));
+
+    expect(screen.getByRole('button', { name: /Spalten/ })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Artikelnummer' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Einzelpreis' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'M3-INSERT' })).toBeInTheDocument();
   });
 
   it('shows only the error state when the material list fails', async () => {
