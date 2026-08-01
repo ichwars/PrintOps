@@ -581,14 +581,14 @@ function deriveMaterialUsage(spools: InventorySpool[], smallParts: SmallPart[]):
   });
   smallParts.forEach((part) => {
     if (!part.is_active) return;
-    const available = asNumber(part.balance.available);
+    const physical = asNumber(part.balance.physical);
     const unitCost = asNumber(part.unit_cost);
     grouped.set(`material-${part.id}`, {
       label: part.name || part.sku || `Material #${part.id}`,
       kind: 'small_part',
       grams: 0,
-      value: available * unitCost,
-      remaining: available,
+      value: physical * unitCost,
+      remaining: physical,
       days: part.balance.is_low_stock ? 0 : 999,
       unitLabel: part.unit.label || part.unit_code,
       lowStock: part.balance.is_low_stock,
@@ -598,7 +598,7 @@ function deriveMaterialUsage(spools: InventorySpool[], smallParts: SmallPart[]):
     if ((b.lowStock ? 1 : 0) !== (a.lowStock ? 1 : 0)) return (b.lowStock ? 1 : 0) - (a.lowStock ? 1 : 0);
     return b.value - a.value || b.grams - a.grams || b.remaining - a.remaining;
   });
-  return values.slice(0, 6);
+  return values;
 }
 
 function BusinessTabs({ value, onChange }: { value: DashboardTab; onChange: (value: DashboardTab) => void }) {
@@ -1556,7 +1556,7 @@ export function BusinessDashboardPage() {
   });
   const smallPartsQuery = useQuery({
     queryKey: ['business-dashboard', 'material-items'],
-    queryFn: () => smallPartsApi.list({ active: true, limit: 200 }),
+    queryFn: () => smallPartsApi.listAll({ active: true }),
     enabled: canReadBusinessDashboard,
   });
   const skuSettingsQuery = useQuery<FilamentSkuSettings[]>({
@@ -1593,7 +1593,7 @@ export function BusinessDashboardPage() {
     [energyHistoryQuery.data, energyTrackingMode],
   );
   const spools = useMemo(() => spoolsQuery.data ?? [], [spoolsQuery.data]);
-  const smallParts = useMemo(() => smallPartsQuery.data?.items ?? [], [smallPartsQuery.data]);
+  const smallParts = useMemo(() => smallPartsQuery.data ?? [], [smallPartsQuery.data]);
   const skuSettings = useMemo(() => skuSettingsQuery.data ?? [], [skuSettingsQuery.data]);
   const suppliers = useMemo(() => suppliersQuery.data?.items ?? [], [suppliersQuery.data]);
   const offers = useMemo(() => offersQuery.data ?? [], [offersQuery.data]);
@@ -1674,14 +1674,15 @@ export function BusinessDashboardPage() {
     const pipelineRevenue = displayCurrencyOffers
       .filter((offer) => offer.status === 'draft' || offer.status === 'sent' || offer.status === 'accepted')
       .reduce((sum, offer) => sum + readRevisionValue(offer, 'selling_price'), 0);
-    const materialUsage = deriveMaterialUsage(spools, smallParts);
+    const allMaterialUsage = deriveMaterialUsage(spools, smallParts);
+    const materialUsage = allMaterialUsage.slice(0, 6);
     const materialCosts = createMaterialCostMap(spools, smallParts);
     const spoolStockValue = spools.reduce((sum, spool) => {
       const remaining = Math.max(0, spool.label_weight - spool.weight_used);
       return sum + (remaining / 1000) * (spool.cost_per_kg ?? 0);
     }, 0);
     const smallPartStockValue = smallParts.reduce(
-      (sum, part) => sum + (asNumber(part.balance.available) * asNumber(part.unit_cost)),
+      (sum, part) => sum + (asNumber(part.balance.physical) * asNumber(part.unit_cost)),
       0,
     );
     const stockValue = spoolStockValue + smallPartStockValue;
@@ -1692,7 +1693,7 @@ export function BusinessDashboardPage() {
     }).length;
     const lowStockCount = lowStockSpoolCount + smallParts.filter((part) => part.balance.is_low_stock).length;
     const reservedLines = currentOpenOrders.reduce((sum, order) => sum + order.reservations.length, 0);
-    const consumedGrams = materialUsage.reduce((sum, item) => sum + item.grams, 0);
+    const consumedGrams = allMaterialUsage.reduce((sum, item) => sum + item.grams, 0);
     const archiveProductionCost = (stats?.total_cost ?? 0) + (stats?.total_energy_cost ?? 0);
     const productionCost = acceptedCost > 0 ? acceptedCost : archiveProductionCost;
     const margin = acceptedRevenue > 0 ? ((acceptedRevenue - productionCost) / acceptedRevenue) * 100 : 0;
@@ -1853,7 +1854,7 @@ export function BusinessDashboardPage() {
     .filter((part) => part.balance.is_low_stock)
     .sort((left, right) => asNumber(left.balance.available) - asNumber(right.balance.available));
   const lowStockInventoryValue = lowStockValue + lowStockSmallParts.reduce(
-    (sum, part) => sum + (asNumber(part.balance.available) * asNumber(part.unit_cost)),
+    (sum, part) => sum + (asNumber(part.balance.physical) * asNumber(part.unit_cost)),
     0,
   );
   const procurementOffersBySignature = useMemo(() => {

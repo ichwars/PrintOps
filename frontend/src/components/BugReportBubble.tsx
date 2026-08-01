@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Bug, X, Loader2, CheckCircle, AlertCircle, AlertTriangle, Trash2, Upload, Circle, CheckCircle2, Stethoscope } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { api, bugReportApi, type PrinterDiagnosticResult } from '../api/client';
+import { api, ApiError, bugReportApi, type PrinterDiagnosticResult } from '../api/client';
 import { DiagnosticChecklist } from './ConnectionDiagnostic';
 import { SystemHealthPanel } from './SystemHealthPanel';
 import { Collapsible } from './Collapsible';
@@ -101,6 +101,8 @@ export function BugReportBubble() {
   const modalRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const handleStopLoggingRef = useRef<() => void>(() => {});
+  const loggingActiveRef = useRef(false);
+  const wasDebugRef = useRef(false);
 
   const diagnosticScan = useQuery({
     queryKey: ['bugReportDiagnostic'],
@@ -172,7 +174,28 @@ export function BugReportBubble() {
     setWasDebug(false);
   };
 
-  const handleClose = () => {
+  const cancelActiveLogging = useCallback(async () => {
+    if (!loggingActiveRef.current) return;
+    loggingActiveRef.current = false;
+    try {
+      await bugReportApi.stopLogging(wasDebugRef.current);
+    } catch {
+      // Best effort: closing the dialog must not trap the user.
+    }
+  }, []);
+
+  useEffect(() => () => {
+    if (loggingActiveRef.current) {
+      loggingActiveRef.current = false;
+      void bugReportApi.stopLogging(wasDebugRef.current);
+    }
+  }, []);
+
+  const handleClose = async () => {
+    if (viewState === 'logging') {
+      setViewState('stopping');
+      await cancelActiveLogging();
+    }
     setIsOpen(false);
   };
 
@@ -220,9 +243,15 @@ export function BugReportBubble() {
     try {
       const result = await bugReportApi.startLogging();
       setWasDebug(result.was_debug);
+      wasDebugRef.current = result.was_debug;
+      loggingActiveRef.current = true;
       setElapsedSeconds(0);
       setViewState('logging');
     } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        await handleSubmitReport('');
+        return;
+      }
       const message = err instanceof Error ? err.message : t('bugReport.unexpectedError');
       showSubmissionError(message);
     }
@@ -232,6 +261,7 @@ export function BugReportBubble() {
     setViewState('stopping');
     try {
       const stopResult = await bugReportApi.stopLogging(wasDebug);
+      loggingActiveRef.current = false;
       await handleSubmitReport(stopResult.logs);
     } catch (err) {
       const message = err instanceof Error ? err.message : t('bugReport.unexpectedError');

@@ -99,10 +99,8 @@ describe('SmallPartsPage', () => {
   });
 
   it('shows balances, procurement summary, and searches the material catalog', async () => {
-    const seenQueries: string[] = [];
     server.use(
-      http.get('/api/v1/small-parts', ({ request }) => {
-        seenQueries.push(new URL(request.url).searchParams.get('q') ?? '');
+      http.get('/api/v1/small-parts', () => {
         return HttpResponse.json({ items: [part], total: 1, limit: 50, offset: 0 });
       }),
     );
@@ -114,9 +112,12 @@ describe('SmallPartsPage', () => {
     expect(screen.getByText('Schrauben GmbH')).toBeInTheDocument();
     expect(screen.getByText('7,50 € netto')).toBeInTheDocument();
     expect(screen.getByText('5 Tage Lieferzeit')).toBeInTheDocument();
-    await user.type(screen.getByRole('searchbox', { name: 'Material durchsuchen' }), 'M3');
-
-    await waitFor(() => expect(seenQueries).toContain('M3'));
+    const search = screen.getByRole('searchbox', { name: 'Material durchsuchen' });
+    await user.type(search, 'xyz');
+    expect(await screen.findByText('Noch kein passendes Material vorhanden.')).toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, 'M3');
+    expect(await screen.findByText('M3 Gewindeeinsatz')).toBeInTheDocument();
   });
 
   it('shows the material table view with configurable columns', async () => {

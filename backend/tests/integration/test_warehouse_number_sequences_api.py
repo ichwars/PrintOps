@@ -91,3 +91,19 @@ async def test_warehouse_number_sequence_update_validates_pattern_and_version(as
         },
     )
     assert invalid.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_yearly_warehouse_number_sequence_requires_year_token(async_client: AsyncClient):
+    created = await async_client.post(
+        BASE_URL,
+        json={
+            "key": "purchase_order",
+            "prefix": "BE",
+            "pattern": "{PREFIX}-{#####}",
+            "next_value": 1,
+            "reset_policy": "yearly",
+        },
+    )
+
+    assert created.status_code == 422

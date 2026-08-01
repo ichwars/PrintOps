@@ -15,7 +15,7 @@ import {
   TrendingUp,
   X,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { smallPartsApi, type SmallPart } from '../api/smallParts';
 import { Card, CardContent } from '../components/Card';
@@ -120,6 +120,18 @@ function statusLabels(part: SmallPart): string[] {
   if (part.balance.is_low_stock) labels.push('Niedrig');
   if (labels.length === 0) labels.push('OK');
   return labels;
+}
+
+function matchesQuery(part: SmallPart, query: string): boolean {
+  const normalized = query.trim().toLocaleLowerCase();
+  if (!normalized) return true;
+  return [
+    part.sku,
+    part.name,
+    part.category?.name,
+    part.description,
+    part.search_terms,
+  ].some((value) => (value ?? '').toLocaleLowerCase().includes(normalized));
 }
 
 function MaterialCard({ part, onEdit, onStock }: { part: SmallPart; onEdit: () => void; onStock: () => void }) {
@@ -273,6 +285,7 @@ function MaterialForecast({ items }: { items: SmallPart[] }) {
 }
 
 export function SmallPartsPage() {
+  const [targetPartId, setTargetPartId] = useState(() => Number(new URLSearchParams(window.location.search).get('part') ?? 0));
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('active');
   const [materialFilter, setMaterialFilter] = useState<MaterialFilter>('all');
@@ -282,18 +295,35 @@ export function SmallPartsPage() {
   const [editorPart, setEditorPart] = useState<SmallPart | null | undefined>(undefined);
   const [stockPart, setStockPart] = useState<SmallPart | null>(null);
   const parts = useQuery({
-    queryKey: ['small-parts', { q: query }],
-    queryFn: () => smallPartsApi.list({ q: query, limit: 200 }),
+    queryKey: ['small-parts', 'all'],
+    queryFn: () => smallPartsApi.listAll(),
   });
 
-  const allItems = parts.data?.items ?? EMPTY_PARTS;
+  const allItems = parts.data ?? EMPTY_PARTS;
+  const closeEditor = () => {
+    setEditorPart(undefined);
+    if (targetPartId) {
+      const next = new URLSearchParams(window.location.search);
+      next.delete('part');
+      const search = next.toString();
+      window.history.replaceState(null, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`);
+      setTargetPartId(0);
+    }
+  };
+  useEffect(() => {
+    if (!targetPartId || !allItems.length) return;
+    const target = allItems.find((part) => part.id === targetPartId);
+    if (target) setEditorPart(target);
+  }, [allItems, targetPartId]);
   const items = useMemo(() => allItems.filter((part) => {
+    if (!matchesQuery(part, query)) return false;
     if (activeFilter === 'active' && !part.is_active) return false;
     if (activeFilter === 'inactive' && part.is_active) return false;
     if (materialFilter === 'new' && !isNewMaterial(part)) return false;
     if (materialFilter === 'lowstock' && !part.balance.is_low_stock) return false;
     return true;
-  }), [activeFilter, allItems, materialFilter]);
+  }), [activeFilter, allItems, materialFilter, query]);
+  const forecastItems = useMemo(() => allItems.filter((part) => part.is_active), [allItems]);
   const visibleColumns = useMemo(() => columnConfig.filter((column) => column.visible).map((column) => column.id), [columnConfig]);
   const lowStockCount = allItems.filter((item) => item.is_active && item.balance.is_low_stock).length;
   const reservedCount = allItems.filter((item) => Number(item.balance.reserved) > 0).length;
@@ -429,7 +459,7 @@ export function SmallPartsPage() {
       {parts.isLoading && <p className="py-10 text-center text-bambu-gray">Material wird geladen …</p>}
       {parts.isError && <p role="alert" className="rounded-lg bg-red-950/50 p-3 text-red-300">Material konnte nicht geladen werden.</p>}
       {!parts.isLoading && !parts.isError && viewMode !== 'forecast' && !items.length && <p className="py-10 text-center text-bambu-gray">Noch kein passendes Material vorhanden.</p>}
-      {!parts.isLoading && !parts.isError && viewMode === 'forecast' && <MaterialForecast items={items} />}
+      {!parts.isLoading && !parts.isError && viewMode === 'forecast' && <MaterialForecast items={forecastItems} />}
       {!parts.isLoading && !parts.isError && viewMode === 'cards' && items.length > 0 && (
         <div className="grid gap-3 xl:grid-cols-2">
           {items.map((part) => (
@@ -441,7 +471,7 @@ export function SmallPartsPage() {
         <MaterialTable items={items} visibleColumns={visibleColumns} onEdit={setEditorPart} onStock={setStockPart} />
       )}
 
-      {editorPart !== undefined && <SmallPartEditor part={editorPart} onClose={() => setEditorPart(undefined)} />}
+      {editorPart !== undefined && <SmallPartEditor part={editorPart} onClose={closeEditor} />}
       {stockPart && <SmallPartStockDialog part={stockPart} onClose={() => setStockPart(null)} />}
       <ColumnConfigModal
         isOpen={showColumnModal}

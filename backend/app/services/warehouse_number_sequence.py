@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.warehouse_number_sequence import WarehouseNumberSequence
@@ -85,10 +86,17 @@ async def _get_or_create_default_sequence(session: AsyncSession, key: str) -> Wa
     if defaults is None:
         raise ResourceNotFoundError(f"Warehouse number sequence '{key}' was not found")
 
-    sequence = WarehouseNumberSequence(key=key, **defaults, current_period=None)
-    session.add(sequence)
-    await session.flush()
-    return sequence
+    try:
+        async with session.begin_nested():
+            sequence = WarehouseNumberSequence(key=key, **defaults, current_period=None)
+            session.add(sequence)
+            await session.flush()
+            return sequence
+    except IntegrityError:
+        sequence = await session.scalar(select(WarehouseNumberSequence).where(WarehouseNumberSequence.key == key))
+        if sequence is not None:
+            return sequence
+        raise
 
 
 async def reserve_number(

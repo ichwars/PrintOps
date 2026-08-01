@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from backend.app.services.number_sequence import validate_number_pattern
 
@@ -24,6 +24,12 @@ class WarehouseNumberSequenceValues(BaseModel):
     def validate_pattern(cls, value: str) -> str:
         validate_number_pattern(value)
         return value
+
+    @model_validator(mode="after")
+    def validate_reset_policy_pattern(self) -> WarehouseNumberSequenceValues:
+        if self.reset_policy == "yearly" and "{YYYY}" not in self.pattern and "{YY}" not in self.pattern:
+            raise ValueError("Yearly number sequences require {YYYY} or {YY} in the pattern")
+        return self
 
 
 class WarehouseNumberSequenceCreate(WarehouseNumberSequenceValues):

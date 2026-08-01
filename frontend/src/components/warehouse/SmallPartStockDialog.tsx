@@ -11,10 +11,11 @@ interface SmallPartStockDialogProps {
   onClose: () => void;
 }
 
-function formatWhole(value: string): string {
+function formatQuantity(value: string, decimalPlaces: number): string {
   const parsed = Number(value || 0);
   if (!Number.isFinite(parsed)) return '0';
-  return String(Math.round(parsed));
+  if (decimalPlaces <= 0) return String(Math.round(parsed));
+  return parsed.toFixed(decimalPlaces).replace(/\.?0+$/, '');
 }
 
 export function SmallPartStockDialog({ part, onClose }: SmallPartStockDialogProps) {
@@ -23,6 +24,7 @@ export function SmallPartStockDialog({ part, onClose }: SmallPartStockDialogProp
   const [quantity, setQuantity] = useState('');
   const [reason, setReason] = useState(part.default_consumption_reason);
   const [error, setError] = useState('');
+  const quantityStep = part.unit.decimal_places > 0 ? String(1 / (10 ** part.unit.decimal_places)) : '1';
   const ledger = useQuery({
     queryKey: ['small-part', part.id, 'ledger'],
     queryFn: () => smallPartsApi.ledger(part.id),
@@ -65,7 +67,7 @@ export function SmallPartStockDialog({ part, onClose }: SmallPartStockDialogProp
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <Select label="Buchungsart" value={entryKind} onValueChange={(value) => setEntryKind(value)} options={[{ value: 'receipt', label: 'Zugang' }, { value: 'correction', label: 'Korrektur' }]} />
-          <NumberField label="Menge" aria-label="Menge" step="1" required value={quantity} onValueChange={setQuantity} onBlur={() => setQuantity(formatWhole(quantity))} />
+          <NumberField label="Menge" aria-label="Menge" step={quantityStep} required value={quantity} onValueChange={setQuantity} onBlur={() => setQuantity(formatQuantity(quantity, part.unit.decimal_places))} />
         </div>
         <TextArea label="Grund" aria-label="Grund" required value={reason} onValueChange={setReason} className="min-h-20" />
         {error && <p role="alert" className="rounded-lg bg-red-950/60 px-3 py-2 text-sm text-red-300">{error}</p>}

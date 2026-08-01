@@ -121,6 +121,30 @@ async def test_small_part_create_uses_material_number_sequence_when_sku_is_blank
 
 
 @pytest.mark.asyncio
+async def test_small_part_create_skips_existing_generated_material_skus(async_client):
+    await async_client.post(
+        "/api/v1/small-parts/settings/units",
+        json={"code": "C62", "label": "Stück", "decimal_places": 0},
+    )
+    existing = await async_client.post(
+        "/api/v1/small-parts",
+        json={"sku": "MAT-00001", "name": "Existing material", "unit_code": "C62"},
+    )
+    assert existing.status_code == 201, existing.text
+
+    created = await async_client.post(
+        "/api/v1/small-parts",
+        json={"sku": "", "name": "Sequenced material", "unit_code": "C62"},
+    )
+
+    assert created.status_code == 201, created.text
+    assert created.json()["sku"] == "MAT-00002"
+    listed = await async_client.get("/api/v1/inventory/number-sequences")
+    material = next(item for item in listed.json() if item["key"] == "material")
+    assert material["next_value"] == 3
+
+
+@pytest.mark.asyncio
 async def test_material_metadata_defaults_and_opening_quantity_is_create_only(async_client):
     await async_client.post(
         "/api/v1/small-parts/settings/units",
