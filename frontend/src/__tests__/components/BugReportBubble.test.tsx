@@ -2,12 +2,26 @@
  * Tests for the BugReportBubble component.
  */
 
-import { describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '../utils';
 import userEvent from '@testing-library/user-event';
-import { delay, http, HttpResponse } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
 import { BugReportBubble } from '../../components/BugReportBubble';
+
+function getDescriptionTextarea() {
+  return document.querySelector('textarea') as HTMLTextAreaElement;
+}
+
+function getSubmitButton() {
+  const buttons = screen.getAllByRole('button');
+  return buttons.find(
+    (b) =>
+      b.className.includes('bg-red-500') &&
+      !b.className.includes('rounded-full') &&
+      b.textContent !== ''
+  );
+}
 
 function setupBugReportStatus(issueUrl = 'https://github.com/ichwars/PrintOps/issues/new/choose') {
   server.use(
@@ -21,7 +35,17 @@ function setupBugReportStatus(issueUrl = 'https://github.com/ichwars/PrintOps/is
   );
 }
 
-/** Mocks the printer list and per-printer diagnostic the form scans on open. */
+function setupLoggingEndpoints() {
+  server.use(
+    http.post('*/bug-report/start-logging', () => {
+      return HttpResponse.json({ started: true, was_debug: false });
+    }),
+    http.post('*/bug-report/stop-logging', () => {
+      return HttpResponse.json({ logs: 'test debug logs' });
+    })
+  );
+}
+
 function setupDiagnosticEndpoints(
   printers: { id: number; name: string }[],
   results: Record<number, 'ok' | 'problems'>
@@ -53,6 +77,10 @@ function setupDiagnosticEndpoints(
 }
 
 describe('BugReportBubble', () => {
+  beforeEach(() => {
+    setupBugReportStatus();
+  });
+
   it('renders the floating bug button', () => {
     render(<BugReportBubble />);
 
@@ -60,74 +88,13 @@ describe('BugReportBubble', () => {
     expect(button).toBeInTheDocument();
   });
 
-  it('keeps the floating bug button subdued until hover or focus', () => {
-    render(<BugReportBubble />);
-
-    const button = screen.getByRole('button');
-    expect(button.className).toContain('bg-red-500/55');
-    expect(button.className).toContain('hover:bg-red-500');
-    expect(button.className).toContain('focus-visible:bg-red-500');
-  });
-
-  it('opens a manual GitHub issue panel when bubble is clicked', async () => {
+  it('opens panel when bubble is clicked', async () => {
     const user = userEvent.setup();
-    setupBugReportStatus();
 
     render(<BugReportBubble />);
     await user.click(screen.getByRole('button'));
 
-    expect(await screen.findByText('Report through GitHub')).toBeInTheDocument();
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Start Debug Logging' })).not.toBeInTheDocument();
-    expect(await screen.findByRole('link', { name: /open github issue/i })).toHaveAttribute(
-      'href',
-      'https://github.com/ichwars/PrintOps/issues/new/choose'
-    );
-  });
-
-  it('uses the configured issue form URL from the backend status endpoint', async () => {
-    const user = userEvent.setup();
-    setupBugReportStatus('https://github.com/ichwars/PrintOps/issues/new?template=bug_report.yml');
-
-    render(<BugReportBubble />);
-    await user.click(screen.getByRole('button'));
-
-    await waitFor(() => {
-      expect(screen.getByRole('link', { name: /open github issue/i })).toHaveAttribute(
-        'href',
-        'https://github.com/ichwars/PrintOps/issues/new?template=bug_report.yml'
-      );
-    });
-  });
-
-  it('waits for pre-report checks before enabling the GitHub issue link', async () => {
-    const user = userEvent.setup();
-    setupBugReportStatus();
-    server.use(
-      http.get('*/printers/', async () => {
-        await delay(100);
-        return HttpResponse.json([]);
-      }),
-      http.get('*/system/health', async () => {
-        await delay(100);
-        return HttpResponse.json({
-          findings: [],
-          scanned_entries: 0,
-          log_available: true,
-          summary: { total: 0, layer8: 0, environment: 0, bug: 0 },
-        });
-      })
-    );
-
-    render(<BugReportBubble />);
-    await user.click(screen.getByRole('button'));
-
-    expect(await screen.findByRole('button', { name: /open github issue/i })).toBeDisabled();
-    expect(screen.queryByRole('link', { name: /open github issue/i })).not.toBeInTheDocument();
-    expect(await screen.findByRole('link', { name: /open github issue/i })).toHaveAttribute(
-      'href',
-      'https://github.com/ichwars/PrintOps/issues/new/choose'
-    );
+    expect(getDescriptionTextarea()).toBeInTheDocument();
   });
 
   it('closes panel when X button is clicked', async () => {
@@ -136,15 +103,193 @@ describe('BugReportBubble', () => {
     render(<BugReportBubble />);
 
     await user.click(screen.getByRole('button'));
-    expect(await screen.findByText('Report through GitHub')).toBeInTheDocument();
+    expect(getDescriptionTextarea()).toBeInTheDocument();
 
     const buttons = screen.getAllByRole('button');
     const closeButton = buttons.find((b) => b.querySelector('.lucide-x'));
     if (closeButton) await user.click(closeButton);
 
     await waitFor(() => {
-      expect(screen.queryByText('Report through GitHub')).not.toBeInTheDocument();
+      expect(document.querySelector('textarea')).not.toBeInTheDocument();
     });
+  });
+
+  it('disables submit when description is empty', async () => {
+    const user = userEvent.setup();
+
+    render(<BugReportBubble />);
+    await user.click(screen.getByRole('button'));
+
+    expect(getSubmitButton()).toBeDisabled();
+  });
+
+  it('enables submit when description is provided', async () => {
+    const user = userEvent.setup();
+
+    render(<BugReportBubble />);
+    await user.click(screen.getByRole('button'));
+
+    await user.type(getDescriptionTextarea(), 'Something is broken');
+
+    expect(getSubmitButton()).not.toBeDisabled();
+  });
+
+  it('shows logging state with step indicators after start', async () => {
+    const user = userEvent.setup();
+    setupLoggingEndpoints();
+
+    render(<BugReportBubble />);
+    await user.click(screen.getByRole('button'));
+
+    await user.type(getDescriptionTextarea(), 'Test bug report');
+
+    const submitBtn = getSubmitButton();
+    if (submitBtn) await user.click(submitBtn);
+
+    await waitFor(() => {
+      const reproduceText = screen.queryByText(/reproduce|Reproduce|reproduzieren|reproduire|riproduci|再現|reproduza|重现/i);
+      expect(reproduceText).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      const timer = screen.queryByText(/00:0/);
+      expect(timer).toBeInTheDocument();
+    });
+  });
+
+  it('shows success state after successful submission in the PrintOps fork', async () => {
+    const user = userEvent.setup();
+
+    setupLoggingEndpoints();
+    server.use(
+      http.post('*/bug-report/submit', () => {
+        return HttpResponse.json({
+          success: true,
+          message: 'Bug report submitted successfully!',
+          issue_url: 'https://github.com/ichwars/PrintOps/issues/42',
+          issue_number: 42,
+        });
+      })
+    );
+
+    render(<BugReportBubble />);
+    await user.click(screen.getByRole('button'));
+
+    await user.type(getDescriptionTextarea(), 'Test bug');
+
+    const submitBtn = getSubmitButton();
+    if (submitBtn) await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/reproduce|Reproduce|reproduzieren|reproduire|riproduci|再現|reproduza|重现/i)).toBeInTheDocument();
+    });
+
+    const stopBtn = screen.getAllByRole('button').find(
+      (b) => b.className.includes('bg-red-500') && !b.className.includes('rounded-full')
+    );
+    if (stopBtn) await user.click(stopBtn);
+
+    await waitFor(
+      () => {
+        expect(screen.getByText(/#42/)).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /#42/ })).toHaveAttribute(
+          'href',
+          'https://github.com/ichwars/PrintOps/issues/42'
+        );
+      },
+      { timeout: 10000 }
+    );
+  });
+
+  it('shows error state after failed submission', async () => {
+    const user = userEvent.setup();
+
+    setupLoggingEndpoints();
+    server.use(
+      http.post('*/bug-report/submit', () => {
+        return HttpResponse.json({
+          success: false,
+          message: 'Relay not available',
+          issue_url: null,
+          issue_number: null,
+        });
+      })
+    );
+
+    render(<BugReportBubble />);
+    await user.click(screen.getByRole('button'));
+
+    await user.type(getDescriptionTextarea(), 'Test bug');
+
+    const submitBtn = getSubmitButton();
+    if (submitBtn) await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/reproduce|Reproduce|reproduzieren|reproduire|riproduci|再現|reproduza|重现/i)).toBeInTheDocument();
+    });
+
+    const stopBtn = screen.getAllByRole('button').find(
+      (b) => b.className.includes('bg-red-500') && !b.className.includes('rounded-full')
+    );
+    if (stopBtn) await user.click(stopBtn);
+
+    await waitFor(
+      () => {
+        expect(screen.getByText(/Relay not available/)).toBeInTheDocument();
+      },
+      { timeout: 10000 }
+    );
+  });
+
+  it('offers the PrintOps fork issue form when automatic submission returns HTTP 502', async () => {
+    const user = userEvent.setup();
+
+    setupLoggingEndpoints();
+    server.use(
+      http.post('*/bug-report/submit', () => new HttpResponse(null, { status: 502 }))
+    );
+
+    render(<BugReportBubble />);
+    await user.click(screen.getByRole('button'));
+
+    await user.type(getDescriptionTextarea(), 'HTTP 502 after submit');
+
+    const submitBtn = getSubmitButton();
+    if (submitBtn) await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/reproduce|Reproduce|reproduzieren|reproduire|riproduci|再現|reproduza|重现/i)).toBeInTheDocument();
+    });
+
+    const stopBtn = screen.getAllByRole('button').find(
+      (b) => b.className.includes('bg-red-500') && !b.className.includes('rounded-full')
+    );
+    if (stopBtn) await user.click(stopBtn);
+
+    await waitFor(
+      () => {
+        expect(screen.getByText('HTTP 502')).toBeInTheDocument();
+        const issueLink = screen.getByRole('link', { name: /open github issue/i });
+        expect(issueLink).toHaveAttribute(
+          'href',
+          expect.stringContaining('https://github.com/ichwars/PrintOps/issues/new')
+        );
+        expect(issueLink).toHaveAttribute('href', expect.stringContaining('HTTP+502'));
+        expect(issueLink).toHaveAttribute('href', expect.stringContaining('Gesammelte+Logs'));
+        expect(issueLink).toHaveAttribute('href', expect.stringContaining('test+debug+logs'));
+      },
+      { timeout: 10000 }
+    );
+  });
+
+  it('has expandable data collection notice', async () => {
+    const user = userEvent.setup();
+
+    render(<BugReportBubble />);
+    await user.click(screen.getByRole('button'));
+
+    const details = document.querySelector('details');
+    expect(details).toBeInTheDocument();
   });
 
   it('lists affected printers as collapsed rows, not stacked checklists', async () => {

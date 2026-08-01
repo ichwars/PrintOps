@@ -42,6 +42,7 @@ import {
   type ProcurementResource,
   type Supplier,
 } from '../api/procurement';
+import { smallPartsApi, type SmallPart } from '../api/smallParts';
 import { Select } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
@@ -59,10 +60,13 @@ type CostSlice = {
 
 type MaterialUsage = {
   label: string;
+  kind: 'filament' | 'small_part';
   grams: number;
   value: number;
   remaining: number;
   days: number;
+  unitLabel?: string;
+  lowStock?: boolean;
 };
 
 type RevenueRow = {
@@ -218,25 +222,50 @@ const reservationQuantityGrams = (reservation: StockReservation) => {
   return 0;
 };
 
-function createMaterialCostMap(spools: InventorySpool[]) {
-  const costs = new Map<string, { grams: number; value: number }>();
+function createMaterialCostMap(spools: InventorySpool[], smallParts: SmallPart[]) {
+  const costs = new Map<string, { quantity: number; value: number }>();
   spools.forEach((spool) => {
     const key = materialKey(spool.material);
     if (!key || spool.archived_at) return;
-    const grams = spoolRemainingGrams(spool);
-    const value = (grams / 1000) * (spool.cost_per_kg ?? 0);
-    const current = costs.get(key) ?? { grams: 0, value: 0 };
-    costs.set(key, { grams: current.grams + grams, value: current.value + value });
+    const quantity = spoolRemainingGrams(spool);
+    const value = (quantity / 1000) * (spool.cost_per_kg ?? 0);
+    const current = costs.get(key) ?? { quantity: 0, value: 0 };
+    costs.set(key, { quantity: current.quantity + quantity, value: current.value + value });
+  });
+  smallParts.forEach((part) => {
+    if (!part.is_active) return;
+    const unitCost = asNumber(part.unit_cost);
+    const keys = [
+      `small-part:${part.id}`,
+      `material:${part.id}`,
+      part.sku,
+      part.name,
+    ];
+    keys.forEach((keyValue) => {
+      const key = materialKey(keyValue);
+      if (!key) return;
+      costs.set(key, { quantity: 1, value: unitCost });
+    });
   });
   return costs;
 }
 
-function reservationValue(reservation: StockReservation, materialCosts: Map<string, { grams: number; value: number }>) {
-  const grams = reservationQuantityGrams(reservation);
-  if (grams <= 0) return 0;
-  const cost = materialCosts.get(materialKey(reservation.material_code));
-  if (!cost || cost.grams <= 0) return 0;
-  return grams * (cost.value / cost.grams);
+function reservationValue(reservation: StockReservation, materialCosts: Map<string, { quantity: number; value: number }>) {
+  const quantity = reservation.resource_kind === 'filament'
+    ? reservationQuantityGrams(reservation)
+    : asNumber(reservation.requested_quantity);
+  if (quantity <= 0) return 0;
+  const keys = reservation.resource_kind === 'filament'
+    ? [reservation.material_code]
+    : [
+      reservation.source_key,
+      reservation.material_code,
+      ...reservation.allocations.map((allocation) => allocation.small_part_id ? `small-part:${allocation.small_part_id}` : ''),
+      ...reservation.allocations.map((allocation) => allocation.small_part_id ? `material:${allocation.small_part_id}` : ''),
+    ];
+  const cost = keys.map((key) => materialCosts.get(materialKey(key))).find(Boolean);
+  if (!cost || cost.quantity <= 0) return 0;
+  return quantity * (cost.value / cost.quantity);
 }
 
 const snapshotPart = (snapshot: Record<string, unknown> | undefined, key: string): Record<string, unknown> => {
@@ -269,6 +298,19 @@ const formatKwh = (value: number, locale: string) =>
 
 const formatWeightKg = (grams: number, locale: string) =>
   `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(grams / 1000)} kg`;
+
+const formatQuantity = (value: number, locale: string, maximumFractionDigits = 1) =>
+  new Intl.NumberFormat(locale, { maximumFractionDigits }).format(value);
+
+const formatMaterialRemaining = (item: MaterialUsage, locale: string) =>
+  item.kind === 'filament'
+    ? formatWeightKg(item.remaining, locale)
+    : `${formatQuantity(item.remaining, locale)} ${item.unitLabel ?? ''}`.trim();
+
+const materialUsageProgressLabel = (item: MaterialUsage, locale: string) =>
+  item.kind === 'filament'
+    ? `${item.label} · ${item.days} Tage`
+    : `${item.label} · ${formatMaterialRemaining(item, locale)}`;
 
 function createMetricTrend(
   current: number,
@@ -521,23 +563,42 @@ function createRevenueRows(
     .slice(0, 8);
 }
 
-function deriveMaterialUsage(spools: InventorySpool[]): MaterialUsage[] {
+function deriveMaterialUsage(spools: InventorySpool[], smallParts: SmallPart[]): MaterialUsage[] {
   const grouped = new Map<string, MaterialUsage>();
   spools.forEach((spool) => {
+    if (spool.archived_at) return;
     const label = spoolMaterialLabel(spool);
     const used = Math.max(0, spool.weight_used - (spool.weight_used_baseline ?? 0));
     const remaining = Math.max(0, spool.label_weight - spool.weight_used);
     const value = (remaining / 1000) * (spool.cost_per_kg ?? 0);
     const days = Math.max(3, Math.round((remaining / Math.max(used / 30, 12)) || 0));
-    const current = grouped.get(label) ?? { label, grams: 0, value: 0, remaining: 0, days };
+    const current = grouped.get(label) ?? { label, kind: 'filament', grams: 0, value: 0, remaining: 0, days };
     current.grams += used;
     current.value += value;
     current.remaining += remaining;
     current.days = Math.min(current.days, days);
     grouped.set(label, current);
   });
-  const values = Array.from(grouped.values()).sort((a, b) => b.grams - a.grams);
-  return values.slice(0, 6);
+  smallParts.forEach((part) => {
+    if (!part.is_active) return;
+    const physical = asNumber(part.balance.physical);
+    const unitCost = asNumber(part.unit_cost);
+    grouped.set(`material-${part.id}`, {
+      label: part.name || part.sku || `Material #${part.id}`,
+      kind: 'small_part',
+      grams: 0,
+      value: physical * unitCost,
+      remaining: physical,
+      days: part.balance.is_low_stock ? 0 : 999,
+      unitLabel: part.unit.label || part.unit_code,
+      lowStock: part.balance.is_low_stock,
+    });
+  });
+  const values = Array.from(grouped.values()).sort((a, b) => {
+    if ((b.lowStock ? 1 : 0) !== (a.lowStock ? 1 : 0)) return (b.lowStock ? 1 : 0) - (a.lowStock ? 1 : 0);
+    return b.value - a.value || b.grams - a.grams || b.remaining - a.remaining;
+  });
+  return values;
 }
 
 function BusinessTabs({ value, onChange }: { value: DashboardTab; onChange: (value: DashboardTab) => void }) {
@@ -962,6 +1023,22 @@ function EnergyHeatmap({
       cells.set(key, current);
     });
   }
+  if (cells.size === 0 && totalKwh > 0) {
+    const activeHours = [8, 9, 10, 11, 13, 14, 15, 16, 17];
+    const totalSlots = days.length * activeHours.length;
+    const kwhPerSlot = totalKwh / totalSlots;
+    const costPerSlot = totalCost / totalSlots;
+    days.forEach((_day, dayIndex) => {
+      activeHours.forEach((hour) => {
+        cells.set(`${dayIndex}-${hour}`, {
+          kwh: kwhPerSlot,
+          cost: costPerSlot,
+          runs: 1,
+          source: 'Zeitraumssumme verteilt',
+        });
+      });
+    });
+  }
   const maxKwh = Math.max(...Array.from(cells.values()).map((cell) => cell.kwh), 0.01);
   return (
     <div className="overflow-x-auto">
@@ -1054,9 +1131,9 @@ function ActionStrip({ actions }: { actions: ActionShortcut[] }) {
           <Link
             key={`${action.label}-${action.to}`}
             to={action.to}
-            className={`${surface.tile} flex min-h-[76px] items-center gap-3 px-4 py-3 transition-colors hover:border-bambu-green/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green`}
+            className={`${surface.tile} flex min-h-[76px] items-start gap-3 px-4 py-3 transition-colors hover:border-bambu-green/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green`}
           >
-            <Icon className={`h-4 w-4 shrink-0 ${toneClasses[action.tone].text}`} />
+            <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${toneClasses[action.tone].text}`} />
             <span className="min-w-0">
               <span className="block text-sm font-semibold leading-5 text-white">{action.label}</span>
               <span className="mt-0.5 block truncate text-xs leading-5 text-bambu-gray">{action.detail}</span>
@@ -1318,15 +1395,15 @@ function Overview({
               {materialUsage.slice(0, 4).map((item, index) => (
                 <ProgressRow
                   key={item.label}
-                  label={`${item.label} ${item.days} Tage`}
+                  label={materialUsageProgressLabel(item, locale)}
                   value={item.remaining}
                   max={materialMax}
-                  suffix=""
+                  suffix={formatMaterialRemaining(item, locale)}
                   tone={index === 1 ? 'red' : index === 2 ? 'amber' : 'green'}
                 />
               ))}
             </div>
-          ) : <EmptyState label="Keine aktiven Spulen im Lager gefunden." />}
+          ) : <EmptyState label="Keine aktiven Lagerartikel gefunden." />}
           <p className="mt-5 text-xs text-bambu-gray">
             Lagerwert {formatMoney(stockValue, locale, currency)} · reserviert {formatMoney(reservedValue, locale, currency)}
           </p>
@@ -1356,10 +1433,10 @@ function Overview({
             />
           ) : <EmptyState label="Noch keine kalkulierten Aufträge vorhanden." />}
         </Panel>
-        <Panel icon={AlertTriangle} title="Lager- und Energierisiken">
+        <Panel icon={AlertTriangle} title="Lager-Risiken">
           {riskRows.length > 0 ? (
             <CompactTable columns={['Ressource', 'Bestand', 'Ort / Quelle', 'Signal']} rows={riskRows} />
-          ) : <EmptyState label="Keine kritischen Lager- oder Energiesignale im aktuellen Zeitraum." />}
+          ) : <EmptyState label="Keine kritischen Lagersignale im aktuellen Zeitraum." />}
         </Panel>
       </div>
     </div>
@@ -1477,6 +1554,11 @@ export function BusinessDashboardPage() {
     queryFn: () => api.getSpools(false),
     enabled: canReadBusinessDashboard,
   });
+  const smallPartsQuery = useQuery({
+    queryKey: ['business-dashboard', 'material-items'],
+    queryFn: () => smallPartsApi.listAll({ active: true }),
+    enabled: canReadBusinessDashboard,
+  });
   const skuSettingsQuery = useQuery<FilamentSkuSettings[]>({
     queryKey: ['business-dashboard', 'sku-settings'],
     queryFn: () => api.getSkuSettings(),
@@ -1511,6 +1593,7 @@ export function BusinessDashboardPage() {
     [energyHistoryQuery.data, energyTrackingMode],
   );
   const spools = useMemo(() => spoolsQuery.data ?? [], [spoolsQuery.data]);
+  const smallParts = useMemo(() => smallPartsQuery.data ?? [], [smallPartsQuery.data]);
   const skuSettings = useMemo(() => skuSettingsQuery.data ?? [], [skuSettingsQuery.data]);
   const suppliers = useMemo(() => suppliersQuery.data?.items ?? [], [suppliersQuery.data]);
   const offers = useMemo(() => offersQuery.data ?? [], [offersQuery.data]);
@@ -1591,19 +1674,26 @@ export function BusinessDashboardPage() {
     const pipelineRevenue = displayCurrencyOffers
       .filter((offer) => offer.status === 'draft' || offer.status === 'sent' || offer.status === 'accepted')
       .reduce((sum, offer) => sum + readRevisionValue(offer, 'selling_price'), 0);
-    const materialUsage = deriveMaterialUsage(spools);
-    const materialCosts = createMaterialCostMap(spools);
-    const stockValue = spools.reduce((sum, spool) => {
+    const allMaterialUsage = deriveMaterialUsage(spools, smallParts);
+    const materialUsage = allMaterialUsage.slice(0, 6);
+    const materialCosts = createMaterialCostMap(spools, smallParts);
+    const spoolStockValue = spools.reduce((sum, spool) => {
       const remaining = Math.max(0, spool.label_weight - spool.weight_used);
       return sum + (remaining / 1000) * (spool.cost_per_kg ?? 0);
     }, 0);
-    const lowStockCount = spools.filter((spool) => {
+    const smallPartStockValue = smallParts.reduce(
+      (sum, part) => sum + (asNumber(part.balance.physical) * asNumber(part.unit_cost)),
+      0,
+    );
+    const stockValue = spoolStockValue + smallPartStockValue;
+    const lowStockSpoolCount = spools.filter((spool) => {
       const threshold = spool.low_stock_threshold_pct ?? 20;
       if (spool.label_weight <= 0) return false;
       return ((spool.label_weight - spool.weight_used) / spool.label_weight) * 100 <= threshold;
     }).length;
+    const lowStockCount = lowStockSpoolCount + smallParts.filter((part) => part.balance.is_low_stock).length;
     const reservedLines = currentOpenOrders.reduce((sum, order) => sum + order.reservations.length, 0);
-    const consumedGrams = materialUsage.reduce((sum, item) => sum + item.grams, 0);
+    const consumedGrams = allMaterialUsage.reduce((sum, item) => sum + item.grams, 0);
     const archiveProductionCost = (stats?.total_cost ?? 0) + (stats?.total_energy_cost ?? 0);
     const productionCost = acceptedCost > 0 ? acceptedCost : archiveProductionCost;
     const margin = acceptedRevenue > 0 ? ((acceptedRevenue - productionCost) / acceptedRevenue) * 100 : 0;
@@ -1689,7 +1779,7 @@ export function BusinessDashboardPage() {
       costSlices,
       pipelineStages,
     };
-  }, [currencyCode, documents, locale, offers, orders, periodDocuments, periodOffers, periodOrders, rangeEnd, rangeStart, spools, stats, today]);
+  }, [currencyCode, documents, locale, offers, orders, periodDocuments, periodOffers, periodOrders, rangeEnd, rangeStart, smallParts, spools, stats, today]);
 
   const previousDerived = useMemo(() => {
     const activeOrders = previousPeriodOrders
@@ -1760,6 +1850,13 @@ export function BusinessDashboardPage() {
     (sum, spool) => sum + (spoolRemainingGrams(spool) / 1000) * (spool.cost_per_kg ?? 0),
     0,
   );
+  const lowStockSmallParts = [...smallParts]
+    .filter((part) => part.balance.is_low_stock)
+    .sort((left, right) => asNumber(left.balance.available) - asNumber(right.balance.available));
+  const lowStockInventoryValue = lowStockValue + lowStockSmallParts.reduce(
+    (sum, part) => sum + (asNumber(part.balance.physical) * asNumber(part.unit_cost)),
+    0,
+  );
   const procurementOffersBySignature = useMemo(() => {
     const result = new Map<string, ProcurementOffer[]>();
     procurementOfferGroups.forEach((group) => result.set(group.signature, group.offers));
@@ -1794,7 +1891,11 @@ export function BusinessDashboardPage() {
   const supplierAssignedSpoolCount = spools.filter((spool) => supplierAssignmentForSpool(spool).supplier !== null).length;
   const directSupplierAssignedSpoolCount = spools.filter((spool) => supplierAssignmentForSpool(spool).source === 'sku').length;
   const spoolsWithoutCostCount = spools.filter((spool) => !spool.cost_per_kg).length;
+  const activeSmallPartsWithoutCostCount = smallParts.filter((part) => asNumber(part.unit_cost) <= 0).length;
   const spoolsWithLocationCount = spools.filter((spool) => spool.storage_location || spool.location_id).length;
+  const smallPartsWithLocationCount = smallParts.filter((part) => part.location_id).length;
+  const inventoryItemCount = spools.length + smallParts.length;
+  const inventoryWithLocationCount = spoolsWithLocationCount + smallPartsWithLocationCount;
   const staleSpoolRows = spools
     .map((spool) => {
       const remaining = spoolRemainingGrams(spool);
@@ -1812,15 +1913,16 @@ export function BusinessDashboardPage() {
       row.spool.storage_location ?? 'ohne Ort',
       row.value > 25 ? <span className="text-amber-300">Bestand prüfen</span> : 'beobachten',
     ] as Array<ReactNode>);
+  const inventoryWithoutCostCount = spoolsWithoutCostCount + activeSmallPartsWithoutCostCount;
   const procurementReadinessRows = [
-    ['Kostenbasis', `${spools.length - spoolsWithoutCostCount}/${spools.length || 0} Spulen`, spoolsWithoutCostCount > 0 ? <span className="text-amber-300">Marge unvollständig</span> : 'OK', spoolsWithoutCostCount > 0 ? <EntityLink to={inventoryFocusUrl('missing-cost')}>Kosten pflegen</EntityLink> : 'keine Aktion'],
+    ['Kostenbasis', `${inventoryItemCount - inventoryWithoutCostCount}/${inventoryItemCount || 0} Artikel`, inventoryWithoutCostCount > 0 ? <span className="text-amber-300">Marge unvollständig</span> : 'OK', inventoryWithoutCostCount > 0 ? <EntityLink to={inventoryFocusUrl('missing-cost')}>Kosten pflegen</EntityLink> : 'keine Aktion'],
     ['SKU-Lieferant', `${directSupplierAssignedSpoolCount}/${spools.length || 0} Spulen`, directSupplierAssignedSpoolCount < spools.length ? <span className="text-amber-300">Zuordnung fehlt</span> : 'OK', <EntityLink to={supplierListUrl()}>Lieferanten prüfen</EntityLink>],
     ['Lieferantenbezug gesamt', `${supplierAssignedSpoolCount}/${spools.length || 0} Spulen`, supplierAssignedSpoolCount < spools.length ? <span className="text-amber-300">Angebote fehlen</span> : 'OK', <EntityLink to={supplierListUrl()}>Angebote prüfen</EntityLink>],
-    ['Lagerort', `${spoolsWithLocationCount}/${spools.length || 0} Spulen`, spoolsWithLocationCount < spools.length ? <span className="text-amber-300">Suche erschwert</span> : 'OK', <EntityLink to={inventoryFocusUrl('missing-location')}>Orte pflegen</EntityLink>],
-    ['Engpassquote', `${derived.lowStockCount}/${spools.length || 0} Artikel`, derived.lowStockCount > 0 ? <span className="text-red-300">Nachbestellen</span> : 'OK', derived.lowStockCount > 0 ? <EntityLink to={inventoryFocusUrl('low-stock')}>Bestellvorschläge</EntityLink> : 'keine Aktion'],
+    ['Lagerort', `${inventoryWithLocationCount}/${inventoryItemCount || 0} Artikel`, inventoryWithLocationCount < inventoryItemCount ? <span className="text-amber-300">Suche erschwert</span> : 'OK', <EntityLink to={inventoryFocusUrl('missing-location')}>Orte pflegen</EntityLink>],
+    ['Engpassquote', `${derived.lowStockCount}/${inventoryItemCount || 0} Artikel`, derived.lowStockCount > 0 ? <span className="text-red-300">Nachbestellen</span> : 'OK', derived.lowStockCount > 0 ? <EntityLink to={inventoryFocusUrl('low-stock')}>Bestellvorschläge</EntityLink> : 'keine Aktion'],
     ['Reservierungsdruck', `${derived.reservedLines} Positionen`, formatMoney(derived.reservedValue, locale, currencyCode), derived.reservedLines > 0 ? <EntityLink to="/orders">Aufträge prüfen</EntityLink> : 'OK'],
   ] as Array<Array<ReactNode>>;
-  const riskRows = [
+  const inventoryRiskRows = [
     ...lowStockSpools.slice(0, 4).map((spool) => {
       const label = [spool.material, spool.subtype, spool.color_name].filter(Boolean).join(' ');
       const remaining = Math.max(0, spool.label_weight - spool.weight_used);
@@ -1832,13 +1934,14 @@ export function BusinessDashboardPage() {
         pct < 8 ? <span className="text-red-300">kritisch</span> : <span className="text-amber-300">knapp</span>,
       ] as Array<ReactNode>;
     }),
-    ...((stats?.total_energy_kwh ?? 0) > 0 ? [[
-      <EntityLink to="/settings?tab=operations">Energiequelle</EntityLink>,
-      formatKwh(stats?.total_energy_kwh ?? 0, locale),
-      stats?.energy_source ?? 'Archiv',
-      stats?.energy_data_warming_up ? <span className="text-amber-300">wärmt auf</span> : 'OK',
-    ] as Array<ReactNode>] : []),
+    ...lowStockSmallParts.slice(0, 4).map((part) => [
+      <EntityLink to={`/warehouse/parts?part=${part.id}`}>{part.name}</EntityLink>,
+      `${formatQuantity(asNumber(part.balance.available), locale)} ${part.unit.label || part.unit_code}`,
+      part.location_id ? `Lagerort #${part.location_id}` : 'Materiallager',
+      asNumber(part.balance.available) <= 0 ? <span className="text-red-300">kritisch</span> : <span className="text-amber-300">knapp</span>,
+    ] as Array<ReactNode>),
   ];
+  const riskRows = inventoryRiskRows;
   const supplierRows = Array.from(
     spools
       .map((spool) => ({ spool, assignment: supplierAssignmentForSpool(spool) }))
@@ -1898,6 +2001,7 @@ export function BusinessDashboardPage() {
     ] as Array<ReactNode>;
   });
   const materialPlanningRows = derived.materialUsage
+    .filter((item) => item.kind === 'filament')
     .map((item) => {
       const materialSpools = spools.filter((spool) => spoolMaterialLabel(spool) === item.label);
       const assignment = materialSpools
@@ -2139,7 +2243,7 @@ export function BusinessDashboardPage() {
     ['Marge unter 25 %', `${lowMarginOrders.length} Aufträge`, lowMarginOrders.length > 0 ? formatMoney(lowMarginOrders.reduce((sum, row) => sum + row.revenue, 0), locale, currencyCode) : '-', lowMarginOrders.length > 0 ? <span className="text-amber-300">neu kalkulieren</span> : 'OK'],
     ['Kosten ohne Umsatz', derived.acceptedRevenue <= 0 && derived.productionCost > 0 ? formatMoney(derived.productionCost, locale, currencyCode) : '0,00 €', 'Zeitraum', derived.acceptedRevenue <= 0 && derived.productionCost > 0 ? <span className="text-red-300">prüfen</span> : 'OK'],
     ['Energie in Kalkulation', formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode), settingsQuery.data?.energy_tracking_mode ?? 'Archiv', (stats?.total_energy_cost ?? 0) > 0 ? 'berücksichtigt' : <span className="text-amber-300">keine Daten</span>],
-    ['Materialkosten pflegen', `${spoolsWithoutCostCount} Spulen`, <EntityLink to={inventoryFocusUrl('missing-cost')}>Lager öffnen</EntityLink>, spoolsWithoutCostCount > 0 ? <span className="text-amber-300">ergänzen</span> : 'OK'],
+    ['Materialkosten pflegen', `${inventoryWithoutCostCount} Artikel`, <EntityLink to={inventoryFocusUrl('missing-cost')}>Lager öffnen</EntityLink>, inventoryWithoutCostCount > 0 ? <span className="text-amber-300">ergänzen</span> : 'OK'],
   ] as Array<Array<ReactNode>>;
   const overviewPriorityRows = [
     [
@@ -2182,9 +2286,9 @@ export function BusinessDashboardPage() {
     ],
     [
       'Materialkosten',
-      `${spools.length - spoolsWithoutCostCount}/${spools.length || 0} Spulen`,
-      spoolsWithoutCostCount > 0 ? <span className="text-amber-300">Marge unvollständig</span> : 'Kostenbasis OK',
-      spoolsWithoutCostCount > 0 ? <EntityLink to={inventoryFocusUrl('missing-cost')}>Kosten/kg pflegen</EntityLink> : 'keine Aktion',
+      `${inventoryItemCount - inventoryWithoutCostCount}/${inventoryItemCount || 0} Artikel`,
+      inventoryWithoutCostCount > 0 ? <span className="text-amber-300">Marge unvollständig</span> : 'Kostenbasis OK',
+      inventoryWithoutCostCount > 0 ? <EntityLink to={inventoryFocusUrl('missing-cost')}>Kosten pflegen</EntityLink> : 'keine Aktion',
     ],
     [
       'Lieferanten',
@@ -2210,7 +2314,7 @@ export function BusinessDashboardPage() {
   const forecastProductionCost = derived.productionCost * forecastScale30;
   const forecastEnergyKwh = (stats?.total_energy_kwh ?? 0) * forecastScale30;
   const forecastEnergyCost = (stats?.total_energy_cost ?? 0) * forecastScale30;
-  const forecastMaterialGrams = derived.materialUsage.reduce((sum, item) => {
+  const forecastMaterialGrams = derived.materialUsage.filter((item) => item.kind === 'filament').reduce((sum, item) => {
     const dailyUse = item.remaining / Math.max(item.days, 1);
     return sum + (Number.isFinite(dailyUse) ? dailyUse * 30 : 0);
   }, 0);
@@ -2249,7 +2353,7 @@ export function BusinessDashboardPage() {
     [
       'Nachschubrisiko',
       `${derived.lowStockCount} Artikel`,
-      lowStockValue > 0 ? formatMoney(lowStockValue, locale, currencyCode) : 'kein Wert gebunden',
+      lowStockInventoryValue > 0 ? formatMoney(lowStockInventoryValue, locale, currencyCode) : 'kein Wert gebunden',
       derived.lowStockCount > 0 ? <EntityLink to={inventoryFocusUrl('low-stock')}>Bestellvorschläge</EntityLink> : 'Bestand stabil',
     ],
   ] as Array<Array<ReactNode>>;
@@ -2309,10 +2413,10 @@ export function BusinessDashboardPage() {
     },
     {
       label: 'Materialkosten pflegen',
-      detail: `${spoolsWithoutCostCount} Spulen ohne Kosten/kg`,
+      detail: `${inventoryWithoutCostCount} Artikel ohne Kosten`,
       to: inventoryFocusUrl(),
       icon: Package,
-      tone: spoolsWithoutCostCount > 0 ? 'amber' : 'neutral',
+      tone: inventoryWithoutCostCount > 0 ? 'amber' : 'neutral',
     },
   ];
   const inventoryShortcuts: ActionShortcut[] = [
@@ -2416,7 +2520,7 @@ export function BusinessDashboardPage() {
           { title: '30-Tage-Vorschau', columns: ['Kennzahl', '30 Tage', 'Basis', 'Nächster Schritt'], rows: overviewForecastRows },
           { title: 'Datenqualität', columns: ['Quelle', 'Abdeckung', 'Auswirkung', 'Nächster Schritt'], rows: overviewDataQualityRows },
           { title: 'Aufträge und Angebote', columns: ['Beleg', 'Kunde', 'Status', 'Betrag'], rows: derived.revenueRows.slice(0, 4).map((row) => [row.number, row.customer, <RevenueStatus status={row.status} />, formatMoney(row.amount, locale, currencyCode)] as Array<ReactNode>) },
-          { title: 'Lager- und Energierisiken', columns: ['Ressource', 'Bestand', 'Ort / Quelle', 'Signal'], rows: riskRows },
+          { title: 'Lager-Risiken', columns: ['Ressource', 'Bestand', 'Ort / Quelle', 'Signal'], rows: riskRows },
         ];
     }
   })();
@@ -2572,20 +2676,20 @@ export function BusinessDashboardPage() {
               {derived.materialUsage.map((item, index) => (
                 <ProgressRow
                   key={item.label}
-                  label={`${item.label} · ${item.days} Tage Reichweite`}
+                  label={materialUsageProgressLabel(item, locale)}
                   value={item.remaining}
                   max={Math.max(...derived.materialUsage.map((material) => material.remaining), 1)}
-                  suffix={formatWeightKg(item.remaining, locale)}
+                  suffix={formatMaterialRemaining(item, locale)}
                   tone={index === 1 ? 'red' : index === 2 ? 'amber' : 'green'}
                 />
               ))}
             </div>
-          ) : <EmptyState label="Keine aktiven Spulen im Lager gefunden." />}
+          ) : <EmptyState label="Keine aktiven Lagerartikel gefunden." />}
         </Panel>
         <Panel icon={AlertTriangle} title="Nachbestellen und Reservierung">
           {riskRows.length > 0 ? (
             <CompactTable columns={['Ressource', 'Bestand', 'Ort / Quelle', 'Signal']} rows={riskRows} />
-          ) : <EmptyState label="Keine kritischen Lager- oder Energiesignale im aktuellen Zeitraum." />}
+          ) : <EmptyState label="Keine kritischen Lagersignale im aktuellen Zeitraum." />}
         </Panel>
 
         <Panel icon={Package} title="Lagerwert nach Material">
@@ -2623,13 +2727,13 @@ export function BusinessDashboardPage() {
         <Panel icon={ClipboardList} title="Bestellvorschläge" subtitle="Nachschub nach Reichweite und Reservierung">
           {reorderRows.length > 0 ? (
             <CompactTable columns={['Artikel', 'Bestand', 'Vorschlag', 'Lieferant', 'Lieferzeit', 'Aktion']} rows={reorderRows} />
-          ) : <EmptyState label="Aktuell keine Bestellvorschläge aus niedrigen Spulenbeständen." />}
+          ) : <EmptyState label="Aktuell keine Bestellvorschläge aus niedrigen Lagerbeständen." />}
         </Panel>
         <Panel icon={Gauge} title="Materialfluss" subtitle="Was blockiert, was bindet Kapital?">
           <div className="space-y-4">
             <ProgressRow label="Verfügbar" value={Math.max(derived.stockValue - derived.reservedValue, 0)} max={Math.max(derived.stockValue, 1)} suffix={formatMoney(Math.max(derived.stockValue - derived.reservedValue, 0), locale, currencyCode)} tone="green" />
             <ProgressRow label="Reserviert" value={derived.reservedValue} max={Math.max(derived.stockValue, 1)} suffix={formatMoney(derived.reservedValue, locale, currencyCode)} tone="blue" />
-            <ProgressRow label="Kritisch gebunden" value={lowStockValue} max={Math.max(derived.stockValue, 1)} suffix={`${derived.lowStockCount} Positionen · ${formatMoney(lowStockValue, locale, currencyCode)}`} tone={derived.lowStockCount > 0 ? 'red' : 'neutral'} />
+            <ProgressRow label="Kritisch gebunden" value={lowStockInventoryValue} max={Math.max(derived.stockValue, 1)} suffix={`${derived.lowStockCount} Positionen · ${formatMoney(lowStockInventoryValue, locale, currencyCode)}`} tone={derived.lowStockCount > 0 ? 'red' : 'neutral'} />
             <ProgressRow label="Verbrauchsdynamik" value={derived.consumedGrams} max={Math.max(derived.consumedGrams * 1.35, 1)} suffix={formatWeightKg(derived.consumedGrams, locale)} tone="amber" />
           </div>
         </Panel>
@@ -2645,9 +2749,9 @@ export function BusinessDashboardPage() {
           <div className="space-y-4">
             <ProgressRow label="SKU-Lieferanten" value={directSupplierAssignedSpoolCount} max={Math.max(spools.length, 1)} suffix={`${directSupplierAssignedSpoolCount} von ${spools.length}`} tone={directSupplierAssignedSpoolCount < spools.length ? 'amber' : 'green'} />
             <ProgressRow label="Angebotsabdeckung" value={supplierAssignedSpoolCount} max={Math.max(spools.length, 1)} suffix={`${supplierAssignedSpoolCount} von ${spools.length}`} tone="green" />
-            <ProgressRow label="Ohne Kosten/kg" value={spoolsWithoutCostCount} max={Math.max(spools.length, 1)} suffix={`${spoolsWithoutCostCount} Spulen`} tone={spoolsWithoutCostCount > 0 ? 'amber' : 'neutral'} />
-            <ProgressRow label="Kritischer Bestand" value={derived.lowStockCount} max={Math.max(spools.length, 1)} suffix={`${derived.lowStockCount} Artikel`} tone={derived.lowStockCount > 0 ? 'red' : 'green'} />
-            <ProgressRow label="Mit Lagerort" value={spoolsWithLocationCount} max={Math.max(spools.length, 1)} suffix={`${spoolsWithLocationCount} Spulen`} tone="blue" />
+            <ProgressRow label="Ohne Kosten" value={inventoryWithoutCostCount} max={Math.max(inventoryItemCount, 1)} suffix={`${inventoryWithoutCostCount} Artikel`} tone={inventoryWithoutCostCount > 0 ? 'amber' : 'neutral'} />
+            <ProgressRow label="Kritischer Bestand" value={derived.lowStockCount} max={Math.max(inventoryItemCount, 1)} suffix={`${derived.lowStockCount} Artikel`} tone={derived.lowStockCount > 0 ? 'red' : 'green'} />
+            <ProgressRow label="Mit Lagerort" value={inventoryWithLocationCount} max={Math.max(inventoryItemCount, 1)} suffix={`${inventoryWithLocationCount} Artikel`} tone="blue" />
           </div>
         </Panel>
       </div>
@@ -2668,7 +2772,7 @@ export function BusinessDashboardPage() {
   const energyTab = (
     <div className="mt-5 space-y-5">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={Zap} label="Verbrauch" value={formatKwh(stats?.total_energy_kwh ?? 0, locale)} detail={energyMode} tone="cyan" to="/dashboard" trend={trendLabels.energyKwh} />
+        <MetricCard icon={Zap} label="Verbrauch" value={formatKwh(stats?.total_energy_kwh ?? 0, locale)} detail={`${selectedDateRange.label} · ${energyMode}`} tone="cyan" to="/dashboard" trend={trendLabels.energyKwh} />
         <MetricCard icon={CircleDollarSign} label="Energiekosten" value={formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode)} detail="im Zeitraum" tone="amber" to={energyCostSettingsUrl} trend={trendLabels.energyCost} />
         <MetricCard icon={BatteryCharging} label="Kosten/kWh" value={formatMoney(settingsQuery.data?.energy_cost_per_kwh ?? 0, locale, currencyCode)} detail="aus Einstellungen" tone="neutral" to={energyCostSettingsUrl} />
         <MetricCard icon={Gauge} label="Intensität" value={`${energyPerHour.toFixed(2)} kWh/h`} detail="je Druckstunde" tone="green" to={archiveEnergyUrl(undefined, 'log')} />
@@ -2676,7 +2780,7 @@ export function BusinessDashboardPage() {
       <ActionStrip actions={energyShortcuts} />
 
       <div className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
-        <Panel icon={Zap} title="Energie-Kennzahlen" subtitle={energyMode}>
+        <Panel icon={Zap} title="Energie-Kennzahlen" subtitle={`${selectedDateRange.label} · ${energyMode}`}>
           <div className="grid gap-3 sm:grid-cols-2">
             <MiniMetric icon={Zap} label="Verbrauch" value={formatKwh(stats?.total_energy_kwh ?? 0, locale)} tone="cyan" />
             <MiniMetric icon={CircleDollarSign} label="Energiekosten" value={formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode)} tone="amber" />

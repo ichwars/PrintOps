@@ -122,7 +122,7 @@ describe('SmallPartEditor', () => {
   it('uses the configured default minimum stock for new material', async () => {
     renderEditor(null);
 
-    await waitFor(() => expect(screen.getByLabelText('Mindestbestand')).toHaveValue(12.5));
+    await waitFor(() => expect(screen.getByLabelText('Mindestbestand')).toHaveValue(13));
     expect(screen.getByLabelText(/^Standard-Verbrauchsgrund/)).toHaveValue('Produktion');
   });
 

@@ -30,9 +30,15 @@ from backend.app.schemas.small_part import (
     SmallPartUnitUpdate,
     SmallPartUpdate,
 )
-from backend.app.services import procurement as procurement_service, small_parts as service
+from backend.app.services import (
+    procurement as procurement_service,
+    small_parts as service,
+    warehouse_number_sequence as warehouse_number_sequence_service,
+)
 
 router = APIRouter(prefix="/small-parts", tags=["small-parts"])
+
+_MAX_GENERATED_SKU_ATTEMPTS = 1000
 
 
 async def _load_part(db: AsyncSession, small_part_id: int) -> SmallPart:
@@ -269,28 +275,46 @@ async def create_small_part(
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_CREATE),
 ) -> SmallPartRead:
-    part = SmallPart(**data.model_dump(exclude={"opening_quantity"}))
-    try:
-        db.add(part)
-        await db.flush()
-        if data.opening_quantity > 0:
-            await service.append_ledger_entry(
-                db,
-                small_part_id=part.id,
-                entry_kind="opening",
-                physical_delta=data.opening_quantity,
-                reserved_delta=Decimal("0"),
-                reason="Anfangsbestand",
-                idempotency_key=f"material-opening:{part.id}",
-            )
-        await db.commit()
-    except IntegrityError as exc:
-        await db.rollback()
-        raise _conflict("Artikelnummer ist bereits vorhanden oder ein Katalogwert fehlt") from exc
-    except Exception:
-        await db.rollback()
-        raise
-    return await _read_single_part(db, await _load_part(db, part.id))
+    payload = data.model_dump(exclude={"opening_quantity"})
+    generate_sku = not payload.get("sku")
+    attempts = _MAX_GENERATED_SKU_ATTEMPTS if generate_sku else 1
+    last_integrity_error: IntegrityError | None = None
+
+    for _ in range(attempts):
+        if generate_sku:
+            payload["sku"] = await warehouse_number_sequence_service.reserve_number(db, key="material")
+            existing_id = await db.scalar(select(SmallPart.id).where(SmallPart.sku == payload["sku"]))
+            if existing_id is not None:
+                continue
+
+        part = SmallPart(**payload)
+        try:
+            async with db.begin_nested():
+                db.add(part)
+                await db.flush()
+                if data.opening_quantity > 0:
+                    await service.append_ledger_entry(
+                        db,
+                        small_part_id=part.id,
+                        entry_kind="opening",
+                        physical_delta=data.opening_quantity,
+                        reserved_delta=Decimal("0"),
+                        reason="Anfangsbestand",
+                        idempotency_key=f"material-opening:{part.id}",
+                    )
+            await db.commit()
+            return await _read_single_part(db, await _load_part(db, part.id))
+        except IntegrityError as exc:
+            last_integrity_error = exc
+            if not generate_sku:
+                await db.rollback()
+                raise _conflict("Artikelnummer ist bereits vorhanden oder ein Katalogwert fehlt") from exc
+        except Exception:
+            await db.rollback()
+            raise
+
+    await db.rollback()
+    raise _conflict("Keine freie Artikelnummer im Nummernkreis gefunden") from last_integrity_error
 
 
 @router.get("/{small_part_id}", response_model=SmallPartRead)

@@ -91,6 +91,60 @@ async def test_material_create_rolls_back_when_opening_entry_fails(
 
 
 @pytest.mark.asyncio
+async def test_small_part_create_uses_material_number_sequence_when_sku_is_blank(async_client):
+    await async_client.post(
+        "/api/v1/small-parts/settings/units",
+        json={"code": "C62", "label": "Stück", "decimal_places": 0},
+    )
+    sequence = await async_client.post(
+        "/api/v1/inventory/number-sequences",
+        json={
+            "key": "material",
+            "prefix": "MAT",
+            "pattern": "{PREFIX}-{#####}",
+            "next_value": 1012,
+            "reset_policy": "none",
+        },
+    )
+    assert sequence.status_code == 201, sequence.text
+
+    created = await async_client.post(
+        "/api/v1/small-parts",
+        json={"sku": "", "name": "Sequenced material", "unit_code": "C62"},
+    )
+
+    assert created.status_code == 201, created.text
+    assert created.json()["sku"] == "MAT-01012"
+    listed = await async_client.get("/api/v1/inventory/number-sequences")
+    material = next(item for item in listed.json() if item["key"] == "material")
+    assert material["next_value"] == 1013
+
+
+@pytest.mark.asyncio
+async def test_small_part_create_skips_existing_generated_material_skus(async_client):
+    await async_client.post(
+        "/api/v1/small-parts/settings/units",
+        json={"code": "C62", "label": "Stück", "decimal_places": 0},
+    )
+    existing = await async_client.post(
+        "/api/v1/small-parts",
+        json={"sku": "MAT-00001", "name": "Existing material", "unit_code": "C62"},
+    )
+    assert existing.status_code == 201, existing.text
+
+    created = await async_client.post(
+        "/api/v1/small-parts",
+        json={"sku": "", "name": "Sequenced material", "unit_code": "C62"},
+    )
+
+    assert created.status_code == 201, created.text
+    assert created.json()["sku"] == "MAT-00002"
+    listed = await async_client.get("/api/v1/inventory/number-sequences")
+    material = next(item for item in listed.json() if item["key"] == "material")
+    assert material["next_value"] == 3
+
+
+@pytest.mark.asyncio
 async def test_material_metadata_defaults_and_opening_quantity_is_create_only(async_client):
     await async_client.post(
         "/api/v1/small-parts/settings/units",

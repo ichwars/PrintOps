@@ -46,6 +46,20 @@ function FormSection({ id, title, children }: { id: string; title: string; child
   );
 }
 
+function formatQuantity(value: string | number | null | undefined, decimalPlaces: number): string {
+  const parsed = Number(value ?? 0);
+  if (!Number.isFinite(parsed)) return '0';
+  const normalized = Math.max(0, parsed);
+  if (decimalPlaces <= 0) return String(Math.round(normalized));
+  return normalized.toFixed(decimalPlaces).replace(/\.?0+$/, '');
+}
+
+function formatMoney(value: string | number | null | undefined): string {
+  const parsed = Number(value ?? 0);
+  if (!Number.isFinite(parsed)) return '0.00';
+  return Math.max(0, parsed).toFixed(2);
+}
+
 const initialForm = (part: SmallPart | null): SmallPartInput => ({
   sku: part?.sku ?? '',
   name: part?.name ?? '',
@@ -54,8 +68,8 @@ const initialForm = (part: SmallPart | null): SmallPartInput => ({
   category_id: part?.category_id ?? null,
   unit_code: part?.unit_code ?? '',
   location_id: part?.location_id ?? null,
-  minimum_stock: part?.minimum_stock ?? '0',
-  unit_cost: part?.unit_cost ?? '0',
+  minimum_stock: formatQuantity(part?.minimum_stock, part?.unit.decimal_places ?? 0),
+  unit_cost: formatMoney(part?.unit_cost),
   supplier_reference: part?.supplier_reference ?? null,
   default_consumption_reason: part?.default_consumption_reason ?? 'Produktion',
   internal_notes: part?.internal_notes ?? '',
@@ -84,14 +98,17 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
   const [error, setError] = useState('');
   const createdPartId = useRef<number | null>(null);
   const loadedOffersFor = useRef<number | null>(null);
+  const selectedUnit = units.data?.find((unit) => unit.code === form.unit_code) ?? part?.unit ?? null;
+  const quantityDecimals = selectedUnit?.decimal_places ?? 0;
+  const quantityStep = quantityDecimals > 0 ? String(1 / (10 ** quantityDecimals)) : '1';
 
   useEffect(() => {
     if (part || minimumStockTouched || settings.data?.small_parts_default_minimum_stock == null) return;
     setForm((current) => ({
       ...current,
-      minimum_stock: String(settings.data?.small_parts_default_minimum_stock ?? '0'),
+      minimum_stock: formatQuantity(settings.data?.small_parts_default_minimum_stock, quantityDecimals),
     }));
-  }, [minimumStockTouched, part, settings.data?.small_parts_default_minimum_stock]);
+  }, [minimumStockTouched, part, quantityDecimals, settings.data?.small_parts_default_minimum_stock]);
 
   useEffect(() => {
     if (!part || !offersQuery.data || loadedOffersFor.current === part.id) return;
@@ -107,6 +124,7 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
         const created = await smallPartsApi.create(createInput);
         materialId = created.id;
         createdPartId.current = created.id;
+        setForm((current) => ({ ...current, sku: created.sku }));
       } else {
         await smallPartsApi.update(materialId, form);
       }
@@ -127,6 +145,15 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
 
   const update = <K extends keyof SmallPartInput>(key: K, value: SmallPartInput[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
+  const updateUnit = (unitCode: string) => {
+    const decimalPlaces = units.data?.find((unit) => unit.code === unitCode)?.decimal_places ?? 0;
+    setOpeningQuantity((current) => formatQuantity(current, decimalPlaces));
+    setForm((current) => ({
+      ...current,
+      unit_code: unitCode,
+      minimum_stock: formatQuantity(current.minimum_stock, decimalPlaces),
+    }));
+  };
   return (
     <Modal
       open
@@ -146,20 +173,29 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
       >
         <FormSection id="material-section-article" title="Artikel">
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextField label="Artikelnummer" required value={form.sku} onValueChange={(value) => update('sku', value)} />
+            <TextField
+              label="Artikelnummer"
+              required={!!part}
+              value={form.sku}
+              onValueChange={(value) => update('sku', value)}
+              placeholder={part ? undefined : 'Wird aus Nummernkreis vergeben'}
+              helperText={part ? undefined : 'Leer lassen für automatische Vergabe.'}
+            />
             <TextField label="Bezeichnung" required value={form.name} onValueChange={(value) => update('name', value)} />
             <Select label="Kategorie" value={String(form.category_id ?? '')} onValueChange={(value) => update('category_id', value ? Number(value) : null)} options={[{ value: '', label: 'Keine Kategorie' }, ...(categories.data?.filter((item) => item.is_active).map((item) => ({ value: String(item.id), label: item.name })) ?? [])]} />
-            {part ? <Checkbox checked={form.is_active} onCheckedChange={(checked) => update('is_active', checked)} label="Aktiv" /> : null}
-            <TextArea label="Beschreibung" value={form.description ?? ''} onValueChange={(value) => update('description', value)} className="min-h-20 sm:col-span-2" />
-            <TextField label="Suchbegriffe" value={form.search_terms ?? ''} onValueChange={(value) => update('search_terms', value)} className="sm:col-span-2" />
+            <TextField label="Suchbegriffe" value={form.search_terms ?? ''} onValueChange={(value) => update('search_terms', value)} />
+            {part ? <Checkbox className="sm:self-end sm:pb-2" checked={form.is_active} onCheckedChange={(checked) => update('is_active', checked)} label="Aktiv" /> : null}
+            <div className="sm:col-span-2">
+              <TextArea label="Beschreibung" value={form.description ?? ''} onValueChange={(value) => update('description', value)} className="min-h-20" />
+            </div>
           </div>
         </FormSection>
 
         <FormSection id="material-section-stock" title="Bestand">
           <div className="grid gap-4 sm:grid-cols-2">
-            {!part ? <NumberField label="Anfangsmenge" min="0" step="0.01" value={openingQuantity} onValueChange={setOpeningQuantity} /> : null}
-            <NumberField label="Mindestbestand" min="0" step="0.01" value={form.minimum_stock} onValueChange={(value) => { setMinimumStockTouched(true); update('minimum_stock', value); }} />
-            <Select label="Einheit" required value={form.unit_code} onValueChange={(value) => update('unit_code', value)} options={[{ value: '', label: 'Einheit auswählen' }, ...(units.data?.filter((item) => item.is_active).map((item) => ({ value: item.code, label: item.label })) ?? [])]} />
+            {!part ? <NumberField label="Anfangsmenge" min="0" step={quantityStep} value={openingQuantity} onValueChange={(value) => setOpeningQuantity(value)} onBlur={() => setOpeningQuantity(formatQuantity(openingQuantity, quantityDecimals))} /> : null}
+            <NumberField label="Mindestbestand" min="0" step={quantityStep} value={form.minimum_stock} onValueChange={(value) => { setMinimumStockTouched(true); update('minimum_stock', value); }} onBlur={() => update('minimum_stock', formatQuantity(form.minimum_stock, quantityDecimals))} />
+            <Select label="Einheit" required value={form.unit_code} onValueChange={updateUnit} options={[{ value: '', label: 'Einheit auswählen' }, ...(units.data?.filter((item) => item.is_active).map((item) => ({ value: item.code, label: item.label })) ?? [])]} />
             <Select label="Lagerort" value={String(form.location_id ?? '')} onValueChange={(value) => update('location_id', value ? Number(value) : null)} options={[{ value: '', label: 'Kein Lagerort' }, ...(locations.data?.map((item) => ({ value: String(item.id), label: item.name })) ?? [])]} />
           </div>
         </FormSection>
@@ -172,6 +208,7 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
               step="0.01"
               value={form.unit_cost}
               onValueChange={(value) => update('unit_cost', value)}
+              onBlur={() => update('unit_cost', formatMoney(form.unit_cost))}
             />
           </div>
           {part?.supplier_reference ? (

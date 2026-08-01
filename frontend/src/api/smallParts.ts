@@ -119,6 +119,19 @@ export const smallPartsApi = {
     request<SmallPartOption[]>(`/small-parts/search?${queryString({ q, limit: 30 })}`),
   list: (params: SmallPartListParams = {}) =>
     request<SmallPartPage>(`/small-parts?${queryString(params)}`),
+  listAll: async (params: Omit<SmallPartListParams, 'limit' | 'offset'> = {}) => {
+    const limit = 200;
+    const items: SmallPart[] = [];
+    let offset = 0;
+    while (true) {
+      const page = await smallPartsApi.list({ ...params, limit, offset });
+      items.push(...page.items);
+      if (page.items.length === 0 || items.length >= page.total) {
+        return items;
+      }
+      offset = page.offset + page.items.length;
+    }
+  },
   get: (id: number) => request<SmallPart>(`/small-parts/${id}`),
   create: (input: SmallPartCreateInput) =>
     request<SmallPart>('/small-parts', { method: 'POST', body: JSON.stringify(input) }),
