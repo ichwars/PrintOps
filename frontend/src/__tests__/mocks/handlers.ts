@@ -93,6 +93,18 @@ export const handlers = [
     return HttpResponse.json({ currency: 'EUR' });
   }),
 
+  http.get('/api/v1/suppliers', () => {
+    return HttpResponse.json({ items: [], total: 0, limit: 50, offset: 0 });
+  }),
+
+  http.get('/api/v1/procurement-offers', () => {
+    return HttpResponse.json([]);
+  }),
+
+  http.put('/api/v1/procurement-offers/resource', () => {
+    return HttpResponse.json([]);
+  }),
+
   // ========================================================================
   // Smart Plugs
   // ========================================================================

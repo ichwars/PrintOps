@@ -16,16 +16,17 @@ interface ProcurementOffersEditorProps {
   offers: ProcurementOfferDraft[];
   onChange: (offers: ProcurementOfferDraft[]) => void;
   readOnly?: boolean;
+  defaultPackageUnitCode?: string;
 }
 
 type OfferWithSnapshot = ProcurementOfferDraft & { supplier?: Supplier };
 
-const emptyOffer = (isPreferred: boolean): ProcurementOfferDraft => ({
+const emptyOffer = (isPreferred: boolean, defaultPackageUnitCode: string): ProcurementOfferDraft => ({
   supplier_id: null,
   supplier_sku: '',
   purchase_url: '',
   package_quantity: '1',
-  package_unit_code: 'C62',
+  package_unit_code: defaultPackageUnitCode,
   minimum_order_quantity: '1',
   lead_time_days: null,
   net_price: '0',
@@ -52,6 +53,7 @@ export function ProcurementOffersEditor({
   offers,
   onChange,
   readOnly = false,
+  defaultPackageUnitCode = 'C62',
 }: ProcurementOffersEditorProps) {
   const [visibleOffers, setVisibleOffers] = useState<OfferWithSnapshot[]>(offers);
 
@@ -117,7 +119,7 @@ export function ProcurementOffersEditor({
   const additionalIndices = visibleOffers
     .map((_, index) => index)
     .filter((index) => index !== preferredIndex && index !== alternativeIndex);
-  const addOffer = () => commit(ensurePreferred([...visibleOffers, emptyOffer(false)]));
+  const addOffer = () => commit(ensurePreferred([...visibleOffers, emptyOffer(false, defaultPackageUnitCode)]));
 
   const section = (index: number, title: string) => (
     <OfferSection

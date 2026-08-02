@@ -1,11 +1,20 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import event, func, select
 
 from backend.app.api.routes import small_parts as small_parts_route
+from backend.app.core.permissions import Permission
+from backend.app.models.group import Group
 from backend.app.models.procurement import ProcurementOffer, Supplier
+from backend.app.models.settings import Settings
 from backend.app.models.small_part import SmallPart, SmallPartLedgerEntry
+from backend.app.models.user import User
+
+
+def _csv_upload(text: str):
+    return {"file": ("material.csv", text.encode("utf-8"), "text/csv")}
 
 
 @pytest.mark.asyncio
@@ -343,3 +352,215 @@ async def test_duplicate_sku_update_returns_conflict(async_client):
     )
 
     assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_small_part_csv_export_and_import_round_trip(async_client):
+    await async_client.post(
+        "/api/v1/small-parts/settings/units",
+        json={"code": "C62", "label": "Stück", "decimal_places": 0},
+    )
+    await async_client.post(
+        "/api/v1/small-parts",
+        json={
+            "sku": "MAT-CSV-1",
+            "name": "CSV Material",
+            "unit_code": "C62",
+            "opening_quantity": "12",
+            "minimum_stock": "5",
+            "unit_cost": "0.25",
+        },
+    )
+
+    export = await async_client.get("/api/v1/small-parts/export")
+
+    assert export.status_code == 200, export.text
+    assert export.headers["content-type"].startswith("text/csv")
+    assert "Artikelnummer;Bezeichnung" in export.text
+    assert "MAT-CSV-1" in export.text
+
+    preview = await async_client.post(
+        "/api/v1/small-parts/import?dry_run=true",
+        files=_csv_upload("Artikelnummer;Bezeichnung;Einheit;Physisch\nMAT-CSV-2;Neue Schraube;C62;8\n"),
+    )
+
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["valid_count"] == 1
+    assert preview.json()["rows"][0]["action"] == "create"
+
+    imported = await async_client.post(
+        "/api/v1/small-parts/import",
+        files=_csv_upload("Artikelnummer;Bezeichnung;Einheit;Physisch\nMAT-CSV-2;Neue Schraube;C62;8\n"),
+    )
+
+    assert imported.status_code == 200, imported.text
+    assert imported.json() == {"created": 1, "updated": 0, "skipped": 0, "errors": 0, "error_rows": []}
+    listed = await async_client.get("/api/v1/small-parts", params={"q": "MAT-CSV-2"})
+    assert listed.json()["items"][0]["balance"]["physical"] == "8.000000"
+
+
+@pytest.mark.asyncio
+async def test_small_part_csv_import_updates_existing_material(async_client):
+    await async_client.post(
+        "/api/v1/small-parts/settings/units",
+        json={"code": "C62", "label": "Stück", "decimal_places": 0},
+    )
+    created = await async_client.post(
+        "/api/v1/small-parts",
+        json={"sku": "MAT-UPD", "name": "Alt", "unit_code": "C62", "minimum_stock": "1"},
+    )
+    assert created.status_code == 201, created.text
+
+    imported = await async_client.post(
+        "/api/v1/small-parts/import",
+        files=_csv_upload("Artikelnummer;Bezeichnung;Einheit;Mindestbestand\nMAT-UPD;Neu;C62;9\n"),
+    )
+
+    assert imported.status_code == 200, imported.text
+    assert imported.json()["updated"] == 1
+    detail = await async_client.get(f"/api/v1/small-parts/{created.json()['id']}")
+    assert detail.json()["name"] == "Neu"
+    assert detail.json()["minimum_stock"] == "9.000000"
+
+
+@pytest.mark.asyncio
+async def test_small_part_csv_import_preserves_internal_notes_and_updates_stock(async_client):
+    await async_client.post(
+        "/api/v1/small-parts/settings/units",
+        json={"code": "C62", "label": "Stück", "decimal_places": 0},
+    )
+    created = await async_client.post(
+        "/api/v1/small-parts",
+        json={
+            "sku": "MAT-NOTES",
+            "name": "Alt",
+            "unit_code": "C62",
+            "opening_quantity": "3",
+            "internal_notes": "Nur intern sichtbar",
+        },
+    )
+
+    imported = await async_client.post(
+        "/api/v1/small-parts/import",
+        files=_csv_upload("Artikelnummer;Bezeichnung;Einheit;Physisch\nMAT-NOTES;Neu;C62;11\n"),
+    )
+
+    assert imported.status_code == 200, imported.text
+    assert imported.json()["updated"] == 1
+    detail = await async_client.get(f"/api/v1/small-parts/{created.json()['id']}")
+    assert detail.json()["internal_notes"] == "Nur intern sichtbar"
+    assert detail.json()["balance"]["physical"] == "11.000000"
+
+
+@pytest.mark.asyncio
+async def test_small_part_csv_import_rolls_back_batch_when_late_row_fails(async_client):
+    await async_client.post(
+        "/api/v1/small-parts/settings/units",
+        json={"code": "C62", "label": "Stück", "decimal_places": 0},
+    )
+    too_long_name = "X" * 256
+
+    imported = await async_client.post(
+        "/api/v1/small-parts/import",
+        files=_csv_upload(
+            "Artikelnummer;Bezeichnung;Einheit;Physisch\n"
+            "MAT-ATOMIC-1;Gültig;C62;5\n"
+            f"MAT-ATOMIC-2;{too_long_name};C62;2\n"
+        ),
+    )
+
+    assert imported.status_code == 200, imported.text
+    assert imported.json()["created"] == 0
+    assert imported.json()["errors"] == 1
+    listed = await async_client.get("/api/v1/small-parts", params={"q": "MAT-ATOMIC"})
+    assert listed.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_small_part_csv_export_escapes_spreadsheet_formulas(async_client):
+    await async_client.post(
+        "/api/v1/small-parts/settings/units",
+        json={"code": "C62", "label": "Stück", "decimal_places": 0},
+    )
+    await async_client.post(
+        "/api/v1/small-parts",
+        json={"sku": "MAT-FORMULA", "name": "=SUM(A1:A2)", "unit_code": "C62"},
+    )
+
+    export = await async_client.get("/api/v1/small-parts/export")
+
+    assert export.status_code == 200, export.text
+    assert "'=SUM(A1:A2)" in export.text
+
+
+@pytest.mark.asyncio
+async def test_small_part_csv_import_update_requires_update_permission(async_client, db_session):
+    from backend.app.core.auth import create_access_token, get_password_hash
+
+    await async_client.post(
+        "/api/v1/small-parts/settings/units",
+        json={"code": "C62", "label": "Stück", "decimal_places": 0},
+    )
+    created = await async_client.post(
+        "/api/v1/small-parts",
+        json={"sku": "MAT-PERM", "name": "Alt", "unit_code": "C62"},
+    )
+    assert created.status_code == 201, created.text
+
+    db_session.add(Settings(key="auth_enabled", value="true"))
+    group = Group(name="material-create-only", permissions=[Permission.INVENTORY_CREATE.value])
+    user = User(username="material_importer", password_hash=get_password_hash("password"), is_active=True)
+    user.groups.append(group)
+    db_session.add_all([group, user])
+    await db_session.commit()
+    token = create_access_token(data={"sub": user.username})
+
+    with patch("backend.app.core.auth.is_auth_enabled", return_value=True):
+        response = await async_client.post(
+            "/api/v1/small-parts/import",
+            files=_csv_upload("Artikelnummer;Bezeichnung;Einheit\nMAT-PERM;Neu;C62\n"),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_small_part_labels_route_preserves_request_order(async_client):
+    await async_client.post(
+        "/api/v1/small-parts/settings/units",
+        json={"code": "C62", "label": "Stück", "decimal_places": 0},
+    )
+    first = await async_client.post(
+        "/api/v1/small-parts",
+        json={"sku": "MAT-LABEL-1", "name": "Label eins", "unit_code": "C62"},
+    )
+    second = await async_client.post(
+        "/api/v1/small-parts",
+        json={"sku": "MAT-LABEL-2", "name": "Label zwei", "unit_code": "C62"},
+    )
+    captured = {}
+
+    from backend.app.api.routes import labels as labels_module
+
+    original = labels_module.render_labels
+
+    def _capture(template, data_list, **kwargs):
+        captured["ids"] = [data.spool_id for data in data_list]
+        captured["names"] = [data.name for data in data_list]
+        captured["urls"] = [data.deeplink_url for data in data_list]
+        return original(template, data_list, **kwargs)
+
+    with patch.object(labels_module, "render_labels", side_effect=_capture):
+        response = await async_client.post(
+            "/api/v1/small-parts/labels",
+            json={"small_part_ids": [second.json()["id"], first.json()["id"]], "template": "box_62x29"},
+        )
+
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.content.startswith(b"%PDF")
+    assert captured["ids"] == [second.json()["id"], first.json()["id"]]
+    assert captured["names"] == ["Label zwei", "Label eins"]
+    assert captured["urls"][0].endswith(f"/warehouse/parts?part={second.json()['id']}")
+    assert captured["urls"][1].endswith(f"/warehouse/parts?part={first.json()['id']}")

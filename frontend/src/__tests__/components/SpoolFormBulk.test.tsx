@@ -46,6 +46,14 @@ vi.mock('../../api/client', () => ({
   },
 }));
 
+vi.mock('../../api/procurement', () => ({
+  suppliersApi: { list: vi.fn().mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 }) },
+  procurementOffersApi: {
+    list: vi.fn().mockResolvedValue([]),
+    replace: vi.fn().mockResolvedValue([]),
+  },
+}));
+
 // Mock the toast context
 const mockShowToast = vi.fn();
 vi.mock('../../contexts/ToastContext', async (importOriginal) => {

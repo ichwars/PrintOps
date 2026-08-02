@@ -67,6 +67,7 @@ function renderPage() {
 describe('SmallPartsPage', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    window.localStorage.clear();
   });
 
   it('creates a cryptographic UUID when randomUUID is unavailable over plain HTTP', () => {
@@ -95,6 +96,10 @@ describe('SmallPartsPage', () => {
     expect(screen.getByRole('button', { name: /Aktiv/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Alle/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Niedrig Bestand/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'CSV importieren' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'CSV exportieren' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Lagerorte' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Etiketten drucken...' })).toBeDisabled();
     expect(await screen.findByText('Noch kein passendes Material vorhanden.')).toBeInTheDocument();
   });
 
@@ -108,6 +113,7 @@ describe('SmallPartsPage', () => {
     renderPage();
 
     expect(await screen.findByText('M3 Gewindeeinsatz')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Karten/ }));
     expect(screen.getByText('42 Stück verfügbar')).toBeInTheDocument();
     expect(screen.getByText('Schrauben GmbH')).toBeInTheDocument();
     expect(screen.getByText('7,50 € netto')).toBeInTheDocument();
@@ -127,12 +133,82 @@ describe('SmallPartsPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole('button', { name: /Tabelle/ }));
-
+    expect(await screen.findByRole('button', { name: /Tabelle/ })).toHaveClass('bg-bambu-green');
+    expect(await screen.findByRole('cell', { name: 'M3-INSERT' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Spalten/ })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Artikelnummer' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Einzelpreis' })).toBeInTheDocument();
-    expect(screen.getByRole('cell', { name: 'M3-INSERT' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Artikelnummer/ })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Einzelpreis/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'CSV exportieren' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Etiketten drucken...' })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: /Karten/ }));
+    expect(screen.getByText('42 Stück verfügbar')).toBeInTheDocument();
+  });
+
+  it('imports material from CSV after preview confirmation', async () => {
+    const posted = vi.fn();
+    server.use(
+      http.get('/api/v1/small-parts', () => HttpResponse.json({ items: [], total: 0, limit: 50, offset: 0 })),
+      http.post('/api/v1/small-parts/import', async ({ request }) => {
+        const url = new URL(request.url);
+        posted(url.searchParams.get('dry_run'));
+        if (url.searchParams.get('dry_run') === 'true') {
+          return HttpResponse.json({
+            rows: [{
+              row_number: 2,
+              status: 'valid',
+              action: 'create',
+              sku: 'M3-INSERT',
+              name: 'M3 Gewindeeinsatz',
+              unit_code: 'C62',
+              opening_quantity: '25',
+              reason: null,
+              warnings: [],
+            }],
+            valid_count: 1,
+            error_count: 0,
+            skipped_count: 0,
+            warnings: [],
+          });
+        }
+        return HttpResponse.json({ created: 1, updated: 0, skipped: 0, errors: 0, error_rows: [] });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'CSV importieren' }));
+    await user.upload(
+      screen.getByLabelText(/csv/i, { selector: 'input' }),
+      new File(['Artikelnummer;Bezeichnung\nM3-INSERT;M3 Gewindeeinsatz\n'], 'material.csv', { type: 'text/csv' }),
+    );
+    expect(await screen.findByText('M3 Gewindeeinsatz')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '1 Zeilen importieren' }));
+
+    await waitFor(() => expect(posted).toHaveBeenCalledWith(null));
+    expect(await screen.findByText('1 Material angelegt, 0 aktualisiert.')).toBeInTheDocument();
+  });
+
+  it('sorts the material table by sortable columns', async () => {
+    const secondPart = {
+      ...part,
+      id: 8,
+      sku: 'A2-SCREW',
+      name: 'A2 Schraube',
+      balance: { ...part.balance, available: '4.000000', physical: '4.000000' },
+    };
+    server.use(
+      http.get('/api/v1/small-parts', () => HttpResponse.json({ items: [part, secondPart], total: 2, limit: 50, offset: 0 })),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByRole('cell', { name: 'M3-INSERT' })).toBeInTheDocument();
+    await user.click(screen.getByRole('columnheader', { name: /Artikelnummer/ }));
+
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(rows[0]).toHaveTextContent('A2-SCREW');
+    expect(rows[1]).toHaveTextContent('M3-INSERT');
   });
 
   it('shows only the error state when the material list fails', async () => {
@@ -175,7 +251,7 @@ describe('SmallPartsPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole('button', { name: 'Bestand buchen' }));
+    await user.click(await screen.findByRole('button', { name: 'Bestand' }));
     expect(screen.getByLabelText('Grund')).toHaveValue('Produktion');
     await user.type(screen.getByLabelText('Menge'), '10');
     await user.click(screen.getByRole('button', { name: 'Buchung speichern' }));

@@ -53,6 +53,14 @@ vi.mock('../../api/client', () => ({
   },
 }));
 
+vi.mock('../../api/procurement', () => ({
+  suppliersApi: { list: vi.fn().mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 }) },
+  procurementOffersApi: {
+    list: vi.fn().mockResolvedValue([]),
+    replace: vi.fn().mockResolvedValue([]),
+  },
+}));
+
 // Mock validateForm so we can bypass validation for the create-mode test
 // (editing tests pass validation naturally since the spool has material + slicer_filament)
 vi.mock('../../components/spool-form/types', async (importOriginal) => {
@@ -74,6 +82,7 @@ vi.mock('../../contexts/ToastContext', async (importOriginal) => {
 });
 
 import { api } from '../../api/client';
+import { procurementOffersApi, suppliersApi } from '../../api/procurement';
 
 const existingSpool: InventorySpool = {
   id: 1,
@@ -109,6 +118,53 @@ const existingSpool: InventorySpool = {
 describe('SpoolFormModal weightTouched', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(suppliersApi.list).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 });
+    vi.mocked(procurementOffersApi.list).mockResolvedValue([]);
+    vi.mocked(procurementOffersApi.replace).mockResolvedValue([]);
+  });
+
+  it('shows supplier assignment controls when adding a local spool', async () => {
+    vi.mocked(suppliersApi.list).mockResolvedValue({
+      items: [{
+        id: 10,
+        name: 'Filament World',
+        contact_name: null,
+        email: null,
+        phone: null,
+        website: null,
+        address_line1: null,
+        address_line2: null,
+        postal_code: null,
+        city: null,
+        country_code: null,
+        customer_number: null,
+        payment_terms: null,
+        default_lead_time_days: 7,
+        internal_notes: null,
+        is_active: true,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }],
+      total: 1,
+      limit: 50,
+      offset: 0,
+    });
+
+    render(
+      <SpoolFormModal
+        isOpen={true}
+        onClose={vi.fn()}
+        mode="create"
+        currencySymbol="$"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Add Spool' })).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Beschaffung')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Bezugsquelle hinzufügen' })).toBeInTheDocument();
   });
 
   it('excludes weight_used from PATCH when editing without changing weight', async () => {
@@ -142,6 +198,50 @@ describe('SpoolFormModal weightTouched', () => {
     // Other fields should still be present
     expect(payload).toHaveProperty('material', 'PLA');
     expect(payload).toHaveProperty('label_weight', 1000);
+  });
+
+  it('does not replace existing procurement offers when they were not edited', async () => {
+    vi.mocked(procurementOffersApi.list).mockResolvedValue([{
+      id: 77,
+      supplier_id: 10,
+      supplier_sku: 'PLA-RED',
+      purchase_url: '',
+      package_quantity: '1',
+      package_unit_code: 'KGM',
+      minimum_order_quantity: '1',
+      lead_time_days: null,
+      net_price: '12',
+      gross_price: '14.28',
+      is_preferred: true,
+      is_active: true,
+    }]);
+
+    render(
+      <SpoolFormModal
+        isOpen={true}
+        onClose={vi.fn()}
+        spool={existingSpool}
+        mode="edit"
+        currencySymbol="$"
+      />
+    );
+
+    await waitFor(() => {
+      expect(procurementOffersApi.list).toHaveBeenCalledWith({
+        kind: 'filament',
+        material: 'PLA',
+        subtype: 'Basic',
+        brand: 'Polymaker',
+        color_name: 'Red',
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(api.updateSpool).toHaveBeenCalledTimes(1);
+    });
+    expect(procurementOffersApi.replace).not.toHaveBeenCalled();
   });
 
   it('includes weight_used in PATCH when editing and changing remaining weight', async () => {

@@ -3,6 +3,7 @@ import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { render } from '../utils';
 import { LabelTemplatePickerModal } from '../../components/LabelTemplatePickerModal';
 import { api } from '../../api/client';
+import { smallPartsApi } from '../../api/smallParts';
 
 vi.mock('../../api/client', () => ({
   api: {
@@ -13,6 +14,12 @@ vi.mock('../../api/client', () => ({
   },
 }));
 
+vi.mock('../../api/smallParts', () => ({
+  smallPartsApi: {
+    printLabels: vi.fn(),
+  },
+}));
+
 const PDF_BLOB = new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46])], { type: 'application/pdf' });
 
 const SPOOLS = [
@@ -20,6 +27,11 @@ const SPOOLS = [
   { id: 2, material: 'PETG', subtype: null, brand: 'Sunlu', color_name: 'Blue', rgba: '0000FFFF' },
   { id: 3, material: 'ABS', subtype: null, brand: null, color_name: 'Black', rgba: '000000FF' },
   { id: 4, material: 'PLA', subtype: 'Matte', brand: 'Polymaker', color_name: 'Ivory', rgba: 'F5E6D3FF' },
+];
+
+const MATERIALS = [
+  { id: 7, sku: 'M3-INSERT', name: 'M3 Gewindeeinsatz', category: { id: 1, name: 'Hardware', is_active: true }, unit: { code: 'C62', label: 'Stück', decimal_places: 0, is_active: true } },
+  { id: 8, sku: 'A2-SCREW', name: 'A2 Schraube', category: null, unit: { code: 'C62', label: 'Stück', decimal_places: 0, is_active: true } },
 ];
 
 beforeEach(() => {
@@ -415,5 +427,31 @@ describe('LabelTemplatePickerModal', () => {
         monochrome: true,
       });
     });
+  });
+
+  it('routes material label printing to the material endpoint', async () => {
+    vi.mocked(smallPartsApi.printLabels).mockResolvedValue(PDF_BLOB);
+    render(
+      <LabelTemplatePickerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        availableMaterials={MATERIALS}
+        initialSelectedIds={[7, 8]}
+        resourceType="material"
+      />,
+    );
+
+    expect(screen.getByText('Material-Etiketten drucken')).toBeInTheDocument();
+    expect(screen.getByText(/M3 Gewindeeinsatz/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Box label \(62 × 29 mm\)/i));
+
+    await waitFor(() => {
+      expect(smallPartsApi.printLabels).toHaveBeenCalledWith({
+        small_part_ids: [7, 8],
+        template: 'box_62x29',
+        monochrome: false,
+      });
+    });
+    expect(api.printSpoolLabels).not.toHaveBeenCalled();
   });
 });

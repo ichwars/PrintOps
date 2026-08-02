@@ -1,5 +1,7 @@
-import { request } from './client';
+import { getAuthToken, request } from './client';
 import type { ProcurementOffer } from './procurement';
+
+const API_BASE = '/api/v1';
 
 export interface SmallPartBalance {
   physical: string;
@@ -91,6 +93,34 @@ export interface SmallPartLedgerEntry {
   created_at: string;
 }
 
+export interface SmallPartCsvImportRow {
+  row_number: number;
+  status: 'valid' | 'error';
+  action: 'create' | 'update' | null;
+  sku: string;
+  name: string;
+  unit_code: string;
+  opening_quantity: string;
+  reason: string | null;
+  warnings: string[];
+}
+
+export interface SmallPartCsvImportPreview {
+  rows: SmallPartCsvImportRow[];
+  valid_count: number;
+  error_count: number;
+  skipped_count: number;
+  warnings: string[];
+}
+
+export interface SmallPartCsvImportResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: number;
+  error_rows: Array<{ row_number: number; reason: string; sku?: string; name?: string }>;
+}
+
 export interface SmallPartListParams {
   q?: string;
   active?: boolean;
@@ -112,6 +142,63 @@ function queryString<T extends object>(params: T): string {
     if (value !== undefined) result.set(key, String(value));
   });
   return result.toString();
+}
+
+function parseContentDispositionFilename(header: string | null): string | null {
+  if (!header) return null;
+  const rfc5987Match = header.match(/filename\*=(?:UTF-8|utf-8)''(.+?)(?:;|$)/);
+  if (rfc5987Match) {
+    try {
+      return decodeURIComponent(rfc5987Match[1]);
+    } catch {
+      // Fall through to the plain filename form.
+    }
+  }
+  const standardMatch = header.match(/filename="?([^";\n]+)"?/);
+  return standardMatch?.[1] || null;
+}
+
+async function uploadSmallPartsCsv<T>(file: File, dryRun: boolean): Promise<T> {
+  const form = new FormData();
+  form.append('file', file);
+  const headers: Record<string, string> = {};
+  const token = getAuthToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(`${API_BASE}/small-parts/import${dryRun ? '?dry_run=true' : ''}`, {
+    method: 'POST',
+    headers,
+    body: form,
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    const detail = error?.detail;
+    const message = typeof detail === 'string' ? detail : detail?.message;
+    throw new Error(message || `HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+async function downloadSmallPartsCsv(): Promise<void> {
+  const headers: Record<string, string> = {};
+  const token = getAuthToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(`${API_BASE}/small-parts/export`, { headers });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    const detail = error?.detail;
+    const message = typeof detail === 'string' ? detail : detail?.message;
+    throw new Error(message || `HTTP ${response.status}`);
+  }
+  const filename = parseContentDispositionFilename(response.headers.get('Content-Disposition')) || 'printops-material.csv';
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 export const smallPartsApi = {
@@ -143,6 +230,26 @@ export const smallPartsApi = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+  importCsvPreview: (file: File) => uploadSmallPartsCsv<SmallPartCsvImportPreview>(file, true),
+  importCsv: (file: File) => uploadSmallPartsCsv<SmallPartCsvImportResult>(file, false),
+  exportCsv: downloadSmallPartsCsv,
+  printLabels: async (data: { small_part_ids: number[]; template: string; monochrome?: boolean }): Promise<Blob> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const token = getAuthToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch(`${API_BASE}/small-parts/labels`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      const detail = error?.detail;
+      const message = typeof detail === 'string' ? detail : detail?.message;
+      throw new Error(message || `HTTP ${response.status}`);
+    }
+    return response.blob();
+  },
   categories: {
     list: () => request<SmallPartCategory[]>('/small-parts/settings/categories'),
     create: (input: { name: string; is_active?: boolean }) =>

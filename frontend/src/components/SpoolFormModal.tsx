@@ -1,9 +1,16 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { X, Loader2, Save, Beaker, Palette, Zap, Tag, Unlink } from 'lucide-react';
+import { X, Loader2, Save, Beaker, Palette, Zap, Tag, Unlink, ShoppingCart } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import type { InventorySpool, SlicerSetting, SpoolCatalogEntry, LocalPreset, BuiltinFilament, SpoolmanBulkCreateResult, SpoolKProfileInput, SpoolmanFilamentEntry } from '../api/client';
+import {
+  procurementOffersApi,
+  suppliersApi,
+  type ProcurementOfferDraft,
+  type ProcurementResource,
+  type Supplier,
+} from '../api/procurement';
 import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
 import type { SpoolFormData, PrinterWithCalibrations, ColorPreset } from './spool-form/types';
@@ -16,6 +23,7 @@ import { AdditionalSection } from './spool-form/AdditionalSection';
 import { SpoolmanFilamentPicker } from './spool-form/SpoolmanFilamentPicker';
 import { PAProfileSection } from './spool-form/PAProfileSection';
 import { SpoolUsageHistory } from './SpoolUsageHistory';
+import { ProcurementOffersEditor } from './warehouse/ProcurementOffersEditor';
 import {
   invalidateInventoryLocations,
   invalidateSpoolAndLocationQueries,
@@ -24,8 +32,38 @@ import {
 type TabId = 'filament' | 'pa-profile';
 
 const CLEAR_TAG_PAYLOAD = { tag_uid: null, tray_uuid: null, tag_type: null, data_origin: null };
+const SUPPLIER_PAGE_SIZE = 50;
+type FilamentProcurementResource = Extract<ProcurementResource, { kind: 'filament' }>;
 
 export type SpoolFormMode = 'create' | 'edit' | 'copy';
+
+async function loadAllSuppliers() {
+  const items: Supplier[] = [];
+  let offset = 0;
+  while (true) {
+    const page = await suppliersApi.list({ limit: SUPPLIER_PAGE_SIZE, offset });
+    items.push(...page.items);
+    if (page.items.length === 0 || items.length >= page.total) return items;
+    offset = page.offset + page.items.length;
+  }
+}
+
+function filamentProcurementResource(
+  input: Pick<SpoolFormData, 'material' | 'subtype' | 'brand' | 'color_name'>,
+): FilamentProcurementResource {
+  return {
+    kind: 'filament',
+    material: input.material.trim(),
+    subtype: input.subtype.trim() || null,
+    brand: input.brand.trim() || null,
+    color_name: input.color_name.trim() || null,
+  };
+}
+
+function filamentProcurementKey(input: Pick<SpoolFormData, 'material' | 'subtype' | 'brand' | 'color_name'>) {
+  const resource = filamentProcurementResource(input);
+  return [resource.kind, resource.material, resource.subtype ?? '', resource.brand ?? '', resource.color_name ?? ''].join('|');
+}
 
 interface SpoolFormModalProps {
   isOpen: boolean;
@@ -80,6 +118,10 @@ export function SpoolFormModal({
   // Spool catalog
   const [spoolCatalog, setSpoolCatalog] = useState<SpoolCatalogEntry[]>([]);
   const [storageLocations, setStorageLocations] = useState<{ id: number; name: string }[]>([]);
+  const [procurementOffers, setProcurementOffers] = useState<ProcurementOfferDraft[]>([]);
+  const [procurementTouched, setProcurementTouched] = useState(false);
+  const [isSavingProcurement, setIsSavingProcurement] = useState(false);
+  const loadedProcurementKey = useRef<string | null>(null);
 
   // Local presets (OrcaSlicer imports)
   const [localPresets, setLocalPresets] = useState<LocalPreset[]>([]);
@@ -123,6 +165,36 @@ export function SpoolFormModal({
     enabled: spoolmanMode && isOpen,
     staleTime: 60_000,
     retry: false,
+  });
+
+  const suppliersQuery = useQuery({
+    queryKey: ['suppliers', 'spool-form', 'all'],
+    queryFn: loadAllSuppliers,
+    enabled: isOpen && !spoolmanMode,
+  });
+
+  const currentProcurementResource = useMemo(
+    () => filamentProcurementResource({
+      material: formData.material,
+      subtype: formData.subtype,
+      brand: formData.brand,
+      color_name: formData.color_name,
+    }),
+    [formData.material, formData.subtype, formData.brand, formData.color_name],
+  );
+  const currentProcurementKey = useMemo(
+    () => filamentProcurementKey({
+      material: formData.material,
+      subtype: formData.subtype,
+      brand: formData.brand,
+      color_name: formData.color_name,
+    }),
+    [formData.material, formData.subtype, formData.brand, formData.color_name],
+  );
+  const procurementOffersQuery = useQuery({
+    queryKey: ['procurement-offers', 'filament', currentProcurementKey],
+    queryFn: () => procurementOffersApi.list(currentProcurementResource),
+    enabled: isOpen && !spoolmanMode && currentProcurementResource.material.length > 0,
   });
 
   // Load recent colors on mount
@@ -383,8 +455,29 @@ export function SpoolFormModal({
       setActiveTab('filament');
       setWeightTouched(false);
       setLocationIdTouched(false);
+      setProcurementOffers([]);
+      setProcurementTouched(false);
+      loadedProcurementKey.current = null;
     }
   }, [isOpen, spool, mode, isCopying]);
+
+  useEffect(() => {
+    if (!isOpen || loadedProcurementKey.current === currentProcurementKey) return;
+    setProcurementOffers([]);
+    setProcurementTouched(false);
+    loadedProcurementKey.current = null;
+  }, [currentProcurementKey, isOpen]);
+
+  useEffect(() => {
+    if (
+      !isOpen
+      || procurementTouched
+      || !procurementOffersQuery.data
+      || loadedProcurementKey.current === currentProcurementKey
+    ) return;
+    setProcurementOffers(procurementOffersQuery.data);
+    loadedProcurementKey.current = currentProcurementKey;
+  }, [currentProcurementKey, isOpen, procurementOffersQuery.data, procurementTouched]);
 
   // Legacy rows may have storage_location text but no location_id yet — link when catalog loads.
   useEffect(() => {
@@ -460,8 +553,14 @@ export function SpoolFormModal({
     onSuccess: async (newSpool) => {
       if (newSpool?.id) {
         const ok = await saveKProfiles(newSpool.id);
-        if (!ok) return;
+        if (!ok) {
+          await refreshSpoolQueries();
+          if (onSpoolsCreated) onSpoolsCreated([newSpool]);
+          onClose();
+          return;
+        }
       }
+      await saveProcurementOffers();
       await refreshSpoolQueries();
       if (onSpoolsCreated) onSpoolsCreated([newSpool]);
       showToast(t('inventory.spoolCreated'), 'success');
@@ -501,6 +600,7 @@ export function SpoolFormModal({
           await saveKProfiles(s.id);
         }
       }
+      await saveProcurementOffers();
       await refreshSpoolQueries();
       if (onSpoolsCreated) onSpoolsCreated(createdSpools);
       if (spoolmanResult && spoolmanResult.failed_count > 0) {
@@ -535,6 +635,8 @@ export function SpoolFormModal({
         const ok = await saveKProfiles(spool.id);
         if (!ok) return;
       }
+      const procurementOk = await saveProcurementOffers();
+      if (!procurementOk) return;
       await refreshSpoolQueries();
       showToast(t('inventory.spoolUpdated'), 'success');
       onClose();
@@ -637,6 +739,29 @@ export function SpoolFormModal({
       showToast(error.message, 'error');
     },
   });
+
+  const saveProcurementOffers = async (): Promise<boolean> => {
+    if (spoolmanMode) return true;
+    if (!procurementTouched) return true;
+    const offersReady = procurementOffersQuery.isSuccess && loadedProcurementKey.current === currentProcurementKey;
+    if (!suppliersQuery.isSuccess || !offersReady) {
+      showToast('Bezugsquellen sind noch nicht vollständig geladen.', 'warning');
+      return false;
+    }
+    try {
+      setIsSavingProcurement(true);
+      await procurementOffersApi.replace(currentProcurementResource, procurementOffers);
+      await queryClient.invalidateQueries({ queryKey: ['procurement-offers'] });
+      setProcurementTouched(false);
+      return true;
+    } catch (e) {
+      console.error('Failed to save filament procurement offers:', e);
+      showToast('Bezugsquellen konnten nicht gespeichert werden.', 'warning');
+      return false;
+    } finally {
+      setIsSavingProcurement(false);
+    }
+  };
 
   // Save K-profiles for selected calibrations. Returns false if any error occurred.
   const saveKProfiles = async (spoolId: number): Promise<boolean> => {
@@ -769,7 +894,7 @@ export function SpoolFormModal({
     }
   };
 
-  const isPending = createMutation.isPending || bulkCreateMutation.isPending || updateMutation.isPending || deleteTagMutation.isPending || unassignMutation.isPending;
+  const isPending = createMutation.isPending || bulkCreateMutation.isPending || updateMutation.isPending || deleteTagMutation.isPending || unassignMutation.isPending || isSavingProcurement;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -947,6 +1072,52 @@ export function SpoolFormModal({
                   spoolmanMode={spoolmanMode}
                 />
               </div>
+
+              {!spoolmanMode && (
+                <div>
+                  <h3 className="text-sm font-semibold text-bambu-gray uppercase tracking-wide mb-3 flex items-center gap-2">
+                    <ShoppingCart className="w-4 h-4 text-bambu-green" />
+                    Beschaffung
+                  </h3>
+                  <div className="space-y-4 rounded-lg border border-bambu-dark-tertiary p-4">
+                    {procurementOffersQuery.isPending && currentProcurementResource.material ? (
+                      <p className="text-sm text-bambu-gray">Bezugsquellen werden geladen …</p>
+                    ) : null}
+                    {procurementOffersQuery.isError ? (
+                      <p role="alert" className="text-sm text-red-400">Bezugsquellen konnten nicht geladen werden.</p>
+                    ) : null}
+                    {!currentProcurementResource.material || procurementOffersQuery.isSuccess ? (
+                      <ProcurementOffersEditor
+                        suppliers={suppliersQuery.data ?? []}
+                        offers={procurementOffers}
+                        onChange={(next) => {
+                          setProcurementOffers(next);
+                          setProcurementTouched(true);
+                        }}
+                        readOnly={!suppliersQuery.isSuccess || isSavingProcurement}
+                        defaultPackageUnitCode="KGM"
+                      />
+                    ) : null}
+                    {suppliersQuery.isError ? (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <p role="alert" className="text-sm text-red-400">Lieferanten konnten nicht geladen werden. Die Spule kann weiterhin ohne Änderung der Bezugsquellen gespeichert werden.</p>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={suppliersQuery.isFetching}
+                          onClick={() => suppliersQuery.refetch()}
+                        >
+                          {suppliersQuery.isFetching ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : null}
+                          Lieferanten erneut laden
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              )}
 
               {/* Usage History (only when editing internal inventory; Spoolman tracks its own) */}
               {isEditing && spool && !spoolmanMode && (

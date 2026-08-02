@@ -23,7 +23,6 @@ import zipfile
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RESOURCE_DIR = REPO_ROOT / "backend" / "app" / "resources" / "pdf"
 MANIFEST_PATH = RESOURCE_DIR / "runtime-manifest.json"
@@ -95,7 +94,7 @@ def _verify_signature(archive: Path, signature: Path, manifest: dict) -> None:
         shutil.which("gpg"),
         shutil.which("gpg.exe"),
         shutil.which("gpg2"),
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Git" / "usr" / "bin" / "gpg.exe",
+        Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Git" / "usr" / "bin" / "gpg.exe",
     ]
     gpg = next((str(candidate) for candidate in candidates if candidate and Path(candidate).is_file()), None)
     if not gpg:

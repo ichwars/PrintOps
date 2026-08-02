@@ -1,18 +1,25 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
   Archive,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Boxes,
   Columns,
+  Download,
   LayoutGrid,
+  MapPin,
   Package,
   PackageCheck,
   PackagePlus,
   Pencil,
   Plus,
+  Printer,
   Search,
   TableProperties,
   TrendingUp,
+  Upload,
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -20,6 +27,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { smallPartsApi, type SmallPart } from '../api/smallParts';
 import { Card, CardContent } from '../components/Card';
 import { ColumnConfigModal, type ColumnConfig } from '../components/ColumnConfigModal';
+import { LabelTemplatePickerModal } from '../components/LabelTemplatePickerModal';
+import { LocationsModal } from '../components/LocationsModal';
+import { MaterialCsvImportModal } from '../components/MaterialCsvImportModal';
 import { Button, IconButton, TextField } from '../components/ui';
 import {
   tableHeaderActionCellClass,
@@ -33,8 +43,11 @@ import { SmallPartStockDialog } from '../components/warehouse/SmallPartStockDial
 type ActiveFilter = 'active' | 'inactive';
 type MaterialFilter = 'all' | 'new' | 'lowstock';
 type ViewMode = 'table' | 'cards' | 'forecast';
+type SortDirection = 'asc' | 'desc';
+type SortState = { column: string; direction: SortDirection } | null;
 
 const COLUMN_CONFIG_KEY = 'printops-material-columns';
+const SORT_STATE_KEY = 'printops-material-sort';
 
 const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'sku', label: 'Artikelnummer', visible: true },
@@ -73,6 +86,28 @@ function loadColumnConfig(): ColumnConfig[] {
 function saveColumnConfig(config: ColumnConfig[]) {
   try {
     localStorage.setItem(COLUMN_CONFIG_KEY, JSON.stringify(config));
+  } catch {
+    // Ignore local storage failures.
+  }
+}
+
+function loadSortState(): SortState {
+  try {
+    const stored = localStorage.getItem(SORT_STATE_KEY);
+    if (stored) return JSON.parse(stored) as SortState;
+  } catch {
+    // Ignore local storage failures.
+  }
+  return null;
+}
+
+function saveSortState(state: SortState) {
+  try {
+    if (state) {
+      localStorage.setItem(SORT_STATE_KEY, JSON.stringify(state));
+    } else {
+      localStorage.removeItem(SORT_STATE_KEY);
+    }
   } catch {
     // Ignore local storage failures.
   }
@@ -122,6 +157,13 @@ function statusLabels(part: SmallPart): string[] {
   return labels;
 }
 
+function statusClass(label: string): string {
+  if (label === 'Niedrig') return 'bg-amber-500/20 text-amber-200';
+  if (label === 'Inaktiv') return 'bg-bambu-dark-tertiary text-bambu-gray';
+  if (label === 'Neu') return 'bg-sky-500/20 text-sky-200';
+  return 'bg-bambu-dark-tertiary text-bambu-gray-light';
+}
+
 function matchesQuery(part: SmallPart, query: string): boolean {
   const normalized = query.trim().toLocaleLowerCase();
   if (!normalized) return true;
@@ -133,6 +175,30 @@ function matchesQuery(part: SmallPart, query: string): boolean {
     part.search_terms,
   ].some((value) => (value ?? '').toLocaleLowerCase().includes(normalized));
 }
+
+const columnSortValues: Record<string, (part: SmallPart) => string | number> = {
+  sku: (part) => part.sku.toLocaleLowerCase(),
+  name: (part) => part.name.toLocaleLowerCase(),
+  category: (part) => (part.category?.name ?? '').toLocaleLowerCase(),
+  location: (part) => part.location_id ?? 0,
+  physical: (part) => Number(part.balance.physical),
+  reserved: (part) => Number(part.balance.reserved),
+  available: (part) => Number(part.balance.available),
+  minimum_stock: (part) => Number(part.minimum_stock),
+  unit_cost: (part) => Number(part.unit_cost),
+  supplier: (part) => (part.preferred_offer?.supplier.name ?? '').toLocaleLowerCase(),
+  status: (part) => statusLabels(part).join('|').toLocaleLowerCase(),
+};
+
+const columnAlignment: Record<string, string> = {
+  physical: 'text-center',
+  reserved: 'text-center',
+  available: 'text-center',
+  minimum_stock: 'text-center',
+  unit_cost: 'text-center',
+  supplier: 'text-center',
+  status: 'text-center',
+};
 
 function MaterialCard({ part, onEdit, onStock }: { part: SmallPart; onEdit: () => void; onStock: () => void }) {
   return (
@@ -176,11 +242,15 @@ function MaterialCard({ part, onEdit, onStock }: { part: SmallPart; onEdit: () =
 function MaterialTable({
   items,
   visibleColumns,
+  sortState,
+  onSort,
   onEdit,
   onStock,
 }: {
   items: SmallPart[];
   visibleColumns: string[];
+  sortState: SortState;
+  onSort: (column: string) => void;
   onEdit: (part: SmallPart) => void;
   onStock: (part: SmallPart) => void;
 }) {
@@ -200,7 +270,7 @@ function MaterialTable({
       return (
         <div className="flex flex-wrap gap-1">
           {statusLabels(part).map((label) => (
-            <span key={label} className={`rounded px-1.5 py-0.5 text-xs ${label === 'Niedrig' ? 'bg-amber-500/20 text-amber-200' : 'bg-bambu-dark-tertiary text-bambu-gray-light'}`}>
+            <span key={label} className={`rounded px-1.5 py-0.5 text-xs ${statusClass(label)}`}>
               {label}
             </span>
           ))}
@@ -215,9 +285,31 @@ function MaterialTable({
       <table className="w-full text-sm">
         <thead className={tableHeaderClass}>
           <tr className={tableHeaderRowClass}>
-            {visibleColumns.map((column) => (
-              <th key={column} className={tableHeaderCellClass}>{columnLabel.get(column) ?? column}</th>
-            ))}
+            {visibleColumns.map((column) => {
+              const sortable = Boolean(columnSortValues[column]);
+              const isActive = sortState?.column === column;
+              const alignClass = columnAlignment[column] ?? 'text-left';
+              return (
+                <th
+                  key={column}
+                  className={`${tableHeaderCellClass} select-none ${alignClass} ${
+                    sortable ? 'cursor-pointer transition-colors hover:text-bambu-green' : ''
+                  } ${isActive ? '!text-bambu-green' : ''}`}
+                  onClick={sortable ? () => onSort(column) : undefined}
+                >
+                  <span className={`inline-flex items-center gap-1 ${alignClass === 'text-center' ? 'justify-center' : ''}`}>
+                    {columnLabel.get(column) ?? column}
+                    {sortable && (
+                      isActive
+                        ? sortState.direction === 'asc'
+                          ? <ArrowUp className="h-3 w-3" />
+                          : <ArrowDown className="h-3 w-3" />
+                        : <ArrowUpDown className="h-3 w-3 opacity-30" />
+                    )}
+                  </span>
+                </th>
+              );
+            })}
             <th className={tableHeaderActionCellClass}>Aktionen</th>
           </tr>
         </thead>
@@ -225,7 +317,7 @@ function MaterialTable({
           {items.map((part) => (
             <tr key={part.id} className="border-b border-bambu-dark-tertiary/50 text-bambu-gray hover:bg-bambu-dark-tertiary/30">
               {visibleColumns.map((column) => (
-                <td key={column} className="px-4 py-3 align-middle">{cell(part, column)}</td>
+                <td key={column} className={`px-4 py-3 align-middle ${columnAlignment[column] ?? 'text-left'}`}>{cell(part, column)}</td>
               ))}
               <td className="px-4 py-3">
                 <div className="flex items-center justify-end gap-1">
@@ -285,13 +377,19 @@ function MaterialForecast({ items }: { items: SmallPart[] }) {
 }
 
 export function SmallPartsPage() {
+  const queryClient = useQueryClient();
   const [targetPartId, setTargetPartId] = useState(() => Number(new URLSearchParams(window.location.search).get('part') ?? 0));
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('active');
   const [materialFilter, setMaterialFilter] = useState<MaterialFilter>('all');
-  const [viewMode, setViewMode] = useState<ViewMode>('cards');
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [sortState, setSortState] = useState<SortState>(loadSortState);
   const [columnConfig, setColumnConfig] = useState<ColumnConfig[]>(loadColumnConfig);
   const [showColumnModal, setShowColumnModal] = useState(false);
+  const [locationsModalOpen, setLocationsModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [labelPickerOpen, setLabelPickerOpen] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [editorPart, setEditorPart] = useState<SmallPart | null | undefined>(undefined);
   const [stockPart, setStockPart] = useState<SmallPart | null>(null);
   const parts = useQuery({
@@ -323,6 +421,18 @@ export function SmallPartsPage() {
     if (materialFilter === 'lowstock' && !part.balance.is_low_stock) return false;
     return true;
   }), [activeFilter, allItems, materialFilter, query]);
+  const sortedItems = useMemo(() => {
+    if (!sortState) return items;
+    const extractor = columnSortValues[sortState.column];
+    if (!extractor) return items;
+    return [...items].sort((left, right) => {
+      const leftValue = extractor(left);
+      const rightValue = extractor(right);
+      if (leftValue < rightValue) return sortState.direction === 'asc' ? -1 : 1;
+      if (leftValue > rightValue) return sortState.direction === 'asc' ? 1 : -1;
+      return left.id - right.id;
+    });
+  }, [items, sortState]);
   const forecastItems = useMemo(() => allItems.filter((part) => part.is_active), [allItems]);
   const visibleColumns = useMemo(() => columnConfig.filter((column) => column.visible).map((column) => column.id), [columnConfig]);
   const lowStockCount = allItems.filter((item) => item.is_active && item.balance.is_low_stock).length;
@@ -342,6 +452,38 @@ export function SmallPartsPage() {
     saveColumnConfig(config);
   };
 
+  const handleSort = (column: string) => {
+    if (!columnSortValues[column]) return;
+    setSortState((previous) => {
+      const next: SortState = previous?.column === column
+        ? previous.direction === 'asc'
+          ? { column, direction: 'desc' }
+          : null
+        : { column, direction: 'asc' };
+      saveSortState(next);
+      return next;
+    });
+  };
+
+  const refreshMaterials = () => {
+    queryClient.invalidateQueries({ queryKey: ['small-parts'] });
+  };
+
+  const handleExportCsv = async () => {
+    setActionMessage(null);
+    try {
+      await smallPartsApi.exportCsv();
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : 'CSV-Export fehlgeschlagen.');
+    }
+  };
+
+  const handleImported = (created: number, updated: number) => {
+    setImportModalOpen(false);
+    setActionMessage(`${created} Material angelegt, ${updated} aktualisiert.`);
+    refreshMaterials();
+  };
+
   return (
     <div className="space-y-6 p-4 md:p-8">
       <header className="flex items-center justify-between gap-4">
@@ -355,6 +497,45 @@ export function SmallPartsPage() {
           <Plus className="h-4 w-4" /> Material hinzufügen
         </Button>
       </header>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            setActionMessage(null);
+            setImportModalOpen(true);
+          }}
+        >
+          <Upload className="h-4 w-4" /> CSV importieren
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={allItems.length === 0}
+          onClick={handleExportCsv}
+          title={allItems.length === 0 ? 'Keine Materialien zum Exportieren vorhanden.' : undefined}
+        >
+          <Download className="h-4 w-4" /> CSV exportieren
+        </Button>
+        <Button type="button" variant="secondary" onClick={() => setLocationsModalOpen(true)}>
+          <MapPin className="h-4 w-4" /> Lagerorte
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={sortedItems.length === 0}
+          onClick={() => setLabelPickerOpen(true)}
+          title={sortedItems.length === 0 ? 'Keine Materialien für Etiketten vorhanden.' : undefined}
+        >
+          <Printer className="h-4 w-4" /> Etiketten drucken...
+        </Button>
+      </div>
+      {actionMessage ? (
+        <p className="rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary px-3 py-2 text-sm text-bambu-gray-light">
+          {actionMessage}
+        </p>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         <div className="rounded-lg bg-bambu-dark-secondary p-4">
@@ -453,26 +634,48 @@ export function SmallPartsPage() {
             </button>
           </>
         ) : null}
-        <span className="ml-auto text-xs text-bambu-gray">{items.length} Materialien</span>
+        <span className="ml-auto text-xs text-bambu-gray">{sortedItems.length} Materialien</span>
       </div>
 
       {parts.isLoading && <p className="py-10 text-center text-bambu-gray">Material wird geladen …</p>}
       {parts.isError && <p role="alert" className="rounded-lg bg-red-950/50 p-3 text-red-300">Material konnte nicht geladen werden.</p>}
-      {!parts.isLoading && !parts.isError && viewMode !== 'forecast' && !items.length && <p className="py-10 text-center text-bambu-gray">Noch kein passendes Material vorhanden.</p>}
+      {!parts.isLoading && !parts.isError && viewMode !== 'forecast' && !sortedItems.length && <p className="py-10 text-center text-bambu-gray">Noch kein passendes Material vorhanden.</p>}
       {!parts.isLoading && !parts.isError && viewMode === 'forecast' && <MaterialForecast items={forecastItems} />}
-      {!parts.isLoading && !parts.isError && viewMode === 'cards' && items.length > 0 && (
+      {!parts.isLoading && !parts.isError && viewMode === 'cards' && sortedItems.length > 0 && (
         <div className="grid gap-3 xl:grid-cols-2">
-          {items.map((part) => (
+          {sortedItems.map((part) => (
             <MaterialCard key={part.id} part={part} onEdit={() => setEditorPart(part)} onStock={() => setStockPart(part)} />
           ))}
         </div>
       )}
-      {!parts.isLoading && !parts.isError && viewMode === 'table' && items.length > 0 && (
-        <MaterialTable items={items} visibleColumns={visibleColumns} onEdit={setEditorPart} onStock={setStockPart} />
+      {!parts.isLoading && !parts.isError && viewMode === 'table' && sortedItems.length > 0 && (
+        <MaterialTable
+          items={sortedItems}
+          visibleColumns={visibleColumns}
+          sortState={sortState}
+          onSort={handleSort}
+          onEdit={setEditorPart}
+          onStock={setStockPart}
+        />
       )}
 
       {editorPart !== undefined && <SmallPartEditor part={editorPart} onClose={closeEditor} />}
       {stockPart && <SmallPartStockDialog part={stockPart} onClose={() => setStockPart(null)} />}
+      {importModalOpen && (
+        <MaterialCsvImportModal
+          onClose={() => setImportModalOpen(false)}
+          onImported={handleImported}
+        />
+      )}
+      {labelPickerOpen && (
+        <LabelTemplatePickerModal
+          isOpen={labelPickerOpen}
+          onClose={() => setLabelPickerOpen(false)}
+          availableMaterials={sortedItems}
+          initialSelectedIds={sortedItems.map((part) => part.id)}
+          resourceType="material"
+        />
+      )}
       <ColumnConfigModal
         isOpen={showColumnModal}
         onClose={() => setShowColumnModal(false)}
@@ -480,6 +683,15 @@ export function SmallPartsPage() {
         defaultColumns={DEFAULT_COLUMNS}
         onSave={saveColumns}
       />
+      {locationsModalOpen && (
+        <LocationsModal
+          open={locationsModalOpen}
+          onClose={() => {
+            setLocationsModalOpen(false);
+            refreshMaterials();
+          }}
+        />
+      )}
     </div>
   );
 }
