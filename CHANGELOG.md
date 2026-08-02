@@ -4,10 +4,52 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+## [1.2.7.5] - 2026-08-02
+
+### Added
+- **Filament inventory value card** - The spool inventory overview now shows the active stock value in the configured display currency, calculated from remaining spool weight and each spool's cost per kilogram.
+- **Filament supplier assignment in the spool form** - The local "Add/Edit Spool" form now exposes the procurement offer editor for filament resources, so supplier offers can be assigned directly while creating or updating a spool.
+- **Material warehouse import/export and label workflows** - The small-parts/material warehouse now includes CSV import, CSV export, location management entry points and bulk label printing support using the shared label template picker.
+
+### Fixed
+- **Spool inventory filters are more compact on wide screens** - Material, brand, category, spool and storage-location filters now flow side by side and move into the upper filter row when there is enough horizontal space.
+- **Material warehouse table parity** - The material inventory table now follows the filament table more closely with sortable columns, table-first presentation, status styling and aligned table header controls.
+- **Material editor formatting** - Minimum stock quantities respect unit precision, whole-piece units stay integer-only, and unit prices are normalized to two decimal places.
+
+## [1.2.7.4] - 2026-08-01
+
+### Added
+- **Material workflow review polish** - Material inventory gained clearer table/card controls, stock status handling and additional operational actions so the warehouse view lines up more closely with filament inventory workflows.
+
+### Fixed
+- **Bug reporting form restored** - The in-app bug reporting flow was restored with its original guided form behavior while keeping submissions pointed at the PrintOps fork rather than the upstream bambuddy repository.
+- **Business dashboard inventory and energy cleanup** - Dashboard cards, energy overview totals, hourly profile rendering and inventory/resource sections were corrected so warehouse material and smart-plug data no longer appear in the wrong places.
+- **Runtime image hardening** - Python tooling in the runtime image was tightened to keep CI and release packaging aligned with the repository's security expectations.
+
+## [1.2.7.3] - 2026-07-30
+
+### Added
+- **Business dashboard and operational insights** - Adds the business dashboard with energy, inventory, cost and operational control views for production-oriented reporting.
+
+### Fixed
+- **Business dashboard release blockers** - Resolves review feedback, i18n parity and backend formatting issues found while preparing the dashboard release.
+
 ## [1.2.7.2] - 2026-07-29
 
 ### Fixed
 - **Bug reporting now uses GitHub issues directly** - The floating bug-report panel and Support page now use the public GitHub issue form as the standard reporting path instead of exposing a per-installation relay submission flow. This keeps official builds zero-config for users, avoids misleading "automatic reporting not configured" errors, and still preserves the pre-report printer and log-health checks that can help users self-triage before opening an issue.
+
+## [1.2.7.1] - 2026-07-29
+
+### Added
+- **Bug-report destination status** - The support and floating bug-report surfaces now show clearer destination/status information before a user submits a report.
+- **GitHub issue reporting setup** - Introduces the first GitHub issue reporting path for PrintOps so local reports can land in the fork's public tracker.
+
+### Fixed
+- **Time-dependent plug energy history test** - Stabilizes the smart-plug energy-history test so date-sensitive assertions do not fail around local time boundaries.
+- **Settings layout and repository cleanup** - Polishes the settings layout and removes stale generated repository artifacts from the release surface.
+- **PDF preview cleanup timing** - Makes PDF preview cleanup tests deterministic.
+- **TOTP replay counter matching** - Corrects replay counter matching for TOTP validation.
 
 ## [1.2.7] - 2026-07-28
 

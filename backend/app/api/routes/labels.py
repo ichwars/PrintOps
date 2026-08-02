@@ -21,11 +21,13 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from backend.app.api.routes.settings import get_setting
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
+from backend.app.models.small_part import SmallPart
 from backend.app.models.spool import Spool
 from backend.app.models.user import User
 from backend.app.services.label_renderer import LabelData, TemplateName, render_labels
@@ -62,6 +64,19 @@ class LabelRequest(BaseModel):
     ]
     # Black-and-white thermal printers: drop the colour swatch (prints as a
     # muddy grey block) and widen the text column instead (#1870).
+    monochrome: bool = False
+
+
+class SmallPartLabelRequest(BaseModel):
+    small_part_ids: list[int] = Field(..., min_length=1, max_length=MAX_LABELS_PER_REQUEST)
+    template: Literal[
+        "ams_holder_74x33",
+        "ams_holder_75x55",
+        "box_40x30",
+        "box_62x29",
+        "avery_5160",
+        "avery_l7160",
+    ]
     monochrome: bool = False
 
 
@@ -134,6 +149,22 @@ def _spoolman_dict_to_label_data(s: dict, deeplink_base: str) -> LabelData:
     )
 
 
+def _small_part_to_label_data(part: SmallPart, deeplink_base: str) -> LabelData:
+    category = part.category.name if part.category else "Material"
+    storage_location = getattr(part.location, "name", None)
+    return LabelData(
+        spool_id=part.id,
+        name=part.name,
+        material=category,
+        brand=part.sku,
+        subtype=part.unit.label if part.unit else part.unit_code,
+        rgba=None,
+        extra_colors=None,
+        storage_location=storage_location,
+        deeplink_url=f"{deeplink_base}/warehouse/parts?part={part.id}",
+    )
+
+
 def _stream_pdf(pdf: bytes, filename: str) -> StreamingResponse:
     return StreamingResponse(
         io.BytesIO(pdf),
@@ -175,6 +206,39 @@ async def render_local_inventory_labels(
 
     pdf = render_labels(body.template, data_list, monochrome=body.monochrome)
     filename = f"printops-labels-{body.template}.pdf"
+    return _stream_pdf(pdf, filename)
+
+
+@router.post("/small-parts/labels")
+async def render_small_part_labels(
+    body: SmallPartLabelRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
+) -> StreamingResponse:
+    """Render labels for stocked material in the small-parts warehouse."""
+    if body.template not in _VALID_TEMPLATES:
+        raise HTTPException(400, f"Unknown template: {body.template}")
+
+    result = await db.execute(
+        select(SmallPart)
+        .where(SmallPart.id.in_(body.small_part_ids))
+        .options(selectinload(SmallPart.category), selectinload(SmallPart.unit), selectinload(SmallPart.location))
+    )
+    parts = list(result.scalars().all())
+
+    found_ids = {part.id for part in parts}
+    missing = [part_id for part_id in body.small_part_ids if part_id not in found_ids]
+    if missing:
+        raise HTTPException(404, f"Material(s) not found: {missing}")
+
+    ordered = sorted(parts, key=lambda part: body.small_part_ids.index(part.id))
+
+    deeplink_base = await _resolve_deeplink_base(request, db)
+    data_list = [_small_part_to_label_data(part, deeplink_base) for part in ordered]
+
+    pdf = render_labels(body.template, data_list, monochrome=body.monochrome)
+    filename = f"printops-material-labels-{body.template}.pdf"
     return _stream_pdf(pdf, filename)
 
 

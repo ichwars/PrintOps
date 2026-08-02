@@ -7,7 +7,7 @@ import {
   Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   TrendingDown, Layers, Printer, AlertTriangle, X, Clock, LayoutGrid, TableProperties, Columns,
   ArrowUp, ArrowDown, ArrowUpDown, Group, ChevronDown, Check, RefreshCw, TrendingUp, Lock, Copy, Eraser, MapPin,
-  Upload, Download,
+  Upload, Download, CircleDollarSign,
 } from 'lucide-react';
 import { ForecastPanel } from '../components/ForecastPanel';
 import { api, spoolbuddyApi, ApiError } from '../api/client';
@@ -1041,6 +1041,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const stats = useMemo(() => {
     if (!spools) return null;
     let totalWeight = 0;
+    let totalValue = 0;
     let totalConsumed = 0;
     let lowStock = 0;
     let activeCount = 0;
@@ -1056,6 +1057,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
       activeCount++;
       const remaining = Math.max(0, s.label_weight - s.weight_used);
       totalWeight += remaining;
+      totalValue += (remaining / 1000) * Math.max(0, s.cost_per_kg ?? 0);
       const pct = s.label_weight > 0 ? (remaining / s.label_weight) * 100 : 0;
       const threshold = s.low_stock_threshold_pct ?? lowStockThreshold;
       if (pct <= threshold) lowStock++;
@@ -1064,13 +1066,17 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
       byMaterial[mat].count++;
       byMaterial[mat].weight += remaining;
     }
-    return { totalWeight, totalConsumed, lowStock, byMaterial, totalSpools: activeCount };
+    return { totalWeight, totalValue, totalConsumed, lowStock, byMaterial, totalSpools: activeCount };
   }, [spools, lowStockThreshold]);
 
   const inPrinterCount =
     (assignments?.length ?? 0) + (spoolmanMode ? spoolmanSlotAssignments.length : 0);
 
-  const { currencySymbol } = useDisplayCurrency(settings?.currency);
+  const { currencyCode, currencySymbol } = useDisplayCurrency(settings?.currency);
+  const formattedInventoryValue = new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: currencyCode,
+  }).format(stats?.totalValue ?? 0);
 
   // Map spool_id -> location display data for the LOCATION column.
   // Local SpoolAssignment entries first, then Spoolman SlotAssignment fills in
@@ -1406,6 +1412,12 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     resetPage();
   };
 
+  const filterSelectClass = (active: boolean) => `h-8 w-full min-w-0 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none ${
+    active
+      ? 'bg-bambu-green/20 text-bambu-green border-bambu-green/30'
+      : 'bg-transparent text-bambu-gray border-bambu-dark-tertiary hover:bg-bambu-dark-tertiary'
+  }`;
+
   return (
     <div className="p-4 md:p-8 space-y-6">
       {/* Header */}
@@ -1469,7 +1481,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
 
       {/* Stats Bar */}
       {stats && !isLoading && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           {/* Total Inventory */}
           <div className="bg-bambu-dark-secondary rounded-lg p-4">
             <div className="flex items-center gap-2 mb-1">
@@ -1478,6 +1490,16 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
             </div>
             <div className="text-xl font-bold text-white">{formatWeight(stats.totalWeight, true)}</div>
             <div className="text-xs text-bambu-gray mt-1">{stats.totalSpools} {stats.totalSpools !== 1 ? t('inventory.spools') : t('inventory.spool')}</div>
+          </div>
+
+          {/* Inventory Value */}
+          <div className="bg-bambu-dark-secondary rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <CircleDollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-xs text-bambu-gray font-medium uppercase tracking-wide">{t('inventory.inventoryValue', 'Bestandswert')}</span>
+            </div>
+            <div className="text-xl font-bold text-white">{formattedInventoryValue}</div>
+            <div className="text-xs text-bambu-gray mt-1">{t('inventory.inventoryValueHint', 'nach Einkaufspreis')}</div>
           </div>
 
           {/* Total Consumed */}
@@ -1796,100 +1818,82 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
 
         <div className="w-px h-5 bg-bambu-dark-tertiary" />
 
-        {/* Material dropdown chip */}
-        <LegacySelect
-          value={materialFilter}
-          onChange={(e) => { setMaterialFilter(e.target.value); resetPage(); }}
-          className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none ${
-            materialFilter
-              ? 'bg-bambu-green/20 text-bambu-green border-bambu-green/30'
-              : 'bg-transparent text-bambu-gray border-bambu-dark-tertiary hover:bg-bambu-dark-tertiary'
-          }`}
-        >
-          <option value="">{t('inventory.material')}</option>
-          {uniqueMaterials.map((m) => (
-            <option key={m} value={m}>{m}</option>
-          ))}
-        </LegacySelect>
-
-        {/* Brand dropdown chip */}
-        <LegacySelect
-          value={brandFilter}
-          onChange={(e) => { setBrandFilter(e.target.value); resetPage(); }}
-          className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none ${
-            brandFilter
-              ? 'bg-bambu-green/20 text-bambu-green border-bambu-green/30'
-              : 'bg-transparent text-bambu-gray border-bambu-dark-tertiary hover:bg-bambu-dark-tertiary'
-          }`}
-        >
-          <option value="">{t('inventory.brand')}</option>
-          {uniqueBrands.map((b) => (
-            <option key={b} value={b}>{b}</option>
-          ))}
-        </LegacySelect>
-
-        {/* Category dropdown chip (#729) — only render once at least one
-            spool carries a category, otherwise it's noise. */}
-        {(uniqueCategories.length > 0 || categoryFilter) && (
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:w-auto 2xl:flex-1 2xl:grid-cols-5">
+          {/* Material dropdown chip */}
           <LegacySelect
-            value={categoryFilter}
-            onChange={(e) => { setCategoryFilter(e.target.value); resetPage(); }}
-            className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none ${
-              categoryFilter
-                ? 'bg-bambu-green/20 text-bambu-green border-bambu-green/30'
-                : 'bg-transparent text-bambu-gray border-bambu-dark-tertiary hover:bg-bambu-dark-tertiary'
-            }`}
+            value={materialFilter}
+            onChange={(e) => { setMaterialFilter(e.target.value); resetPage(); }}
+            className={filterSelectClass(Boolean(materialFilter))}
           >
-            <option value="">{t('inventory.category')}</option>
-            {uniqueCategories.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-            {hasUncategorized && (
-              <option value="__none__">{t('inventory.categoryNone')}</option>
-            )}
-          </LegacySelect>
-        )}
-
-        {/* Spool name dropdown chip */}
-        {uniqueSpoolCatalogIds.length > 0 && (
-          <LegacySelect
-            value={spoolFilter}
-            onChange={(e) => { setSpoolFilter(e.target.value); resetPage(); }}
-            className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none ${
-              spoolFilter
-                ? 'bg-bambu-green/20 text-bambu-green border-bambu-green/30'
-                : 'bg-transparent text-bambu-gray border-bambu-dark-tertiary hover:bg-bambu-dark-tertiary'
-            }`}
-          >
-            <option value="">{t('inventory.spoolName')}</option>
-            {uniqueSpoolCatalogIds.map((id) => (
-              <option key={id} value={id}>{catalogMap[id]?.name || `#${id}`}</option>
+            <option value="">{t('inventory.material')}</option>
+            {uniqueMaterials.map((m) => (
+              <option key={m} value={m}>{m}</option>
             ))}
           </LegacySelect>
-        )}
 
-        {/* Storage location dropdown chip (#1400) — only render when at
-            least one spool carries a storage location, otherwise it's noise
-            (matches the category chip pattern). */}
-        {(storageLocations.length > 0 || storageLocationFilter) && (
+          {/* Brand dropdown chip */}
           <LegacySelect
-            value={storageLocationFilter}
-            onChange={(e) => { setStorageLocationFilter(e.target.value); }}
-            className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none ${
-              storageLocationFilter
-                ? 'bg-bambu-green/20 text-bambu-green border-bambu-green/30'
-                : 'bg-transparent text-bambu-gray border-bambu-dark-tertiary hover:bg-bambu-dark-tertiary'
-            }`}
+            value={brandFilter}
+            onChange={(e) => { setBrandFilter(e.target.value); resetPage(); }}
+            className={filterSelectClass(Boolean(brandFilter))}
           >
-            <option value="">{t('inventory.storageLocation')}</option>
-            {storageLocations.map((loc) => (
-              <option key={loc.id} value={String(loc.id)}>{loc.name}</option>
+            <option value="">{t('inventory.brand')}</option>
+            {uniqueBrands.map((b) => (
+              <option key={b} value={b}>{b}</option>
             ))}
-            {hasUnsetStorageLocation && (
-              <option value="__none__">{t('inventory.storageLocationNone')}</option>
-            )}
           </LegacySelect>
-        )}
+
+          {/* Category dropdown chip (#729) — only render once at least one
+              spool carries a category, otherwise it's noise. */}
+          {(uniqueCategories.length > 0 || categoryFilter) && (
+            <LegacySelect
+              value={categoryFilter}
+              onChange={(e) => { setCategoryFilter(e.target.value); resetPage(); }}
+              className={filterSelectClass(Boolean(categoryFilter))}
+            >
+              <option value="">{t('inventory.category')}</option>
+              {uniqueCategories.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+              {hasUncategorized && (
+                <option value="__none__">{t('inventory.categoryNone')}</option>
+              )}
+            </LegacySelect>
+          )}
+
+          {/* Spool name dropdown chip */}
+          {uniqueSpoolCatalogIds.length > 0 && (
+            <LegacySelect
+              value={spoolFilter}
+              onChange={(e) => { setSpoolFilter(e.target.value); resetPage(); }}
+              className={filterSelectClass(Boolean(spoolFilter))}
+            >
+              <option value="">{t('inventory.spoolName')}</option>
+              {uniqueSpoolCatalogIds.map((id) => (
+                <option key={id} value={id}>{catalogMap[id]?.name || `#${id}`}</option>
+              ))}
+            </LegacySelect>
+          )}
+
+          {/* Storage location dropdown chip (#1400) — only render when at
+              least one spool carries a storage location, otherwise it's noise
+              (matches the category chip pattern). */}
+          {(storageLocations.length > 0 || storageLocationFilter) && (
+            <LegacySelect
+              value={storageLocationFilter}
+              onChange={(e) => { setStorageLocationFilter(e.target.value); }}
+              className={filterSelectClass(Boolean(storageLocationFilter))}
+            >
+              <option value="">{t('inventory.storageLocation')}</option>
+              {storageLocations.map((loc) => (
+                <option key={loc.id} value={String(loc.id)}>{loc.name}</option>
+              ))}
+              {hasUnsetStorageLocation && (
+                <option value="__none__">{t('inventory.storageLocationNone')}</option>
+              )}
+            </LegacySelect>
+          )}
+        </div>
 
         {focusFilter && (
           <button

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Loader2, Printer, CheckSquare, Square, Search } from 'lucide-react';
 import { api, type SpoolLabelTemplate, type InventorySpool } from '../api/client';
+import { smallPartsApi, type SmallPart } from '../api/smallParts';
 import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
 import { getSwatchStyle } from '../utils/colors';
@@ -13,17 +14,29 @@ type SpoolForLabel = Pick<
   'id' | 'material' | 'subtype' | 'brand' | 'color_name' | 'rgba'
 >;
 
+type SmallPartForLabel = Pick<SmallPart, 'id' | 'sku' | 'name' | 'category' | 'unit'>;
+
+interface LabelItem {
+  id: number;
+  title: string;
+  subtitle: string | null;
+  group: string;
+  rgba?: string | null;
+}
+
 interface LabelTemplatePickerModalProps {
   isOpen: boolean;
   onClose: () => void;
   /** All spools the modal can choose from. Typically the page's current
    *  filter result so the modal stays consistent with what the user sees. */
-  availableSpools: SpoolForLabel[];
+  availableSpools?: SpoolForLabel[];
+  availableMaterials?: SmallPartForLabel[];
   /** IDs to pre-check when the modal opens. Per-card icon passes a single ID;
    *  the bulk header button passes every visible ID so the user lands in
    *  "all checked" and refines downward. */
   initialSelectedIds: number[];
-  spoolmanMode: boolean;
+  spoolmanMode?: boolean;
+  resourceType?: 'spool' | 'material';
 }
 
 interface TemplateOption {
@@ -109,9 +122,36 @@ function spoolDisplayName(s: SpoolForLabel): string {
   return `${head}${brand}`;
 }
 
+function materialDisplayName(part: SmallPartForLabel): string {
+  return `${part.name} · ${part.sku}`;
+}
+
+function toLabelItems(
+  resourceType: 'spool' | 'material',
+  spools: SpoolForLabel[],
+  materials: SmallPartForLabel[],
+): LabelItem[] {
+  if (resourceType === 'material') {
+    return materials.map((part) => ({
+      id: part.id,
+      title: materialDisplayName(part),
+      subtitle: part.category?.name ?? part.unit.label,
+      group: (part.category?.name ?? 'Ohne Kategorie').toUpperCase(),
+      rgba: null,
+    }));
+  }
+  return spools.map((spool) => ({
+    id: spool.id,
+    title: spoolDisplayName(spool),
+    subtitle: spool.material,
+    group: spool.material.toUpperCase(),
+    rgba: spool.rgba,
+  }));
+}
+
 /** Build a lowercased haystack that the search input matches against. */
-function searchableText(s: SpoolForLabel): string {
-  return [s.color_name, s.material, s.subtype, s.brand, `#${s.id}`]
+function searchableText(s: LabelItem): string {
+  return [s.title, s.subtitle, s.group, `#${s.id}`]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
@@ -164,9 +204,11 @@ function colorSortKey(rgba: string | null | undefined): [number, number] {
 export function LabelTemplatePickerModal({
   isOpen,
   onClose,
-  availableSpools,
+  availableSpools = [],
+  availableMaterials = [],
   initialSelectedIds,
-  spoolmanMode,
+  spoolmanMode = false,
+  resourceType = 'spool',
 }: LabelTemplatePickerModalProps) {
   const { t } = useTranslation();
   const { showToast } = useToast();
@@ -177,12 +219,17 @@ export function LabelTemplatePickerModal({
   const [sortMode, setSortMode] = useState<SortMode>('id');
   const [monochrome, setMonochrome] = useState(false);
 
+  const availableItems = useMemo(
+    () => toLabelItems(resourceType, availableSpools, availableMaterials),
+    [availableMaterials, availableSpools, resourceType],
+  );
+
   // Sync from caller and reset transient state on open. Intentionally not
   // reactive to props while open — once the user starts editing we don't want
   // a parent re-render to clobber their selection / filter / search.
   useEffect(() => {
     if (isOpen) {
-      const allowed = new Set(availableSpools.map((s) => s.id));
+      const allowed = new Set(availableItems.map((s) => s.id));
       setSelectedIds(new Set(initialSelectedIds.filter((id) => allowed.has(id))));
       setSearch('');
       setMaterialFilter('');
@@ -193,9 +240,9 @@ export function LabelTemplatePickerModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  const sortedSpools = useMemo(() => {
-    const copy = [...availableSpools];
-    if (sortMode === 'color') {
+  const sortedItems = useMemo(() => {
+    const copy = [...availableItems];
+    if (resourceType === 'spool' && sortMode === 'color') {
       copy.sort((a, b) => {
         const ka = colorSortKey(a.rgba);
         const kb = colorSortKey(b.rgba);
@@ -209,29 +256,29 @@ export function LabelTemplatePickerModal({
     }
     copy.sort((a, b) => a.id - b.id);
     return copy;
-  }, [availableSpools, sortMode]);
+  }, [availableItems, resourceType, sortMode]);
 
   // Material chips are derived from the *full* available set so they stay
   // stable when search/material filter narrows the visible list.
   const materials = useMemo(() => {
     const set = new Set<string>();
-    for (const s of sortedSpools) {
-      if (s.material) set.add(s.material.toUpperCase());
+    for (const s of sortedItems) {
+      if (s.group) set.add(s.group);
     }
     return [...set].sort();
-  }, [sortedSpools]);
+  }, [sortedItems]);
 
-  const visibleSpools = useMemo(() => {
+  const visibleItems = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return sortedSpools.filter((s) => {
-      if (materialFilter && (s.material || '').toUpperCase() !== materialFilter) return false;
+    return sortedItems.filter((s) => {
+      if (materialFilter && s.group !== materialFilter) return false;
       if (q && !searchableText(s).includes(q)) return false;
       return true;
     });
-  }, [sortedSpools, search, materialFilter]);
+  }, [sortedItems, search, materialFilter]);
 
   const allVisibleChecked =
-    visibleSpools.length > 0 && visibleSpools.every((s) => selectedIds.has(s.id));
+    visibleItems.length > 0 && visibleItems.every((s) => selectedIds.has(s.id));
 
   if (!isOpen) return null;
 
@@ -250,7 +297,7 @@ export function LabelTemplatePickerModal({
   function selectAllVisible() {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      for (const s of visibleSpools) next.add(s.id);
+      for (const s of visibleItems) next.add(s.id);
       return next;
     });
   }
@@ -258,7 +305,7 @@ export function LabelTemplatePickerModal({
   function deselectVisible() {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      for (const s of visibleSpools) next.delete(s.id);
+      for (const s of visibleItems) next.delete(s.id);
       return next;
     });
   }
@@ -272,12 +319,14 @@ export function LabelTemplatePickerModal({
     // Order matters: the backend (labels.py) prints labels in the same order
     // we send IDs. Use the sorted list so a "by colour" sort flows through to
     // the PDF instead of being clobbered by an ascending-ID re-sort.
-    const ids = sortedSpools.filter((s) => selectedIds.has(s.id)).map((s) => s.id);
+    const ids = sortedItems.filter((s) => selectedIds.has(s.id)).map((s) => s.id);
     setPending(template);
     try {
-      const blob = spoolmanMode
-        ? await api.printSpoolmanSpoolLabels({ spool_ids: ids, template, monochrome })
-        : await api.printSpoolLabels({ spool_ids: ids, template, monochrome });
+      const blob = resourceType === 'material'
+        ? await smallPartsApi.printLabels({ small_part_ids: ids, template, monochrome })
+        : spoolmanMode
+          ? await api.printSpoolmanSpoolLabels({ spool_ids: ids, template, monochrome })
+          : await api.printSpoolLabels({ spool_ids: ids, template, monochrome });
       openBlobInNewTab(blob);
       onClose();
     } catch (err) {
@@ -304,7 +353,7 @@ export function LabelTemplatePickerModal({
           <div className="flex items-center gap-2">
             <Printer className="w-5 h-5 text-bambu-green" />
             <h2 className="text-lg font-semibold text-white">
-              {t('inventory.labels.title', 'Print spool labels')}
+              {resourceType === 'material' ? 'Material-Etiketten drucken' : t('inventory.labels.title', 'Print spool labels')}
             </h2>
             {selectedCount > 0 && (
               <span className="text-sm text-bambu-gray">
@@ -329,14 +378,14 @@ export function LabelTemplatePickerModal({
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={t('inventory.labels.searchPlaceholder', 'Search name, brand, or #ID')}
+              placeholder={resourceType === 'material' ? 'Name, Artikelnummer oder #ID suchen' : t('inventory.labels.searchPlaceholder', 'Search name, brand, or #ID')}
               className="w-full pl-9 pr-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray focus:outline-none focus:border-bambu-green"
             />
           </div>
           {materials.length > 1 && (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs text-bambu-gray mr-1">
-                {t('inventory.labels.filterByMaterial', 'Material:')}
+                {resourceType === 'material' ? 'Kategorie:' : t('inventory.labels.filterByMaterial', 'Material:')}
               </span>
               <button
                 type="button"
@@ -383,10 +432,11 @@ export function LabelTemplatePickerModal({
             <button
               type="button"
               onClick={() => setSortMode('color')}
+              disabled={resourceType === 'material'}
               className={`px-2 py-0.5 text-xs rounded-full border transition ${
                 sortMode === 'color'
                   ? 'bg-bambu-green text-bambu-dark border-bambu-green'
-                  : 'bg-bambu-dark text-bambu-gray border-bambu-dark-tertiary hover:border-bambu-gray'
+                  : 'bg-bambu-dark text-bambu-gray border-bambu-dark-tertiary hover:border-bambu-gray disabled:opacity-50 disabled:hover:border-bambu-dark-tertiary'
               }`}
             >
               {t('inventory.labels.sortBy.color')}
@@ -397,19 +447,19 @@ export function LabelTemplatePickerModal({
         {/* Action bar */}
         <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-3 flex-wrap">
           <span className="text-sm text-bambu-gray">
-            {t('inventory.labels.pickSpools', 'Pick which spools to print labels for:')}
+            {resourceType === 'material' ? 'Material für Etiketten auswählen:' : t('inventory.labels.pickSpools', 'Pick which spools to print labels for:')}
           </span>
           <div className="flex items-center gap-3 text-xs">
             <button
               type="button"
               onClick={allVisibleChecked ? deselectVisible : selectAllVisible}
-              disabled={visibleSpools.length === 0}
+              disabled={visibleItems.length === 0}
               className="text-bambu-green hover:underline disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
             >
               {allVisibleChecked
                 ? t('inventory.labels.deselectVisible', 'Deselect visible')
                 : t('inventory.labels.selectVisible', 'Select all visible ({{count}})', {
-                    count: visibleSpools.length,
+                    count: visibleItems.length,
                   })}
             </button>
             <button
@@ -425,15 +475,19 @@ export function LabelTemplatePickerModal({
 
         {/* Spool list */}
         <div className="flex-1 overflow-y-auto px-2 pb-2 min-h-0">
-          {visibleSpools.length === 0 ? (
+          {visibleItems.length === 0 ? (
             <div className="text-center text-sm text-bambu-gray py-6">
-              {sortedSpools.length === 0
-                ? t('inventory.labels.noSpoolsToShow', 'No spools to show. Adjust your filter and try again.')
-                : t('inventory.labels.noMatches', 'No spools match the current search or filter.')}
+              {sortedItems.length === 0
+                ? resourceType === 'material'
+                  ? 'Kein Material für Etiketten vorhanden.'
+                  : t('inventory.labels.noSpoolsToShow', 'No spools to show. Adjust your filter and try again.')
+                : resourceType === 'material'
+                  ? 'Kein Material passt zur aktuellen Suche oder Kategorie.'
+                  : t('inventory.labels.noMatches', 'No spools match the current search or filter.')}
             </div>
           ) : (
             <ul className="space-y-0.5">
-              {visibleSpools.map((s) => {
+              {visibleItems.map((s) => {
                 const checked = selectedIds.has(s.id);
                 return (
                   <li key={s.id}>
@@ -447,12 +501,14 @@ export function LabelTemplatePickerModal({
                         checked={checked}
                         onChange={() => toggleOne(s.id)}
                       />
-                      <span
-                        className="w-4 h-4 rounded border border-black/20 shrink-0"
-                        style={swatchStyle(s.rgba)}
-                      />
+                      {resourceType === 'spool' ? (
+                        <span
+                          className="w-4 h-4 rounded border border-black/20 shrink-0"
+                          style={swatchStyle(s.rgba)}
+                        />
+                      ) : null}
                       <span className="flex-1 min-w-0 truncate text-sm text-white">
-                        {spoolDisplayName(s)}
+                        {s.title}
                       </span>
                       <span className="text-xs font-mono text-bambu-gray shrink-0">
                         #{s.id}
