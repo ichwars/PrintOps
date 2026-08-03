@@ -3337,7 +3337,7 @@ async def run_migrations(conn):
     await _safe_execute(conn, equipment_sql)
     await _safe_execute(conn, "CREATE INDEX IF NOT EXISTS ix_smart_plugs_equipment_id ON smart_plugs(equipment_id)")
 
-    # Migration: per-user Orca Cloud credential and transient PKCE columns.
+    # Migration: per-user Orca Cloud credentials and transient pairing columns.
     await _safe_execute(conn, "ALTER TABLE users ADD COLUMN orca_cloud_token VARCHAR(2000)")
     await _safe_execute(conn, "ALTER TABLE users ADD COLUMN orca_cloud_refresh_token VARCHAR(128)")
     if is_sqlite():
@@ -3580,7 +3580,7 @@ async def run_migrations(conn):
 
     # Migration: real filesystem mtime for library files/folders (#2680). The
     # folder tree's "sort by recent activity" and the file pane's date sort must
-    # track the on-disk mtime (``ls -t``), not Bambuddy's DB ``updated_at`` — for
+    # track the on-disk mtime (``ls -t``), not PrintOps's DB ``updated_at`` — for
     # a bulk external scan every row's ``updated_at`` is the same scan instant, so
     # ordering was arbitrary. Nullable; the timestamp type differs by dialect
     # (SQLite DATETIME vs Postgres TIMESTAMP) so an existing-DB upgrade doesn't hit
