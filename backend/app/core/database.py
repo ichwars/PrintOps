@@ -3671,6 +3671,116 @@ async def _migrate_document_payments(conn) -> None:
         conn, "CREATE INDEX IF NOT EXISTS ix_document_payments_document_id ON document_payments(document_id)"
     )
 
+    # Migration: variant grouping for library files (#671 / #2570). The
+    # `file_variant_groups` table itself needs no migration — create_all() above
+    # builds it — but the two member-side columns do. INTEGER and the inline
+    # REFERENCES clause are spelled identically on SQLite and Postgres, and
+    # SQLite accepts a REFERENCES on ADD COLUMN (same form as the
+    # pipeline_runs.parent_run_id migration at the top of this function).
+    await _safe_execute(
+        conn,
+        "ALTER TABLE library_files ADD COLUMN variant_group_id INTEGER "
+        "REFERENCES file_variant_groups(id) ON DELETE SET NULL",
+    )
+    await _safe_execute(conn, "ALTER TABLE library_files ADD COLUMN variant_position INTEGER DEFAULT 0")
+    # The model declares index=True, so fresh installs get this from create_all();
+    # migrated databases need it spelled out. Resolution looks members up by group
+    # on every scheduler pass that touches a grouped item.
+    await _safe_execute(
+        conn,
+        "CREATE INDEX IF NOT EXISTS ix_library_files_variant_group_id ON library_files (variant_group_id)",
+    )
+    await _migrate_backfill_variant_groups(conn)
+
+
+async def _migrate_backfill_variant_groups(conn) -> None:
+    """Build variant groups from the slice provenance already on disk (#671 / #2570).
+
+    ``sliced_from_library_file_id`` has been stamped into ``file_metadata`` by the
+    Slice button (routes/library.py) and the pipeline runner (routes/pipeline_runs.py)
+    since those features shipped, and until now nothing ever read it back — the
+    link existed but was inert. This promotes it to real group membership so an
+    existing library arrives with its slice sets already grouped instead of
+    requiring the user to re-declare by hand what Bambuddy itself recorded.
+
+    Only sources with **two or more** sliced children carrying **distinct**
+    ``sliced_for_model`` values produce a group:
+
+    - Fewer than two candidates is not a choice, and a one-member group would
+      change nothing at print time while creating a row per sliced file in every
+      library on earth.
+    - Two children sliced for the same printer are not alternatives — the
+      resolver has no basis to prefer one, so grouping them would turn a
+      harmless duplicate into an arbitrary pick. Those sources are skipped
+      whole; the user can still group them by hand and choose an order.
+
+    The unsliced source file is deliberately not a member. It has no
+    ``sliced_for_model``, so it can never be a dispatch candidate; showing it
+    alongside its variants is a File Manager listing concern, which is out of
+    scope.
+
+    Idempotent: only files with no group yet are considered, so a re-run after a
+    partial apply resumes rather than duplicating, and a user who has since
+    ungrouped files by hand does not get them silently regrouped.
+    """
+    from sqlalchemy import text
+
+    from backend.app.models.library import FileVariantGroup
+
+    if is_sqlite():
+        source_expr = "json_extract(file_metadata, '$.sliced_from_library_file_id')"
+        model_expr = "json_extract(file_metadata, '$.sliced_for_model')"
+    else:
+        # file_metadata is JSON, not JSONB — cast before using the -> operators,
+        # matching _migrate_drop_library_print_name above.
+        source_expr = "file_metadata::jsonb->>'sliced_from_library_file_id'"
+        model_expr = "file_metadata::jsonb->>'sliced_for_model'"
+
+    async with conn.begin_nested():
+        rows = (
+            await conn.execute(
+                text(
+                    f"SELECT id, {source_expr} AS source_id, {model_expr} AS model "  # noqa: S608 — dialect literals
+                    "FROM library_files "
+                    f"WHERE {source_expr} IS NOT NULL AND {model_expr} IS NOT NULL "
+                    "AND variant_group_id IS NULL AND deleted_at IS NULL "
+                    "ORDER BY id"
+                )
+            )
+        ).fetchall()
+
+        by_source: dict[str, list[tuple[int, str]]] = {}
+        for file_id, source_id, model in rows:
+            by_source.setdefault(str(source_id), []).append((file_id, str(model)))
+
+        for source_id, members in by_source.items():
+            if len(members) < 2:
+                continue
+            models = [m for _, m in members]
+            if len(set(models)) != len(models):
+                # Same printer sliced twice — ambiguous, leave it to the user.
+                continue
+
+            # Name the group after the source file when it is still around; its
+            # filename is what the user recognises. A deleted source leaves the
+            # variants perfectly usable, so fall back rather than skip.
+            name_row = (
+                await conn.execute(
+                    text("SELECT filename FROM library_files WHERE id = :sid"),
+                    {"sid": int(source_id)},
+                )
+            ).fetchone()
+            group_name = name_row[0] if name_row else f"{members[0][1]} + {len(members) - 1} more"
+
+            result = await conn.execute(FileVariantGroup.__table__.insert().values(name=group_name))
+            group_id = result.inserted_primary_key[0]
+
+            for position, (file_id, _model) in enumerate(members):
+                await conn.execute(
+                    text("UPDATE library_files SET variant_group_id = :gid, variant_position = :pos WHERE id = :fid"),
+                    {"gid": group_id, "pos": position, "fid": file_id},
+                )
+
 
 _USER_PRINT_TEMPLATE_RENAMES: tuple[tuple[str, str, str], ...] = (
     ("user_print_start", "User Print Started", "User Print Started Email"),
