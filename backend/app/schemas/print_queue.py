@@ -125,6 +125,15 @@ class PrintQueueItemUpdate(BaseModel):
     nozzle_mapping: list[int] | None = None
 
 
+class QueueVariantSummary(BaseModel):
+    """One candidate on a cross-model queue item, for display (#671)."""
+
+    library_file_id: int
+    filename: str
+    target_model: str
+    position: int
+
+
 class PrintQueueItemResponse(BaseModel):
     id: int
     printer_id: int | None  # None = unassigned
@@ -199,6 +208,11 @@ class PrintQueueItemResponse(BaseModel):
     # Batch grouping
     batch_id: int | None = None
     batch_name: str | None = None
+
+    # Cross-model alternatives (#671), in priority order. Empty for every
+    # ordinary item. Present until dispatch resolves one onto the row, after
+    # which library_file_id / target_model name the candidate that actually ran.
+    variants: list[QueueVariantSummary] = []
 
     # Shortest-job-first scheduling
     been_jumped: bool = False

@@ -562,7 +562,12 @@ function SortableQueueItem({
             <span className={`flex items-center gap-1 sm:gap-1.5 ${item.printer_id === null && !item.target_model ? 'text-orange-700 dark:text-orange-400' : ''} ${item.target_model && !item.printer_id ? 'text-blue-700 dark:text-blue-400' : ''}`}>
               <Printer className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               <span className="truncate max-w-[120px] sm:max-w-none">
-              {item.target_model && !item.printer_id
+              {/* A cross-model item (#671) is waiting on several models at once.
+                  Showing only target_model would name whichever candidate is
+                  first and read as a lie the moment the other one runs. */}
+              {(item.variants?.length ?? 0) > 1 && !item.printer_id
+                ? `${t('queue.filter.any')} ${item.variants!.map(v => v.target_model).join(' / ')}${item.target_location ? ` @ ${item.target_location}` : ''}`
+                : item.target_model && !item.printer_id
                 ? `${t('queue.filter.any')} ${item.target_model}${item.target_location ? ` @ ${item.target_location}` : ''}${item.required_filament_types?.length ? ` (${item.required_filament_types.join(', ')})` : ''}`
                 : item.printer_id === null
                   ? t('queue.filter.unassigned')

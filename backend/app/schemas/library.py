@@ -220,6 +220,13 @@ class FileListResponse(BaseModel):
     # never null, so the FE can iterate without a guard.
     tags: list[TagSummary] = []
 
+    # Variant grouping (#671 / #2570). ``variant_count`` is the size of the whole
+    # group, not of the current listing — members can live in different folders,
+    # so counting the rows on screen would under-report. Projected in the list
+    # query so the badge and the smart-print decision cost no extra request.
+    variant_group_id: int | None = None
+    variant_count: int = 0
+
     class Config:
         from_attributes = True
 

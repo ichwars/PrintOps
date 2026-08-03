@@ -3870,6 +3870,13 @@ export default {
 
   // Dosya yöneticisi
   fileManager: {
+    variants: {
+      badge: '{{count}} sürüm',
+      groupAction: 'Sürüm olarak grupla',
+      groupTooltip: 'Bu dosyaları farklı yazıcılar için dilimlenmiş aynı iş olarak işaretle',
+      grouped: '{{count}} dosya sürüm olarak gruplandı',
+      printAlternatives: 'Yazdır ({{count}} alternatif)',
+    },
     title: 'Dosya Yöneticisi',
     subtitle: 'Baskı dosyalarınızı organize edin ve yönetin',
     uploadFiles: 'Dosya Yükle',
@@ -4906,6 +4913,15 @@ export default {
 
   // Baskı modali
   printModal: {
+    variants: {
+      title: 'Yazıcı alternatifleri',
+      help: 'Tek iş, tek kuyruk yeri. Uygun olan ilk boşalan yazıcı kendi dosyasını yazdırır.',
+      unknownModel: 'Bilinmeyen model',
+      plateFor: '{{filename}} için tabla',
+      moveUp: 'Yukarı taşı',
+      moveDown: 'Aşağı taşı',
+      queued: '{{count}} alternatifle kuyruğa alındı',
+    },
     selectPrinter: 'Yazıcı Seç',
     selectPlate: 'Plaka Seç',
     filamentMapping: 'Filament Eşlemesi',

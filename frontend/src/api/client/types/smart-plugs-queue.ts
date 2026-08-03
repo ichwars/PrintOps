@@ -289,6 +289,12 @@ export interface PrintQueueItem {
   target_location: string | null;  // Target location filter for model-based assignment
   required_filament_types: string[] | null;  // Required filament types for model-based assignment
   waiting_reason: string | null;  // Why a model-based job hasn't started yet
+  variants?: Array<{
+    library_file_id: number;
+    filename: string;
+    target_model: string;
+    position: number;
+  }>;
   // Either archive_id OR library_file_id must be set (archive created at print start)
   archive_id: number | null;
   library_file_id: number | null;
@@ -351,6 +357,21 @@ export interface PrintQueueItem {
   cleanup_library_after_dispatch?: boolean;
 }
 
+export interface QueueVariantCreate {
+  library_file_id: number;
+  target_model?: string | null;
+  plate_id?: number | null;
+  ams_mapping?: number[] | null;
+  nozzle_mapping?: number[] | null;
+  filament_overrides?: Array<{
+    slot_id: number;
+    type: string;
+    color: string;
+    color_name?: string;
+    force_color_match?: boolean;
+  }> | null;
+}
+
 export interface PrintBatch {
   id: number;
   name: string;
@@ -406,6 +427,7 @@ export interface PrintQueueItemCreate {
   project_id?: number;
   // Delete transient uploaded library file after scheduler creates the archive
   cleanup_library_after_dispatch?: boolean;
+  variants?: QueueVariantCreate[];
 }
 
 export interface PrintBatchCreate {

@@ -1965,6 +1965,20 @@ async def list_files(
             )
             hash_counts = {h: c - 1 for h, c in dup_result.all()}  # -1 to exclude self
 
+    # Variant group sizes (#671 / #2570). Counted across the whole group rather
+    # than the rows on screen — members can sit in different folders, so counting
+    # the listing would under-report and the "2 versions" badge would blink in
+    # and out as the user navigated.
+    variant_counts: dict[int, int] = {}
+    group_ids = {f.variant_group_id for f in files if f.variant_group_id}
+    if group_ids:
+        count_result = await db.execute(
+            select(LibraryFile.variant_group_id, func.count(LibraryFile.id))
+            .where(LibraryFile.variant_group_id.in_(group_ids), LibraryFile.deleted_at.is_(None))
+            .group_by(LibraryFile.variant_group_id)
+        )
+        variant_counts = dict(count_result.all())
+
     # Prevent browser caching of file list
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
 
@@ -2001,6 +2015,8 @@ async def list_files(
                 filament_used_grams=filament_grams,
                 sliced_for_model=sliced_for_model,
                 tags=[TagSummary(id=t.id, name=t.name) for t in f.tags],
+                variant_group_id=f.variant_group_id,
+                variant_count=variant_counts.get(f.variant_group_id, 0) if f.variant_group_id else 0,
             )
         )
 

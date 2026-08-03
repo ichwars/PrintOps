@@ -8,7 +8,7 @@ from pathlib import Path
 
 import defusedxml.ElementTree as ET
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, func, inspect, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -40,6 +40,7 @@ from backend.app.schemas.print_queue import (
     PrintQueueItemUpdate,
     PrintQueueReorder,
     QueueVariantCreate,
+    QueueVariantSummary,
 )
 from backend.app.services.filament_deficit import compute_deficit_for_queue_item
 from backend.app.services.filament_requirements import overrides_for_plate
@@ -59,6 +60,27 @@ router = APIRouter(prefix="/queue", tags=["queue"])
 def _ensure_queue_printer_access(user: User | None, item: PrintQueueItem) -> None:
     if not user_can_access_printer(user, item.printer_id):
         raise HTTPException(404, "Queue item not found")
+
+
+def _variant_summaries(item: PrintQueueItem) -> list[QueueVariantSummary]:
+    """Cross-model candidates for display (#671), or [] if they weren't loaded.
+
+    Every route that builds a queue response eager-loads ``variants``. Reading
+    the attribute unguarded would still be a landmine for the next one that
+    doesn't: a lazy load on an async session raises rather than degrading, so a
+    forgotten ``selectinload`` would turn a card render into a 500.
+    """
+    if "variants" in inspect(item).unloaded:
+        return []
+    return [
+        QueueVariantSummary(
+            library_file_id=v.library_file_id,
+            filename=v.library_file.filename if v.library_file else "",
+            target_model=v.target_model,
+            position=v.position,
+        )
+        for v in item.variants
+    ]
 
 
 def _extract_filament_types_from_3mf(file_path: Path, plate_id: int | None = None) -> list[str]:
@@ -245,6 +267,12 @@ def _enrich_response(item: PrintQueueItem) -> PrintQueueItemResponse:
         "nozzle_mapping": nozzle_mapping_parsed,
         "nozzles_info": nozzles_info_parsed,
         "cleanup_library_after_dispatch": item.cleanup_library_after_dispatch,
+        # Cross-model alternatives (#671). Guarded rather than read directly:
+        # every route that reaches here eager-loads the relationship, but a
+        # caller that forgets would trigger a lazy load, and a lazy load on an
+        # async session raises rather than degrading. An empty list is the
+        # correct answer for the ordinary item this would most likely be.
+        "variants": _variant_summaries(item),
     }
     response = PrintQueueItemResponse(**item_dict)
     if item.archive:
@@ -344,6 +372,8 @@ async def list_queue(
             selectinload(PrintQueueItem.library_file),
             selectinload(PrintQueueItem.created_by),
             selectinload(PrintQueueItem.batch),
+            # Cross-model candidates (#671) and their files, for the card label.
+            selectinload(PrintQueueItem.variants).selectinload(PrintQueueVariant.library_file),
         )
         .order_by(PrintQueueItem.printer_id.nulls_first(), PrintQueueItem.position)
     )
@@ -1257,6 +1287,8 @@ async def get_queue_item(
             selectinload(PrintQueueItem.library_file),
             selectinload(PrintQueueItem.created_by),
             selectinload(PrintQueueItem.batch),
+            # Cross-model candidates (#671) and their files, for the card label.
+            selectinload(PrintQueueItem.variants).selectinload(PrintQueueVariant.library_file),
         )
         .where(PrintQueueItem.id == item_id)
     )
@@ -1683,6 +1715,7 @@ async def start_queue_item(
             selectinload(PrintQueueItem.printer),
             selectinload(PrintQueueItem.library_file),
             selectinload(PrintQueueItem.batch),
+            selectinload(PrintQueueItem.variants).selectinload(PrintQueueVariant.library_file),
         )
         .where(PrintQueueItem.id == item_id)
     )

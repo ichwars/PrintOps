@@ -3686,6 +3686,13 @@ export default {
     bundleStepBuild: '지원 번들 ZIP 빌드 중'
   },
   fileManager: {
+    variants: {
+      badge: '버전 {{count}}개',
+      groupAction: '버전으로 그룹화',
+      groupTooltip: '이 파일들을 서로 다른 프린터용으로 슬라이스한 동일 작업으로 표시합니다',
+      grouped: '파일 {{count}}개를 버전으로 그룹화했습니다',
+      printAlternatives: '인쇄 (대안 {{count}}개)',
+    },
     title: '파일 관리자',
     subtitle: '인쇄 파일 정리 및 관리',
     uploadFiles: '파일 업로드',
@@ -4700,6 +4707,15 @@ export default {
     emptySlotReset: '필라멘트가 할당되지 않음'
   },
   printModal: {
+    variants: {
+      title: '프린터 대안',
+      help: '작업 하나, 대기열 한 자리. 조건이 맞는 프린터 중 먼저 비는 프린터가 해당 파일을 인쇄합니다.',
+      unknownModel: '알 수 없는 모델',
+      plateFor: '{{filename}}의 플레이트',
+      moveUp: '위로',
+      moveDown: '아래로',
+      queued: '대안 {{count}}개와 함께 대기열에 추가했습니다',
+    },
     selectPrinter: '프린터 선택',
     selectPlate: '플레이트 선택',
     filamentMapping: '필라멘트 매핑',

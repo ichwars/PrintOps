@@ -3875,6 +3875,13 @@ export default {
 
   // File manager
   fileManager: {
+    variants: {
+      badge: '{{count}}個のバージョン',
+      groupAction: 'バージョンとしてグループ化',
+      groupTooltip: 'これらのファイルを、異なるプリンター向けにスライスした同一ジョブとして扱います',
+      grouped: '{{count}}個のファイルをバージョンとしてグループ化しました',
+      printAlternatives: '印刷（{{count}}件の候補）',
+    },
     title: 'ファイル管理',
     subtitle: '印刷ファイルの整理と管理',
     uploadFiles: 'ファイルをアップロード',
@@ -4929,6 +4936,15 @@ export default {
 
   // Print modal
   printModal: {
+    variants: {
+      title: 'プリンターの候補',
+      help: '1つのジョブ、キューは1枠。条件に合う最初に空いたプリンターがそのファイルを印刷します。',
+      unknownModel: '不明なモデル',
+      plateFor: '{{filename}} のプレート',
+      moveUp: '上へ',
+      moveDown: '下へ',
+      queued: '{{count}}件の候補付きでキューに追加しました',
+    },
     selectPrinter: 'プリンターを選択',
     selectPlate: 'プレートを選択',
     filamentMapping: 'フィラメントマッピング',
