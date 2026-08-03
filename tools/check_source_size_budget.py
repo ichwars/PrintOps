@@ -41,6 +41,7 @@ SOURCE_SUFFIX_LIMITS = {
 
 SOURCE_FILENAME_LIMITS = {
     "Dockerfile": 500,
+    "Dockerfile.test": 500,
 }
 
 TEST_PREFIX_LIMITS = {

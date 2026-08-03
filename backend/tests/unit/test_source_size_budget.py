@@ -100,11 +100,13 @@ def test_excludes_generated_vendor_and_locale_paths(tmp_path: Path, checker: Mod
 
 def test_includes_dockerfiles(tmp_path: Path, checker: ModuleType) -> None:
     dockerfile = tmp_path / "Dockerfile"
+    test_dockerfile = tmp_path / "Dockerfile.test"
     dockerfile.write_text("FROM scratch\n", encoding="utf-8")
+    test_dockerfile.write_text("FROM scratch\n", encoding="utf-8")
 
     files = checker.iter_source_files([tmp_path], root=tmp_path)
 
-    assert files == [dockerfile]
+    assert files == [dockerfile, test_dockerfile]
 
 
 def test_checks_python_function_budget(tmp_path: Path, checker: ModuleType) -> None:
