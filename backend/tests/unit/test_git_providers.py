@@ -122,6 +122,42 @@ class TestGitHubBackendPushFiles:
         assert result["files_changed"] == 1
 
     @pytest.mark.asyncio
+    async def test_none_content_deletes_existing_file(self):
+        """None is a delete marker for migration cleanup paths."""
+        client = AsyncMock()
+        client.get = AsyncMock(
+            side_effect=[
+                _make_mock_response(200, {"object": {"sha": "c1"}}),
+                _make_mock_response(200, {"tree": {"sha": "t1"}}),
+                _make_mock_response(
+                    200,
+                    {"tree": [{"type": "blob", "path": "cloud_profiles/filament.json", "sha": "old-sha"}]},
+                ),
+            ]
+        )
+        client.post = AsyncMock(
+            side_effect=[
+                _make_mock_response(201, {"sha": "new-tree"}),
+                _make_mock_response(201, {"sha": "new-commit"}),
+            ]
+        )
+        client.patch = AsyncMock(return_value=_make_mock_response(200, {}))
+
+        result = await self.backend.push_files(
+            self.repo_url,
+            self.token,
+            self.branch,
+            {"cloud_profiles/filament.json": None},
+            client,
+        )
+
+        assert result["status"] == "success"
+        assert result["files_changed"] == 1
+        assert "/git/blobs" not in client.post.call_args_list[0].args[0]
+        tree_payload = client.post.call_args_list[0].kwargs["json"]["tree"]
+        assert tree_payload == [{"path": "cloud_profiles/filament.json", "mode": "100644", "type": "blob", "sha": None}]
+
+    @pytest.mark.asyncio
     async def test_skips_unchanged_files(self):
         """File whose blob SHA matches the existing tree entry is excluded from the commit."""
         content = {"name": "my-printer"}
@@ -516,6 +552,33 @@ class TestGiteaBackendPushFiles:
         assert result["files_changed"] == 2
         contents_calls = [c for c in client.post.call_args_list if "/contents" in c.args[0]]
         assert len(contents_calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_none_content_deletes_existing_file(self):
+        client = AsyncMock()
+        client.get = AsyncMock(
+            side_effect=[
+                _make_mock_response(200, {"object": {"sha": "base-commit"}}),
+                _make_mock_response(200, {"tree": {"sha": "base-tree"}}),
+                _make_mock_response(
+                    200,
+                    {"tree": [{"type": "blob", "path": "cloud_profiles/filament.json", "sha": "old-sha"}]},
+                ),
+            ]
+        )
+        client.post = AsyncMock(return_value=_make_mock_response(201, {"commit": {"sha": "new-commit"}}))
+
+        result = await self.backend.push_files(
+            self.repo_url,
+            self.token,
+            self.branch,
+            {"cloud_profiles/filament.json": None},
+            client,
+        )
+
+        assert result["status"] == "success"
+        body = client.post.call_args.kwargs["json"]
+        assert body["files"] == [{"operation": "delete", "path": "cloud_profiles/filament.json", "sha": "old-sha"}]
 
     @pytest.mark.asyncio
     async def test_uses_gitea_api_v1_base_not_github(self):
@@ -1647,6 +1710,33 @@ class TestGitLabBackendPushFiles:
         assert result["status"] == "success"
         assert result["files_changed"] == 1
         client.post.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_none_content_deletes_existing_file(self):
+        client = AsyncMock()
+        client.get = AsyncMock(
+            side_effect=[
+                _make_mock_response(200, {"name": self.branch}),
+                _make_mock_response(
+                    200,
+                    [{"type": "blob", "path": "cloud_profiles/filament.json", "id": "old-sha"}],
+                ),
+                _make_mock_response(200, []),
+            ]
+        )
+        client.post = AsyncMock(return_value=_make_mock_response(201, {"id": "abc123"}))
+
+        result = await self.backend.push_files(
+            self.repo_url,
+            self.token,
+            self.branch,
+            {"cloud_profiles/filament.json": None},
+            client,
+        )
+
+        assert result["status"] == "success"
+        body = client.post.call_args.kwargs["json"]
+        assert body["actions"] == [{"action": "delete", "file_path": "cloud_profiles/filament.json"}]
 
     @pytest.mark.asyncio
     async def test_truncates_upstream_error_body_in_failure_message(self):

@@ -20,6 +20,7 @@ from backend.app.api.routes._url_safety import (
     CLOUD_METADATA_HOSTNAMES,
     CLOUD_METADATA_IPS,
     NUMERIC_IP_RE,
+    canonical_url_hostname,
     unwrap_ipv4_mapped,
 )
 
@@ -168,7 +169,7 @@ def assert_safe_public_https_url(url: str) -> None:
     if parsed.scheme.lower() != "https":
         raise ValueError("icon URL must use https://")
 
-    hostname = (parsed.hostname or "").lower()
+    hostname = canonical_url_hostname(parsed.hostname)
     if not hostname:
         raise ValueError("icon URL must include a hostname")
 

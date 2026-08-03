@@ -661,6 +661,14 @@ class BambuMQTTClient:
         self._last_ams_cmd_time: float = 0.0  # monotonic time of last published command
         self._ams_cmd_unanswered: int = 0  # consecutive commands with no response
 
+    def _allows_last_layer_finish_photo_trigger(self) -> bool:
+        """Return True for A1-family firmware that may skip end-stage 22."""
+        from backend.app.utils.printer_models import PRINTER_MODEL_ID_MAP
+
+        normalized = PRINTER_MODEL_ID_MAP.get(self.model or "", self.model or "")
+        compact = normalized.strip().upper().replace(" ", "").replace("-", "")
+        return compact in {"A1", "A1MINI", "N1", "N2S", "A04", "A11", "A12"}
+
     @property
     def topic_subscribe(self) -> str:
         return f"device/{self.serial_number}/report"
@@ -2320,11 +2328,30 @@ class BambuMQTTClient:
             # Trigger layer change callback if layer increased
             if new_layer > old_layer and self.on_layer_change:
                 self.on_layer_change(new_layer)
-            # Do not trigger the finish photo on layer_num == total_layer_num.
-            # That edge marks the start of the final layer, not the end of the
-            # print; on real H2C captures it arrived while minutes of printing
-            # and a filament change were still pending. Stage 22 or FINISH-state
-            # completion below are the end-of-print signals.
+            # On most models layer_num == total_layer_num marks the start of the
+            # final layer, not the end. A1-family firmware variants may skip
+            # stage 22 though, so retain the legacy pre-end trigger there only.
+            if (
+                self._allows_last_layer_finish_photo_trigger()
+                and new_layer >= (self.state.total_layers or 0) > 0
+                and self._was_running
+                and not self._finish_photo_captured
+                and self.on_finish_photo_moment
+            ):
+                self._finish_photo_captured = True
+                logger.info(
+                    f"[{self.serial_number}] FINISH PHOTO MOMENT (last-layer A1 fallback) — "
+                    f"layer={new_layer}/{self.state.total_layers}, "
+                    f"timelapse_active={self._timelapse_during_print}"
+                )
+                self.on_finish_photo_moment(
+                    {
+                        "trigger": "last_layer",
+                        "filename": self._previous_gcode_file or self.state.gcode_file,
+                        "subtask_name": self.state.subtask_name,
+                        "timelapse_was_active": self._timelapse_during_print,
+                    }
+                )
         if "total_layer_num" in data:
             # Some firmware (P1S observed) resets `total_layer_num` to 0 at
             # print end — same shape as the `layer_num` reset guarded above.

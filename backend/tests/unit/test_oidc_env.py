@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.orm import undefer
 
 from backend.app.core.oidc_env import apply_env_oidc_provider, env_bool, read_env_oidc_config
 from backend.app.models.group import Group
@@ -78,14 +79,39 @@ async def test_apply_env_oidc_provider_creates_env_managed_provider(db_session, 
 
     await apply_env_oidc_provider(db_session)
 
-    provider = (
-        await db_session.execute(select(OIDCProvider).where(OIDCProvider.name == "PocketID"))
-    ).scalar_one()
+    provider = (await db_session.execute(select(OIDCProvider).where(OIDCProvider.name == "PocketID"))).scalar_one()
     assert provider.is_env_managed is True
     assert provider.is_enabled is True
     assert provider.auto_create_users is True
     assert provider.default_group_id == group.id
     assert provider.client_secret == "super-secret"
+
+
+@pytest.mark.asyncio
+async def test_apply_env_oidc_provider_fetches_and_caches_icon(db_session, clear_oidc_env, monkeypatch):
+    clear_oidc_env.setenv("PRINTOPS_OIDC_NAME", "PocketID")
+    clear_oidc_env.setenv("PRINTOPS_OIDC_ISSUER_URL", "https://id.example.test")
+    clear_oidc_env.setenv("PRINTOPS_OIDC_CLIENT_ID", "printops")
+    clear_oidc_env.setenv("PRINTOPS_OIDC_CLIENT_SECRET", "super-secret")
+    clear_oidc_env.setenv("PRINTOPS_OIDC_ICON_URL", "https://id.example.test/icon.png")
+
+    async def fake_fetch_icon(url: str):
+        assert url == "https://id.example.test/icon.png"
+        return b"png-bytes", "image/png", "etag-1"
+
+    monkeypatch.setattr("backend.app.services.oidc_icon.fetch_icon", fake_fetch_icon)
+
+    await apply_env_oidc_provider(db_session)
+
+    provider = (
+        await db_session.execute(
+            select(OIDCProvider).options(undefer(OIDCProvider.icon_data)).where(OIDCProvider.name == "PocketID")
+        )
+    ).scalar_one()
+    assert provider.icon_url == "https://id.example.test/icon.png"
+    assert provider.icon_data == b"png-bytes"
+    assert provider.icon_content_type == "image/png"
+    assert provider.icon_etag == "etag-1"
 
 
 @pytest.mark.asyncio

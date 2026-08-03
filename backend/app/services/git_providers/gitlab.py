@@ -179,6 +179,12 @@ class GitLabBackend(GitProviderBackend):
 
             actions = []
             for path, content in files.items():
+                if content is None:
+                    if path not in existing_blobs:
+                        continue
+                    actions.append({"action": "delete", "file_path": path})
+                    continue
+
                 content_bytes = self._content_bytes(content)
                 content_sha = self._blob_sha(content_bytes)
 
@@ -232,6 +238,8 @@ class GitLabBackend(GitProviderBackend):
         try:
             actions = []
             for path, content in files.items():
+                if content is None:
+                    continue
                 content_bytes = self._content_bytes(content)
                 actions.append(
                     {
@@ -256,9 +264,9 @@ class GitLabBackend(GitProviderBackend):
 
             return {
                 "status": "success",
-                "message": f"Initial backup created - {len(files)} files",
+                "message": f"Initial backup created - {len(actions)} files",
                 "commit_sha": commit_response.json().get("id"),
-                "files_changed": len(files),
+                "files_changed": len(actions),
             }
         except Exception as e:
             return {"status": "failed", "message": str(e)}

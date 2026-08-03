@@ -106,6 +106,7 @@ async def _apply_env_oidc_provider(db: AsyncSession) -> None:
     from backend.app.models.group import Group
     from backend.app.models.oidc_provider import OIDCProvider
     from backend.app.schemas.auth import OIDCProviderCreate
+    from backend.app.services.oidc_icon import fetch_icon
 
     try:
         config = read_env_oidc_config()
@@ -160,10 +161,30 @@ async def _apply_env_oidc_provider(db: AsyncSession) -> None:
     if existing is None:
         existing = OIDCProvider(is_env_managed=True)
         db.add(existing)
+    previous_icon_url = existing.icon_url
+    previous_icon_content_type = existing.icon_content_type
     for field in _APPLIED_FIELDS:
         setattr(existing, field, getattr(validated, field))
     existing.client_secret = validated.client_secret
     existing.is_env_managed = True
+
+    if validated.icon_url is None:
+        existing.icon_data = None
+        existing.icon_content_type = None
+        existing.icon_etag = None
+    elif validated.icon_url != previous_icon_url or previous_icon_content_type is None:
+        try:
+            existing.icon_data, existing.icon_content_type, existing.icon_etag = await fetch_icon(validated.icon_url)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "PRINTOPS_OIDC_ICON_URL for provider %r could not be fetched (%s); keeping provider without cached icon.",
+                validated.name,
+                type(exc).__name__,
+            )
+            existing.icon_data = None
+            existing.icon_content_type = None
+            existing.icon_etag = None
+
     await db.flush()
 
     await db.execute(

@@ -73,6 +73,18 @@ _BAMBU_PRESET_TYPES = {
     "printer": "printer",
     "print": "process",
 }
+_BAMBU_DETAIL_MAX_RETRIES = 3
+_BAMBU_DETAIL_THROTTLE_SECONDS = 0.25
+_LEGACY_CLOUD_PROFILE_PATHS = (
+    "cloud_profiles/filament.json",
+    "cloud_profiles/printer.json",
+    "cloud_profiles/process.json",
+)
+
+
+def _is_bambu_detail_retryable(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return "429" in text or "rate limit" in text or "too many requests" in text
 
 
 def _bambu_preset_record(setting_id: str, our_type: str, entry: dict, detail: dict) -> dict:
@@ -373,6 +385,8 @@ class GitHubBackupService:
         # Collect cloud profiles
         if config.backup_cloud_profiles:
             self._backup_progress = "Collecting cloud profiles from Bambu Cloud..."
+            for legacy_path in _LEGACY_CLOUD_PROFILE_PATHS:
+                files[legacy_path] = None
             cloud_summary = await self._collect_cloud_profiles(db, files)
             collected = bool(cloud_summary.get("bambu"))
             metadata["contents"]["cloud_profiles"] = collected
@@ -472,23 +486,42 @@ class GitHubBackupService:
             return summary
 
         for account_key, user in bambu_accounts:
-            try:
-                counts = await self._collect_bambu_profiles(db, files, account_key, user)
-            except Exception:
-                logger.warning("Failed to collect Bambu Cloud profiles for %s", account_key, exc_info=True)
-                continue
+            counts = await self._collect_bambu_profiles(db, files, account_key, user)
             if counts:
                 summary["bambu"][account_key] = counts
 
         if not summary["bambu"]:
             logger.warning(
-                "Cloud profiles are enabled and %d Bambu Cloud account(s) are connected, "
-                "but no presets were collected",
+                "Cloud profiles are enabled and %d Bambu Cloud account(s) are connected, but no presets were collected",
                 len(bambu_accounts),
             )
         else:
             logger.info("Collected Bambu Cloud profiles: %s", summary["bambu"])
         return summary
+
+    async def _fetch_bambu_setting_detail_with_retry(self, cloud, setting_id: str, account_key: str) -> dict:
+        """Fetch one preset detail with light pacing and retry for Bambu rate limits."""
+        delay = _BAMBU_DETAIL_THROTTLE_SECONDS
+        for attempt in range(1, _BAMBU_DETAIL_MAX_RETRIES + 1):
+            try:
+                detail = await cloud.get_setting_detail(setting_id)
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                return detail
+            except Exception as exc:
+                if not _is_bambu_detail_retryable(exc) or attempt >= _BAMBU_DETAIL_MAX_RETRIES:
+                    raise
+                logger.warning(
+                    "Bambu Cloud preset detail fetch was rate limited for %s on %s; retrying attempt %d/%d",
+                    setting_id,
+                    account_key,
+                    attempt + 1,
+                    _BAMBU_DETAIL_MAX_RETRIES,
+                )
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                delay *= 2
+        raise RuntimeError(f"Could not fetch Bambu Cloud preset {setting_id}")
 
     async def _collect_bambu_profiles(
         self,
@@ -514,7 +547,7 @@ class GitHubBackupService:
                 logger.warning("Bambu Cloud returned no slicer settings for %s", account_key)
                 return {}
 
-            failed = 0
+            failures: list[str] = []
             for api_key, our_type in _BAMBU_PRESET_TYPES.items():
                 type_data = settings.get(api_key)
                 if not isinstance(type_data, dict):
@@ -529,9 +562,9 @@ class GitHubBackupService:
                     if not setting_id:
                         continue
                     try:
-                        detail = await cloud.get_setting_detail(str(setting_id))
+                        detail = await self._fetch_bambu_setting_detail_with_retry(cloud, str(setting_id), account_key)
                     except Exception as e:
-                        failed += 1
+                        failures.append(str(setting_id))
                         logger.warning(
                             "Failed to fetch Bambu Cloud preset %s (%s) for %s: %s",
                             setting_id,
@@ -542,6 +575,12 @@ class GitHubBackupService:
                         continue
                     profiles.append(_bambu_preset_record(str(setting_id), our_type, entry, detail))
 
+                if failures:
+                    raise RuntimeError(
+                        f"Could not complete Bambu Cloud profile backup for {account_key}; "
+                        f"failed preset detail fetches: {', '.join(failures)}"
+                    )
+
                 if profiles:
                     files[f"cloud_profiles/bambu/{account_key}/{our_type}.json"] = {
                         "version": "2.0",
@@ -551,8 +590,6 @@ class GitHubBackupService:
                     }
                     counts[our_type] = len(profiles)
 
-            if failed:
-                counts["failed"] = failed
             return counts
         finally:
             await cloud.close()

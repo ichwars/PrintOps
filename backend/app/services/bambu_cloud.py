@@ -325,10 +325,11 @@ class BambuCloudService:
             logger.error("Email verification failed: %s", e)
             raise BambuCloudAuthError(f"Verification failed: {e}")
 
-    async def _fetch_csrf_token(self, web_origin: str) -> str | None:
+    async def _fetch_csrf_token(self, web_origin: str, client: httpx.AsyncClient | None = None) -> str | None:
         """Seed Bambu's web-origin CSRF cookie and return its value."""
+        csrf_client = client or self._client
         try:
-            response = await self._client.get(
+            response = await csrf_client.get(
                 f"{web_origin}/api/csrf",
                 headers={"User-Agent": _USER_AGENT, "Accept": "application/json"},
             )
@@ -336,7 +337,7 @@ class BambuCloudService:
             logger.warning("Failed to fetch Bambu Cloud CSRF token: %s", e)
             return None
         try:
-            token = self._client.cookies.get("bbl_csrf_token")
+            token = csrf_client.cookies.get("bbl_csrf_token")
         except Exception:
             token = None
         if not token:
@@ -345,6 +346,9 @@ class BambuCloudService:
                 response.status_code,
             )
         return token
+
+    def _new_csrf_client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(timeout=30.0, cookies=httpx.Cookies())
 
     async def verify_totp(self, tfa_key: str, code: str) -> dict:
         """
@@ -366,29 +370,30 @@ class BambuCloudService:
             web_origin = "https://bambulab.cn" if "bambulab.cn" in self.base_url else "https://bambulab.com"
             tfa_url = f"{web_origin}/api/sign-in/tfa"
 
-            csrf_token = await self._fetch_csrf_token(web_origin)
-            if not csrf_token:
-                return {
-                    "success": False,
-                    "message": (
-                        "Could not obtain a security token from Bambu Cloud. "
-                        "Check the server's internet access and try again."
-                    ),
-                }
+            async with self._new_csrf_client() as csrf_client:
+                csrf_token = await self._fetch_csrf_token(web_origin, csrf_client)
+                if not csrf_token:
+                    return {
+                        "success": False,
+                        "message": (
+                            "Could not obtain a security token from Bambu Cloud. "
+                            "Check the server's internet access and try again."
+                        ),
+                    }
 
-            response = await self._client.post(
-                tfa_url,
-                headers={
-                    "Content-Type": "application/json",
-                    "User-Agent": _USER_AGENT,
-                    "Accept": "application/json",
-                    "x-bbl-csrf-token": csrf_token,
-                },
-                json={
-                    "tfaKey": tfa_key,
-                    "tfaCode": code,
-                },
-            )
+                response = await csrf_client.post(
+                    tfa_url,
+                    headers={
+                        "Content-Type": "application/json",
+                        "User-Agent": _USER_AGENT,
+                        "Accept": "application/json",
+                        "x-bbl-csrf-token": csrf_token,
+                    },
+                    json={
+                        "tfaKey": tfa_key,
+                        "tfaCode": code,
+                    },
+                )
 
             logger.debug(
                 f"TOTP verify response: status={response.status_code}, body={response.text[:200] if response.text else '(empty)'}"

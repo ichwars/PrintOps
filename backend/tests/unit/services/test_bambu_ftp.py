@@ -1491,9 +1491,7 @@ class TestUploadDeadline:
 
         big = tmp_path / "big.3mf"
         big.write_bytes(b"x" * (96 * 1024 * 1024))
-        assert _upload_deadline(big) == pytest.approx(
-            (96 * 1024 * 1024) / bambu_ftp._UPLOAD_FLOOR_BYTES_PER_SEC
-        )
+        assert _upload_deadline(big) == pytest.approx((96 * 1024 * 1024) / bambu_ftp._UPLOAD_FLOOR_BYTES_PER_SEC)
 
     @pytest.mark.asyncio
     async def test_timeout_stops_worker_and_is_not_retried(self, tmp_path, slow_upload_client):

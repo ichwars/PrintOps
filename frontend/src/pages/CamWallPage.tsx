@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 
 import { CameraWall, type CameraWallStatus } from '../components/CameraWall';
 import { type CameraTileStatusMode } from '../components/CameraTile';
-import { api, setStreamToken } from '../api/client';
+import { api, getStreamToken, setStreamToken } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 
 const KIOSK_POLL_MS = 5000;
@@ -66,8 +66,9 @@ export function CamWallPage() {
 
   useEffect(() => {
     if (!kiosk) return;
+    const previousToken = getStreamToken();
     setStreamToken(token);
-    return () => setStreamToken(null);
+    return () => setStreamToken(previousToken);
   }, [kiosk, token]);
 
   const kioskQuery = useQuery({

@@ -203,6 +203,13 @@ class GitHubBackend(GitProviderBackend):
             files_changed = 0
 
             for path, content in files.items():
+                if content is None:
+                    if path not in existing_files:
+                        continue
+                    tree_items.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
+                    files_changed += 1
+                    continue
+
                 content_bytes = self._content_bytes(content)
                 content_sha = self._blob_sha(content_bytes)
 
@@ -357,6 +364,8 @@ class GitHubBackend(GitProviderBackend):
         try:
             tree_items = []
             for path, content in files.items():
+                if content is None:
+                    continue
                 content_bytes = self._content_bytes(content)
                 blob_response = await client.post(
                     f"{api_base}/repos/{owner}/{repo}/git/blobs",
@@ -423,9 +432,9 @@ class GitHubBackend(GitProviderBackend):
 
             return {
                 "status": "success",
-                "message": f"Initial backup created - {len(files)} files",
+                "message": f"Initial backup created - {len(tree_items)} files",
                 "commit_sha": commit_sha,
-                "files_changed": len(files),
+                "files_changed": len(tree_items),
             }
 
         except Exception as e:

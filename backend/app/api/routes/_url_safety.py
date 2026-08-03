@@ -46,6 +46,11 @@ CLOUD_METADATA_HOSTNAMES = frozenset(
 NUMERIC_IP_RE = re.compile(r"^(0x[0-9a-f]+|[0-9]+)$", re.I)
 
 
+def canonical_url_hostname(hostname: str | None) -> str:
+    """Normalize a parsed URL hostname for policy checks."""
+    return (hostname or "").rstrip(".").lower()
+
+
 def unwrap_ipv4_mapped(
     addr: ipaddress.IPv4Address | ipaddress.IPv6Address,
 ) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
@@ -67,7 +72,7 @@ def assert_safe_lan_service_url(url: str, *, label: str) -> None:
     if parsed.scheme.lower() not in ("http", "https"):
         raise ValueError(f"{label} must use http or https")
 
-    hostname = (parsed.hostname or "").lower()
+    hostname = canonical_url_hostname(parsed.hostname)
     if not hostname:
         raise ValueError(f"{label} must include a hostname")
 

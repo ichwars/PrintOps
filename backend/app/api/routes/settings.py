@@ -29,6 +29,7 @@ DEFAULT_SETTINGS = AppSettings()
 _SENSITIVE_FIELDS_FOR_API_KEY = (
     "mqtt_password",
     "ha_token",
+    "obico_ml_token",
     "prometheus_token",
     "virtual_printer_access_code",
     "ldap_bind_password",

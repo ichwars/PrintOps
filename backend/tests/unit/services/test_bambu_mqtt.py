@@ -6272,6 +6272,17 @@ class TestFinishPhotoMomentTrigger:
 
         assert events == []
 
+    def test_a1_family_fires_last_layer_fallback(self, mqtt_client):
+        mqtt_client.model = "A1 Mini"
+        events = []
+        mqtt_client.on_finish_photo_moment = lambda data: events.append(data)
+
+        mqtt_client._process_message({"print": {"layer_num": 100}})
+
+        assert len(events) == 1
+        assert events[0]["trigger"] == "last_layer"
+        assert mqtt_client._finish_photo_captured is True
+
     def test_does_not_fire_when_not_running(self, mqtt_client):
         """If the print never went through RUNNING (PrintOps restart mid-print,
         firmware replay), _was_running is False and no photo trigger fires."""
