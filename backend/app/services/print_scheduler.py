@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from backend.app.core.tasks import spawn_background_task
 from backend.app.core.websocket import ws_manager
 from backend.app.models.archive import PrintArchive
 from backend.app.models.library import LibraryFile
-from backend.app.models.print_queue import PrintQueueItem
+from backend.app.models.print_queue import PrintQueueItem, PrintQueueVariant
 from backend.app.models.printer import Printer
 from backend.app.models.settings import Settings
 from backend.app.models.smart_plug import SmartPlug
@@ -155,6 +156,123 @@ def _canonical_filament_type(ftype: str) -> str:
     return _FILAMENT_EQUIV_MAP.get(upper, upper)
 
 
+@dataclass(slots=True)
+class _ModelCandidate:
+    """One (file, printer model) pair the model-based matcher may try.
+
+    Model-based assignment used to have exactly one of these per item, held
+    directly in the item's own columns. Cross-model queue items (#671) have
+    several, held in ``print_queue_variants``. Both shapes are normalised into
+    this so the matching, the cross-model gate and the waiting-reason handling
+    are written once and an item without variants provably takes the same path
+    it took before variants existed.
+
+    ``variant`` is None for the item's own columns and set for a real variant
+    row, which is what :meth:`PrintScheduler._resolve_variant` writes onto the
+    item once that candidate wins.
+    """
+
+    target_model: str | None
+    sliced_for: str | None
+    required_filament_types: str | None
+    filament_overrides: str | None
+    variant: "PrintQueueVariant | None" = None
+
+
+def _sliced_for_model(archive, library_file) -> str | None:
+    """Model a 3MF declares it was sliced for, from whichever source holds it."""
+    if archive is not None:
+        return archive.sliced_for_model
+    if library_file is not None and library_file.file_metadata:
+        return library_file.file_metadata.get("sliced_for_model")
+    return None
+
+
+def _candidates_for(item: PrintQueueItem) -> list[_ModelCandidate]:
+    """Candidate files for ``item``, best first.
+
+    An item with no variant rows yields exactly one candidate built from its own
+    columns — the pre-#671 behaviour, unchanged.
+
+    Variants come back least-attempted first, ties broken by the user's
+    ``position``. On the first pass every count is zero, so this is purely the
+    user's priority order. After a start-watchdog bounce the printer that failed
+    drops behind, so the next lap tries the other machine rather than spending the
+    item's whole retry budget on the one that is wedged. Once every candidate has
+    been tried equally often they cycle again, which keeps the item-level
+    ``DISPATCH_MAX_ATTEMPTS`` bound from #2555 intact — a job with alternatives
+    still gives up, it just does not give up without trying them.
+    """
+    if not item.variants:
+        return [
+            _ModelCandidate(
+                target_model=item.target_model,
+                sliced_for=_sliced_for_model(item.archive, item.library_file),
+                required_filament_types=item.required_filament_types,
+                filament_overrides=item.filament_overrides,
+            )
+        ]
+
+    ordered = sorted(item.variants, key=lambda v: (v.attempt_count or 0, v.position, v.id))
+    return [
+        _ModelCandidate(
+            target_model=v.target_model,
+            sliced_for=_sliced_for_model(None, v.library_file),
+            required_filament_types=v.required_filament_types,
+            filament_overrides=v.filament_overrides,
+            variant=v,
+        )
+        for v in ordered
+    ]
+
+
+def _collapse_waiting_reasons(per_model: list[tuple[str | None, str]]) -> str | None:
+    """Fold one waiting reason per candidate into a single line for the item.
+
+    A cross-model item produces a reason per candidate, and pasting them
+    together unlabelled reads as gibberish ("No idle printer; PETG not loaded"
+    — on which machine?). Each reason is prefixed with its model, except in the
+    single-candidate case where the item already displays its target model and
+    the prefix would be noise.
+
+    Identical reasons collapse rather than repeat, so three idle-less models
+    read as one clause.
+
+    When *every* candidate is merely busy the parts are joined with the ``" | "``
+    separator :meth:`PrintScheduler._is_busy_only` already parses, and left
+    unprefixed. That case must keep testing busy-only: a fleet that is simply
+    printing needs no user action, and labelling the clauses would turn each pass
+    over a two-model item into a "job waiting" notification.
+    """
+    reasons = [(model, reason) for model, reason in per_model if reason]
+    if not reasons:
+        return None
+    if len(reasons) == 1:
+        return reasons[0][1]
+
+    distinct = list(dict.fromkeys(reason for _model, reason in reasons))
+    if len(distinct) == 1:
+        return distinct[0]
+
+    if all(PrintScheduler._is_busy_only(reason) for _model, reason in reasons):
+        return " | ".join(distinct)
+
+    return "; ".join(f"{model or 'unassigned'}: {reason}" for model, reason in reasons)
+
+
+def _candidate_model_label(candidates: list[_ModelCandidate]) -> str | None:
+    """Human label for the models an item is waiting on ("H2S or H2C").
+
+    Notifications take a single target model. For a cross-model item the item's
+    own ``target_model`` is whichever variant happens to be first, which reads as
+    a lie once it is the H2C that actually runs — so name all of them.
+    """
+    models = list(dict.fromkeys(c.target_model for c in candidates if c.target_model))
+    if not models:
+        return None
+    return " or ".join(models)
+
+
 def _mapping_is_all_unresolved(mapping: list | None) -> bool:
     """Return True for a non-empty mapping made only of unresolved slots."""
     if not isinstance(mapping, list) or not mapping:
@@ -282,7 +400,11 @@ class PrintScheduler:
                 # then sort by print_time ascending. Items with no print time go last.
                 result = await db.execute(
                     select(PrintQueueItem)
-                    .options(selectinload(PrintQueueItem.archive), selectinload(PrintQueueItem.library_file))
+                    .options(
+                        selectinload(PrintQueueItem.archive),
+                        selectinload(PrintQueueItem.library_file),
+                        selectinload(PrintQueueItem.variants).selectinload(PrintQueueVariant.library_file),
+                    )
                     .where(PrintQueueItem.status == "pending")
                     .where(PrintQueueItem.dispatching_at.is_(None))
                     .order_by(
@@ -296,7 +418,11 @@ class PrintScheduler:
             else:
                 result = await db.execute(
                     select(PrintQueueItem)
-                    .options(selectinload(PrintQueueItem.archive), selectinload(PrintQueueItem.library_file))
+                    .options(
+                        selectinload(PrintQueueItem.archive),
+                        selectinload(PrintQueueItem.library_file),
+                        selectinload(PrintQueueItem.variants).selectinload(PrintQueueVariant.library_file),
+                    )
                     .where(PrintQueueItem.status == "pending")
                     .where(PrintQueueItem.dispatching_at.is_(None))
                     .order_by(PrintQueueItem.printer_id, PrintQueueItem.position)
@@ -516,55 +642,94 @@ class PrintScheduler:
                                 other.been_jumped = True
                         await db.commit()
 
-                elif item.target_model:
-                    # Model-based assignment - find any idle printer of matching model
-                    # Parse required filament types if present
-                    required_types = None
-                    if item.required_filament_types:
-                        try:
-                            required_types = json.loads(item.required_filament_types)
-                        except json.JSONDecodeError:
-                            pass  # Ignore malformed filament types; treat as no constraint
+                elif item.target_model or item.variants:
+                    # Model-based assignment - find any idle printer of matching model.
+                    # A plain model-based item has exactly one candidate, built from
+                    # its own columns. A cross-model item (#671) has one per sliced
+                    # variant and takes the first that matches, walking them in the
+                    # user's priority order so the pick is reproducible when more
+                    # than one printer is free in the same pass.
+                    candidates = _candidates_for(item)
+                    printer_id = None
+                    chosen: _ModelCandidate | None = None
+                    per_model_reasons: list[tuple[str | None, str]] = []
 
-                    # Parse filament overrides if present
-                    filament_overrides = None
-                    if item.filament_overrides:
-                        try:
-                            filament_overrides = json.loads(item.filament_overrides)
-                        except json.JSONDecodeError:
-                            pass
-
-                    # If overrides exist, use override types for validation instead
-                    effective_types = required_types
-                    if filament_overrides:
-                        override_types = sorted({o["type"] for o in filament_overrides if "type" in o})
-                        if override_types:
-                            # Merge: keep original types for non-overridden slots, add override types
-                            effective_types = sorted(set(required_types or []) | set(override_types))
-
-                    sliced_for = None
-                    if item.archive:
-                        sliced_for = item.archive.sliced_for_model
-                    elif item.library_file and item.library_file.file_metadata:
-                        sliced_for = item.library_file.file_metadata.get("sliced_for_model")
-
-                    if not is_gcode_compatible(sliced_for, item.target_model):
-                        printer_id = None
-                        waiting_reason = (
-                            f"File was sliced for {sliced_for}, which is not compatible with "
-                            f"{item.target_model} - edit the item and fix its target model"
+                    if not item.variants and not item.archive_id and not item.library_file_id:
+                        # Every candidate file was deleted out from under this item
+                        # (variant rows go with their library file). Dispatching would
+                        # fail deep in the upload with "No archive_id or library_file_id";
+                        # hold it here with something the user can act on instead.
+                        candidates = []
+                        per_model_reasons.append(
+                            (
+                                item.target_model,
+                                "Every file for this job has been deleted — add a file back or remove the item",
+                            )
                         )
-                        skip_reasons["sliced_model_mismatch"] = skip_reasons.get("sliced_model_mismatch", 0) + 1
-                    else:
-                        printer_id, waiting_reason = await self._find_idle_printer_for_model(
+
+                    for candidate in candidates:
+                        # Parse required filament types if present
+                        required_types = None
+                        if candidate.required_filament_types:
+                            try:
+                                required_types = json.loads(candidate.required_filament_types)
+                            except json.JSONDecodeError:
+                                pass  # Ignore malformed filament types; treat as no constraint
+
+                        # Parse filament overrides if present
+                        filament_overrides = None
+                        if candidate.filament_overrides:
+                            try:
+                                filament_overrides = json.loads(candidate.filament_overrides)
+                            except json.JSONDecodeError:
+                                pass
+
+                        # If overrides exist, use override types for validation instead
+                        effective_types = required_types
+                        if filament_overrides:
+                            override_types = sorted({o["type"] for o in filament_overrides if "type" in o})
+                            if override_types:
+                                # Merge: keep original types for non-overridden slots, add override types
+                                effective_types = sorted(set(required_types or []) | set(override_types))
+
+                        # Cross-model safety gate (#2578): never hand a 3MF sliced
+                        # for an incompatible model to a printer, no matter how the
+                        # row got into the DB (old rows, direct API writes). Held
+                        # as pending with an actionable waiting_reason — the user
+                        # fixes it by editing the item's target model.
+                        if not is_gcode_compatible(candidate.sliced_for, candidate.target_model):
+                            per_model_reasons.append(
+                                (
+                                    candidate.target_model,
+                                    f"File was sliced for {candidate.sliced_for}, which is not compatible with "
+                                    f"{candidate.target_model} — edit the item and fix its target model",
+                                )
+                            )
+                            skip_reasons["sliced_model_mismatch"] = skip_reasons.get("sliced_model_mismatch", 0) + 1
+                            continue
+
+                        match_id, match_reason = await self._find_idle_printer_for_model(
                             db,
-                            item.target_model,
+                            candidate.target_model,
                             busy_printers,
                             effective_types,
                             item.target_location,
                             filament_overrides=filament_overrides,
                             require_plate_clear=require_plate_clear,
                         )
+                        if match_id:
+                            printer_id = match_id
+                            chosen = candidate
+                            break
+                        per_model_reasons.append((candidate.target_model, match_reason or ""))
+
+                    waiting_reason = None if printer_id else _collapse_waiting_reasons(per_model_reasons)
+
+                    # Fold the winning variant's file and settings onto the item
+                    # before anything else looks at them — the guards below and
+                    # every step of the dispatch read the item's own columns.
+                    if chosen is not None:
+                        self._resolve_variant(item, chosen)
 
                     # Update waiting_reason if changed and send notification when first waiting
                     if item.waiting_reason != waiting_reason:
@@ -578,7 +743,7 @@ class PrintScheduler:
                             job_name = await self._get_job_name(db, item)
                             await notification_service.on_queue_job_waiting(
                                 job_name=job_name,
-                                target_model=item.target_model,
+                                target_model=_candidate_model_label(candidates) or item.target_model,
                                 waiting_reason=waiting_reason,
                                 db=db,
                             )
@@ -1032,6 +1197,46 @@ class PrintScheduler:
             if (o_type, o_color) in loaded:
                 matches += 1
         return matches
+
+    def _resolve_variant(self, item: PrintQueueItem, candidate: _ModelCandidate) -> None:
+        """Fold the winning candidate's file and settings onto the queue row (#671).
+
+        This is the whole trick that keeps cross-model items cheap: the many-to-many
+        never escapes the selection loop. By the time the pass commits, the row
+        looks exactly like an ordinary single-file model-based item, so the upload,
+        archive creation, expected-print registration, print history and reprint
+        paths need no knowledge that variants exist.
+
+        No-ops for a non-variant candidate, which is already the item's own columns.
+
+        Safe to run and re-run: the item's file columns are only ever *read* when it
+        has no variants, so an item that gets resolved and then skipped (library-row
+        conflict, previous-print gate) is simply resolved again on the next pass.
+        """
+        variant = candidate.variant
+        if variant is None:
+            return
+
+        item.library_file_id = variant.library_file_id
+        item.library_file = variant.library_file
+        # The dispatcher checks archive_id first and would print that instead of
+        # the file we just picked. Creation refuses to combine the two, so this
+        # only ever fires on a hand-written row — clear it rather than silently
+        # dispatch something the matcher never considered.
+        item.archive_id = None
+        item.archive = None
+
+        item.target_model = variant.target_model
+        item.plate_id = variant.plate_id
+        item.ams_mapping = variant.ams_mapping
+        item.nozzle_mapping = variant.nozzle_mapping
+        item.filament_overrides = variant.filament_overrides
+        item.required_filament_types = variant.required_filament_types
+        if variant.print_time_seconds is not None:
+            # The row carried the shortest candidate's estimate so SJF could order
+            # it before a printer was known; now that one is chosen, record what is
+            # actually going to run so history and the ETA agree with reality.
+            item.print_time_seconds = variant.print_time_seconds
 
     async def _compute_ams_mapping_for_printer(
         self, db: AsyncSession, printer_id: int, item: PrintQueueItem
@@ -2585,6 +2790,22 @@ class PrintScheduler:
             library_file = result.scalar_one_or_none()
             if library_file:
                 return library_file.filename.replace(".gcode.3mf", "").replace(".3mf", "")
+        # A cross-model item (#671) holds no file of its own until a printer is
+        # picked, so name it after its first candidate — otherwise every waiting
+        # notification for one reads "Job #12". Queried rather than read off
+        # item.variants because callers outside the selection loop have not
+        # eager-loaded them, and a lazy load raises in async.
+        first_variant_name = (
+            await db.execute(
+                select(LibraryFile.filename)
+                .join(PrintQueueVariant, PrintQueueVariant.library_file_id == LibraryFile.id)
+                .where(PrintQueueVariant.queue_item_id == item.id)
+                .order_by(PrintQueueVariant.position, PrintQueueVariant.id)
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if first_variant_name:
+            return first_variant_name.replace(".gcode.3mf", "").replace(".3mf", "")
         return f"Job #{item.id}"
 
     async def _get_printer(self, db: AsyncSession, printer_id: int) -> Printer | None:
@@ -3435,6 +3656,17 @@ class PrintScheduler:
                 return "already_moved_on"
             item.dispatch_attempts = (item.dispatch_attempts or 0) + 1
             item.started_at = None
+            # Charge the attempt to the candidate that was actually dispatched, so
+            # a cross-model item (#671) reaches for its other file next lap instead
+            # of retrying the printer that just failed to start. Matched by file
+            # because that is what the resolver copied onto the row.
+            if item.library_file_id is not None:
+                await db.execute(
+                    update(PrintQueueVariant)
+                    .where(PrintQueueVariant.queue_item_id == item.id)
+                    .where(PrintQueueVariant.library_file_id == item.library_file_id)
+                    .values(attempt_count=PrintQueueVariant.attempt_count + 1)
+                )
             if item.dispatch_attempts >= DISPATCH_MAX_ATTEMPTS:
                 item.status = "failed"
                 item.error_message = (
