@@ -58,6 +58,7 @@ export default {
   },
   // Common
   common: {
+    plusNMore: '另 {{count}} 个',
     save: '保存',
     saving: '保存中...',
     cancel: '取消',
@@ -4925,6 +4926,7 @@ export default {
   // Print modal
   printModal: {
     variants: {
+      editNote: '这些备选在任务加入队列时确定。如需更改，请取消后重新加入队列。',
       title: '打印机备选',
       help: '一个任务，占一个队列位。第一台空闲且匹配的打印机会打印它对应的文件。',
       unknownModel: '未知型号',

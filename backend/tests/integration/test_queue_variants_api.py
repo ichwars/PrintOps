@@ -224,6 +224,58 @@ class TestQueueWithVariants:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_assigning_a_printer_is_refused(self, async_client, db_session, sliced_file_factory, printer_factory):
+        """The edit dialog offers a printer picker for every queue item. Taking it
+        would leave a row with variants AND a printer_id — and the fixed-printer
+        branch of the scheduler wins that race, dispatching a row whose
+        library_file_id is still null."""
+        printer = await printer_factory(model="H2S")
+        await printer_factory(model="H2C")
+        h2s = await sliced_file_factory("H2S")
+        h2c = await sliced_file_factory("H2C")
+        item_id = (await _queue_variants(async_client, h2s.id, h2c.id)).json()["id"]
+
+        r = await async_client.patch(f"/api/v1/queue/{item_id}", json={"printer_id": printer.id})
+        assert r.status_code == 400
+        assert "alternatives" in r.json()["detail"]
+
+        assert len(await _variants_of(db_session, item_id)) == 2, "the alternatives survive the refusal"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_narrowing_to_one_model_is_refused(self, async_client, sliced_file_factory, printer_factory):
+        """Saving "Any H2C" over a two-candidate job would silently discard the
+        H2S alternative the user deliberately queued."""
+        await printer_factory(model="H2S")
+        await printer_factory(model="H2C")
+        h2s = await sliced_file_factory("H2S")
+        h2c = await sliced_file_factory("H2C")
+        item_id = (await _queue_variants(async_client, h2s.id, h2c.id)).json()["id"]
+
+        r = await async_client.patch(f"/api/v1/queue/{item_id}", json={"target_model": "H2C"})
+        assert r.status_code == 400
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_resending_the_unchanged_model_is_allowed(self, async_client, sliced_file_factory, printer_factory):
+        """The edit dialog re-sends target_model on every save, so an unchanged
+        value must not block editing the schedule or print options."""
+        await printer_factory(model="H2S")
+        await printer_factory(model="H2C")
+        h2s = await sliced_file_factory("H2S")
+        h2c = await sliced_file_factory("H2C")
+        created = (await _queue_variants(async_client, h2s.id, h2c.id)).json()
+
+        r = await async_client.patch(
+            f"/api/v1/queue/{created['id']}",
+            json={"target_model": created["target_model"], "timelapse": True},
+        )
+        assert r.status_code == 200
+        assert r.json()["timelapse"] is True
+        assert len(r.json()["variants"]) == 2, "the response still carries the alternatives"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_quantity_gives_each_copy_its_own_candidates(
         self, async_client, db_session, sliced_file_factory, printer_factory
     ):

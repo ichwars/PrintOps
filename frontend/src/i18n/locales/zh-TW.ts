@@ -58,6 +58,7 @@ export default {
   },
   // Common
   common: {
+    plusNMore: '另 {{count}} 個',
     save: '儲存',
     saving: '儲存中...',
     cancel: '取消',
@@ -4925,6 +4926,7 @@ export default {
   // Print modal
   printModal: {
     variants: {
+      editNote: '這些備選在工作加入佇列時確定。如需變更，請取消後重新加入佇列。',
       title: '印表機備選',
       help: '一項工作，佔一個佇列位。第一台空閒且相符的印表機會列印它對應的檔案。',
       unknownModel: '未知型號',

@@ -2796,7 +2796,13 @@ export function FileManagerPage() {
           mode="create"
           libraryFileId={printVariantFiles?.[0]?.id ?? printFile.id}
           variantFiles={printVariantFiles}
-          archiveName={printFile.print_name || printFile.filename}
+          // Naming a cross-model job after one of its files reads as though the
+          // others aren't part of it.
+          archiveName={
+            printVariantFiles && printVariantFiles.length > 1
+              ? `${printVariantFiles[0].filename} ${t('common.plusNMore', { count: printVariantFiles.length - 1 })}`
+              : printFile.print_name || printFile.filename
+          }
           onClose={() => setPrintFile(null)}
           onSuccess={() => {
             setPrintFile(null);

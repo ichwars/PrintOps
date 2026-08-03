@@ -58,6 +58,7 @@ export default {
   },
   // Common
   common: {
+    plusNMore: '+{{count}} autres',
     save: 'Enregistrer',
     saving: 'Enregistrement...',
     cancel: 'Annuler',
@@ -4926,6 +4927,7 @@ export default {
   // Print modal
   printModal: {
     variants: {
+      editNote: 'Ces alternatives ont été définies lors de la mise en file. Annulez et remettez en file pour les modifier.',
       title: 'Alternatives d\'imprimante',
       help: 'Un travail, une place dans la file. La première imprimante compatible qui se libère imprime son fichier.',
       unknownModel: 'Modèle inconnu',

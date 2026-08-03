@@ -17,6 +17,11 @@ interface VariantCandidatesProps {
   /** file id -> chosen plate, for the multi-plate candidates only. */
   plateByFile: Record<number, number | null>;
   onPlateChange: (fileId: number, plateId: number | null) => void;
+  /** Show the set without offering to change it — the edit-queue-item case,
+   *  where reordering would need a variant-level API that doesn't exist. */
+  readOnly?: boolean;
+  /** Replaces the help line under the heading when read-only. */
+  readOnlyNote?: string;
 }
 
 /**
@@ -40,15 +45,21 @@ export function VariantCandidates({
   onReorder,
   plateByFile,
   onPlateChange,
+  readOnly = false,
+  readOnlyNote,
 }: VariantCandidatesProps) {
   const { t } = useTranslation();
 
   const plateQueries = useQueries({
-    queries: candidates.map((c) => ({
-      queryKey: ['library-file-plates', c.id],
-      queryFn: () => api.getLibraryFilePlates(c.id),
-      staleTime: 60_000,
-    })),
+    // Read-only mode shows a job that is already queued — its plates were
+    // chosen when it was created, so there is nothing to fetch or offer.
+    queries: readOnly
+      ? []
+      : candidates.map((c) => ({
+          queryKey: ['library-file-plates', c.id],
+          queryFn: () => api.getLibraryFilePlates(c.id),
+          staleTime: 60_000,
+        })),
   });
 
   const platesByFile = useMemo(() => {
@@ -76,7 +87,9 @@ export function VariantCandidates({
         <PrinterIcon className="w-4 h-4 text-bambu-gray" />
         <span className="text-sm text-bambu-gray">{t('printModal.variants.title')}</span>
       </div>
-      <p className="text-xs text-bambu-gray mb-2">{t('printModal.variants.help')}</p>
+      <p className="text-xs text-bambu-gray mb-2">
+        {readOnly ? (readOnlyNote ?? t('printModal.variants.help')) : t('printModal.variants.help')}
+      </p>
 
       <div className="space-y-2">
         {candidates.map((candidate, index) => {
@@ -116,26 +129,28 @@ export function VariantCandidates({
                 </label>
               )}
 
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => move(index, index - 1)}
-                  disabled={index === 0}
-                  className="p-1 rounded text-bambu-gray hover:text-white disabled:opacity-30"
-                  aria-label={t('printModal.variants.moveUp')}
-                >
-                  <ArrowUp className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => move(index, index + 1)}
-                  disabled={index === candidates.length - 1}
-                  className="p-1 rounded text-bambu-gray hover:text-white disabled:opacity-30"
-                  aria-label={t('printModal.variants.moveDown')}
-                >
-                  <ArrowDown className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              {!readOnly && (
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => move(index, index - 1)}
+                    disabled={index === 0}
+                    className="p-1 rounded text-bambu-gray hover:text-white disabled:opacity-30"
+                    aria-label={t('printModal.variants.moveUp')}
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => move(index, index + 1)}
+                    disabled={index === candidates.length - 1}
+                    className="p-1 rounded text-bambu-gray hover:text-white disabled:opacity-30"
+                    aria-label={t('printModal.variants.moveDown')}
+                  >
+                    <ArrowDown className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}

@@ -95,6 +95,7 @@ export default {
 
   // Common
   common: {
+    plusNMore: '+{{count}} weitere',
     save: 'Speichern',
     saving: 'Speichern...',
     cancel: 'Abbrechen',
@@ -4974,6 +4975,7 @@ export default {
   // Print modal
   printModal: {
     variants: {
+      editNote: 'Diese Alternativen wurden beim Einreihen festgelegt. Zum Ändern abbrechen und neu einreihen.',
       title: 'Drucker-Alternativen',
       help: 'Ein Auftrag, ein Warteschlangenplatz. Der erste passende Drucker, der frei wird, druckt seine Datei.',
       unknownModel: 'Unbekanntes Modell',

@@ -54,6 +54,7 @@ export default {
     status: { active: 'Active', inactive: 'Inactive', blocked: 'Blocked' },
   },
   common: {
+    plusNMore: '외 {{count}}개',
     save: '저장',
     saving: '저장 중...',
     cancel: '취소',
@@ -4708,6 +4709,7 @@ export default {
   },
   printModal: {
     variants: {
+      editNote: '이 대안은 대기열에 추가할 때 정해집니다. 변경하려면 취소 후 다시 추가하세요.',
       title: '프린터 대안',
       help: '작업 하나, 대기열 한 자리. 조건이 맞는 프린터 중 먼저 비는 프린터가 해당 파일을 인쇄합니다.',
       unknownModel: '알 수 없는 모델',

@@ -58,6 +58,7 @@ export default {
   },
   // Common
   common: {
+    plusNMore: '+{{count}} outros',
     save: 'Salvar',
     saving: 'Salvando...',
     cancel: 'Cancelar',
@@ -4925,6 +4926,7 @@ export default {
   // Print modal
   printModal: {
     variants: {
+      editNote: 'Estas alternativas foram definidas ao enfileirar o trabalho. Cancele e enfileire de novo para alterá-las.',
       title: 'Alternativas de impressora',
       help: 'Um trabalho, uma vaga na fila. A primeira impressora compatível que ficar livre imprime o arquivo dela.',
       unknownModel: 'Modelo desconhecido',
