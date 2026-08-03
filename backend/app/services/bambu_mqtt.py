@@ -21,6 +21,12 @@ from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
 
+from backend.app.services.bambu_kprofiles import (
+    KProfile,
+    await_cali_ack as wait_for_cali_ack,
+    parse_kprofile_entries,
+    publish_cali_write,
+)
 from backend.app.services.hms_actions import HMSAction, get_actions_for_error_code
 
 logger = logging.getLogger(__name__)
@@ -235,23 +241,6 @@ _HMS_USER_ACTION_CODES: frozenset[str] = frozenset(
         "0500_400E",  # "Printing was cancelled."
     }
 )
-
-
-@dataclass
-class KProfile:
-    """Pressure advance (K) calibration profile from printer."""
-
-    slot_id: int
-    extruder_id: int
-    nozzle_id: str
-    nozzle_diameter: str
-    filament_id: str
-    name: str
-    k_value: str
-    n_coef: str = "0.000000"
-    ams_id: int = 0
-    tray_id: int = -1
-    setting_id: str | None = None
 
 
 @dataclass
@@ -605,16 +594,9 @@ class BambuMQTTClient:
         # so that missing-serial / missing-firmware warnings fire only once per connection.
         self._ams_version_warned: set[tuple[int | str, str]] = set()
 
-        # K-profile command tracking. One entry per in-flight extrusion_cali_get,
-        # keyed by the sequence_id we sent, so two concurrent requests for
-        # different nozzle sizes can't steal each other's response (#1748).
-        # Value: {"nozzle": str, "event": asyncio.Event, "profiles": list | None}.
+        # K-profile reads and write acknowledgements keyed by sequence_id.
         self._sequence_id: int = 0
         self._pending_kprofile_requests: dict[str, dict] = {}
-        # Acks for K-profile *writes* (extrusion_cali_set / extrusion_cali_del),
-        # keyed by the sequence_id we sent. The printer echoes it back, measured
-        # on both an X1C and an H2D (#2718). Filled by the MQTT thread, drained
-        # by await_cali_ack.
         self._pending_cali_acks: dict[str, dict | None] = {}
 
         # Xcam hold timers - OrcaSlicer pattern: ignore incoming data for 3 seconds after command
@@ -4389,55 +4371,6 @@ class BambuMQTTClient:
             self._drying_targets.pop(ams_id, None)
         return True
 
-    @staticmethod
-    def _parse_kprofile_entries(filaments: list, response_nozzle: str | None, log_errors: bool) -> list[KProfile]:
-        """Build KProfile objects from an ``extrusion_cali_get`` filaments array.
-
-        The printer reports ``nozzle_diameter`` **only on the response
-        envelope** — the per-filament entries carry just setting_id,
-        filament_id, name, k_value, n_coef and cali_idx. Defaulting the
-        per-entry lookup to "0.4" therefore stamped every profile 0.4mm on
-        single-nozzle printers regardless of the installed nozzle (#1748),
-        which broke the K-Profiles display and, worse, the cali_idx cascade
-        in the inventory/Spoolman assign paths that matches on
-        nozzle_diameter. Fall back to the envelope value instead, and only
-        to "0.4" when the envelope has none either.
-
-        ``or`` rather than a dict default on purpose: it also covers an entry
-        that carries the key with an empty value, and stops ``str()`` turning
-        a missing envelope value into the literal "None".
-        """
-        profiles: list[KProfile] = []
-        for i, f in enumerate(filaments):
-            if not isinstance(f, dict):
-                continue
-            try:
-                profiles.append(
-                    KProfile(
-                        # cali_idx is the actual slot/calibration index from the printer
-                        slot_id=f.get("cali_idx", i),
-                        extruder_id=int(f.get("extruder_id", 0)),
-                        nozzle_id=str(f.get("nozzle_id", "")),
-                        nozzle_diameter=str(f.get("nozzle_diameter") or response_nozzle or "0.4"),
-                        filament_id=str(f.get("filament_id", "")),
-                        name=str(f.get("name", "")),
-                        k_value=str(f.get("k_value", "0.000000")),
-                        n_coef=str(f.get("n_coef", "0.000000")),
-                        ams_id=int(f.get("ams_id", 0)),
-                        tray_id=int(f.get("tray_id", -1)),
-                        setting_id=f.get("setting_id"),
-                    )
-                )
-            except (ValueError, TypeError) as e:
-                # Skip malformed entries; the remaining profiles stay usable.
-                # Unsolicited broadcasts arrive constantly, so only a response
-                # someone is actually waiting on is worth a warning.
-                if log_errors:
-                    logger.warning("Failed to parse K-profile: %s", e)
-                else:
-                    logger.debug("Failed to parse K-profile from broadcast: %s", e)
-        return profiles
-
     def _handle_kprofile_response(self, data: dict):
         """Handle K-profile response from printer."""
         response_nozzle = data.get("nozzle_diameter")
@@ -4450,12 +4383,7 @@ class BambuMQTTClient:
         request = pending.get(response_seq_id)
 
         if request is None and pending:
-            # Firmware that doesn't echo our sequence_id still has to be
-            # served, so fall back to the pre-#1748 rule of matching on the
-            # nozzle size. Only requests still waiting are eligible, and the
-            # sequence_id lookup above has already claimed any response that
-            # identifies itself, so this can no longer hand request A's
-            # answer to request B when both are in flight.
+            # Older firmware may omit sequence_id; match its pending nozzle.
             request = next(
                 (r for r in pending.values() if r["nozzle"] == response_nozzle and r["profiles"] is None),
                 None,
@@ -4472,10 +4400,7 @@ class BambuMQTTClient:
             )
 
         if request is None and pending:
-            # A request is outstanding and this isn't its answer. The printer
-            # broadcasts extrusion_cali_get unsolicited, so letting this
-            # through would replace state.kprofiles with another nozzle's
-            # profiles while the caller is still waiting.
+            # Ignore unsolicited broadcasts while another nozzle request waits.
             logger.debug(
                 "[%s] Ignoring unmatched K-profile response: nozzle=%s, seq_id=%s",
                 self.serial_number,
@@ -4484,7 +4409,7 @@ class BambuMQTTClient:
             )
             return
 
-        profiles = self._parse_kprofile_entries(filaments, response_nozzle, log_errors=request is not None)
+        profiles = parse_kprofile_entries(filaments, response_nozzle, log_errors=request is not None)
         self.state.kprofiles = profiles
 
         if request is None:
@@ -4577,50 +4502,13 @@ class BambuMQTTClient:
         logger.error("[%s] Failed to get K-profiles after %s attempts", self.serial_number, max_retries)
         return []
 
-    def _publish_cali_write(self, command: dict, seq_id: str) -> bool:
-        """Publish a K-profile write and arm its ack slot.
-
-        Registration happens before the publish because the printer answers in
-        well under a second — measured at 70-150ms — which is comfortably
-        before an async caller gets back to awaiting.
-        """
-        self._pending_cali_acks[seq_id] = None
-        try:
-            self._client.publish(self.topic_publish, json.dumps(command), qos=1)
-        except Exception:
-            self._pending_cali_acks.pop(seq_id, None)
-            raise
-        return True
-
     async def await_cali_ack(self, seq_id: str, timeout: float = 6.0) -> tuple[bool, str]:
-        """Wait for the printer's verdict on a K-profile write.
-
-        Returns ``(ok, detail)``. ``ok`` is False only when the printer
-        explicitly said ``result: "fail"`` — a timeout returns True with a
-        detail string, because "no answer" is not evidence of rejection and
-        older firmware may not answer at all. Callers that need certainty read
-        the calibration table back.
-
-        Polled rather than event-driven on purpose: the ack is filled in by the
-        MQTT callback thread, and polling a dict costs one lookup every 50ms
-        for at most a few hundred milliseconds, against the cross-thread
-        event plumbing it would otherwise take.
-        """
-        deadline = time.monotonic() + timeout
-        try:
-            while time.monotonic() < deadline:
-                ack = self._pending_cali_acks.get(seq_id)
-                if ack is not None:
-                    result = str(ack.get("result", "")).lower()
-                    reason = str(ack.get("reason", "") or "")
-                    if result == "fail":
-                        return (False, reason or "printer reported failure")
-                    return (True, reason)
-                await asyncio.sleep(0.05)
-        finally:
-            self._pending_cali_acks.pop(seq_id, None)
-        logger.warning("[%s] No ack for K-profile write seq=%s within %.1fs", self.serial_number, seq_id, timeout)
-        return (True, "no acknowledgement from printer")
+        return await wait_for_cali_ack(
+            self._pending_cali_acks,
+            seq_id,
+            self.serial_number,
+            timeout,
+        )
 
     def set_kprofile(
         self,
@@ -4708,7 +4596,7 @@ class BambuMQTTClient:
             f"[{self.serial_number}] Setting K-profile: {name} = {k_value} (cali_idx={effective_cali_idx}, new={slot_id == 0})"
         )
         logger.debug("[%s] K-profile SET command: %s", self.serial_number, command_json)
-        self._publish_cali_write(command, seq_id)
+        publish_cali_write(self._client, self.topic_publish, command, seq_id, self._pending_cali_acks)
         return seq_id
 
     def set_kprofiles_batch(
@@ -4780,7 +4668,7 @@ class BambuMQTTClient:
         command_json = json.dumps(command)
         logger.info("[%s] Setting %s K-profiles in batch", self.serial_number, len(filament_entries))
         logger.debug("[%s] K-profile SET batch command: %s", self.serial_number, command_json)
-        self._publish_cali_write(command, seq_id)
+        publish_cali_write(self._client, self.topic_publish, command, seq_id, self._pending_cali_acks)
         return seq_id
 
     def delete_kprofile(
@@ -4857,7 +4745,7 @@ class BambuMQTTClient:
         )
         logger.debug("[%s] K-profile DELETE command: %s", self.serial_number, command_json)
         # QoS 1 for reliable delivery (at least once)
-        self._publish_cali_write(command, seq_id)
+        publish_cali_write(self._client, self.topic_publish, command, seq_id, self._pending_cali_acks)
         return seq_id
 
     # =========================================================================
