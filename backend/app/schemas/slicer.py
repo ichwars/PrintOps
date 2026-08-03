@@ -100,6 +100,27 @@ class SliceRequest(BaseModel):
             "process preset unchanged (#1337)."
         ),
     )
+    auto_orient: bool = Field(
+        default=False,
+        description=(
+            "Let the slicer pick each object's orientation before slicing "
+            "(BambuStudio / OrcaSlicer ``--orient 1``, the GUI's 'Auto orient'). "
+            "Off by default: it rotates geometry, so a model the designer laid "
+            "flat on purpose would silently change. Applies on the embedded-"
+            "settings path too — it is a CLI action, not a profile value (#2548)."
+        ),
+    )
+    auto_arrange: bool = Field(
+        default=False,
+        description=(
+            "Let the slicer lay the objects out on the plate before slicing "
+            "(``--arrange 1``, the GUI's 'Auto arrange'). Off by default: it "
+            "repositions objects, discarding a deliberate layout. Forced on "
+            "regardless for cross-nozzle-class re-slices, where the source's "
+            "coordinates land in the target's dead zone (#1493). Applies on the "
+            "embedded-settings path too (#2548)."
+        ),
+    )
 
     @model_validator(mode="after")
     def normalise_preset_refs(self) -> "SliceRequest":

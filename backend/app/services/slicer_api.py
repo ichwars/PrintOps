@@ -242,6 +242,7 @@ class SlicerApiService:
         plate: int | None = None,
         export_3mf: bool = False,
         arrange: bool = False,
+        orient: bool = False,
         request_id: str | None = None,
         on_progress: Callable[[dict], None] | None = None,
     ) -> SliceResult:
@@ -260,7 +261,15 @@ class SlicerApiService:
         the source's X1C-coordinate layout would otherwise drop into an H2D
         dead zone or trigger the multi-extruder geometry pipeline's polygon
         clipping crash. Default off so single-printer slices preserve the
-        user's deliberate layout.
+        user's deliberate layout. Also settable per-slice by the user
+        (#2548).
+
+        ``orient`` forwards ``--orient``, the CLI's auto-orientation pass:
+        the slicer scores candidate rotations (overhang area, contour,
+        unprintability) and rotates each object onto the best one before
+        slicing. User-driven only — nothing in Bambuddy turns it on by
+        itself, since rotating a deliberately-laid-out model is not a
+        change to make silently.
 
         ``request_id``: when supplied, the sidecar wires --pipe to a
         per-request FIFO and publishes structured JSON progress events to
@@ -293,11 +302,7 @@ class SlicerApiService:
             data["plate"] = str(plate)
         if export_3mf:
             data["exportType"] = "3mf"
-        if arrange:
-            # Sidecar reads non-empty truthy strings as True; only send the
-            # field when we want the flag on, so default-off callers exactly
-            # match the previous wire payload.
-            data["arrange"] = "true"
+        _add_layout_flags(data, arrange=arrange, orient=orient)
         if request_id is not None:
             data["requestId"] = request_id
 
@@ -339,6 +344,8 @@ class SlicerApiService:
         model_filename: str,
         plate: int | None = None,
         export_3mf: bool = False,
+        arrange: bool = False,
+        orient: bool = False,
         request_id: str | None = None,
         on_progress: Callable[[dict], None] | None = None,
     ) -> SliceResult:
@@ -357,6 +364,14 @@ class SlicerApiService:
         events to the ProgressStore so the modal's inline spinner +
         toast can show "Generating G-code (75%)" for that preview as
         well.
+
+        ``arrange`` / ``orient`` mean the same as on
+        ``slice_with_profiles``: they are CLI actions applied to the loaded
+        geometry, independent of where the print config came from. Both
+        paths accept them so a user's per-slice choice survives the
+        embedded-settings route and the segfault fallback — the filament-
+        discovery preview leaves them off, since moving objects there
+        would change nothing about which slots the plate consumes.
         """
         files = {
             "file": (model_filename, model_bytes, _guess_model_content_type(model_filename)),
@@ -366,6 +381,7 @@ class SlicerApiService:
             data["plate"] = str(plate)
         if export_3mf:
             data["exportType"] = "3mf"
+        _add_layout_flags(data, arrange=arrange, orient=orient)
         if request_id is not None:
             data["requestId"] = request_id
 
@@ -399,6 +415,23 @@ class SlicerApiService:
                     pass
 
         return _handle_slice_response(response, export_3mf=export_3mf)
+
+
+def _add_layout_flags(data: dict[str, str], *, arrange: bool, orient: bool) -> None:
+    """Set the sidecar's ``arrange`` / ``orient`` form fields, but only when on.
+
+    The sidecar branches on ``settings.arrange !== undefined`` and forwards
+    ``--arrange 1`` / ``--arrange 0`` accordingly — but multipart fields
+    arrive as *strings*, and ``"false"`` is truthy in JavaScript. Sending
+    ``"false"`` would therefore turn the flag ON. So an off flag is
+    expressed by omitting the field entirely, which also keeps the wire
+    payload of default-off callers byte-identical to before these
+    parameters existed.
+    """
+    if arrange:
+        data["arrange"] = "true"
+    if orient:
+        data["orient"] = "true"
 
 
 def _safe_int(value: str | None) -> int:

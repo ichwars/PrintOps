@@ -4512,6 +4512,11 @@ export default {
     allPresetsRequired: 'All presets must be selected',
     useEmbedded: "Use the file's built-in settings",
     useEmbeddedHint: "Slice it the way the designer set it up (walls, infill, filament) instead of the profiles above. Offered because your printer matches the file's.",
+
+    autoOrient: 'Auto-orient objects',
+    autoOrientHint: 'Let the slicer turn each object onto its best printing side first. Overrides the way the model was laid down in the file.',
+    autoArrange: 'Auto-arrange on the plate',
+    autoArrangeHint: 'Let the slicer position the objects so they no longer overlap. Replaces the layout the file came with.',
     enqueuing: 'Submitting slice job…',
     queued: 'Queued…',
     failed: 'Slicing failed. Check the slicer sidecar logs.',

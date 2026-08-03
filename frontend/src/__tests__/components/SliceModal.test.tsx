@@ -317,6 +317,57 @@ describe('SliceModal', () => {
     });
   });
 
+  it('sends the layout flags only for the boxes the user ticked (#2548)', async () => {
+    mockApi.sliceLibraryFile.mockResolvedValue({
+      job_id: 42,
+      status: 'pending',
+      status_url: '/api/v1/slice-jobs/42',
+    });
+
+    renderWithTracker({
+      source: { kind: 'libraryFile', id: 100, filename: 'Cube.stl' },
+      onClose: vi.fn(),
+    });
+
+    await waitForPrinterSelection('Imported X1C 0.4');
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('checkbox', { name: /Auto-orient objects/ }));
+    await user.click(screen.getByRole('button', { name: /^Slice$/ }));
+
+    await waitFor(() => {
+      const [, body] = vi.mocked(mockApi.sliceLibraryFile).mock.calls[0];
+      expect(body).toHaveProperty('auto_orient', true);
+      // The untouched box is omitted, not sent as false. The sidecar reads
+      // any present value as truthy, so a literal false would arrange every
+      // slice — the flag has to travel by absence.
+      expect(body).not.toHaveProperty('auto_arrange');
+    });
+  });
+
+  it('omits both layout flags when neither box is ticked (#2548)', async () => {
+    mockApi.sliceLibraryFile.mockResolvedValue({
+      job_id: 42,
+      status: 'pending',
+      status_url: '/api/v1/slice-jobs/42',
+    });
+
+    renderWithTracker({
+      source: { kind: 'libraryFile', id: 100, filename: 'Cube.stl' },
+      onClose: vi.fn(),
+    });
+
+    await waitForPrinterSelection('Imported X1C 0.4');
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /^Slice$/ }));
+
+    await waitFor(() => {
+      const [, body] = vi.mocked(mockApi.sliceLibraryFile).mock.calls[0];
+      expect(body).not.toHaveProperty('auto_orient');
+      expect(body).not.toHaveProperty('auto_arrange');
+    });
+  });
+
   it('lets the user override the default and pick a Standard preset', async () => {
     const onClose = vi.fn();
     mockApi.sliceLibraryFile.mockResolvedValue({
