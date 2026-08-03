@@ -216,7 +216,10 @@ class TestBambuCloudTOTPVerification:
         }
         mock_response.cookies = {}
 
-        with patch.object(cloud_service._client, "post", new_callable=AsyncMock) as mock_post:
+        with (
+            patch.object(cloud_service, "_fetch_csrf_token", new_callable=AsyncMock, return_value="test-csrf"),
+            patch.object(cloud_service._client, "post", new_callable=AsyncMock) as mock_post,
+        ):
             mock_post.return_value = mock_response
 
             result = await cloud_service.verify_totp("test-tfa-key", "123456")
@@ -233,7 +236,10 @@ class TestBambuCloudTOTPVerification:
         mock_response.json.return_value = {"token": "test-token"}
         mock_response.cookies = {}
 
-        with patch.object(cloud_service._client, "post", new_callable=AsyncMock) as mock_post:
+        with (
+            patch.object(cloud_service, "_fetch_csrf_token", new_callable=AsyncMock, return_value="test-csrf"),
+            patch.object(cloud_service._client, "post", new_callable=AsyncMock) as mock_post,
+        ):
             mock_post.return_value = mock_response
 
             await cloud_service.verify_totp("test-tfa-key", "123456")
@@ -251,7 +257,10 @@ class TestBambuCloudTOTPVerification:
         mock_response.status_code = 400
         mock_response.text = ""
 
-        with patch.object(cloud_service._client, "post", new_callable=AsyncMock) as mock_post:
+        with (
+            patch.object(cloud_service, "_fetch_csrf_token", new_callable=AsyncMock, return_value="test-csrf"),
+            patch.object(cloud_service._client, "post", new_callable=AsyncMock) as mock_post,
+        ):
             mock_post.return_value = mock_response
 
             result = await cloud_service.verify_totp("test-tfa-key", "123456")
@@ -271,7 +280,10 @@ class TestBambuCloudTOTPVerification:
         # json() raises an error when response is HTML
         mock_response.json.side_effect = ValueError("No JSON")
 
-        with patch.object(cloud_service._client, "post", new_callable=AsyncMock) as mock_post:
+        with (
+            patch.object(cloud_service, "_fetch_csrf_token", new_callable=AsyncMock, return_value="test-csrf"),
+            patch.object(cloud_service._client, "post", new_callable=AsyncMock) as mock_post,
+        ):
             mock_post.return_value = mock_response
 
             result = await cloud_service.verify_totp("test-tfa-key", "123456")
@@ -299,7 +311,10 @@ class TestBambuCloudTOTPVerification:
         mock_response.json.return_value = {"token": "test-token"}
         mock_response.cookies = {}
 
-        with patch.object(cloud_service._client, "post", new_callable=AsyncMock) as mock_post:
+        with (
+            patch.object(cloud_service, "_fetch_csrf_token", new_callable=AsyncMock, return_value="test-csrf"),
+            patch.object(cloud_service._client, "post", new_callable=AsyncMock) as mock_post,
+        ):
             mock_post.return_value = mock_response
 
             await cloud_service.verify_totp("test-tfa-key", "123456")
@@ -363,7 +378,10 @@ class TestBambuCloudRegion:
         mock_response.json.return_value = {"token": "t"}
         mock_response.cookies = {}
 
-        with patch.object(cloud._client, "post", new_callable=AsyncMock) as mock_post:
+        with (
+            patch.object(cloud, "_fetch_csrf_token", new_callable=AsyncMock, return_value="test-csrf"),
+            patch.object(cloud._client, "post", new_callable=AsyncMock) as mock_post,
+        ):
             mock_post.return_value = mock_response
 
             await cloud.verify_totp("tfa-key", "123456")
