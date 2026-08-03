@@ -148,6 +148,9 @@ async def set_kprofile(
         )
         if not delete_success:
             raise HTTPException(500, "Failed to delete existing K-profile for edit")
+        ok, detail = await client.await_cali_ack(delete_success)
+        if not ok:
+            raise HTTPException(500, f"Printer rejected the K-profile edit: {detail}")
 
         # Wait for printer to process the delete before adding
         await asyncio.sleep(0.5)
@@ -178,6 +181,9 @@ async def set_kprofile(
 
     if not success:
         raise HTTPException(500, "Failed to send K-profile command")
+    ok, detail = await client.await_cali_ack(success)
+    if not ok:
+        raise HTTPException(500, f"Printer rejected the K-profile: {detail}")
 
     message = "K-profile updated successfully" if is_edit else "K-profile added successfully"
     return {"success": True, "message": message}
@@ -238,6 +244,9 @@ async def set_kprofiles_batch(
 
     if not success:
         raise HTTPException(500, "Failed to send K-profiles batch command")
+    ok, detail = await client.await_cali_ack(success)
+    if not ok:
+        raise HTTPException(500, f"Printer rejected the K-profiles: {detail}")
 
     return {"success": True, "message": f"Added {len(profiles)} K-profiles"}
 
@@ -282,6 +291,9 @@ async def delete_kprofile(
 
     if not success:
         raise HTTPException(500, "Failed to send K-profile delete command")
+    ok, detail = await client.await_cali_ack(success)
+    if not ok:
+        raise HTTPException(500, f"Printer rejected the delete: {detail}")
 
     # Wait for printer to process the delete before frontend refetches
     await asyncio.sleep(0.5)

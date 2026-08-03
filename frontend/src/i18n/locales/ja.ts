@@ -1332,6 +1332,7 @@ export default {
     // Time
     time: {
       asap: '即時',
+      etaIfStartedNow: 'このジョブを今開始した場合の完了予定時刻',
       overdue: '期限超過',
       now: '今すぐ',
       lessThanMinute: '1分以内',
@@ -5274,7 +5275,15 @@ export default {
       kValueHelp: '一般的な範囲: PLA 0.01〜0.06、PETG 0.02〜0.10',
       filament: 'フィラメント',
       selectFilament: 'フィラメントを選択...',
-      noFilamentsHelp: 'フィラメントが見つかりません。Bambu Studioでまずプロファイルを作成してください。',
+      source: {
+        local: 'インポート済み',
+        orcaCloud: 'Orca Cloud',
+        bambuCloud: 'Bambu Cloud',
+        builtin: '内蔵',
+      },
+      noFilamentsHelp: '利用できるフィラメントがありません。Bambu Cloud にログインするか、プロファイル → ローカルプロファイル でプリセットをインポートしてください。',
+      searchFilaments: 'フィラメントを検索...',
+      noFilamentMatches: '検索に一致するフィラメントはありません',
       flowType: 'フロータイプ',
       highFlow: 'ハイフロー',
       standard: 'スタンダード',
@@ -5307,6 +5316,8 @@ export default {
       profileSaved: 'Kプロファイルを保存しました',
       profilesSaved: 'Kプロファイルを{{count}}台のエクストルーダーに保存しました',
       selectAtLeastOneExtruder: 'エクストルーダーを1つ以上選択してください',
+      selectFilament: '先にフィラメントを選択してください',
+      filamentNotResolvable: '{{name}} に対応する Bambu フィラメント ID がないため、プリンターはプロファイルを保存できません',
       profileDeleted: 'Kプロファイルを削除しました',
       profilesDeleted: '{{count}}件のプロファイルを削除しました',
       exportedProfiles: '{{count}}件のプロファイルをエクスポートしました',

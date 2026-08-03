@@ -324,9 +324,10 @@ export function formatTimeOnly(
 export function formatETA(
   remainingMinutes: number,
   timeFormat: TimeFormat = 'system',
-  t?: (key: string) => string
+  t?: (key: string) => string,
+  baseTime?: number
 ): string {
-  const now = new Date();
+  const now = baseTime != null ? new Date(baseTime) : new Date();
   const eta = new Date(now.getTime() + remainingMinutes * 60 * 1000);
 
   const today = new Date(now);

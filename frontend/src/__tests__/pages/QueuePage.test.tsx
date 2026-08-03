@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { openComboboxOptions, render } from '../utils';
 import { QueuePage } from '../../pages/QueuePage';
@@ -195,6 +195,98 @@ describe('QueuePage', () => {
         expect(screen.getByText('Active Print')).toBeInTheDocument();
         expect(screen.getByText('Currently Printing')).toBeInTheDocument();
       });
+    });
+
+    it('shows an if-started-now ETA for an eligible pending item', async () => {
+      server.use(http.get('/api/v1/queue/', () => HttpResponse.json([mockQueueItems[0]])));
+      render(<QueuePage />);
+
+      const row = (await screen.findByText('Test Print 1')).closest('.group');
+      expect(row).not.toBeNull();
+      expect(within(row as HTMLElement).getByTestId('queue-item-eta')).toHaveAttribute(
+        'title',
+        'Completion time if this job started now',
+      );
+    });
+
+    it('does not show an ETA behind a running print on the same printer', async () => {
+      render(<QueuePage />);
+
+      const row = (await screen.findByText('Test Print 1')).closest('.group');
+      expect(row).not.toBeNull();
+      expect(within(row as HTMLElement).queryByTestId('queue-item-eta')).not.toBeInTheDocument();
+    });
+
+    it('shows the ETA only on the next queued item for an idle printer', async () => {
+      server.use(http.get('/api/v1/queue/', () => HttpResponse.json([
+        { ...mockQueueItems[0], id: 10, position: 1, archive_name: 'First up' },
+        { ...mockQueueItems[0], id: 11, position: 2, archive_name: 'Second up' },
+        { ...mockQueueItems[0], id: 12, position: 3, archive_name: 'Third up' },
+      ])));
+      render(<QueuePage />);
+      await screen.findByText('Third up');
+
+      const etaRows = screen.queryAllByTestId('queue-item-eta').map(element => element.closest('.group')?.textContent);
+      expect(etaRows).toHaveLength(1);
+      expect(etaRows[0]).toContain('First up');
+    });
+
+    it('shows an ETA for a staged item on an idle printer', async () => {
+      server.use(http.get('/api/v1/queue/', () => HttpResponse.json([
+        { ...mockQueueItems[0], id: 20, position: 1, archive_name: 'Auto first' },
+        { ...mockQueueItems[0], id: 21, position: 2, archive_name: 'Staged second', manual_start: true },
+      ])));
+      render(<QueuePage />);
+
+      const row = (await screen.findByText('Staged second')).closest('.group');
+      expect(row).not.toBeNull();
+      expect(within(row as HTMLElement).getByTestId('queue-item-eta')).toBeInTheDocument();
+    });
+
+    it('does not show an ETA for a job conditional on a previous print', async () => {
+      server.use(http.get('/api/v1/queue/', () => HttpResponse.json([{
+        ...mockQueueItems[0],
+        archive_name: 'Conditional Print',
+        require_previous_success: true,
+      }])));
+      render(<QueuePage />);
+
+      const row = (await screen.findByText('Conditional Print')).closest('.group');
+      expect(row).not.toBeNull();
+      expect(within(row as HTMLElement).queryByTestId('queue-item-eta')).not.toBeInTheDocument();
+    });
+
+    it('does not show an ETA for a waiting or future-scheduled job', async () => {
+      server.use(http.get('/api/v1/queue/', () => HttpResponse.json([
+        { ...mockQueueItems[0], id: 30, archive_name: 'Waiting Print', waiting_reason: 'Waiting for printer' },
+        {
+          ...mockQueueItems[0],
+          id: 31,
+          archive_name: 'Scheduled Print',
+          scheduled_time: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString(),
+        },
+      ])));
+      render(<QueuePage />);
+
+      for (const name of ['Waiting Print', 'Scheduled Print']) {
+        const row = (await screen.findByText(name)).closest('.group');
+        expect(row).not.toBeNull();
+        expect(within(row as HTMLElement).queryByTestId('queue-item-eta')).not.toBeInTheDocument();
+      }
+    });
+
+    it('does not render an ETA for an invalid duration', async () => {
+      server.use(http.get('/api/v1/queue/', () => HttpResponse.json([{
+        ...mockQueueItems[0],
+        archive_name: 'Invalid Duration Print',
+        print_time_seconds: -60,
+      }])));
+      render(<QueuePage />);
+
+      const row = (await screen.findByText('Invalid Duration Print')).closest('.group');
+      expect(row).not.toBeNull();
+      expect(within(row as HTMLElement).queryByTestId('queue-item-eta')).not.toBeInTheDocument();
+      expect(within(row as HTMLElement).queryByText(/^ETA(?:\s|$)/)).not.toBeInTheDocument();
     });
 
     it('shows completed items in history', async () => {

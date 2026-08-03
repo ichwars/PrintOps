@@ -3,10 +3,15 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter } from 'react-router';
 import { render } from '../utils';
 import { SettingsPage } from '../../pages/SettingsPage';
+import { AuthProvider } from '../../contexts/AuthContext';
+import { ThemeProvider } from '../../contexts/ThemeContext';
+import { ToastProvider } from '../../contexts/ToastContext';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
 import { SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY, SIDEBAR_ORDER_KEY } from '../../utils/sidebarLayout';
@@ -2146,5 +2151,104 @@ describe('SettingsPage', () => {
         expect(window.location.search).not.toContain('sub=pipelines');
       });
     });
+  });
+});
+
+describe('SettingsPage server reconciliation', () => {
+  const baseSettings = { ...mockSettings, external_url: window.location.origin };
+  let queryClient: QueryClient;
+  let puts: Record<string, unknown>[];
+  let served: Record<string, unknown>;
+
+  function renderPage() {
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
+    });
+    return rtlRender(
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthProvider>
+            <ThemeProvider>
+              <ToastProvider>
+                <SettingsPage />
+              </ToastProvider>
+            </ThemeProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  async function changeOnServer(patch: Record<string, unknown>) {
+    served = { ...served, ...patch };
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ['settings'] });
+    });
+  }
+
+  async function toggleSponsorPrompts() {
+    const label = await screen.findByText('Show supporter notices');
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const row = label.parentElement?.parentElement;
+    if (!row) throw new Error('Expected supporter notices row');
+    await userEvent.click(within(row).getByRole('switch'));
+  }
+
+  beforeEach(() => {
+    window.history.replaceState({}, '', '/');
+    localStorage.clear();
+    setAuthToken(null);
+    puts = [];
+    served = { ...baseSettings };
+    server.use(
+      http.get('/api/v1/settings/', () => HttpResponse.json(served)),
+      http.put('/api/v1/settings/', async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        puts.push(body);
+        served = { ...served, ...body };
+        return HttpResponse.json(served);
+      }),
+    );
+  });
+
+  it('does not write a stale local copy over a server-side change', async () => {
+    renderPage();
+    await screen.findByPlaceholderText('Search settings…');
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    await changeOnServer({ currency: 'EUR' });
+    await new Promise(resolve => setTimeout(resolve, 1200));
+
+    expect(puts).toEqual([]);
+  });
+
+  it('carries an adopted server value in a later user-initiated save', async () => {
+    renderPage();
+    await screen.findByPlaceholderText('Search settings…');
+    await new Promise(resolve => setTimeout(resolve, 200));
+    await changeOnServer({ currency: 'EUR' });
+
+    await toggleSponsorPrompts();
+
+    await waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
+    expect(puts[0]).toEqual(expect.objectContaining({ currency: 'EUR', show_sponsor_prompts: false }));
+  });
+
+  it('preserves a pending local edit when the same field changes on the server', async () => {
+    renderPage();
+    await toggleSponsorPrompts();
+    await changeOnServer({ show_sponsor_prompts: true });
+
+    await waitFor(() => expect(puts.length).toBeGreaterThan(0), { timeout: 3000 });
+    expect(puts.every(put => put.show_sponsor_prompts === false)).toBe(true);
+  });
+
+  it('does not resend a confirmed draft', async () => {
+    renderPage();
+    await toggleSponsorPrompts();
+
+    await waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    expect(puts).toHaveLength(1);
   });
 });

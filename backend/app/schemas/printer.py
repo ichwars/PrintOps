@@ -4,6 +4,7 @@ from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator
 
 from backend.app.services.equipment_costs import calculate_hourly_rate, calculate_residual_value
+from backend.app.utils.printer_models import supports_nozzle_flow_type
 
 
 class PrinterBase(BaseModel):
@@ -96,6 +97,7 @@ class PrinterResponse(PrinterBase):
     id: int
     is_active: bool
     nozzle_count: int = 1  # 1 or 2, auto-detected from MQTT
+    supports_nozzle_flow_type: bool = True
     print_hours_offset: float = 0.0
     external_camera_url: str | None = None
     external_camera_type: str | None = None
@@ -130,6 +132,7 @@ class PrinterResponse(PrinterBase):
             "camera_rotation": printer.camera_rotation,
             "is_active": printer.is_active,
             "nozzle_count": printer.nozzle_count,
+            "supports_nozzle_flow_type": supports_nozzle_flow_type(printer.model),
             "print_hours_offset": printer.print_hours_offset,
             "acquisition_date": printer.acquisition_date,
             "acquisition_value": printer.acquisition_value,

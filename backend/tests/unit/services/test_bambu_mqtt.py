@@ -4,8 +4,10 @@ Tests for the BambuMQTTClient service.
 These tests focus on timelapse tracking during prints.
 """
 
+import asyncio
 import json
 import time
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -6394,6 +6396,302 @@ class TestKProfileResponseDoesNotClobberNozzle:
         mqtt_client._process_message({"print": {"nozzle_diameter": "0.4"}})
 
         assert mqtt_client.state.nozzles[0].nozzle_diameter == "0.4"
+
+
+class TestKProfileNozzleDiameterFromEnvelope:
+    """#1748: every K-profile came back as 0.4mm on single-nozzle printers.
+
+    ``extrusion_cali_get`` carries ``nozzle_diameter`` only on the response
+    envelope — the per-filament entries hold just setting_id, filament_id,
+    name, k_value, n_coef and cali_idx. The parser read the field per entry
+    with a "0.4" default, so a 0.6/0.8 nozzle's profiles were all stamped 0.4.
+    Beyond the K-Profiles display that broke the cali_idx cascade in the
+    inventory and Spoolman assign paths, which match on nozzle_diameter.
+    """
+
+    @pytest.fixture
+    def mqtt_client(self):
+        from backend.app.services.bambu_mqtt import BambuMQTTClient
+
+        return BambuMQTTClient(
+            ip_address="192.168.1.100",
+            serial_number="X1ETEST",
+            access_code="12345678",
+        )
+
+    @staticmethod
+    def _response(nozzle="0.8", entries=None, seq="48"):
+        """A verbatim-shaped extrusion_cali_get payload from the #1748 report."""
+        if entries is None:
+            entries = [
+                {
+                    "setting_id": "GFSNLS02_07",
+                    "filament_id": "GFSNL02",
+                    "name": "SUNLU PLA Matte WHITE 0.8",
+                    "k_value": "0.01750",
+                    "n_coef": "1.000",
+                    "cali_idx": 265,
+                    "is_history_setting": True,
+                }
+            ]
+        print_data = {"command": "extrusion_cali_get", "filament_id": "", "filaments": entries}
+        if nozzle is not None:
+            print_data["nozzle_diameter"] = nozzle
+        if seq is not None:
+            print_data["sequence_id"] = seq
+        return {"print": print_data}
+
+    def test_broadcast_uses_envelope_diameter(self, mqtt_client):
+        # No request in flight: the unsolicited broadcast still has to record
+        # the right diameter, because state.kprofiles is what the assign paths
+        # read when nobody has just fetched.
+        mqtt_client._process_message(self._response(nozzle="0.8"))
+        assert [p.nozzle_diameter for p in mqtt_client.state.kprofiles] == ["0.8"]
+
+    @pytest.mark.asyncio
+    async def test_awaited_response_uses_envelope_diameter(self, mqtt_client):
+        profiles = await self._fetch(mqtt_client, "0.6", self._response(nozzle="0.6", seq="7"))
+        assert [p.nozzle_diameter for p in profiles] == ["0.6"]
+
+    def test_entry_value_still_wins(self, mqtt_client):
+        # Dual-nozzle firmware does put the field on each entry; that stays
+        # authoritative, since a batch can legitimately span nozzles.
+        entries = [{"cali_idx": 1, "filament_id": "GFA00", "name": "PLA", "nozzle_diameter": "0.4"}]
+        mqtt_client._process_message(self._response(nozzle="0.8", entries=entries))
+        assert mqtt_client.state.kprofiles[0].nozzle_diameter == "0.4"
+
+    def test_empty_entry_value_falls_back_to_envelope(self, mqtt_client):
+        entries = [{"cali_idx": 1, "filament_id": "GFA00", "name": "PLA", "nozzle_diameter": ""}]
+        mqtt_client._process_message(self._response(nozzle="0.8", entries=entries))
+        assert mqtt_client.state.kprofiles[0].nozzle_diameter == "0.8"
+
+    def test_no_envelope_value_falls_back_to_default(self, mqtt_client):
+        # Neither source available: keep the old default rather than let
+        # str(None) write the literal string "None" into the profile.
+        mqtt_client._process_message(self._response(nozzle=None))
+        assert mqtt_client.state.kprofiles[0].nozzle_diameter == "0.4"
+
+    @staticmethod
+    async def _fetch(client, nozzle, response):
+        """Run get_kprofiles, feeding `response` in as the printer's answer."""
+        client.state.connected = True
+        client._client = MagicMock()
+        client._client.publish.side_effect = lambda *a, **kw: client._process_message(response)
+        return await client.get_kprofiles(nozzle_diameter=nozzle, timeout=2.0)
+
+
+class TestKProfileWriteAcks:
+    """#2718: K-profile writes were fire-and-forget.
+
+    ``set_kprofiles_batch`` published and returned True immediately, and the
+    printer's ``extrusion_cali_set`` answer was logged at DEBUG and dropped, so
+    a rejected write was reported to the user as saved. Two facts measured on
+    real hardware shape the fix: the printer echoes our ``sequence_id`` back
+    (so the ack can be correlated), and it answers ``result: "fail",
+    reason: "invalid tray_id"`` to ``tray_id: -1`` on single-nozzle firmware
+    while applying the write anyway — flipping that field to 0 is what makes
+    ``result`` trustworthy.
+    """
+
+    @pytest.fixture
+    def mqtt_client(self):
+        from backend.app.services.bambu_mqtt import BambuMQTTClient
+
+        client = BambuMQTTClient(
+            ip_address="192.168.1.100",
+            serial_number="X1CTEST",
+            access_code="12345678",
+        )
+        client.state.connected = True
+        client._client = MagicMock()
+        return client
+
+    @staticmethod
+    def _sent(client):
+        return json.loads(client._client.publish.call_args[0][1])["print"]
+
+    def test_set_sends_tray_id_zero(self, mqtt_client):
+        mqtt_client.set_kprofile(filament_id="GFL99", name="test", k_value="0.022000")
+        assert self._sent(mqtt_client)["filaments"][0]["tray_id"] == 0
+
+    def test_batch_sends_tray_id_zero(self, mqtt_client):
+        mqtt_client.set_kprofiles_batch([{"filament_id": "GFL99", "name": "t", "k_value": "0.020000"}])
+        assert self._sent(mqtt_client)["filaments"][0]["tray_id"] == 0
+
+    def test_writers_return_their_sequence_id(self, mqtt_client):
+        seq = mqtt_client.set_kprofile(filament_id="GFL99", name="test", k_value="0.022000")
+        assert seq == self._sent(mqtt_client)["sequence_id"]
+        assert seq in mqtt_client._pending_cali_acks
+
+    def test_writers_return_none_when_disconnected(self, mqtt_client):
+        mqtt_client.state.connected = False
+        assert mqtt_client.set_kprofile(filament_id="GFL99", name="t", k_value="0.02") is None
+        assert mqtt_client.set_kprofiles_batch([{"filament_id": "GFL99"}]) is None
+        assert mqtt_client.delete_kprofile(cali_idx=1, filament_id="GFL99", nozzle_id="HH00-0.4") is None
+
+    def test_per_tray_extrusion_cali_set_advances_the_sequence_id(self, mqtt_client):
+        # It used to reuse the previous command's id, which would silently
+        # defeat the correlation the write path now depends on.
+        before = mqtt_client._sequence_id
+        mqtt_client.extrusion_cali_set(tray_id=0, k_value=0.02)
+        assert mqtt_client._sequence_id > before
+        assert self._sent(mqtt_client)["sequence_id"] == str(mqtt_client._sequence_id)
+
+    @pytest.mark.asyncio
+    async def test_failure_ack_is_reported_as_failure(self, mqtt_client):
+        seq = mqtt_client.set_kprofile(filament_id="GFL99", name="test", k_value="0.022000")
+        mqtt_client._process_message(
+            {
+                "print": {
+                    "command": "extrusion_cali_set",
+                    "result": "fail",
+                    "reason": "invalid tray_id",
+                    "sequence_id": seq,
+                }
+            }
+        )
+        ok, detail = await mqtt_client.await_cali_ack(seq, timeout=2.0)
+        assert ok is False
+        assert detail == "invalid tray_id"
+
+    @pytest.mark.asyncio
+    async def test_success_ack_passes(self, mqtt_client):
+        seq = mqtt_client.set_kprofile(filament_id="GFL99", name="test", k_value="0.022000")
+        mqtt_client._process_message(
+            {"print": {"command": "extrusion_cali_set", "result": "success", "reason": "", "sequence_id": seq}}
+        )
+        ok, _ = await mqtt_client.await_cali_ack(seq, timeout=2.0)
+        assert ok is True
+
+    @pytest.mark.asyncio
+    async def test_ack_for_another_write_does_not_resolve_this_one(self, mqtt_client):
+        seq = mqtt_client.set_kprofile(filament_id="GFL99", name="test", k_value="0.022000")
+        mqtt_client._process_message(
+            {
+                "print": {
+                    "command": "extrusion_cali_set",
+                    "result": "fail",
+                    "reason": "invalid tray_id",
+                    "sequence_id": "999999",
+                }
+            }
+        )
+        # Unrelated sequence_id: this write is still unanswered, so it times
+        # out rather than inheriting someone else's failure.
+        ok, detail = await mqtt_client.await_cali_ack(seq, timeout=0.3)
+        assert ok is True
+        assert "no acknowledgement" in detail
+
+    @pytest.mark.asyncio
+    async def test_silence_is_not_treated_as_rejection(self, mqtt_client):
+        # Firmware that never answers must not turn every save into an error.
+        seq = mqtt_client.delete_kprofile(cali_idx=1, filament_id="GFL99", nozzle_id="HH00-0.4")
+        ok, detail = await mqtt_client.await_cali_ack(seq, timeout=0.3)
+        assert ok is True
+        assert "no acknowledgement" in detail
+
+    @pytest.mark.asyncio
+    async def test_pending_slot_is_released(self, mqtt_client):
+        seq = mqtt_client.set_kprofile(filament_id="GFL99", name="test", k_value="0.022000")
+        await mqtt_client.await_cali_ack(seq, timeout=0.3)
+        assert mqtt_client._pending_cali_acks == {}
+
+    def test_delete_ack_is_matched_too(self, mqtt_client):
+        seq = mqtt_client.delete_kprofile(cali_idx=1, filament_id="GFL99", nozzle_id="HH00-0.4")
+        mqtt_client._process_message(
+            {"print": {"command": "extrusion_cali_del", "result": "success", "sequence_id": seq}}
+        )
+        assert mqtt_client._pending_cali_acks[seq]["result"] == "success"
+
+
+class TestKProfileRequestCorrelation:
+    """#1748: K-profile requests timed out whenever two were in flight.
+
+    Responses were matched to requests by nozzle diameter alone, held in one
+    shared ``_expected_kprofile_nozzle`` slot. A second request overwrote the
+    first's expectation, so the first's valid answer was discarded as a
+    mismatch and that request timed out even though the printer had replied.
+    Correlation now runs off the sequence_id we send, with the nozzle match
+    kept as a fallback for firmware that doesn't echo it.
+    """
+
+    @pytest.fixture
+    def mqtt_client(self):
+        from backend.app.services.bambu_mqtt import BambuMQTTClient
+
+        client = BambuMQTTClient(
+            ip_address="192.168.1.100",
+            serial_number="X1ETEST",
+            access_code="12345678",
+        )
+        client.state.connected = True
+        client._client = MagicMock()
+        return client
+
+    @staticmethod
+    def _response(nozzle, seq, name):
+        return {
+            "print": {
+                "command": "extrusion_cali_get",
+                "nozzle_diameter": nozzle,
+                "sequence_id": seq,
+                "filaments": [{"cali_idx": 1, "filament_id": "GFA00", "name": name, "k_value": "0.020000"}],
+            }
+        }
+
+    @pytest.mark.asyncio
+    async def test_concurrent_requests_each_get_their_own_response(self, mqtt_client):
+        # The failing sequence from the report: 0.8 is requested, then 0.4,
+        # then the 0.8 answer lands. Under nozzle-only matching the expected
+        # slot already said 0.4, so the 0.8 answer was dropped on the floor.
+        seen: list[str] = []
+
+        def publish(_topic, payload, **_kw):
+            seen.append(json.loads(payload)["print"]["sequence_id"])
+
+        mqtt_client._client.publish.side_effect = publish
+
+        big = asyncio.create_task(mqtt_client.get_kprofiles(nozzle_diameter="0.8", timeout=5.0))
+        small = asyncio.create_task(mqtt_client.get_kprofiles(nozzle_diameter="0.4", timeout=5.0))
+        await asyncio.sleep(0)  # let both publish before either answer arrives
+        assert len(seen) == 2
+
+        mqtt_client._process_message(self._response("0.8", seen[0], "wide"))
+        mqtt_client._process_message(self._response("0.4", seen[1], "narrow"))
+
+        assert [p.name for p in await big] == ["wide"]
+        assert [p.name for p in await small] == ["narrow"]
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_nozzle_match_when_sequence_id_is_not_echoed(self, mqtt_client):
+        # Firmware that answers with its own sequence_id must keep working.
+        mqtt_client._client.publish.side_effect = lambda *a, **kw: mqtt_client._process_message(
+            self._response("0.6", "9999", "echoed-nothing")
+        )
+        profiles = await mqtt_client.get_kprofiles(nozzle_diameter="0.6", timeout=2.0)
+        assert [p.name for p in profiles] == ["echoed-nothing"]
+
+    @pytest.mark.asyncio
+    async def test_unrelated_broadcast_does_not_clobber_a_pending_fetch(self, mqtt_client):
+        # The printer broadcasts 0.4 profiles unsolicited. One arriving while a
+        # 0.8 fetch is open must neither satisfy nor overwrite it.
+        def publish(_topic, payload, **_kw):
+            seq = json.loads(payload)["print"]["sequence_id"]
+            mqtt_client._process_message(self._response("0.4", "9999", "broadcast"))
+            mqtt_client._process_message(self._response("0.8", seq, "wanted"))
+
+        mqtt_client._client.publish.side_effect = publish
+        profiles = await mqtt_client.get_kprofiles(nozzle_diameter="0.8", timeout=2.0)
+        assert [p.name for p in profiles] == ["wanted"]
+        assert [p.name for p in mqtt_client.state.kprofiles] == ["wanted"]
+
+    @pytest.mark.asyncio
+    async def test_pending_entry_is_released_on_timeout(self, mqtt_client):
+        # A timed-out attempt must not leave its entry behind, or a later
+        # broadcast would be matched to a request nobody is waiting on.
+        profiles = await mqtt_client.get_kprofiles(nozzle_diameter="0.8", timeout=0.01, max_retries=1)
+        assert profiles == []
+        assert mqtt_client._pending_kprofile_requests == {}
 
 
 class TestAmsHtBitmaskRemoval:

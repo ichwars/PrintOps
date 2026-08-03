@@ -1632,6 +1632,7 @@ export function SettingsPage() {
 
   const pendingGcodeSnippetsRef = useRef<string | null>(null);
   const isInitialLoadRef = useRef(true);
+  const serverBaselineRef = useRef<AppSettings | null>(null);
 
   // Sync local state when settings load
   useEffect(() => {
@@ -1641,6 +1642,7 @@ export function SettingsPage() {
         ...settings,
         external_url: settings.external_url || window.location.origin,
       };
+      serverBaselineRef.current = settings;
       setLocalSettings(settingsWithExternalUrl);
       // Mark initial load complete after a short delay
       setTimeout(() => {
@@ -1649,9 +1651,27 @@ export function SettingsPage() {
     }
   }, [settings, localSettings]);
 
+  useEffect(() => {
+    const baseline = serverBaselineRef.current;
+    if (!settings || !localSettings || !baseline || settings === baseline) return;
+
+    const adopted: Partial<AppSettings> = {};
+    for (const key of Object.keys(settings) as (keyof AppSettings)[]) {
+      if (settings[key] !== baseline[key] && localSettings[key] === baseline[key]) {
+        (adopted as Record<keyof AppSettings, unknown>)[key] = settings[key];
+      }
+    }
+
+    serverBaselineRef.current = settings;
+    if (Object.keys(adopted).length > 0) {
+      setLocalSettings(current => current ? { ...current, ...adopted } : current);
+    }
+  }, [settings, localSettings]);
+
   const immediateSettingsMutation = useMutation({
     mutationFn: (data: AppSettingsUpdate) => api.updateSettings(data),
     onSuccess: data => {
+      serverBaselineRef.current = data;
       queryClient.setQueryData(['settings'], data);
       queryClient.invalidateQueries({ queryKey: ['archiveStats'] });
       showToast(t('settings.toast.settingsSaved'), 'success');
@@ -1844,6 +1864,7 @@ export function SettingsPage() {
     [],
   );
   const handleSettingsConfirmed = useCallback((data: AppSettings) => {
+    serverBaselineRef.current = data;
     queryClient.setQueryData(['settings'], data);
     queryClient.invalidateQueries({ queryKey: ['archiveStats'] });
     showToast(t('settings.toast.settingsSaved'), 'success');

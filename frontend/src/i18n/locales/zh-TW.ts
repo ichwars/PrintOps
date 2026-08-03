@@ -1333,6 +1333,7 @@ export default {
     // Time
     time: {
       asap: '儘快',
+      etaIfStartedNow: '若此工作現在開始的預計完成時間',
       overdue: '已逾期',
       now: '現在',
       lessThanMinute: '不到一分鐘',
@@ -5262,7 +5263,15 @@ export default {
       kValueHelp: '典型範圍：PLA 0.01 - 0.06，PETG 0.02 - 0.10',
       filament: '耗材',
       selectFilament: '選擇耗材...',
-      noFilamentsHelp: '未找到耗材。請先在 Bambu Studio 中建立 K 值設定。',
+      source: {
+        local: '已匯入',
+        orcaCloud: 'Orca Cloud',
+        bambuCloud: 'Bambu Cloud',
+        builtin: '內建',
+      },
+      noFilamentsHelp: '沒有可用的耗材。請登入 Bambu Cloud，或在「設定檔 → 本地設定檔」中匯入預設。',
+      searchFilaments: '搜尋耗材...',
+      noFilamentMatches: '沒有符合搜尋條件的耗材',
       flowType: '流量類型',
       highFlow: '高流量',
       standard: '標準',
@@ -5295,6 +5304,8 @@ export default {
       profileSaved: 'K 值設定已儲存',
       profilesSaved: 'K 值設定已儲存到 {{count}} 個擠出機',
       selectAtLeastOneExtruder: '請至少選擇一個擠出機',
+      selectFilament: '請先選擇耗材',
+      filamentNotResolvable: '沒有與 {{name}} 對應的 Bambu 耗材 ID，印表機無法儲存該設定檔',
       profileDeleted: 'K 值設定已刪除',
       profilesDeleted: '已刪除 {{count}} 個設定',
       exportedProfiles: '已匯出 {{count}} 個設定',
