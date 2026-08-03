@@ -26,12 +26,19 @@ class TasmotaService:
 
     @staticmethod
     def _validate_ip(ip: str) -> bool:
-        """Block cloud metadata and link-local IPs."""
+        """Block invalid, metadata, loopback, link-local and unusable IPs."""
+        from backend.app.api.routes._url_safety import CLOUD_METADATA_IPS, unwrap_ipv4_mapped
+
         try:
             addr = ipaddress.ip_address(ip)
         except ValueError:
             return False  # Not a valid IP
-        return not addr.is_loopback and not addr.is_link_local
+        effective = unwrap_ipv4_mapped(addr)
+        if effective in CLOUD_METADATA_IPS:
+            return False
+        if effective.is_multicast or effective.is_unspecified:
+            return False
+        return not effective.is_loopback and not effective.is_link_local
 
     async def _send_command(
         self,

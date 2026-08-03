@@ -16,7 +16,12 @@ from urllib.parse import urlparse
 
 import httpx
 
-from backend.app.api.routes._url_safety import CLOUD_METADATA_IPS, NUMERIC_IP_RE, unwrap_ipv4_mapped
+from backend.app.api.routes._url_safety import (
+    CLOUD_METADATA_HOSTNAMES,
+    CLOUD_METADATA_IPS,
+    NUMERIC_IP_RE,
+    unwrap_ipv4_mapped,
+)
 
 
 class OIDCEndpointPolicyError(ValueError):
@@ -164,6 +169,11 @@ def assert_safe_public_https_url(url: str) -> None:
         raise ValueError("icon URL must use https://")
 
     hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        raise ValueError("icon URL must include a hostname")
+
+    if hostname in CLOUD_METADATA_HOSTNAMES:
+        raise ValueError("icon URL must not point to a cloud metadata endpoint")
 
     if NUMERIC_IP_RE.match(hostname):
         raise ValueError("icon URL must not use numeric-encoded IP addresses")

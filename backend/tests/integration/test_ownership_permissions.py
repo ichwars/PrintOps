@@ -1257,6 +1257,83 @@ class TestReadIDORClosure(TestOwnershipPermissionsSetup):
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_operator_cannot_check_pipeline_against_others_library_file(
+        self, async_client: AsyncClient, auth_setup, printer_factory, db_session
+    ):
+        """Pipeline eligibility must use the same library ownership gate as GET."""
+        from backend.app.models.library import LibraryFile
+        from backend.app.models.slicer_pipeline import SlicerPipeline
+
+        printer = await printer_factory()
+        pipeline = SlicerPipeline(
+            name="Ownership Pipeline",
+            printer_preset_source="local",
+            printer_preset_id="1",
+            process_preset_source="local",
+            process_preset_id="2",
+            filament_presets_json='[{"source":"local","id":"3"}]',
+            target_kind="specific_printer",
+            target_printer_id=printer.id,
+        )
+        source = LibraryFile(
+            filename="admin_secret.3mf",
+            file_path="library/admin_secret.3mf",
+            file_type="3mf",
+            file_size=2048,
+            created_by_id=auth_setup["admin_user"]["id"],
+        )
+        db_session.add_all([pipeline, source])
+        await db_session.commit()
+        await db_session.refresh(pipeline)
+        await db_session.refresh(source)
+
+        response = await async_client.post(
+            f"/api/v1/slicer-pipelines/{pipeline.id}/check-eligibility",
+            headers={"Authorization": f"Bearer {auth_setup['operator_token']}"},
+            json={"source_library_file_id": source.id},
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_operator_cannot_run_pipeline_against_others_archive(
+        self, async_client: AsyncClient, auth_setup, archive_factory, printer_factory, db_session
+    ):
+        """Pipeline run must not slice/print another user's archive by raw id."""
+        from backend.app.models.slicer_pipeline import SlicerPipeline
+
+        printer = await printer_factory()
+        archive = await archive_factory(
+            printer.id,
+            print_name="Admin Pipeline Source",
+            created_by_id=auth_setup["admin_user"]["id"],
+            with_run=False,
+        )
+        pipeline = SlicerPipeline(
+            name="Archive Ownership Pipeline",
+            printer_preset_source="local",
+            printer_preset_id="1",
+            process_preset_source="local",
+            process_preset_id="2",
+            filament_presets_json='[{"source":"local","id":"3"}]',
+            target_kind="specific_printer",
+            target_printer_id=printer.id,
+        )
+        db_session.add(pipeline)
+        await db_session.commit()
+        await db_session.refresh(pipeline)
+
+        response = await async_client.post(
+            f"/api/v1/slicer-pipelines/{pipeline.id}/run",
+            headers={"Authorization": f"Bearer {auth_setup['operator_token']}"},
+            json={"source_archive_id": archive.id},
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_auth_disabled_preserves_single_tenant_read_all(
         self, async_client: AsyncClient, archive_factory, printer_factory
     ):

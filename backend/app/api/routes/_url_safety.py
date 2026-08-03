@@ -1,19 +1,22 @@
-"""Shared URL-safety primitives used by both SSRF guards in this package.
+"""Shared URL-safety primitives for the SSRF guards in this package.
 
-The two top-level assertion functions —
-``_spoolman_helpers.assert_safe_spoolman_url`` (Spoolman, deliberately allows
-loopback/RFC-1918 because same-LAN deployment is the standard topology) and
-``_oidc_helpers.assert_safe_public_https_url`` (OIDC icons, must be reachable
-on the public internet, so loopback/private are rejected) — share the
-*data* (cloud-metadata IP set, numeric-encoded-IP regex) but not the
-*policy*. Only the data lives here. The functions stay in their respective
-modules with their distinct policies intact.
+PrintOps has two outbound-URL policies:
+
+- LAN services such as Spoolman, ntfy/webhooks, Home Assistant, Obico ML and
+  slicer sidecars may legitimately live on loopback or the home LAN.
+- Public internet resources such as OIDC issuer/icon URLs must not point to
+  private networks.
+
+Both policies reject unsafe cases that are never legitimate: non-HTTP schemes,
+numeric-encoded IPs, cloud metadata endpoints, multicast and unspecified
+addresses, and IPv4-mapped IPv6 encodings of those addresses.
 """
 
 from __future__ import annotations
 
 import ipaddress
 import re
+from urllib.parse import urlparse
 
 # Cloud-provider metadata endpoints — the classic SSRF credential-exfil
 # targets. Both guards reject these unconditionally.
@@ -25,6 +28,13 @@ CLOUD_METADATA_IPS = frozenset(
         ipaddress.ip_address("100.100.100.200"),
         # AWS IMDS IPv6
         ipaddress.ip_address("fd00:ec2::254"),
+    }
+)
+
+CLOUD_METADATA_HOSTNAMES = frozenset(
+    {
+        "metadata.google.internal",
+        "metadata.goog",
     }
 )
 
@@ -49,3 +59,33 @@ def unwrap_ipv4_mapped(
     if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
         return addr.ipv4_mapped
     return addr
+
+
+def assert_safe_lan_service_url(url: str, *, label: str) -> None:
+    """Raise ValueError if *url* is unsafe for a service that may live on the LAN."""
+    parsed = urlparse(url)
+    if parsed.scheme.lower() not in ("http", "https"):
+        raise ValueError(f"{label} must use http or https")
+
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        raise ValueError(f"{label} must include a hostname")
+
+    if hostname in CLOUD_METADATA_HOSTNAMES:
+        raise ValueError(f"{label} must not point to a cloud metadata endpoint")
+
+    if NUMERIC_IP_RE.match(hostname):
+        raise ValueError(f"{label} must not use numeric-encoded IP addresses; use standard dotted-decimal notation")
+
+    try:
+        addr = ipaddress.ip_address(hostname)
+    except ValueError:
+        return
+
+    effective = unwrap_ipv4_mapped(addr)
+
+    if effective in CLOUD_METADATA_IPS:
+        raise ValueError(f"{label} must not point to a cloud metadata endpoint")
+
+    if effective.is_multicast or effective.is_unspecified:
+        raise ValueError(f"{label} must not point to a multicast or unspecified address")

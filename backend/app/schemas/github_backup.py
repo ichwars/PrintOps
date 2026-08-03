@@ -157,6 +157,13 @@ class GitHubBackupLogResponse(BaseModel):
         from_attributes = True
 
 
+class CloudAccountCounts(BaseModel):
+    """Counts of cloud accounts a backup can collect from."""
+
+    bambu: int = Field(default=0, description="Connected Bambu Cloud accounts")
+    orca: int = Field(default=0, description="Connected Orca Cloud accounts")
+
+
 class GitHubBackupStatus(BaseModel):
     """Schema for current backup status."""
 

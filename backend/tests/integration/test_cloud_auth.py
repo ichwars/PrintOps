@@ -501,6 +501,11 @@ class TestCloudRouteRegionPlumbing:
 
         def handler(request: httpx.Request) -> httpx.Response:
             captured.append(str(request.url))
+            if request.url.path == "/api/csrf":
+                return httpx.Response(
+                    204,
+                    headers={"set-cookie": "bbl_csrf_token=test-csrf; Path=/; Secure; SameSite=Lax"},
+                )
             return httpx.Response(status, json=response_json)
 
         client = httpx.AsyncClient(transport=httpx.MockTransport(handler))

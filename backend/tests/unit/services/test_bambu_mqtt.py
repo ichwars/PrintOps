@@ -107,6 +107,69 @@ class TestTimelapseTracking:
         assert mqtt_client.start_print("busy.3mf") is False
         assert mqtt_client._client.published == []
 
+    def test_start_print_translates_a2l_ams_lite_mapping(self, mqtt_client):
+        """A2L normalized trays dispatch with physical unit 16 on the wire."""
+        mqtt_client._client = _RecordingMqttClient()
+        mqtt_client.state.connected = True
+        mqtt_client.state.state = "IDLE"
+
+        assert mqtt_client.start_print("lite.3mf", ams_mapping=[26], use_ams=False) is True
+
+        payload = json.loads(mqtt_client._client.published[-1][1])
+        command = payload["print"]
+        assert command["use_ams"] is True
+        assert command["ams_mapping"] == [2]
+        assert command["ams_mapping2"] == [{"ams_id": 16, "slot_id": 2}]
+
+    def test_start_print_keeps_unresolved_mapping_from_becoming_external(self, mqtt_client):
+        """An unresolved -1 mapping must not silently disable AMS."""
+        mqtt_client._client = _RecordingMqttClient()
+        mqtt_client.state.connected = True
+        mqtt_client.state.state = "IDLE"
+
+        assert mqtt_client.start_print("unresolved.3mf", ams_mapping=[-1], use_ams=True) is True
+
+        payload = json.loads(mqtt_client._client.published[-1][1])
+        command = payload["print"]
+        assert command["use_ams"] is True
+        assert command["ams_mapping"] == [-1]
+        assert command["ams_mapping2"] == [{"ams_id": 255, "slot_id": 255}]
+
+    def test_a2l_status_normalizes_unit_and_globalizes_tray_now(self, mqtt_client):
+        """A2L reports unit 16 and local tray_now; PrintOps stores unit 6 / tray 24-27."""
+        mqtt_client._handle_ams_data(
+            {
+                "ams": [
+                    {
+                        "id": 16,
+                        "tray": [{"id": 2, "tray_type": "PLA", "tray_color": "FFFFFFFF"}],
+                    }
+                ],
+                "tray_now": "2",
+            }
+        )
+
+        assert mqtt_client._has_a2l_am_unit is True
+        assert mqtt_client.state.raw_data["ams"][0]["id"] == 6
+        assert mqtt_client.state.tray_now == 26
+
+    def test_a2l_slot_commands_translate_to_physical_wire_ids(self, mqtt_client):
+        """Manual AMS commands keep normalized UI IDs but send A2L physical IDs."""
+        mqtt_client._client = _RecordingMqttClient()
+        mqtt_client.state.connected = True
+
+        assert mqtt_client.ams_set_filament_setting(6, 1, "GFA00", "PLA", "Basic", "FFFFFFFF", 190, 230)
+        payload = json.loads(mqtt_client._client.published[-1][1])
+        assert payload["print"]["ams_id"] == 16
+        assert payload["print"]["tray_id"] == 1
+        assert payload["print"]["slot_id"] == 1
+
+        assert mqtt_client.extrusion_cali_sel(6, 1, -1, "GFA00")
+        payload = json.loads(mqtt_client._client.published[-1][1])
+        assert payload["print"]["ams_id"] == 16
+        assert payload["print"]["tray_id"] == 65
+        assert payload["print"]["slot_id"] == 1
+
 
 class TestPrintCompletionWithTimelapse:
     """Tests for print completion including timelapse flag."""
@@ -3989,12 +4052,12 @@ class TestStartPrintAmsMapping:
         cmd = self._get_published_command(mqtt_client)
         assert cmd["use_ams"] is False
 
-    def test_all_unmapped_sets_use_ams_false(self, mqtt_client):
-        """All unmapped slots on non-H2D printer sets use_ams=False."""
+    def test_all_unmapped_keeps_use_ams_true(self, mqtt_client):
+        """Unresolved -1 slots are not explicit external spool selections."""
         mqtt_client.start_print("test.3mf", ams_mapping=[-1, -1], use_ams=True)
 
         cmd = self._get_published_command(mqtt_client)
-        assert cmd["use_ams"] is False
+        assert cmd["use_ams"] is True
 
     def test_mixed_ams_and_external_keeps_use_ams_true(self, mqtt_client):
         """AMS tray + external spool keeps use_ams=True."""
@@ -6164,15 +6227,8 @@ class TestTrayNowH2SExternalSpoolOverride:
         assert mqtt_client.state.tray_now == 255
 
 
-class TestLastLayerFinishPhotoTrigger:
-    """Tests for #1867: layer_num→total_layer_num edge fires the finish-photo
-    moment before user End G-code (e.g. SwapMod) executes.
-
-    A1 Mini firmware skips stg_cur=22 entirely, so the FINISH-state fallback
-    fires after end G-code has already moved the plate. The last-layer edge
-    is the earliest reliable "print finished" signal available across all
-    Bambu printer variants.
-    """
+class TestFinishPhotoMomentTrigger:
+    """Finish photos must be keyed to end-of-print signals, not final-layer start."""
 
     @pytest.fixture
     def mqtt_client(self):
@@ -6188,15 +6244,14 @@ class TestLastLayerFinishPhotoTrigger:
         client.state.layer_num = 99
         return client
 
-    def test_fires_when_layer_reaches_total(self, mqtt_client):
+    def test_does_not_fire_when_layer_reaches_total(self, mqtt_client):
         events = []
         mqtt_client.on_finish_photo_moment = lambda data: events.append(data)
 
         mqtt_client._process_message({"print": {"layer_num": 100}})
 
-        assert len(events) == 1
-        assert events[0]["trigger"] == "last_layer"
-        assert mqtt_client._finish_photo_captured is True
+        assert events == []
+        assert mqtt_client._finish_photo_captured is False
 
     def test_does_not_fire_when_layer_still_below_total(self, mqtt_client):
         events = []
@@ -6207,9 +6262,7 @@ class TestLastLayerFinishPhotoTrigger:
         assert events == []
         assert mqtt_client._finish_photo_captured is False
 
-    def test_edge_only_no_double_fire(self, mqtt_client):
-        """Once fired, subsequent messages at layer_num == total must not
-        re-fire (the guard flips _finish_photo_captured to True)."""
+    def test_repeated_total_layer_messages_do_not_fire(self, mqtt_client):
         events = []
         mqtt_client.on_finish_photo_moment = lambda data: events.append(data)
 
@@ -6217,7 +6270,7 @@ class TestLastLayerFinishPhotoTrigger:
         mqtt_client._process_message({"print": {"layer_num": 100}})
         mqtt_client._process_message({"print": {"layer_num": 100}})
 
-        assert len(events) == 1
+        assert events == []
 
     def test_does_not_fire_when_not_running(self, mqtt_client):
         """If the print never went through RUNNING (PrintOps restart mid-print,
@@ -6242,25 +6295,20 @@ class TestLastLayerFinishPhotoTrigger:
 
         assert events == []
 
-    def test_stage_22_skipped_after_last_layer_already_fired(self, mqtt_client):
-        """Once the last-layer trigger has set _finish_photo_captured, the
-        stage-22 hook that runs later on AMS printers must be a no-op."""
+    def test_stage_22_still_fires_after_total_layer_reached(self, mqtt_client):
         events = []
         mqtt_client.on_finish_photo_moment = lambda data: events.append(data)
 
         mqtt_client._process_message({"print": {"layer_num": 100}})
-        assert len(events) == 1
+        assert events == []
 
         mqtt_client.state.progress = 100
         mqtt_client._process_message({"print": {"stg_cur": 22}})
 
         assert len(events) == 1
+        assert events[0]["trigger"] == "stage_22"
 
-    def test_finish_state_fallback_skipped_after_last_layer_fired(self, mqtt_client):
-        """The gcode_state=FINISH fallback (which fires after end G-code on
-        every printer) must be suppressed once the last-layer edge fired.
-        This is the #1867 regression check — SwapMod plate must be captured
-        by last_layer, NOT by the post-End-G-code FINISH fallback."""
+    def test_finish_state_fallback_still_fires_after_total_layer_reached(self, mqtt_client):
         events = []
         completion_events = []
         mqtt_client.on_finish_photo_moment = lambda data: events.append(data)
@@ -6268,11 +6316,12 @@ class TestLastLayerFinishPhotoTrigger:
         mqtt_client._previous_gcode_state = "RUNNING"
 
         mqtt_client._process_message({"print": {"layer_num": 100}})
-        assert events[0]["trigger"] == "last_layer"
+        assert events == []
 
         mqtt_client._process_message({"print": {"gcode_state": "FINISH"}})
 
         assert len(events) == 1
+        assert events[0]["trigger"] == "finish_state"
         assert len(completion_events) == 1
 
 

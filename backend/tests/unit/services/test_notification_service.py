@@ -2254,10 +2254,8 @@ class TestNtfyOutbound:
         assert "<!DOCTYPE" not in detail
 
     @pytest.mark.asyncio
-    async def test_ntfy_normal_403_still_surfaces_body(self, service):
-        """A non-Cloudflare 403 (e.g. ntfy auth fail) must keep showing
-        the original body so the user can debug the real error — we
-        only intercept the Cloudflare-challenge shape."""
+    async def test_ntfy_normal_403_redacts_origin_body(self, service):
+        """A caller-controlled ntfy URL must not become an HTTP body readback."""
         import httpx
 
         mock_response = httpx.Response(
@@ -2278,16 +2276,16 @@ class TestNtfyOutbound:
 
         assert ok is False
         assert "Cloudflare" not in detail
-        assert "invalid auth token" in detail
-        assert detail.startswith("HTTP 403:")
+        assert "invalid auth token" not in detail
+        assert detail.startswith("HTTP 403 from the configured ntfy server")
 
     @pytest.mark.asyncio
     async def test_ntfy_origin_error_through_cloudflare_is_not_misclassified(self, service):
         """Cloudflare adds Server: cloudflare to EVERY proxied response,
         including legitimate origin errors. A real 401 "wrong token"
         from an ntfy server that happens to sit behind Cloudflare must
-        still surface the origin's actual error body — we must not flip
-        every CF-fronted 4xx into a "your Cloudflare is blocking" message.
+        still avoid the Cloudflare-specific help text, while also not echoing
+        the origin body from a caller-controlled host.
         """
         import httpx
 
@@ -2314,8 +2312,8 @@ class TestNtfyOutbound:
 
         assert ok is False
         assert "Cloudflare" not in detail
-        assert "unauthorized" in detail
-        assert detail.startswith("HTTP 401:")
+        assert "unauthorized" not in detail
+        assert detail.startswith("HTTP 401 from the configured ntfy server")
 
     @pytest.mark.asyncio
     async def test_ntfy_cloudflare_cf_mitigated_header_alone_triggers(self, service):

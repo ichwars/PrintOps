@@ -12,6 +12,7 @@ from backend.app.core.permissions import Permission
 from backend.app.models.github_backup import GitHubBackupConfig, GitHubBackupLog
 from backend.app.models.user import User
 from backend.app.schemas.github_backup import (
+    CloudAccountCounts,
     GitHubBackupConfigCreate,
     GitHubBackupConfigResponse,
     GitHubBackupConfigUpdate,
@@ -59,6 +60,25 @@ async def _enforce_private_repo(repo_url: str, token: str, provider: str) -> Non
         raise HTTPException(status_code=400, detail=_UNKNOWN_VISIBILITY_ERROR)
     if is_private is False:
         raise HTTPException(status_code=400, detail=_PUBLIC_REPO_ERROR)
+
+
+async def _count_cloud_accounts(db: AsyncSession) -> tuple[int, int]:
+    try:
+        bambu, orca = await github_backup_service.cloud_accounts(db)
+        return len(bambu), len(orca)
+    except Exception:
+        logger.warning("Failed to count connected cloud accounts", exc_info=True)
+        return 0, 0
+
+
+@router.get("/cloud-accounts", response_model=CloudAccountCounts)
+async def get_cloud_accounts(
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.GITHUB_BACKUP),
+):
+    """Return cloud account counts available for profile backup."""
+    bambu, orca = await _count_cloud_accounts(db)
+    return CloudAccountCounts(bambu=bambu, orca=orca)
 
 
 def _config_to_response(config: GitHubBackupConfig) -> dict:

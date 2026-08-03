@@ -1,10 +1,8 @@
 """Service for controlling smart plugs via generic REST/HTTP API."""
 
-import ipaddress
 import json
 import logging
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urlparse
 
 import httpx
 
@@ -26,18 +24,19 @@ class RESTSmartPlugService:
         self.timeout = timeout
 
     @staticmethod
-    def _validate_url(url: str) -> bool:
-        """Block cloud metadata and link-local IPs."""
+    def _url_error(url: str) -> str | None:
+        from backend.app.api.routes._url_safety import assert_safe_lan_service_url
+
         try:
-            parsed = urlparse(url)
-            hostname = parsed.hostname
-            if not hostname:
-                return False
-            addr = ipaddress.ip_address(hostname)
-            return not addr.is_loopback and not addr.is_link_local
-        except ValueError:
-            # Hostname is not an IP (e.g., "openhab.local") — allow it
-            return True
+            assert_safe_lan_service_url(url, label="REST plug URL")
+        except ValueError as exc:
+            return str(exc)
+        return None
+
+    @staticmethod
+    def _validate_url(url: str) -> bool:
+        """Apply the shared LAN-service SSRF policy to a REST plug URL."""
+        return RESTSmartPlugService._url_error(url) is None
 
     def _parse_headers(self, headers_json: str | None) -> dict[str, str]:
         """Parse JSON string to dict of headers."""

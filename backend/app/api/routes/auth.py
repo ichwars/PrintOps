@@ -36,6 +36,7 @@ from backend.app.core.auth import (
     security,
 )
 from backend.app.core.database import async_session, get_db
+from backend.app.core.oidc_env import env_bool
 from backend.app.core.permissions import ALL_PERMISSIONS
 from backend.app.models.auth_ephemeral import AuthEphemeralToken, AuthRateLimitEvent, EventType, TokenType
 from backend.app.models.group import Group
@@ -123,7 +124,7 @@ def _local_login_env_bypass() -> bool:
     an install whose SSO provider is unreachable. Accepted truthy values:
     ``true``, ``1``, ``yes`` (case-insensitive).
     """
-    return os.environ.get("PRINTOPS_LOCAL_LOGIN", "").strip().lower() in {"true", "1", "yes"}
+    return env_bool("PRINTOPS_LOCAL_LOGIN", False, strict=False)
 
 
 def _get_client_ip(request: Request) -> str:
@@ -297,6 +298,30 @@ async def setup_auth(request: SetupRequest, db: AsyncSession = Depends(get_db)):
                         detail="Failed to create admin user",
                     )
 
+            from backend.app.api.routes.cloud import (
+                get_stored_token,
+                migrate_global_cloud_token_to_user,
+            )
+
+            if admin_created:
+                cloud_owner = admin_user
+            elif len(existing_admin_users) == 1:
+                cloud_owner = existing_admin_users[0]
+            else:
+                cloud_owner = None
+
+            if cloud_owner is not None:
+                if await migrate_global_cloud_token_to_user(db, cloud_owner):
+                    logger.info("Migrated global Bambu Cloud credentials to admin '%s'", cloud_owner.username)
+            else:
+                global_token, _, _ = await get_stored_token(db, None)
+                if global_token:
+                    logger.warning(
+                        "Global Bambu Cloud credentials exist but %s admins exist; leaving them unassigned. "
+                        "Re-link the account from Settings after login.",
+                        len(existing_admin_users),
+                    )
+
         # Set auth enabled and mark setup as completed
         await set_auth_enabled(db, request.auth_enabled)
         await set_setup_completed(db, True)
@@ -351,6 +376,11 @@ async def disable_auth(
         )
 
     try:
+        from backend.app.api.routes.cloud import migrate_user_cloud_token_to_global
+
+        if await migrate_user_cloud_token_to_global(db, user):
+            logger.info("Migrated Bambu Cloud credentials from admin '%s' to global storage", user.username)
+
         await set_auth_enabled(db, False)
         await db.commit()
         logger.info("Authentication disabled by admin user: %s", user.username)

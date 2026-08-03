@@ -31,6 +31,7 @@ import type {
   LocalBackupFile,
   LocalBackupStatus,
   ScheduleType,
+  CloudAccountCounts,
   CloudAuthStatus,
   Printer,
 } from '../api/client';
@@ -310,6 +311,16 @@ export function GitHubBackupSettings() {
     queryKey: ['cloud-status'],
     queryFn: api.getCloudStatus,
   });
+
+  const { data: cloudAccounts } = useQuery<CloudAccountCounts>({
+    queryKey: ['github-backup-cloud-accounts'],
+    queryFn: api.getGitHubBackupCloudAccounts,
+    staleTime: 60_000,
+  });
+  const connectedCloudAccounts = (cloudAccounts?.bambu ?? 0) + (cloudAccounts?.orca ?? 0);
+  const anyCloudConnected = cloudAccounts
+    ? connectedCloudAccounts > 0
+    : !!cloudStatus?.is_authenticated;
 
   // Fetch printers and their statuses for K-profile availability
   const { data: printers } = useQuery<Printer[]>({
@@ -737,12 +748,12 @@ export function GitHubBackupSettings() {
                 <Checkbox
                   checked={backupCloudProfiles}
                   onChange={(e) => setBackupCloudProfiles(e.target.checked)}
-                  disabled={!cloudStatus?.is_authenticated}
+                  disabled={!anyCloudConnected}
                   className="rounded-lg px-2 py-1 hover:bg-bambu-dark/40"
                   label={(
                     <span className="flex flex-wrap items-center gap-2">
-                      <span className={cloudStatus?.is_authenticated ? 'text-white' : 'text-bambu-gray'}>{t('backup.cloudProfiles')}</span>
-                      {!cloudStatus?.is_authenticated && (
+                      <span className={anyCloudConnected ? 'text-white' : 'text-bambu-gray'}>{t('backup.cloudProfiles')}</span>
+                      {!anyCloudConnected && (
                         <span className="inline-flex items-center gap-1 rounded bg-yellow-100 px-1.5 py-0.5 text-xs text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400">
                           <AlertTriangle className="h-3 w-3" />
                           {t('backup.cloudLoginRequiredShort')}

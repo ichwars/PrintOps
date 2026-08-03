@@ -54,6 +54,28 @@ def parse_ams_filament_backup_from_cfg(cfg_raw: object) -> bool | None:
         return None
 
 
+A2L_LITE_PHYSICAL_AMS_ID = 16
+A2L_LITE_NORMALIZED_AMS_ID = 6
+A2L_LITE_GLOBAL_BASE = A2L_LITE_NORMALIZED_AMS_ID * 4
+
+
+def normalize_am_unit_id(ams_id: int) -> int:
+    """Normalize the A2L AMS Lite's physical unit id 16 to id 6."""
+    return A2L_LITE_NORMALIZED_AMS_ID if ams_id == A2L_LITE_PHYSICAL_AMS_ID else ams_id
+
+
+def a2l_lite_wire_ids(ams_id: int, tray_id: int) -> tuple[int, int, int] | None:
+    """Translate a normalized A2L AMS Lite slot back to physical wire ids."""
+    if ams_id != A2L_LITE_NORMALIZED_AMS_ID:
+        return None
+    local_slot = tray_id % 4
+    return (
+        A2L_LITE_PHYSICAL_AMS_ID,
+        local_slot,
+        A2L_LITE_PHYSICAL_AMS_ID * 4 + local_slot,
+    )
+
+
 def apply_tray_exist_bits(
     units: list,
     tray_exist_bits_str: str | int | None,
@@ -601,6 +623,11 @@ class BambuMQTTClient:
         # Captured ams_mapping from print commands on the request topic
         # Intercepts slicer/PrintOps print commands to get the slot-to-tray mapping
         self._captured_ams_mapping: list[int] | None = None
+
+        # A2L reports its AMS Lite as physical unit id 16, while its tray bits
+        # use the id-6 base. Normalize at ingest and remember that tray_now is
+        # local 0-3 for this unit.
+        self._has_a2l_am_unit: bool = False
 
         # Request topic subscription tracking
         # Some printer MQTT brokers (e.g. P1S, A1) reject subscriptions to the request
@@ -1650,12 +1677,35 @@ class BambuMQTTClient:
             slot = value & 0xFF
             if 0 <= ams_hw_id <= 3 and (slot & 0x03) == local_slot:
                 candidates.add(ams_hw_id * 4 + local_slot)
+            elif ams_hw_id == A2L_LITE_PHYSICAL_AMS_ID and (slot & 0x03) == local_slot:
+                candidates.add(A2L_LITE_GLOBAL_BASE + local_slot)
             elif 128 <= ams_hw_id <= 135 and local_slot == 0:
                 candidates.add(ams_hw_id)
 
         if len(candidates) == 1:
             return candidates.pop()
         return None
+
+    def _normalize_a2l_am_units(self, ams_list) -> None:
+        """Rewrite A2L AMS Lite unit id 16 to normalized id 6 in-place."""
+        if not isinstance(ams_list, list):
+            return
+        for unit in ams_list:
+            if not isinstance(unit, dict):
+                continue
+            try:
+                uid = int(unit.get("id"))
+            except (TypeError, ValueError):
+                continue
+            if uid == A2L_LITE_PHYSICAL_AMS_ID:
+                unit["id"] = A2L_LITE_NORMALIZED_AMS_ID
+                if not self._has_a2l_am_unit:
+                    logger.info(
+                        "[%s] A2L AMS Lite detected (unit id 16); normalizing to id %d",
+                        self.serial_number,
+                        A2L_LITE_NORMALIZED_AMS_ID,
+                    )
+                self._has_a2l_am_unit = True
 
     def _handle_ams_data(self, ams_data):
         """Handle AMS data changes for Spoolman integration.
@@ -1671,6 +1721,7 @@ class BambuMQTTClient:
         if isinstance(ams_data, dict):
             if "ams" in ams_data:
                 ams_list = ams_data["ams"]
+                self._normalize_a2l_am_units(ams_list)
             # Log all AMS dict fields to debug tray_now for H2D dual-nozzle
             non_list_fields = {k: v for k, v in ams_data.items() if k != "ams"}
             if non_list_fields:
@@ -1885,9 +1936,18 @@ class BambuMQTTClient:
                             ams_exist = 0
                         num_ams = bin(ams_exist).count("1")
 
-                        if num_ams > 1:
+                        if self._has_a2l_am_unit and num_ams <= 1:
+                            # A2L AMS Lite reports tray_now as a local slot.
+                            self.state.tray_now = A2L_LITE_GLOBAL_BASE + parsed_tray_now
+                        elif num_ams > 1:
                             # Multiple AMS on single-nozzle — tray_now is likely a local slot ID.
                             # Cross-reference with MQTT mapping field to find the correct AMS unit.
+                            if self._has_a2l_am_unit:
+                                logger.warning(
+                                    "[%s] A2L AMS Lite alongside another AMS unit is not fully resolved by "
+                                    "tray_now alone; using mapping fallback",
+                                    self.serial_number,
+                                )
                             mapping_raw = self.state.raw_data.get("mapping")
                             resolved = self._resolve_local_slot_from_mapping(parsed_tray_now, mapping_raw)
                             if resolved is not None:
@@ -1913,9 +1973,15 @@ class BambuMQTTClient:
                     self.state.tray_now = parsed_tray_now
 
                 # Track last valid tray for usage tracking (survives retract → 255 at print end)
-                # Valid physical trays: 0-15 (regular AMS), 128-135 (AMS-HT), 254 (external spool)
+                # Valid physical trays: 0-15 (regular AMS), 24-27 (A2L AMS Lite),
+                # 128-135 (AMS-HT), 254 (external spool)
                 tn = self.state.tray_now
-                if (0 <= tn <= 15) or (128 <= tn <= 135) or tn == 254:
+                if (
+                    (0 <= tn <= 15)
+                    or (A2L_LITE_GLOBAL_BASE <= tn <= A2L_LITE_GLOBAL_BASE + 3)
+                    or (128 <= tn <= 135)
+                    or tn == 254
+                ):
                     # Log tray change for mid-print usage splitting. Gate on the
                     # print-lifecycle flags (`_was_running` set on first RUNNING /
                     # new print, `_completion_triggered` set when on_print_complete
@@ -1945,6 +2011,7 @@ class BambuMQTTClient:
                 return
         elif isinstance(ams_data, list):
             ams_list = ams_data
+            self._normalize_a2l_am_units(ams_list)
         else:
             logger.warning("[%s] Unexpected AMS data format: %s", self.serial_number, type(ams_data))
             return
@@ -2253,35 +2320,11 @@ class BambuMQTTClient:
             # Trigger layer change callback if layer increased
             if new_layer > old_layer and self.on_layer_change:
                 self.on_layer_change(new_layer)
-            # #1867 last-layer finish-photo trigger. A1 Mini (and other
-            # firmware variants) skips `stg_cur=22`, so the fallback fires
-            # at gcode_state=FINISH — which runs AFTER user End G-code
-            # (e.g. SwapMod plate-swap) and captures the wrong plate.
-            # Firing on the layer_num→total_layer_num edge captures the
-            # last object layer before any end G-code executes.
-            total = self.state.total_layers or 0
-            if (
-                total > 0
-                and new_layer >= total
-                and old_layer < total
-                and self._was_running
-                and not self._finish_photo_captured
-                and self.on_finish_photo_moment
-            ):
-                self._finish_photo_captured = True
-                logger.info(
-                    f"[{self.serial_number}] FINISH PHOTO MOMENT (last-layer) — "
-                    f"layer={new_layer}/{total}, "
-                    f"timelapse_active={self._timelapse_during_print}"
-                )
-                self.on_finish_photo_moment(
-                    {
-                        "trigger": "last_layer",
-                        "filename": self._previous_gcode_file or self.state.gcode_file,
-                        "subtask_name": self.state.subtask_name,
-                        "timelapse_was_active": self._timelapse_during_print,
-                    }
-                )
+            # Do not trigger the finish photo on layer_num == total_layer_num.
+            # That edge marks the start of the final layer, not the end of the
+            # print; on real H2C captures it arrived while minutes of printing
+            # and a filament change were still pending. Stage 22 or FINISH-state
+            # completion below are the end-of-print signals.
         if "total_layer_num" in data:
             # Some firmware (P1S observed) resets `total_layer_num` to 0 at
             # print end — same shape as the `layer_num` reset guarded above.
@@ -3329,7 +3372,12 @@ class BambuMQTTClient:
             # Clear and seed tray change log for mid-print usage splitting
             self.state.tray_change_log.clear()
             tn = self.state.tray_now
-            if (0 <= tn <= 15) or (128 <= tn <= 135) or tn == 254:
+            if (
+                (0 <= tn <= 15)
+                or (A2L_LITE_GLOBAL_BASE <= tn <= A2L_LITE_GLOBAL_BASE + 3)
+                or (128 <= tn <= 135)
+                or tn == 254
+            ):
                 self.state.tray_change_log.append((tn, 0))
             # Initialize timelapse tracking based on current state
             # NOTE: xcam data is parsed BEFORE this code runs in _process_message,
@@ -3779,6 +3827,12 @@ class BambuMQTTClient:
                         # AMS-HT: global tray ID IS the ams_id (single tray per unit)
                         flat_ams_mapping.append(tray_id)
                         ams_mapping2.append({"ams_id": tray_id, "slot_id": 0})
+                    elif (_a2l := a2l_lite_wire_ids(tray_id // 4, tray_id)) is not None:
+                        # A2L AMS Lite: normalized global 24-27 becomes local
+                        # flat slot 0-3 plus physical unit id 16 in ams_mapping2.
+                        wire_ams, wire_slot, _ = _a2l
+                        flat_ams_mapping.append(wire_slot)
+                        ams_mapping2.append({"ams_id": wire_ams, "slot_id": wire_slot})
                     else:
                         # Regular AMS tray: Global tray ID = (ams_id * 4) + slot_id
                         ams_id = tray_id // 4
@@ -3786,14 +3840,20 @@ class BambuMQTTClient:
                         flat_ams_mapping.append(tray_id)
                         ams_mapping2.append({"ams_id": ams_id, "slot_id": slot_id})
 
-            # If all mapped slots are external spool (no real AMS trays), force use_ams=False.
-            # P1S/P1P with no AMS rejects use_ams=True with "Failed to get AMS mapping table".
-            # Skip for dual-nozzle printers — use_ams controls nozzle routing there.
-            # H2S falls through this gate now (#1386): it is single-nozzle and was
-            # hitting the dual-nozzle bypass, which caused 07FF_8012 when printing
-            # without an AMS attached.
-            if ams_mapping and use_ams and not is_dual_nozzle:
-                if all(t is None or int(t) < 0 or int(t) >= 254 for t in ams_mapping):
+            # On single-nozzle printers, a resolved real tray is authoritative:
+            # it forces use_ams=True even if a Virtual Printer row carried a stale
+            # false. Explicit external trays force it false. Unresolved -1 does
+            # neither and must not be treated as external (#2589/#2595).
+            if ams_mapping and not is_dual_nozzle:
+                has_real_tray = any(t is not None and 0 <= int(t) <= 253 for t in ams_mapping)
+                all_external = all(t is None or int(t) >= 254 for t in ams_mapping)
+                if has_real_tray and not use_ams:
+                    use_ams = True
+                    logger.info(
+                        "[%s] AMS mapping resolved a real slot; setting use_ams=True",
+                        self.serial_number,
+                    )
+                elif use_ams and all_external:
                     use_ams = False
                     logger.info(
                         "[%s] All filament slots use external spool — setting use_ams=False",
@@ -4239,11 +4299,12 @@ class BambuMQTTClient:
         if not self._client:
             return False
         self._sequence_id += 1
+        wire_ams_id = a2l_lite_wire_ids(ams_id, 0)[0] if ams_id == A2L_LITE_NORMALIZED_AMS_ID else ams_id
         command = {
             "print": {
                 "sequence_id": str(self._sequence_id),
                 "command": "ams_filament_drying",
-                "ams_id": ams_id,
+                "ams_id": wire_ams_id,
                 "temp": temp,
                 "cooling_temp": 20 if mode == 1 else 0,
                 "duration": duration,
@@ -5042,6 +5103,7 @@ class BambuMQTTClient:
         #     BambuStudio uses slot_id=0 (extruder index, 0=right), and
         #     curr_temp/tar_temp = the actual right-nozzle temp.  See #891.
         self._sequence_id += 1
+        wire_target = tray_id
         if tray_id == 255:
             ams_id = 255
             slot_id = 0  # extruder index for the right nozzle
@@ -5053,6 +5115,10 @@ class BambuMQTTClient:
         elif tray_id == 254:
             ams_id = 255
             slot_id = 254
+            curr_temp = -1
+            tar_temp = -1
+        elif (_a2l := a2l_lite_wire_ids(tray_id // 4, tray_id)) is not None:
+            ams_id, slot_id, wire_target = _a2l
             curr_temp = -1
             tar_temp = -1
         else:
@@ -5067,7 +5133,7 @@ class BambuMQTTClient:
                 "sequence_id": str(self._sequence_id),
                 "ams_id": ams_id,
                 "slot_id": slot_id,
-                "target": tray_id,
+                "target": wire_target,
                 "curr_temp": curr_temp,
                 "tar_temp": tar_temp,
             }
@@ -5103,6 +5169,8 @@ class BambuMQTTClient:
         # Determine source ams_id for the unload command
         if tray_now == 255 or tray_now == 254:
             ams_id = 255  # No filament or external spool
+        elif (_a2l := a2l_lite_wire_ids(tray_now // 4, tray_now)) is not None:
+            ams_id = _a2l[0]
         else:
             ams_id = tray_now // 4  # Source AMS
 
@@ -5192,9 +5260,15 @@ class BambuMQTTClient:
             logger.warning("[%s] Cannot refresh AMS tray: filament loaded from %s", self.serial_number, loaded_tray)
             return False, f"Please unload filament first. Currently loaded: {loaded_tray}"
 
+        wire_ams_id, wire_slot_id = ams_id, tray_id
+        if (_a2l := a2l_lite_wire_ids(ams_id, tray_id)) is not None:
+            wire_ams_id, wire_slot_id, _ = _a2l
+
         # Use ams_get_rfid command to trigger RFID re-read
         # This command is used by Bambu Studio to re-read the RFID tag
-        command = {"print": {"command": "ams_get_rfid", "ams_id": ams_id, "slot_id": tray_id, "sequence_id": "0"}}
+        command = {
+            "print": {"command": "ams_get_rfid", "ams_id": wire_ams_id, "slot_id": wire_slot_id, "sequence_id": "0"}
+        }
         self._client.publish(self.topic_publish, json.dumps(command), qos=1)
         logger.info("[%s] Triggering RFID re-read: AMS %s, slot %s", self.serial_number, ams_id, tray_id)
 
@@ -5260,6 +5334,9 @@ class BambuMQTTClient:
             mqtt_ams_id = ams_id
             mqtt_tray_id = tray_id
             slot_id = tray_id
+        elif (_a2l := a2l_lite_wire_ids(ams_id, tray_id)) is not None:
+            mqtt_ams_id, slot_id, _ = _a2l
+            mqtt_tray_id = slot_id
         else:
             # AMS-HT: single tray per unit
             mqtt_ams_id = ams_id
@@ -5326,6 +5403,9 @@ class BambuMQTTClient:
             mqtt_ams_id = ams_id
             mqtt_tray_id = tray_id
             slot_id = tray_id
+        elif (_a2l := a2l_lite_wire_ids(ams_id, tray_id)) is not None:
+            mqtt_ams_id, slot_id, _ = _a2l
+            mqtt_tray_id = slot_id
         else:
             # AMS-HT: single tray per unit
             mqtt_ams_id = ams_id
@@ -5406,6 +5486,8 @@ class BambuMQTTClient:
             mqtt_ams_id = ams_id
             mqtt_tray_id = ams_id * 4 + tray_id
             slot_id = tray_id
+        elif (_a2l := a2l_lite_wire_ids(ams_id, tray_id)) is not None:
+            mqtt_ams_id, slot_id, mqtt_tray_id = _a2l
         elif ams_id >= 128 and ams_id <= 135:
             mqtt_ams_id = ams_id
             mqtt_tray_id = tray_id
@@ -5469,6 +5551,9 @@ class BambuMQTTClient:
             return False
 
         nozzle_id = f"HS00-{nozzle_diameter}"
+        wire_tray_id = tray_id
+        if 0 <= tray_id <= 253 and (_a2l := a2l_lite_wire_ids(tray_id // 4, tray_id)) is not None:
+            wire_tray_id = _a2l[2]
 
         filament_entry = {
             "ams_id": 0,
@@ -5481,7 +5566,7 @@ class BambuMQTTClient:
             "nozzle_diameter": nozzle_diameter,
             "nozzle_id": nozzle_id,
             "setting_id": setting_id,
-            "tray_id": tray_id,
+            "tray_id": wire_tray_id,
         }
 
         command = {

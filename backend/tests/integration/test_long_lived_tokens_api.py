@@ -104,6 +104,21 @@ class TestCreateLongLivedToken:
         assert listed is not None
         assert listed["token"] is None  # plaintext gone forever
 
+    async def test_create_accepts_camwall_and_overlay_scopes(self, async_client: AsyncClient):
+        token = await _setup_admin(async_client, suffix="_scopes")
+
+        for scope in ("camwall", "overlay"):
+            response = await async_client.post(
+                "/api/v1/auth/tokens",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"name": f"{scope} display", "expires_in_days": 30, "scope": scope},
+            )
+
+            assert response.status_code == 201, response.text
+            body = response.json()
+            assert body["token"].startswith("bblt_")
+            assert body["scope"] == scope
+
     async def test_create_rejects_expires_in_zero(self, async_client: AsyncClient):
         """Issue #1108: ``expire_in: 0`` (never) is explicitly forbidden."""
         token = await _setup_admin(async_client, suffix="_zero_expire")
