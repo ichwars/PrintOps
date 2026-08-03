@@ -68,6 +68,20 @@ class TestPrintersAPI:
         assert printer["hourly_rate"] == "0.330000"
         assert printer["residual_value"] == "1200.00"
 
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_list_printers_reports_nozzle_flow_support_for_model(
+        self, async_client: AsyncClient, printer_factory
+    ):
+        """A-series printers must not expose the unsupported flow-type control."""
+        await printer_factory(name="A1 Printer", model="A1")
+
+        response = await async_client.get("/api/v1/printers/")
+
+        assert response.status_code == 200
+        printer = next(p for p in response.json() if p["name"] == "A1 Printer")
+        assert printer["supports_nozzle_flow_type"] is False
+
     # ========================================================================
     # Create endpoints
     # ========================================================================

@@ -74,9 +74,14 @@ jobs:
           # PyJWT fix exists or will exist. PrintOps is safe: backend/app/core/auth.py:184 uses
           # secrets.token_urlsafe(64) (~86 chars of entropy) for auto-generated secrets and
           # rejects file-loaded secrets shorter than 32 chars at :177. Keep ignored permanently.
+          #
+          # CVE-2026-69247 affects cryptography's pkcs7_decrypt_* APIs, which PrintOps does not
+          # call. pyOpenSSL 26.3.0 currently requires cryptography<50, so the fixed release cannot
+          # be resolved yet. Remove this ignore when pyOpenSSL supports cryptography 50.x.
           pip-audit --desc on \
             --ignore-vuln CVE-2026-4539 \
-            --ignore-vuln CVE-2025-45768
+            --ignore-vuln CVE-2025-45768 \
+            --ignore-vuln CVE-2026-69247
 
   backend-tests:
     name: Backend Tests (shard ${{ matrix.shard }}/4)

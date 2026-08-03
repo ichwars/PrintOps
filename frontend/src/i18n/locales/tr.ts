@@ -1332,6 +1332,7 @@ export default {
     // Zaman
     time: {
       asap: 'ASAP',
+      etaIfStartedNow: 'Bu iş şimdi başlatılırsa tamamlanma saati',
       overdue: 'Gecikmiş',
       now: 'Şimdi',
       lessThanMinute: 'Bir dakikadan az',
@@ -5241,7 +5242,15 @@ export default {
       kValueHelp: 'Tipik aralık: PLA için 0.01 - 0.06, PETG için 0.02 - 0.10',
       filament: 'Filament',
       selectFilament: 'Filament seç...',
-      noFilamentsHelp: 'Filament bulunamadı. Önce Bambu Studio\'da bir K-profili oluşturun.',
+      source: {
+        local: 'İçe aktarılmış',
+        orcaCloud: 'Orca Cloud',
+        bambuCloud: 'Bambu Cloud',
+        builtin: 'Yerleşik',
+      },
+      noFilamentsHelp: 'Kullanılabilir filament yok. Bambu Cloud’a giriş yapın veya Profiller → Yerel Profiller altından hızır ayarları içe aktarın.',
+      searchFilaments: 'Filament ara...',
+      noFilamentMatches: 'Bu aramayla eşleşen filament yok',
       flowType: 'Akış Türü',
       highFlow: 'Yüksek Akış',
       standard: 'Standart',
@@ -5271,6 +5280,8 @@ export default {
       profileSaved: 'K-profili kaydedildi',
       profilesSaved: '{{count}} ekstrüdere K-profili kaydedildi',
       selectAtLeastOneExtruder: 'Lütfen en az bir ekstrüder seçin',
+      selectFilament: 'Önce bir filament seçin',
+      filamentNotResolvable: '{{name}} için Bambu filament kimliği yok — yazıcı bunun için profil saklayamaz',
       profileDeleted: 'K-profili silindi',
       profilesDeleted: '{{count}} profil silindi',
       exportedProfiles: '{{count}} profil dışa aktarıldı',

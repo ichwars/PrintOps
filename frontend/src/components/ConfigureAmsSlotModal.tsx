@@ -9,6 +9,7 @@ import { toFilamentId, isGenericFilamentId } from './spool-form/utils';
 import { Button } from './Button';
 import { getAmsLabel } from '../utils/amsHelpers';
 import { LegacySelect, TextField } from './ui';
+import { useCancellableTimeout } from '../hooks/useCancellableTimeout';
 
 interface SlotInfo {
   amsId: number;
@@ -299,6 +300,7 @@ export function ConfigureAmsSlotModal({
   const [showSuccess, setShowSuccess] = useState(false);
   const [showExtendedColors, setShowExtendedColors] = useState(false);
   const scrolledToRef = useRef<string>('');
+  const { schedule: scheduleClose } = useCancellableTimeout();
 
   // Fetch cloud settings (gracefully handle 401 when logged out)
   const { data: cloudSettings, isLoading: settingsLoading, isError: cloudError } = useQuery({
@@ -608,7 +610,7 @@ export function ConfigureAmsSlotModal({
       setShowSuccess(true);
       onSuccess?.();
       // Close after showing success briefly
-      setTimeout(() => {
+      scheduleClose(() => {
         setShowSuccess(false);
         onClose();
       }, 1500);
@@ -623,7 +625,7 @@ export function ConfigureAmsSlotModal({
     onSuccess: () => {
       setShowSuccess(true);
       onSuccess?.();
-      setTimeout(() => {
+      scheduleClose(() => {
         setShowSuccess(false);
         onClose();
       }, 1500);

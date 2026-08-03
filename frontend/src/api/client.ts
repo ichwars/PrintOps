@@ -367,6 +367,7 @@ export interface Printer {
   model: string | null;
   location: string | null;  // Group/location name
   nozzle_count: number;  // 1 or 2, auto-detected from MQTT
+  supports_nozzle_flow_type: boolean;
   is_active: boolean;
   auto_archive: boolean;
   external_camera_url: string | null;

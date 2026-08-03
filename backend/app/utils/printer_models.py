@@ -191,6 +191,21 @@ DUAL_NOZZLE_MODELS = frozenset(
 )
 
 
+SINGLE_NOZZLE_FLOW_MODELS = frozenset(
+    [
+        "A1",
+        "A1MINI",
+        "A2L",
+        "N1",
+        "N2S",
+        "N9",
+        "A04",
+        "A11",
+        "A12",
+    ]
+)
+
+
 def has_ethernet(model: str | None) -> bool:
     """Return True if the printer model has an ethernet port."""
     if not model:
@@ -220,6 +235,14 @@ def is_dual_nozzle_model(model: str | None) -> bool:
         return False
     normalized = model.strip().upper().replace(" ", "").replace("-", "")
     return normalized in DUAL_NOZZLE_MODELS
+
+
+def supports_nozzle_flow_type(model: str | None) -> bool:
+    """Return whether the model offers Standard and High Flow nozzles."""
+    if not model:
+        return True
+    normalized = model.strip().upper().replace(" ", "").replace("-", "")
+    return normalized not in SINGLE_NOZZLE_FLOW_MODELS
 
 
 GCODE_COMPAT_FAMILIES = (frozenset(["X1", "X1C", "X1E", "P1P", "P1S"]),)

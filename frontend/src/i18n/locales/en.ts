@@ -1385,6 +1385,7 @@ export default {
     // Time
     time: {
       asap: 'ASAP',
+      etaIfStartedNow: 'Completion time if this job started now',
       overdue: 'Overdue',
       now: 'Now',
       lessThanMinute: 'In less than a minute',
@@ -5354,7 +5355,15 @@ export default {
       kValueHelp: 'Typical range: 0.01 - 0.06 for PLA, 0.02 - 0.10 for PETG',
       filament: 'Filament',
       selectFilament: 'Select filament...',
-      noFilamentsHelp: 'No filaments found. Create a K-profile in Bambu Studio first.',
+      source: {
+        local: 'Imported',
+        orcaCloud: 'Orca Cloud',
+        bambuCloud: 'Bambu Cloud',
+        builtin: 'Built-in',
+      },
+      noFilamentsHelp: 'No filaments available. Sign in to Bambu Cloud, or import presets under Profiles → Local Profiles.',
+      searchFilaments: 'Search filaments...',
+      noFilamentMatches: 'No filament matches that search',
       flowType: 'Flow Type',
       highFlow: 'High Flow',
       standard: 'Standard',
@@ -5387,6 +5396,8 @@ export default {
       profileSaved: 'K-profile saved',
       profilesSaved: 'K-profile saved to {{count}} extruders',
       selectAtLeastOneExtruder: 'Please select at least one extruder',
+      selectFilament: 'Select a filament first',
+      filamentNotResolvable: 'No Bambu filament ID for {{name}} — the printer cannot store a profile for it',
       profileDeleted: 'K-profile deleted',
       profilesDeleted: 'Deleted {{count}} profiles',
       exportedProfiles: 'Exported {{count}} profiles',
