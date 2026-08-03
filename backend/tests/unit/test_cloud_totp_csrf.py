@@ -31,13 +31,17 @@ class FakeTOTPClient:
         return False
 
 
+class FakeSharedClient:
+    def __init__(self):
+        self.cookies = MagicMock()
+        self.cookies.get.side_effect = RuntimeError("shared cookie jar must not be used")
+
+
 def _service(
     *, csrf_token: str | None = "csrf-abc123", region: str = "global"
 ) -> tuple[BambuCloudService, FakeTOTPClient]:
     service = BambuCloudService(region=region)
-    global_client = MagicMock()
-    global_client.cookies.get.side_effect = RuntimeError("shared cookie jar must not be used")
-    service._client = global_client
+    service._client = FakeSharedClient()
     totp_client = FakeTOTPClient(csrf_token=csrf_token)
 
     def fake_new_csrf_client():
