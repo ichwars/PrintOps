@@ -89,7 +89,8 @@ def test_excludes_generated_vendor_and_locale_paths(tmp_path: Path, checker: Mod
     generated = tmp_path / "static" / "bundle.js"
     vendor = tmp_path / "gcode_viewer" / "vendor.js"
     locale = tmp_path / "frontend" / "src" / "i18n" / "locales" / "en.ts"
-    for path in (included, generated, vendor, locale):
+    venv = tmp_path / "venv" / "lib" / "site-packages" / "dependency.py"
+    for path in (included, generated, vendor, locale, venv):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("source\n", encoding="utf-8")
 
@@ -145,6 +146,48 @@ def test_rejects_decorative_separator_comments(tmp_path: Path, checker: ModuleTy
     errors = checker.check_decorative_comments([source], root=tmp_path)
 
     assert errors == ["frontend/src/App.tsx:1: decorative separator comment is not allowed"]
+
+
+def test_rejects_python_decorative_separator_comment(tmp_path: Path, checker: ModuleType) -> None:
+    source = tmp_path / "backend" / "app" / "service.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("# ----------------\nVALUE = True\n", encoding="utf-8")
+
+    errors = checker.check_decorative_comments([source], root=tmp_path)
+
+    assert errors == ["backend/app/service.py:1: decorative separator comment is not allowed"]
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "source_text"),
+    [
+        (
+            "backend/app/banner.py",
+            'BANNER = """Heading\n# ----------------\nFooter"""\n',
+        ),
+        (
+            "frontend/src/banner.ts",
+            "const banner = `Heading\n// ----------------\nFooter`;\n",
+        ),
+        (
+            "scripts/banner.sh",
+            "cat <<'BANNER'\n# ----------------\nBANNER\n",
+        ),
+    ],
+)
+def test_allows_separator_text_inside_multiline_data(
+    tmp_path: Path,
+    checker: ModuleType,
+    relative_path: str,
+    source_text: str,
+) -> None:
+    source = tmp_path / relative_path
+    source.parent.mkdir(parents=True)
+    source.write_text(source_text, encoding="utf-8")
+
+    errors = checker.check_decorative_comments([source], root=tmp_path)
+
+    assert errors == []
 
 
 def test_allows_section_comments_outside_application_code(tmp_path: Path, checker: ModuleType) -> None:

@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import argparse
 import ast
+import io
 import re
+import tokenize
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
@@ -60,6 +62,7 @@ EXCLUDED_DIR_NAMES = {
     "gcode_viewer",
     "node_modules",
     "static",
+    "venv",
 }
 
 EXCLUDED_PATH_PREFIXES = ("frontend/src/i18n/locales/",)
@@ -132,6 +135,10 @@ FUNCTION_ALLOWLIST = {
 }
 
 DECORATIVE_SEPARATOR_RE = re.compile(r"^\s*(?:#|//)\s*[=-]{6,}\s*$")
+HEREDOC_RE = re.compile(
+    r"<<(?P<strip_tabs>-)?\s*(?:(?P<quote>['\"])(?P<quoted>[A-Za-z_][A-Za-z0-9_]*)"
+    r"(?P=quote)|(?P<plain>[A-Za-z_][A-Za-z0-9_]*))"
+)
 
 
 def normalized(path: Path, root: Path = Path(".")) -> str:
@@ -206,15 +213,130 @@ def check_file_sizes(
     return errors
 
 
+def python_decorative_comment_lines(source: str) -> list[int]:
+    lines: list[int] = []
+    try:
+        tokens = tokenize.generate_tokens(io.StringIO(source).readline)
+        for token in tokens:
+            if token.type == tokenize.COMMENT and DECORATIVE_SEPARATOR_RE.fullmatch(token.string):
+                lines.append(token.start[0])
+    except (IndentationError, tokenize.TokenError):
+        pass
+    return lines
+
+
+def javascript_decorative_comment_lines(source: str) -> list[int]:
+    lines: list[int] = []
+    quote: str | None = None
+    in_block_comment = False
+
+    for line_number, line in enumerate(source.splitlines(), start=1):
+        index = 0
+        escaped = False
+        while index < len(line):
+            char = line[index]
+            next_char = line[index + 1] if index + 1 < len(line) else ""
+
+            if in_block_comment:
+                if char == "*" and next_char == "/":
+                    in_block_comment = False
+                    index += 2
+                else:
+                    index += 1
+                continue
+
+            if quote is not None:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == quote:
+                    quote = None
+                index += 1
+                continue
+
+            if char in {'"', "'", "`"}:
+                quote = char
+                index += 1
+            elif char == "/" and next_char == "*":
+                in_block_comment = True
+                index += 2
+            elif char == "/" and next_char == "/":
+                if DECORATIVE_SEPARATOR_RE.fullmatch(line[index:]):
+                    lines.append(line_number)
+                break
+            else:
+                index += 1
+
+    return lines
+
+
+def shell_decorative_comment_lines(source: str) -> list[int]:
+    lines: list[int] = []
+    quote: str | None = None
+    heredocs: list[tuple[str, bool]] = []
+
+    for line_number, line in enumerate(source.splitlines(), start=1):
+        if heredocs:
+            delimiter, strip_tabs = heredocs[0]
+            candidate = line.lstrip("\t") if strip_tabs else line
+            if candidate == delimiter:
+                heredocs.pop(0)
+            continue
+
+        index = 0
+        escaped = False
+        comment_at: int | None = None
+        while index < len(line):
+            char = line[index]
+            if escaped:
+                escaped = False
+            elif char == "\\" and quote != "'":
+                escaped = True
+            elif quote is not None:
+                if char == quote:
+                    quote = None
+            elif char in {'"', "'"}:
+                quote = char
+            elif char == "#":
+                comment_at = index
+                if DECORATIVE_SEPARATOR_RE.fullmatch(line[index:]):
+                    lines.append(line_number)
+                break
+            index += 1
+
+        declaration = line if comment_at is None else line[:comment_at]
+        for match in HEREDOC_RE.finditer(declaration):
+            delimiter = match.group("quoted") or match.group("plain")
+            heredocs.append((delimiter, match.group("strip_tabs") is not None))
+
+    return lines
+
+
+def decorative_comment_lines(path: Path, source: str) -> list[int]:
+    suffix = path.suffix.lower()
+    if suffix == ".py":
+        return python_decorative_comment_lines(source)
+    if suffix in {".js", ".mjs", ".ts", ".tsx"}:
+        return javascript_decorative_comment_lines(source)
+    if suffix == ".sh":
+        return shell_decorative_comment_lines(source)
+    return [
+        line_number
+        for line_number, line in enumerate(source.splitlines(), start=1)
+        if DECORATIVE_SEPARATOR_RE.fullmatch(line)
+    ]
+
+
 def check_decorative_comments(files: Iterable[Path], *, root: Path = Path(".")) -> list[str]:
     errors: list[str] = []
     for path in files:
         rel = normalized(path, root)
         if not rel.startswith(COMMENT_CHECK_PREFIXES):
             continue
-        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-            if DECORATIVE_SEPARATOR_RE.fullmatch(line):
-                errors.append(f"{rel}:{line_number}: decorative separator comment is not allowed")
+        source = path.read_text(encoding="utf-8")
+        for line_number in decorative_comment_lines(path, source):
+            errors.append(f"{rel}:{line_number}: decorative separator comment is not allowed")
     return errors
 
 
