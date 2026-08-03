@@ -10,7 +10,7 @@ from backend.app.core.paths import resolve_data_dir
 
 # App directory - where the application is installed (for static files)
 _app_dir = Path(__file__).resolve().parent.parent.parent.parent
-_DEFAULT_APP_VERSION = "1.2.7.5"
+_DEFAULT_APP_VERSION = "1.2.7.6"
 
 
 def _load_app_version() -> str:
