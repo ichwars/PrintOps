@@ -1,0 +1,119 @@
+"""Tests for the CSRF handshake on Bambu Cloud TOTP sign-in."""
+
+import json
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from backend.app.services.bambu_cloud import BambuCloudService
+
+
+def _response(status: int, body: str) -> MagicMock:
+    response = MagicMock()
+    response.status_code = status
+    response.text = body
+    response.json.return_value = json.loads(body) if body else {}
+    response.cookies = {}
+    return response
+
+
+class FakeTOTPClient:
+    def __init__(self, *, csrf_token: str | None = "csrf-abc123"):
+        self.get = AsyncMock(return_value=_response(204, ""))
+        self.post = AsyncMock(return_value=_response(200, '{"accessToken": "tok"}'))
+        self.cookies = MagicMock()
+        self.cookies.get.return_value = csrf_token
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+
+class FakeSharedClient:
+    def __init__(self):
+        self.cookies = MagicMock()
+        self.cookies.get.side_effect = RuntimeError("shared cookie jar must not be used")
+
+
+def _service(
+    *, csrf_token: str | None = "csrf-abc123", region: str = "global"
+) -> tuple[BambuCloudService, FakeTOTPClient]:
+    service = BambuCloudService(region=region)
+    service._client = FakeSharedClient()
+    totp_client = FakeTOTPClient(csrf_token=csrf_token)
+
+    def fake_new_csrf_client():
+        return totp_client
+
+    service._new_csrf_client = fake_new_csrf_client
+    return service, totp_client
+
+
+@pytest.mark.asyncio
+async def test_totp_fetches_csrf_token_before_posting_code():
+    service, totp_client = _service()
+
+    result = await service.verify_totp("tfa-key", "123456")
+
+    assert result["success"] is True
+    totp_client.get.assert_awaited_once()
+    assert totp_client.get.await_args.args[0] == "https://bambulab.com/api/csrf"
+
+
+@pytest.mark.asyncio
+async def test_totp_echoes_cookie_in_x_bbl_csrf_token_header():
+    service, totp_client = _service(csrf_token="csrf-abc123")
+
+    await service.verify_totp("tfa-key", "123456")
+
+    headers = totp_client.post.await_args.kwargs["headers"]
+    assert headers["x-bbl-csrf-token"] == "csrf-abc123"
+
+
+@pytest.mark.asyncio
+async def test_totp_uses_china_origin_for_china_region():
+    service, totp_client = _service(region="china")
+
+    await service.verify_totp("tfa-key", "123456")
+
+    assert totp_client.get.await_args.args[0] == "https://bambulab.cn/api/csrf"
+    assert totp_client.post.await_args.args[0] == "https://bambulab.cn/api/sign-in/tfa"
+
+
+@pytest.mark.asyncio
+async def test_totp_does_not_post_code_without_csrf_token():
+    service, totp_client = _service(csrf_token=None)
+
+    result = await service.verify_totp("tfa-key", "123456")
+
+    assert result["success"] is False
+    assert "security token" in result["message"]
+    totp_client.post.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reason", ["missing_cookie", "missing_header"])
+async def test_totp_csrf_rejection_says_code_was_not_checked(reason):
+    service, totp_client = _service()
+    totp_client.post = AsyncMock(
+        return_value=_response(403, json.dumps({"error": f"CSRF error: {reason}", "reason": reason}))
+    )
+
+    result = await service.verify_totp("tfa-key", "123456")
+
+    assert result["success"] is False
+    assert "before checking your code" in result["message"]
+    assert "Invalid" not in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_totp_wrong_code_still_reports_bambu_message():
+    service, totp_client = _service()
+    totp_client.post = AsyncMock(return_value=_response(400, '{"code":5,"error":"Login failed"}'))
+
+    result = await service.verify_totp("tfa-key", "000000")
+
+    assert result["success"] is False
+    assert result["message"] == "Login failed"

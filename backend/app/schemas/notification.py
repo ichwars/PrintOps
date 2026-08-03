@@ -15,6 +15,7 @@ class ProviderType(StrEnum):
     NTFY = "ntfy"
     PUSHOVER = "pushover"
     TELEGRAM = "telegram"
+    BARK = "bark"
     EMAIL = "email"
     DISCORD = "discord"
     WEBHOOK = "webhook"
@@ -244,6 +245,17 @@ class TelegramConfig(BaseModel):
 
     bot_token: str = Field(..., description="Bot token from @BotFather")
     chat_id: str = Field(..., description="Chat ID to send messages to")
+    message_thread_id: int | None = Field(default=None, description="Optional Telegram forum topic ID")
+
+
+class BarkConfig(BaseModel):
+    """Bark iOS push notification configuration."""
+
+    device_key: str = Field(..., description="Bark device key")
+    server: str = Field(default="https://api.day.app", description="Bark server URL")
+    group: str | None = Field(default=None, description="Optional notification group")
+    sound: str | None = Field(default=None, description="Optional Bark sound")
+    level: str | None = Field(default=None, description="Optional iOS interruption level")
 
 
 class EmailConfig(BaseModel):

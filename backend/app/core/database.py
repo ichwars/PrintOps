@@ -3574,9 +3574,11 @@ async def run_migrations(conn):
     if is_sqlite():
         await _safe_execute(conn, "ALTER TABLE oidc_providers ADD COLUMN is_autologin BOOLEAN DEFAULT 0")
         await _safe_execute(conn, "ALTER TABLE oidc_providers ADD COLUMN allow_private_network BOOLEAN DEFAULT 0")
+        await _safe_execute(conn, "ALTER TABLE oidc_providers ADD COLUMN is_env_managed BOOLEAN DEFAULT 0")
     else:
         await _safe_execute(conn, "ALTER TABLE oidc_providers ADD COLUMN is_autologin BOOLEAN DEFAULT false")
         await _safe_execute(conn, "ALTER TABLE oidc_providers ADD COLUMN allow_private_network BOOLEAN DEFAULT false")
+        await _safe_execute(conn, "ALTER TABLE oidc_providers ADD COLUMN is_env_managed BOOLEAN DEFAULT false")
 
     # Migration: real filesystem mtime for library files/folders (#2680). The
     # folder tree's "sort by recent activity" and the file pane's date sort must

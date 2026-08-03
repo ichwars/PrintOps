@@ -24,6 +24,7 @@ from backend.app.models.smart_plug import SmartPlug
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.services.bambu_ftp import (
+    UploadCancelled,
     cache_3mf_download,
     delete_file_async,
     get_ftp_retry_settings,
@@ -147,6 +148,13 @@ def _canonical_filament_type(ftype: str) -> str:
     """Return canonical type for equivalence matching."""
     upper = ftype.upper()
     return _FILAMENT_EQUIV_MAP.get(upper, upper)
+
+
+def _mapping_is_all_unresolved(mapping: list | None) -> bool:
+    """Return True for a non-empty mapping made only of unresolved slots."""
+    if not isinstance(mapping, list) or not mapping:
+        return False
+    return all(slot is None or (isinstance(slot, int) and slot < 0) for slot in mapping)
 
 
 class PrintScheduler:
@@ -474,15 +482,9 @@ class PrintScheduler:
                             )
                             continue
 
-                    # Compute AMS mapping if not already set
-                    if not item.ams_mapping:
-                        computed_mapping = await self._compute_ams_mapping_for_printer(db, item.printer_id, item)
-                        if computed_mapping:
-                            item.ams_mapping = json.dumps(computed_mapping)
-                            logger.info(
-                                f"Queue item {item.id}: Computed AMS mapping for printer {item.printer_id}: {computed_mapping}"
-                            )
-                            await db.commit()
+                    # Resolve AMS mapping when missing or when a status-load race
+                    # persisted an all-unresolved [-1] mapping (#2589).
+                    await self._ensure_ams_mapping(db, item.printer_id, item)
 
                     # Filament-deficit pre-dispatch check (#1496). If the
                     # assigned spool can't satisfy any required slot grams,
@@ -626,16 +628,9 @@ class PrintScheduler:
                             db=db,
                         )
 
-                        # Compute AMS mapping for the assigned printer if not already set
-                        # This is critical for model-based jobs where mapping wasn't computed upfront
-                        if not item.ams_mapping:
-                            computed_mapping = await self._compute_ams_mapping_for_printer(db, printer_id, item)
-                            if computed_mapping:
-                                item.ams_mapping = json.dumps(computed_mapping)
-                                logger.info(
-                                    f"Queue item {item.id}: Computed AMS mapping for printer {printer_id}: {computed_mapping}"
-                                )
-                                await db.commit()
+                        # Resolve AMS mapping for model-based jobs and self-heal
+                        # bogus all-unresolved persisted mappings (#2589).
+                        await self._ensure_ams_mapping(db, printer_id, item)
 
                         # Filament-deficit pre-dispatch check (#1496).
                         if await self._block_on_filament_deficit(db, item):
@@ -1178,6 +1173,45 @@ class PrintScheduler:
             for o in force_overrides
         ]
         return self._match_filaments_to_slots(reqs, loaded)
+
+    async def _ensure_ams_mapping(self, db: AsyncSession, printer_id: int, item: PrintQueueItem) -> None:
+        """Ensure a queue item does not dispatch with a bogus all-unresolved mapping.
+
+        A stored ``[-1]`` can be produced when the UI persists a mapping before
+        AMS status has loaded. Recompute it from live status when possible; if it
+        is still unresolved, clear it so the downstream command builder does not
+        silently downgrade the job to external-spool mode (#2589).
+        """
+        stored_mapping: list | None = None
+        if item.ams_mapping:
+            try:
+                stored_mapping = json.loads(item.ams_mapping)
+            except (json.JSONDecodeError, TypeError):
+                stored_mapping = None
+
+        if item.ams_mapping and not _mapping_is_all_unresolved(stored_mapping):
+            return
+
+        computed_mapping = await self._compute_ams_mapping_for_printer(db, printer_id, item)
+        if computed_mapping and not _mapping_is_all_unresolved(computed_mapping):
+            item.ams_mapping = json.dumps(computed_mapping)
+            logger.info(
+                "Queue item %s: Computed AMS mapping for printer %s: %s",
+                item.id,
+                printer_id,
+                computed_mapping,
+            )
+            await db.commit()
+        elif _mapping_is_all_unresolved(stored_mapping):
+            logger.warning(
+                "Queue item %s: stored ams_mapping %s is unresolved and could not be recomputed "
+                "from live status on printer %s; clearing it",
+                item.id,
+                stored_mapping,
+                printer_id,
+            )
+            item.ams_mapping = None
+            await db.commit()
 
     async def _get_filament_requirements(self, db: AsyncSession, item: PrintQueueItem) -> list[dict] | None:
         """Resolve the queue item's source 3MF and parse the per-slot
@@ -2906,6 +2940,7 @@ class PrintScheduler:
             pass  # toast is best-effort
 
         progress_bridge = _UploadProgressBridge(toast_uid, item.id)
+        upload_error: str | None = None
 
         try:
             if ftp_retry_enabled:
@@ -2932,6 +2967,13 @@ class PrintScheduler:
                     printer_model=printer.model,
                     progress_callback=progress_bridge,
                 )
+        except UploadCancelled as e:
+            uploaded = False
+            upload_error = (
+                "Upload was too slow to finish and was cancelled. The printer's connection could not sustain "
+                "the transfer. Check its Wi-Fi signal or move it closer to the access point."
+            )
+            logger.error("Queue item %s: upload deadline exceeded: %s", item.id, e)
         except Exception as e:
             uploaded = False
             logger.error("Queue item %s: FTP error: %s (type: %s)", item.id, e, type(e).__name__)
@@ -2941,7 +2983,7 @@ class PrintScheduler:
             injected_path.unlink(missing_ok=True)
 
         if not uploaded:
-            error_msg = (
+            error_msg = upload_error or (
                 "Failed to upload file to printer. Check if SD card is inserted and properly formatted (FAT32/exFAT). "
                 "See server logs for detailed diagnostics."
             )

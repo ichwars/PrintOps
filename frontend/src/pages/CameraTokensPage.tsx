@@ -15,17 +15,22 @@
  * The plaintext token is shown EXACTLY ONCE at create time inside a copy-
  * to-clipboard modal. Listings only ever show metadata.
  */
-import { Button, NumberField, TextField } from '../components/ui';
+import { Button, NumberField, Select, TextField } from '../components/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Copy, Plus, Trash2, AlertTriangle } from 'lucide-react';
-import { api, type LongLivedCameraToken } from '../api/client';
+import { api, type LongLivedCameraToken, type LongLivedTokenScope } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { parseUTCDate } from '../utils/date';
 
 const DEFAULT_LIFETIME_DAYS = 90;
 const MAX_LIFETIME_DAYS = 365;
+const TOKEN_SCOPE_OPTIONS: Array<{ value: LongLivedTokenScope; label: string }> = [
+  { value: 'camera_stream', label: 'Camera stream' },
+  { value: 'camwall', label: 'Cam Wall' },
+  { value: 'overlay', label: 'Overlay' },
+];
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
@@ -47,6 +52,7 @@ function CreateTokenForm({ onCreated }: CreateTokenFormProps) {
   const { showToast } = useToast();
   const [name, setName] = useState('');
   const [days, setDays] = useState<number>(DEFAULT_LIFETIME_DAYS);
+  const [scope, setScope] = useState<LongLivedTokenScope>('camera_stream');
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,10 +63,12 @@ function CreateTokenForm({ onCreated }: CreateTokenFormProps) {
       const created = await api.createLongLivedCameraToken({
         name: name.trim(),
         expires_in_days: days,
+        scope,
       });
       onCreated(created);
       setName('');
       setDays(DEFAULT_LIFETIME_DAYS);
+      setScope('camera_stream');
       showToast(t('cameraTokens.toast.created', 'Token created'));
     } catch (err) {
       showToast(
@@ -80,7 +88,7 @@ function CreateTokenForm({ onCreated }: CreateTokenFormProps) {
       <h3 className="text-base font-semibold text-white mb-3">
         {t('cameraTokens.create.title', 'Create new token')}
       </h3>
-      <div className="grid gap-3 md:grid-cols-[1fr_140px_auto]">
+      <div className="grid gap-3 md:grid-cols-[1fr_180px_140px_auto]">
         <TextField
           type="text"
           maxLength={100}
@@ -90,6 +98,12 @@ function CreateTokenForm({ onCreated }: CreateTokenFormProps) {
           placeholder={t('cameraTokens.create.namePlaceholder', 'e.g. Home Assistant')}
           className="px-3 py-2 bg-bambu-dark rounded-md text-white border border-bambu-dark-tertiary focus:border-bambu-green focus:outline-none"
           aria-label={t('cameraTokens.create.nameLabel', 'Token name')}
+        />
+        <Select
+          value={scope}
+          options={TOKEN_SCOPE_OPTIONS}
+          onValueChange={setScope}
+          ariaLabel={t('cameraTokens.create.scopeLabel', 'Token scope')}
         />
         <NumberField
           min={1}
@@ -271,6 +285,9 @@ function TokenRow({ token, showOwner, ownerLabel, onRevoke }: TokenRowProps) {
     <tr className="border-b border-bambu-dark-tertiary last:border-b-0">
       <td className="py-3 px-3 text-white">{token.name}</td>
       {showOwner && <td className="py-3 px-3 text-bambu-gray">{ownerLabel}</td>}
+      <td className="py-3 px-3 text-bambu-gray">
+        {TOKEN_SCOPE_OPTIONS.find((option) => option.value === token.scope)?.label ?? token.scope}
+      </td>
       <td className="py-3 px-3 text-bambu-gray font-mono text-xs">{token.lookup_prefix}…</td>
       <td className="py-3 px-3 text-bambu-gray">{formatDate(token.created_at)}</td>
       <td className={`py-3 px-3 ${expired ? 'text-red-700 dark:text-red-400' : 'text-bambu-gray'}`}>
@@ -317,6 +334,7 @@ function TokenTable({ tokens, showOwner, userIdToName, onRevoke, emptyMessage }:
           <tr>
             <th className="py-2 px-3 font-medium">{t('cameraTokens.list.name', 'Name')}</th>
             {showOwner && <th className="py-2 px-3 font-medium">{t('cameraTokens.list.owner', 'Owner')}</th>}
+            <th className="py-2 px-3 font-medium">{t('cameraTokens.list.scope', 'Scope')}</th>
             <th className="py-2 px-3 font-medium">{t('cameraTokens.list.prefix', 'Prefix')}</th>
             <th className="py-2 px-3 font-medium">{t('cameraTokens.list.created', 'Created')}</th>
             <th className="py-2 px-3 font-medium">{t('cameraTokens.list.expires', 'Expires')}</th>
@@ -425,7 +443,7 @@ export function CameraTokensSection() {
       <p className="text-sm text-bambu-gray mb-4">
         {t(
           'cameraTokens.description',
-          'Long-lived tokens for embedding the camera stream into Home Assistant, Frigate, kiosks, or any other tool that needs a stable URL. Each token is camera-stream-only and can be revoked at any time.',
+          'Long-lived tokens for embedding camera streams, Cam Wall kiosks, or streaming overlays. Each token has a narrow scope and can be revoked at any time.',
         )}
       </p>
 

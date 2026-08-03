@@ -187,17 +187,18 @@ class HomeAssistantService:
 
     @staticmethod
     def _validate_url(url: str) -> str | None:
-        """Validate HA URL scheme and block dangerous destinations."""
+        """Normalize a caller-supplied HA URL, or return None if unsafe."""
+        from backend.app.api.routes._url_safety import assert_safe_lan_service_url
+
         try:
+            assert_safe_lan_service_url(url, label="Home Assistant URL")
             parsed = urlparse(url)
         except ValueError:
             return None
-        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        if not parsed.hostname:
             return None
-        blocked = ("169.254.169.254", "metadata.google.internal", "0.0.0.0")  # nosec B104
-        if parsed.hostname.lower() in blocked or (parsed.hostname or "").startswith("169.254."):
-            return None
-        return f"{parsed.scheme}://{parsed.hostname}" + (f":{parsed.port}" if parsed.port else "") + (parsed.path or "")
+        host = f"[{parsed.hostname}]" if ":" in parsed.hostname else parsed.hostname
+        return f"{parsed.scheme.lower()}://{host}" + (f":{parsed.port}" if parsed.port else "") + (parsed.path or "")
 
     async def test_connection(self, url: str, token: str) -> dict:
         """Test connection to Home Assistant.
@@ -256,11 +257,15 @@ class HomeAssistantService:
         # Allowed domains for smart plug control — must mirror the regex in
         # backend/app/schemas/smart_plug.py:17 (SmartPlugBase.ha_entity_id).
         allowed_domains = {"switch", "light", "input_boolean", "script"}
+        safe_url = self._validate_url(url)
+        if not safe_url:
+            logger.warning("Blocked Home Assistant entity list for invalid URL")
+            return []
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.get(
-                    f"{url.rstrip('/')}/api/states",
+                    f"{safe_url.rstrip('/')}/api/states",
                     headers={"Authorization": f"Bearer {token}"},
                 )
                 response.raise_for_status()
@@ -300,10 +305,15 @@ class HomeAssistantService:
 
         Returns list of sensor entities with power/energy units.
         """
+        safe_url = self._validate_url(url)
+        if not safe_url:
+            logger.warning("Blocked Home Assistant sensor list for invalid URL")
+            return []
+
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.get(
-                    f"{url.rstrip('/')}/api/states",
+                    f"{safe_url.rstrip('/')}/api/states",
                     headers={"Authorization": f"Bearer {token}"},
                 )
                 response.raise_for_status()

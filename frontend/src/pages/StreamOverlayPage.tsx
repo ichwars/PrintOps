@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Layers, Clock, Timer, Printer } from 'lucide-react';
 import { api, ApiError, withStreamToken } from '../api/client';
-import type { PrinterStatus } from '../api/client';
 import { formatDuration, formatETA, type TimeFormat } from '../utils/date';
 
 type TFunction = (key: string, options?: Record<string, unknown>) => string;
@@ -57,7 +56,7 @@ function parseConfig(params: URLSearchParams): OverlayConfig {
   };
 }
 
-function getStatusText(status: PrinterStatus, t: TFunction): string {
+function getStatusText(status: { state: string | null; stg_cur_name?: string | null }, t: TFunction): string {
   if (status.stg_cur_name) return status.stg_cur_name;
 
   switch (status.state) {
@@ -117,32 +116,48 @@ export function StreamOverlayPage() {
   const config = useMemo(() => parseConfig(searchParams), [searchParams]);
   const sizes = getSizeClasses(config.size);
 
-  // Fetch printer info
-  const { data: printer } = useQuery({
-    queryKey: ['printer', id],
-    queryFn: () => api.getPrinter(id),
-    enabled: id > 0,
-  });
+  const token = searchParams.get('token');
+  const kiosk = token != null && token !== '';
 
-  // Fetch printer status with polling
-  const { data: status } = useQuery({
-    queryKey: ['printerStatus', id],
-    queryFn: () => api.getPrinterStatus(id),
-    enabled: id > 0,
+  const { data: overlay } = useQuery({
+    queryKey: ['overlayStatus', id, token],
+    queryFn: () => api.getOverlayStatus(id, token ?? undefined),
+    enabled: id > 0 && kiosk,
     refetchInterval: 2000,
   });
 
-  // Fetch settings info
+  const { data: printerData } = useQuery({
+    queryKey: ['printer', id],
+    queryFn: () => api.getPrinter(id),
+    enabled: id > 0 && !kiosk,
+  });
+
+  const { data: statusData } = useQuery({
+    queryKey: ['printerStatus', id],
+    queryFn: () => api.getPrinterStatus(id),
+    enabled: id > 0 && !kiosk,
+    refetchInterval: 2000,
+  });
+
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: api.getSettings,
+    enabled: !kiosk,
   });
 
-  const timeFormat: TimeFormat = settings?.time_format || 'system';
+  const printer = useMemo(
+    () =>
+      kiosk
+        ? overlay && { name: overlay.name, camera_rotation: overlay.camera_rotation }
+        : printerData,
+    [kiosk, overlay, printerData],
+  );
+  const status = kiosk ? overlay : statusData;
+  const timeFormat: TimeFormat = (kiosk ? overlay?.time_format : settings?.time_format) || 'system';
 
   // WebSocket for real-time updates
   useEffect(() => {
-    if (!id) return;
+    if (!id || kiosk) return;
 
     let ws: WebSocket | null = null;
     let cancelled = false;
@@ -195,7 +210,7 @@ export function StreamOverlayPage() {
       cancelled = true;
       if (ws) ws.close();
     };
-  }, [id, queryClient]);
+  }, [id, kiosk, queryClient]);
 
   // Update document title
   useEffect(() => {
@@ -230,7 +245,10 @@ export function StreamOverlayPage() {
 
   const isPrinting = status.state === 'RUNNING' || status.state === 'PAUSE';
   const progress = status.progress || 0;
-  const streamUrl = withStreamToken(`/api/v1/printers/${id}/camera/stream?fps=${config.fps}&t=${imageKey}`);
+  const baseStreamUrl = `/api/v1/printers/${id}/camera/stream?fps=${config.fps}&t=${imageKey}`;
+  const streamUrl = kiosk && token
+    ? `${baseStreamUrl}&token=${encodeURIComponent(token)}`
+    : withStreamToken(baseStreamUrl);
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">

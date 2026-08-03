@@ -44,11 +44,20 @@ class TestURLValidation:
     def test_hostname_url(self, service):
         assert service._validate_url("http://openhab.local:8080/api") is True
 
-    def test_loopback_blocked(self, service):
-        assert service._validate_url("http://127.0.0.1/api") is False
+    def test_loopback_allowed_for_local_bridges(self, service):
+        assert service._validate_url("http://127.0.0.1/api") is True
 
-    def test_link_local_blocked(self, service):
-        assert service._validate_url("http://169.254.1.1/api") is False
+    def test_link_local_non_metadata_allowed_for_lan_bridges(self, service):
+        assert service._validate_url("http://169.254.1.1/api") is True
+
+    def test_cloud_metadata_blocked(self, service):
+        assert service._validate_url("http://169.254.169.254/latest/meta-data") is False
+        assert service._validate_url("http://metadata.google.internal/computeMetadata/v1") is False
+        assert service._validate_url("http://100.100.100.200/latest/meta-data") is False
+
+    def test_numeric_encoded_ip_blocked(self, service):
+        assert service._validate_url("http://2130706433/api") is False
+        assert service._validate_url("http://0x7f000001/api") is False
 
     def test_empty_hostname(self, service):
         assert service._validate_url("http:///api") is False
@@ -315,6 +324,6 @@ class TestTestConnection:
 
     @pytest.mark.asyncio
     async def test_connection_invalid_url(self, service):
-        result = await service.test_connection("http://127.0.0.1/api")
+        result = await service.test_connection("http://169.254.169.254/latest/meta-data")
         assert result["success"] is False
         assert "blocked" in result["error"].lower()

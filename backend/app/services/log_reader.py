@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.config import settings
+from backend.app.core.logging_filters import URL_CREDENTIALS_PATTERN
 from backend.app.models.printer import Printer
 from backend.app.models.settings import Settings
 from backend.app.models.user import User
@@ -155,8 +156,10 @@ def sanitize_log_content(content: str, sensitive_strings: dict[str, str] | None 
                 continue  # Skip very short strings to prevent over-redaction
             content = re.sub(re.escape(value), label, content)
 
-    # Replace credentials in URLs (e.g. http://user:pass@host, rtsps://bblp:code@host)
-    content = re.sub(r"((?:https?|rtsps?)://)[^/:@\s]+:[^/@\s]+@", r"\1[CREDENTIALS]@", content)
+    # Replace credentials in URLs (e.g. http://user:pass@host, rtsps://bblp:code@host).
+    # Shares its bounded pattern with the live log-pipeline redaction; the
+    # support-bundle sanitizer drops the username too.
+    content = URL_CREDENTIALS_PATTERN.sub(r"\g<scheme>[CREDENTIALS]@", content)
 
     content = re.sub(
         r"(?i)\b(authorization\s*[:=]\s*(?:bearer|basic)\s+)[^\s,;]+",

@@ -703,12 +703,50 @@ async def extract_video_last_frame(video_path: Path, output_path: Path) -> bool:
         return False
 
 
+def apply_camera_rotation(image_data: bytes, rotation: int, logger: logging.Logger) -> bytes:
+    """Apply a camera_rotation value (degrees clockwise) to a captured JPEG."""
+    if not rotation:
+        return image_data
+
+    try:
+        from io import BytesIO
+
+        from PIL import Image
+
+        img = Image.open(BytesIO(image_data))
+        img = img.rotate(-rotation, expand=True)
+        buf = BytesIO()
+        img.save(buf, format="JPEG", quality=90)
+        rotated = buf.getvalue()
+        logger.debug("Applied %d° camera rotation: %s -> %s bytes", rotation, len(image_data), len(rotated))
+        return rotated
+    except Exception as e:
+        logger.warning("Failed to apply camera rotation: %s", e)
+        return image_data
+
+
+async def apply_camera_rotation_to_file(path: Path, rotation: int, logger: logging.Logger) -> None:
+    """Rotate a JPEG that has already been written to disk, in place."""
+    if not rotation:
+        return
+
+    try:
+        data = await asyncio.to_thread(path.read_bytes)
+        rotated = await asyncio.to_thread(apply_camera_rotation, data, rotation, logger)
+        if rotated is data:
+            return
+        await asyncio.to_thread(path.write_bytes, rotated)
+    except Exception as e:
+        logger.warning("Failed to rotate %s in place: %s", path.name, e)
+
+
 async def capture_finish_photo(
     printer_id: int,
     ip_address: str,
     access_code: str,
     model: str | None,
     archive_dir: Path,
+    rotation: int = 0,
 ) -> str | None:
     """Capture a finish photo and save it to the archive's photos folder.
 
@@ -742,6 +780,7 @@ async def capture_finish_photo(
     )
 
     if success:
+        await apply_camera_rotation_to_file(output_path, rotation, logger)
         logger.info("Finish photo saved: %s", filename)
         return filename
     else:

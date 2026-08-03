@@ -37,6 +37,7 @@ def _make_printer(*, external_camera_enabled: bool, external_camera_url: str | N
         external_camera_url=external_camera_url,
         external_camera_type="snapshot",
         external_camera_snapshot_url=external_camera_url,
+        camera_rotation=0,
     )
 
 
@@ -60,6 +61,7 @@ def test_starts_timelapse_when_external_camera_enabled():
         "http://camera.local:5000/snapshot.jpg",
         "snapshot",
         snapshot_url="http://camera.local:5000/snapshot.jpg",
+        rotation=0,
     )
 
 
@@ -97,6 +99,7 @@ def test_camera_type_defaults_to_mjpeg_when_unset():
         external_camera_url="http://cam/feed",
         external_camera_type=None,
         external_camera_snapshot_url=None,
+        camera_rotation=180,
     )
 
     with patch("backend.app.services.layer_timelapse.start_session") as mock_start_session:
@@ -107,3 +110,4 @@ def test_camera_type_defaults_to_mjpeg_when_unset():
     call_args = mock_start_session.call_args.args
     assert call_args[3] == "mjpeg"
     assert call_kwargs["snapshot_url"] is None
+    assert call_kwargs["rotation"] == 180

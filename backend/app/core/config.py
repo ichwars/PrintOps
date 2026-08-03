@@ -198,6 +198,21 @@ _INTENTIONAL_UNSETTINGS = {
     "BUG_REPORT_RELAY_URL",  # config.py (above)
     "PRINTOPS_UPDATE_TRUSTED_SIGNERS_FILE",  # config.py (above)
     "PRINTOPS_UPDATE_SIGNING_PRINCIPAL",  # config.py (above)
+    "PRINTOPS_OIDC_NAME",  # core/oidc_env.py
+    "PRINTOPS_OIDC_ISSUER_URL",  # core/oidc_env.py
+    "PRINTOPS_OIDC_CLIENT_ID",  # core/oidc_env.py
+    "PRINTOPS_OIDC_CLIENT_SECRET",  # core/oidc_env.py
+    "PRINTOPS_OIDC_SCOPES",  # core/oidc_env.py
+    "PRINTOPS_OIDC_ENABLED",  # core/oidc_env.py
+    "PRINTOPS_OIDC_ALLOW_PRIVATE_NETWORK",  # core/oidc_env.py
+    "PRINTOPS_OIDC_AUTO_CREATE_USERS",  # core/oidc_env.py
+    "PRINTOPS_OIDC_AUTO_LINK_EXISTING",  # core/oidc_env.py
+    "PRINTOPS_OIDC_EMAIL_CLAIM",  # core/oidc_env.py
+    "PRINTOPS_OIDC_REQUIRE_EMAIL_VERIFIED",  # core/oidc_env.py
+    "PRINTOPS_OIDC_ICON_URL",  # core/oidc_env.py
+    "PRINTOPS_OIDC_AUTOLOGIN",  # core/oidc_env.py
+    "PRINTOPS_OIDC_DEFAULT_GROUP",  # core/oidc_env.py
+    "PRINTOPS_LOCAL_LOGIN",  # api/routes/auth.py recovery bypass
 }
 
 _known_settings_fields = {f.upper() for f in settings.model_fields}

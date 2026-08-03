@@ -245,6 +245,35 @@ class TestLayerChangeLogic:
                     assert session.last_layer == 1  # Layer is still updated
                     assert session.frame_count == 0  # But frame count not incremented
 
+    @pytest.mark.asyncio
+    async def test_capture_layer_applies_camera_rotation(self, tmp_path):
+        from backend.app.services.layer_timelapse import TimelapseSession
+
+        with patch("backend.app.services.layer_timelapse.settings") as mock_settings:
+            mock_settings.base_dir = tmp_path
+
+            with patch.object(Path, "mkdir"):
+                session = TimelapseSession(1, 100, "http://test/", "mjpeg", rotation=90)
+
+                with (
+                    patch(
+                        "backend.app.services.layer_timelapse.capture_frame",
+                        new_callable=AsyncMock,
+                        return_value=b"\xff\xd8raw\xff\xd9",
+                    ),
+                    patch(
+                        "backend.app.services.layer_timelapse.apply_camera_rotation",
+                        return_value=b"\xff\xd8rotated\xff\xd9",
+                    ) as mock_rotate,
+                    patch.object(Path, "write_bytes") as mock_write,
+                ):
+                    result = await session.capture_layer(1)
+
+        assert result is True
+        mock_rotate.assert_called_once()
+        assert mock_rotate.call_args.args[:2] == (b"\xff\xd8raw\xff\xd9", 90)
+        mock_write.assert_called_once_with(b"\xff\xd8rotated\xff\xd9")
+
 
 class TestOnLayerChange:
     """Tests for the on_layer_change callback."""

@@ -28,6 +28,7 @@ from backend.app.api.routes import (
     calculation_projects,
     calculations,
     camera,
+    camwall,
     cloud,
     commercial_documents,
     customers,
@@ -969,6 +970,7 @@ def _maybe_start_layer_timelapse(printer, printer_id: int, archive_id: int) -> b
         printer.external_camera_url,
         printer.external_camera_type or "mjpeg",
         snapshot_url=printer.external_camera_snapshot_url,
+        rotation=getattr(printer, "camera_rotation", 0) or 0,
     )
     logging.getLogger(__name__).info("Started layer timelapse for printer %s, archive %s", printer_id, archive_id)
     return True
@@ -2143,26 +2145,9 @@ async def _capture_snapshot_for_notification(printer_id: int, printer, logger) -
 
 def _apply_camera_rotation(image_data: bytes, printer, logger) -> bytes:
     """Apply camera rotation to snapshot image if configured."""
-    rotation = getattr(printer, "camera_rotation", 0)
-    if not rotation or rotation == 0:
-        return image_data
+    from backend.app.services.camera import apply_camera_rotation
 
-    try:
-        from io import BytesIO
-
-        from PIL import Image
-
-        img = Image.open(BytesIO(image_data))
-        # PIL rotate is counter-clockwise, so negate for clockwise rotation
-        img = img.rotate(-rotation, expand=True)
-        buf = BytesIO()
-        img.save(buf, format="JPEG", quality=90)
-        rotated = buf.getvalue()
-        logger.info("[SNAPSHOT] Applied %d° rotation: %s → %s bytes", rotation, len(image_data), len(rotated))
-        return rotated
-    except Exception as e:
-        logger.warning("[SNAPSHOT] Failed to apply rotation: %s", e)
-        return image_data
+    return apply_camera_rotation(image_data, getattr(printer, "camera_rotation", 0), logger)
 
 
 async def _send_print_start_notification(
@@ -3602,6 +3587,7 @@ _FINISH_PHOTO_TIMELAPSE_POLL_TIMEOUT_SECONDS: float = 60.0
 async def _capture_finish_photo_from_timelapse(
     archive_id: int,
     archive_dir: Path,
+    rotation: int = 0,
 ) -> str | None:
     """Wait for the per-print timelapse to land on the archive and extract its
     last frame as the finish photo (#1397).
@@ -3621,7 +3607,7 @@ async def _capture_finish_photo_from_timelapse(
     import uuid
 
     from backend.app.models.archive import PrintArchive
-    from backend.app.services.camera import extract_video_last_frame
+    from backend.app.services.camera import apply_camera_rotation_to_file, extract_video_last_frame
 
     logger = logging.getLogger(__name__)
 
@@ -3643,6 +3629,7 @@ async def _capture_finish_photo_from_timelapse(
                 filename = f"finish_{timestamp}_{uuid.uuid4().hex[:8]}.jpg"
                 output_path = photos_dir / filename
                 if await extract_video_last_frame(video_path, output_path):
+                    await apply_camera_rotation_to_file(output_path, rotation, logger)
                     logger.info(
                         "[PHOTO-BG] Extracted finish photo from timelapse %s for archive %s",
                         video_path.name,
@@ -3965,6 +3952,7 @@ async def on_finish_photo_moment(printer_id: int, data: dict):
                     )
 
         if frame_bytes:
+            frame_bytes = _apply_camera_rotation(frame_bytes, printer, logger)
             _stage22_finish_frames[printer_id] = frame_bytes
         else:
             logger.warning(
@@ -4828,6 +4816,7 @@ async def on_print_complete(printer_id: int, data: dict):
                                 photo_filename = await _capture_finish_photo_from_timelapse(
                                     archive_id=archive_id,
                                     archive_dir=archive_dir,
+                                    rotation=getattr(printer, "camera_rotation", 0) or 0,
                                 )
 
                             # #1721: replacement framing path — on_finish_photo_moment
@@ -4881,6 +4870,7 @@ async def on_print_complete(printer_id: int, data: dict):
                                         snapshot_url=printer.external_camera_snapshot_url,
                                     )
                                     if frame_data:
+                                        frame_data = _apply_camera_rotation(frame_data, printer, logger)
                                         photos_dir = archive_dir / "photos"
                                         photos_dir.mkdir(parents=True, exist_ok=True)
                                         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -4898,6 +4888,7 @@ async def on_print_complete(printer_id: int, data: dict):
                                     buffered_frame = get_buffered_frame(printer_id)
 
                                     if (active_for_printer or active_chamber_for_printer) and buffered_frame:
+                                        buffered_frame = _apply_camera_rotation(buffered_frame, printer, logger)
                                         # Use frame from active stream
                                         logger.info("[PHOTO-BG] Using buffered frame from active stream")
                                         photos_dir = archive_dir / "photos"
@@ -4917,6 +4908,7 @@ async def on_print_complete(printer_id: int, data: dict):
                                             access_code=printer.access_code,
                                             model=printer.model,
                                             archive_dir=archive_dir,
+                                            rotation=getattr(printer, "camera_rotation", 0) or 0,
                                         )
 
                             if photo_filename:
@@ -5987,6 +5979,14 @@ async def lifespan(app: FastAPI):
 
     await init_db()
 
+    try:
+        async with async_session() as db:
+            from backend.app.core.oidc_env import apply_env_oidc_provider
+
+            await apply_env_oidc_provider(db)
+    except Exception as exc:
+        logging.warning("Failed to apply PRINTOPS_OIDC_* provider: %s", type(exc).__name__)
+
     # A process may stop after atomically claiming a preview job. Requeue
     # those interrupted jobs on startup so no request remains stuck forever.
     try:
@@ -6393,6 +6393,7 @@ PUBLIC_API_ROUTES = {
     # before the route handler runs, regardless of the route's own
     # "no auth required" intent.
     "/api/v1/system/appliance",
+    "/api/v1/camwall/printers",
 }
 
 # Route prefixes that are public (for routes with dynamic segments)
@@ -6420,6 +6421,7 @@ PUBLIC_API_PATTERNS = [
     # Camera (streams loaded via <img> tag)
     "/camera/stream",  # /printers/{id}/camera/stream
     "/camera/snapshot",  # /printers/{id}/camera/snapshot
+    "/overlay-status",  # /printers/{id}/overlay-status
     # Slicer token-authenticated downloads — protocol handlers (bambustudioopen://,
     # orcaslicer://) cannot send auth headers. These endpoints validate a short-lived
     # download token in the URL path instead.
@@ -6799,6 +6801,7 @@ app.include_router(updates.router, prefix=app_settings.api_prefix)
 app.include_router(sponsor_prompt.router, prefix=app_settings.api_prefix)
 app.include_router(maintenance.router, prefix=app_settings.api_prefix)
 app.include_router(camera.router, prefix=app_settings.api_prefix)
+app.include_router(camwall.router, prefix=app_settings.api_prefix)
 app.include_router(external_links.router, prefix=app_settings.api_prefix)
 app.include_router(projects.router, prefix=app_settings.api_prefix)
 app.include_router(library.router, prefix=app_settings.api_prefix)

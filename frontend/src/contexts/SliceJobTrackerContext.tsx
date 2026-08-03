@@ -84,6 +84,7 @@ export function SliceJobTrackerProvider({ children }: { children: ReactNode }) {
   const startedAtRef = useRef<Map<number, number>>(new Map());
   const phaseRef = useRef<Map<number, SliceJobStatus>>(new Map());
   const progressRef = useRef<Map<number, SliceJobProgress | null>>(new Map());
+  const finishedRef = useRef<Set<number>>(new Set());
 
   const renderProgressToast = useCallback(
     (job: TrackedJob) => {
@@ -151,6 +152,7 @@ export function SliceJobTrackerProvider({ children }: { children: ReactNode }) {
   const trackJob = useCallback(
     (id: number, kind: 'libraryFile' | 'archive', sourceName: string) => {
       setActiveJobs((prev) => (prev.some((j) => j.id === id) ? prev : [...prev, { id, kind, sourceName }]));
+      finishedRef.current.delete(id);
       startedAtRef.current.set(id, Date.now());
       phaseRef.current.set(id, 'pending');
       progressRef.current.set(id, null);
@@ -163,6 +165,9 @@ export function SliceJobTrackerProvider({ children }: { children: ReactNode }) {
 
   const completeJob = useCallback(
     (job: TrackedJob, state: SliceJobState) => {
+      if (finishedRef.current.has(job.id)) return;
+      finishedRef.current.add(job.id);
+
       setActiveJobs((prev) => prev.filter((j) => j.id !== job.id));
       startedAtRef.current.delete(job.id);
       phaseRef.current.delete(job.id);
@@ -201,24 +206,31 @@ export function SliceJobTrackerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (activeJobs.length === 0) return;
     let cancelled = false;
+    let polling = false;
     const interval = setInterval(async () => {
-      if (cancelled) return;
-      const snapshot = [...activeJobsRef.current];
-      for (const job of snapshot) {
-        try {
-          const state = await api.getSliceJob(job.id);
-          phaseRef.current.set(job.id, state.status);
-          // Capture the latest progress snapshot if the sidecar fed
-          // one through. The 1s tick re-renders the toast off this ref.
-          if (state.progress) {
-            progressRef.current.set(job.id, state.progress);
+      if (cancelled || polling) return;
+      polling = true;
+      try {
+        const snapshot = [...activeJobsRef.current];
+        for (const job of snapshot) {
+          try {
+            const state = await api.getSliceJob(job.id);
+            if (cancelled) return;
+            phaseRef.current.set(job.id, state.status);
+            // Capture the latest progress snapshot if the sidecar fed
+            // one through. The 1s tick re-renders the toast off this ref.
+            if (state.progress) {
+              progressRef.current.set(job.id, state.progress);
+            }
+            if (state.status === 'completed' || state.status === 'failed') {
+              completeJob(job, state);
+            }
+          } catch {
+            // Transient poll failure — stay tracked, retry next tick.
           }
-          if (state.status === 'completed' || state.status === 'failed') {
-            completeJob(job, state);
-          }
-        } catch {
-          // Transient poll failure — stay tracked, retry next tick.
         }
+      } finally {
+        polling = false;
       }
     }, POLL_INTERVAL_MS);
     return () => {

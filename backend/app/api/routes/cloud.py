@@ -297,6 +297,61 @@ async def clear_token(db: AsyncSession, user: User | None = None) -> None:
     await db.commit()
 
 
+async def migrate_global_cloud_token_to_user(db: AsyncSession, user: User) -> bool:
+    """Move globally-stored Bambu Cloud credentials onto a user.
+
+    Enabling auth changes the credential store read by cloud routes from global
+    Settings rows to User columns. Without this hand-off, a token linked while
+    auth was disabled becomes stranded after setup.
+    """
+    token, email, region = await get_stored_token(db, None)
+    if not token:
+        return False
+
+    user.cloud_token = token
+    user.cloud_email = email
+    user.cloud_region = _normalise_region(region)
+    user.cloud_token_invalid_at = None
+
+    result = await db.execute(
+        select(Settings).where(
+            Settings.key.in_([CLOUD_TOKEN_KEY, CLOUD_EMAIL_KEY, CLOUD_REGION_KEY, CLOUD_TOKEN_INVALID_KEY])
+        )
+    )
+    for setting in result.scalars().all():
+        await db.delete(setting)
+    return True
+
+
+async def migrate_user_cloud_token_to_global(db: AsyncSession, user: User) -> bool:
+    """Move a user's Bambu Cloud credentials into global storage.
+
+    Disabling auth flips the cloud routes back to global Settings rows. Refuse
+    to overwrite an existing global token, since that may be another account.
+    """
+    if not user.cloud_token:
+        return False
+
+    existing, _, _ = await get_stored_token(db, None)
+    if existing:
+        return False
+
+    for key, value in [
+        (CLOUD_TOKEN_KEY, user.cloud_token),
+        (CLOUD_EMAIL_KEY, user.cloud_email),
+        (CLOUD_REGION_KEY, _normalise_region(user.cloud_region)),
+    ]:
+        if value is None:
+            continue
+        db.add(Settings(key=key, value=value))
+
+    user.cloud_token = None
+    user.cloud_email = None
+    user.cloud_region = None
+    user.cloud_token_invalid_at = None
+    return True
+
+
 def _assert_api_key_can_access_cloud(api_key: APIKey) -> None:
     """Reject API keys that aren't authorised to read cloud data.
 

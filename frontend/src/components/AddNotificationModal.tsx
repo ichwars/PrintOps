@@ -13,7 +13,7 @@ interface AddNotificationModalProps {
   onClose: () => void;
 }
 
-const PROVIDER_VALUES: ProviderType[] = ['email', 'telegram', 'discord', 'ntfy', 'pushover', 'callmebot', 'webhook', 'homeassistant'];
+const PROVIDER_VALUES: ProviderType[] = ['email', 'telegram', 'bark', 'discord', 'ntfy', 'pushover', 'callmebot', 'webhook', 'homeassistant'];
 
 export function AddNotificationModal({ provider, onClose }: AddNotificationModalProps) {
   const { t } = useTranslation();
@@ -144,6 +144,13 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
         return;
       }
     }
+    if (providerType === 'telegram') {
+      const threadId = config.message_thread_id?.trim();
+      if (threadId && !/^\d+$/.test(threadId)) {
+        setError(t('notifications.telegramThreadIdInvalid'));
+        return;
+      }
+    }
 
     const finalConfig: Record<string, unknown> =
       providerType === 'ntfy' && Object.keys(eventPriorities).length > 0
@@ -227,6 +234,27 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
         return [
           { key: 'bot_token', label: 'Bot Token', placeholder: 'Bot token from @BotFather', type: 'password', required: true },
           { key: 'chat_id', label: 'Chat ID', placeholder: 'Your chat or group ID', type: 'text', required: true },
+          {
+            key: 'message_thread_id',
+            label: t('notifications.telegramThreadId'),
+            placeholder: '25',
+            type: 'number',
+            required: false,
+          },
+        ];
+      case 'bark':
+        return [
+          { key: 'device_key', label: t('notifications.barkDeviceKey'), placeholder: 'Bark device key', type: 'password', required: true },
+          { key: 'server', label: t('notifications.serverUrl'), placeholder: 'https://api.day.app', type: 'text', required: false },
+          { key: 'group', label: t('notifications.barkGroup'), placeholder: 'PrintOps', type: 'text', required: false },
+          { key: 'sound', label: t('notifications.barkSound'), placeholder: 'minuet', type: 'text', required: false },
+          { key: 'level', label: t('notifications.barkLevel'), type: 'select', required: false, options: [
+            { value: '', label: t('notifications.barkLevelDefault') },
+            { value: 'passive', label: t('notifications.barkLevelPassive') },
+            { value: 'active', label: t('notifications.barkLevelActive') },
+            { value: 'timeSensitive', label: t('notifications.barkLevelTimeSensitive') },
+            { value: 'critical', label: t('notifications.barkLevelCritical') },
+          ]},
         ];
       case 'email':
         return [

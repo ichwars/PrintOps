@@ -180,6 +180,13 @@ class GiteaBackend(GitHubBackend):
             files_changed = 0
 
             for path, content in files.items():
+                if content is None:
+                    if path not in existing_files:
+                        continue
+                    api_files.append({"operation": "delete", "path": path, "sha": existing_files[path]})
+                    files_changed += 1
+                    continue
+
                 content_bytes = self._content_bytes(content)
                 content_b64 = base64.b64encode(content_bytes).decode()
                 content_sha = self._blob_sha(content_bytes)
@@ -321,6 +328,8 @@ class GiteaBackend(GitHubBackend):
 
             api_files = []
             for path, content in files.items():
+                if content is None:
+                    continue
                 content_bytes = self._content_bytes(content)
                 content_b64 = base64.b64encode(content_bytes).decode()
                 api_files.append({"operation": "create", "path": path, "content": content_b64})
@@ -348,15 +357,15 @@ class GiteaBackend(GitHubBackend):
             data = response.json()
             commit_sha = (data.get("commit") or {}).get("sha")
             message = (
-                f"Initial backup created - {len(files)} files"
+                f"Initial backup created - {len(api_files)} files"
                 if commit_sha
-                else f"Initial backup created - {len(files)} files (commit SHA not reported by server)"
+                else f"Initial backup created - {len(api_files)} files (commit SHA not reported by server)"
             )
             return {
                 "status": "success",
                 "message": message,
                 "commit_sha": commit_sha,
-                "files_changed": len(files),
+                "files_changed": len(api_files),
             }
 
         except Exception as e:

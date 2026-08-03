@@ -18,7 +18,7 @@ DEFAULT_MAX_FUNCTION_LINES = 300
 
 
 FILE_ALLOWLIST = {
-    "backend/app/main.py": 6993,
+    "backend/app/main.py": 6996,
     "backend/app/core/database.py": 4139,
     "backend/app/services/bambu_mqtt.py": 5916,
     "backend/app/services/notification_service.py": 2147,
@@ -36,7 +36,7 @@ FUNCTION_ALLOWLIST = {
     "backend/app/main.py::on_ams_change": 690,
     "backend/app/main.py::on_print_start": 1073,
     "backend/app/main.py::on_print_complete": 1230,
-    "backend/app/main.py::lifespan": 375,
+    "backend/app/main.py::lifespan": 382,
     "backend/app/core/database.py::run_migrations": 2850,
     "backend/app/core/database.py::seed_default_groups": 348,
     "backend/app/services/bambu_mqtt.py::_handle_ams_data": 570,

@@ -172,3 +172,34 @@ async def test_polls_until_file_appears(tmp_path: Path, patched_session, monkeyp
 
     assert result is not None
     assert result.startswith("finish_")
+
+
+async def test_extracted_frame_is_rotated_when_configured(tmp_path: Path, patched_session, monkeypatch):
+    import io
+
+    from PIL import Image
+
+    monkeypatch.setattr(main_module.app_settings, "base_dir", tmp_path)
+    monkeypatch.setattr(main_module, "_FINISH_PHOTO_TIMELAPSE_POLL_INTERVAL_SECONDS", 0.0)
+    video_relpath = Path("archive/1/print/timelapse.mp4")
+    video_abspath = tmp_path / video_relpath
+    video_abspath.parent.mkdir(parents=True, exist_ok=True)
+    video_abspath.write_bytes(b"x" * 100)
+    patched_session.timelapse_path = str(video_relpath)
+
+    async def fake_extract(src, dst):
+        buf = io.BytesIO()
+        Image.new("RGB", (64, 32), (0, 0, 255)).save(buf, format="JPEG")
+        dst.write_bytes(buf.getvalue())
+        return True
+
+    with patch("backend.app.services.camera.extract_video_last_frame", new=fake_extract):
+        result = await _capture_finish_photo_from_timelapse(
+            archive_id=42,
+            archive_dir=tmp_path / "archive_dir",
+            rotation=90,
+        )
+
+    assert result is not None
+    written = tmp_path / "archive_dir" / "photos" / result
+    assert Image.open(io.BytesIO(written.read_bytes())).size == (32, 64)

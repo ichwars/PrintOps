@@ -98,6 +98,29 @@ class TestLocalLoginGate:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_unrecognized_env_value_does_not_500_the_login_path(
+        self, async_client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ):
+        """PRINTOPS_LOCAL_LOGIN is read on the request path, so typo values
+        must fall back to off instead of turning login into a 500."""
+        await _enable_auth(async_client, "gateonval")
+        await _set_setting(db_session, "local_login_enabled", "false")
+        monkeypatch.setenv("PRINTOPS_LOCAL_LOGIN", "on")
+
+        response = await async_client.post(
+            "/api/v1/auth/login",
+            json={"username": "gateonval", "password": "GatePass1!"},
+        )
+
+        assert response.status_code == 401, response.text
+
+    def test_the_bypass_var_is_registered_in_the_typo_guard(self):
+        from backend.app.core.config import _INTENTIONAL_UNSETTINGS
+
+        assert "PRINTOPS_LOCAL_LOGIN" in _INTENTIONAL_UNSETTINGS
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_forgot_password_rejected_when_local_disabled(
         self, async_client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ):

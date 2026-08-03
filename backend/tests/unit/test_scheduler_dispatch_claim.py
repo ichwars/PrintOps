@@ -1,5 +1,6 @@
 """Queue dispatch claim regression tests."""
 
+import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -129,3 +130,34 @@ async def test_startup_reconciliation_clears_stale_claim(claim_ctx):
         await scheduler._clear_stale_dispatch_claims()
 
     assert (await _get_item(claim_ctx)).dispatching_at is None
+
+
+@pytest.mark.asyncio
+async def test_unresolved_ams_mapping_is_recomputed_before_dispatch(claim_ctx):
+    scheduler = PrintScheduler()
+
+    async with claim_ctx.sessionmaker() as db:
+        item = await db.get(PrintQueueItem, claim_ctx.item_id)
+        item.ams_mapping = json.dumps([-1])
+        await db.commit()
+
+        with patch.object(scheduler, "_compute_ams_mapping_for_printer", return_value=[3]) as compute:
+            await scheduler._ensure_ams_mapping(db, 1, item)
+
+    compute.assert_awaited_once()
+    assert json.loads((await _get_item(claim_ctx)).ams_mapping) == [3]
+
+
+@pytest.mark.asyncio
+async def test_unresolved_ams_mapping_is_cleared_when_recompute_fails(claim_ctx):
+    scheduler = PrintScheduler()
+
+    async with claim_ctx.sessionmaker() as db:
+        item = await db.get(PrintQueueItem, claim_ctx.item_id)
+        item.ams_mapping = json.dumps([-1])
+        await db.commit()
+
+        with patch.object(scheduler, "_compute_ams_mapping_for_printer", return_value=None):
+            await scheduler._ensure_ams_mapping(db, 1, item)
+
+    assert (await _get_item(claim_ctx)).ams_mapping is None

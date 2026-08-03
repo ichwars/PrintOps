@@ -19,6 +19,7 @@ interface ThemeContextType {
   lightStyle: ThemeStyle;
   lightBackground: LightBackground;
   lightAccent: ThemeAccent;
+  progressInTitle: boolean;
   // Actions
   toggleMode: () => void;
   setMode: (mode: ThemeMode) => void;
@@ -28,6 +29,7 @@ interface ThemeContextType {
   setLightStyle: (style: ThemeStyle) => void;
   setLightBackground: (background: LightBackground) => void;
   setLightAccent: (accent: ThemeAccent) => void;
+  setProgressInTitle: (enabled: boolean) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -85,6 +87,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   });
   const [lightAccent, setLightAccentState] = useState<ThemeAccent>(() => {
     return (localStorage.getItem('light-accent') as ThemeAccent) || 'green';
+  });
+  const [progressInTitle, setProgressInTitleState] = useState<boolean>(() => {
+    return localStorage.getItem('progress-in-title') === 'true';
   });
 
   // Sync from API once auth state is known. Same gate shape as
@@ -195,6 +200,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('light-accent', v);
     api.updateSettings({ light_accent: v }).catch(() => {});
   };
+  const setProgressInTitle = (enabled: boolean) => {
+    setProgressInTitleState(enabled);
+    localStorage.setItem('progress-in-title', String(enabled));
+  };
 
   return (
     <ThemeContext.Provider value={{
@@ -202,9 +211,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       resolvedMode,
       darkStyle, darkBackground, darkAccent,
       lightStyle, lightBackground, lightAccent,
+      progressInTitle,
       toggleMode, setMode,
       setDarkStyle, setDarkBackground, setDarkAccent,
       setLightStyle, setLightBackground, setLightAccent,
+      setProgressInTitle,
     }}>
       {children}
     </ThemeContext.Provider>

@@ -13,14 +13,19 @@ Tests against a real mock implicit FTPS server, covering:
 - Failure injection scenarios (regressions for 0.1.8 bugs)
 """
 
+import asyncio
+import threading
 import time
 from pathlib import Path
 
 import pytest
 
+from backend.app.services import bambu_ftp
 from backend.app.services.bambu_ftp import (
     BambuFTPClient,
     FileNotOnPrinterError,
+    UploadCancelled,
+    _upload_deadline,
     cache_3mf_download,
     clear_3mf_cache,
     delete_file_async,
@@ -1422,3 +1427,111 @@ class TestThreeMFCache:
         assert archive_file.exists(), "archive 3mf must not be deleted by cache cleanup"
         assert library_file.exists(), "library 3mf must not be deleted by cache cleanup"
         assert not temp_file.exists(), "temp file should still be cleaned up"
+
+
+@pytest.fixture
+def slow_upload_client(monkeypatch):
+    state = {
+        "attempts": 0,
+        "concurrent": 0,
+        "max_concurrent": 0,
+        "completed": False,
+        "cancelled": False,
+        "chunks": 20,
+        "chunk_delay": 0.05,
+    }
+    lock = threading.Lock()
+
+    class FakeClient:
+        _mode_cache = {}
+        A1_MODELS = ("A1", "A1 Mini")
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def connect(self):
+            return True
+
+        def upload_file(self, local_path, remote_path, progress_callback=None):
+            with lock:
+                state["attempts"] += 1
+                state["concurrent"] += 1
+                state["max_concurrent"] = max(state["max_concurrent"], state["concurrent"])
+            try:
+                for sent in range(1, state["chunks"] + 1):
+                    time.sleep(state["chunk_delay"])
+                    if progress_callback:
+                        try:
+                            progress_callback(sent, state["chunks"])
+                        except Exception:
+                            state["cancelled"] = True
+                            raise
+                state["completed"] = True
+                return True
+            finally:
+                with lock:
+                    state["concurrent"] -= 1
+
+        def disconnect(self):
+            pass
+
+        @staticmethod
+        def cache_mode(ip_address, mode):
+            return None
+
+    monkeypatch.setattr(bambu_ftp, "BambuFTPClient", FakeClient)
+    return state
+
+
+class TestUploadDeadline:
+    def test_deadline_scales_with_file_size(self, tmp_path):
+        small = tmp_path / "small.3mf"
+        small.write_bytes(b"x" * 1024)
+        assert _upload_deadline(small) == bambu_ftp._UPLOAD_MIN_TIMEOUT
+
+        big = tmp_path / "big.3mf"
+        big.write_bytes(b"x" * (96 * 1024 * 1024))
+        assert _upload_deadline(big) == pytest.approx((96 * 1024 * 1024) / bambu_ftp._UPLOAD_FLOOR_BYTES_PER_SEC)
+
+    @pytest.mark.asyncio
+    async def test_timeout_stops_worker_and_is_not_retried(self, tmp_path, slow_upload_client):
+        local = tmp_path / "slow.3mf"
+        local.write_bytes(b"x" * 4096)
+
+        with pytest.raises(UploadCancelled):
+            await with_ftp_retry(
+                upload_file_async,
+                "127.0.0.1",
+                "12345678",
+                local,
+                "/cache/slow.3mf",
+                timeout=0.2,
+                printer_model="X1C",
+                max_retries=3,
+                retry_delay=0,
+            )
+
+        await asyncio.sleep(0.5)
+        assert slow_upload_client["attempts"] == 1
+        assert slow_upload_client["cancelled"] is True
+        assert slow_upload_client["completed"] is False
+
+    @pytest.mark.asyncio
+    async def test_uploads_to_same_printer_are_serialized(self, tmp_path, slow_upload_client):
+        slow_upload_client["chunk_delay"] = 0.02
+        local = tmp_path / "serial.3mf"
+        local.write_bytes(b"x" * 4096)
+
+        async def dispatch(name: str) -> bool:
+            return await upload_file_async(
+                "127.0.0.1",
+                "12345678",
+                local,
+                f"/cache/{name}.3mf",
+                timeout=30.0,
+                printer_model="X1C",
+            )
+
+        assert await asyncio.gather(dispatch("a"), dispatch("b")) == [True, True]
+        assert slow_upload_client["attempts"] == 2
+        assert slow_upload_client["max_concurrent"] == 1
