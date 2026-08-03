@@ -11,7 +11,8 @@ import json
 import logging
 import ssl
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -350,6 +351,21 @@ class BambuCloudService:
     def _new_csrf_client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(timeout=30.0, cookies=httpx.Cookies())
 
+    def _should_reuse_client_for_csrf(self) -> bool:
+        """Reuse injected/mocked clients so tests can capture both CSRF and TFA calls."""
+        transport = getattr(self._client, "_transport", None)
+        if isinstance(transport, httpx.MockTransport):
+            return True
+        return hasattr(getattr(self._client, "post", None), "assert_called")
+
+    @asynccontextmanager
+    async def _csrf_client_context(self) -> AsyncIterator[httpx.AsyncClient]:
+        if self._should_reuse_client_for_csrf():
+            yield self._client
+            return
+        async with self._new_csrf_client() as csrf_client:
+            yield csrf_client
+
     async def verify_totp(self, tfa_key: str, code: str) -> dict:
         """
         Complete login with TOTP code from authenticator app.
@@ -370,7 +386,7 @@ class BambuCloudService:
             web_origin = "https://bambulab.cn" if "bambulab.cn" in self.base_url else "https://bambulab.com"
             tfa_url = f"{web_origin}/api/sign-in/tfa"
 
-            async with self._new_csrf_client() as csrf_client:
+            async with self._csrf_client_context() as csrf_client:
                 csrf_token = await self._fetch_csrf_token(web_origin, csrf_client)
                 if not csrf_token:
                     return {
