@@ -12,7 +12,9 @@ from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
+from backend.app.models.settings import Settings
 from backend.app.services import orca_cloud as orca_service
 from backend.app.services.orca_cloud import DevicePoll, OrcaCloudService
 
@@ -41,12 +43,22 @@ _DEVICE_CODE_RESPONSE = {
 }
 
 
-async def _start(async_client: AsyncClient):
+async def _start(async_client: AsyncClient, response: dict | None = None):
     with (
         patch(AUTH_DISABLED, return_value=False),
-        patch.object(OrcaCloudService, "request_device_code", return_value=dict(_DEVICE_CODE_RESPONSE)),
+        patch.object(OrcaCloudService, "request_device_code", return_value=dict(response or _DEVICE_CODE_RESPONSE)),
     ):
         return await async_client.post("/api/v1/orca-cloud/device/start")
+
+
+async def _start_body(async_client: AsyncClient, response: dict | None = None) -> dict:
+    resp = await _start(async_client, response)
+    assert resp.status_code == 200
+    return resp.json()
+
+
+async def _poll(async_client: AsyncClient, attempt_id: str):
+    return await async_client.post("/api/v1/orca-cloud/device/poll", json={"attempt_id": attempt_id})
 
 
 class TestDeviceStart:
@@ -56,6 +68,7 @@ class TestDeviceStart:
         assert resp.status_code == 200
         body = resp.json()
         assert body["user_code"] == "ABCD-EF12"
+        assert body["attempt_id"]
         assert body["interval"] == 5
         assert body["verification_uri_complete"].endswith("user_code=ABCD-EF12")
         # The device_code is a secret and must NOT be echoed to the client.
@@ -66,17 +79,17 @@ class TestDevicePoll:
     @pytest.mark.asyncio
     async def test_poll_without_pending_is_400(self, async_client: AsyncClient):
         with patch(AUTH_DISABLED, return_value=False):
-            resp = await async_client.post("/api/v1/orca-cloud/device/poll")
+            resp = await _poll(async_client, "attempt-id-without-state")
         assert resp.status_code == 400
 
     @pytest.mark.asyncio
     async def test_poll_pending_reports_in_progress(self, async_client: AsyncClient):
-        await _start(async_client)
+        start = await _start_body(async_client)
         with (
             patch(AUTH_DISABLED, return_value=False),
             patch.object(OrcaCloudService, "poll_token", return_value=(DevicePoll.PENDING, None)),
         ):
-            resp = await async_client.post("/api/v1/orca-cloud/device/poll")
+            resp = await _poll(async_client, start["attempt_id"])
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == DevicePoll.PENDING
@@ -84,7 +97,7 @@ class TestDevicePoll:
 
     @pytest.mark.asyncio
     async def test_poll_complete_persists_tokens_and_connects(self, async_client: AsyncClient):
-        await _start(async_client)
+        start = await _start_body(async_client)
 
         async def fake_complete(self, device_code):
             assert device_code == "DEV-SECRET-1"  # the stored secret is used
@@ -98,7 +111,7 @@ class TestDevicePoll:
             patch.object(OrcaCloudService, "poll_token", new=fake_complete),
             patch.object(OrcaCloudService, "introspect", return_value={"user_id": "user-123"}),
         ):
-            resp = await async_client.post("/api/v1/orca-cloud/device/poll")
+            resp = await _poll(async_client, start["attempt_id"])
             assert resp.status_code == 200
             body = resp.json()
             assert body["status"] == DevicePoll.COMPLETE
@@ -109,21 +122,21 @@ class TestDevicePoll:
             # cleared (a fresh poll finds nothing pending -> 400).
             status = await async_client.get("/api/v1/orca-cloud/status")
             assert status.json()["connected"] is True
-            again = await async_client.post("/api/v1/orca-cloud/device/poll")
+            again = await _poll(async_client, start["attempt_id"])
             assert again.status_code == 400
 
     @pytest.mark.asyncio
     async def test_poll_denied_clears_pending(self, async_client: AsyncClient):
-        await _start(async_client)
+        start = await _start_body(async_client)
         with (
             patch(AUTH_DISABLED, return_value=False),
             patch.object(OrcaCloudService, "poll_token", return_value=(DevicePoll.DENIED, None)),
         ):
-            resp = await async_client.post("/api/v1/orca-cloud/device/poll")
+            resp = await _poll(async_client, start["attempt_id"])
         assert resp.json()["status"] == DevicePoll.DENIED
         # Pending cleared -> next poll has nothing to poll.
         with patch(AUTH_DISABLED, return_value=False):
-            again = await async_client.post("/api/v1/orca-cloud/device/poll")
+            again = await _poll(async_client, start["attempt_id"])
         assert again.status_code == 400
 
     @pytest.mark.asyncio
@@ -131,7 +144,7 @@ class TestDevicePoll:
         """A pending code older than DEVICE_CODE_TTL is reported expired
         without even calling the token endpoint. Shrinking the TTL to a
         negative window makes any just-created pending state 'stale'."""
-        await _start(async_client)
+        start = await _start_body(async_client)
 
         # poll_token must NOT be called; if it were, this would blow up.
         def _boom(*a, **k):
@@ -142,19 +155,45 @@ class TestDevicePoll:
             patch("backend.app.api.routes.orca_cloud.DEVICE_CODE_TTL", timedelta(seconds=-1)),
             patch.object(OrcaCloudService, "poll_token", new=_boom),
         ):
-            resp = await async_client.post("/api/v1/orca-cloud/device/poll")
+            resp = await _poll(async_client, start["attempt_id"])
         assert resp.status_code == 200
         assert resp.json()["status"] == DevicePoll.EXPIRED
         # And the expired pending state is cleared.
         with patch(AUTH_DISABLED, return_value=False):
-            again = await async_client.post("/api/v1/orca-cloud/device/poll")
+            again = await _poll(async_client, start["attempt_id"])
         assert again.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_poll_superseded_attempt_does_not_persist_tokens(self, async_client: AsyncClient):
+        first = await _start_body(async_client)
+        second_payload = dict(_DEVICE_CODE_RESPONSE, device_code="DEV-SECRET-2", user_code="WXYZ-9876")
+        second = await _start_body(async_client, second_payload)
+        assert first["attempt_id"] != second["attempt_id"]
+
+        def _boom(*a, **k):
+            raise AssertionError("poll_token should not run for a superseded attempt")
+
+        with (
+            patch(AUTH_DISABLED, return_value=False),
+            patch.object(OrcaCloudService, "poll_token", new=_boom),
+        ):
+            resp = await _poll(async_client, first["attempt_id"])
+        assert resp.status_code == 200
+        assert resp.json()["status"] == DevicePoll.EXPIRED
+
+        with (
+            patch(AUTH_DISABLED, return_value=False),
+            patch.object(OrcaCloudService, "poll_token", return_value=(DevicePoll.PENDING, None)),
+        ):
+            current = await _poll(async_client, second["attempt_id"])
+        assert current.status_code == 200
+        assert current.json()["status"] == DevicePoll.PENDING
 
 
 class TestLogout:
     @pytest.mark.asyncio
     async def test_logout_clears_connection(self, async_client: AsyncClient):
-        await _start(async_client)
+        start = await _start_body(async_client)
 
         async def fake_complete(self, device_code):
             self.access_token = "oc_ext_new"
@@ -167,10 +206,27 @@ class TestLogout:
             patch.object(OrcaCloudService, "poll_token", new=fake_complete),
             patch.object(OrcaCloudService, "introspect", return_value={"user_id": "u"}),
         ):
-            await async_client.post("/api/v1/orca-cloud/device/poll")
+            await _poll(async_client, start["attempt_id"])
 
         with patch(AUTH_DISABLED, return_value=False):
             out = await async_client.post("/api/v1/orca-cloud/logout")
             assert out.status_code == 200
             status = await async_client.get("/api/v1/orca-cloud/status")
             assert status.json()["connected"] is False
+
+
+class TestStatus:
+    @pytest.mark.asyncio
+    async def test_status_clears_legacy_supabase_credentials(self, async_client: AsyncClient, db_session):
+        db_session.add(Settings(key="orca_cloud_token", value="eyJhbGciOiJIUzI1NiJ9.legacy"))
+        db_session.add(Settings(key="orca_cloud_refresh_token", value="legacy-refresh-token"))
+        db_session.add(Settings(key="orca_cloud_user_id", value="legacy-user"))
+        await db_session.commit()
+
+        with patch(AUTH_DISABLED, return_value=False):
+            status = await async_client.get("/api/v1/orca-cloud/status")
+        assert status.status_code == 200
+        assert status.json() == {"connected": False, "email": None, "user_id": None}
+
+        result = await db_session.execute(select(Settings).where(Settings.key.like("orca_cloud_%")))
+        assert result.scalars().all() == []

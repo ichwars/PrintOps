@@ -3,13 +3,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Cloud, ExternalLink, LogOut, Loader2, AlertCircle, Check } from 'lucide-react';
 
-import { api } from '../api/client';
+import { ApiError, api } from '../api/client';
 import type { OrcaDeviceStartResponse, OrcaDevicePollStatus } from '../api/client';
 import { Card, CardContent } from './Card';
 import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { OrcaCloudProfilesView } from './OrcaCloudProfilesView';
+
+function isDefinitivePairingError(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 400 || error.status === 409 || error.status === 422);
+}
 
 /**
  * Orca Cloud profile sync tab.
@@ -105,11 +109,16 @@ export function OrcaCloudView() {
   // Poll the backend while a pairing is in flight. react-query drives the
   // cadence; the effect below reacts to each poll result. refetchInterval
   // returns false once we stop (pairing cleared), which halts polling.
-  const { data: pollData, error: pollError } = useQuery({
+  const {
+    data: pollData,
+    error: pollError,
+    dataUpdatedAt: pollUpdatedAt,
+    errorUpdatedAt: pollErrorUpdatedAt,
+  } = useQuery({
     // Scope the cache per pairing attempt so a fresh Connect never re-consumes
     // a previous attempt's cached 'complete'/terminal result.
-    queryKey: ['orcaCloudDevicePoll', pairing?.user_code ?? 'none'],
-    queryFn: api.orcaCloudDevicePoll,
+    queryKey: ['orcaCloudDevicePoll', pairing?.attempt_id ?? 'none'],
+    queryFn: () => api.orcaCloudDevicePoll(pairing!.attempt_id),
     enabled: pairing !== null,
     gcTime: 0,
     retry: false,
@@ -117,11 +126,14 @@ export function OrcaCloudView() {
     refetchInterval: pairing !== null ? pollIntervalMs : false,
   });
 
-  // A ref so the poll-result effect can act exactly once per new result
-  // without re-running when unrelated state (interval, etc.) changes.
-  const lastHandledStatus = useRef<OrcaDevicePollStatus | null>(null);
+  // Refs so effects act exactly once per fetch result/error, even when
+  // structural sharing reuses the same response object.
+  const lastHandledPollAt = useRef(0);
+  const lastHandledPollErrorAt = useRef(0);
   useEffect(() => {
-    if (!pairing || !pollData) return;
+    if (!pairing || !pollData || pollUpdatedAt === 0 || pollUpdatedAt === lastHandledPollAt.current) return;
+    lastHandledPollAt.current = pollUpdatedAt;
+    setConnectError(null);
     const s = pollData.status;
     if (s === 'slow_down') {
       // Back off as the RFC prescribes, then keep waiting.
@@ -129,8 +141,6 @@ export function OrcaCloudView() {
       return;
     }
     if (s === 'authorization_pending') return;
-    if (lastHandledStatus.current === s) return;
-    lastHandledStatus.current = s;
     if (s === 'complete') {
       finishPairing();
       queryClient.invalidateQueries({ queryKey: ['orcaCloudStatus'] });
@@ -140,21 +150,30 @@ export function OrcaCloudView() {
       handleTerminal(s);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pollData, pairing]);
+  }, [pollData, pollUpdatedAt, pairing]);
 
-  // A poll HTTP error (e.g. the pending state vanished server-side) ends the
-  // flow rather than spinning forever.
+  // Transient poll HTTP errors keep the pairing alive; the next interval will
+  // retry. Definitive client-state errors end the flow.
   useEffect(() => {
-    if (pairing && pollError) {
-      setConnectError(t('profiles.orcaCloud.errors.pollFailed'));
+    if (!pairing || !pollError || pollErrorUpdatedAt === 0 || pollErrorUpdatedAt === lastHandledPollErrorAt.current) {
+      return;
+    }
+    lastHandledPollErrorAt.current = pollErrorUpdatedAt;
+    setConnectError(t('profiles.orcaCloud.errors.pollFailed'));
+    if (isDefinitivePairingError(pollError)) {
       finishPairing();
+    } else {
+      setPollIntervalMs((ms) => Math.min(ms + 5000, 60000));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pollError, pairing]);
+  }, [pollError, pollErrorUpdatedAt, pairing]);
 
-  // Reset the one-shot guard whenever a new pairing starts.
+  // Reset the one-shot guards whenever a new pairing starts.
   useEffect(() => {
-    if (pairing) lastHandledStatus.current = null;
+    if (pairing) {
+      lastHandledPollAt.current = 0;
+      lastHandledPollErrorAt.current = 0;
+    }
   }, [pairing]);
 
   if (statusLoading) {

@@ -84,6 +84,23 @@ _REFRESH_LEEWAY = timedelta(minutes=5)
 # response is 600s); we mirror it client-side so we stop polling a dead code.
 DEVICE_CODE_TTL = timedelta(minutes=10)
 
+# External-app tokens issued by Orca Cloud are opaque but prefixed. Older
+# PrintOps builds stored Supabase/JWT-style credentials in the same columns;
+# route code uses these guards to reject that legacy shape before it ever hits
+# Orca's external API.
+ACCESS_TOKEN_PREFIX = "oc_ext_"
+REFRESH_TOKEN_PREFIX = "oc_ext_rt_"
+
+
+def is_external_access_token(token: str | None) -> bool:
+    """Return true for Orca Cloud external-app access tokens."""
+    return bool(token and token.startswith(ACCESS_TOKEN_PREFIX))
+
+
+def is_external_refresh_token(token: str | None) -> bool:
+    """Return true for Orca Cloud external-app refresh tokens."""
+    return bool(token and token.startswith(REFRESH_TOKEN_PREFIX))
+
 
 # ---------------------------------------------------------------------------
 # Device-poll outcomes

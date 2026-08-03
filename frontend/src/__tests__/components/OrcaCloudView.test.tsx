@@ -12,6 +12,7 @@ import { render } from '../utils';
 import { OrcaCloudView } from '../../components/OrcaCloudView';
 
 const DEVICE_START = {
+  attempt_id: 'attempt-1234567890',
   user_code: 'ABCD-EF12',
   verification_uri: 'https://cloud.orcaslicer.com/app/settings',
   verification_uri_complete: 'https://cloud.orcaslicer.com/app/settings?user_code=ABCD-EF12',
@@ -40,9 +41,10 @@ describe('OrcaCloudView', () => {
     server.use(
       disconnectedStatus(),
       http.post('/api/v1/orca-cloud/device/start', () => HttpResponse.json(DEVICE_START)),
-      http.post('/api/v1/orca-cloud/device/poll', () =>
-        HttpResponse.json({ status: 'authorization_pending', connected: false, email: null, user_id: null }),
-      ),
+      http.post('/api/v1/orca-cloud/device/poll', async ({ request }) => {
+        await expect(request.json()).resolves.toEqual({ attempt_id: DEVICE_START.attempt_id });
+        return HttpResponse.json({ status: 'authorization_pending', connected: false, email: null, user_id: null });
+      }),
     );
     render(<OrcaCloudView />);
 

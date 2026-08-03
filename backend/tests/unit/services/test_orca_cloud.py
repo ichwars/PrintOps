@@ -17,6 +17,8 @@ from backend.app.services.orca_cloud import (
     OrcaCloudAuthError,
     OrcaCloudError,
     OrcaCloudService,
+    is_external_access_token,
+    is_external_refresh_token,
 )
 
 
@@ -47,6 +49,15 @@ def svc() -> OrcaCloudService:
 # ---------------------------------------------------------------------------
 # Device-code request
 # ---------------------------------------------------------------------------
+
+
+def test_external_token_prefix_guards_reject_legacy_tokens():
+    assert is_external_access_token("oc_ext_access")
+    assert is_external_refresh_token("oc_ext_rt_refresh")
+    assert not is_external_access_token("eyJhbGciOiJIUzI1NiJ9.legacy")
+    assert not is_external_refresh_token("legacy-refresh")
+    assert not is_external_access_token(None)
+    assert not is_external_refresh_token(None)
 
 
 class TestRequestDeviceCode:

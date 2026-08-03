@@ -11,11 +11,18 @@ class OrcaDeviceStartResponse(BaseModel):
     approves in their Orca Cloud settings. The ``device_code`` itself is a
     secret and stays server-side — it is deliberately NOT in this response."""
 
+    attempt_id: str = Field(..., min_length=16, description="Non-secret identifier for this pairing attempt")
     user_code: str = Field(..., description="Short code the user confirms on the approval page")
     verification_uri: str = Field(..., description="Approval page URL")
     verification_uri_complete: str = Field(..., description="Approval page URL with the code pre-filled")
     interval: int = Field(..., description="Seconds the frontend should wait between poll calls")
     expires_in: int = Field(..., description="Seconds until this pairing attempt expires")
+
+
+class OrcaDevicePollRequest(BaseModel):
+    """Body for ``POST /orca-cloud/device/poll``."""
+
+    attempt_id: str = Field(..., min_length=16, description="Identifier returned by /device/start")
 
 
 # Poll outcomes surfaced to the frontend. ``authorization_pending`` /

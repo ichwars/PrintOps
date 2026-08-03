@@ -33,6 +33,8 @@ pattern; no schema change from the previous PKCE flow.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
 from datetime import datetime, timezone
 
@@ -47,6 +49,7 @@ from backend.app.models.settings import Settings
 from backend.app.models.user import User
 from backend.app.schemas.orca_cloud import (
     OrcaAuthStatusResponse,
+    OrcaDevicePollRequest,
     OrcaDevicePollResponse,
     OrcaDeviceStartResponse,
     OrcaProfileDetail,
@@ -59,6 +62,8 @@ from backend.app.services.orca_cloud import (
     OrcaCloudAuthError,
     OrcaCloudError,
     OrcaCloudService,
+    is_external_access_token,
+    is_external_refresh_token,
 )
 
 logger = logging.getLogger(__name__)
@@ -179,6 +184,32 @@ def _parse_iso(value: str | None) -> datetime | None:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+def _device_attempt_id(device_code: str) -> str:
+    """Stable, non-secret identifier for the active device-code attempt."""
+    digest = hashlib.sha256(f"orca-device:{device_code}".encode()).hexdigest()
+    return digest[:32]
+
+
+def _credentials_use_legacy_tokens(creds: _OrcaCredentials) -> bool:
+    """Detect credentials from the removed Supabase flow stored in Orca slots."""
+    if creds.token and not is_external_access_token(creds.token):
+        return True
+    return bool(creds.refresh_token and not is_external_refresh_token(creds.refresh_token))
+
+
+async def _clear_legacy_credentials_if_needed(
+    db: AsyncSession,
+    user: User | None,
+    creds: _OrcaCredentials,
+) -> bool:
+    """Clear old Supabase-flow credentials before external-app API usage."""
+    if not _credentials_use_legacy_tokens(creds):
+        return False
+    logger.info("Clearing legacy Orca Cloud credentials stored before external-app pairing")
+    await _clear_credentials(db, user)
+    return True
 
 
 class _OrcaCredentials:
@@ -349,6 +380,24 @@ async def _persist_tokens(
     )
 
 
+async def _persist_tokens_if_pending_matches(
+    db: AsyncSession,
+    user: User | None,
+    expected_device_code: str,
+    access_token: str,
+    refresh_token: str | None,
+    expires_at: datetime | None,
+    email: str | None,
+    user_id: str | None,
+) -> bool:
+    """Persist completed pairing only if this attempt is still current."""
+    latest = await _load_credentials(db, user)
+    if latest.pending_device_code != expected_device_code:
+        return False
+    await _persist_tokens(db, user, access_token, refresh_token, expires_at, email, user_id)
+    return True
+
+
 async def _persist_rotated_tokens(
     db: AsyncSession,
     user: User | None,
@@ -442,6 +491,8 @@ async def _build_authenticated_service(
     a revoke), so a lost race here is harmless — last-write-wins on the stored
     pair, and whichever pair we keep is valid."""
     creds = await _load_credentials(db, user)
+    if await _clear_legacy_credentials_if_needed(db, user, creds):
+        raise HTTPException(status_code=401, detail="Orca Cloud needs to be reconnected with the new device flow.")
     if not creds.token:
         raise HTTPException(status_code=401, detail="Orca Cloud is not connected — sign in first.")
 
@@ -506,6 +557,7 @@ async def device_start(
     await _persist_pending_device(db, current_user, device_code, interval, datetime.now(timezone.utc))
 
     return OrcaDeviceStartResponse(
+        attempt_id=_device_attempt_id(device_code),
         user_code=user_code,
         verification_uri=str(data.get("verification_uri") or ""),
         verification_uri_complete=str(data.get("verification_uri_complete") or ""),
@@ -516,6 +568,7 @@ async def device_start(
 
 @router.post("/device/poll", response_model=OrcaDevicePollResponse)
 async def device_poll(
+    body: OrcaDevicePollRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User | None = cloud_caller(Permission.ORCA_CLOUD_AUTH),
 ):
@@ -528,6 +581,8 @@ async def device_poll(
             status_code=400,
             detail="No pending Orca Cloud pairing. Click Connect first to start the flow.",
         )
+    if not hmac.compare_digest(body.attempt_id, _device_attempt_id(creds.pending_device_code)):
+        return OrcaDevicePollResponse(status=DevicePoll.EXPIRED, connected=False)
 
     # creds.pending_at is already tz-aware UTC after _load_credentials' _as_utc
     # normalization. Subtracting two aware UTC datetimes gives a real delta.
@@ -538,7 +593,7 @@ async def device_poll(
 
     svc = OrcaCloudService()
     try:
-        status, token_data = await svc.poll_token(creds.pending_device_code)
+        status, _token_data = await svc.poll_token(creds.pending_device_code)
     except OrcaCloudError as e:
         raise HTTPException(status_code=502, detail=f"Orca Cloud unreachable: {e}") from e
 
@@ -563,7 +618,18 @@ async def device_poll(
         # have valid tokens, which is the load-bearing part.
         logger.warning("Orca Cloud introspection failed after successful pairing: %s", e)
 
-    await _persist_tokens(db, current_user, svc.access_token, svc.refresh_token, svc.token_expiry, None, user_id)
+    persisted = await _persist_tokens_if_pending_matches(
+        db,
+        current_user,
+        creds.pending_device_code,
+        svc.access_token,
+        svc.refresh_token,
+        svc.token_expiry,
+        None,
+        user_id,
+    )
+    if not persisted:
+        return OrcaDevicePollResponse(status=DevicePoll.EXPIRED, connected=False)
     return OrcaDevicePollResponse(status=DevicePoll.COMPLETE, connected=True, email=None, user_id=user_id)
 
 
@@ -575,6 +641,8 @@ async def get_status(
     """Return whether the caller has an Orca Cloud session stored, plus
     identifier details for display. Does NOT make a live API call."""
     creds = await _load_credentials(db, current_user)
+    if await _clear_legacy_credentials_if_needed(db, current_user, creds):
+        return OrcaAuthStatusResponse(connected=False, email=None, user_id=None)
     return OrcaAuthStatusResponse(
         connected=bool(creds.token),
         email=creds.email,
@@ -608,6 +676,7 @@ async def list_profiles(
     try:
         raw_profiles = await svc.list_profiles()
     except OrcaCloudAuthError as e:
+        await _clear_credentials(db, current_user)
         raise HTTPException(status_code=401, detail=str(e)) from e
     except OrcaCloudError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
@@ -648,6 +717,7 @@ async def get_profile(
     try:
         profile = await svc.get_profile(profile_id)
     except OrcaCloudAuthError as e:
+        await _clear_credentials(db, current_user)
         raise HTTPException(status_code=401, detail=str(e)) from e
     except OrcaCloudError as e:
         if "not found" in str(e).lower():

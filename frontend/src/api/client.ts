@@ -1374,6 +1374,7 @@ export interface CloudLoginResponse {
 // Orca Cloud types — RFC 8628 device pairing against Orca's external-app API.
 // See backend/app/services/orca_cloud.py for the flow and token lifecycle.
 export interface OrcaDeviceStartResponse {
+  attempt_id: string;
   user_code: string;
   verification_uri: string;
   verification_uri_complete: string;
@@ -5182,9 +5183,10 @@ export const api = {
     request<OrcaDeviceStartResponse>('/orca-cloud/device/start', {
       method: 'POST',
     }),
-  orcaCloudDevicePoll: () =>
+  orcaCloudDevicePoll: (attemptId: string) =>
     request<OrcaDevicePollResponse>('/orca-cloud/device/poll', {
       method: 'POST',
+      body: JSON.stringify({ attempt_id: attemptId }),
     }),
   orcaCloudStatus: () =>
     request<OrcaAuthStatusResponse>('/orca-cloud/status'),
