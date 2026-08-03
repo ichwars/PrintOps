@@ -12,6 +12,7 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from backend.app.api.routes.library_variants import normalize_model_name, resolve_variant_model
 from backend.app.core.auth import (
     RequirePermissionIfAuthEnabled,
     allowed_printer_ids_for_user,
@@ -24,7 +25,7 @@ from backend.app.core.permissions import Permission
 from backend.app.models.archive import PrintArchive
 from backend.app.models.library import LibraryFile
 from backend.app.models.print_batch import PrintBatch
-from backend.app.models.print_queue import PrintQueueItem
+from backend.app.models.print_queue import PrintQueueItem, PrintQueueVariant
 from backend.app.models.printer import Printer
 from backend.app.models.project import Project
 from backend.app.models.user import User
@@ -38,11 +39,12 @@ from backend.app.schemas.print_queue import (
     PrintQueueItemResponse,
     PrintQueueItemUpdate,
     PrintQueueReorder,
+    QueueVariantCreate,
 )
 from backend.app.services.filament_deficit import compute_deficit_for_queue_item
 from backend.app.services.filament_requirements import overrides_for_plate
 from backend.app.services.notification_service import notification_service
-from backend.app.utils.printer_models import is_gcode_compatible, normalize_printer_model, normalize_printer_model_id
+from backend.app.utils.printer_models import is_gcode_compatible
 from backend.app.utils.threemf_tools import (
     extract_bed_type_from_3mf,
     extract_filament_usage_from_3mf,
@@ -391,6 +393,146 @@ async def list_queue(
     return [_enrich_response(item) for item in items]
 
 
+async def _resolve_queue_variants(
+    db: AsyncSession,
+    specs: list[QueueVariantCreate],
+    current_user: User | None,
+) -> list[tuple[QueueVariantCreate, LibraryFile, str]]:
+    """Validate a cross-model candidate set and pair each file with its model (#671).
+
+    Validated as a set, not file by file, because the failure modes are about the
+    set: two candidates for the same printer give the resolver no basis to choose,
+    and a set where nothing can ever run is a job that waits forever.
+
+    At least one candidate must have an active printer — the rest may not, which
+    is deliberate. Grouping the H2C slice before the H2C arrives is a reasonable
+    thing to do, and refusing the whole queue action over it would be worse than
+    letting that candidate simply never match.
+    """
+    file_ids = [s.library_file_id for s in specs]
+    if len(set(file_ids)) != len(file_ids):
+        raise HTTPException(400, "The same file cannot be listed twice as a variant")
+
+    rows = (await db.execute(LibraryFile.active().where(LibraryFile.id.in_(file_ids)))).scalars().all()
+    by_id = {f.id: f for f in rows}
+
+    resolved: list[tuple[QueueVariantCreate, LibraryFile, str]] = []
+    seen_models: dict[str, str] = {}
+    any_active_printer = False
+
+    for spec in specs:
+        library_file = by_id.get(spec.library_file_id)
+        # Same IDOR posture as the single-file path: a file the caller cannot read
+        # is reported as missing rather than forbidden.
+        if not library_file or (
+            current_user
+            and not current_user.has_permission(Permission.LIBRARY_READ_ALL.value)
+            and library_file.created_by_id != current_user.id
+        ):
+            raise HTTPException(404, f"Library file not found: {spec.library_file_id}")
+
+        from backend.app.utils.filename import InvalidFilenameError, validate_print_filename
+
+        try:
+            validate_print_filename(library_file.filename)
+        except InvalidFilenameError as e:
+            raise HTTPException(400, str(e)) from e
+
+        model = resolve_variant_model(library_file, spec.target_model)
+        if not model:
+            raise HTTPException(
+                400,
+                f"{library_file.filename} does not say which printer it was sliced for — "
+                "set its target model explicitly",
+            )
+
+        # Cross-model safety gate (#2578), per candidate. A set is only as safe as
+        # its worst member, and model-based dispatch has no human in the loop.
+        sliced_for = (library_file.file_metadata or {}).get("sliced_for_model")
+        if not is_gcode_compatible(sliced_for, model):
+            raise HTTPException(
+                400,
+                f"{library_file.filename} was sliced for {sliced_for} and cannot be dispatched to {model} printers",
+            )
+
+        if model in seen_models:
+            raise HTTPException(
+                400,
+                f"{library_file.filename} and {seen_models[model]} are both for {model} — "
+                "variants must target different printers",
+            )
+        seen_models[model] = library_file.filename
+
+        has_printer = (
+            (
+                await db.execute(
+                    select(Printer).where(Printer.model == model).where(Printer.is_active == True)  # noqa: E712
+                )
+            )
+            .scalars()
+            .first()
+        )
+        any_active_printer = any_active_printer or bool(has_printer)
+
+        resolved.append((spec, library_file, model))
+
+    if not any_active_printer:
+        raise HTTPException(400, f"No active printers for any of: {', '.join(seen_models)}")
+
+    return resolved
+
+
+def _variant_values(
+    spec: QueueVariantCreate,
+    library_file: LibraryFile,
+    model: str,
+    position: int,
+) -> dict:
+    """Column values for one candidate, extracted from its own 3MF.
+
+    Each candidate is a different slice, so its filament requirements and print
+    time come from its own file rather than being inherited from the item.
+
+    Returns values rather than a row so a quantity>1 batch can build one row per
+    copy without re-opening the 3MF for each.
+    """
+    lib_path = Path(library_file.file_path)
+    file_path = lib_path if lib_path.is_absolute() else settings.base_dir / library_file.file_path
+
+    required_types = None
+    filament_overrides_json = None
+    print_time = (library_file.file_metadata or {}).get("print_time_seconds")
+
+    if file_path.exists():
+        types = _extract_filament_types_from_3mf(file_path, spec.plate_id)
+        if types:
+            required_types = json.dumps(types)
+        if spec.plate_id:
+            plate_time = _extract_print_time_from_3mf(file_path, spec.plate_id)
+            if plate_time is not None:
+                print_time = plate_time
+        if spec.filament_overrides:
+            plate_overrides = overrides_for_plate(spec.filament_overrides, file_path, spec.plate_id)
+            if plate_overrides:
+                filament_overrides_json = json.dumps(plate_overrides)
+                override_types = sorted({o["type"] for o in plate_overrides if "type" in o})
+                if override_types:
+                    existing = set(json.loads(required_types)) if required_types else set()
+                    required_types = json.dumps(sorted(existing | set(override_types)))
+
+    return {
+        "position": position,
+        "library_file_id": library_file.id,
+        "target_model": model,
+        "plate_id": spec.plate_id,
+        "ams_mapping": json.dumps(spec.ams_mapping) if spec.ams_mapping else None,
+        "nozzle_mapping": json.dumps(spec.nozzle_mapping) if spec.nozzle_mapping else None,
+        "filament_overrides": filament_overrides_json,
+        "required_filament_types": required_types,
+        "print_time_seconds": print_time,
+    }
+
+
 @router.post("/", response_model=PrintQueueItemResponse)
 async def add_to_queue(
     data: PrintQueueItemCreate,
@@ -398,17 +540,40 @@ async def add_to_queue(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_CREATE),
 ):
     """Add an item to the print queue."""
-    # Normalize target_model (e.g., "Bambu Lab X1E" / "C13" -> "X1E")
-    target_model_norm = None
-    if data.target_model:
-        target_model_norm = (
-            normalize_printer_model(data.target_model)
-            or normalize_printer_model_id(data.target_model)
-            or data.target_model
-        )
+    # Normalize target_model (e.g., "Bambu Lab X1E" / "C13" -> "X1E").
+    # normalize_model_name resolves internal codes first: the previous
+    # `normalize_printer_model(x) or normalize_printer_model_id(x)` chain never
+    # reached the code map, because the first call returns unknown input
+    # unchanged — so a "C13" target stayed "C13", matched no printer row and
+    # left the item waiting forever. Identical result for every other spelling.
+    target_model_norm = normalize_model_name(data.target_model)
 
-    # Validate that either archive_id or library_file_id is provided
-    if not data.archive_id and not data.library_file_id:
+    # Cross-model alternatives (#671): several sliced files, whichever printer
+    # frees up first. The whole candidate set is validated before anything is
+    # written — a half-valid set would produce a job that can only reach some of
+    # the printers the user asked for, with nothing to say which.
+    variant_specs: list[tuple[QueueVariantCreate, LibraryFile, str]] = []
+    if data.variants:
+        if data.printer_id:
+            raise HTTPException(
+                400, "Cannot specify both printer_id and variants — pick a printer or offer alternatives"
+            )
+        if data.archive_id or data.library_file_id:
+            raise HTTPException(
+                400, "Cannot combine variants with archive_id or library_file_id — the variants are the files"
+            )
+        variant_specs = await _resolve_queue_variants(db, data.variants, current_user)
+        # Mirror the first candidate onto the item so the queue listing, the SJF
+        # grouping and the "Any H2S" label have something before a printer is
+        # picked. Resolution overwrites it with whichever candidate actually runs.
+        target_model_norm = variant_specs[0][2]
+
+    # Validate that either archive_id or library_file_id is provided.
+    # A cross-model item deliberately holds neither: its files live on the
+    # variant rows. Pointing library_file_id at one of them would be worse than
+    # useless — that FK is ON DELETE CASCADE, so deleting a single alternative
+    # would take the whole queue item with it.
+    if not data.archive_id and not data.library_file_id and not data.variants:
         raise HTTPException(400, "Either archive_id or library_file_id must be provided")
 
     # Cannot specify both printer_id and target_model
@@ -425,8 +590,10 @@ async def add_to_queue(
             raise HTTPException(404, "Printer not found")
         assigned_printer_model = assigned_printer.model
 
-    # Validate target_model has active printers
-    if target_model_norm:
+    # Validate target_model has active printers. Skipped for cross-model items:
+    # target_model there is just the first candidate, and _resolve_queue_variants
+    # has already required that *some* candidate has a printer.
+    if target_model_norm and not data.variants:
         result = await db.execute(
             select(Printer).where(Printer.model == target_model_norm).where(Printer.is_active == True)  # noqa: E712
         )
@@ -705,6 +872,22 @@ async def add_to_queue(
         )
         db.add(item)
         items.append(item)
+
+    if variant_specs:
+        variant_values = [
+            _variant_values(spec, library_file, model, position)
+            for position, (spec, library_file, model) in enumerate(variant_specs)
+        ]
+        # SJF orders pending items before any printer is known, so the row carries
+        # the shortest candidate's estimate. Resolution replaces it with the one
+        # that actually runs.
+        estimates = [v["print_time_seconds"] for v in variant_values if v["print_time_seconds"]]
+        for item in items:
+            # Each copy in a quantity>1 batch gets its own candidate rows —
+            # attempt counts are per-item, and two copies must be free to land on
+            # different printers.
+            item.variants.extend(PrintQueueVariant(**values) for values in variant_values)
+            item.print_time_seconds = min(estimates) if estimates else None
 
     await db.commit()
 
@@ -1125,13 +1308,10 @@ async def update_queue_item(
 
     update_data = data.model_dump(exclude_unset=True)
 
-    # Normalize target_model if being updated
+    # Normalize target_model if being updated (see add_to_queue for why the
+    # code map has to run first).
     if "target_model" in update_data and update_data["target_model"]:
-        update_data["target_model"] = (
-            normalize_printer_model(update_data["target_model"])
-            or normalize_printer_model_id(update_data["target_model"])
-            or update_data["target_model"]
-        )
+        update_data["target_model"] = normalize_model_name(update_data["target_model"])
 
     # Cannot specify both printer_id and target_model
     new_printer_id = update_data.get("printer_id", item.printer_id)

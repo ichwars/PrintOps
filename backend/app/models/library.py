@@ -143,6 +143,12 @@ class LibraryFile(Base):
         ForeignKey("file_variant_groups.id", ondelete="SET NULL"), nullable=True, index=True
     )
     variant_position: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # User's answer to "which printer is this for", for a file that does not say.
+    # Files imported before Bambuddy parsed ``sliced_for_model`` — and raw .gcode —
+    # declare nothing, and without this they could never be grouped. Deliberately
+    # NOT written into ``file_metadata``: that holds what was parsed out of the
+    # file, and a user's assertion must not become indistinguishable from it.
+    variant_target_model: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # User tracking (Issue #206)
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)

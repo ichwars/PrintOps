@@ -37,13 +37,18 @@ from backend.app.services.print_scheduler import (
 # ---------------------------------------------------------------------------
 
 
-def _fake_variant(*, vid, position, model, attempts=0):
+def _fake_variant(*, vid, position, model, attempts=0, trashed=False, file_missing=False):
     return SimpleNamespace(
         id=vid,
         position=position,
         target_model=model,
         attempt_count=attempts,
-        library_file=SimpleNamespace(file_metadata={"sliced_for_model": model}),
+        library_file=None
+        if file_missing
+        else SimpleNamespace(
+            file_metadata={"sliced_for_model": model},
+            deleted_at="2026-01-01" if trashed else None,
+        ),
         required_filament_types=None,
         filament_overrides=None,
     )
@@ -54,7 +59,9 @@ def _fake_item(variants):
         variants=variants,
         target_model=None,
         archive=None,
+        archive_id=None,
         library_file=None,
+        library_file_id=None,
         required_filament_types=None,
         filament_overrides=None,
     )
@@ -67,6 +74,8 @@ def test_no_variants_yields_the_items_own_columns():
         variants=[],
         target_model="H2D",
         archive=None,
+        archive_id=None,
+        library_file_id=7,
         library_file=SimpleNamespace(file_metadata={"sliced_for_model": "H2D"}),
         required_filament_types='["PLA"]',
         filament_overrides=None,
@@ -99,6 +108,36 @@ def test_least_attempted_candidate_is_tried_first():
         ]
     )
     assert [c.target_model for c in _candidates_for(item)] == ["H2C", "H2S"]
+
+
+def test_trashed_candidate_is_skipped():
+    """Library deletes are soft: the row survives with deleted_at set, which no
+    foreign key can express. Dispatching a file the user put in the bin would be
+    a genuine surprise."""
+    item = _fake_item(
+        [
+            _fake_variant(vid=1, position=0, model="H2S", trashed=True),
+            _fake_variant(vid=2, position=1, model="H2C"),
+        ]
+    )
+    assert [c.target_model for c in _candidates_for(item)] == ["H2C"]
+
+
+def test_orphaned_candidate_is_skipped():
+    """SQLite runs with PRAGMA foreign_keys off, so a hard delete can leave a
+    candidate row pointing at nothing."""
+    item = _fake_item(
+        [
+            _fake_variant(vid=1, position=0, model="H2S", file_missing=True),
+            _fake_variant(vid=2, position=1, model="H2C"),
+        ]
+    )
+    assert [c.target_model for c in _candidates_for(item)] == ["H2C"]
+
+
+def test_item_with_no_usable_candidates_yields_none():
+    item = _fake_item([_fake_variant(vid=1, position=0, model="H2S", trashed=True)])
+    assert _candidates_for(item) == []
 
 
 def test_equal_attempts_fall_back_to_priority():

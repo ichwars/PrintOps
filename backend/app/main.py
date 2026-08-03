@@ -49,6 +49,7 @@ from backend.app.api.routes import (
     library,
     library_tags,
     library_trash,
+    library_variants,
     local_backup,
     local_presets,
     maintenance,
@@ -6801,6 +6802,7 @@ app.include_router(projects.router, prefix=app_settings.api_prefix)
 app.include_router(library.router, prefix=app_settings.api_prefix)
 app.include_router(library_tags.router, prefix=app_settings.api_prefix)
 app.include_router(library_trash.router, prefix=app_settings.api_prefix)
+app.include_router(library_variants.router, prefix=app_settings.api_prefix)
 app.include_router(slice_jobs.router, prefix=app_settings.api_prefix)
 app.include_router(slicer_pipelines.router, prefix=app_settings.api_prefix)
 app.include_router(pipeline_runs.pipeline_run_create_router, prefix=app_settings.api_prefix)

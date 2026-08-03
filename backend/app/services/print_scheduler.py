@@ -204,6 +204,11 @@ def _candidates_for(item: PrintQueueItem) -> list[_ModelCandidate]:
     still gives up, it just does not give up without trying them.
     """
     if not item.variants:
+        if not item.archive_id and not item.library_file_id:
+            # Nothing to print at all. Dispatching would fail deep in the upload
+            # on "No archive_id or library_file_id"; the caller holds the item
+            # with an explanation instead.
+            return []
         return [
             _ModelCandidate(
                 target_model=item.target_model,
@@ -213,7 +218,14 @@ def _candidates_for(item: PrintQueueItem) -> list[_ModelCandidate]:
             )
         ]
 
-    ordered = sorted(item.variants, key=lambda v: (v.attempt_count or 0, v.position, v.id))
+    # Drop candidates whose file is gone or in the trash. Both are reachable and
+    # neither is covered by the schema: library deletes are soft (the row lives
+    # on with ``deleted_at`` set, which no foreign key can express), and SQLite
+    # ships with ``PRAGMA foreign_keys`` off, so the ON DELETE CASCADE never
+    # fires there and a hard delete leaves the variant row pointing at nothing.
+    usable = [v for v in item.variants if v.library_file is not None and v.library_file.deleted_at is None]
+
+    ordered = sorted(usable, key=lambda v: (v.attempt_count or 0, v.position, v.id))
     return [
         _ModelCandidate(
             target_model=v.target_model,
@@ -654,12 +666,10 @@ class PrintScheduler:
                     chosen: _ModelCandidate | None = None
                     per_model_reasons: list[tuple[str | None, str]] = []
 
-                    if not item.variants and not item.archive_id and not item.library_file_id:
-                        # Every candidate file was deleted out from under this item
-                        # (variant rows go with their library file). Dispatching would
-                        # fail deep in the upload with "No archive_id or library_file_id";
-                        # hold it here with something the user can act on instead.
-                        candidates = []
+                    if not candidates:
+                        # Every candidate file has been deleted or trashed out from
+                        # under this item. Hold it with something the user can act
+                        # on rather than letting it look dispatchable forever.
                         per_model_reasons.append(
                             (
                                 item.target_model,

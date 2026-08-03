@@ -3683,6 +3683,9 @@ async def _migrate_document_payments(conn) -> None:
         "REFERENCES file_variant_groups(id) ON DELETE SET NULL",
     )
     await _safe_execute(conn, "ALTER TABLE library_files ADD COLUMN variant_position INTEGER DEFAULT 0")
+    # User-declared target model for a file whose 3MF does not say (#671).
+    # VARCHAR(50) is spelled identically on SQLite and Postgres.
+    await _safe_execute(conn, "ALTER TABLE library_files ADD COLUMN variant_target_model VARCHAR(50)")
     # The model declares index=True, so fresh installs get this from create_all();
     # migrated databases need it spelled out. Resolution looks members up by group
     # on every scheduler pass that touches a grouped item.

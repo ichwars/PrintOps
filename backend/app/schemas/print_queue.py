@@ -15,6 +15,25 @@ def serialize_utc_datetime(dt: datetime | None) -> str | None:
 UTCDatetime = Annotated[datetime | None, PlainSerializer(serialize_utc_datetime)]
 
 
+class QueueVariantCreate(BaseModel):
+    """One candidate file for a cross-model queue item (#671).
+
+    Per-file rather than per-item because the settings genuinely differ between
+    candidates: an H2C slice is dual-nozzle and will not share slot count, AMS
+    mapping or nozzle mapping with the H2S slice of the same model.
+
+    ``target_model`` is normally omitted and read from the file's own
+    ``sliced_for_model``; supply it only for a legacy 3MF that declares none.
+    """
+
+    library_file_id: int
+    target_model: str | None = None
+    plate_id: int | None = None
+    ams_mapping: list[int] | None = None
+    nozzle_mapping: list[int] | None = None
+    filament_overrides: list[dict] | None = None
+
+
 class PrintQueueItemCreate(BaseModel):
     printer_id: int | None = None  # None = unassigned, user assigns later
     target_model: str | None = None  # Target printer model (mutually exclusive with printer_id)
@@ -68,6 +87,12 @@ class PrintQueueItemCreate(BaseModel):
     # Direct printer-card uploads are temporary library files. The scheduler
     # deletes them after creating the durable archive copy.
     cleanup_library_after_dispatch: bool = False
+    # Cross-model alternatives (#671): several sliced files, one job, whichever
+    # printer frees up first. Mutually exclusive with printer_id (a specific
+    # printer defeats the purpose) and with archive_id/library_file_id (the
+    # candidates ARE the files). The scheduler resolves one onto the row at
+    # dispatch, after which the item is an ordinary single-file job.
+    variants: list[QueueVariantCreate] | None = None
 
 
 class PrintQueueItemUpdate(BaseModel):
