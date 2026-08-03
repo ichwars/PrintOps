@@ -12,6 +12,26 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
+
+# ``scheme://user:secret@host`` is the URL shape that carries a secret. The
+# scheme repetition is bounded so a long ffmpeg stderr line cannot trigger
+# quadratic backtracking before the log line is truncated.
+URL_CREDENTIALS_PATTERN = re.compile(
+    r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.\-]{0,63}://)(?P<user>[^/:@\s]+):(?P<secret>[^/\s]+)@"
+)
+
+
+def redact_url_credentials(text: str | None) -> str | None:
+    """Mask passwords in ``scheme://user:secret@host`` URLs.
+
+    ffmpeg echoes RTSP input URLs into stderr. Those URLs can contain a printer
+    access code or an external camera password, and stderr is logged for
+    diagnostics, so every ffmpeg stderr funnel goes through this helper.
+    """
+    if not text or "://" not in text or "@" not in text:
+        return text
+    return URL_CREDENTIALS_PATTERN.sub(r"\g<scheme>\g<user>:[REDACTED]@", text)
 
 
 class WriteRequestsOnlyFilter(logging.Filter):

@@ -62,10 +62,43 @@ from backend.app.models.printer import Printer
 from backend.app.models.settings import Settings
 from backend.app.models.spool import Spool
 from backend.app.models.spool_usage_history import SpoolUsageHistory
+from backend.app.models.user import User
 from backend.app.services.git_providers.factory import get_provider_backend
 from backend.app.services.printer_manager import printer_manager
 
 logger = logging.getLogger(__name__)
+
+_BAMBU_PRESET_TYPES = {
+    "filament": "filament",
+    "printer": "printer",
+    "print": "process",
+}
+_BAMBU_DETAIL_MAX_RETRIES = 3
+_BAMBU_DETAIL_THROTTLE_SECONDS = 0.25
+_LEGACY_CLOUD_PROFILE_PATHS = (
+    "cloud_profiles/filament.json",
+    "cloud_profiles/printer.json",
+    "cloud_profiles/process.json",
+)
+
+
+def _is_bambu_detail_retryable(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return "429" in text or "rate limit" in text or "too many requests" in text
+
+
+def _bambu_preset_record(setting_id: str, our_type: str, entry: dict, detail: dict) -> dict:
+    return {
+        "setting_id": str(setting_id),
+        "name": detail.get("name") or entry.get("name") or "Unknown",
+        "type": our_type,
+        "version": detail.get("version") or entry.get("version"),
+        "updated_time": entry.get("updated_time"),
+        "base_id": detail.get("base_id"),
+        "filament_id": detail.get("filament_id"),
+        "setting": detail.get("setting") or {},
+    }
+
 
 # Schedule intervals in seconds
 SCHEDULE_INTERVALS = {
@@ -323,9 +356,7 @@ class GitHubBackupService:
         {
             "backup_metadata.json": {...},
             "kprofiles/{serial}/{nozzle}.json": {...},
-            "cloud_profiles/filament.json": [...],
-            "cloud_profiles/printer.json": [...],
-            "cloud_profiles/process.json": [...],
+            "cloud_profiles/bambu/{account}/{filament,printer,process}.json": {...},
             "settings/app_settings.json": {...},
         }
         """
@@ -354,7 +385,13 @@ class GitHubBackupService:
         # Collect cloud profiles
         if config.backup_cloud_profiles:
             self._backup_progress = "Collecting cloud profiles from Bambu Cloud..."
-            await self._collect_cloud_profiles(db, files)
+            for legacy_path in _LEGACY_CLOUD_PROFILE_PATHS:
+                files[legacy_path] = None
+            cloud_summary = await self._collect_cloud_profiles(db, files)
+            collected = bool(cloud_summary.get("bambu"))
+            metadata["contents"]["cloud_profiles"] = collected
+            if collected:
+                metadata["cloud_profiles"] = cloud_summary
 
         # Collect app settings
         if config.backup_settings:
@@ -421,66 +458,139 @@ class GitHubBackupService:
             if printer_profiles:
                 logger.info("Collected K-profiles for %s: %s", serial, printer_profiles)
 
-    async def _collect_cloud_profiles(self, db: AsyncSession, files: dict):
-        """Collect Bambu Cloud profiles if authenticated."""
-        # Backup runs without a user context, so fall back to the auth-disabled
-        # Settings storage. ``build_authenticated_cloud`` honours the stored
-        # region so China-region tokens are validated against api.bambulab.cn.
+    async def cloud_accounts(self, db: AsyncSession) -> tuple[list[tuple[str, User | None]], list]:
+        """Enumerate connected cloud accounts as backup account keys.
+
+        Bambu Cloud credentials may live globally (auth off) and/or on user
+        rows (auth on). Read both so auth toggles do not silently drop profiles.
+        """
+        from backend.app.api.routes.cloud import get_stored_token
+
+        bambu: list[tuple[str, User | None]] = []
+        global_token, _, _ = await get_stored_token(db, None)
+        if global_token:
+            bambu.append(("global", None))
+
+        result = await db.execute(select(User).where(User.cloud_token.isnot(None)))
+        for user in result.scalars().all():
+            bambu.append((f"user-{user.id}", user))
+
+        return bambu, []
+
+    async def _collect_cloud_profiles(self, db: AsyncSession, files: dict) -> dict:
+        """Collect Bambu Cloud profiles from every connected account."""
+        summary: dict = {"bambu": {}}
+        bambu_accounts, _ = await self.cloud_accounts(db)
+        if not bambu_accounts:
+            logger.warning("Cloud profiles are enabled for backup, but no Bambu Cloud account is connected")
+            return summary
+
+        for account_key, user in bambu_accounts:
+            counts = await self._collect_bambu_profiles(db, files, account_key, user)
+            if counts:
+                summary["bambu"][account_key] = counts
+
+        if not summary["bambu"]:
+            logger.warning(
+                "Cloud profiles are enabled and %d Bambu Cloud account(s) are connected, but no presets were collected",
+                len(bambu_accounts),
+            )
+        else:
+            logger.info("Collected Bambu Cloud profiles: %s", summary["bambu"])
+        return summary
+
+    async def _fetch_bambu_setting_detail_with_retry(self, cloud, setting_id: str, account_key: str) -> dict:
+        """Fetch one preset detail with light pacing and retry for Bambu rate limits."""
+        delay = _BAMBU_DETAIL_THROTTLE_SECONDS
+        for attempt in range(1, _BAMBU_DETAIL_MAX_RETRIES + 1):
+            try:
+                detail = await cloud.get_setting_detail(setting_id)
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                return detail
+            except Exception as exc:
+                if not _is_bambu_detail_retryable(exc) or attempt >= _BAMBU_DETAIL_MAX_RETRIES:
+                    raise
+                logger.warning(
+                    "Bambu Cloud preset detail fetch was rate limited for %s on %s; retrying attempt %d/%d",
+                    setting_id,
+                    account_key,
+                    attempt + 1,
+                    _BAMBU_DETAIL_MAX_RETRIES,
+                )
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                delay *= 2
+        raise RuntimeError(f"Could not fetch Bambu Cloud preset {setting_id}")
+
+    async def _collect_bambu_profiles(
+        self,
+        db: AsyncSession,
+        files: dict,
+        account_key: str,
+        user: User | None,
+    ) -> dict:
+        """Collect one Bambu Cloud account's private custom presets."""
         from backend.app.api.routes.cloud import build_authenticated_cloud
 
-        cloud = await build_authenticated_cloud(db, user=None)
+        cloud = await build_authenticated_cloud(db, user=user)
         if cloud is None or not cloud.is_authenticated:
             if cloud is not None:
                 await cloud.close()
-            logger.info("Cloud not authenticated, skipping cloud profiles")
-            return
+            logger.info("Bambu Cloud not authenticated for %s, skipping", account_key)
+            return {}
 
+        counts: dict = {}
         try:
             settings = await cloud.get_slicer_settings()
-            if not settings:
-                return
+            if not isinstance(settings, dict) or not settings:
+                logger.warning("Bambu Cloud returned no slicer settings for %s", account_key)
+                return {}
 
-            # Separate by type
-            filament_settings = []
-            printer_settings = []
-            process_settings = []
+            failures: list[str] = []
+            for api_key, our_type in _BAMBU_PRESET_TYPES.items():
+                type_data = settings.get(api_key)
+                if not isinstance(type_data, dict):
+                    continue
+                private = type_data.get("private")
+                if not isinstance(private, list) or not private:
+                    continue
 
-            for setting in settings.get("setting", []) if isinstance(settings.get("setting"), list) else []:
-                setting_type = setting.get("type", "")
-                if setting_type == "filament":
-                    filament_settings.append(setting)
-                elif setting_type == "printer":
-                    printer_settings.append(setting)
-                elif setting_type == "process":
-                    process_settings.append(setting)
+                profiles = []
+                for entry in private:
+                    setting_id = entry.get("setting_id") or entry.get("id")
+                    if not setting_id:
+                        continue
+                    try:
+                        detail = await self._fetch_bambu_setting_detail_with_retry(cloud, str(setting_id), account_key)
+                    except Exception as e:
+                        failures.append(str(setting_id))
+                        logger.warning(
+                            "Failed to fetch Bambu Cloud preset %s (%s) for %s: %s",
+                            setting_id,
+                            entry.get("name", "unnamed"),
+                            account_key,
+                            e,
+                        )
+                        continue
+                    profiles.append(_bambu_preset_record(str(setting_id), our_type, entry, detail))
 
-            if filament_settings:
-                files["cloud_profiles/filament.json"] = {
-                    "version": "1.0",
-                    "profiles": filament_settings,
-                }
+                if failures:
+                    raise RuntimeError(
+                        f"Could not complete Bambu Cloud profile backup for {account_key}; "
+                        f"failed preset detail fetches: {', '.join(failures)}"
+                    )
 
-            if printer_settings:
-                files["cloud_profiles/printer.json"] = {
-                    "version": "1.0",
-                    "profiles": printer_settings,
-                }
+                if profiles:
+                    files[f"cloud_profiles/bambu/{account_key}/{our_type}.json"] = {
+                        "version": "2.0",
+                        "cloud": "bambu",
+                        "type": our_type,
+                        "profiles": profiles,
+                    }
+                    counts[our_type] = len(profiles)
 
-            if process_settings:
-                files["cloud_profiles/process.json"] = {
-                    "version": "1.0",
-                    "profiles": process_settings,
-                }
-
-            logger.info(
-                "Collected cloud profiles: %d filament, %d printer, %d process",
-                len(filament_settings),
-                len(printer_settings),
-                len(process_settings),
-            )
-
-        except Exception:
-            logger.warning("Failed to collect cloud profiles", exc_info=True)
+            return counts
         finally:
             await cloud.close()
 

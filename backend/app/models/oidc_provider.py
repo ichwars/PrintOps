@@ -132,6 +132,9 @@ class OIDCProvider(Base):
     # authorize-URL fetch fails or times out, and ``/login?fallback=local``
     # plus ``PRINTOPS_LOCAL_LOGIN=true`` provide a documented recovery path.
     is_autologin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    # Marks the single provider defined by PRINTOPS_OIDC_* env vars. Startup
+    # upserts it; UI/API writes are rejected because they would be overwritten.
+    is_env_managed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
     @property
     def has_icon(self) -> bool:

@@ -749,9 +749,11 @@ export function SettingsPage() {
     mode, resolvedMode,
     darkStyle, darkBackground, darkAccent,
     lightStyle, lightBackground, lightAccent,
+    progressInTitle,
     setMode,
     setDarkStyle, setDarkBackground, setDarkAccent,
     setLightStyle, setLightBackground, setLightAccent,
+    setProgressInTitle,
   } = useTheme();
   const [localSettings, setLocalSettings] = useState<AppSettings | null>(null);
   // Transient typed strings for the per-filament humidity threshold inputs
@@ -4036,6 +4038,20 @@ export function SettingsPage() {
               <p className="text-xs text-bambu-gray">
                 {t('settings.themeToggleHint')}
               </p>
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-bambu-dark-tertiary p-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{t('settings.progressInTitle')}</p>
+                  <p className="text-xs text-bambu-gray">{t('settings.progressInTitleHint')}</p>
+                </div>
+                <Switch
+                  ariaLabel={t('settings.progressInTitle')}
+                  checked={progressInTitle}
+                  onCheckedChange={(checked) => {
+                    setProgressInTitle(checked);
+                    showToast(t('settings.toast.settingsSaved'), 'success');
+                  }}
+                />
+              </div>
             </CardContent>
           </Card>
 

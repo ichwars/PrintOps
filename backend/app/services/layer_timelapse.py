@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from backend.app.core.config import settings
+from backend.app.services.camera import apply_camera_rotation
 from backend.app.services.external_camera import capture_frame
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,7 @@ class TimelapseSession:
     camera_url: str
     camera_type: str
     snapshot_url: str | None = None  # Optional single-frame override; #1177
+    rotation: int = 0
     last_layer: int = -1
     frame_count: int = 0
     session_id: str = field(default_factory=lambda: datetime.now().strftime("%Y%m%d_%H%M%S"))
@@ -69,6 +71,8 @@ class TimelapseSession:
         try:
             frame_data = await capture_frame(self.camera_url, self.camera_type, snapshot_url=self.snapshot_url)
             if frame_data:
+                if self.rotation:
+                    frame_data = await asyncio.to_thread(apply_camera_rotation, frame_data, self.rotation, logger)
                 frame_path = self.frames_dir / f"layer_{layer_num:05d}.jpg"
                 await asyncio.to_thread(frame_path.write_bytes, frame_data)
                 self.frame_count += 1
@@ -187,6 +191,7 @@ def start_session(
     url: str,
     cam_type: str,
     snapshot_url: str | None = None,
+    rotation: int = 0,
 ) -> TimelapseSession:
     """Start new timelapse session for a printer.
 
@@ -210,6 +215,7 @@ def start_session(
         camera_url=url,
         camera_type=cam_type,
         snapshot_url=snapshot_url,
+        rotation=rotation,
     )
     _active_sessions[printer_id] = session
     logger.info("Started timelapse session for printer %s", printer_id)

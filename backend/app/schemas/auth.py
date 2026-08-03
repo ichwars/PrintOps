@@ -517,6 +517,7 @@ class OIDCProviderResponse(BaseModel):
     icon_url: str | None = None
     default_group_id: int | None = None
     is_autologin: bool = False  # #1589
+    is_env_managed: bool = False
     # Set explicitly in the route handler from `icon_content_type is not None`
     # rather than `@computed_field` (project policy) or `icon_data is not None`
     # (would trigger an async lazy-load on the deferred BLOB column).

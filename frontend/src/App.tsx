@@ -10,6 +10,7 @@ import { SliceJobTrackerProvider } from './contexts/SliceJobTrackerContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ColorCatalogProvider } from './contexts/ColorCatalogContext';
 import { SpoolBuddyLayout } from './components/spoolbuddy/SpoolBuddyLayout';
+import { usePrintProgressTitle } from './hooks/usePrintProgressTitle';
 
 const PrintersPage = lazy(() => import('./pages/PrintersPage').then(({ PrintersPage }) => ({ default: PrintersPage })));
 const ArchivesPage = lazy(() => import('./pages/ArchivesPage').then(({ ArchivesPage }) => ({ default: ArchivesPage })));
@@ -33,6 +34,7 @@ const OrderDetailPage = lazy(() => import('./pages/OrderDetailPage').then(({ Ord
 const OrdersCustomersPage = lazy(() => import('./pages/OrdersCustomersPage').then(({ OrdersCustomersPage }) => ({ default: OrdersCustomersPage })));
 const CalculationsPage = lazy(() => import('./pages/CalculationsPage').then(({ CalculationsPage }) => ({ default: CalculationsPage })));
 const CameraPage = lazy(() => import('./pages/CameraPage').then(({ CameraPage }) => ({ default: CameraPage })));
+const CamWallPage = lazy(() => import('./pages/CamWallPage').then(({ CamWallPage }) => ({ default: CamWallPage })));
 const StreamOverlayPage = lazy(() => import('./pages/StreamOverlayPage').then(({ StreamOverlayPage }) => ({ default: StreamOverlayPage })));
 const ExternalLinkPage = lazy(() => import('./pages/ExternalLinkPage').then(({ ExternalLinkPage }) => ({ default: ExternalLinkPage })));
 const GroupEditPage = lazy(() => import('./pages/GroupEditPage').then(({ GroupEditPage }) => ({ default: GroupEditPage })));
@@ -107,6 +109,7 @@ function RouteFallback() {
 
 function WebSocketProvider({ children }: { children: React.ReactNode }) {
   useWebSocket();
+  usePrintProgressTitle();
   return <>{children}</>;
 }
 
@@ -198,6 +201,9 @@ function App() {
 
                 {/* Camera page - standalone, no layout, no WebSocket (doesn't need real-time updates) */}
                 <Route path="/camera/:printerId" element={<CameraPage />} />
+
+                {/* Cam Wall page - standalone, supports token-authenticated kiosk mode */}
+                <Route path="/camwall" element={<CamWallPage />} />
 
                 {/* Stream overlay page - standalone for OBS/streaming embeds, no auth required */}
                 <Route path="/overlay/:printerId" element={<StreamOverlayPage />} />

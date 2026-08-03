@@ -15,6 +15,7 @@ from backend.app.models.user import User
 from backend.app.services.long_lived_tokens import (
     ALLOWED_SCOPES,
     MAX_TOKEN_LIFETIME_DAYS,
+    STREAM_SCOPES,
     create_token,
     list_all_tokens,
     list_user_tokens,
@@ -107,8 +108,8 @@ async def test_create_rejects_expiry_above_policy_cap(db_session, alice: User):
 
 
 async def test_create_rejects_unsupported_scope(db_session, alice: User):
-    """V1 only allows ``camera_stream``."""
-    assert {"camera_stream"} == set(ALLOWED_SCOPES)
+    """Only passive stream/view scopes can be minted."""
+    assert {"camera_stream", "camwall", "overlay"} == set(ALLOWED_SCOPES)
     with pytest.raises(ValueError, match="unsupported scope"):
         await create_token(
             db_session,
@@ -173,13 +174,26 @@ async def test_verify_returns_none_when_owner_is_inactive(db_session, alice: Use
 
 
 async def test_verify_returns_none_when_scope_mismatched(db_session, alice: User):
-    """A camera_stream-scoped token must NOT validate against any other scope.
-
-    No other scopes exist today, but if/when they do, this guard prevents a
-    camera token from being accepted by, say, a control endpoint.
-    """
+    """A token must NOT validate against a different endpoint-specific scope."""
     created = await create_token(db_session, user_id=alice.id, name="x", expires_in_days=7)
     assert await verify_token(db_session, created.plaintext, scope="other") is None
+
+
+async def test_verify_accepts_collection_of_stream_scopes(db_session, alice: User):
+    """Camera streams are shared by camera, Cam Wall and overlay tokens."""
+    created = await create_token(
+        db_session,
+        user_id=alice.id,
+        name="Wall display",
+        expires_in_days=7,
+        scope="camwall",
+    )
+
+    record = await verify_token(db_session, created.plaintext, scope=STREAM_SCOPES)
+
+    assert record is not None
+    assert record.id == created.record.id
+    assert record.scope == "camwall"
 
 
 async def test_verify_does_not_collide_across_users_with_same_prefix(db_session, alice: User, bob: User, monkeypatch):

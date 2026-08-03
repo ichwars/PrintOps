@@ -290,14 +290,14 @@ def substitute_unused_plate_filaments(source_3mf_bytes: bytes, plate_id: int | N
     doesn't even use.
 
     The substitution is a no-op when:
-    - ``plate_id`` is None (we can't determine which slots are unused),
+    - ``plate_id`` is not a real plate: ``None`` or ``0`` (slice-all),
     - the source isn't a valid 3MF / zip,
     - the source doesn't carry plate-extruder metadata (parse returns
       empty set — treat as "every slot is used", same fallback the
       SliceModal uses),
     - ``items`` has fewer than 2 entries (nothing to substitute).
     """
-    if plate_id is None or len(items) < 2:
+    if plate_id is None or plate_id < 1 or len(items) < 2:
         return items
     # Local import keeps the bytes->ZipFile boundary in this module and
     # avoids dragging zipfile into every caller.

@@ -732,9 +732,27 @@ async def verify_camera_stream_token(token: str) -> bool:
 
         # Long-lived path. Imported lazily so the auth module stays importable
         # at startup before the long_lived_tokens model is registered.
+        from backend.app.services.long_lived_tokens import STREAM_SCOPES, verify_token as verify_long_lived
+
+        record = await verify_long_lived(db, token, scope=STREAM_SCOPES)
+        return record is not None
+
+
+async def verify_camwall_token(token: str) -> bool:
+    """Verify a long-lived Cam Wall token."""
+    async with async_session() as db:
         from backend.app.services.long_lived_tokens import verify_token as verify_long_lived
 
-        record = await verify_long_lived(db, token, scope="camera_stream")
+        record = await verify_long_lived(db, token, scope="camwall")
+        return record is not None
+
+
+async def verify_overlay_token(token: str) -> bool:
+    """Verify a long-lived streaming-overlay token."""
+    async with async_session() as db:
+        from backend.app.services.long_lived_tokens import verify_token as verify_long_lived
+
+        record = await verify_long_lived(db, token, scope="overlay")
         return record is not None
 
 
@@ -1739,6 +1757,44 @@ def require_camera_stream_token_if_auth_enabled():
 
 
 RequireCameraStreamTokenIfAuthEnabled = Depends(require_camera_stream_token_if_auth_enabled())
+
+
+def require_camwall_token_if_auth_enabled():
+    """Dependency that validates a Cam Wall token query param when auth is enabled."""
+
+    async def checker(token: str | None = None) -> None:
+        async with async_session() as db:
+            if not await is_auth_enabled(db):
+                return
+        if not token or not await verify_camwall_token(token):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Valid Cam Wall token required. Create one under Settings > API Keys with the 'Cam Wall' scope.",
+            )
+
+    return checker
+
+
+RequireCamWallTokenIfAuthEnabled = Depends(require_camwall_token_if_auth_enabled())
+
+
+def require_overlay_token_if_auth_enabled():
+    """Dependency that validates a streaming-overlay token query param when auth is enabled."""
+
+    async def checker(token: str | None = None) -> None:
+        async with async_session() as db:
+            if not await is_auth_enabled(db):
+                return
+        if not token or not await verify_overlay_token(token):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Valid streaming overlay token required. Create one under Settings > API Keys with the 'Overlay' scope.",
+            )
+
+    return checker
+
+
+RequireOverlayTokenIfAuthEnabled = Depends(require_overlay_token_if_auth_enabled())
 
 
 def allowed_printer_ids_for_user(user: User | None) -> set[int] | None:

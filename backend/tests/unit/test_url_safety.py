@@ -9,9 +9,12 @@ import ipaddress
 
 import pytest
 
+from backend.app.api.routes._oidc_helpers import assert_safe_public_https_url
 from backend.app.api.routes._url_safety import (
     CLOUD_METADATA_IPS,
     NUMERIC_IP_RE,
+    assert_safe_lan_service_url,
+    canonical_url_hostname,
     unwrap_ipv4_mapped,
 )
 
@@ -72,3 +75,17 @@ def test_unwrap_ipv4_mapped_passes_through_pure_ipv4():
 def test_unwrap_ipv4_mapped_passes_through_pure_ipv6():
     addr = ipaddress.ip_address("2001:db8::1")
     assert unwrap_ipv4_mapped(addr) is addr
+
+
+def test_canonical_url_hostname_strips_trailing_dot_and_lowercases():
+    assert canonical_url_hostname("Metadata.Google.Internal.") == "metadata.google.internal"
+
+
+def test_lan_service_guard_rejects_metadata_hostname_with_trailing_dot():
+    with pytest.raises(ValueError, match="cloud metadata"):
+        assert_safe_lan_service_url("https://metadata.google.internal./latest", label="service URL")
+
+
+def test_public_https_guard_rejects_metadata_hostname_with_trailing_dot():
+    with pytest.raises(ValueError, match="cloud metadata"):
+        assert_safe_public_https_url("https://metadata.google.internal./icon.png")

@@ -315,12 +315,43 @@ export interface LongLivedCameraToken {
   id: number;
   user_id: number;
   name: string;
-  scope: 'camera_stream';
+  scope: LongLivedTokenScope;
   lookup_prefix: string;
   created_at: string;
   expires_at: string;
   last_used_at: string | null;
   token: string | null;
+}
+
+export type LongLivedTokenScope = 'camera_stream' | 'camwall' | 'overlay';
+
+export interface CamWallPrinter {
+  id: number;
+  name: string;
+  camera_rotation: number;
+  connected: boolean;
+  state: string | null;
+  progress: number | null;
+  remaining_time: number | null;
+  layer_num: number | null;
+  total_layers: number | null;
+  hms_errors: HMSError[];
+}
+
+export interface OverlayStatus {
+  id: number;
+  name: string;
+  camera_rotation: number;
+  connected: boolean;
+  state: string | null;
+  current_print: string | null;
+  gcode_file: string | null;
+  progress: number | null;
+  remaining_time: number | null;
+  layer_num: number | null;
+  total_layers: number | null;
+  stg_cur_name: string | null;
+  time_format: 'system' | '12h' | '24h';
 }
 
 // Printer types
@@ -1336,6 +1367,7 @@ export interface AppSettings {
   ldap_default_group: string;
   obico_enabled: boolean;
   obico_ml_url: string;
+  obico_ml_token: string;
   obico_sensitivity: 'low' | 'medium' | 'high';
   obico_action: 'notify' | 'pause' | 'pause_and_off';
   obico_poll_interval: number;
@@ -2445,7 +2477,7 @@ export interface Filament {
 }
 
 // Notification Provider types
-export type ProviderType = 'callmebot' | 'ntfy' | 'pushover' | 'telegram' | 'email' | 'discord' | 'webhook' | 'homeassistant';
+export type ProviderType = 'callmebot' | 'ntfy' | 'pushover' | 'telegram' | 'bark' | 'email' | 'discord' | 'webhook' | 'homeassistant';
 
 export interface NotificationProvider {
   id: number;
@@ -2677,6 +2709,11 @@ export interface GitHubBackupStatus {
   next_scheduled_run: string | null;
 }
 
+export interface CloudAccountCounts {
+  bambu: number;
+  orca: number;
+}
+
 export interface LocalBackupStatus {
   enabled: boolean;
   schedule: string;
@@ -2727,6 +2764,7 @@ export interface ObicoTestConnection {
   status_code: number | null;
   body: string | null;
   error: string | null;
+  auth_ok?: boolean | null;
 }
 
 export interface GitHubTestConnectionResponse {
@@ -2773,11 +2811,22 @@ export interface PushoverConfig {
   user_key: string;
   app_token: string;
   priority?: number;
+  retry?: number;
+  expire?: number;
 }
 
 export interface TelegramConfig {
   bot_token: string;
   chat_id: string;
+  message_thread_id?: number | string | null;
+}
+
+export interface BarkConfig {
+  device_key: string;
+  server?: string;
+  group?: string;
+  sound?: string;
+  level?: 'passive' | 'active' | 'timeSensitive' | 'critical' | string;
 }
 
 export interface EmailConfig {
@@ -3768,6 +3817,7 @@ export interface OIDCProvider {
   // #1589: when true, the LoginPage redirects unauthenticated visitors
   // straight to this provider on mount. At most one provider may carry this.
   is_autologin: boolean;
+  is_env_managed?: boolean;
 }
 
 export interface OIDCProviderCreate {
@@ -6080,10 +6130,10 @@ export const api = {
     request<{ token: string }>('/auth/ws-token', { method: 'POST' }),
 
   // Long-lived camera-stream tokens (#1108)
-  createLongLivedCameraToken: (payload: { name: string; expires_in_days: number }) =>
+  createLongLivedCameraToken: (payload: { name: string; expires_in_days: number; scope?: LongLivedTokenScope }) =>
     request<LongLivedCameraToken>('/auth/tokens', {
       method: 'POST',
-      body: JSON.stringify({ ...payload, scope: 'camera_stream' }),
+      body: JSON.stringify({ scope: 'camera_stream', ...payload }),
     }),
   listMyLongLivedCameraTokens: () =>
     request<LongLivedCameraToken[]>('/auth/tokens'),
@@ -6093,6 +6143,16 @@ export const api = {
     request<LongLivedCameraToken[]>(`/auth/tokens?user_id=${userId}`),
   revokeLongLivedCameraToken: (tokenId: number) =>
     request<void>(`/auth/tokens/${tokenId}`, { method: 'DELETE' }),
+  getCamWallPrinters: (token?: string) =>
+    request<CamWallPrinter[]>(
+      token ? `/camwall/printers?token=${encodeURIComponent(token)}` : '/camwall/printers',
+    ),
+  getOverlayStatus: (printerId: number, token?: string) =>
+    request<OverlayStatus>(
+      token
+        ? `/printers/${printerId}/overlay-status?token=${encodeURIComponent(token)}`
+        : `/printers/${printerId}/overlay-status`,
+    ),
   getCameraStreamUrl: (printerId: number, fps = 10) =>
     withStreamToken(`${API_BASE}/printers/${printerId}/camera/stream?fps=${fps}`),
   getCameraSnapshotUrl: (printerId: number) =>
@@ -6809,6 +6869,9 @@ export const api = {
   getGitHubBackupConfig: () =>
     request<GitHubBackupConfig | null>('/github-backup/config'),
 
+  getGitHubBackupCloudAccounts: () =>
+    request<CloudAccountCounts>('/github-backup/cloud-accounts'),
+
   saveGitHubBackupConfig: (config: GitHubBackupConfigCreate) =>
     request<GitHubBackupConfig>('/github-backup/config', {
       method: 'POST',
@@ -6874,10 +6937,10 @@ export const api = {
   getObicoStatus: () =>
     request<ObicoStatus>('/obico/status'),
 
-  testObicoConnection: (url: string) =>
+  testObicoConnection: (url: string, token?: string | null) =>
     request<ObicoTestConnection>('/obico/test-connection', {
       method: 'POST',
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url, token }),
     }),
 
   // Slicer API — slice in the background. Both endpoints return 202 + a

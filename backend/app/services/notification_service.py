@@ -64,6 +64,28 @@ def _looks_like_cloudflare_challenge(response: httpx.Response) -> bool:
     return "just a moment" in body or "cf-chl-bypass" in body or "cf-chl-opt" in body or "challenge-platform" in body
 
 
+def _assert_safe_provider_url(url: str, *, label: str) -> str | None:
+    """Validate a provider URL taken from user-supplied config."""
+    from backend.app.api.routes._url_safety import assert_safe_lan_service_url
+
+    try:
+        assert_safe_lan_service_url(url, label=label)
+    except ValueError as exc:
+        return str(exc)
+    return None
+
+
+def _opaque_http_failure(response: httpx.Response, *, label: str) -> str:
+    """Return an HTTP failure without echoing user-controlled upstream bodies."""
+    logger.debug(
+        "Notification provider %s returned HTTP %s: %s",
+        label,
+        response.status_code,
+        (response.text or "")[:200],
+    )
+    return f"HTTP {response.status_code} from the configured {label} (see server logs at debug level for details)"
+
+
 class NotificationService:
     """Service for sending notifications through various providers."""
 
@@ -217,6 +239,8 @@ class NotificationService:
                 return await self._send_pushover(config, title, message)
             elif provider_type == "telegram":
                 return await self._send_telegram(config, f"*{title}*\n{message}")
+            elif provider_type == "bark":
+                return await self._send_bark(config, title, message)
             elif provider_type == "email":
                 return await self._send_email(config, title, message)
             elif provider_type == "discord":
@@ -266,6 +290,10 @@ class NotificationService:
 
         if not topic:
             return False, "Topic is required"
+
+        url_error = _assert_safe_provider_url(server, label="ntfy server URL")
+        if url_error:
+            return False, url_error
 
         url = f"{server}/{topic}"
         # ntfy reads Title/Message from HTTP headers. httpx enforces ASCII
@@ -319,7 +347,7 @@ class NotificationService:
                 "Fight Mode, or front the server with Cloudflare Access using a "
                 "service token. (#1534)"
             )
-        return False, f"HTTP {response.status_code}: {response.text[:200]}"
+        return False, _opaque_http_failure(response, label="ntfy server")
 
     async def _send_pushover(
         self, config: dict, title: str, message: str, image_data: bytes | None = None
@@ -392,6 +420,14 @@ class NotificationService:
         if not bot_token or not chat_id:
             return False, "Bot token and chat ID are required"
 
+        thread_id_raw = str(config.get("message_thread_id") or "").strip()
+        message_thread_id: int | None = None
+        if thread_id_raw:
+            try:
+                message_thread_id = int(thread_id_raw)
+            except ValueError:
+                return False, f"Invalid message thread ID: {thread_id_raw!r} is not a number"
+
         # Escape underscores in the message body so Telegram Markdown
         # parsing doesn't break on job names like "A1_plate_8" or error
         # codes like "0300_0001".  The title is already wrapped in *bold*
@@ -406,18 +442,23 @@ class NotificationService:
         if image_data:
             # Use sendPhoto to attach the thumbnail with the caption
             url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+            form: dict[str, Any] = {"chat_id": chat_id, "caption": message, "parse_mode": "Markdown"}
+            if message_thread_id is not None:
+                form["message_thread_id"] = message_thread_id
             response = await client.post(
                 url,
-                data={"chat_id": chat_id, "caption": message, "parse_mode": "Markdown"},
+                data=form,
                 files={"photo": ("photo.jpg", image_data, "image/jpeg")},
             )
         else:
             url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-            data = {
+            data: dict[str, Any] = {
                 "chat_id": chat_id,
                 "text": message,
                 "parse_mode": "Markdown",
             }
+            if message_thread_id is not None:
+                data["message_thread_id"] = message_thread_id
             response = await client.post(url, json=data)
 
         if response.status_code == 200:
@@ -428,6 +469,49 @@ class NotificationService:
                 return False, f"Telegram error: {result.get('description', 'Unknown error')}"
         else:
             return False, f"HTTP {response.status_code}: {response.text[:200]}"
+
+    async def _send_bark(self, config: dict, title: str, message: str) -> tuple[bool, str]:
+        """Send notification via Bark."""
+        device_key = config.get("device_key", "").strip()
+        server = (config.get("server") or "https://api.day.app").strip().rstrip("/")
+
+        if not device_key:
+            return False, "Device key is required"
+
+        url_error = _assert_safe_provider_url(server, label="Bark server URL")
+        if url_error:
+            return False, url_error
+
+        payload: dict[str, Any] = {
+            "device_key": device_key,
+            "title": title,
+            "body": message,
+        }
+        for key in ("group", "sound"):
+            value = str(config.get(key) or "").strip()
+            if value:
+                payload[key] = value
+
+        level = str(config.get("level") or "").strip()
+        if level in {"passive", "active", "timeSensitive", "critical"}:
+            payload["level"] = level
+
+        client = await self._get_client()
+        response = await client.post(f"{server}/push", json=payload)
+
+        if response.status_code not in (200, 201, 202):
+            return False, _opaque_http_failure(response, label="Bark server")
+
+        try:
+            result = response.json()
+        except Exception:
+            return True, "Message sent successfully"
+
+        code = result.get("code")
+        if code in (None, 200):
+            return True, "Message sent successfully"
+        error_message = result.get("message") or result.get("error") or "Unknown Bark error"
+        return False, f"Bark error: {error_message}"
 
     async def _send_email(
         self,
@@ -607,6 +691,10 @@ class NotificationService:
         if not webhook_url:
             return False, "Webhook URL is required"
 
+        url_error = _assert_safe_provider_url(webhook_url, label="Webhook URL")
+        if url_error:
+            return False, url_error
+
         # Build payload based on format
         if payload_format == "slack":
             # Slack/Mattermost format - just text field
@@ -652,7 +740,7 @@ class NotificationService:
             if response.status_code in (200, 201, 202, 204):
                 return True, "Webhook delivered successfully"
             else:
-                return False, f"HTTP {response.status_code}: {response.text[:200]}"
+                return False, _opaque_http_failure(response, label="webhook endpoint")
         except Exception as e:
             return False, f"Webhook error: {str(e)}"
 
@@ -689,6 +777,10 @@ class NotificationService:
             return False, (
                 "Home Assistant is not configured. Please set HA URL and token in Settings → Network → Home Assistant."
             )
+
+        url_error = _assert_safe_provider_url(ha_url, label="Home Assistant URL")
+        if url_error:
+            return False, url_error
 
         # Determine which HA service to call - Default: persistent_notification.create
         service = (config.get("service") or "").strip()
@@ -735,7 +827,7 @@ class NotificationService:
         elif response.status_code == 401:
             return False, "Home Assistant authentication failed - check your token"
         else:
-            return False, f"HTTP {response.status_code}: {response.text[:200]}"
+            return False, _opaque_http_failure(response, label="Home Assistant endpoint")
 
     async def _send_to_provider(
         self,
@@ -764,6 +856,8 @@ class NotificationService:
                 return await self._send_pushover(config, title, message, image_data=image_data)
             elif provider.provider_type == "telegram":
                 return await self._send_telegram(config, f"*{title}*\n{message}", image_data=image_data)
+            elif provider.provider_type == "bark":
+                return await self._send_bark(config, title, message)
             elif provider.provider_type == "email":
                 # finish_photo_url is pulled from the rendered template variables
                 # so _send_email can detect whether the template referenced the

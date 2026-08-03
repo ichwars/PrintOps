@@ -5,17 +5,37 @@ import { useQueries } from '@tanstack/react-query';
 import { Settings as SettingsIcon } from 'lucide-react';
 import { CameraTile, type CameraTileMode, type CameraTileStatusMode } from './CameraTile';
 import { filterKnownHMSErrors } from './HMSErrorModal';
-import { api, type Printer, type PrinterStatus } from '../api/client';
+import { api, type PrinterStatus } from '../api/client';
+
+export interface CameraWallPrinter {
+  id: number;
+  name: string;
+  camera_rotation?: number;
+}
+
+export interface CameraWallStatus {
+  connected?: boolean;
+  state?: string | null;
+  progress?: number | null;
+  remaining_time?: number | null;
+  layer_num?: number | null;
+  total_layers?: number | null;
+  subtask_name?: string | null;
+  gcode_file?: string | null;
+  hms_errors?: PrinterStatus['hms_errors'];
+}
 
 interface CameraWallProps {
-  printers: Printer[];
+  printers: CameraWallPrinter[];
   maxLive: number;
   snapshotIntervalSec: number;
   statusMode: CameraTileStatusMode;
-  onTileClick: (printerId: number, printerName: string) => void;
+  onTileClick?: (printerId: number, printerName: string) => void;
   onChangeMaxLive: (next: number) => void;
   onChangeSnapshotIntervalSec: (next: number) => void;
   onChangeStatusMode: (next: CameraTileStatusMode) => void;
+  statuses?: Map<number, CameraWallStatus | undefined>;
+  showSettings?: boolean;
 }
 
 const MIN_MAX_LIVE = 1;
@@ -33,26 +53,31 @@ export function CameraWall({
   onChangeMaxLive,
   onChangeSnapshotIntervalSec,
   onChangeStatusMode,
+  statuses,
+  showSettings: settingsEnabled = true,
 }: CameraWallProps) {
   const { t } = useTranslation();
   const tileRefs = useRef<Map<number, HTMLDivElement | null>>(new Map());
 
   // Reuses the same ['printerStatus', id] cache that each PrinterCard
   // populates, so flipping between Cards and Cam Wall is instant.
+  const ownQueries = statuses ? [] : printers;
   const statusQueries = useQueries({
-    queries: printers.map((p) => ({
+    queries: ownQueries.map((p) => ({
       queryKey: ['printerStatus', p.id],
       queryFn: () => api.getPrinterStatus(p.id),
       staleTime: 5000,
     })),
   });
-  const statusByPrinter = useMemo(() => {
-    const map = new Map<number, PrinterStatus | undefined>();
-    printers.forEach((p, i) => {
+  const fetchedStatuses = useMemo(() => {
+    const map = new Map<number, CameraWallStatus | undefined>();
+    ownQueries.forEach((p, i) => {
       map.set(p.id, statusQueries[i]?.data);
     });
     return map;
-  }, [printers, statusQueries]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [printers, statusQueries, statuses]);
+  const statusByPrinter = statuses ?? fetchedStatuses;
   const [visibleIds, setVisibleIds] = useState<Set<number>>(() => new Set());
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef<HTMLDivElement | null>(null);
@@ -136,6 +161,7 @@ export function CameraWall({
             total: printers.length,
           })}
         </span>
+        {settingsEnabled && (
         <div className="relative" ref={settingsRef}>
           <button
             type="button"
@@ -223,6 +249,7 @@ export function CameraWall({
             </div>
           )}
         </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -257,7 +284,7 @@ export function CameraWall({
                 hmsErrorCount={
                   filterKnownHMSErrors(statusByPrinter.get(p.id)?.hms_errors ?? []).length
                 }
-                onClick={() => onTileClick(p.id, p.name)}
+                onClick={onTileClick ? () => onTileClick(p.id, p.name) : undefined}
               />
             </div>
           );

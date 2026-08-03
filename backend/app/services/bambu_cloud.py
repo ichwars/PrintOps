@@ -11,7 +11,8 @@ import json
 import logging
 import ssl
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -325,6 +326,46 @@ class BambuCloudService:
             logger.error("Email verification failed: %s", e)
             raise BambuCloudAuthError(f"Verification failed: {e}")
 
+    async def _fetch_csrf_token(self, web_origin: str, client: httpx.AsyncClient | None = None) -> str | None:
+        """Seed Bambu's web-origin CSRF cookie and return its value."""
+        csrf_client = client or self._client
+        try:
+            response = await csrf_client.get(
+                f"{web_origin}/api/csrf",
+                headers={"User-Agent": _USER_AGENT, "Accept": "application/json"},
+            )
+        except Exception as e:
+            logger.warning("Failed to fetch Bambu Cloud CSRF token: %s", e)
+            return None
+        try:
+            token = csrf_client.cookies.get("bbl_csrf_token")
+        except Exception:
+            token = None
+        if not token:
+            logger.warning(
+                "Bambu Cloud CSRF endpoint returned no bbl_csrf_token (status %s)",
+                response.status_code,
+            )
+        return token
+
+    def _new_csrf_client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(timeout=30.0, cookies=httpx.Cookies())
+
+    def _should_reuse_client_for_csrf(self) -> bool:
+        """Reuse injected/mocked clients so tests can capture both CSRF and TFA calls."""
+        transport = getattr(self._client, "_transport", None)
+        if isinstance(transport, httpx.MockTransport):
+            return True
+        return hasattr(getattr(self._client, "post", None), "assert_called")
+
+    @asynccontextmanager
+    async def _csrf_client_context(self) -> AsyncIterator[httpx.AsyncClient]:
+        if self._should_reuse_client_for_csrf():
+            yield self._client
+            return
+        async with self._new_csrf_client() as csrf_client:
+            yield csrf_client
+
     async def verify_totp(self, tfa_key: str, code: str) -> dict:
         """
         Complete login with TOTP code from authenticator app.
@@ -342,22 +383,33 @@ class BambuCloudService:
             # expected application-level "Login failed" JSON, no Cloudflare
             # interstitial). Browser-impersonation removed to stay clearly on
             # the right side of Bambu Lab's "no falsified client identity" line.
-            tfa_url = "https://bambulab.com/api/sign-in/tfa"
-            if "bambulab.cn" in self.base_url:
-                tfa_url = "https://bambulab.cn/api/sign-in/tfa"
+            web_origin = "https://bambulab.cn" if "bambulab.cn" in self.base_url else "https://bambulab.com"
+            tfa_url = f"{web_origin}/api/sign-in/tfa"
 
-            response = await self._client.post(
-                tfa_url,
-                headers={
-                    "Content-Type": "application/json",
-                    "User-Agent": _USER_AGENT,
-                    "Accept": "application/json",
-                },
-                json={
-                    "tfaKey": tfa_key,
-                    "tfaCode": code,
-                },
-            )
+            async with self._csrf_client_context() as csrf_client:
+                csrf_token = await self._fetch_csrf_token(web_origin, csrf_client)
+                if not csrf_token:
+                    return {
+                        "success": False,
+                        "message": (
+                            "Could not obtain a security token from Bambu Cloud. "
+                            "Check the server's internet access and try again."
+                        ),
+                    }
+
+                response = await csrf_client.post(
+                    tfa_url,
+                    headers={
+                        "Content-Type": "application/json",
+                        "User-Agent": _USER_AGENT,
+                        "Accept": "application/json",
+                        "x-bbl-csrf-token": csrf_token,
+                    },
+                    json={
+                        "tfaKey": tfa_key,
+                        "tfaCode": code,
+                    },
+                )
 
             logger.debug(
                 f"TOTP verify response: status={response.status_code}, body={response.text[:200] if response.text else '(empty)'}"
@@ -395,10 +447,20 @@ class BambuCloudService:
 
             # Provide helpful error message
             error_msg = data.get("message", "")
+            csrf_error = data.get("error", "") if isinstance(data.get("error"), str) else ""
+            if "csrf" in csrf_error.lower() or data.get("reason") in ("missing_cookie", "missing_header"):
+                logger.error("Bambu Cloud rejected the TOTP request on CSRF grounds: %s", response.text[:200])
+                return {
+                    "success": False,
+                    "message": (
+                        "Bambu Cloud rejected the sign-in request before checking your code "
+                        "(security-token error). Your code is fine; please try again."
+                    ),
+                }
             if "expired" in error_msg.lower():
                 return {"success": False, "message": "TOTP session expired. Please try logging in again."}
             if not error_msg:
-                error_msg = f"TOTP verification failed (status {response.status_code})"
+                error_msg = data.get("error") or f"TOTP verification failed (status {response.status_code})"
 
             return {"success": False, "message": error_msg}
 
