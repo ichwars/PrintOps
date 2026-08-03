@@ -6685,6 +6685,20 @@ class TestKProfileRequestCorrelation:
         assert [p.name for p in profiles] == ["wanted"]
         assert [p.name for p in mqtt_client.state.kprofiles] == ["wanted"]
 
+    def test_matching_sequence_with_wrong_nozzle_does_not_satisfy_request(self, mqtt_client):
+        event = asyncio.Event()
+        request = {"nozzle": "0.8", "event": event, "profiles": None}
+        mqtt_client._pending_kprofile_requests["7"] = request
+
+        mqtt_client._process_message(self._response("0.4", "7", "wrong"))
+
+        assert not event.is_set()
+        assert request["profiles"] is None
+
+        mqtt_client._process_message(self._response("0.8", "7", "wanted"))
+        assert event.is_set()
+        assert [p.name for p in request["profiles"]] == ["wanted"]
+
     @pytest.mark.asyncio
     async def test_pending_entry_is_released_on_timeout(self, mqtt_client):
         # A timed-out attempt must not leave its entry behind, or a later

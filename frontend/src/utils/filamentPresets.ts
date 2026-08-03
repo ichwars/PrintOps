@@ -139,7 +139,7 @@ export function buildFilamentPresetOptions(sources: FilamentPresetSources): Fila
   // we can offer without a per-preset detail fetch.
   for (const lp of localPresets ?? []) {
     const name = presetDisplayName(lp.name);
-    const material = lp.filament_type || parsePresetName(name).material;
+    const material = parsePresetName(name).material || lp.filament_type;
     // No id is claimed here: the generic id an import maps to is shared by
     // every filament of that material, so claiming it would let the first
     // imported PLA swallow every other PLA in the list.

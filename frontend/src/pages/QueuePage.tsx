@@ -1731,6 +1731,42 @@ export function QueuePage() {
     return items;
   }, [queue, filterLocation, matchesLocationFilter]);
 
+  // Statuses drive both the timeline and whether an if-started-now ETA is honest.
+  const activePrinterIds = useMemo(() => {
+    const ids = new Set<number>();
+    printers?.forEach(printer => {
+      if (printer.is_active) ids.add(printer.id);
+    });
+    activeItems.forEach(item => {
+      if (item.printer_id) ids.add(item.printer_id);
+    });
+    return Array.from(ids);
+  }, [activeItems, printers]);
+
+  // Fetch statuses for configured and queue-referenced printers.
+  const printerStatusQueries = useQueries({
+    queries: activePrinterIds.map(printerId => ({
+      queryKey: ['printerStatus', printerId],
+      queryFn: () => api.getPrinterStatus(printerId),
+      refetchInterval: 5000,
+    })),
+  });
+
+  const liveStatusByPrinter = useMemo(() => {
+    const map = new Map<number, { connected: boolean; state: string | null; awaitingPlateClear: boolean }>();
+    activePrinterIds.forEach((printerId, index) => {
+      const status = printerStatusQueries[index]?.data;
+      if (status) {
+        map.set(printerId, {
+          connected: status.connected,
+          state: status.state,
+          awaitingPlateClear: status.awaiting_plate_clear,
+        });
+      }
+    });
+    return map;
+  }, [activePrinterIds, printerStatusQueries]);
+
   const etaEligibleIds = useMemo(() => {
     const eligible = new Set<number>();
     if (!queue) return eligible;
@@ -1739,12 +1775,20 @@ export function QueuePage() {
     queue.forEach(item => {
       if (item.status === 'printing' && item.printer_id) busyPrinters.add(item.printer_id);
     });
-
+    const isAvailable = (printerId: number): boolean => {
+      const status = liveStatusByPrinter.get(printerId);
+      return Boolean(
+        status?.connected &&
+        status.state &&
+        ['IDLE', 'FINISH', 'FAILED'].includes(status.state) &&
+        !status.awaitingPlateClear &&
+        !busyPrinters.has(printerId)
+      );
+    };
     const isFutureScheduled = (item: PrintQueueItem): boolean => {
       if (!item.scheduled_time) return false;
       return (parseUTCDate(item.scheduled_time)?.getTime() ?? 0) > Date.now();
     };
-
     const schedulerOrder = (a: PrintQueueItem, b: PrintQueueItem): number => {
       if (settings?.queue_shortest_first) {
         const aJumped = a.been_jumped ? 1 : 0;
@@ -1756,14 +1800,10 @@ export function QueuePage() {
       }
       return a.position - b.position;
     };
-
     const contenders = new Map<number, PrintQueueItem[]>();
     queue
       .filter(item =>
-        item.status === 'pending' &&
-        item.printer_id != null &&
-        !item.manual_start &&
-        !isFutureScheduled(item)
+        item.status === 'pending' && item.printer_id != null && !item.manual_start && !isFutureScheduled(item)
       )
       .sort(schedulerOrder)
       .forEach(item => {
@@ -1773,23 +1813,26 @@ export function QueuePage() {
       });
 
     queue.forEach(item => {
-      if (item.status !== 'pending') return;
-      if (item.waiting_reason || isFutureScheduled(item)) return;
-      if (item.print_time_seconds == null || item.print_time_seconds <= 0) return;
-      if (item.require_previous_success) return;
+      if (item.status !== 'pending' || item.waiting_reason || isFutureScheduled(item)) return;
+      if (item.print_time_seconds == null || item.print_time_seconds <= 0 || item.require_previous_success) return;
 
       if (item.printer_id == null) {
-        eligible.add(item.id);
+        if (!item.target_model) return;
+        const hasMatchingPrinter = printers?.some(printer =>
+          printer.is_active &&
+          printer.model?.toLowerCase() === item.target_model?.toLowerCase() &&
+          (!item.target_location || printer.location === item.target_location) &&
+          isAvailable(printer.id)
+        );
+        if (hasMatchingPrinter) eligible.add(item.id);
         return;
       }
-      if (busyPrinters.has(item.printer_id)) return;
-      if (item.manual_start || contenders.get(item.printer_id)?.[0]?.id === item.id) {
-        eligible.add(item.id);
-      }
+      if (!isAvailable(item.printer_id)) return;
+      if (item.manual_start || contenders.get(item.printer_id)?.[0]?.id === item.id) eligible.add(item.id);
     });
 
     return eligible;
-  }, [queue, settings?.queue_shortest_first]);
+  }, [liveStatusByPrinter, printers, queue, settings?.queue_shortest_first]);
 
   const [etaNow, setEtaNow] = useState(() => Date.now());
   const hasEtas = etaEligibleIds.size > 0;
@@ -1799,24 +1842,6 @@ export function QueuePage() {
     const timer = setInterval(() => setEtaNow(Date.now()), 30000);
     return () => clearInterval(timer);
   }, [hasEtas]);
-
-  // Get unique printer IDs from active items to fetch their statuses
-  const activePrinterIds = useMemo(() => {
-    const ids = new Set<number>();
-    activeItems.forEach(item => {
-      if (item.printer_id) ids.add(item.printer_id);
-    });
-    return Array.from(ids);
-  }, [activeItems]);
-
-  // Fetch printer statuses for printers with active jobs
-  const printerStatusQueries = useQueries({
-    queries: activePrinterIds.map(printerId => ({
-      queryKey: ['printerStatus', printerId],
-      queryFn: () => api.getPrinterStatus(printerId),
-      refetchInterval: 5000,
-    })),
-  });
 
   // Build a map of printer_id -> state for quick lookup
   const printerStateMap = useMemo(() => {

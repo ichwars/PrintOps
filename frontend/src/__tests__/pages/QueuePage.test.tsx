@@ -103,6 +103,7 @@ const mockPrinters = [
     serial_number: 'TESTSERIAL0001',
     access_code: '12345678',
     model: 'X1C',
+    is_active: true,
     enabled: true,
     created_at: '2024-01-01T00:00:00Z',
   },
@@ -203,7 +204,7 @@ describe('QueuePage', () => {
 
       const row = (await screen.findByText('Test Print 1')).closest('.group');
       expect(row).not.toBeNull();
-      expect(within(row as HTMLElement).getByTestId('queue-item-eta')).toHaveAttribute(
+      expect(await within(row as HTMLElement).findByTestId('queue-item-eta')).toHaveAttribute(
         'title',
         'Completion time if this job started now',
       );
@@ -217,6 +218,39 @@ describe('QueuePage', () => {
       expect(within(row as HTMLElement).queryByTestId('queue-item-eta')).not.toBeInTheDocument();
     });
 
+    it('does not show an ETA when the printer is busy outside the queue', async () => {
+      server.use(
+        http.get('/api/v1/queue/', () => HttpResponse.json([mockQueueItems[0]])),
+        http.get('/api/v1/printers/1/status', () => HttpResponse.json({
+          connected: true,
+          state: 'RUNNING',
+          awaiting_plate_clear: false,
+        })),
+      );
+      render(<QueuePage />);
+
+      const row = (await screen.findByText('Test Print 1')).closest('.group');
+      expect(row).not.toBeNull();
+      await waitFor(() => {
+        expect(within(row as HTMLElement).queryByTestId('queue-item-eta')).not.toBeInTheDocument();
+      });
+    });
+
+    it('does not show an ETA for an unassigned job without a matching idle printer', async () => {
+      server.use(http.get('/api/v1/queue/', () => HttpResponse.json([{
+        ...mockQueueItems[0],
+        printer_id: null,
+        printer_name: null,
+        target_model: 'A1',
+        archive_name: 'Unassigned A1 Print',
+      }])));
+      render(<QueuePage />);
+
+      const row = (await screen.findByText('Unassigned A1 Print')).closest('.group');
+      expect(row).not.toBeNull();
+      expect(within(row as HTMLElement).queryByTestId('queue-item-eta')).not.toBeInTheDocument();
+    });
+
     it('shows the ETA only on the next queued item for an idle printer', async () => {
       server.use(http.get('/api/v1/queue/', () => HttpResponse.json([
         { ...mockQueueItems[0], id: 10, position: 1, archive_name: 'First up' },
@@ -226,9 +260,11 @@ describe('QueuePage', () => {
       render(<QueuePage />);
       await screen.findByText('Third up');
 
-      const etaRows = screen.queryAllByTestId('queue-item-eta').map(element => element.closest('.group')?.textContent);
-      expect(etaRows).toHaveLength(1);
-      expect(etaRows[0]).toContain('First up');
+      await waitFor(() => {
+        const etaRows = screen.queryAllByTestId('queue-item-eta').map(element => element.closest('.group')?.textContent);
+        expect(etaRows).toHaveLength(1);
+        expect(etaRows[0]).toContain('First up');
+      });
     });
 
     it('shows an ETA for a staged item on an idle printer', async () => {
@@ -240,7 +276,22 @@ describe('QueuePage', () => {
 
       const row = (await screen.findByText('Staged second')).closest('.group');
       expect(row).not.toBeNull();
-      expect(within(row as HTMLElement).getByTestId('queue-item-eta')).toBeInTheDocument();
+      expect(await within(row as HTMLElement).findByTestId('queue-item-eta')).toBeInTheDocument();
+    });
+
+    it('shows an ETA for an unassigned job with a matching idle printer', async () => {
+      server.use(http.get('/api/v1/queue/', () => HttpResponse.json([{
+        ...mockQueueItems[0],
+        printer_id: null,
+        printer_name: null,
+        target_model: 'X1C',
+        archive_name: 'Unassigned X1C Print',
+      }])));
+      render(<QueuePage />);
+
+      const row = (await screen.findByText('Unassigned X1C Print')).closest('.group');
+      expect(row).not.toBeNull();
+      expect(await within(row as HTMLElement).findByTestId('queue-item-eta')).toBeInTheDocument();
     });
 
     it('does not show an ETA for a job conditional on a previous print', async () => {

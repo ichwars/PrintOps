@@ -4372,13 +4372,9 @@ class BambuMQTTClient:
         return True
 
     def _handle_kprofile_response(self, data: dict):
-        """Handle K-profile response from printer."""
         response_nozzle = data.get("nozzle_diameter")
         response_seq_id = str(data.get("sequence_id", ""))
         filaments = data.get("filaments", [])
-
-        # Snapshot the map: the asyncio thread adds and removes entries while
-        # this MQTT callback thread walks it.
         pending = dict(self._pending_kprofile_requests)
         request = pending.get(response_seq_id)
 
@@ -4400,7 +4396,6 @@ class BambuMQTTClient:
             )
 
         if request is None and pending:
-            # Ignore unsolicited broadcasts while another nozzle request waits.
             logger.debug(
                 "[%s] Ignoring unmatched K-profile response: nozzle=%s, seq_id=%s",
                 self.serial_number,
@@ -4409,24 +4404,29 @@ class BambuMQTTClient:
             )
             return
 
-        profiles = parse_kprofile_entries(filaments, response_nozzle, log_errors=request is not None)
+        if request is not None and response_nozzle is not None and str(response_nozzle) != request["nozzle"]:
+            logger.debug(
+                "[%s] Ignoring K-profile response with mismatched nozzle: expected=%s, got=%s",
+                self.serial_number,
+                request["nozzle"],
+                response_nozzle,
+            )
+            return
+
+        nozzle = response_nozzle or (request["nozzle"] if request is not None else None)
+        profiles = parse_kprofile_entries(filaments, nozzle, log_errors=request is not None)
         self.state.kprofiles = profiles
 
         if request is None:
-            # Unsolicited broadcast with nothing in flight: state is refreshed,
-            # nobody to wake.
             return
 
         logger.info("[%s] Got %s K-profiles for nozzle=%s", self.serial_number, len(profiles), response_nozzle)
         request["profiles"] = profiles
 
-        # Signal the waiter. Use the thread-safe path since MQTT callbacks run
-        # in a different thread than the event loop.
         event = request["event"]
         if self._loop and self._loop.is_running():
             self._loop.call_soon_threadsafe(event.set)
         else:
-            # Fallback for when loop is not available
             event.set()
 
     async def get_kprofiles(

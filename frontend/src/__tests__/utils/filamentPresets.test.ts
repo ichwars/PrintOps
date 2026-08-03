@@ -126,11 +126,19 @@ describe('buildFilamentPresetOptions', () => {
 
   it('gives local and orca presets the generic id for their material', () => {
     const options = buildFilamentPresetOptions({
-      localPresets: [localPreset({ filament_type: 'PETG' })],
+      localPresets: [localPreset({ name: 'Elegoo PETG @BBL X1C 0.4 nozzle', filament_type: 'PETG' })],
       orcaProfiles: [orcaProfile({ name: 'Sunlu ABS @BBL X1C' })],
     });
     expect(options.find(o => o.source === 'local')?.filamentId).toBe('GFG99');
     expect(options.find(o => o.source === 'orca_cloud')?.filamentId).toBe('GFB99');
+  });
+
+  it('prefers a recognizable material in the local preset name over stale metadata', () => {
+    const [option] = buildFilamentPresetOptions({
+      localPresets: [localPreset({ name: 'Overture PETG @BBL X1C', filament_type: 'PLA' })],
+    });
+    expect(option.filamentId).toBe('GFG99');
+    expect(option.filamentType).toBe('PETG');
   });
 
   it('parses the material from the name when a local preset declares none', () => {
