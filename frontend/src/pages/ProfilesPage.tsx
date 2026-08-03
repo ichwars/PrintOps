@@ -92,9 +92,7 @@ function isUserPreset(settingId: string): boolean {
   return /^(P[FPM]US|PF\d|PP\d)/.test(settingId);
 }
 
-// ============================================================================
 // LOGIN FORM
-// ============================================================================
 
 function LoginForm({ onSuccess, t }: { onSuccess: () => void; t: TFunction }) {
   const { showToast } = useToast();
@@ -303,9 +301,7 @@ function LoginForm({ onSuccess, t }: { onSuccess: () => void; t: TFunction }) {
   );
 }
 
-// ============================================================================
 // FILTER DROPDOWN
-// ============================================================================
 
 export function FilterDropdown({
   label,
@@ -357,9 +353,7 @@ export function FilterDropdown({
   );
 }
 
-// ============================================================================
 // SCROLL TO TOP BUTTON
-// ============================================================================
 
 function ScrollToTop() {
   const [isVisible, setIsVisible] = useState(false);
@@ -390,9 +384,7 @@ function ScrollToTop() {
   );
 }
 
-// ============================================================================
 // PRESET LIST ITEM (compact row style like K-Profiles)
-// ============================================================================
 
 function PresetListItem({
   setting,
@@ -470,9 +462,7 @@ function PresetListItem({
   );
 }
 
-// ============================================================================
 // PRESET DETAIL MODAL
-// ============================================================================
 
 // Format JSON for display, converting escaped newlines to real newlines in string values
 function formatJsonForDisplay(obj: unknown, indent = 0): string {
@@ -661,9 +651,7 @@ function PresetDetailModal({
   );
 }
 
-// ============================================================================
 // TEMPLATES
-// ============================================================================
 
 type EditorTab = 'common' | 'fields' | 'json';
 
@@ -691,9 +679,7 @@ function saveCustomTemplates(templates: CustomTemplate[]) {
   localStorage.setItem('bambusy_preset_templates', JSON.stringify(templates));
 }
 
-// ============================================================================
 // TEMPLATES MODAL (manage templates from main page)
-// ============================================================================
 
 function TemplatesModal({
   onClose,
@@ -982,9 +968,7 @@ function TemplatesModal({
   );
 }
 
-// ============================================================================
 // DIFF MODAL - Compare two presets or preset vs base
-// ============================================================================
 
 type DiffEntry = {
   key: string;
@@ -1265,9 +1249,7 @@ function DiffModal({
   );
 }
 
-// ============================================================================
 // CREATE PRESET MODAL
-// ============================================================================
 
 function CreatePresetModal({
   onClose,
@@ -2240,9 +2222,7 @@ function CreatePresetModal({
   );
 }
 
-// ============================================================================
 // CLOUD PROFILES VIEW
-// ============================================================================
 
 function CloudProfilesView({
   settings,
@@ -2811,9 +2791,7 @@ function CloudProfilesView({
   );
 }
 
-// ============================================================================
 // MAIN PAGE
-// ============================================================================
 
 export function ProfilesPage() {
   const { t } = useTranslation();

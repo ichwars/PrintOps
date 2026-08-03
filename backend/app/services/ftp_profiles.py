@@ -56,9 +56,7 @@ class FTPProfile:
     cap_tls_v1_2: bool = False
 
 
-# ---------------------------------------------------------------------------
 # Profile registry
-# ---------------------------------------------------------------------------
 
 # Default profile = historical behaviour. Used for every model that
 # doesn't have an entry in ``_PROFILES``.

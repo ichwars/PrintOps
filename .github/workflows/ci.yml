@@ -45,8 +45,8 @@ jobs:
       - name: Run ruff format check
         run: ruff format --check backend/
 
-      - name: Run Python size budget
-        run: python tools/check_python_size_budget.py
+      - name: Run source size budget
+        run: python tools/check_source_size_budget.py
 
   backend-security:
     name: Backend Security

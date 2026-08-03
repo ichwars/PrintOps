@@ -69,9 +69,7 @@ class CameraProfile:
     black_frame_reconnect_threshold: int = 0
 
 
-# ---------------------------------------------------------------------------
 # Profile registry
-# ---------------------------------------------------------------------------
 
 # Default profile = historical X1/H2 fast-startup behaviour. Used for
 # every RTSP-capable model that doesn't have an entry in ``_PROFILES``.

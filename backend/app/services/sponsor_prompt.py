@@ -48,9 +48,7 @@ class Trigger:
     payload: dict[str, Any] = field(default_factory=dict)
 
 
-# ---------------------------------------------------------------------------
 # State helpers
-# ---------------------------------------------------------------------------
 
 
 async def _get_or_create_state(db: AsyncSession, user_id: int | None) -> SponsorToastState:
@@ -94,9 +92,7 @@ def _seen_milestones(state: SponsorToastState) -> set[str]:
         return set()
 
 
-# ---------------------------------------------------------------------------
 # Per-family checks
-# ---------------------------------------------------------------------------
 
 
 def _user_filter(column, user_id: int | None):
@@ -220,9 +216,7 @@ _CHECKS = (
 )
 
 
-# ---------------------------------------------------------------------------
 # Public API
-# ---------------------------------------------------------------------------
 
 
 async def evaluate(db: AsyncSession, user_id: int | None) -> Trigger | None:

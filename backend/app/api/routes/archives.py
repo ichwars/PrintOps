@@ -2890,9 +2890,7 @@ async def process_timelapse(
             audio_temp_path.unlink()
 
 
-# ============================================
 # Photo Endpoints
-# ============================================
 
 
 @router.post("/{archive_id}/photos")
@@ -3022,9 +3020,7 @@ async def delete_photo(
     return {"status": "deleted", "photos": archive.photos}
 
 
-# ============================================
 # QR Code Endpoint
-# ============================================
 
 
 @router.get("/{archive_id}/qrcode")
@@ -4240,9 +4236,7 @@ async def reprint_archive(
     )
 
 
-# =============================================================================
 # Project Page API
-# =============================================================================
 
 
 @router.get("/{archive_id}/project-page")
@@ -4341,9 +4335,7 @@ async def get_project_image(
     )
 
 
-# =============================================================================
 # Source 3MF API (Original Project Files)
-# =============================================================================
 
 
 def _resolve_source_3mf_path(archive: PrintArchive, source_filename: str) -> Path:
@@ -4688,9 +4680,7 @@ async def delete_source_3mf(
     return {"status": "deleted"}
 
 
-# =============================================================================
 # F3D API (Fusion 360 Design Files)
-# =============================================================================
 
 
 @router.post("/{archive_id}/f3d")

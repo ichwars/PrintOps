@@ -283,9 +283,7 @@ async def _apply_price_if_set(client: SpoolmanClient, spool: dict, cost_per_kg: 
         return spool, [f"price_not_set: Spoolman rejected the price update (HTTP {exc.status_code})"]
 
 
-# ---------------------------------------------------------------------------
 # Request / response schemas
-# ---------------------------------------------------------------------------
 
 
 _HEX_RE = re.compile(r"^[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$")
@@ -441,9 +439,7 @@ class SpoolSlotAssignmentRequest(BaseModel):
     tray_id: int = Field(..., ge=0, le=3)
 
 
-# ---------------------------------------------------------------------------
 # Endpoints
-# ---------------------------------------------------------------------------
 
 
 @router.get("/spools")

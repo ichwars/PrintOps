@@ -44,10 +44,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
 # Endpoints + client identity (env-overridable so staging can be targeted
 # without a code change). Defaults point at production.
-# ---------------------------------------------------------------------------
 
 _DEFAULT_API_BASE = "https://api.orcaslicer.com"
 
@@ -102,9 +100,7 @@ def is_external_refresh_token(token: str | None) -> bool:
     return bool(token and token.startswith(REFRESH_TOKEN_PREFIX))
 
 
-# ---------------------------------------------------------------------------
 # Device-poll outcomes
-# ---------------------------------------------------------------------------
 
 
 class DevicePoll:
@@ -153,7 +149,6 @@ def set_shared_http_client(client: httpx.AsyncClient | None) -> None:
 
 
 # Service class
-# ---------------------------------------------------------------------------
 
 
 class OrcaCloudService:
@@ -229,9 +224,7 @@ class OrcaCloudService:
             "Accept": "application/json",
         }
 
-    # ------------------------------------------------------------------
     # Device authorization grant (RFC 8628)
-    # ------------------------------------------------------------------
 
     async def request_device_code(
         self,
@@ -365,9 +358,7 @@ class OrcaCloudService:
         else:
             self.token_expiry = None
 
-    # ------------------------------------------------------------------
     # External API
-    # ------------------------------------------------------------------
 
     async def introspect(self) -> dict[str, Any]:
         """Return the pairing's introspection record (``user_id``,
@@ -434,9 +425,7 @@ class OrcaCloudService:
                 return profile
         raise OrcaCloudError(f"Orca Cloud profile {profile_id!r} not found (scanned {len(profiles)} profiles)")
 
-    # ------------------------------------------------------------------
     # Lifecycle
-    # ------------------------------------------------------------------
 
     async def close(self) -> None:
         """Release the underlying httpx client iff we own it. No-op if we're

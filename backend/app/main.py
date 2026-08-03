@@ -137,9 +137,7 @@ from backend.app.services.spoolman_tracking import (
 from backend.app.services.tasmota import tasmota_service
 
 
-# =============================================================================
 # Dependency Check - runs before other imports to give helpful error messages
-# =============================================================================
 def _start_error_server(missing_packages: list):
     """Start a minimal HTTP server to display dependency errors in browser."""
     import os
@@ -255,7 +253,6 @@ def check_dependencies():
 
 
 check_dependencies()
-# =============================================================================
 
 
 # Import settings first for logging configuration
@@ -5803,9 +5800,7 @@ def stop_camera_cleanup():
         logging.getLogger(__name__).info("Camera stream cleanup stopped")
 
 
-# ---------------------------------------------------------------------------
 # Expected-print TTL eviction
-# ---------------------------------------------------------------------------
 
 
 def _evict_stale_expected_prints() -> None:
@@ -5873,9 +5868,7 @@ def stop_expected_prints_cleanup() -> None:
         logging.getLogger(__name__).info("Expected prints cleanup stopped")
 
 
-# ---------------------------------------------------------------------------
 # L-2: Periodic auth-token cleanup (stale TOTP + expired revoked JTIs)
-# ---------------------------------------------------------------------------
 
 _auth_cleanup_task: asyncio.Task | None = None
 _AUTH_CLEANUP_INTERVAL = 3600  # seconds (hourly)
@@ -6361,9 +6354,7 @@ app = FastAPI(
 )
 
 
-# =============================================================================
 # Authentication Middleware - Secures ALL API routes by default
-# =============================================================================
 # Public routes that don't require authentication even when auth is enabled
 PUBLIC_API_ROUTES = {
     # Auth routes needed before/during login

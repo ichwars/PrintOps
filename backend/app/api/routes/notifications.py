@@ -89,9 +89,7 @@ def _provider_to_dict(provider: NotificationProvider) -> dict:
     }
 
 
-# ============================================================================
 # Provider List/Create Routes (no path parameters)
-# ============================================================================
 
 
 @router.get("/", response_model=list[NotificationProviderResponse])
@@ -171,9 +169,7 @@ async def create_notification_provider(
     return _provider_to_dict(provider)
 
 
-# ============================================================================
 # Static Path Routes (must come BEFORE parameterized routes)
-# ============================================================================
 
 
 @router.post("/test-config", response_model=NotificationTestResponse)
@@ -239,9 +235,7 @@ async def test_all_notification_providers(
     }
 
 
-# ============================================================================
 # Notification Log Routes (must come BEFORE /{provider_id} routes)
-# ============================================================================
 
 
 @router.get("/logs", response_model=list[NotificationLogResponse])
@@ -370,9 +364,7 @@ async def clear_notification_logs(
     return {"deleted": deleted_count, "message": f"Deleted {deleted_count} logs older than {older_than_days} days"}
 
 
-# ============================================================================
 # Provider Instance Routes (parameterized - must come LAST)
-# ============================================================================
 
 
 @router.get("/{provider_id}", response_model=NotificationProviderResponse)

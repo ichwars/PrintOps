@@ -167,14 +167,10 @@ def _as_utc(dt: datetime) -> datetime:
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
-# ---------------------------------------------------------------------------
 # Passlib context (same scheme as auth.py)
-# ---------------------------------------------------------------------------
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
-# ---------------------------------------------------------------------------
 # TTL / rate-limit constants
-# ---------------------------------------------------------------------------
 MAX_2FA_ATTEMPTS = 5
 MAX_LOGIN_ATTEMPTS = 10
 LOCKOUT_WINDOW = timedelta(minutes=15)
@@ -184,15 +180,11 @@ PRE_AUTH_TOKEN_TTL = timedelta(minutes=5)
 OIDC_STATE_TTL = timedelta(minutes=10)
 OIDC_EXCHANGE_TTL = timedelta(minutes=2)
 
-# ---------------------------------------------------------------------------
 # Router
-# ---------------------------------------------------------------------------
 router = APIRouter(prefix="/auth", tags=["2fa", "oidc"])
 
 
-# ---------------------------------------------------------------------------
 # Helper: user response
-# ---------------------------------------------------------------------------
 def _user_to_response(user: User) -> UserResponse:
     return UserResponse(
         id=user.id,
@@ -207,9 +199,7 @@ def _user_to_response(user: User) -> UserResponse:
     )
 
 
-# ---------------------------------------------------------------------------
 # Helper: QR code generation
-# ---------------------------------------------------------------------------
 def _generate_totp_qr_b64(provisioning_uri: str) -> str:
     """Generate a base64-encoded PNG QR code for the given TOTP provisioning URI."""
     import qrcode  # type: ignore
@@ -223,9 +213,7 @@ def _generate_totp_qr_b64(provisioning_uri: str) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
-# ---------------------------------------------------------------------------
 # Helper: backup code generation
-# ---------------------------------------------------------------------------
 def _generate_backup_codes() -> tuple[list[str], list[str]]:
     """Return (plain_codes, hashed_codes) — 10 codes of 8 alphanumeric chars each."""
     alphabet = string.ascii_uppercase + string.digits
@@ -234,9 +222,7 @@ def _generate_backup_codes() -> tuple[list[str], list[str]]:
     return plain, hashed
 
 
-# ---------------------------------------------------------------------------
 # DB-backed pre-auth token helpers
-# ---------------------------------------------------------------------------
 async def create_pre_auth_token(db: AsyncSession, username: str, challenge_id: str | None = None) -> str:
     """Create a single-use pre-auth token stored in the DB.
 
@@ -323,9 +309,7 @@ async def peek_pre_auth_token(db: AsyncSession, token: str, challenge_id: str | 
     return eph.username
 
 
-# ---------------------------------------------------------------------------
 # DB-backed rate-limiting helpers
-# ---------------------------------------------------------------------------
 async def check_rate_limit(
     db: AsyncSession,
     username: str,
@@ -418,9 +402,7 @@ async def record_email_otp_send(db: AsyncSession, username: str) -> None:
     await db.commit()
 
 
-# ---------------------------------------------------------------------------
 # TOTP replay-protection helper
-# ---------------------------------------------------------------------------
 def _assert_totp_not_replayed(totp_obj: pyotp.TOTP, totp_record: UserTOTP, code: str) -> None:
     """Raise HTTP 400 if this TOTP code was already accepted in its time window.
 
@@ -444,9 +426,7 @@ def _assert_totp_not_replayed(totp_obj: pyotp.TOTP, totp_record: UserTOTP, code:
     totp_record.accept_counter(accepted_counter)
 
 
-# ---------------------------------------------------------------------------
 # OIDC helpers
-# ---------------------------------------------------------------------------
 _EMAIL_SHAPE_RE = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]+")
 
 
@@ -630,9 +610,7 @@ def _resolve_standard_email_for_user_record(provider: OIDCProvider, claims: dict
     return raw_email
 
 
-# ---------------------------------------------------------------------------
 # Settings helpers (email 2FA flag)
-# ---------------------------------------------------------------------------
 async def _get_email_2fa_enabled(db: AsyncSession, user_id: int) -> bool:
     val = await get_setting(db, f"user_{user_id}_email_2fa_enabled")
     return val == "true"
@@ -642,9 +620,7 @@ async def _set_email_2fa_enabled(db: AsyncSession, user_id: int, enabled: bool) 
     await set_setting(db, f"user_{user_id}_email_2fa_enabled", "true" if enabled else "false")
 
 
-# ===========================================================================
 # 2FA Endpoints
-# ===========================================================================
 
 
 @router.get("/2fa/status", response_model=TwoFAStatusResponse)
@@ -1333,9 +1309,7 @@ async def admin_disable_2fa(
     return {"message": "2FA disabled for user"}
 
 
-# ===========================================================================
 # OIDC Endpoints
-# ===========================================================================
 
 
 @router.get("/oidc/providers", response_model=list[OIDCProviderResponse])
@@ -1539,9 +1513,7 @@ async def delete_oidc_provider(
     return {"message": "Provider deleted"}
 
 
-# ---------------------------------------------------------------------------
 # OIDC provider icon proxy (#1333)
-# ---------------------------------------------------------------------------
 
 
 @router.get("/oidc/providers/{provider_id}/icon")
@@ -2281,9 +2253,7 @@ async def remove_oidc_link(
     return {"message": "OIDC link removed"}
 
 
-# ---------------------------------------------------------------------------
 # Internal helpers
-# ---------------------------------------------------------------------------
 async def _get_base_external_url(db: AsyncSession) -> str:
     """Return the base external URL (no trailing slash, no /login suffix)."""
     external_url = await get_setting(db, "external_url")

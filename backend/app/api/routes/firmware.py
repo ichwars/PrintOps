@@ -189,9 +189,7 @@ async def get_all_latest_firmware(
     ]
 
 
-# ============================================================================
 # Firmware Upload Endpoints (for LAN-only firmware updates)
-# ============================================================================
 
 
 class FirmwareUploadPrepareResponse(BaseModel):
