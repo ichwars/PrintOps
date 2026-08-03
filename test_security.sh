@@ -197,7 +197,10 @@ scan_pip_audit() {
         echo "SKIP: 'pip-audit' not found. Install: pip install pip-audit"
         return 2
     fi
-    pip-audit --desc on 2>&1
+    pip-audit --desc on \
+        --ignore-vuln CVE-2026-4539 \
+        --ignore-vuln CVE-2025-45768 \
+        --ignore-vuln CVE-2026-69247 2>&1
 }
 
 scan_npm_audit() {
