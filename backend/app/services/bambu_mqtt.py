@@ -4748,9 +4748,7 @@ class BambuMQTTClient:
         publish_cali_write(self._client, self.topic_publish, command, seq_id, self._pending_cali_acks)
         return seq_id
 
-    # =========================================================================
     # Printer Control Commands
-    # =========================================================================
 
     def pause_print(self) -> bool:
         """Pause the current print job."""

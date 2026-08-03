@@ -83,9 +83,7 @@ async def get_metrics(
 
     lines: list[str] = []
 
-    # =========================================================================
     # Build info
-    # =========================================================================
 
     lines.append("# HELP printops_build_info Build and version information")
     lines.append("# TYPE printops_build_info gauge")
@@ -97,9 +95,7 @@ async def get_metrics(
     )
     lines.append(f"printops_build_info{build_labels} 1")
 
-    # =========================================================================
     # Printer metrics
-    # =========================================================================
 
     # Get all printers from DB
     result = await db.execute(select(Printer).where(Printer.is_active == True))  # noqa: E712
@@ -196,9 +192,7 @@ async def get_metrics(
         )
         lines.append(f"printops_print_layer_total{labels} {total}")
 
-    # =========================================================================
     # Temperature metrics
-    # =========================================================================
 
     lines.append("")
     lines.append("# HELP printops_bed_temp_celsius Current bed temperature")
@@ -292,9 +286,7 @@ async def get_metrics(
         )
         lines.append(f"printops_chamber_temp_celsius{labels} {temp:.1f}")
 
-    # =========================================================================
     # Fan speeds
-    # =========================================================================
 
     lines.append("")
     lines.append("# HELP printops_fan_speed_percent Fan speed percentage")
@@ -334,9 +326,7 @@ async def get_metrics(
             )
             lines.append(f"printops_fan_speed_percent{labels} {val:.1f}")
 
-    # =========================================================================
     # WiFi signal
-    # =========================================================================
 
     lines.append("")
     lines.append("# HELP printops_wifi_signal_dbm WiFi signal strength in dBm")
@@ -351,9 +341,7 @@ async def get_metrics(
             )
             lines.append(f"printops_wifi_signal_dbm{labels} {status.wifi_signal}")
 
-    # =========================================================================
     # Print statistics (from database)
-    # =========================================================================
 
     # Total prints by status — count print events from PrintLogEntry so
     # reprints contribute new rows instead of overwriting the source archive
@@ -400,9 +388,7 @@ async def get_metrics(
     total_time = result.scalar() or 0
     lines.append(f"printops_print_time_seconds {total_time}")
 
-    # =========================================================================
     # Queue metrics
-    # =========================================================================
 
     lines.append("")
     lines.append("# HELP printops_queue_pending Number of pending queue items")
@@ -418,9 +404,7 @@ async def get_metrics(
     printing_count = result.scalar() or 0
     lines.append(f"printops_queue_printing {printing_count}")
 
-    # =========================================================================
     # System metrics
-    # =========================================================================
 
     lines.append("")
     lines.append("# HELP printops_printers_connected Number of connected printers")

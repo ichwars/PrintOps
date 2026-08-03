@@ -2067,9 +2067,7 @@ describe('SettingsPage', () => {
     });
   });
 
-  // --------------------------------------------------------------------
   // Slicer Pipelines (#1425) — Printers & Production sub-tabs
-  // --------------------------------------------------------------------
   describe('workflow sub-tabs (#1425)', () => {
     beforeEach(() => {
       // Endpoints the Pipelines panel calls (#1425).

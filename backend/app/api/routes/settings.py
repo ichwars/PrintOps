@@ -1475,9 +1475,7 @@ async def update_virtual_printer_settings(
     return await get_virtual_printer_settings(db)
 
 
-# =============================================================================
 # MQTT Relay Settings
-# =============================================================================
 
 
 @router.get("/mqtt/status")

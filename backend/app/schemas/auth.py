@@ -189,9 +189,7 @@ class TestSMTPResponse(BaseModel):
     message: str
 
 
-# ---------------------------------------------------------------------------
 # 2FA / MFA schemas
-# ---------------------------------------------------------------------------
 
 
 class TwoFAStatusResponse(BaseModel):
@@ -312,9 +310,7 @@ class AdminDisable2FARequest(BaseModel):
     admin_password: str | None = Field(default=None, max_length=256)
 
 
-# ---------------------------------------------------------------------------
 # OIDC schemas
-# ---------------------------------------------------------------------------
 
 
 AUTO_LINK_REQUIREMENTS_ERROR = (

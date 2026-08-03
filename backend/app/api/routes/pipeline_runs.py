@@ -68,9 +68,7 @@ pipeline_run_create_router = APIRouter(prefix="/slicer-pipelines", tags=["Slicer
 pipeline_run_router = APIRouter(prefix="/pipeline-runs", tags=["Slicer Pipelines"])
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 def _serialise_status(report: EligibilityReport) -> EligibilityReportResponse:
@@ -361,9 +359,7 @@ async def _publish_run_event(db: AsyncSession, run: PipelineRun) -> None:
         logger.exception("Failed to broadcast pipeline_run_updated for run %d", run.id)
 
 
-# ---------------------------------------------------------------------------
 # Source resolution + orchestration
-# ---------------------------------------------------------------------------
 
 
 SourceKind = Literal["library_file", "archive"]
@@ -620,9 +616,7 @@ def _make_orchestration_callable(
     return _orchestrate
 
 
-# ---------------------------------------------------------------------------
 # /slicer-pipelines/{id}/check-eligibility
-# ---------------------------------------------------------------------------
 
 
 @pipeline_run_create_router.post("/{pipeline_id}/check-eligibility", response_model=EligibilityReportResponse)
@@ -647,9 +641,7 @@ async def check_eligibility(
     return _serialise_status(report)
 
 
-# ---------------------------------------------------------------------------
 # /slicer-pipelines/{id}/run
-# ---------------------------------------------------------------------------
 
 
 @pipeline_run_create_router.post("/{pipeline_id}/run", response_model=PipelineRunResponse, status_code=202)
@@ -749,9 +741,7 @@ async def run_pipeline(
     return await _materialise_run(db, run)
 
 
-# ---------------------------------------------------------------------------
 # Lists, reads, cancel, retry-failed
-# ---------------------------------------------------------------------------
 
 
 @pipeline_run_create_router.get("/{pipeline_id}/runs", response_model=PipelineRunListResponse)

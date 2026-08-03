@@ -691,9 +691,7 @@ describe('computeAmsMapping - nozzle filtering', () => {
   });
 });
 
-// ============================================================================
 // MODEL-SPECIFIC TESTS: Real data from actual printers
-// ============================================================================
 
 /**
  * H2D real data fixture (from live API response 2026-02-18).

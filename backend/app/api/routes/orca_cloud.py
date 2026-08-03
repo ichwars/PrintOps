@@ -148,9 +148,7 @@ _SETTINGS_KEYS = {
 }
 
 
-# ---------------------------------------------------------------------------
 # Storage helpers — bridge User-row vs Settings-table fallback transparently
-# ---------------------------------------------------------------------------
 
 
 def _iso(dt: datetime | None) -> str | None:
@@ -472,9 +470,7 @@ async def _upsert_settings(db: AsyncSession, values: dict[str, str | None]) -> N
     await db.commit()
 
 
-# ---------------------------------------------------------------------------
 # Authenticated service builder with JIT refresh
-# ---------------------------------------------------------------------------
 
 
 async def _build_authenticated_service(
@@ -520,9 +516,7 @@ async def _build_authenticated_service(
     return svc
 
 
-# ---------------------------------------------------------------------------
 # Route handlers
-# ---------------------------------------------------------------------------
 
 
 @router.post("/device/start", response_model=OrcaDeviceStartResponse)

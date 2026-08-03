@@ -40,6 +40,12 @@ repos:
   # Check for import shadowing (custom)
   - repo: local
     hooks:
+      - id: source-size-budget
+        name: Source file and function size budget
+        entry: python tools/check_source_size_budget.py
+        language: system
+        pass_filenames: false
+        files: (Dockerfile(?:\.test)?$|\.(py|ts|tsx|js|mjs|css|scss|sh|ps1|bat|ya?ml|toml|html|ini|iss|service|sql|go)$)
       - id: check-import-shadowing
         name: Check for dangerous import shadowing
         entry: python -m pytest backend/tests/unit/test_code_quality.py::TestImportShadowing -v --tb=short

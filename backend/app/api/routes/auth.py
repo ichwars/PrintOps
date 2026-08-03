@@ -104,11 +104,9 @@ def _api_key_to_user_response(api_key) -> UserResponse:
     )
 
 
-# ---------------------------------------------------------------------------
 # M-R9-A: Real client IP resolution for rate limiting behind reverse proxies.
 # Set TRUSTED_PROXY_IPS (comma-separated) to enable X-Forwarded-For trust.
 # Without this env var client.host is used directly (safe default).
-# ---------------------------------------------------------------------------
 _TRUSTED_PROXY_IPS: frozenset[str] = frozenset(
     ip.strip() for ip in os.environ.get("TRUSTED_PROXY_IPS", "").split(",") if ip.strip()
 )
@@ -1445,9 +1443,7 @@ async def get_ldap_status(db: AsyncSession = Depends(get_db)):
     }
 
 
-# =============================================================================
 # Manual LDAP user provisioning (#1298)
-# =============================================================================
 # Admins can search the directory and provision users directly from the UI
 # without enabling auto-provision on login. The two endpoints below pair with
 # the new "LDAP" tab in the user-create modal.
@@ -1606,9 +1602,7 @@ async def provision_ldap_user(
     return _user_to_response(new_user)
 
 
-# =============================================================================
 # Long-lived camera-stream tokens (#1108)
-# =============================================================================
 # Camera-only V1. Issue scope: a token a user can paste into Home Assistant /
 # Frigate / a kiosk and have it keep working for days/weeks rather than
 # refreshing the 60-minute ephemeral token. Permission gate: CAMERA_VIEW
