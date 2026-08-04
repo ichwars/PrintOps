@@ -41,35 +41,13 @@ import { ConnectionDiagnosticModal } from '../../components/ConnectionDiagnostic
 import { getColorName } from '../../utils/colors';
 import type { PrinterMaintenanceInfo, SpoolmanSlotAssignmentRow, ViewMode } from './types';
 import { MODELS_WITH_CHAMBER_FAN, getStatusDisplay, mapModelCode } from './printer-status';
-import { AmsBackupBadge, CoverImage, DualNozzleHoverCard, HeaterThermometer, HumidityIndicator, NozzleBadge, NozzleIcon, NozzleRackCard, NozzleSlotHoverCard, TemperatureIndicator, formatKValue, getEmptySlotKind } from './printer-card-visuals';
+import { AmsBackupBadge, CoverImage, DualNozzleHoverCard, HeaterThermometer, HumidityIndicator, NozzleBadge, NozzleIcon, NozzleRackCard, NozzleSlotHoverCard, TemperatureIndicator } from './printer-card-visuals';
 import { IndicatorControlPopover, NozzleTemperatureControlBox, ToolbarDropdown } from './printer-toolbar';
 import { AmsNameHoverCard } from './AmsNameHoverCard';
 import { EditPrinterModal } from './EditPrinterModal';
 import { FirmwareUpdateModal } from './FirmwareUpdateModal';
-
-// AMS drying popover dimensions — w-[240px] on the popover, estimated height
-// covers header + filament select + temp slider + duration + rotate-tray
-// toggle + buttons. Over-estimating is fine (flip-above kicks in slightly
-// earlier); under-estimating leaves the popover clipped off the bottom (the
-// original bug at #1447).
-export const DRYING_POPOVER_WIDTH = 240;
-
-export const DRYING_POPOVER_ESTIMATED_HEIGHT = 320;
-
-export const DRY_START_CONFIRM_MS = 30_000;
-
-// AMS drying presets from BambuStudio filament profiles (idle mode temps)
-// Format: { n3f temp, n3s temp, n3f hours, n3s hours }
-export const DRYING_PRESETS: Record<string, { n3f: number; n3s: number; n3f_hours: number; n3s_hours: number }> = {
-  'PLA':   { n3f: 45, n3s: 45, n3f_hours: 12, n3s_hours: 12 },
-  'PETG':  { n3f: 65, n3s: 65, n3f_hours: 12, n3s_hours: 12 },
-  'TPU':   { n3f: 65, n3s: 75, n3f_hours: 12, n3s_hours: 18 },
-  'ABS':   { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
-  'ASA':   { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
-  'PA':    { n3f: 65, n3s: 85, n3f_hours: 12, n3s_hours: 12 },
-  'PC':    { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
-  'PVA':   { n3f: 65, n3s: 85, n3f_hours: 12, n3s_hours: 18 },
-};
+import { DRYING_POPOVER_ESTIMATED_HEIGHT, DRYING_POPOVER_WIDTH, DRYING_PRESETS, DRY_START_CONFIRM_MS } from './printer-card-constants';
+import { formatKValue, getEmptySlotKind } from './printer-card-utils';
 
 export function PrinterCard({
   printer,

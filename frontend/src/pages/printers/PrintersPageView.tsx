@@ -18,14 +18,15 @@ import { filterKnownHMSErrors } from '../../components/HMSErrorModal';
 import { useToast } from '../../contexts/ToastContext';
 import { Collapsible } from '../../components/Collapsible';
 import type { PrinterMaintenanceInfo, SortOption, ViewMode } from './types';
-import { DRYING_PRESETS, PrinterCard } from './PrinterCard';
+import { PrinterCard } from './PrinterCard';
+import { DRYING_PRESETS } from './printer-card-constants';
 import { STATUS_GROUP_META, STATUS_GROUP_ORDER, classifyPrinterStatus } from './printer-status';
 import { ToolbarDropdown, ToolbarMenu } from './printer-toolbar';
 import { StatusSummaryBar } from './printer-card-visuals';
 import { AddPrinterModal } from './AddPrinterModal';
 
 // Component to check if a printer is offline (for power dropdown)
-export function usePrinterOfflineStatus(printerId: number) {
+function usePrinterOfflineStatus(printerId: number) {
   const { data: status } = useQuery({
     queryKey: ['printerStatus', printerId],
     queryFn: () => api.getPrinterStatus(printerId),
@@ -35,7 +36,7 @@ export function usePrinterOfflineStatus(printerId: number) {
 }
 
 // Power dropdown item for an offline printer
-export function PowerDropdownItem({
+function PowerDropdownItem({
   printer,
   plug,
   onPowerOn,

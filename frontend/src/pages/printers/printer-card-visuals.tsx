@@ -8,15 +8,10 @@ import { formatDuration } from '../../utils/date';
 import type { Printer, HMSError } from '../../api/client';
 import { filterKnownHMSErrors } from '../../components/HMSErrorModal';
 import { parseFilamentColor, isLightColor } from '../../utils/colors';
+import { nozzleFlowName, nozzleTypeName } from './printer-card-utils';
 
 // Color names resolve via getColorName() which reads the backend color_catalog
 // (loaded once by ColorCatalogProvider). No hardcoded tables here — see #857.
-
-// Format K value with 3 decimal places, default to 0.020 if null
-export function formatKValue(k: number | null | undefined): string {
-  const value = k ?? 0.020;
-  return value.toFixed(3);
-}
 
 // Nozzle side indicators (Bambu Lab style - square badge with L/R)
 export function NozzleBadge({ side }: { side: 'L' | 'R' }) {
@@ -31,40 +26,6 @@ export function NozzleBadge({ side }: { side: 'L' | 'R' }) {
       {side}
     </span>
   );
-}
-
-// Expand nozzle type codes to material names
-// Handles full text ("hardened_steel"), 2-char codes ("HS"/"HH"), and 4-char codes ("HS01")
-// Material mapping: 00=stainless steel, 01=hardened steel, 05=tungsten carbide
-export function nozzleTypeName(type: string, t: (key: string) => string): string {
-  if (!type) return '';
-  // Full text names (from main nozzle info)
-  if (type.includes('hardened')) return t('printers.nozzleHardenedSteel');
-  if (type.includes('stainless')) return t('printers.nozzleStainlessSteel');
-  if (type.includes('tungsten')) return t('printers.nozzleTungstenCarbide');
-  // 4-char codes (e.g. "HS01"): last 2 digits = material
-  if (type.length >= 4) {
-    const material = type.slice(2, 4);
-    if (material === '00') return t('printers.nozzleStainlessSteel');
-    if (material === '01') return t('printers.nozzleHardenedSteel');
-    if (material === '05') return t('printers.nozzleTungstenCarbide');
-  }
-  // 2-digit numeric codes
-  if (type === '00') return t('printers.nozzleStainlessSteel');
-  if (type === '01') return t('printers.nozzleHardenedSteel');
-  if (type === '05') return t('printers.nozzleTungstenCarbide');
-  // 2-char alpha codes: H prefix = hardened steel
-  if (type.startsWith('H')) return t('printers.nozzleHardenedSteel');
-  return type;
-}
-
-// Parse flow type from nozzle type code
-// HH = high flow, HS = standard/normal
-export function nozzleFlowName(type: string, t: (key: string) => string): string {
-  if (!type) return '';
-  if (type.startsWith('HH')) return t('printers.nozzleHighFlow');
-  if (type.startsWith('HS')) return t('printers.nozzleStandardFlow');
-  return '';
 }
 
 // Per-slot hover card for nozzle rack
@@ -725,29 +686,6 @@ export function TemperatureIndicator({ temp, goodThreshold = 28, fairThreshold =
       <span className={`tabular-nums text-right ${compact ? 'text-[10px] w-8' : 'w-12'}`} style={{ color: textColor }}>{temp}°C</span>
     </button>
   );
-}
-
-/** Classify an empty AMS slot for UI rendering (#1322 follow-up).
- *
- *  "physical" — firmware positively confirmed no spool (state 9 or 10). The
- *  bambu_mqtt handler now promotes tray_exist_bits=0 slots to state=9, so
- *  every empty-by-bitmask slot lands here regardless of firmware payload
- *  shape.
- *
- *  "reset" — tray_type is missing/empty but firmware hasn't confirmed
- *  emptiness (state is null, 3, or any non-9/10 value). Typically a slot
- *  the user cleared with "Reset Slot" where a physical spool may still be
- *  loaded but unassigned.
- *
- *  Returns null when the slot is loaded (tray_type is present).
- */
-export function getEmptySlotKind(
-  tray: { tray_type?: string | null; state?: number | null; exists?: boolean | null } | null | undefined
-): 'physical' | 'reset' | null {
-  if (tray?.tray_type) return null;
-  if (tray?.exists === true) return 'reset';
-  if (tray?.exists === false) return 'physical';
-  return (tray?.state === 9 || tray?.state === 10) ? 'physical' : 'reset';
 }
 
 export function CoverImage({
