@@ -117,6 +117,11 @@ export function PrintModal({
   // Quantity — number of copies (creates a batch if > 1)
   const [quantity, setQuantity] = useState(1);
 
+  // Per-plate quantities for multi-plate files (#342). Keyed by plate index;
+  // a plate with no entry means one run. Only used in create mode on a
+  // multi-plate file, where it replaces the single global Quantity field.
+  const [plateQuantities, setPlateQuantities] = useState<Record<number, number>>({});
+
   const [printOptions, setPrintOptions] = useState<PrintOptions>(() => {
     if (mode === 'edit-queue-item' && queueItem) {
       return {
@@ -814,28 +819,45 @@ export function PrintModal({
       return;
     }
 
-    // Multi-plate auto-batch: when the user adds 2+ plates from one source in
-    // a single create submission, pre-create a PrintBatch and pass its
-    // id to each subsequent addToQueue call so the queue UI groups them as a
-    // collapsible batch. Only triggered for single-target submissions —
-    // multi-printer fan-out keeps the old per-item shape.
+    // Batch order (#342): a create submission that produces more than one run
+    // from one source is pre-created as a batch carrying per-plate targets,
+    // and its id is passed to each subsequent addToQueue call. The targets are
+    // what make the order able to say a failed run is still owed — without
+    // them the batch only knows what it happened to queue. Only for
+    // single-target submissions; multi-printer fan-out keeps the old per-item
+    // shape, where "how many" is answered by the printer count.
+    const plateTargets = platesToQueue.map((plate, index) => {
+      const plateIndex = plate ? plate.index : selectedPlate;
+      return {
+        plate_id: plateIndex,
+        plate_name: plate ? (plate.name || null) : null,
+        quantity_target: quantityForPlate(plateIndex),
+        sort_order: index,
+      };
+    });
+    const totalRuns = plateTargets.reduce((sum, target) => sum + target.quantity_target, 0);
     const shouldAutoBatch =
       mode === 'create'
-      && platesToQueue.length > 1
+      && (platesToQueue.length > 1 || totalRuns > 1)
       && (assignmentMode === 'model' || selectedPrinters.length === 1);
     let autoBatchId: number | null = null;
     if (shouldAutoBatch) {
       try {
         const baseName = (archiveName || '').replace(/\.gcode\.3mf$/i, '').replace(/\.3mf$/i, '');
-        const batchName = `${baseName || 'Batch'} · ${platesToQueue.length} plates`;
+        const batchName = platesToQueue.length > 1
+          ? `${baseName || 'Batch'} · ${platesToQueue.length} plates`
+          : `${baseName || 'Batch'} ×${totalRuns}`;
         const batch = await api.createBatch({
           name: batchName,
           archive_id: isLibraryFile ? undefined : archiveId,
           library_file_id: isLibraryFile ? libraryFileId : undefined,
+          plates: plateTargets,
         });
         autoBatchId = batch.id;
       } catch {
         // Non-fatal: fall back to ungrouped items so the queue still works.
+        // The server still creates a plain batch when quantity > 1, so the
+        // queue grouping survives even when the order layer doesn't.
         autoBatchId = null;
       }
     }
@@ -914,8 +936,9 @@ export function PrintModal({
           } else {
             // Add-to-queue mode with model-based assignment
             const queueData = getQueueData(null, plateId);
-            if (effectiveQuantity > 1) queueData.quantity = effectiveQuantity;
-            applyAsapInsertion(queueData, null, effectiveQuantity);
+            const plateQuantity = quantityForPlate(plateId);
+            if (plateQuantity > 1) queueData.quantity = plateQuantity;
+            applyAsapInsertion(queueData, null, plateQuantity);
             await addToQueueMutation.mutateAsync(queueData);
           }
           results.success++;
@@ -969,8 +992,9 @@ export function PrintModal({
             } else {
               // New print mode, staggered print, or edit mode with additional entries
               const queueData = getQueueData(printerId, plateId);
-              if (effectiveQuantity > 1) queueData.quantity = effectiveQuantity;
-              applyAsapInsertion(queueData, printerId, effectiveQuantity);
+              const plateQuantity = quantityForPlate(plateId);
+              if (plateQuantity > 1) queueData.quantity = plateQuantity;
+              applyAsapInsertion(queueData, printerId, plateQuantity);
               // Apply stagger offset for groups after the first
               if (useStagger) {
                 const groupIndex = Math.floor(i / scheduleOptions.staggerGroupSize);
@@ -1058,6 +1082,21 @@ export function PrintModal({
 
   // Quantity only applies for single-printer or model-based assignment (not multi-printer)
   const effectiveQuantity = (assignmentMode === 'printer' && selectedPrinters.length > 1) ? 1 : quantity;
+
+  // On a multi-plate file the per-plate steppers own the quantity and the
+  // global field is hidden (#342) — the reporter's case is "plate 1 once,
+  // plate 2 twice", which one shared number cannot express. Single-plate
+  // files, and edit mode, keep the single field exactly as before.
+  const usePerPlateQuantities = mode === 'create' && isMultiPlate && plates.length > 1;
+
+  /** Runs to queue for one plate. `null` = the single-plate / whole-file case. */
+  const quantityForPlate = (plateIndex: number | null): number => {
+    if (!usePerPlateQuantities || plateIndex == null) return effectiveQuantity;
+    // Multi-printer fan-out already means one copy per printer; multiplying by
+    // a per-plate count on top would silently produce plates × printers × n.
+    if (assignmentMode === 'printer' && selectedPrinters.length > 1) return 1;
+    return Math.max(1, plateQuantities[plateIndex] ?? 1);
+  };
 
   // Clear gcode_injection if the admin removes all snippets while the modal
   // is open — the checkbox itself hides via hasGcodeSnippets in
@@ -1212,6 +1251,10 @@ export function PrintModal({
               onSelectAll={!isEditing ? () => setSelectedPlates(new Set(plates.map(p => p.index))) : undefined}
               onDeselectAll={!isEditing ? () => setSelectedPlates(new Set()) : undefined}
               multiSelect={!isEditing}
+              quantities={usePerPlateQuantities ? plateQuantities : undefined}
+              onQuantityChange={usePerPlateQuantities
+                ? (plateIndex, value) => setPlateQuantities(prev => ({ ...prev, [plateIndex]: value }))
+                : undefined}
             />
 
             {/* Cross-model alternatives (#671) replace the printer picker entirely:
@@ -1330,8 +1373,11 @@ export function PrintModal({
               />
             )}
 
-            {/* Quantity — create multiple copies (batch). Hidden for multi-printer selection. */}
-            {mode !== 'edit-queue-item' && (assignmentMode === 'model' || selectedPrinters.length <= 1) && (
+            {/* Quantity — create multiple copies (batch). Hidden for multi-printer
+                selection, and for multi-plate files where the per-plate steppers
+                in PlateSelector own the number instead (#342). */}
+            {mode !== 'edit-queue-item' && !usePerPlateQuantities
+              && (assignmentMode === 'model' || selectedPrinters.length <= 1) && (
               <div className="flex items-center gap-3">
                 <label htmlFor="printQuantity" className="text-sm text-bambu-gray whitespace-nowrap">
                   {t('queue.quantity', 'Quantity')}

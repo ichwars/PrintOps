@@ -2308,6 +2308,29 @@ async def run_migrations(conn):
     except (OperationalError, ProgrammingError):
         pass
 
+    # Migration (#342): batch orders — planning metadata on print_batches. The
+    # per-plate target rows live in their own table, created by create_all().
+    await _safe_execute(
+        conn, "ALTER TABLE print_batches ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL"
+    )
+    await _safe_execute(conn, "ALTER TABLE print_batches ADD COLUMN notes TEXT")
+    if is_sqlite():
+        await _safe_execute(conn, "ALTER TABLE print_batches ADD COLUMN due_date DATETIME")
+        await _safe_execute(conn, "ALTER TABLE print_batches ADD COLUMN completed_at DATETIME")
+    else:
+        await _safe_execute(conn, "ALTER TABLE print_batches ADD COLUMN due_date TIMESTAMP")
+        await _safe_execute(conn, "ALTER TABLE print_batches ADD COLUMN completed_at TIMESTAMP")
+
+    # Migration (#342): attribute a logged run to the queue item that produced
+    # it, so batch cost/energy can be summed without guessing from archive_id.
+    await _safe_execute(
+        conn,
+        "ALTER TABLE print_log_entries ADD COLUMN queue_item_id INTEGER REFERENCES print_queue(id) ON DELETE SET NULL",
+    )
+    await _safe_execute(
+        conn, "CREATE INDEX IF NOT EXISTS ix_print_log_entries_queue_item_id ON print_log_entries (queue_item_id)"
+    )
+
     # Migration: Shortest-job-first scheduling columns on print_queue
     await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN print_time_seconds INTEGER")
     await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN been_jumped BOOLEAN DEFAULT FALSE NOT NULL")

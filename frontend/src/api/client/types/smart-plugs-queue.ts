@@ -380,13 +380,49 @@ export interface PrintBatch {
   quantity: number;
   status: string;
   created_at: string;
+  completed_at: string | null;
   created_by_id: number | null;
   created_by_username: string | null;
+  project_id: number | null;
+  due_date: string | null;
+  notes: string | null;
   pending_count: number;
   printing_count: number;
   completed_count: number;
   failed_count: number;
   cancelled_count: number;
+  skipped_count: number;
+  has_targets: boolean;
+  target_count: number;
+  remaining_count: number;
+  actual_cost: number | null;
+  estimated_remaining_cost: number | null;
+  filament_used_grams: number | null;
+  print_time_seconds: number;
+  plates: PrintBatchPlateProgress[];
+}
+
+export interface PrintBatchPlateTarget {
+  plate_id: number | null;
+  plate_name?: string | null;
+  quantity_target: number;
+  sort_order?: number;
+}
+
+export interface PrintBatchPlateProgress extends PrintBatchPlateTarget {
+  plate_name: string | null;
+  dispatched: number;
+  remaining: number;
+  pending_count: number;
+  printing_count: number;
+  completed_count: number;
+  failed_count: number;
+  cancelled_count: number;
+  skipped_count: number;
+  actual_cost: number | null;
+  estimated_remaining_cost: number | null;
+  filament_used_grams: number | null;
+  print_time_seconds: number;
 }
 
 export interface PrintQueueItemCreate {
@@ -438,6 +474,25 @@ export interface PrintBatchCreate {
    *  (manual "Group as batch"). When omitted/empty, an empty batch is
    *  returned so the client can pass batch_id on subsequent addToQueue calls. */
   item_ids?: number[];
+  plates?: PrintBatchPlateTarget[];
+  project_id?: number | null;
+  due_date?: string | null;
+  notes?: string | null;
+}
+
+export interface PrintBatchUpdate {
+  name?: string;
+  status?: 'active' | 'cancelled';
+  plates?: PrintBatchPlateTarget[];
+  project_id?: number | null;
+  due_date?: string | null;
+  notes?: string | null;
+}
+
+export interface PrintBatchDispatchRequest {
+  plate_id?: number | null;
+  only_plate?: boolean;
+  limit?: number;
 }
 
 export interface PrintQueueItemUpdate {

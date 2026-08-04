@@ -24,15 +24,19 @@ from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.models.archive import PrintArchive
 from backend.app.models.library import LibraryFile
-from backend.app.models.print_batch import PrintBatch
+from backend.app.models.print_batch import PrintBatch, PrintBatchPlate
 from backend.app.models.print_queue import PrintQueueItem, PrintQueueVariant
 from backend.app.models.printer import Printer
 from backend.app.models.project import Project
 from backend.app.models.user import User
 from backend.app.schemas.print_queue import (
     PrintBatchCreate,
+    PrintBatchDispatchRequest,
+    PrintBatchPlateProgress,
+    PrintBatchPlateTarget,
     PrintBatchResponse,
     PrintBatchUngroupResponse,
+    PrintBatchUpdate,
     PrintQueueBulkUpdate,
     PrintQueueBulkUpdateResponse,
     PrintQueueItemCreate,
@@ -45,6 +49,12 @@ from backend.app.schemas.print_queue import (
 from backend.app.services.filament_deficit import compute_deficit_for_queue_item
 from backend.app.services.filament_requirements import overrides_for_plate
 from backend.app.services.notification_service import notification_service
+from backend.app.services.print_batch import (
+    BatchDispatchError,
+    dispatch_remaining,
+    load_progress,
+    refresh_batch_status,
+)
 from backend.app.utils.printer_models import is_gcode_compatible
 from backend.app.utils.threemf_tools import (
     extract_bed_type_from_3mf,
@@ -148,6 +158,119 @@ def _extract_filament_types_from_3mf(file_path: Path, plate_id: int | None = Non
 # in utils/threemf_tools.py so the notification path (main.py) can reuse it
 # without importing from a routes module (#1785).
 _extract_print_time_from_3mf = extract_print_time_from_3mf
+
+
+def _assert_can_queue_archive(archive: PrintArchive, current_user: User | None) -> None:
+    """Gate turning *archive* into a print. Raises rather than returning a verdict.
+
+    Shared by every route that creates queue items from an archive, so a new
+    one can't quietly become a weaker door to the same action than
+    ``POST /queue/`` is.
+
+    Two separate checks:
+
+    * IDOR fix (maziggy/bambuddy-security #2): without this, a caller with
+      QUEUE_CREATE could queue any user's archive even without ARCHIVES_READ on
+      it — Landon's PoC enumerated this on admin's archives as operator1. Gate
+      on ARCHIVES_READ_ALL OR ownership. 404 (not 403) so we don't leak "this
+      id exists but you can't queue it" for enumeration.
+    * Reprint perm gate (#1625): the legacy ``/archives/{id}/reprint`` endpoint
+      required ARCHIVES_REPRINT_OWN/ALL, and every route that replaces it must
+      keep that gate or an operator with QUEUE_CREATE could reprint via a
+      direct API call even when explicitly denied reprint perm. Mirrors the
+      frontend ``canModify('archives', 'reprint', ...)`` helper: REPRINT_ALL
+      allows any archive, REPRINT_OWN allows own only, ownerless archives
+      require REPRINT_ALL (fail-closed).
+    """
+    if not user_can_access_printer(current_user, archive.printer_id):
+        raise HTTPException(404, "Archive not found")
+    if current_user is None:
+        return
+    if not current_user.has_permission(Permission.ARCHIVES_READ_ALL.value) and archive.created_by_id != current_user.id:
+        raise HTTPException(404, "Archive not found")
+    owns_archive = archive.created_by_id is not None and archive.created_by_id == current_user.id
+    has_reprint = current_user.has_permission(Permission.ARCHIVES_REPRINT_ALL.value) or (
+        owns_archive and current_user.has_permission(Permission.ARCHIVES_REPRINT_OWN.value)
+    )
+    if not has_reprint:
+        raise HTTPException(
+            status_code=403,
+            detail="Permission archives:reprint_own or archives:reprint_all required",
+        )
+
+
+def _assert_can_queue_library_file(library_file: LibraryFile, current_user: User | None) -> None:
+    """Gate turning *library_file* into a print — LIBRARY_READ_ALL or ownership."""
+    if current_user is None:
+        return
+    if (
+        not current_user.has_permission(Permission.LIBRARY_READ_ALL.value)
+        and library_file.created_by_id != current_user.id
+    ):
+        raise HTTPException(404, "Library file not found")
+
+
+async def _assert_can_dispatch_batch_sources(db: AsyncSession, batch_id: int, current_user: User | None) -> None:
+    """Apply the ``POST /queue/`` source-file gates to everything a dispatch would print.
+
+    Dispatching clones existing queue items, so without this it would be a
+    weaker door to the same outcome: a caller holding QUEUE_CREATE and
+    QUEUE_UPDATE_ALL but explicitly denied ``archives:reprint_*`` could start
+    prints through an order that ``POST /queue/`` would have refused them.
+
+    Every distinct source among the batch's items is checked, including the
+    library files behind cross-model variants — those get cloned too, and any
+    one of them may be the file that actually runs.
+    """
+    archive_ids = set(
+        (
+            await db.execute(
+                select(PrintQueueItem.archive_id)
+                .where(PrintQueueItem.batch_id == batch_id)
+                .where(PrintQueueItem.archive_id.is_not(None))
+                .distinct()
+            )
+        )
+        .scalars()
+        .all()
+    )
+    library_file_ids = set(
+        (
+            await db.execute(
+                select(PrintQueueItem.library_file_id)
+                .where(PrintQueueItem.batch_id == batch_id)
+                .where(PrintQueueItem.library_file_id.is_not(None))
+                .distinct()
+            )
+        )
+        .scalars()
+        .all()
+    )
+    library_file_ids |= set(
+        (
+            await db.execute(
+                select(PrintQueueVariant.library_file_id)
+                .join(PrintQueueItem, PrintQueueVariant.queue_item_id == PrintQueueItem.id)
+                .where(PrintQueueItem.batch_id == batch_id)
+                .distinct()
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    for archive_id in archive_ids:
+        archive = (await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))).scalar_one_or_none()
+        # A deleted source can't be printed; dispatch will fail on it anyway.
+        if archive is not None:
+            _assert_can_queue_archive(archive, current_user)
+
+    for library_file_id in library_file_ids:
+        library_file = (
+            await db.execute(LibraryFile.active().where(LibraryFile.id == library_file_id))
+        ).scalar_one_or_none()
+        if library_file is not None:
+            _assert_can_queue_library_file(library_file, current_user)
 
 
 async def _resolve_source_path(db: AsyncSession, item: PrintQueueItem) -> Path | None:
@@ -637,37 +760,7 @@ async def add_to_queue(
         archive = result.scalar_one_or_none()
         if not archive:
             raise HTTPException(400, "Archive not found")
-        if not user_can_access_printer(current_user, archive.printer_id):
-            raise HTTPException(404, "Archive not found")
-        # IDOR fix (maziggy/printops-security #2): without this check, a
-        # caller with QUEUE_CREATE could queue any user's archive even
-        # without ARCHIVES_READ on it — Landon's PoC enumerated this on
-        # admin's archives as operator1. Gate on ARCHIVES_READ_ALL OR
-        # ownership of the archive. 404 (not 403) so we don't leak
-        # "this id exists but you can't queue it" for enumeration.
-        if (
-            current_user is not None
-            and not current_user.has_permission(Permission.ARCHIVES_READ_ALL.value)
-            and archive.created_by_id != current_user.id
-        ):
-            raise HTTPException(404, "Archive not found")
-        # Reprint perm gate (#1625): the legacy /archives/{id}/reprint endpoint
-        # required ARCHIVES_REPRINT_OWN/ALL; the unified queue route must keep
-        # that gate or an operator with QUEUE_CREATE could reprint via direct
-        # API call even if explicitly denied reprint perm. Mirrors the
-        # frontend `canModify('archives', 'reprint', ...)` helper:
-        # REPRINT_ALL allows any archive, REPRINT_OWN allows own only,
-        # ownerless archives require REPRINT_ALL (fail-closed).
-        if current_user is not None:
-            owns_archive = archive.created_by_id is not None and archive.created_by_id == current_user.id
-            has_reprint = current_user.has_permission(Permission.ARCHIVES_REPRINT_ALL.value) or (
-                owns_archive and current_user.has_permission(Permission.ARCHIVES_REPRINT_OWN.value)
-            )
-            if not has_reprint:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Permission archives:reprint_own or archives:reprint_all required",
-                )
+        _assert_can_queue_archive(archive, current_user)
 
     # Validate library file exists (if provided) and get it for filament extraction
     library_file = None
@@ -676,13 +769,7 @@ async def add_to_queue(
         library_file = result.scalar_one_or_none()
         if not library_file:
             raise HTTPException(400, "Library file not found")
-        # Same shape: gate cross-user library-file queueing on LIBRARY_READ_ALL.
-        if (
-            current_user is not None
-            and not current_user.has_permission(Permission.LIBRARY_READ_ALL.value)
-            and library_file.created_by_id != current_user.id
-        ):
-            raise HTTPException(404, "Library file not found")
+        _assert_can_queue_library_file(library_file, current_user)
         # Bambu SD card is FAT32/exFAT — illegal filename chars would 553 at
         # FTP upload time (#1540). Reject at queue time so the user gets the
         # actionable error before waiting in queue.
@@ -1049,6 +1136,66 @@ async def bulk_update_queue_items(
 # --- Batch endpoints ---
 
 
+def _validate_plate_targets(
+    plates: list[PrintBatchPlateTarget] | None,
+) -> list[PrintBatchPlateTarget] | None:
+    """Reject duplicate plates and orders that ask for nothing at all.
+
+    A duplicate would violate the (batch_id, plate_id) unique constraint at
+    flush time — and on SQLite/PostgreSQL a NULL plate_id slips past that
+    constraint entirely, so the check has to happen here to catch two
+    "whole file" rows in one order.
+    """
+    if plates is None:
+        return None
+    if not plates:
+        raise HTTPException(400, "plates must contain at least one plate")
+
+    seen: set[int | None] = set()
+    for target in plates:
+        if target.plate_id in seen:
+            label = target.plate_id if target.plate_id is not None else "whole file"
+            raise HTTPException(400, f"Duplicate plate in order: {label}")
+        seen.add(target.plate_id)
+
+    if all(target.quantity_target == 0 for target in plates):
+        raise HTTPException(400, "Order must request at least one print")
+    return plates
+
+
+async def _validate_batch_project(db: AsyncSession, project_id: int | None, current_user: User | None) -> None:
+    """404 on a bogus project id rather than letting the FK blow up as a 500."""
+    if project_id is None:
+        return
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(404, "Project not found")
+
+
+async def _load_batch_for_write(
+    db: AsyncSession, batch_id: int, current_user: User | None, permission: Permission
+) -> PrintBatch:
+    """Fetch a batch the caller is allowed to modify, or 404.
+
+    404 rather than 403 on the ownership miss, matching the rest of this
+    module: a 403 would confirm the id exists to someone enumerating.
+    """
+    result = await db.execute(
+        select(PrintBatch).options(selectinload(PrintBatch.plates)).where(PrintBatch.id == batch_id)
+    )
+    batch = result.scalar_one_or_none()
+    if not batch:
+        raise HTTPException(404, "Batch not found")
+    if (
+        current_user is not None
+        and batch.created_by_id is not None
+        and batch.created_by_id != current_user.id
+        and not current_user.has_permission(permission.value)
+    ):
+        raise HTTPException(404, "Batch not found")
+    return batch
+
+
 @router.post("/batches", response_model=PrintBatchResponse)
 async def create_batch(
     data: PrintBatchCreate,
@@ -1063,9 +1210,17 @@ async def create_batch(
     * ``item_ids`` omitted/empty: create an empty batch so the client can
       pass the returned ``id`` on subsequent ``POST /queue/`` calls. Used by
       the multi-plate auto-batch flow in PrintModal.
+
+    ``plates`` turns the batch into an order with per-plate targets (#342):
+    progress is then measured against what was asked for rather than against
+    what happened to be queued, so a failed run still counts as owed. Omitting
+    it keeps the pre-#342 behaviour exactly.
     """
     if not data.name or not data.name.strip():
         raise HTTPException(400, "Batch name is required")
+
+    plate_targets = _validate_plate_targets(data.plates)
+    await _validate_batch_project(db, data.project_id, current_user)
 
     batch = PrintBatch(
         name=data.name.strip()[:255],
@@ -1074,9 +1229,27 @@ async def create_batch(
         quantity=len(data.item_ids) if data.item_ids else 1,
         status="active",
         created_by_id=current_user.id if current_user else None,
+        project_id=data.project_id,
+        due_date=data.due_date,
+        notes=data.notes,
     )
     db.add(batch)
     await db.flush()  # Need batch.id before assigning to items
+
+    if plate_targets is not None:
+        for target in plate_targets:
+            db.add(
+                PrintBatchPlate(
+                    batch_id=batch.id,
+                    plate_id=target.plate_id,
+                    plate_name=target.plate_name,
+                    quantity_target=target.quantity_target,
+                    sort_order=target.sort_order,
+                )
+            )
+        # The legacy `quantity` column is display-only; keep it meaningful for
+        # anything still reading it by making it the order's total.
+        batch.quantity = max(1, sum(t.quantity_target for t in plate_targets))
 
     assigned = 0
     if data.item_ids:
@@ -1101,6 +1274,116 @@ async def create_batch(
     await db.refresh(batch)
 
     logger.info("Created batch %s '%s' with %s assigned items", batch.id, batch.name, assigned)
+    return await _build_batch_response(db, batch)
+
+
+@router.patch("/batches/{batch_id}", response_model=PrintBatchResponse)
+async def update_batch(
+    batch_id: int,
+    data: PrintBatchUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_UPDATE_OWN),
+):
+    """Edit an order's header or its per-plate targets while it runs (#342).
+
+    Production requirements change mid-run, so targets are editable. Lowering a
+    target below what has already been dispatched is allowed and simply leaves
+    ``remaining`` at zero — cancelling the surplus queue items is a separate,
+    explicit action, because silently deleting queued work on a number change
+    would be a nasty surprise.
+    """
+    batch = await _load_batch_for_write(db, batch_id, current_user, Permission.QUEUE_UPDATE_ALL)
+
+    plate_targets = _validate_plate_targets(data.plates)
+    if data.project_id is not None:
+        await _validate_batch_project(db, data.project_id, current_user)
+
+    if data.name is not None:
+        if not data.name.strip():
+            raise HTTPException(400, "Batch name is required")
+        batch.name = data.name.strip()[:255]
+    if data.project_id is not None:
+        batch.project_id = data.project_id
+    if data.due_date is not None:
+        batch.due_date = data.due_date
+    if data.notes is not None:
+        batch.notes = data.notes
+    if data.status is not None:
+        batch.status = data.status
+
+    if plate_targets is not None:
+        existing = {row.plate_id: row for row in batch.plates}
+        for target in plate_targets:
+            row = existing.pop(target.plate_id, None)
+            if row is None:
+                db.add(
+                    PrintBatchPlate(
+                        batch_id=batch.id,
+                        plate_id=target.plate_id,
+                        plate_name=target.plate_name,
+                        quantity_target=target.quantity_target,
+                        sort_order=target.sort_order,
+                    )
+                )
+            else:
+                row.quantity_target = target.quantity_target
+                row.sort_order = target.sort_order
+                if target.plate_name is not None:
+                    row.plate_name = target.plate_name
+        # Plates absent from the payload are dropped — the list is the order.
+        for orphan in existing.values():
+            await db.delete(orphan)
+        batch.quantity = max(1, sum(t.quantity_target for t in plate_targets))
+
+    await db.flush()
+    await db.refresh(batch)
+    # Raising a target on a finished order reopens it; lowering one on a
+    # running order can complete it.
+    await refresh_batch_status(db, batch)
+    await db.commit()
+    await db.refresh(batch)
+
+    logger.info("Updated batch %s", batch.id)
+    return await _build_batch_response(db, batch)
+
+
+@router.post("/batches/{batch_id}/dispatch", response_model=PrintBatchResponse)
+async def dispatch_batch(
+    batch_id: int,
+    data: PrintBatchDispatchRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_CREATE),
+):
+    """Queue the runs this order still owes (#342).
+
+    Each new item is cloned from the most recent item for the same plate in
+    this batch, so it inherits the printer/model target, AMS mapping, filament
+    overrides and print options the user already chose — and the validation
+    those went through at creation time.
+    """
+    batch = await _load_batch_for_write(db, batch_id, current_user, Permission.QUEUE_UPDATE_ALL)
+    if batch.status == "cancelled":
+        raise HTTPException(400, "Cannot dispatch a cancelled batch")
+
+    # Dispatch starts prints, so it must not be a weaker door than POST /queue/.
+    await _assert_can_dispatch_batch_sources(db, batch.id, current_user)
+
+    try:
+        created = await dispatch_remaining(
+            db,
+            batch,
+            plate_id=data.plate_id,
+            only_plate=data.only_plate,
+            limit=data.limit,
+            created_by_id=current_user.id if current_user else None,
+        )
+    except BatchDispatchError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    await db.commit()
+    await db.refresh(batch)
+
+    logger.info("Batch %s dispatched %d item(s)", batch.id, len(created))
     return await _build_batch_response(db, batch)
 
 
@@ -1160,9 +1443,23 @@ async def list_batches(
         )
     ),
 ):
-    """List all print batches with progress stats."""
+    """List print batches with progress stats.
+
+    Batches with neither queue items nor per-plate targets are omitted. Those
+    are empty shells — a grouping whose items were deleted with their source
+    archive, or a create that never got as far as adding any — and they carry
+    nothing to show, track or dispatch. A brand-new order is still listed
+    before its first dispatch, because its targets say what it owes.
+    """
     current_user, can_read_all = auth_result
-    query = select(PrintBatch).order_by(PrintBatch.created_at.desc())
+    query = (
+        select(PrintBatch)
+        .where(
+            select(PrintQueueItem.id).where(PrintQueueItem.batch_id == PrintBatch.id).exists()
+            | select(PrintBatchPlate.id).where(PrintBatchPlate.batch_id == PrintBatch.id).exists()
+        )
+        .order_by(PrintBatch.created_at.desc())
+    )
     if status:
         query = query.where(PrintBatch.status == status)
     if current_user is not None and not can_read_all:
@@ -1170,10 +1467,14 @@ async def list_batches(
     result = await db.execute(query)
     batches = result.scalars().all()
 
-    responses = []
-    for batch in batches:
-        responses.append(await _build_batch_response(db, batch))
-    return responses
+    # Resolve creator names in one query rather than one per batch.
+    creator_ids = {b.created_by_id for b in batches if b.created_by_id is not None}
+    usernames: dict[int, str] = {}
+    if creator_ids:
+        rows = await db.execute(select(User.id, User.username).where(User.id.in_(creator_ids)))
+        usernames = {row[0]: row[1] for row in rows.all()}
+
+    return [await _build_batch_response(db, batch, usernames=usernames) for batch in batches]
 
 
 @router.get("/batches/{batch_id}", response_model=PrintBatchResponse)
@@ -1230,23 +1531,25 @@ async def cancel_batch(
     return {"message": f"Batch cancelled, {cancelled_count} pending items cancelled"}
 
 
-async def _build_batch_response(db: AsyncSession, batch: PrintBatch) -> PrintBatchResponse:
-    """Build a batch response with derived counts from queue items."""
-    # Count queue items by status
-    result = await db.execute(
-        select(PrintQueueItem.status, func.count(PrintQueueItem.id))
-        .where(PrintQueueItem.batch_id == batch.id)
-        .group_by(PrintQueueItem.status)
-    )
-    status_counts = {row[0]: row[1] for row in result.fetchall()}
+async def _build_batch_response(
+    db: AsyncSession, batch: PrintBatch, *, usernames: dict[int, str] | None = None
+) -> PrintBatchResponse:
+    """Build a batch response with per-plate progress derived from queue items.
 
-    # Load created_by for username
+    ``usernames`` lets the list endpoint resolve every creator in one query
+    instead of one per batch.
+    """
+    progress = await load_progress(db, batch)
+
     created_by_username = None
     if batch.created_by_id:
-        result = await db.execute(select(User).where(User.id == batch.created_by_id))
-        user = result.scalar_one_or_none()
-        if user:
-            created_by_username = user.username
+        if usernames is not None:
+            created_by_username = usernames.get(batch.created_by_id)
+        else:
+            result = await db.execute(select(User).where(User.id == batch.created_by_id))
+            user = result.scalar_one_or_none()
+            if user:
+                created_by_username = user.username
 
     return PrintBatchResponse(
         id=batch.id,
@@ -1256,13 +1559,45 @@ async def _build_batch_response(db: AsyncSession, batch: PrintBatch) -> PrintBat
         quantity=batch.quantity,
         status=batch.status,
         created_at=batch.created_at,
+        completed_at=batch.completed_at,
         created_by_id=batch.created_by_id,
         created_by_username=created_by_username,
-        pending_count=status_counts.get("pending", 0),
-        printing_count=status_counts.get("printing", 0),
-        completed_count=status_counts.get("completed", 0),
-        failed_count=status_counts.get("failed", 0),
-        cancelled_count=status_counts.get("cancelled", 0),
+        project_id=batch.project_id,
+        due_date=batch.due_date,
+        notes=batch.notes,
+        pending_count=progress.pending,
+        printing_count=progress.printing,
+        completed_count=progress.completed,
+        failed_count=progress.failed,
+        cancelled_count=progress.cancelled,
+        skipped_count=progress.skipped,
+        has_targets=progress.has_targets,
+        target_count=progress.target,
+        remaining_count=progress.remaining,
+        actual_cost=progress.actual_cost,
+        estimated_remaining_cost=progress.estimated_remaining_cost,
+        filament_used_grams=progress.filament_used_grams,
+        print_time_seconds=progress.print_time_seconds,
+        plates=[
+            PrintBatchPlateProgress(
+                plate_id=plate.plate_id,
+                plate_name=plate.plate_name,
+                quantity_target=plate.quantity_target,
+                dispatched=plate.dispatched,
+                remaining=plate.remaining,
+                pending_count=plate.pending,
+                printing_count=plate.printing,
+                completed_count=plate.completed,
+                failed_count=plate.failed,
+                cancelled_count=plate.cancelled,
+                skipped_count=plate.skipped,
+                actual_cost=plate.actual_cost,
+                estimated_remaining_cost=plate.estimated_remaining_cost,
+                filament_used_grams=plate.filament_used_grams,
+                print_time_seconds=plate.print_time_seconds,
+            )
+            for plate in progress.plates
+        ],
     )
 
 

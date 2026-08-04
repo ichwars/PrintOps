@@ -18,6 +18,8 @@ import type {
   NotificationTestResponse,
   PrintBatch,
   PrintBatchCreate,
+  PrintBatchDispatchRequest,
+  PrintBatchUpdate,
   PrintQueueBulkUpdate,
   PrintQueueBulkUpdateResponse,
   PrintQueueItem,
@@ -114,6 +116,18 @@ export const queueProfilesNotificationsMethods = {
 
   createBatch: (data: PrintBatchCreate) =>
     request<PrintBatch>('/queue/batches', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateBatch: (id: number, data: PrintBatchUpdate) =>
+    request<PrintBatch>(`/queue/batches/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  dispatchBatch: (id: number, data: PrintBatchDispatchRequest = {}) =>
+    request<PrintBatch>(`/queue/batches/${id}/dispatch`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),

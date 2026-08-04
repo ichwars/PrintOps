@@ -400,6 +400,123 @@ class TestArchiveOwnershipPermissions(TestOwnershipPermissionsSetup):
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_batch_dispatch_allowed_for_own_archive_with_reprint_own(
+        self, async_client: AsyncClient, auth_setup, archive_factory, printer_factory, db_session
+    ):
+        """The dispatch gate must not block the ordinary self-service case (#342)."""
+        headers = {"Authorization": f"Bearer {auth_setup['operator_token']}"}
+        printer = await printer_factory()
+        archive = await archive_factory(printer.id, created_by_id=auth_setup["operator_user"]["id"])
+
+        order = await async_client.post(
+            "/api/v1/queue/batches",
+            headers=headers,
+            json={
+                "name": "Own order",
+                "archive_id": archive.id,
+                "plates": [{"plate_id": 1, "quantity_target": 2}],
+            },
+        )
+        assert order.status_code == 200
+        batch_id = order.json()["id"]
+        assert (
+            await async_client.post(
+                "/api/v1/queue/",
+                headers=headers,
+                json={
+                    "printer_id": printer.id,
+                    "archive_id": archive.id,
+                    "batch_id": batch_id,
+                    "plate_id": 1,
+                },
+            )
+        ).status_code == 200
+
+        response = await async_client.post(f"/api/v1/queue/batches/{batch_id}/dispatch", headers=headers, json={})
+        assert response.status_code == 200
+        assert response.json()["remaining_count"] == 0
+        assert response.json()["pending_count"] == 2
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_batch_dispatch_honours_the_reprint_gate(
+        self, async_client: AsyncClient, auth_setup, archive_factory, printer_factory, db_session
+    ):
+        """Dispatching a batch order must not be a weaker door than POST /queue/ (#342).
+
+        Dispatch clones existing queue items, so without the same source-file
+        gate a caller holding queue:create and queue:update_all — but
+        explicitly denied archives:reprint_* — could start prints of an
+        archive that POST /queue/ would have refused them.
+        """
+        admin_headers = {"Authorization": f"Bearer {auth_setup['admin_token']}"}
+        group_resp = await async_client.post(
+            "/api/v1/groups/",
+            headers=admin_headers,
+            json={
+                "name": "BatchDispatchNoReprint",
+                "description": "Test group: can manage the queue but not reprint archives",
+                "permissions": [
+                    "queue:create",
+                    "queue:read_all",
+                    "queue:update_all",
+                    "archives:read_all",
+                    "printers:read",
+                ],
+            },
+        )
+        assert group_resp.status_code in (200, 201)
+        await async_client.post(
+            "/api/v1/users/",
+            headers=admin_headers,
+            json={
+                "username": "batch_noreprint_user",
+                "password": "BatchNoreprint1!",
+                "group_ids": [group_resp.json()["id"]],
+            },
+        )
+        login = await async_client.post(
+            "/api/v1/auth/login",
+            json={"username": "batch_noreprint_user", "password": "BatchNoreprint1!"},
+        )
+        token = login.json()["access_token"]
+
+        # Admin builds an order with one dispatched run and two still owed.
+        printer = await printer_factory()
+        archive = await archive_factory(printer.id, created_by_id=auth_setup["admin_user"]["id"])
+        order = await async_client.post(
+            "/api/v1/queue/batches",
+            headers=admin_headers,
+            json={
+                "name": "Gated order",
+                "archive_id": archive.id,
+                "plates": [{"plate_id": 1, "quantity_target": 3}],
+            },
+        )
+        assert order.status_code == 200
+        batch_id = order.json()["id"]
+        seeded = await async_client.post(
+            "/api/v1/queue/",
+            headers=admin_headers,
+            json={"printer_id": printer.id, "archive_id": archive.id, "batch_id": batch_id, "plate_id": 1},
+        )
+        assert seeded.status_code == 200
+
+        response = await async_client.post(
+            f"/api/v1/queue/batches/{batch_id}/dispatch",
+            headers={"Authorization": f"Bearer {token}"},
+            json={},
+        )
+
+        assert response.status_code == 403
+        assert "reprint" in response.json()["detail"].lower()
+
+        # And nothing was queued behind the refusal.
+        listing = await async_client.get(f"/api/v1/queue/batches/{batch_id}", headers=admin_headers)
+        assert listing.json()["pending_count"] == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_queue_route_ownerless_archive_requires_reprint_all(
         self, async_client: AsyncClient, auth_setup, archive_factory, printer_factory, db_session
     ):

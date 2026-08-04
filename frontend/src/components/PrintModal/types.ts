@@ -196,6 +196,14 @@ export interface PlateSelectorProps {
   onDeselectAll?: () => void;
   /** Whether multi-select (checkboxes) is enabled */
   multiSelect?: boolean;
+  /**
+   * How many runs of each plate to queue, keyed by plate index (#342). When
+   * provided, each selected plate gets its own quantity control and the
+   * modal's single global Quantity field is hidden — one number per plate is
+   * the whole point, and two controls for the same value would be ambiguous.
+   */
+  quantities?: Record<number, number>;
+  onQuantityChange?: (plateIndex: number, quantity: number) => void;
 }
 
 /**

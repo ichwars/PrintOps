@@ -295,6 +295,20 @@ class PrintQueueBulkUpdateResponse(BaseModel):
     message: str
 
 
+class PrintBatchPlateTarget(BaseModel):
+    """How many runs of one plate an order wants (#342).
+
+    ``plate_id`` is the plate index inside the source 3MF, or null for a
+    single-plate file — matching ``PrintQueueItem.plate_id``. A target of 0 is
+    legal and means "this plate is not required (yet)".
+    """
+
+    plate_id: int | None = None
+    plate_name: str | None = None
+    quantity_target: int = Field(default=1, ge=0, le=999)
+    sort_order: int = 0
+
+
 class PrintBatchCreate(BaseModel):
     """Create a batch, either empty (multi-plate pre-batch flow) or by
     assigning existing pending queue items into it (manual "Group as batch")."""
@@ -306,6 +320,41 @@ class PrintBatchCreate(BaseModel):
     # the empty-batch flow (client passes the returned id on subsequent
     # addToQueue calls).
     item_ids: list[int] | None = None
+    # Per-plate targets. Omitted entirely by the pre-#342 flows, which produce
+    # a batch that reports progress but owes nothing.
+    plates: list[PrintBatchPlateTarget] | None = None
+    # Planning metadata. Projects own the heavier fields (BOM, attachments,
+    # tags); these two are the ones that are useless without a Project to
+    # hang them on, so the order carries them directly.
+    project_id: int | None = None
+    due_date: datetime | None = None
+    notes: str | None = None
+
+
+class PrintBatchUpdate(BaseModel):
+    """Edit an order's header or its per-plate targets while it runs.
+
+    Every field is optional; ``plates`` replaces the full target set when
+    given, so a plate omitted from the list has its target row removed.
+    """
+
+    name: str | None = None
+    status: Literal["active", "cancelled"] | None = None
+    plates: list[PrintBatchPlateTarget] | None = None
+    project_id: int | None = None
+    due_date: datetime | None = None
+    notes: str | None = None
+
+
+class PrintBatchDispatchRequest(BaseModel):
+    """Create queue items for the runs an order still owes."""
+
+    # Restrict to one plate. Null is a legitimate plate_id (single-plate file),
+    # so the caller opts in explicitly rather than us inferring from null.
+    plate_id: int | None = None
+    only_plate: bool = False
+    # Cap on how many items to create across all plates. None = everything owed.
+    limit: int | None = Field(default=None, ge=1, le=999)
 
 
 class PrintBatchUngroupResponse(BaseModel):
@@ -313,6 +362,28 @@ class PrintBatchUngroupResponse(BaseModel):
 
     ungrouped_count: int
     message: str
+
+
+class PrintBatchPlateProgress(BaseModel):
+    """Per-plate progress within a batch."""
+
+    plate_id: int | None = None
+    plate_name: str | None = None
+    quantity_target: int = 0
+    dispatched: int = 0
+    remaining: int = 0
+    pending_count: int = 0
+    printing_count: int = 0
+    completed_count: int = 0
+    failed_count: int = 0
+    cancelled_count: int = 0
+    skipped_count: int = 0
+    # Measured from finished runs, never estimated from the file. Null until
+    # at least one run of this plate has produced a cost.
+    actual_cost: float | None = None
+    estimated_remaining_cost: float | None = None
+    filament_used_grams: float | None = None
+    print_time_seconds: int = 0
 
 
 class PrintBatchResponse(BaseModel):
@@ -325,14 +396,30 @@ class PrintBatchResponse(BaseModel):
     quantity: int
     status: str
     created_at: UTCDatetime
+    completed_at: UTCDatetime | None = None
     created_by_id: int | None = None
     created_by_username: str | None = None
+    project_id: int | None = None
+    due_date: UTCDatetime | None = None
+    notes: str | None = None
     # Derived counts
     pending_count: int = 0
     printing_count: int = 0
     completed_count: int = 0
     failed_count: int = 0
     cancelled_count: int = 0
+    skipped_count: int = 0
+    # Planning roll-up. has_targets is false for batches created before
+    # per-plate targets existed: they report progress but owe nothing, and the
+    # dispatch endpoint is a no-op for them.
+    has_targets: bool = False
+    target_count: int = 0
+    remaining_count: int = 0
+    actual_cost: float | None = None
+    estimated_remaining_cost: float | None = None
+    filament_used_grams: float | None = None
+    print_time_seconds: int = 0
+    plates: list[PrintBatchPlateProgress] = []
 
     class Config:
         from_attributes = True
