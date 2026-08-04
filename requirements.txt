@@ -75,6 +75,9 @@ unicodedata2==15.1.0; python_version < "3.13"
 
 # QR Code generation
 qrcode[pil]>=7.4.0
+# Keep the image codec floor explicit because Pillow is imported directly by
+# thumbnail, QR, report, and document-rendering paths.
+pillow>=12.2.0
 
 # PDF generation (spool label printing — #809)
 reportlab>=4.0.0
@@ -173,13 +176,3 @@ aiohttp>=3.14.0
 opencv-python-headless>=4.8.0
 # Keep CI on Python 3.11 installable; numpy 2.5+ requires Python >=3.12.
 numpy>=1.24.0,<2.5
-
-# Development
-pytest>=9.0.3
-pytest-asyncio>=0.23.0
-httpx>=0.26.0
-# Lint/format is pinned exactly in requirements-dev.txt; this floor only
-# keeps `ruff` importable for runtime-only installs that still use tooling.
-ruff>=0.8.0
-
-pillow>=12.2.0
