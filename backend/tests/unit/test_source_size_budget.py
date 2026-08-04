@@ -90,7 +90,8 @@ def test_excludes_generated_vendor_and_locale_paths(tmp_path: Path, checker: Mod
     vendor = tmp_path / "gcode_viewer" / "vendor.js"
     locale = tmp_path / "frontend" / "src" / "i18n" / "locales" / "en.ts"
     venv = tmp_path / "venv" / "lib" / "site-packages" / "dependency.py"
-    for path in (included, generated, vendor, locale, venv):
+    cache = tmp_path / ".cache" / "dist" / "bundle.js"
+    for path in (included, generated, vendor, locale, venv, cache):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("source\n", encoding="utf-8")
 
