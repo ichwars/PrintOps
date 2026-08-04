@@ -40,6 +40,12 @@ repos:
   # Check for import shadowing (custom)
   - repo: local
     hooks:
+      - id: dependency-boundaries
+        name: Production and development dependency boundaries
+        entry: python tools/check_dependency_boundaries.py
+        language: system
+        pass_filenames: false
+        files: ^(?:requirements(?:-dev)?(?:\.lock)?\.txt|tools/check_dependency_boundaries\.py)$
       - id: source-size-budget
         name: Source file and function size budget
         entry: python tools/check_source_size_budget.py

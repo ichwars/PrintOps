@@ -38,6 +38,7 @@ ENV WEASYPRINT_CLI=/usr/local/bin/weasyprint
 
 # Copy backend code
 COPY backend/ ./backend/
+COPY tools/check_dependency_boundaries.py ./tools/check_dependency_boundaries.py
 COPY tools/check_source_size_budget.py ./tools/check_source_size_budget.py
 COPY pyproject.toml ./
 

@@ -48,6 +48,9 @@ jobs:
       - name: Run source size budget
         run: python tools/check_source_size_budget.py
 
+      - name: Check dependency boundaries
+        run: python tools/check_dependency_boundaries.py
+
   backend-security:
     name: Backend Security
     runs-on: ubuntu-latest
