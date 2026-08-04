@@ -1,0 +1,42 @@
+import type { Printer, LinkedSpoolInfo, SpoolAssignment, InventorySpool } from '../../api/client';
+import type { PrinterMaintenanceInfo, SpoolmanSlotAssignmentRow, ViewMode } from './types';
+
+export type PrinterCardProps = {
+  printer: Printer;
+  hideIfDisconnected?: boolean;
+  maintenanceInfo?: PrinterMaintenanceInfo;
+  viewMode?: ViewMode;
+  cardSize?: number;
+  amsThresholds?: {
+    humidityGood: number;
+    humidityFair: number;
+    tempGood: number;
+    tempFair: number;
+  };
+  spoolmanEnabled?: boolean;
+  hasUnlinkedSpools?: boolean;
+  linkedSpools?: Record<string, LinkedSpoolInfo>;
+  spoolmanUrl?: string | null;
+  spoolmanSyncMode?: string | null;
+  spoolAssignments?: SpoolAssignment[];
+  onGetAssignment?: (printerId: number, amsId: number, trayId: number) => SpoolAssignment | undefined;
+  onUnassignSpool?: (printerId: number, amsId: number, trayId: number) => void;
+  spoolmanSpools?: InventorySpool[];
+  spoolmanSlotAssignments?: SpoolmanSlotAssignmentRow[];
+  spoolmanLoading?: boolean;
+  onUnassignSpoolmanSpool?: (spoolmanSpoolId: number) => void;
+  timeFormat?: 'system' | '12h' | '24h';
+  cameraViewMode?: 'window' | 'embedded';
+  onOpenEmbeddedCamera?: (printerId: number, printerName: string) => void;
+  checkPrinterFirmware?: boolean;
+  dryingPresets?: Record<string, { n3f: number; n3s: number; n3f_hours: number; n3s_hours: number }>;
+  requirePlateClear?: boolean;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: number) => void;
+  onOpenCompactCard?: (id: number) => void;
+  nozzleTempPresets?: readonly [number, number, number];
+  bedTempPresets?: readonly [number, number, number];
+  chamberTempPresets?: readonly [number, number, number];
+  fanSpeedPresets?: readonly [number, number, number];
+};
