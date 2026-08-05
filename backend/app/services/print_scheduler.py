@@ -33,6 +33,7 @@ from backend.app.services.bambu_ftp import (
     with_ftp_retry,
 )
 from backend.app.services.filament_deficit import compute_deficit_for_queue_item
+from backend.app.services.ha_sensor_manager import ha_sensor_manager
 from backend.app.services.library_queue_references import (
     consume_transient_library_source,
     fail_missing_library_source,
@@ -499,6 +500,31 @@ class PrintScheduler:
                 if inflight_printer_id is not None:
                     busy_printers.add(inflight_printer_id)
 
+            # Printers held by a Home Assistant sensor interlock (#1148) — an
+            # enclosure door left open, say. The fixed-printer branch turns
+            # this into a waiting_reason the user can act on; the model-based
+            # branch hides these printers from the matcher so an "Any <model>"
+            # job runs on a sibling instead of queueing behind the held one.
+            #
+            # Deliberately NOT merged into busy_printers, even though that set
+            # already means "unavailable this pass". _check_auto_drying reads
+            # it as "is currently printing" and would put an idle-but-held
+            # printer down the mid-print drying path, which caps the drying
+            # temperature and skips the queue-only gating. A held printer is
+            # idle; it should dry exactly as it did before.
+            #
+            # Only sensors we actually read and found alerting appear here; see
+            # ha_sensor_manager.blocked_printers. A Home Assistant that is down
+            # holds nothing.
+            interlocked: dict[int, str] = {}
+            try:
+                interlocked = await ha_sensor_manager.blocked_printers(db)
+            except Exception as e:
+                # Never let the interlock stop the queue running. A broken
+                # lookup means no holds, not no dispatches.
+                logger.warning("Home Assistant interlock check failed: %s", e)
+                interlocked = {}
+
             # Log skip reasons once per queue check (not per item)
             skip_reasons: dict[str, int] = {}
             dispatch_ids: list[int] = []
@@ -537,6 +563,28 @@ class PrintScheduler:
                     continue
 
                 if item.printer_id:
+                    # Held by a sensor interlock (#1148). Checked before the
+                    # busy_printers test that would otherwise swallow it
+                    # silently — "waiting for a printer" and "waiting for you
+                    # to shut the enclosure" need to read differently, and only
+                    # one of them is something the user can fix.
+                    #
+                    # The interlock is the only thing that writes a
+                    # waiting_reason on this branch — the model-based branch
+                    # nulls it at the moment it assigns a printer — so any
+                    # reason still standing once the hold lifts is stale and is
+                    # cleared here. Doing it at dispatch instead would leave a
+                    # shut door reading "Waiting on Enclosure Door" for as long
+                    # as the printer stayed busy with something else.
+                    interlock_reason = interlocked.get(item.printer_id)
+                    reason = f"Waiting on {interlock_reason}" if interlock_reason else None
+                    if item.waiting_reason != reason:
+                        item.waiting_reason = reason
+                        await db.commit()
+                    if interlock_reason:
+                        skip_reasons["sensor_interlock"] = skip_reasons.get("sensor_interlock", 0) + 1
+                        continue
+
                     # Specific printer assignment (existing behavior)
                     if item.printer_id in busy_printers:
                         continue
@@ -721,7 +769,10 @@ class PrintScheduler:
                         match_id, match_reason = await self._find_idle_printer_for_model(
                             db,
                             candidate.target_model,
-                            busy_printers,
+                            # Sensor-held printers are unavailable to the
+                            # matcher but stay out of busy_printers itself
+                            # (#1148) — see where `interlocked` is built.
+                            busy_printers | interlocked.keys(),
                             effective_types,
                             item.target_location,
                             filament_overrides=filament_overrides,

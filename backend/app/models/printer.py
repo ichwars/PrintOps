@@ -74,6 +74,7 @@ class Printer(Base):
     sensor_history: Mapped[list["PrinterSensorHistory"]] = relationship(
         back_populates="printer", cascade="all, delete-orphan"
     )
+    ha_sensors: Mapped[list["PrinterHASensor"]] = relationship(back_populates="printer", cascade="all, delete-orphan")
 
     @property
     def residual_value(self) -> Decimal | None:
@@ -95,5 +96,6 @@ from backend.app.models.archive import PrintArchive  # noqa: E402
 from backend.app.models.kprofile_note import KProfileNote  # noqa: E402
 from backend.app.models.maintenance import PrinterMaintenance  # noqa: E402
 from backend.app.models.notification import NotificationProvider  # noqa: E402
+from backend.app.models.printer_ha_sensor import PrinterHASensor  # noqa: E402
 from backend.app.models.printer_sensor_history import PrinterSensorHistory  # noqa: E402
 from backend.app.models.smart_plug import SmartPlug  # noqa: E402

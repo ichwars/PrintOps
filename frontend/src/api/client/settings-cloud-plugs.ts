@@ -8,6 +8,7 @@ import type {
   DiscoveredTasmotaDevice,
   FieldDefinitionsResponse,
   HAEntity,
+  HADisplayEntity,
   HASensorEntity,
   HATestConnectionResult,
   MQTTStatus,
@@ -26,6 +27,10 @@ import type {
   SlicerSettingUpdate,
   SlicerSettingsResponse,
   SmartPlug,
+  PrinterHASensor,
+  PrinterHASensorCreate,
+  PrinterHASensorReading,
+  PrinterHASensorUpdate,
   SmartPlugCreate,
   SmartPlugStatus,
   SmartPlugTestResult,
@@ -335,6 +340,26 @@ export const settingsCloudPlugsMethods = {
 
   getHASensorEntities: () =>
     request<HASensorEntity[]>('/smart-plugs/ha/sensors'),
+
+  getHASensors: (printerId?: number) =>
+    request<PrinterHASensor[]>(`/ha-sensors/${printerId ? `?printer_id=${printerId}` : ''}`),
+
+  getHASensorReadings: (printerId: number) =>
+    request<PrinterHASensorReading[]>(`/ha-sensors/by-printer/${printerId}/readings`),
+
+  getBindableHAEntities: (search?: string) => {
+    const params = search ? `?search=${encodeURIComponent(search)}` : '';
+    return request<HADisplayEntity[]>(`/ha-sensors/entities${params}`);
+  },
+
+  createHASensor: (data: PrinterHASensorCreate) =>
+    request<PrinterHASensor>('/ha-sensors/', { method: 'POST', body: JSON.stringify(data) }),
+
+  updateHASensor: (id: number, data: PrinterHASensorUpdate) =>
+    request<PrinterHASensor>(`/ha-sensors/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  deleteHASensor: (id: number) =>
+    request<{ message: string }>(`/ha-sensors/${id}`, { method: 'DELETE' }),
 
   // REST smart plug
   testRESTConnection: (url: string, method: string = 'GET', headers?: string | null) =>
