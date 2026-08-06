@@ -4105,6 +4105,12 @@ export default {
 
   // Projeler
   projects: {
+    parentLabel: 'Üst proje',
+    parentNone: 'Yok (üst düzey proje)',
+    parentHint: 'Bu projeyi başka bir projenin altına yerleştirin, böylece rakamları ana projede toplanır',
+    partOf: '{{name}} projesinin parçası',
+    subProjectCount: '{{count}} alt proje',
+    subProjectsOf: '{{name}} alt projeleri',
     title: 'Projeler',
     subtitle: '3D baskı projelerinizi organize edin ve takip edin',
     newProject: 'Yeni Proje',
@@ -4240,6 +4246,12 @@ export default {
     },
     subProjects: {
       title: 'Alt projeler ({{count}})',
+      jobs: '{{count}} iş',
+    },
+    rollup: {
+      title: '{{count}} alt proje dahil',
+      progress: 'Genel ilerleme',
+      percentComplete: '%{{percent}} tamamlandı',
     },
     notes: {
       title: 'Notlar',

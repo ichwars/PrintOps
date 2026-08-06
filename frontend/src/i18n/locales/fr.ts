@@ -4099,6 +4099,12 @@ export default {
 
   // Projects
   projects: {
+    parentLabel: 'Projet parent',
+    parentNone: 'Aucun (projet de premier niveau)',
+    parentHint: 'Imbriquer ce projet dans un autre pour que ses chiffres remontent vers un projet principal',
+    partOf: 'Fait partie de {{name}}',
+    subProjectCount: '{{count}} sous-projets',
+    subProjectsOf: 'Sous-projets de {{name}}',
     title: 'Projets',
     subtitle: 'Suivez vos projets d\'impression 3D',
     newProject: 'Nouveau Projet',
@@ -4240,6 +4246,12 @@ export default {
     },
     subProjects: {
       title: 'Sous-projets ({{count}})',
+      jobs: '{{count}} travaux',
+    },
+    rollup: {
+      title: 'Y compris {{count}} sous-projets',
+      progress: 'Progression globale',
+      percentComplete: '{{percent}}% terminé',
     },
     notes: {
       title: 'Notes',

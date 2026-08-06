@@ -4176,6 +4176,12 @@ export default {
 
   // Projects
   projects: {
+    parentLabel: 'Parent project',
+    parentNone: 'None (top-level project)',
+    parentHint: 'Nest this project under another one so its figures roll up into a master project',
+    partOf: 'Part of {{name}}',
+    subProjectCount: '{{count}} sub-projects',
+    subProjectsOf: 'Sub-projects of {{name}}',
     title: 'Projects',
     subtitle: 'Organize and track your 3D printing projects',
     newProject: 'New Project',
@@ -4317,6 +4323,12 @@ export default {
     },
     subProjects: {
       title: 'Sub-projects ({{count}})',
+      jobs: '{{count}} jobs',
+    },
+    rollup: {
+      title: 'Including {{count}} sub-projects',
+      progress: 'Overall progress',
+      percentComplete: '{{percent}}% complete',
     },
     notes: {
       title: 'Notes',

@@ -4098,6 +4098,12 @@ export default {
 
   // Projects
   projects: {
+    parentLabel: '父專案',
+    parentNone: '無（頂層專案）',
+    parentHint: '將此專案巢狀置於另一個專案下，其數據將彙總至主專案',
+    partOf: '屬於 {{name}}',
+    subProjectCount: '{{count}} 個子專案',
+    subProjectsOf: '{{name}} 的子專案',
     title: '專案',
     subtitle: '組織和追蹤您的 3D 列印專案',
     newProject: '新增專案',
@@ -4239,6 +4245,12 @@ export default {
     },
     subProjects: {
       title: '子專案 ({{count}})',
+      jobs: '{{count}} 個任務',
+    },
+    rollup: {
+      title: '包含 {{count}} 個子專案',
+      progress: '整體進度',
+      percentComplete: '已完成 {{percent}}%',
     },
     notes: {
       title: '備註',

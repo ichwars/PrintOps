@@ -3918,6 +3918,12 @@ export default {
     }
   },
   projects: {
+    parentLabel: '상위 프로젝트',
+    parentNone: '없음 (최상위 프로젝트)',
+    parentHint: '이 프로젝트를 다른 프로젝트 아래에 두면 수치가 마스터 프로젝트로 합산됩니다',
+    partOf: '{{name}}의 일부',
+    subProjectCount: '하위 프로젝트 {{count}}개',
+    subProjectsOf: '{{name}}의 하위 프로젝트',
     title: '프로젝트',
     subtitle: '3D 인쇄 프로젝트 정리 및 추적',
     newProject: '새 프로젝트',
@@ -4050,7 +4056,13 @@ export default {
       remaining: '남은 예산'
     },
     subProjects: {
-      title: '하위 프로젝트 ({{count}})'
+      title: '하위 프로젝트 ({{count}})',
+      jobs: '작업 {{count}}개',
+    },
+    rollup: {
+      title: '하위 프로젝트 {{count}}개 포함',
+      progress: '전체 진행률',
+      percentComplete: '{{percent}}% 완료',
     },
     notes: {
       title: '메모',

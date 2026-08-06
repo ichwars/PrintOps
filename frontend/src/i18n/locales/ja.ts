@@ -4110,6 +4110,12 @@ export default {
 
   // Projects
   projects: {
+    parentLabel: '親プロジェクト',
+    parentNone: 'なし（トップレベルプロジェクト）',
+    parentHint: 'このプロジェクトを別のプロジェクトの下に配置すると、数値がマスタープロジェクトに集計されます',
+    partOf: '{{name}} の一部',
+    subProjectCount: 'サブプロジェクト {{count}} 件',
+    subProjectsOf: '{{name}} のサブプロジェクト',
     title: 'プロジェクト',
     subtitle: '印刷プロジェクトを管理',
     newProject: '新規プロジェクト',
@@ -4251,6 +4257,12 @@ export default {
     },
     subProjects: {
       title: 'サブプロジェクト ({{count}})',
+      jobs: 'ジョブ {{count}} 件',
+    },
+    rollup: {
+      title: 'サブプロジェクト {{count}} 件を含む',
+      progress: '全体の進捗',
+      percentComplete: '{{percent}}% 完了',
     },
     notes: {
       title: 'メモ',

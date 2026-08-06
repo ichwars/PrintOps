@@ -4098,6 +4098,12 @@ export default {
 
   // Projects
   projects: {
+    parentLabel: '父项目',
+    parentNone: '无（顶级项目）',
+    parentHint: '将此项目嵌套在另一个项目下，其数据将汇总到主项目中',
+    partOf: '属于 {{name}}',
+    subProjectCount: '{{count}} 个子项目',
+    subProjectsOf: '{{name}} 的子项目',
     title: '项目',
     subtitle: '组织和跟踪您的 3D 打印项目',
     newProject: '新建项目',
@@ -4239,6 +4245,12 @@ export default {
     },
     subProjects: {
       title: '子项目 ({{count}})',
+      jobs: '{{count}} 个任务',
+    },
+    rollup: {
+      title: '包含 {{count}} 个子项目',
+      progress: '总体进度',
+      percentComplete: '已完成 {{percent}}%',
     },
     notes: {
       title: '备注',
