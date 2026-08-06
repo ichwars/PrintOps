@@ -5,6 +5,10 @@ import type {
   GitHubBackupLog,
   GitHubBackupStatus,
   GitHubBackupTriggerResponse,
+  GitHubCommitListResponse,
+  GitHubRestorePreview,
+  GitHubRestoreRequest,
+  GitHubRestoreResponse,
   GitHubTestConnectionResponse,
   GitProviderType,
   ImportResponse,
@@ -72,6 +76,18 @@ export const backupsSlicerMethods = {
 
   clearGitHubBackupLogs: (keepLast: number = 10) =>
     request<{ deleted: number; message: string }>(`/github-backup/logs?keep_last=${keepLast}`, { method: 'DELETE' }),
+
+  getGitHubBackupCommits: (limit: number = 20) =>
+    request<GitHubCommitListResponse>(`/github-backup/commits?limit=${limit}`),
+
+  getGitHubRestorePreview: (ref: string = 'HEAD') =>
+    request<GitHubRestorePreview>(`/github-backup/restore/preview?ref=${encodeURIComponent(ref)}`),
+
+  restoreFromGitHub: (payload: GitHubRestoreRequest) =>
+    request<GitHubRestoreResponse>('/github-backup/restore', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
   // Scheduled local backups
   getLocalBackupStatus: () =>
