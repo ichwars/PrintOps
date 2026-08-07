@@ -1,10 +1,14 @@
 from datetime import date
+from decimal import Decimal
 
 import pytest
 
+from backend.app.models.archive import PrintArchive
 from backend.app.models.business_profile import BusinessProfile
-from backend.app.models.calculation import Calculation
+from backend.app.models.calculation import Calculation, CalculationRevision
+from backend.app.models.print_log import PrintLogEntry
 from backend.app.models.printer import Printer
+from backend.app.models.project import Project
 from backend.app.models.settings import Settings
 from backend.tests.integration.test_calculation_project_files_api import _project_file
 
@@ -204,6 +208,61 @@ async def test_approval_uses_configured_default_printer_costs(async_client, db_s
     )
     assert approved.status_code == 200, approved.text
     assert float(approved.json()["production_cost"]) > 20
+
+
+async def test_list_returns_learning_factor_from_project_print_logs(async_client, db_session):
+    profile = await _profile(db_session)
+    project = Project(name="Learning project")
+    calculation = Calculation(
+        business_profile_id=profile.id,
+        project=project,
+        title="Learning calculation",
+        currency="EUR",
+        status="approved",
+    )
+    revision = CalculationRevision(
+        revision_number=1,
+        snapshot={
+            "learning_estimates": {
+                "material_grams": "100",
+                "energy_kwh": "2",
+                "production_cost": "10",
+            }
+        },
+        production_cost=Decimal("10"),
+        selling_price=Decimal("20"),
+        currency="EUR",
+    )
+    calculation.revisions.append(revision)
+    archive = PrintArchive(
+        project=project,
+        filename="learning.gcode",
+        file_path="learning.gcode",
+        file_size=1,
+        status="completed",
+    )
+    db_session.add_all([calculation, revision, archive])
+    await db_session.flush()
+    db_session.add(
+        PrintLogEntry(
+            archive_id=archive.id,
+            print_name="learning.gcode",
+            status="completed",
+            filament_used_grams=110,
+            energy_kwh=2.2,
+            cost=11,
+        )
+    )
+    await db_session.commit()
+
+    listed = await async_client.get("/api/v1/calculations/")
+
+    assert listed.status_code == 200, listed.text
+    factor = listed.json()["items"][0]["learning_factor"]
+    assert factor["sample_count"] == 1
+    assert factor["status"] == "matching"
+    assert factor["estimated_material_grams"] == "100"
+    assert factor["actual_material_grams"] == "110.0"
 
 
 async def test_plate_approval_uses_selected_printer_costs(async_client, db_session, tmp_path, monkeypatch):

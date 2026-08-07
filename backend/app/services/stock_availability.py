@@ -246,6 +246,7 @@ async def check_availability(
             )
             continue
         candidates: list[StockCandidate] = []
+        candidate_totals: dict[tuple[str, str], tuple[Decimal, Decimal]] = {}
         physical = Decimal("0")
         reserved = Decimal("0")
         if spoolman_enabled:
@@ -262,6 +263,7 @@ async def check_availability(
                 )
                 physical += spool_physical
                 reserved += spool_reserved
+                candidate_totals[("spoolman", resource_id)] = (spool_physical, spool_reserved)
                 candidates.append(StockCandidate("spoolman", resource_id, available, material))
         else:
             for spool in spools:
@@ -276,13 +278,29 @@ async def check_availability(
                 )
                 physical += spool_physical
                 reserved += spool_reserved
+                candidate_totals[("internal", resource_id)] = (spool_physical, spool_reserved)
                 candidates.append(StockCandidate("internal", resource_id, available, spool.material))
         if requirement.preferred_resource_id:
             candidates = [
-                candidate for candidate in candidates
+                candidate
+                for candidate in candidates
                 if candidate.backend == requirement.preferred_backend
                 and candidate.resource_id == requirement.preferred_resource_id
             ]
+            physical = sum(
+                (
+                    candidate_totals.get((candidate.backend, candidate.resource_id), (Decimal("0"), Decimal("0")))[0]
+                    for candidate in candidates
+                ),
+                Decimal("0"),
+            )
+            reserved = sum(
+                (
+                    candidate_totals.get((candidate.backend, candidate.resource_id), (Decimal("0"), Decimal("0")))[1]
+                    for candidate in candidates
+                ),
+                Decimal("0"),
+            )
         available = sum((candidate.available for candidate in candidates), Decimal("0"))
         if not candidates:
             lines.append(

@@ -20,7 +20,7 @@ function duplicatePayload(item: CalculationDetail, title: string): CalculationCr
     commercial_overrides: { ...item.commercial_overrides },
     currency: item.currency,
     notes: item.notes,
-    variants: structuredClone(item.variants),
+    variants: structuredClone(item.variants).map(variant => ({ ...variant, plates: [] })),
   };
 }
 

@@ -110,7 +110,11 @@ export function ProjectFileSection({ calculationId, plates, printers, dryers, sp
   };
 
   useEffect(() => {
-    if (!selectedKey || uploading || slicing || files.length === 0 || lastSlicedKey.current === selectedKey) return;
+    if (!selectedKey) {
+      lastSlicedKey.current = '';
+      return;
+    }
+    if (uploading || slicing || files.length === 0 || lastSlicedKey.current === selectedKey) return;
     lastSlicedKey.current = selectedKey;
     void slice();
   }, [files.length, selectedKey, slicing, uploading]); // eslint-disable-line react-hooks/exhaustive-deps

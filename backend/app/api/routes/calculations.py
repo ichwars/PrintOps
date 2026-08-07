@@ -1,23 +1,29 @@
 import logging
 import shutil
 from decimal import Decimal
+from math import ceil
 from pathlib import Path
 from typing import NoReturn
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.config import settings as app_settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
+from backend.app.models.archive import PrintArchive
+from backend.app.models.commerce import CustomerOrder, Offer
+from backend.app.models.print_log import PrintLogEntry
 from backend.app.models.user import User
 from backend.app.schemas.calculation import (
     CalculationApprove,
     CalculationBatchPreviewInput,
     CalculationCreate,
     CalculationDetail,
+    CalculationLearningFactorRead,
     CalculationListResponse,
     CalculationPreviewInput,
     CalculationPreviewRead,
@@ -192,14 +198,141 @@ def _availability_read(report) -> AvailabilityReportRead:
     )
 
 
-def _detail(calculation) -> CalculationDetail:
+def _current_revision(calculation):
+    return max(calculation.revisions, key=lambda item: item.revision_number, default=None)
+
+
+def _rate_delta(actual: Decimal | None, estimated: Decimal | None) -> Decimal | None:
+    if actual is None or estimated is None or estimated <= 0:
+        return None
+    return (actual - estimated) / estimated
+
+
+def _learning_status(*deltas: Decimal | None) -> str:
+    largest = max((abs(delta) for delta in deltas if delta is not None), default=None)
+    if largest is None:
+        return "pending"
+    if largest <= Decimal("0.10"):
+        return "matching"
+    if largest <= Decimal("0.25"):
+        return "watch"
+    return "drift"
+
+
+def _snapshot_estimated_material(snapshot: dict) -> Decimal | None:
+    variants = snapshot.get("variants") or []
+    variant = next((item for item in variants if item.get("is_preferred")), variants[0] if variants else None)
+    if not variant:
+        return None
+    total = Decimal("0")
+    for plate in variant.get("plates") or []:
+        grams = Decimal(str(plate.get("grams_per_print") or 0))
+        runs = ceil(int(plate.get("good_parts", 0)) / max(1, int(plate.get("parts_per_print", 1))))
+        runs += int(plate.get("scrap_prints", 0))
+        total += grams * Decimal(runs)
+    for operation in variant.get("operations") or []:
+        grams = Decimal(str(operation.get("material_grams_per_run") or 0))
+        runs = ceil(int(operation.get("good_parts", 0)) / max(1, int(operation.get("parts_per_run", 1))))
+        runs += int(operation.get("scrap_runs", 0))
+        total += grams * Decimal(runs)
+    return total
+
+
+async def _learning_factor(
+    db: AsyncSession,
+    calculation,
+    current_revision,
+) -> CalculationLearningFactorRead | None:
+    if current_revision is None:
+        return CalculationLearningFactorRead(sample_count=0, status="pending")
+    project_ids = {
+        value
+        for value in (
+            await db.scalars(
+                select(CustomerOrder.project_id)
+                .join(Offer, Offer.id == CustomerOrder.offer_id)
+                .where(Offer.calculation_revision_id == current_revision.id)
+            )
+        ).all()
+        if value is not None
+    }
+    if calculation.project_id is not None:
+        project_ids.add(calculation.project_id)
+    if not project_ids:
+        return CalculationLearningFactorRead(sample_count=0, status="pending")
+
+    log_stats = (
+        await db.execute(
+            select(
+                func.count(PrintLogEntry.id),
+                func.sum(PrintLogEntry.filament_used_grams),
+                func.sum(PrintLogEntry.energy_kwh),
+                func.sum(PrintLogEntry.cost),
+            )
+            .select_from(PrintLogEntry)
+            .join(PrintArchive, PrintArchive.id == PrintLogEntry.archive_id)
+            .where(PrintArchive.project_id.in_(project_ids), PrintLogEntry.status == "completed")
+        )
+    ).one()
+    sample_count = int(log_stats[0] or 0)
+    actual_material = Decimal(str(log_stats[1])) if log_stats[1] is not None else None
+    actual_energy = Decimal(str(log_stats[2])) if log_stats[2] is not None else None
+    actual_cost = Decimal(str(log_stats[3])) if log_stats[3] is not None else None
+    if sample_count == 0:
+        archive_stats = (
+            await db.execute(
+                select(
+                    func.count(PrintArchive.id),
+                    func.sum(PrintArchive.filament_used_grams),
+                    func.sum(PrintArchive.energy_kwh),
+                    func.sum(PrintArchive.cost),
+                ).where(
+                    PrintArchive.project_id.in_(project_ids),
+                    PrintArchive.deleted_at.is_(None),
+                    PrintArchive.status == "completed",
+                )
+            )
+        ).one()
+        sample_count = int(archive_stats[0] or 0)
+        actual_material = Decimal(str(archive_stats[1])) if archive_stats[1] is not None else None
+        actual_energy = Decimal(str(archive_stats[2])) if archive_stats[2] is not None else None
+        actual_cost = Decimal(str(archive_stats[3])) if archive_stats[3] is not None else None
+
+    estimates = current_revision.snapshot.get("learning_estimates") or {}
+    estimated_material = (
+        Decimal(str(estimates["material_grams"]))
+        if estimates.get("material_grams") is not None
+        else _snapshot_estimated_material(current_revision.snapshot)
+    )
+    estimated_energy = Decimal(str(estimates["energy_kwh"])) if estimates.get("energy_kwh") is not None else None
+    estimated_cost = Decimal(str(estimates.get("production_cost") or current_revision.production_cost))
+    material_delta = _rate_delta(actual_material, estimated_material)
+    energy_delta = _rate_delta(actual_energy, estimated_energy)
+    cost_delta = _rate_delta(actual_cost, estimated_cost)
+    return CalculationLearningFactorRead(
+        sample_count=sample_count,
+        material_delta_rate=material_delta,
+        energy_delta_rate=energy_delta,
+        cost_delta_rate=cost_delta,
+        estimated_material_grams=estimated_material,
+        actual_material_grams=actual_material,
+        estimated_energy_kwh=estimated_energy,
+        actual_energy_kwh=actual_energy,
+        status="pending" if sample_count == 0 else _learning_status(material_delta, energy_delta, cost_delta),
+    )
+
+
+def _detail(
+    calculation, *, current=None, learning_factor: CalculationLearningFactorRead | None = None
+) -> CalculationDetail:
     detail = CalculationDetail.model_validate(calculation).model_copy(
         update={
             "customer_display_name": calculation.customer.display_name if calculation.customer else None,
             "business_profile_name": calculation.business_profile.name if calculation.business_profile else None,
+            "learning_factor": learning_factor,
         }
     )
-    current = max(calculation.revisions, key=lambda item: item.revision_number, default=None)
+    current = current if current is not None else _current_revision(calculation)
     if current is None:
         return detail
     return detail.model_copy(
@@ -270,9 +403,11 @@ async def list_calculations(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> CalculationListResponse:
     page = await calculation_service.list_calculations(db, status=calculation_status, limit=limit, offset=offset)
-    return CalculationListResponse(
-        items=[_detail(item) for item in page.rows], total=page.total, limit=page.limit, offset=page.offset
-    )
+    items: list[CalculationDetail] = []
+    for item in page.rows:
+        current = _current_revision(item)
+        items.append(_detail(item, current=current, learning_factor=await _learning_factor(db, item, current)))
+    return CalculationListResponse(items=items, total=page.total, limit=page.limit, offset=page.offset)
 
 
 @router.post("/", response_model=CalculationDetail, status_code=status.HTTP_201_CREATED)
@@ -323,7 +458,9 @@ async def get_calculation(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> CalculationDetail:
     try:
-        return _detail(await calculation_service.get_calculation(db, calculation_id))
+        calculation = await calculation_service.get_calculation(db, calculation_id)
+        current = _current_revision(calculation)
+        return _detail(calculation, current=current, learning_factor=await _learning_factor(db, calculation, current))
     except OrderDomainError as exc:
         _raise_http(exc)
 

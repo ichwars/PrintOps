@@ -93,6 +93,8 @@ async def test_availability_preview_respects_selected_internal_spool(async_clien
     assert response.status_code == 200, response.text
     line = response.json()["lines"][0]
     assert line["status"] == "short"
+    assert Decimal(line["physical"]) == Decimal("50.000000")
+    assert Decimal(line["reserved"]) == Decimal("0")
     assert Decimal(line["available"]) == Decimal("50.000000")
     assert Decimal(line["shortage"]) == Decimal("10")
     assert line["allocations"] == []
