@@ -4,10 +4,11 @@ import { Cpu, Database, FileUp, LoaderCircle, Wind } from 'lucide-react';
 import type { Equipment, InventorySpool, Printer } from '../../../api/client';
 import { calculationsApi, type CalculationProjectFile, type CalculationProjectPlate, type CalculationVariantPlate } from '../../../api/calculations';
 import { formatGrams } from '../../../utils/calculationFormatting';
-import { FileInput, LegacySelect, NumberField, TextField } from '../../ui';
+import { FileInput, LegacySelect, NumberField } from '../../ui';
 import { ProjectPlateGrid } from './ProjectPlateGrid';
 
 const inputClass = 'mt-1 h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary px-3 text-white outline-none focus:border-bambu-green';
+const numberInputClass = 'h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary px-3 text-white outline-none focus:border-bambu-green';
 
 function formatStepValue(value: string | null, fractionDigits: number): string {
   if (value === null || value === '') return '';
@@ -46,6 +47,7 @@ function newSelection(plate: CalculationProjectPlate, sortOrder: number): Calcul
 export function ProjectFileSection({ calculationId, plates, printers, dryers, spools, locale, onEnsureCalculation, onChange }: ProjectFileSectionProps) {
   const de = locale.startsWith('de');
   const fileInput = useRef<HTMLInputElement>(null);
+  const lastSlicedKey = useRef('');
   const [files, setFiles] = useState<CalculationProjectFile[]>([]);
   const [focusedId, setFocusedId] = useState<number | null>(plates[0]?.project_plate_id ?? null);
   const [uploading, setUploading] = useState(false);
@@ -53,8 +55,11 @@ export function ProjectFileSection({ calculationId, plates, printers, dryers, sp
   const [message, setMessage] = useState<string | null>(null);
   const allPlates = useMemo(() => files.flatMap((file) => file.plates), [files]);
   const selectedIds = useMemo(() => new Set(plates.map((item) => item.project_plate_id)), [plates]);
+  const selectedKey = useMemo(() => [...selectedIds].sort((a, b) => a - b).join(','), [selectedIds]);
   const focusedPlate = allPlates.find((item) => item.id === focusedId) ?? null;
   const focusedSelection = plates.find((item) => item.project_plate_id === focusedId) ?? null;
+  const activeSpools = useMemo(() => spools.filter((spool) => !spool.archived_at), [spools]);
+  const selectedSpool = focusedSelection?.provenance.spool_id ? activeSpools.find((spool) => spool.id === Number(focusedSelection.provenance.spool_id)) ?? null : null;
 
   useEffect(() => {
     if (!calculationId) return;
@@ -76,6 +81,7 @@ export function ProjectFileSection({ calculationId, plates, printers, dryers, sp
     if (!file) return;
     setUploading(true); setMessage(null);
     try {
+      await new Promise((resolve) => window.requestAnimationFrame(resolve));
       const targetCalculationId = calculationId ?? await onEnsureCalculation(file);
       const created = await calculationsApi.uploadProjectFile(targetCalculationId, file);
       setFiles((current) => [...current, created]);
@@ -102,8 +108,29 @@ export function ProjectFileSection({ calculationId, plates, printers, dryers, sp
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
     finally { setSlicing(false); }
   };
+
+  useEffect(() => {
+    if (!selectedKey || uploading || slicing || files.length === 0 || lastSlicedKey.current === selectedKey) return;
+    lastSlicedKey.current = selectedKey;
+    void slice();
+  }, [files.length, selectedKey, slicing, uploading]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const setProvenance = (key: string, value: number) => onChange(plates.map((item) => selectedIds.has(item.project_plate_id) ? { ...item, provenance: { ...item.provenance, [key]: value || null } } : item));
-  const materialAvailable = focusedSelection?.material_code ? spools.filter((spool) => !spool.archived_at && spool.material.toLowerCase() === focusedSelection.material_code?.toLowerCase()).reduce((sum, spool) => sum + Math.max(0, spool.label_weight - spool.weight_used), 0) : 0;
+  const materialAvailable = focusedSelection?.material_code ? activeSpools.filter((spool) => spool.material.toLowerCase() === focusedSelection.material_code?.toLowerCase()).reduce((sum, spool) => sum + Math.max(0, spool.label_weight - spool.weight_used), 0) : 0;
+  const selectedSpoolRemaining = selectedSpool ? Math.max(0, selectedSpool.label_weight - selectedSpool.weight_used) : null;
+  const updateMaterialFromSpool = (spoolId: number) => {
+    if (!focusedSelection) return;
+    const spool = activeSpools.find((item) => item.id === spoolId);
+    updateFocused({
+      material_code: spool?.material || null,
+      provenance: {
+        ...focusedSelection.provenance,
+        spool_id: spool?.id ?? null,
+        spool_label: spool ? [spool.brand, spool.material, spool.color_name].filter(Boolean).join(' · ') : null,
+      },
+    });
+  };
+  const busyText = uploading ? (de ? 'Projektdatei wird analysiert ...' : 'Analyzing project file ...') : slicing ? (de ? '3MF wird geslicet und neu kalkuliert ...' : 'Slicing 3MF and recalculating ...') : null;
 
   return (
     <section className="space-y-3">
@@ -111,27 +138,28 @@ export function ProjectFileSection({ calculationId, plates, printers, dryers, sp
         <h3 className="font-semibold text-white">3. {de ? 'Projektdatei' : 'Project file'}</h3>
         <p className="text-xs text-bambu-gray">{de ? 'Druckzeit, Material und Positionen werden je ausgewählter 3MF-Platte übernommen.' : 'Print time, material, and line items are derived per selected 3MF plate.'}</p>
       </div>
+      <div onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void upload(event.dataTransfer.files[0]); }} className="relative flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-bambu-dark-tertiary bg-bambu-dark/50 p-4">
+        {busyText ? <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-bambu-dark/85 text-sm font-medium text-white"><LoaderCircle className="mr-2 h-4 w-4 animate-spin text-bambu-green" />{busyText}</div> : null}
+        <div><strong className="text-sm text-white">{de ? '3MF hier ablegen' : 'Drop 3MF here'}</strong><p className="text-xs text-bambu-gray">{calculationId ? (de ? 'oder über den Dateiexplorer auswählen' : 'or select it using the file browser') : (de ? 'Der Entwurf wird beim ersten Upload automatisch gespeichert.' : 'The draft is saved automatically with the first upload.')}</p></div>
+        <button type="button" disabled={uploading || slicing} onClick={() => fileInput.current?.click()} className="inline-flex items-center gap-2 rounded-lg bg-bambu-dark px-3 py-2 text-sm text-white disabled:opacity-50">{uploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}{de ? 'Datei auswählen' : 'Choose file'}</button>
+        <FileInput ref={fileInput} accept=".3mf,model/3mf" className="sr-only" onChange={(event) => void upload(event.target.files?.[0])} />
+      </div>
       <div className="grid gap-3 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark p-3 sm:grid-cols-3">
         <label className="text-xs text-bambu-gray"><span className="flex items-center gap-1"><Cpu className="h-3.5 w-3.5" />{de ? 'Drucker' : 'Printer'}</span><LegacySelect value={Number(focusedSelection?.provenance.printer_id ?? 0)} onChange={(event) => setProvenance('printer_id', Number(event.target.value))} className={inputClass}><option value={0}>{de ? 'Kein Drucker' : 'No printer'}</option>{printers.filter((item) => item.is_active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</LegacySelect></label>
         <label className="text-xs text-bambu-gray"><span className="flex items-center gap-1"><Wind className="h-3.5 w-3.5" />{de ? 'Trockner' : 'Dryer'}</span><LegacySelect value={Number(focusedSelection?.provenance.dryer_id ?? 0)} onChange={(event) => setProvenance('dryer_id', Number(event.target.value))} className={inputClass}><option value={0}>{de ? 'Kein Trockner' : 'No dryer'}</option>{dryers.filter((item) => item.is_active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</LegacySelect></label>
-        <label className="text-xs text-bambu-gray">{de ? 'Trocknungsdauer h' : 'Drying hours'}<NumberField min="0" step="0.05" value={String(focusedSelection?.provenance.drying_hours ?? 0)} onChange={(event) => setProvenance('drying_hours', Number(event.target.value))} containerClassName="mt-1" className={inputClass} /></label>
-      </div>
-      <div onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void upload(event.dataTransfer.files[0]); }} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-bambu-dark-tertiary bg-bambu-dark/50 p-4">
-        <div><strong className="text-sm text-white">{de ? '3MF hier ablegen' : 'Drop 3MF here'}</strong><p className="text-xs text-bambu-gray">{calculationId ? (de ? 'oder über den Dateiexplorer auswählen' : 'or select it using the file browser') : (de ? 'Der Entwurf wird beim ersten Upload automatisch gespeichert.' : 'The draft is saved automatically with the first upload.')}</p></div>
-        <button type="button" disabled={uploading} onClick={() => fileInput.current?.click()} className="inline-flex items-center gap-2 rounded-lg bg-bambu-dark px-3 py-2 text-sm text-white disabled:opacity-50">{uploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}{de ? 'Datei auswählen' : 'Choose file'}</button>
-        <FileInput ref={fileInput} accept=".3mf,model/3mf" className="sr-only" onChange={(event) => void upload(event.target.files?.[0])} />
+        <label className="min-w-0 text-xs text-bambu-gray">{de ? 'Trocknungsdauer h' : 'Drying hours'}<NumberField min="0" step="0.05" value={String(focusedSelection?.provenance.drying_hours ?? 0)} onChange={(event) => setProvenance('drying_hours', Number(event.target.value))} containerClassName="mt-1" className={numberInputClass} /></label>
       </div>
       {files.map((file) => <div key={file.id} className="space-y-2"><div className="flex items-center justify-between text-sm"><strong className="text-white">{file.original_filename}</strong><span className="text-bambu-gray">Revision {file.revision_number} · {file.plates.length} {de ? 'Platten' : 'plates'}</span></div><ProjectPlateGrid plates={file.plates} selectedIds={selectedIds} focusedId={focusedId} locale={locale} onSelectionChange={select} onFocusChange={setFocusedId} /></div>)}
       {focusedPlate && focusedSelection && <div role="group" aria-label={de ? `Details für ${focusedPlate.name}` : `Details for ${focusedPlate.name}`} className="grid gap-3 rounded-lg border border-bambu-green/30 bg-bambu-dark p-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
         <div className="col-span-full flex items-center justify-between"><strong className="text-white">{focusedPlate.name}</strong><span className="rounded-full bg-bambu-green/10 px-2 py-1 text-xs text-bambu-green">{String(focusedSelection.provenance.source ?? '3mf') === 'estimate' ? (de ? 'Schätzung' : 'Estimate') : String(focusedSelection.provenance.source ?? '3MF/Slicer')}</span></div>
-        <label className="text-xs text-bambu-gray">{de ? 'Benötigte Teile' : 'Required parts'}<NumberField min="0" step="1" value={focusedSelection.good_parts} onChange={(event) => updateFocused({ good_parts: Number(event.target.value) })} containerClassName="mt-1" className={inputClass} /></label>
-        <label className="text-xs text-bambu-gray">{de ? 'Teile je Druck' : 'Parts per print'}<NumberField min="1" step="1" value={focusedSelection.parts_per_print} onChange={(event) => updateFocused({ parts_per_print: Number(event.target.value) })} containerClassName="mt-1" className={inputClass} /></label>
-        <label className="text-xs text-bambu-gray">{de ? 'Ausschussdrucke' : 'Scrap prints'}<NumberField min="0" step="1" value={focusedSelection.scrap_prints} onChange={(event) => updateFocused({ scrap_prints: Number(event.target.value) })} containerClassName="mt-1" className={inputClass} /></label>
-        <label className="text-xs text-bambu-gray">{de ? 'Material' : 'Material'}<TextField value={focusedSelection.material_code ?? ''} onChange={(event) => updateFocused({ material_code: event.target.value || null })} className={inputClass} /><span className="mt-1 flex items-center gap-1"><Database className="h-3 w-3" />{de ? 'verfügbar' : 'available'}: {formatGrams(materialAvailable, locale)}</span></label>
-        <label className="text-xs text-bambu-gray">{de ? 'g je Druck' : 'g per print'}<NumberField min="0" step="0.1" value={formatStepValue(focusedSelection.grams_per_print, 1)} onChange={(event) => updateFocused({ grams_per_print: event.target.value || null, provenance: { ...focusedSelection.provenance, source: 'manual' } })} containerClassName="mt-1" className={inputClass} /></label>
-        <label className="text-xs text-bambu-gray">{de ? 'h je Druck' : 'h per print'}<NumberField min="0" step="0.01" value={formatStepValue(focusedSelection.hours_per_print, 2)} onChange={(event) => updateFocused({ hours_per_print: event.target.value || null, provenance: { ...focusedSelection.provenance, source: 'manual' } })} containerClassName="mt-1" className={inputClass} /></label>
+        <label className="text-xs text-bambu-gray">{de ? 'Benötigte Teile' : 'Required parts'}<NumberField min="0" step="1" value={focusedSelection.good_parts} onChange={(event) => updateFocused({ good_parts: Number(event.target.value) })} containerClassName="mt-1" className={numberInputClass} /></label>
+        <label className="text-xs text-bambu-gray">{de ? 'Teile je Druck' : 'Parts per print'}<NumberField min="1" step="1" value={focusedSelection.parts_per_print} onChange={(event) => updateFocused({ parts_per_print: Number(event.target.value) })} containerClassName="mt-1" className={numberInputClass} /></label>
+        <label className="text-xs text-bambu-gray">{de ? 'Ausschussdrucke' : 'Scrap prints'}<NumberField min="0" step="1" value={focusedSelection.scrap_prints} onChange={(event) => updateFocused({ scrap_prints: Number(event.target.value) })} containerClassName="mt-1" className={numberInputClass} /></label>
+        <label className="text-xs text-bambu-gray">{de ? 'Material / Spule' : 'Material / spool'}<LegacySelect value={selectedSpool?.id ?? ''} onChange={(event) => updateMaterialFromSpool(Number(event.target.value))} className={inputClass}><option value="">{focusedSelection.material_code ? `${focusedSelection.material_code} (${de ? 'ohne Spule' : 'without spool'})` : (de ? 'Spule auswählen' : 'Select spool')}</option>{activeSpools.map((spool) => <option key={spool.id} value={spool.id}>{[spool.brand, spool.material, spool.color_name].filter(Boolean).join(' · ')} · {formatGrams(Math.max(0, spool.label_weight - spool.weight_used), locale)}</option>)}</LegacySelect><span className="mt-1 flex items-center gap-1"><Database className="h-3 w-3" />{selectedSpoolRemaining !== null ? `${de ? 'Spule' : 'spool'}: ${formatGrams(selectedSpoolRemaining, locale)} · ` : ''}{de ? 'Material verfügbar' : 'material available'}: {formatGrams(materialAvailable, locale)}</span></label>
+        <label className="text-xs text-bambu-gray">{de ? 'g je Druck' : 'g per print'}<NumberField min="0" step="0.1" value={formatStepValue(focusedSelection.grams_per_print, 1)} onChange={(event) => updateFocused({ grams_per_print: event.target.value || null, provenance: { ...focusedSelection.provenance, source: 'manual' } })} containerClassName="mt-1" className={numberInputClass} /></label>
+        <label className="text-xs text-bambu-gray">{de ? 'h je Druck' : 'h per print'}<NumberField min="0" step="0.01" value={formatStepValue(focusedSelection.hours_per_print, 2)} onChange={(event) => updateFocused({ hours_per_print: event.target.value || null, provenance: { ...focusedSelection.provenance, source: 'manual' } })} containerClassName="mt-1" className={numberInputClass} /></label>
       </div>}
-      <div className="flex items-center justify-between gap-3"><span className="text-sm text-bambu-gray">{message}</span><button type="button" disabled={!selectedIds.size || slicing} onClick={() => void slice()} className="inline-flex items-center gap-2 rounded-lg border border-bambu-green px-4 py-2 text-sm text-bambu-green disabled:opacity-50">{slicing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}{de ? '3MF slicen & kalkulieren' : 'Slice & calculate 3MF'}</button></div>
+      <div className="flex min-h-6 items-center gap-2 text-sm text-bambu-gray">{slicing ? <LoaderCircle className="h-4 w-4 animate-spin text-bambu-green" /> : null}<span>{busyText ?? message}</span></div>
     </section>
   );
 }

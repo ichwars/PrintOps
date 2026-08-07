@@ -26,6 +26,8 @@ class StockRequirement:
     material_code: str | None = None
     small_part_id: int | None = None
     description: str | None = None
+    preferred_backend: Literal["internal", "spoolman"] | None = None
+    preferred_resource_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -111,6 +113,13 @@ def requirements_from_snapshot(snapshot: dict, variant_sort_order: int) -> tuple
     for index, plate in enumerate(variant.get("plates") or []):
         grams = _decimal(plate.get("grams_per_print"))
         material_code = str(plate.get("material_code") or "").strip() or None
+        provenance = plate.get("provenance") if isinstance(plate.get("provenance"), dict) else {}
+        preferred_resource_id = None
+        if provenance.get("spool_id") is not None:
+            try:
+                preferred_resource_id = str(int(provenance.get("spool_id")))
+            except (TypeError, ValueError):
+                preferred_resource_id = None
         runs = ceil(int(plate.get("good_parts", 0)) / max(1, int(plate.get("parts_per_print", 1))))
         runs += int(plate.get("scrap_prints", 0))
         quantity = grams * runs
@@ -124,6 +133,8 @@ def requirements_from_snapshot(snapshot: dict, variant_sort_order: int) -> tuple
                 unit_code="GRM",
                 material_code=material_code,
                 description=str(plate.get("plate_name") or plate.get("stable_key") or f"Plate {index + 1}"),
+                preferred_backend="internal" if preferred_resource_id else None,
+                preferred_resource_id=preferred_resource_id,
             )
         )
     for index, part in enumerate(variant.get("small_parts") or []):
@@ -266,6 +277,12 @@ async def check_availability(
                 physical += spool_physical
                 reserved += spool_reserved
                 candidates.append(StockCandidate("internal", resource_id, available, spool.material))
+        if requirement.preferred_resource_id:
+            candidates = [
+                candidate for candidate in candidates
+                if candidate.backend == requirement.preferred_backend
+                and candidate.resource_id == requirement.preferred_resource_id
+            ]
         available = sum((candidate.available for candidate in candidates), Decimal("0"))
         if not candidates:
             lines.append(

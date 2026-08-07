@@ -140,6 +140,18 @@ export interface AvailabilityReport {
   checked_at: string;
 }
 
+export interface CalculationLearningFactor {
+  sample_count: number;
+  material_delta_rate: string | null;
+  energy_delta_rate: string | null;
+  cost_delta_rate: string | null;
+  estimated_material_grams: string | null;
+  actual_material_grams: string | null;
+  estimated_energy_kwh: string | null;
+  actual_energy_kwh: string | null;
+  status: 'pending' | 'matching' | 'watch' | 'drift';
+}
+
 export interface CalculationVariant {
   name: string;
   is_preferred: boolean;
@@ -175,6 +187,7 @@ export interface CalculationDetail {
   current_revision: number | null;
   production_cost: string | null;
   selling_price: string | null;
+  learning_factor?: CalculationLearningFactor | null;
 }
 
 export interface CalculationPage {

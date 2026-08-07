@@ -4,6 +4,29 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+## [1.2.7.7] - 2026-08-07
+
+### Added
+- **Calculation inventory binding and availability learning** - 3MF plate material can now be tied to warehouse spool data so an accepted calculation can reserve the intended filament stock instead of only carrying a free-text material label. The calculation overview also shows a learning-factor column that compares estimated material/energy/cost assumptions against later production consumption once production data exists.
+- **Calculation project workflow shortcut** - The project selector in the calculation workspace can open a project-creation popup and keep the current calculation draft in place, so a missing project no longer interrupts quoting.
+- **Calculation overview actions** - The calculation list now exposes edit, duplicate, offer draft, revision, archive and delete actions directly in the table, with sortable columns and compact centered commercial columns.
+
+### Changed
+- **Calculator 3MF and plate workflow polish** - The 3MF upload area now leads the printer/dryer settings in the right order, slicing work gets a visible busy state, multiple plates can be selected, and price previews recalculate automatically when plate selection or relevant inputs change.
+- **Calculator commercial input cleanup** - Work-time and post-processing inputs now use field-level reset affordances, more appropriate decimal precision, tighter textbox sizing, aligned controls and cleaner vertical rhythm instead of a broad global reset button.
+- **Calculation table typography** - The overview table now uses shorter headers, centered data columns from variant through updated date, and action icons that only change icon color on hover without adding a background or border.
+
+### Fixed
+- **Business-profile tax in calculations** - Calculation previews now derive tax from the selected business profile instead of always falling back to the central default.
+- **Calculation cost participation** - Setup, post-processing, CAD, quality-control, material markup, consumables, packaging, shipping, discount and drying-related cost settings now feed the preview more consistently so visible override fields affect the resulting price.
+- **Selected spool availability checks** - Availability validation now narrows plate requirements to the selected spool when a plate carries spool provenance, preventing a calculation from looking available only because another spool with the same material exists.
+- **Upstream parity and test stabilization** - Carries forward the maziggy parity fixes on the branch, keeps the Python size-budget baseline aligned, and stabilizes Bambu Cloud TOTP CSRF coverage.
+
+## [1.2.7.6] - 2026-08-03
+
+### Changed
+- **Orca Cloud profile sync now connects by approving a code instead of the copy-paste sign-in** - Connecting Bambuddy to Orca Cloud used to mean opening an OAuth sign-in in a new tab, watching it redirect to a `localhost` URL that fails to load, then copying that dead URL out of the address bar and pasting it back into Bambuddy. That dance existed only because Orca's auth backend accepts no redirect target other than `localhost`, and the deliberately broken redirect page confused nearly everyone who reached it. OrcaSlicer has since shipped a first-class external-app pairing API, so the flow is now: click **Connect**, approve a short code on your Orca Cloud settings page, and PrintOps pairs itself. PrintOps requests read-only access, keeps the pairing alive with rotating refresh tokens, and removes the old paste-based sign-in and email/password fallback.
+
 ## [1.2.7.5] - 2026-08-02
 
 ### Added

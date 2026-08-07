@@ -63,3 +63,36 @@ async def test_availability_preview_checks_both_stores_without_reserving(async_c
         )
         == 0
     )
+
+
+async def test_availability_preview_respects_selected_internal_spool(async_client, db_session):
+    selected = Spool(material="PLA", label_weight=100, weight_used=50)
+    fallback = Spool(material="PLA", label_weight=1000, weight_used=0)
+    db_session.add_all([selected, fallback])
+    await db_session.commit()
+
+    response = await async_client.post(
+        "/api/v1/calculations/availability-preview",
+        json={
+            "name": "Standard",
+            "is_preferred": True,
+            "plates": [
+                {
+                    "project_plate_id": 1,
+                    "good_parts": 1,
+                    "parts_per_print": 1,
+                    "material_code": "PLA",
+                    "grams_per_print": "60",
+                    "provenance": {"spool_id": selected.id},
+                }
+            ],
+            "small_parts": [],
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    line = response.json()["lines"][0]
+    assert line["status"] == "short"
+    assert Decimal(line["available"]) == Decimal("50.000000")
+    assert Decimal(line["shortage"]) == Decimal("10")
+    assert line["allocations"] == []

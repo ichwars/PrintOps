@@ -7,7 +7,7 @@ import { calculationsApi, type CalculationDetail } from '../../api/calculations'
 vi.mock('../../api/client', () => ({
   ApiError: class ApiError extends Error { status = 409; },
   api: {
-    getBusinessProfileOptions: vi.fn(), getSettings: vi.fn(), getPrinters: vi.fn(), getEquipment: vi.fn(), getCustomers: vi.fn(), getProjects: vi.fn(), getSpools: vi.fn(),
+    getBusinessProfiles: vi.fn(), getBusinessProfileOptions: vi.fn(), getSettings: vi.fn(), getPrinters: vi.fn(), getEquipment: vi.fn(), getCustomers: vi.fn(), getProjects: vi.fn(), createProject: vi.fn(), getSpools: vi.fn(),
   },
 }));
 
@@ -54,9 +54,37 @@ const uploadedProjectFile = {
   printer_metadata: {}, created_at: '2026-07-18T12:00:00Z', plates: [],
 };
 
+const businessProfile = {
+  id: 2,
+  name: 'Main',
+  legal_name: 'Main GmbH',
+  trading_name: null,
+  country_code: 'DE',
+  default_currency: 'EUR',
+  timezone: 'Europe/Berlin',
+  default_locale: 'de-DE',
+  billing_mode: 'standard',
+  tax_mode: 'standard',
+  default_tax_rate: '19.00',
+  cash_accounting: false,
+  input_tax_deductible: true,
+  show_offer_qr: false,
+  paypal_me_url: null,
+  is_active: true,
+  is_default: true,
+  version: 1,
+  created_at: '2026-07-18T12:00:00Z',
+  updated_at: '2026-07-18T12:00:00Z',
+  logo_media_type: null,
+  logo_version: null,
+  addresses: [],
+  tax_identifiers: [],
+  bank_accounts: [],
+};
+
 function mockWorkspaceDependencies() {
   vi.clearAllMocks();
-  vi.mocked(api.getBusinessProfileOptions).mockResolvedValue([{ id: 2, name: 'Main', legal_name: 'Main GmbH', country_code: 'DE', default_currency: 'EUR', is_active: true, is_default: true, version: 1 }]);
+  vi.mocked(api.getBusinessProfiles).mockResolvedValue([businessProfile] as never);
   vi.mocked(api.getSettings).mockResolvedValue({ calculation_defaults: '{}', default_filament_cost: 25, energy_cost_per_kwh: 0.3 } as never);
   vi.mocked(api.getPrinters).mockResolvedValue([]);
   vi.mocked(api.getEquipment).mockResolvedValue([]);
@@ -72,7 +100,7 @@ function mockWorkspaceDependencies() {
 
 describe('CalculationWorkspace', () => {
   it('initializes a new calculation from profiles, settings, and managed devices', async () => {
-    vi.mocked(api.getBusinessProfileOptions).mockResolvedValue([{ id: 2, name: 'Main', legal_name: 'Main GmbH', country_code: 'DE', default_currency: 'EUR', is_active: true, is_default: true, version: 1 }]);
+    vi.mocked(api.getBusinessProfiles).mockResolvedValue([businessProfile] as never);
     vi.mocked(api.getSettings).mockResolvedValue({ calculation_defaults: '{invalid', default_filament_cost: 25, energy_cost_per_kwh: 0.3 } as never);
     vi.mocked(api.getPrinters).mockResolvedValue([]);
     vi.mocked(api.getEquipment).mockResolvedValue([]);
@@ -114,14 +142,12 @@ describe('CalculationWorkspace', () => {
     await waitFor(() => expect(calculationsApi.create).toHaveBeenCalled());
     expect(onSaved).toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText(/Material markup %/), { target: { value: '12' } });
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
-    expect(confirm).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Reset Material markup %' }));
     expect(calculationsApi.previewBatch).not.toHaveBeenCalled();
   });
 
   it('auto-saves a new draft before uploading its first 3MF project file', async () => {
-    vi.mocked(api.getBusinessProfileOptions).mockResolvedValue([{ id: 2, name: 'Main', legal_name: 'Main GmbH', country_code: 'DE', default_currency: 'EUR', is_active: true, is_default: true, version: 1 }]);
+    vi.mocked(api.getBusinessProfiles).mockResolvedValue([businessProfile] as never);
     vi.mocked(api.getSettings).mockResolvedValue({ calculation_defaults: '{}', default_filament_cost: 25, energy_cost_per_kwh: 0.3 } as never);
     vi.mocked(api.getPrinters).mockResolvedValue([]);
     vi.mocked(api.getEquipment).mockResolvedValue([]);
