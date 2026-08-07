@@ -40,14 +40,12 @@ aioftp>=0.22.0
 
 # Virtual Printer (emulates Bambu printer for slicer uploads)
 pyftpdlib>=2.0.0
-# 46.x line has GHSA-537c-gmf6-5ccf; 48.0.1 is the fix release. Upstream's
+# 50.0.0 patches CVE-2026-69247 in PKCS#7 EnvelopedData decryption. The
 # X.509 / PKCS#7 surface is in our trust path via asyncssh, pyOpenSSL,
-# py-vapid, http_ece, pywebpush.
-cryptography>=48.0.1
-# Transitive of asyncssh / pywebpush. pyopenssl<26.3.0 caps `cryptography<47`
-# so without this floor the resolver either downgrades cryptography below
-# the GHSA-537c-gmf6-5ccf fix line or installs an inconsistent pair.
-pyopenssl>=26.3.0
+# py-vapid, http_ece, and pywebpush.
+cryptography>=50.0.0
+# 26.4.0 is the first pyOpenSSL release compatible with cryptography 50.x.
+pyopenssl>=26.4.0
 
 # SpoolBuddy remote SSH updates (pure-Python SSH client; avoids the
 # OpenSSH `ssh` binary which calls getpwuid() and fails in Docker when
@@ -75,6 +73,9 @@ unicodedata2==15.1.0; python_version < "3.13"
 
 # QR Code generation
 qrcode[pil]>=7.4.0
+# Keep the image codec floor explicit because Pillow is imported directly by
+# thumbnail, QR, report, and document-rendering paths.
+pillow>=12.2.0
 
 # PDF generation (spool label printing — #809)
 reportlab>=4.0.0
@@ -173,13 +174,3 @@ aiohttp>=3.14.0
 opencv-python-headless>=4.8.0
 # Keep CI on Python 3.11 installable; numpy 2.5+ requires Python >=3.12.
 numpy>=1.24.0,<2.5
-
-# Development
-pytest>=9.0.3
-pytest-asyncio>=0.23.0
-httpx>=0.26.0
-# Lint/format is pinned exactly in requirements-dev.txt; this floor only
-# keeps `ruff` importable for runtime-only installs that still use tooling.
-ruff>=0.8.0
-
-pillow>=12.2.0

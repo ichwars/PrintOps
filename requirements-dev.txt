@@ -1,4 +1,6 @@
 # Development and testing dependencies
+-r requirements.txt
+
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
 pytest-cov>=4.1.0
@@ -17,7 +19,7 @@ unicodedata2==15.1.0
 pre-commit>=4.0
 
 # Required by pyftpdlib TLS_FTPHandler for mock FTP server tests
-pyOpenSSL>=26.0.0
+pyOpenSSL>=26.4.0
 
 # Security scanning
 bandit[sarif]>=1.7.0

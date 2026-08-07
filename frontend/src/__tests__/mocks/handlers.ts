@@ -105,9 +105,7 @@ export const handlers = [
     return HttpResponse.json([]);
   }),
 
-  // ========================================================================
   // Smart Plugs
-  // ========================================================================
 
   http.get('/api/v1/smart-plugs/', () => {
     return HttpResponse.json(mockSmartPlugs);
@@ -176,9 +174,7 @@ export const handlers = [
     });
   }),
 
-  // ========================================================================
   // Notification Providers
-  // ========================================================================
 
   http.get('/api/v1/notifications/', () => {
     return HttpResponse.json(mockNotificationProviders);
@@ -233,9 +229,7 @@ export const handlers = [
     });
   }),
 
-  // ========================================================================
   // Printers
-  // ========================================================================
 
   http.get('/api/v1/printers/', () => {
     return HttpResponse.json(mockPrinters);
@@ -268,9 +262,7 @@ export const handlers = [
     });
   }),
 
-  // ========================================================================
   // Settings
-  // ========================================================================
 
   http.get('/api/v1/settings/', () => {
     return HttpResponse.json({
@@ -291,9 +283,7 @@ export const handlers = [
     return HttpResponse.json(body);
   }),
 
-  // ========================================================================
   // Auth
-  // ========================================================================
 
   http.get('*/api/v1/auth/status', () => {
     return HttpResponse.json({
@@ -315,9 +305,7 @@ export const handlers = [
     });
   }),
 
-  // ========================================================================
   // Groups
-  // ========================================================================
 
   http.get('/api/v1/groups/', () => {
     return HttpResponse.json([
@@ -386,9 +374,7 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
-  // ========================================================================
   // Discovery
-  // ========================================================================
 
   http.get('/api/v1/discovery/info', () => {
     return HttpResponse.json({
@@ -399,9 +385,7 @@ export const handlers = [
     });
   }),
 
-  // ========================================================================
   // Version / Health
-  // ========================================================================
 
   http.get('/api/v1/version', () => {
     return HttpResponse.json({
@@ -414,9 +398,7 @@ export const handlers = [
     return HttpResponse.json({ status: 'healthy' });
   }),
 
-  // ========================================================================
   // Archives
-  // ========================================================================
 
   http.get('/api/v1/archives/:id/plates', ({ params }) => {
     const archiveId = Number(params.id);
@@ -432,9 +414,7 @@ export const handlers = [
     return HttpResponse.json([]);
   }),
 
-  // ========================================================================
   // Library
-  // ========================================================================
 
   http.get('/api/v1/library/stats', () => {
     return HttpResponse.json({
@@ -444,16 +424,13 @@ export const handlers = [
     });
   }),
 
-  // ========================================================================
   // Read-on-mount fallbacks
-  // ------------------------------------------------------------------------
   // Components fire background fetches when they mount (status badges,
   // notification-template loaders, oidc/ldap/2fa probes, etc.). Without
   // handlers these fall through to the real network and the rejected promise
   // surfaces as an ECONNREFUSED stack trace in test stderr. These minimal
   // disabled-state stubs silence the trace. Per-test handlers added via
   // server.use(...) still win.
-  // ========================================================================
 
   // Lists → empty arrays
   http.get('/api/v1/archives/', () => HttpResponse.json([])),

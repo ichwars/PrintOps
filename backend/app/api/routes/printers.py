@@ -34,6 +34,7 @@ from backend.app.services.printer_manager import (
     printer_manager,
     resolve_plate_id,
 )
+from backend.app.utils.printer_models import supports_nozzle_flow_type
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/printers", tags=["printers"])
@@ -68,9 +69,9 @@ async def _caller_can_view_printer_secrets(user: User | None, db: AsyncSession) 
 
 def _serialize_printer(printer: Printer, *, include_secret: bool):
     """Build the response shape that matches the caller's authority."""
-    if include_secret:
-        return PrinterResponseWithSecret.model_validate(printer)
-    return PrinterResponse.model_validate(printer)
+    response_type = PrinterResponseWithSecret if include_secret else PrinterResponse
+    response = response_type.model_validate(printer)
+    return response.model_copy(update={"supports_nozzle_flow_type": supports_nozzle_flow_type(printer.model)})
 
 
 @router.get("/")

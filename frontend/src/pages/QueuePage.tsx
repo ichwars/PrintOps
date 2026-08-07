@@ -320,6 +320,8 @@ function SortableQueueItem({
   hasPermission,
   canModify,
   printerState,
+  showEta = false,
+  etaNow,
   t,
 }: {
   item: PrintQueueItem;
@@ -341,6 +343,8 @@ function SortableQueueItem({
   hasPermission: (permission: Permission) => boolean;
   canModify: (resource: 'queue' | 'archives' | 'library', action: 'update' | 'delete' | 'reprint', createdById: number | null | undefined) => boolean;
   printerState?: string | null;
+  showEta?: boolean;
+  etaNow?: number;
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   // Fetch printer status every 30 seconds while printing to monitor progress
@@ -391,6 +395,10 @@ function SortableQueueItem({
   const isPrinting = item.status === 'printing';
   const isPending = item.status === 'pending';
   const isHistory = ['completed', 'failed', 'skipped', 'cancelled'].includes(item.status);
+  const queueItemEta =
+    isPending && showEta && item.print_time_seconds != null && item.print_time_seconds > 0
+      ? formatETA(item.print_time_seconds / 60, timeFormat, t, etaNow)
+      : null;
 
   const isMobileSelectable = isPending && onToggleSelect;
 
@@ -565,6 +573,15 @@ function SortableQueueItem({
               <span className="flex items-center gap-1 sm:gap-1.5">
                 <Timer className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 {formatDuration(item.print_time_seconds)}
+              </span>
+            )}
+            {queueItemEta && (
+              <span
+                data-testid="queue-item-eta"
+                className="text-bambu-green font-medium"
+                title={t('queue.time.etaIfStartedNow')}
+              >
+                ETA {queueItemEta}
               </span>
             )}
             {item.filament_used_grams && (
@@ -809,6 +826,8 @@ interface QueueRowRenderProps {
   canModify: (resource: any, action: any, createdById?: number | null) => boolean;
   t: (key: string, options?: Record<string, unknown>) => string;
   aggregateForRows: (rows: QueueRow[]) => { count: number; time: number; weight: number };
+  etaEligibleIds: Set<number>;
+  etaNow: number;
   // Mobile tap-to-reorder (#2667). onMoveUp/onMoveDown move this whole row
   // (single item or batch) one step among its siblings; onMoveBlock is the
   // low-level primitive SortableBatchRow uses to move a child within the
@@ -833,6 +852,8 @@ function QueueRowRender(props: QueueRowRenderProps) {
     hasPermission,
     canModify,
     t,
+    etaEligibleIds,
+    etaNow,
     onMoveUp,
     onMoveDown,
   } = props;
@@ -854,6 +875,8 @@ function QueueRowRender(props: QueueRowRenderProps) {
         onToggleSelect={() => handleToggleSelect(row.item.id)}
         hasPermission={hasPermission}
         canModify={canModify}
+        showEta={etaEligibleIds.has(row.item.id)}
+        etaNow={etaNow}
         t={t}
       />
     );
@@ -880,6 +903,8 @@ function SortableBatchRow({
   canModify,
   t,
   aggregateForRows,
+  etaEligibleIds,
+  etaNow,
   onMoveUp,
   onMoveDown,
   onMoveBlock,
@@ -1070,6 +1095,8 @@ function SortableBatchRow({
               onToggleSelect={() => handleToggleSelect(child.id)}
               hasPermission={hasPermission}
               canModify={canModify}
+              showEta={etaEligibleIds.has(child.id)}
+              etaNow={etaNow}
               t={t}
             />
           ))}
@@ -1704,16 +1731,19 @@ export function QueuePage() {
     return items;
   }, [queue, filterLocation, matchesLocationFilter]);
 
-  // Get unique printer IDs from active items to fetch their statuses
+  // Statuses drive both the timeline and whether an if-started-now ETA is honest.
   const activePrinterIds = useMemo(() => {
     const ids = new Set<number>();
+    printers?.forEach(printer => {
+      if (printer.is_active) ids.add(printer.id);
+    });
     activeItems.forEach(item => {
       if (item.printer_id) ids.add(item.printer_id);
     });
     return Array.from(ids);
-  }, [activeItems]);
+  }, [activeItems, printers]);
 
-  // Fetch printer statuses for printers with active jobs
+  // Fetch statuses for configured and queue-referenced printers.
   const printerStatusQueries = useQueries({
     queries: activePrinterIds.map(printerId => ({
       queryKey: ['printerStatus', printerId],
@@ -1721,6 +1751,97 @@ export function QueuePage() {
       refetchInterval: 5000,
     })),
   });
+
+  const liveStatusByPrinter = useMemo(() => {
+    const map = new Map<number, { connected: boolean; state: string | null; awaitingPlateClear: boolean }>();
+    activePrinterIds.forEach((printerId, index) => {
+      const status = printerStatusQueries[index]?.data;
+      if (status) {
+        map.set(printerId, {
+          connected: status.connected,
+          state: status.state,
+          awaitingPlateClear: status.awaiting_plate_clear,
+        });
+      }
+    });
+    return map;
+  }, [activePrinterIds, printerStatusQueries]);
+
+  const etaEligibleIds = useMemo(() => {
+    const eligible = new Set<number>();
+    if (!queue) return eligible;
+
+    const busyPrinters = new Set<number>();
+    queue.forEach(item => {
+      if (item.status === 'printing' && item.printer_id) busyPrinters.add(item.printer_id);
+    });
+    const isAvailable = (printerId: number): boolean => {
+      const status = liveStatusByPrinter.get(printerId);
+      return Boolean(
+        status?.connected &&
+        status.state &&
+        ['IDLE', 'FINISH', 'FAILED'].includes(status.state) &&
+        !status.awaitingPlateClear &&
+        !busyPrinters.has(printerId)
+      );
+    };
+    const isFutureScheduled = (item: PrintQueueItem): boolean => {
+      if (!item.scheduled_time) return false;
+      return (parseUTCDate(item.scheduled_time)?.getTime() ?? 0) > Date.now();
+    };
+    const schedulerOrder = (a: PrintQueueItem, b: PrintQueueItem): number => {
+      if (settings?.queue_shortest_first) {
+        const aJumped = a.been_jumped ? 1 : 0;
+        const bJumped = b.been_jumped ? 1 : 0;
+        if (aJumped !== bJumped) return bJumped - aJumped;
+        const aTime = a.print_time_seconds ?? Infinity;
+        const bTime = b.print_time_seconds ?? Infinity;
+        if (aTime !== bTime) return aTime - bTime;
+      }
+      return a.position - b.position;
+    };
+    const contenders = new Map<number, PrintQueueItem[]>();
+    queue
+      .filter(item =>
+        item.status === 'pending' && item.printer_id != null && !item.manual_start && !isFutureScheduled(item)
+      )
+      .sort(schedulerOrder)
+      .forEach(item => {
+        const items = contenders.get(item.printer_id!) ?? [];
+        items.push(item);
+        contenders.set(item.printer_id!, items);
+      });
+
+    queue.forEach(item => {
+      if (item.status !== 'pending' || item.waiting_reason || isFutureScheduled(item)) return;
+      if (item.print_time_seconds == null || item.print_time_seconds <= 0 || item.require_previous_success) return;
+
+      if (item.printer_id == null) {
+        if (!item.target_model) return;
+        const hasMatchingPrinter = printers?.some(printer =>
+          printer.is_active &&
+          printer.model?.toLowerCase() === item.target_model?.toLowerCase() &&
+          (!item.target_location || printer.location === item.target_location) &&
+          isAvailable(printer.id)
+        );
+        if (hasMatchingPrinter) eligible.add(item.id);
+        return;
+      }
+      if (!isAvailable(item.printer_id)) return;
+      if (item.manual_start || contenders.get(item.printer_id)?.[0]?.id === item.id) eligible.add(item.id);
+    });
+
+    return eligible;
+  }, [liveStatusByPrinter, printers, queue, settings?.queue_shortest_first]);
+
+  const [etaNow, setEtaNow] = useState(() => Date.now());
+  const hasEtas = etaEligibleIds.size > 0;
+  useEffect(() => {
+    if (!hasEtas) return;
+    setEtaNow(Date.now());
+    const timer = setInterval(() => setEtaNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, [hasEtas]);
 
   // Build a map of printer_id -> state for quick lookup
   const printerStateMap = useMemo(() => {
@@ -2496,6 +2617,8 @@ export function QueuePage() {
                           canModify={canModify}
                           t={t}
                           aggregateForRows={aggregateForRows}
+                          etaEligibleIds={etaEligibleIds}
+                          etaNow={etaNow}
                           {...rowMovers(groupedRows, idx)}
                           onMoveBlock={canReorderManually ? moveBlockRelativeTo : undefined}
                         />
@@ -2534,6 +2657,8 @@ export function QueuePage() {
                                   canModify={canModify}
                                   t={t}
                                   aggregateForRows={aggregateForRows}
+                                  etaEligibleIds={etaEligibleIds}
+                                  etaNow={etaNow}
                                   {...rowMovers(bucket.rows, idx)}
                                   onMoveBlock={canReorderManually ? moveBlockRelativeTo : undefined}
                                 />

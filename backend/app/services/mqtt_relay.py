@@ -236,9 +236,7 @@ class MQTTRelayService:
             "topic_prefix": self.topic_prefix,
         }
 
-    # =========================================================================
     # Printer Events
-    # =========================================================================
 
     async def on_printer_status(self, printer_id: int, state: Any, printer_name: str, printer_serial: str):
         """Publish printer status change (throttled to 1 update/sec per printer)."""
@@ -413,9 +411,7 @@ class MQTTRelayService:
             },
         )
 
-    # =========================================================================
     # Print Queue Events
-    # =========================================================================
 
     async def on_queue_job_added(
         self,
@@ -493,9 +489,7 @@ class MQTTRelayService:
             },
         )
 
-    # =========================================================================
     # Maintenance Events
-    # =========================================================================
 
     async def on_maintenance_alert(
         self,
@@ -561,9 +555,7 @@ class MQTTRelayService:
             },
         )
 
-    # =========================================================================
     # Archive Events
-    # =========================================================================
 
     async def on_archive_created(
         self,
@@ -607,9 +599,7 @@ class MQTTRelayService:
             },
         )
 
-    # =========================================================================
     # Filament/Spoolman Events
-    # =========================================================================
 
     async def on_filament_low(
         self,
@@ -633,9 +623,7 @@ class MQTTRelayService:
             },
         )
 
-    # =========================================================================
     # Smart Plug Events
-    # =========================================================================
 
     async def on_smart_plug_state(
         self,

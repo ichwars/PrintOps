@@ -91,10 +91,8 @@ class AuthEphemeralToken(Base):
         default=lambda: datetime.now(timezone.utc),
     )
 
-    # ------------------------------------------------------------------
     # T1: Classmethod factories — enforce required fields per token type
     # and prevent accidentally leaving optional fields at their defaults.
-    # ------------------------------------------------------------------
 
     @classmethod
     def new_pre_auth(

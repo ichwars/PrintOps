@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # cache so the second build only does install work — the slow ~60-90s
 # fetch step from the first build becomes ~5s. Requires DOCKER_BUILDKIT=1
 # (already set in test_docker.sh).
-COPY requirements-dev.lock.txt ./
+COPY requirements.txt requirements-dev.txt requirements.lock.txt requirements-dev.lock.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --require-hashes -r requirements-dev.lock.txt
 
@@ -38,6 +38,8 @@ ENV WEASYPRINT_CLI=/usr/local/bin/weasyprint
 
 # Copy backend code
 COPY backend/ ./backend/
+COPY tools/check_dependency_boundaries.py ./tools/check_dependency_boundaries.py
+COPY tools/check_source_size_budget.py ./tools/check_source_size_budget.py
 COPY pyproject.toml ./
 
 # Embedded GCode viewer assets — required so the @app.get("/gcode-viewer/...")

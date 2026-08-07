@@ -1,0 +1,1 @@
+import{a as e,l as t}from"./jsx-runtime-CcMKBbx5.js";var n=t(e(),1);function r(){let e=(0,n.useRef)(null),t=(0,n.useCallback)(()=>{e.current!==null&&(clearTimeout(e.current),e.current=null)},[]),r=(0,n.useCallback)((n,r)=>{t(),e.current=setTimeout(()=>{e.current=null,n()},r)},[t]);return(0,n.useEffect)(()=>t,[t]),{schedule:r,cancel:t}}export{r as t};

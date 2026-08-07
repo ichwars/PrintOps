@@ -250,10 +250,8 @@ def get_subscriber_count(key: str) -> int:
     return bc.subscriber_count
 
 
-# ---------------------------------------------------------------------------
 # AsyncGenerator helper — turns a subscriber queue into an async generator
 # that yields MJPEG chunks until the upstream signals it's gone.
-# ---------------------------------------------------------------------------
 
 
 async def iter_subscriber(

@@ -782,9 +782,7 @@ describe('SpoolFormModal Spoolman K-profile support', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // T2: SpoolmanFilamentPicker integration with SpoolFormModal
-// ---------------------------------------------------------------------------
 
 vi.mock('../../components/spool-form/SpoolmanFilamentPicker', () => ({
   SpoolmanFilamentPicker: ({ onSelect, selectedId }: { onSelect: (f: unknown) => void; selectedId: number | null; isLoading: boolean; filaments: unknown[] }) => {

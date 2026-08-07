@@ -339,6 +339,15 @@ describe('formatETA', () => {
     const result = formatETA(60 * 48); // 48 hours from now
     expect(result).not.toContain('Tomorrow');
   });
+
+  it('counts from an explicit base time', () => {
+    const base = new Date('2025-06-15T12:00:00Z').getTime();
+    const atNoon = formatETA(60, '24h', undefined, base);
+    const anHourLater = formatETA(60, '24h', undefined, base + 60 * 60 * 1000);
+
+    expect(atNoon).not.toBe(anHourLater);
+    expect(formatETA(120, '24h', undefined, base)).toBe(anHourLater);
+  });
 });
 
 describe('formatDuration', () => {

@@ -1038,9 +1038,7 @@ describe('SliceModal', () => {
     });
   });
 
-  // ------------------------------------------------------------------
   // Slicer Pipelines (#1425) — Apply / Save integration in SliceModal
-  // ------------------------------------------------------------------
 
   it('Apply pipeline dropdown is disabled and shows empty hint when no pipelines exist', async () => {
     mockApi.listSlicerPipelines.mockResolvedValue({ pipelines: [] });
