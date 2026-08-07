@@ -241,6 +241,18 @@ class CalculationBatchPreviewInput(CalculationSchema):
     commercial: CalculationPreviewInput
 
 
+class CalculationLearningFactorRead(CalculationSchema):
+    sample_count: int = Field(ge=0)
+    material_delta_rate: Decimal | None = None
+    energy_delta_rate: Decimal | None = None
+    cost_delta_rate: Decimal | None = None
+    estimated_material_grams: Decimal | None = None
+    actual_material_grams: Decimal | None = None
+    estimated_energy_kwh: Decimal | None = None
+    actual_energy_kwh: Decimal | None = None
+    status: Literal["pending", "matching", "watch", "drift"]
+
+
 class CalculationDetail(CalculationSchema):
     id: int
     business_profile_id: int
@@ -264,6 +276,7 @@ class CalculationDetail(CalculationSchema):
     current_revision: int | None = None
     production_cost: Decimal | None = None
     selling_price: Decimal | None = None
+    learning_factor: CalculationLearningFactorRead | None = None
 
 
 class CalculationListResponse(CalculationSchema):

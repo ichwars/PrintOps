@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from math import ceil
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -199,6 +200,19 @@ def _decimal_value(value: object) -> Decimal:
         raise ResourceInUseError("Calculation provenance contains a non-numeric cost value") from exc
 
 
+def _approval_tax_rate(calculation: Calculation, defaults: dict, overrides: dict) -> Decimal:
+    if "tax_rate" in overrides:
+        return Decimal(str(overrides["tax_rate"]))
+    profile = calculation.business_profile
+    if profile is not None:
+        return Decimal(profile.default_tax_rate) / Decimal("100") if profile.tax_mode == "standard" else Decimal("0")
+    return Decimal(str(defaults.get("taxPercent", 0))) / Decimal("100")
+
+
+def _operation_runs(inputs: VariantCostInputs) -> int:
+    return ceil(inputs.good_parts / max(1, inputs.parts_per_run)) + inputs.scrap_runs
+
+
 async def create_calculation(session: AsyncSession, data: CalculationCreate) -> Calculation:
     await _validate_references(session, data.business_profile_id, data.customer_id)
     await _validate_project(session, data.project_id)
@@ -353,6 +367,7 @@ async def approve_calculation(
     defaults = await _cost_defaults(session)
     overrides = calculation.commercial_overrides or {}
     effective = {**defaults, **overrides}
+    tax_rate = _approval_tax_rate(calculation, defaults, overrides)
     labor_rate = Decimal(str(effective.get("labor_rate", defaults["laborRate"])))
     default_labor = (
         LaborCostInput(Decimal(str(effective.get("setup_hours", defaults["setupHours"]))), labor_rate, "request"),
@@ -492,8 +507,7 @@ async def approve_calculation(
             else Decimal(str(defaults.get("explicitPrice", 0))),
             discount_rate=Decimal(str(effective.get("discount_rate", defaults.get("discountPercent", 0))))
             / (Decimal("100") if "discount_rate" not in overrides else Decimal("1")),
-            tax_rate=Decimal(str(effective.get("tax_rate", defaults.get("taxPercent", 0))))
-            / (Decimal("100") if "tax_rate" not in overrides else Decimal("1")),
+            tax_rate=tax_rate,
             minimum_price=Decimal(str(effective.get("minimum_price", defaults.get("minimumPrice", 0)))),
             minimum_profit=Decimal(str(effective.get("minimum_profit", defaults.get("minimumProfit", 0)))),
             rounding_mode=str(effective.get("rounding_mode", defaults.get("roundingMode", "none"))),
@@ -502,6 +516,25 @@ async def approve_calculation(
     revision_number = 1 + max((revision.revision_number for revision in calculation.revisions), default=0)
     snapshot = _snapshot(calculation, warning_reasons)
     snapshot["cost_defaults"] = {key: str(value) for key, value in defaults.items()}
+    snapshot["learning_estimates"] = {
+        "material_grams": str(
+            sum(
+                (inputs.material_grams_per_run * Decimal(_operation_runs(inputs)) for inputs in operation_inputs),
+                Decimal("0"),
+            )
+        ),
+        "energy_kwh": str(
+            sum(
+                (
+                    inputs.print_hours_per_run * Decimal(_operation_runs(inputs)) * inputs.printer_power_kw
+                    + inputs.drying_hours * inputs.dryer_power_kw
+                    for inputs in operation_inputs
+                ),
+                Decimal("0"),
+            )
+        ),
+        "production_cost": str(result.production_cost),
+    }
     revision = CalculationRevision(
         calculation_id=calculation.id,
         revision_number=revision_number,

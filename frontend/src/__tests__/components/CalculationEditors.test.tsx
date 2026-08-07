@@ -67,15 +67,15 @@ describe('calculation editors', () => {
     expect(onChange).toHaveBeenLastCalledWith([]);
   });
 
-  it('converts percentage overrides, resets values, and renders pricing details', () => {
-    const onChange = vi.fn(); const onReset = vi.fn();
-    render(<><CommercialOverridesEditor values={{ material_markup_rate: '0.1' }} locale="en-US" onChange={onChange} onReset={onReset} /><CostBreakdown preview={preview} locale="en-US" currency="EUR" /><PriceDecision preview={preview} locale="en-US" currency="EUR" /></>);
+  it('converts percentage overrides, resets individual values, and renders pricing details', () => {
+    const onChange = vi.fn();
+    render(<><CommercialOverridesEditor values={{ material_markup_rate: '0.1' }} locale="en-US" onChange={onChange} /><CostBreakdown preview={preview} locale="en-US" currency="EUR" /><PriceDecision preview={preview} locale="en-US" currency="EUR" /></>);
     fireEvent.change(screen.getByLabelText('Material markup %'), { target: { value: '25' } });
     expect(onChange).toHaveBeenCalledWith({ material_markup_rate: '0.25' });
     fireEvent.change(screen.getByLabelText('Material markup %'), { target: { value: '' } });
     expect(onChange).toHaveBeenLastCalledWith({});
-    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
-    expect(onReset).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Reset Material markup %' }));
+    expect(onChange).toHaveBeenLastCalledWith({});
     expect(screen.getByText('2 h × €1')).toBeInTheDocument();
     expect(screen.getByText('27.5 %')).toBeInTheDocument();
     expect(screen.getByText('€95.20')).toBeInTheDocument();

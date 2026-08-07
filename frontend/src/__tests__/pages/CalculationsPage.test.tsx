@@ -55,7 +55,6 @@ describe('CalculationsPage', () => {
     fireEvent.click(screen.getByText('close'));
 
     selectComboboxOption(screen.getByLabelText('Select template'), 'Standard');
-    fireEvent.click(screen.getByText('From template'));
     await waitFor(() => expect(calculationsApi.instantiateTemplate).toHaveBeenCalledWith(4, 'Standard'));
     expect(screen.getByTestId('workspace')).toHaveTextContent('existing');
   });
