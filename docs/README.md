@@ -14,6 +14,7 @@ Screenshots gehören nicht in das Repository.
 | Migration | [Virtual-Printer-FTP-Port](migration-vp-ftp-port.md) | Umstellung des FTP-Ports und erforderliche Migrationsschritte |
 | Aufträge | [Auftragsverwaltung](order-management.md) | Unternehmensprofile, Kundenstammdaten, Berechtigungen und Nummernkreise |
 | Lager | [Lagerorte](storage-locations.md) | Datenmodell und Verhalten strukturierter Lagerorte |
+| NFC und Filament | [Mobiler NFC-Ablauf für Fremdspulen](mobile-nfc-spool-workflow.md) | Produktvorschlag für Scan-Link, Smartphone-Tag und AMS-Zuweisung |
 | Netzwerk | [Proxy-Modus](images/proxy-mode-diagram.png) | Architekturdiagramm des Proxy-Modus |
 | Sicherheit | [Alert-Triage 2026-07-23](security-alert-triage-2026-07-23.md) | Befund und Disposition der bereinigten GitHub-Sicherheitswarnungen |
 | Entwicklung | [README Editorial Guide](readme-editorial-guide.md) | Zielgruppen, Positionierung und Regeln für die zentrale Projekt-README |
