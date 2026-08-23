@@ -167,19 +167,25 @@ run_supervised() {
             kill -TERM "$GO2RTC_PID" 2>/dev/null || true
         fi
         kill -TERM "$app_pid" 2>/dev/null || true
-        wait "$app_pid" 2>/dev/null
+        wait "$app_pid" 2>/dev/null || true
         if [ -n "$GO2RTC_PID" ]; then
-            wait "$GO2RTC_PID" 2>/dev/null
+            wait "$GO2RTC_PID" 2>/dev/null || true
         fi
         exit 0
     }
     trap term_handler TERM INT
 
-    wait "$app_pid"
-    app_exit=$?
+    # Not `wait "$app_pid"; app_exit=$?` — under `set -e`, a nonzero wait
+    # (e.g. the app was killed by a signal) would abort the script on that
+    # line, skipping app_exit=$? and the go2rtc cleanup below entirely.
+    if wait "$app_pid"; then
+        app_exit=0
+    else
+        app_exit=$?
+    fi
     if [ -n "$GO2RTC_PID" ]; then
         kill -TERM "$GO2RTC_PID" 2>/dev/null || true
-        wait "$GO2RTC_PID" 2>/dev/null
+        wait "$GO2RTC_PID" 2>/dev/null || true
     fi
     exit "$app_exit"
 }
