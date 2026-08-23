@@ -117,10 +117,14 @@ class TestRtspArgvUsesProbe:
     # runs it). __file__ lives at backend/tests/unit/, so the repo root
     # is three parents up.
     _REPO_ROOT = Path(__file__).resolve().parents[3]
-    _RTSP_FFMPEG_CALLERS = (
-        "backend/app/api/routes/camera.py",
-        "backend/app/services/external_camera.py",
-    )
+    # backend/app/api/routes/camera.py no longer spawns its own RTSP ffmpeg
+    # process for built-in Bambu cameras — generate_go2rtc_mjpeg_stream()
+    # registers the printer's RTSP source with the embedded go2rtc sidecar
+    # (backend/app/services/go2rtc_client.py) and reads its MJPEG output
+    # over HTTP instead. go2rtc owns the RTSP-facing socket timeout, not
+    # PrintOps's ffmpeg argv, so it's no longer a caller this regression
+    # test needs to guard.
+    _RTSP_FFMPEG_CALLERS = ("backend/app/services/external_camera.py",)
 
     @pytest.mark.parametrize("rel", _RTSP_FFMPEG_CALLERS)
     def test_no_hard_coded_timeout_literal(self, rel):

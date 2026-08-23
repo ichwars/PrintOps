@@ -66,6 +66,13 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --require-hashes -r requirements-dev.lock.txt
+          # pip itself, not a locked dependency — PYSEC-2026-3721 is fixed in
+          # 26.2. requirements-dev.lock.txt pins pip at 26.1.2, so upgrade
+          # afterwards (it would just get reinstalled at the locked, vulnerable
+          # version if this ran first) rather than adding it to the
+          # --ignore-vuln list below (those are reserved for CVEs with no fix
+          # / disputed advisories).
+          python -m pip install --upgrade 'pip>=26.2'
 
       - name: Run pip-audit
         run: |

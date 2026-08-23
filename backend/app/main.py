@@ -2112,13 +2112,11 @@ async def _capture_snapshot_for_notification(printer_id: int, printer, logger) -
                 return _apply_camera_rotation(frame_data, printer, logger)
 
         # Try buffered frame from active stream
-        from backend.app.api.routes.camera import _active_chamber_streams, _active_streams, get_buffered_frame
+        from backend.app.api.routes.camera import get_buffered_frame, is_stream_active
 
-        active_for_printer = [k for k in _active_streams if k.startswith(f"{printer_id}-")]
-        active_chamber = [k for k in _active_chamber_streams if k.startswith(f"{printer_id}-")]
         buffered_frame = get_buffered_frame(printer_id)
 
-        if (active_for_printer or active_chamber) and buffered_frame:
+        if is_stream_active(printer_id) and buffered_frame:
             logger.info("[SNAPSHOT] Using buffered frame for printer %s: %s bytes", printer_id, len(buffered_frame))
             if len(buffered_frame) <= 2_500_000:
                 return _apply_camera_rotation(buffered_frame, printer, logger)
@@ -4765,7 +4763,7 @@ async def on_print_complete(printer_id: int, data: dict):
         try:
             logger.info("[PHOTO-BG] Starting finish photo capture for archive %s", archive_id)
 
-            from backend.app.api.routes.camera import _active_chamber_streams, _active_streams, get_buffered_frame
+            from backend.app.api.routes.camera import get_buffered_frame, is_stream_active
 
             async with async_session() as db:
                 from backend.app.api.routes.settings import get_setting
@@ -4877,14 +4875,9 @@ async def on_print_complete(printer_id: int, data: dict):
                                         logger.info("[PHOTO-BG] Saved external camera frame: %s", photo_filename)
                                 else:
                                     # Check if camera stream is active - use buffered frame to avoid freeze
-                                    # Check both RTSP streams (_active_streams) and chamber image streams (_active_chamber_streams)
-                                    active_for_printer = [k for k in _active_streams if k.startswith(f"{printer_id}-")]
-                                    active_chamber_for_printer = [
-                                        k for k in _active_chamber_streams if k.startswith(f"{printer_id}-")
-                                    ]
                                     buffered_frame = get_buffered_frame(printer_id)
 
-                                    if (active_for_printer or active_chamber_for_printer) and buffered_frame:
+                                    if is_stream_active(printer_id) and buffered_frame:
                                         buffered_frame = _apply_camera_rotation(buffered_frame, printer, logger)
                                         # Use frame from active stream
                                         logger.info("[PHOTO-BG] Using buffered frame from active stream")
@@ -5800,6 +5793,33 @@ def stop_camera_cleanup():
         logging.getLogger(__name__).info("Camera stream cleanup stopped")
 
 
+# HA RTSP passthrough (Phase E) — opt-in, see Settings.enable_ha_rtsp_passthrough
+_rtsp_passthrough_server: asyncio.Server | None = None
+
+
+async def start_rtsp_passthrough():
+    global _rtsp_passthrough_server
+    if not app_settings.enable_ha_rtsp_passthrough or _rtsp_passthrough_server is not None:
+        return
+    from backend.app.services import rtsp_auth_proxy
+
+    try:
+        _rtsp_passthrough_server = await rtsp_auth_proxy.start("0.0.0.0", app_settings.ha_rtsp_passthrough_port)  # nosec B104 - opt-in feature explicitly meant to be reachable from the LAN (HA), token-gated per connection
+    except OSError as e:
+        logging.getLogger(__name__).error(
+            "Failed to start RTSP passthrough on port %s: %s", app_settings.ha_rtsp_passthrough_port, e
+        )
+
+
+async def stop_rtsp_passthrough():
+    global _rtsp_passthrough_server
+    if _rtsp_passthrough_server is not None:
+        _rtsp_passthrough_server.close()
+        await _rtsp_passthrough_server.wait_closed()
+        _rtsp_passthrough_server = None
+        logging.getLogger(__name__).info("RTSP passthrough stopped")
+
+
 # Expected-print TTL eviction
 
 
@@ -6264,6 +6284,9 @@ async def lifespan(app: FastAPI):
     # Start camera stream orphan cleanup
     start_camera_cleanup()
 
+    # Start HA RTSP passthrough (opt-in, no-op unless enabled)
+    await start_rtsp_passthrough()
+
     # Start expected-print TTL eviction (prevents memory leak when prints are
     # registered but on_print_start never fires)
     start_expected_prints_cleanup()
@@ -6304,6 +6327,7 @@ async def lifespan(app: FastAPI):
     stop_runtime_tracking()
     stop_spoolbuddy_watchdog()
     stop_camera_cleanup()
+    await stop_rtsp_passthrough()
     from backend.app.services.loop_watchdog import stop_loop_watchdog
 
     stop_loop_watchdog()

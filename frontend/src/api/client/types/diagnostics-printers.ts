@@ -22,6 +22,30 @@ export interface CameraDiagnoseResult {
   summary_code: string;
 }
 
+// Technical live-stream details, returned by GET /printers/{id}/camera/stream-info.
+// Separate from CameraDiagnoseResult (a one-shot connectivity test) — this
+// describes the pipeline currently serving (or that would serve) the feed:
+// which technology, codec, resolution, measured rate. All "live" fields are
+// null when no stream is currently active.
+export interface CameraStreamInfo {
+  printer_id: number;
+  source: 'built_in_rtsp' | 'built_in_chamber_image' | 'external';
+  pipeline: string; // e.g. 'go2rtc', 'chamber_binary', 'external_mjpeg', 'external_rtsp', 'external_snapshot', 'external_usb'
+  go2rtc_stream: string | null;
+  port: number | null;
+  camera_profile: string | null;
+  tls_proxy: boolean;
+  codec: string | null;
+  codec_profile: string | null;
+  codec_level: string | null;
+  resolution: { width: number; height: number } | null;
+  fps_target: number | null;
+  fps_measured: number | null;
+  bitrate_kbps: number | null;
+  stream_uptime_seconds: number | null;
+  active: boolean;
+}
+
 // Connection diagnostic (GET /printers/{id}/diagnostic and
 // POST /printers/diagnostic). Each check's `id` + `status` resolve a
 // localized title/fix under `diagnostic.check.*`; `params` interpolate it.

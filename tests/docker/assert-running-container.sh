@@ -54,6 +54,7 @@ from pathlib import Path
 
 expected_uid = int(os.environ["EXPECTED_UID"])
 expected_gid = int(os.environ["EXPECTED_GID"])
+cap_net_bind_service = 1 << 10
 status = Path("/proc/1/status").read_text(encoding="utf-8")
 fields = {
     line.split(":", 1)[0]: line.split(":", 1)[1].split()
@@ -62,7 +63,11 @@ fields = {
 }
 assert int(fields["Uid"][0]) == expected_uid, fields["Uid"]
 assert int(fields["Gid"][0]) == expected_gid, fields["Gid"]
-assert int(fields["CapEff"][0], 16) == 1 << 10, fields["CapEff"]
+# PID 1 is the entrypoint script itself (it supervises go2rtc alongside the
+# app rather than exec'ing straight into it — see docker-entrypoint.sh), so
+# it carries no elevated capabilities of its own; only the app process
+# below needs CAP_NET_BIND_SERVICE to bind :322 / :990.
+assert int(fields["CapEff"][0], 16) == 0, fields["CapEff"]
 
 processes = {}
 for status_path in Path("/proc").glob("[0-9]*/status"):
@@ -75,14 +80,15 @@ for status_path in Path("/proc").glob("[0-9]*/status"):
         for line in process.splitlines()
         if ":" in line
     }
-    if "Uid" in process_fields and "PPid" in process_fields:
+    if "Uid" in process_fields and "PPid" in process_fields and "CapEff" in process_fields:
         processes[int(status_path.parent.name)] = (
             int(process_fields["PPid"][0]),
             int(process_fields["Uid"][0]),
+            int(process_fields["CapEff"][0], 16),
         )
 
 root_descendants = []
-for pid, (_, uid) in processes.items():
+for pid, (_, uid, _cap_eff) in processes.items():
     ancestor = pid
     seen = set()
     while ancestor in processes and ancestor not in seen:
@@ -93,6 +99,10 @@ for pid, (_, uid) in processes.items():
             break
         ancestor = processes[ancestor][0]
 assert not root_descendants, root_descendants
+
+# One descendant (the app, launched by PID 1) must still carry the
+# capability PID 1 no longer holds directly.
+assert any(cap_eff == cap_net_bind_service for _, _, cap_eff in processes.values()), processes
 PY
 
 echo "Running container privilege checks passed"

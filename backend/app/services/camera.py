@@ -22,8 +22,51 @@ logger = logging.getLogger(__name__)
 JPEG_START = b"\xff\xd8"
 JPEG_END = b"\xff\xd9"
 
+# JPEG Start-Of-Frame markers (baseline/progressive/etc.) that carry the
+# image dimensions. 0xC4 (DHT), 0xC8 (JPG ext), 0xCC (DAC) look like SOF
+# markers numerically but aren't — excluded on purpose.
+_JPEG_SOF_MARKERS = frozenset({0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF})
+
 # Cache the ffmpeg path after first lookup
 _ffmpeg_path: str | None = None
+
+
+def parse_jpeg_dimensions(data: bytes) -> tuple[int, int] | None:
+    """Extract (width, height) from a JPEG's SOF marker.
+
+    Used by the camera diagnostics endpoint to report the stream's actual
+    resolution without decoding the whole image or asking go2rtc/ffmpeg to
+    probe it separately — the dimensions are already sitting in the first
+    ~200 bytes of every frame the camera pipeline already buffers.
+    Returns None if `data` isn't a well-formed JPEG or no SOF marker is found.
+    """
+    if len(data) < 4 or data[0:2] != JPEG_START:
+        return None
+    i = 2
+    n = len(data)
+    while i + 4 <= n:
+        if data[i] != 0xFF:
+            i += 1
+            continue
+        marker = data[i + 1]
+        # Markers with no payload segment: standalone RST0-7 and 0x01.
+        if marker == 0x01 or 0xD0 <= marker <= 0xD7:
+            i += 2
+            continue
+        seg_len = (data[i + 2] << 8) | data[i + 3]
+        if marker in _JPEG_SOF_MARKERS:
+            if i + 9 > n:
+                return None
+            height = (data[i + 5] << 8) | data[i + 6]
+            width = (data[i + 7] << 8) | data[i + 8]
+            if width and height:
+                return (width, height)
+            return None
+        if marker == 0xDA:  # start-of-scan — no more headers follow
+            return None
+        i += 2 + seg_len
+    return None
+
 
 # Cached result of rtsp_socket_timeout_flag(); see that function for context.
 _rtsp_socket_timeout_flag: str | None = None
