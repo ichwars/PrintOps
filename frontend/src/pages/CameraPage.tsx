@@ -7,6 +7,7 @@ import { api, getAuthToken, getStreamToken, withStreamToken } from '../api/clien
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useStreamTokenSync } from '../hooks/useCameraStreamToken';
+import { useCameraStream } from '../hooks/useCameraStream';
 import { ChamberLight } from '../components/icons/ChamberLight';
 import { SkipObjectsModal, SkipObjectsIcon } from '../components/SkipObjectsModal';
 import { CameraDiagnoseModal } from '../components/CameraDiagnoseModal';
@@ -67,6 +68,21 @@ export function CameraPage() {
     queryKey: ['printer', id],
     queryFn: () => api.getPrinter(id),
     enabled: id > 0,
+  });
+
+  // MSE (fMP4-over-WebSocket, via go2rtc) is the primary player — see
+  // useCameraStream and the matching integration in EmbeddedCameraViewer.tsx
+  // for the full rationale. Falls back permanently to the MJPEG <img> path
+  // below once it reports 'error' or 'unsupported'.
+  const [mseGaveUp, setMseGaveUp] = useState(false);
+  const { videoRef: mseVideoRef, status: mseStatus, reconnect: mseReconnect } = useCameraStream({
+    printerId: id,
+    enabled: id > 0 && streamMode === 'stream' && !!printer && !printer.external_camera_enabled && !mseGaveUp,
+    onPlaying: () => {
+      setStreamLoading(false);
+      setStreamError(false);
+    },
+    onError: () => setMseGaveUp(true),
   });
 
   // Fetch printer status for light toggle and skip objects
@@ -271,11 +287,13 @@ export function CameraPage() {
     }, delay);
   }, [reconnectAttempts]);
 
-  // Stall detection - periodically check if stream is still receiving frames
+  // Stall detection - periodically check if stream is still receiving frames.
+  // MJPEG path only — see the matching guard in EmbeddedCameraViewer.tsx for
+  // why: /camera/status's `active` flag doesn't cover an MSE-only viewer.
   useEffect(() => {
     // Only skip stall check during initial load, reconnecting, or transitioning
     // Continue checking even during streamError to detect recovery
-    if (streamMode !== 'stream' || streamLoading || isReconnecting || transitioning) {
+    if (!mseGaveUp || streamMode !== 'stream' || streamLoading || isReconnecting || transitioning) {
       if (stallCheckIntervalRef.current) {
         clearInterval(stallCheckIntervalRef.current);
         stallCheckIntervalRef.current = null;
@@ -310,7 +328,7 @@ export function CameraPage() {
         stallCheckIntervalRef.current = null;
       }
     };
-  }, [streamMode, streamLoading, streamError, isReconnecting, transitioning, id, attemptReconnect]);
+  }, [mseGaveUp, streamMode, streamLoading, streamError, isReconnecting, transitioning, id, attemptReconnect]);
 
   const handleStreamError = () => {
     setStreamLoading(false);
@@ -434,6 +452,7 @@ export function CameraPage() {
       setImageKey(Date.now());
       setTransitioning(false);
     }, 100);
+    if (!mseGaveUp) mseReconnect();
   };
 
   const toggleFullscreen = () => {
@@ -600,7 +619,7 @@ export function CameraPage() {
   // useEffect that runs after render.
   const waitingForStreamToken = authEnabled && !streamTokenValue;
   const appendToken = (url: string) =>
-    streamTokenValue ? `${url}&token=${encodeURIComponent(streamTokenValue)}` : withStreamToken(url);
+    !authEnabled ? url : streamTokenValue ? `${url}&token=${encodeURIComponent(streamTokenValue)}` : withStreamToken(url);
   const currentUrl = transitioning || waitingForStreamToken
     ? ''
     : streamMode === 'stream'
@@ -767,6 +786,23 @@ export function CameraPage() {
               </div>
             </div>
           )}
+          {streamMode === 'stream' && !mseGaveUp && (
+            <video
+              ref={mseVideoRef}
+              className="max-w-full max-h-full object-contain select-none"
+              style={{
+                transform: `scale(${zoomLevel}) translate(${panOffset.x / zoomLevel}px, ${panOffset.y / zoomLevel}px) rotate(${printer?.camera_rotation || 0}deg)`,
+                ...(printer?.camera_rotation === 90 || printer?.camera_rotation === 270 ? { maxWidth: '100vh', maxHeight: '100vw' } : {}),
+                cursor: zoomLevel > 1 ? (isPanning ? 'grabbing' : 'grab') : 'default',
+                display: mseStatus === 'playing' ? undefined : 'none',
+              }}
+              muted
+              playsInline
+              autoPlay
+              onMouseDown={handleImageMouseDown}
+            />
+          )}
+          {(streamMode !== 'stream' || mseGaveUp) && (
           <img
             ref={imgRef}
             key={imageKey}
@@ -783,6 +819,7 @@ export function CameraPage() {
             onMouseDown={handleImageMouseDown}
             draggable={false}
           />
+          )}
 
           {/* Zoom controls */}
           <div className="absolute bottom-4 left-4 flex items-center gap-1.5 bg-black/60 rounded-lg px-2 py-1.5">
@@ -824,6 +861,7 @@ export function CameraPage() {
         <CameraDiagnoseModal
           printerId={id}
           printerName={printer?.name || null}
+          activePlayer={mseGaveUp ? 'mjpeg' : mseStatus === 'playing' ? 'mse' : 'connecting'}
           onClose={() => setShowDiagnoseModal(false)}
         />
       )}

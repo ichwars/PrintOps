@@ -5,6 +5,7 @@ import { X, RefreshCw, AlertTriangle, Maximize2, Minimize2, GripVertical, WifiOf
 import { api, getAuthToken, withStreamToken } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useCameraStream } from '../hooks/useCameraStream';
 import { ChamberLight } from './icons/ChamberLight';
 import { SkipObjectsModal, SkipObjectsIcon } from './SkipObjectsModal';
 import { CameraDiagnoseModal } from './CameraDiagnoseModal';
@@ -92,6 +93,14 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [reconnectCountdown, setReconnectCountdown] = useState(0);
 
+  // MSE (fMP4-over-WebSocket, via go2rtc) is the primary player — see
+  // useCameraStream. It only applies to built-in RTSP cameras (X1/X2D/H2/P2);
+  // external cameras and chamber-image models (A1/P1) go straight to the
+  // existing MJPEG <img> path below. Once MSE reports 'error' or
+  // 'unsupported' we fall back permanently for this component's lifetime —
+  // no flip-flopping between players on a flaky connection.
+  const [mseGaveUp, setMseGaveUp] = useState(false);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -117,6 +126,16 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
     queryFn: () => api.getPrinterStatus(printerId),
     refetchInterval: 30000,
     enabled: printerId > 0,
+  });
+
+  const { videoRef: mseVideoRef, status: mseStatus, reconnect: mseReconnect } = useCameraStream({
+    printerId,
+    enabled: printerId > 0 && !!printer && !printer.external_camera_enabled && !mseGaveUp,
+    onPlaying: () => {
+      setStreamLoading(false);
+      setStreamError(false);
+    },
+    onError: () => setMseGaveUp(true),
   });
 
   // Chamber light mutation with optimistic update
@@ -225,9 +244,13 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
     }, delay);
   }, [reconnectAttempts]);
 
-  // Stall detection
+  // Stall detection — MJPEG path only. /camera/status's `active` flag
+  // reflects the MJPEG fan-out broadcaster (camera_fanout.py), not an
+  // MSE-only viewer (which only touches go2rtc_registry) — running this
+  // while MSE is still playing would see active=false and trigger a
+  // needless reconnect on a perfectly healthy MSE stream.
   useEffect(() => {
-    if (streamLoading || isReconnecting || isMinimized) {
+    if (!mseGaveUp || streamLoading || isReconnecting || isMinimized) {
       if (stallCheckIntervalRef.current) {
         clearInterval(stallCheckIntervalRef.current);
         stallCheckIntervalRef.current = null;
@@ -257,7 +280,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
         stallCheckIntervalRef.current = null;
       }
     };
-  }, [streamLoading, streamError, isReconnecting, isMinimized, printerId, attemptReconnect]);
+  }, [mseGaveUp, streamLoading, streamError, isReconnecting, isMinimized, printerId, attemptReconnect]);
 
   // Fullscreen change listener
   useEffect(() => {
@@ -314,7 +337,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
 
   // Calculate max pan based on container size and zoom level
   const getMaxPan = useCallback(() => {
-    if (!containerRef.current || !imgRef.current) {
+    if (!containerRef.current || (!imgRef.current && !mseVideoRef.current)) {
       return { x: 200, y: 150 };
     }
     const container = containerRef.current.getBoundingClientRect();
@@ -322,7 +345,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
     const maxX = (container.width * (zoomLevel - 1)) / 2;
     const maxY = (container.height * (zoomLevel - 1)) / 2;
     return { x: Math.max(50, maxX), y: Math.max(50, maxY) };
-  }, [zoomLevel]);
+  }, [zoomLevel, mseVideoRef]);
 
   const handleImageMouseMove = (e: React.MouseEvent) => {
     if (isPanning && zoomLevel > 1) {
@@ -463,6 +486,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
 
     if (imgRef.current) imgRef.current.src = '';
     setTimeout(() => setImageKey(Date.now()), 100);
+    if (!mseGaveUp) mseReconnect();
   };
 
   // Drag handlers
@@ -699,6 +723,23 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
               </div>
             </div>
           )}
+          {!mseGaveUp && (
+            <video
+              ref={mseVideoRef}
+              className="max-w-full max-h-full object-contain select-none"
+              style={{
+                transform: `scale(${zoomLevel}) translate(${panOffset.x / zoomLevel}px, ${panOffset.y / zoomLevel}px) rotate(${printer?.camera_rotation || 0}deg)`,
+                ...(printer?.camera_rotation === 90 || printer?.camera_rotation === 270 ? { maxWidth: '100%', maxHeight: '100%' } : {}),
+                cursor: zoomLevel > 1 ? (isPanning ? 'grabbing' : 'grab') : 'default',
+                display: mseStatus === 'playing' ? undefined : 'none',
+              }}
+              muted
+              playsInline
+              autoPlay
+              onMouseDown={handleImageMouseDown}
+            />
+          )}
+          {mseGaveUp && (
           <img
             ref={imgRef}
             key={imageKey}
@@ -715,6 +756,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
             onMouseDown={handleImageMouseDown}
             draggable={false}
           />
+          )}
 
           {/* Zoom controls */}
           <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-black/60 rounded px-1.5 py-1 no-drag">
@@ -773,6 +815,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
         <CameraDiagnoseModal
           printerId={printerId}
           printerName={printer?.name || null}
+          activePlayer={mseGaveUp ? 'mjpeg' : mseStatus === 'playing' ? 'mse' : 'connecting'}
           onClose={() => setShowDiagnoseModal(false)}
         />
       )}

@@ -2,6 +2,7 @@ import type {
   CalibrationResult,
   CamWallPrinter,
   CameraDiagnoseResult,
+  CameraStreamInfo,
   ColorCatalogEntry,
   ColorLookupResult,
   CsvImportPreview,
@@ -596,6 +597,9 @@ export const inventoryMaintenanceMethods = {
 
   diagnoseCamera: (printerId: number) =>
     request<CameraDiagnoseResult>(`/printers/${printerId}/camera/diagnose`, { method: 'POST' }),
+
+  getCameraStreamInfo: (printerId: number) =>
+    request<CameraStreamInfo>(`/printers/${printerId}/camera/stream-info`),
 
   diagnosePrinter: (printerId: number) =>
     request<PrinterDiagnosticResult>(`/printers/${printerId}/diagnostic`),

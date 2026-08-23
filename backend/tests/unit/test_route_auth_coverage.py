@@ -144,16 +144,24 @@ def _has_auth_dep(dependant) -> bool:
     return any(any(p in qn for p in _AUTH_QUALNAME_PATTERNS) for qn in _walk_dependant_qualnames(dependant))
 
 
+# WS auth-check functions accepted by _ws_endpoint_does_inline_token_check.
+# verify_websocket_token gates the general-purpose /ws event stream;
+# verify_camera_stream_token is the same camera_stream-scoped token the
+# HTTP camera stream/snapshot routes use (RequireCameraStreamTokenIfAuthEnabled),
+# reused inline by camera_mse_stream since WebSocket routes can't take a
+# FastAPI Depends the way HTTP routes do.
+_WS_INLINE_AUTH_FUNCS = ("verify_websocket_token", "verify_camera_stream_token")
+
+
 def _ws_endpoint_does_inline_token_check(route: APIWebSocketRoute) -> bool:
-    """True if the websocket endpoint reads its source uses ``verify_websocket_token``.
+    """True if the websocket endpoint's source calls a known inline auth check.
 
     WebSocket routes don't pass auth via the standard Depends machinery
     (the WebSocket handshake doesn't carry headers), so the auth check
     lives inline in the endpoint body. We confirm by inspecting the
-    endpoint function's source text — looking for an actual call to
-    ``verify_websocket_token``. A docstring-only mention would NOT
-    satisfy this check (we look for a call-shaped pattern, not a
-    substring).
+    endpoint function's source text — looking for an actual call to one of
+    ``_WS_INLINE_AUTH_FUNCS``. A docstring-only mention would NOT satisfy
+    this check (we look for a call-shaped pattern, not a substring).
     """
     import inspect
 
@@ -161,7 +169,7 @@ def _ws_endpoint_does_inline_token_check(route: APIWebSocketRoute) -> bool:
         source = inspect.getsource(route.endpoint)
     except (OSError, TypeError):
         return False
-    return bool(re.search(r"\bverify_websocket_token\s*\(", source))
+    return any(re.search(rf"\b{re.escape(name)}\s*\(", source) for name in _WS_INLINE_AUTH_FUNCS)
 
 
 @pytest.mark.unit

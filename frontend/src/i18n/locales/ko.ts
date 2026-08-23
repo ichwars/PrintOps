@@ -3238,6 +3238,33 @@ export default {
         protocol: '프로토콜',
         port: '포트',
         profile: '프로파일'
+      },
+      info: {
+        title: '라이브 스트림 세부정보',
+        pipeline: '파이프라인',
+        codec: '코덱',
+        resolution: '해상도',
+        fps: 'FPS(목표 / 측정값)',
+        bitrate: '비트레이트',
+        uptime: '스트림 가동 시간',
+        tlsProxy: 'TLS 프록시',
+        go2rtcStream: 'go2rtc 스트림',
+        notActive: '현재 이 프린터에 활성화된 스트림이 없습니다.',
+        pipelineName: {
+          go2rtc: 'go2rtc(RTSP 소스, MSE + MJPEG 제공)',
+          go2rtc_chamber_bridge: 'go2rtc(챔버 이미지 브리지, MJPEG 전용)',
+          chamber_binary: '챔버 이미지 프로토콜(독자적인 바이너리)',
+          external_mjpeg: '외부 카메라(MJPEG, go2rtc 경유)',
+          external_rtsp: '외부 카메라(RTSP, go2rtc 경유)',
+          external_snapshot: '외부 카메라(HTTP 스냅샷, go2rtc 경유)',
+          external_usb: '외부 카메라(USB/v4l2, 직접)'
+        },
+        player: '플레이어',
+        playerName: {
+          mse: 'MSE(H.264, 재인코딩 없음)',
+          mjpeg: 'MJPEG(대체)',
+          connecting: '연결 중…'
+        }
       }
     }
   },
