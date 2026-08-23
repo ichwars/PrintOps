@@ -813,7 +813,9 @@ async def camera_mse_stream(
         await websocket.close(code=1011)
         return
 
-    upstream_url = f"{settings.go2rtc_api_url.replace('http://', 'ws://').replace('https://', 'wss://')}/api/ws?src={go2rtc_name}"
+    upstream_url = (
+        f"{settings.go2rtc_api_url.replace('http://', 'ws://').replace('https://', 'wss://')}/api/ws?src={go2rtc_name}"
+    )
 
     try:
         # max_size raised from the 1MB default — a 1080p H.264 keyframe

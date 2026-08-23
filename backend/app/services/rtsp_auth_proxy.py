@@ -95,6 +95,7 @@ _READ_TIMEOUT = 10.0
 # (succeeds) — 3 requests. Some clients probe OPTIONS more than once first.
 _MAX_AUTH_ATTEMPTS = 6
 
+
 def _www_authenticate() -> bytes:
     # A fresh nonce per challenge is standard Digest hygiene even though
     # this proxy doesn't verify the response hash against it (see

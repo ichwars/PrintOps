@@ -619,7 +619,7 @@ export function CameraPage() {
   // useEffect that runs after render.
   const waitingForStreamToken = authEnabled && !streamTokenValue;
   const appendToken = (url: string) =>
-    streamTokenValue ? `${url}&token=${encodeURIComponent(streamTokenValue)}` : withStreamToken(url);
+    !authEnabled ? url : streamTokenValue ? `${url}&token=${encodeURIComponent(streamTokenValue)}` : withStreamToken(url);
   const currentUrl = transitioning || waitingForStreamToken
     ? ''
     : streamMode === 'stream'

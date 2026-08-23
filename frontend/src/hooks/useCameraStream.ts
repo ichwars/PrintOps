@@ -61,6 +61,7 @@ export function useCameraStream({ printerId, enabled, onError, onPlaying }: UseC
 
     if (!('MediaSource' in window)) {
       setStatus('unsupported');
+      onError?.();
       return;
     }
 

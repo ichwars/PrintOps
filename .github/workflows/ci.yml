@@ -65,6 +65,11 @@ jobs:
 
       - name: Install dependencies
         run: |
+          # pip itself, not a locked dependency — PYSEC-2026-3721 is fixed in
+          # 26.2, so upgrade before installing anything pip-audit would scan,
+          # rather than adding it to the --ignore-vuln list below (those are
+          # reserved for CVEs with no fix / disputed advisories).
+          python -m pip install --upgrade 'pip>=26.2'
           pip install --require-hashes -r requirements-dev.lock.txt
 
       - name: Run pip-audit

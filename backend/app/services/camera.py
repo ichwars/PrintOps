@@ -67,6 +67,7 @@ def parse_jpeg_dimensions(data: bytes) -> tuple[int, int] | None:
         i += 2 + seg_len
     return None
 
+
 # Cached result of rtsp_socket_timeout_flag(); see that function for context.
 _rtsp_socket_timeout_flag: str | None = None
 
