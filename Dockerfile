@@ -20,9 +20,13 @@ FROM python:3.13-slim-trixie
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies. Upgrade packages inherited from the slim base
+# first so known-fixed Debian security updates (including util-linux and its
+# libraries) are applied even when those packages are not installed below.
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update \
+ && apt-get upgrade -y \
+ && apt-get install -y --no-install-recommends \
     curl \
     default-jre-headless \
     ffmpeg \
