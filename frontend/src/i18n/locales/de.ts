@@ -3447,10 +3447,10 @@ export default {
       info: {
         title: 'Live-Stream-Details',
         pipeline: 'Pipeline',
-        codec: 'Codec',
+        codec: 'Video-Codec',
         resolution: 'Auflösung',
         fps: 'FPS (Ziel / gemessen)',
-        bitrate: 'Bitrate',
+        bitrate: 'Datenrate',
         uptime: 'Stream-Laufzeit',
         tlsProxy: 'TLS-Proxy',
         go2rtcStream: 'go2rtc-Stream',
@@ -3464,7 +3464,7 @@ export default {
           external_snapshot: 'Externe Kamera (HTTP-Snapshot, über go2rtc)',
           external_usb: 'Externe Kamera (USB/v4l2, direkt)',
         },
-        player: 'Player',
+        player: 'Wiedergabe',
         playerName: {
           mse: 'MSE (H.264, kein Re-Encode)',
           mjpeg: 'MJPEG (Fallback)',
