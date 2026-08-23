@@ -41,6 +41,7 @@ services:
     #  - "322:322"                    # Virtual printer RTSP camera (X1/H2/P2; proxy mode + non-proxy modes with a target printer)
     #  - "2024-2026:2024-2026"        # Virtual printer proprietary ports (A1/P1S)
     #  - "50000-50029:50000-50029"    # Virtual printer FTP passive data (3 VPs × 10-port slice)
+    #  - "8554:8554"                  # HA RTSP passthrough — only needed if ENABLE_HA_RTSP_PASSTHROUGH=true (off by default)
     #
     # FTP passive-mode port slicing (#1646): non-proxy VPs (Archive / Review /
     # Queue modes) get a 10-port slice each, allocated by VP id — VP 1 →
@@ -117,6 +118,18 @@ services:
       # Required for FTP passive mode to work behind NAT.
       # Example: VIRTUAL_PRINTER_PASV_ADDRESS=192.168.1.100
       #- VIRTUAL_PRINTER_PASV_ADDRESS=
+      #
+      # HA RTSP passthrough (opt-in, off by default). When enabled, PrintOps
+      # listens on HA_RTSP_PASSTHROUGH_PORT (default 8554) and relays a
+      # token-gated RTSP session to the printer's camera — paste
+      # rtsp://<camera-stream-token>:@<host>:8554/printer-<id> (note the
+      # trailing ":" after the token — an empty password, required for
+      # ffmpeg-based clients to send credentials at all) into Home
+      # Assistant's Generic Camera "stream_source" field (mint a token on
+      # the printer's Camera Tokens page first). On bridge mode (macOS/
+      # Windows), also uncomment the "8554:8554" line in ports: above.
+      #- ENABLE_HA_RTSP_PASSTHROUGH=true
+      #- HA_RTSP_PASSTHROUGH_PORT=8554
       #
       # External PostgreSQL (optional — uses SQLite by default)
       # Example: DATABASE_URL=postgresql+asyncpg://printops:password@db-host:5432/printops

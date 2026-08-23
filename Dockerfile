@@ -41,6 +41,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# go2rtc: embedded camera restreaming sidecar (see
+# backend/app/services/go2rtc_client.py and deploy/docker-entrypoint.sh for
+# how PrintOps drives it). Static Go binary, no runtime dependencies beyond
+# what's already in this image. Fetched per-target-architecture so the
+# multi-arch buildx pipeline (.github/workflows/release-container.yml,
+# linux/amd64 + linux/arm64) stays correct without QEMU emulation cost —
+# TARGETARCH is populated automatically by buildx for the runtime stage.
+ARG GO2RTC_VERSION=1.9.14
+ARG TARGETARCH
+RUN case "$TARGETARCH" in \
+        amd64) GO2RTC_ASSET="go2rtc_linux_amd64"; GO2RTC_SHA256="32d616af226bd731678ffde328b94cfb94e30339bfefc469cfb76323144615a6" ;; \
+        arm64) GO2RTC_ASSET="go2rtc_linux_arm64"; GO2RTC_SHA256="359fabade8a7a51e81a55fe6df6b0ef81764a5e1d63179577534eaaa71904b50" ;; \
+        *) echo "unsupported TARGETARCH for go2rtc: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+ && curl -fsSL -o /usr/local/bin/go2rtc \
+        "https://github.com/AlexxIT/go2rtc/releases/download/v${GO2RTC_VERSION}/${GO2RTC_ASSET}" \
+ && echo "${GO2RTC_SHA256}  /usr/local/bin/go2rtc" | sha256sum -c - \
+ && chmod +x /usr/local/bin/go2rtc
+
 # The optional Tailscale integration talks directly to the host daemon through
 # its mounted Unix socket. No Tailscale executable is shipped in this image.
 
@@ -164,6 +183,7 @@ EXPOSE 3000
 EXPOSE 3002
 EXPOSE 6000
 EXPOSE 8000
+EXPOSE 8554
 EXPOSE 8883
 EXPOSE 50000-50100
 

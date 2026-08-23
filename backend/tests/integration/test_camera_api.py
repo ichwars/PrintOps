@@ -414,10 +414,10 @@ class TestCameraAPI:
 
         # FPS should be clamped between 1 and 30
         # Testing that the endpoint accepts various FPS values without error
-        # (actual streaming would require mocking ffmpeg)
+        # (actual streaming would require the go2rtc sidecar to be running)
 
-        with patch("backend.app.api.routes.camera.get_ffmpeg_path", return_value=None):
-            # With no ffmpeg, stream should return error message but not crash
+        with patch("backend.app.api.routes.camera.go2rtc_client.ensure_stream", return_value=False):
+            # With go2rtc unreachable, stream should return error message but not crash
             response = await async_client.get(
                 f"/api/v1/printers/{printer.id}/camera/stream",
                 params={"fps": 100},  # Should be clamped to 30

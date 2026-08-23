@@ -80,10 +80,115 @@ else
     echo "[entrypoint] USE_SYSTEM_TRUST_STORE not set; skipping system trust store update"
 fi
 
-# If we're not root, we can't chown anything. Exec the original command
-# and trust that the user has set up host-side ownership themselves.
+# go2rtc restreaming sidecar (camera live-view backend, see
+# backend/app/services/go2rtc_client.py). Started as a background process
+# rather than exec'd, because this script also needs to launch the main
+# app — see the supervisor block near the bottom of this file for why we
+# gave up the previous single-process `exec` model.
+#
+# Streams are managed at runtime through go2rtc's REST API, so the static
+# config here only sets up loopback-only listeners; it never lists
+# `streams:` entries on purpose.
+#
+# go2rtc itself, however, persists every runtime PUT /api/streams
+# registration back into this file (its PatchConfig mechanism) so it can
+# reload streams after its own restart. PrintOps's streams are the
+# opposite of that: every registration is tied to a local proxy port or
+# bridge process (create_tls_proxy, chamber_image_bridge) that is
+# per-process and random — it cannot possibly still be valid after go2rtc
+# itself restarts. Reloading a stale entry then means go2rtc dials a dead
+# port forever until something re-registers the stream under the exact
+# same name, which may never happen (#camera Phase D regression: this bit
+# every printer after the first container restart following any viewer
+# session). So the config is regenerated from scratch on *every* startup,
+# not just the first — any streams: section from a previous run is
+# deliberately discarded here, not preserved.
+GO2RTC_BIN="/usr/local/bin/go2rtc"
+GO2RTC_CONFIG_DIR="/app/data/go2rtc"
+GO2RTC_PID=""
+
+start_go2rtc() {
+    if [ ! -x "$GO2RTC_BIN" ]; then
+        echo "[entrypoint] go2rtc binary not found at ${GO2RTC_BIN}; camera live view will be unavailable" >&2
+        return
+    fi
+
+    mkdir -p "$GO2RTC_CONFIG_DIR" 2>/dev/null || true
+
+    cat > "${GO2RTC_CONFIG_DIR}/go2rtc.yaml" <<-'EOF'
+		# Managed by PrintOps and regenerated on every container start — do
+		# not add a "streams:" section here, it would be silently discarded.
+		# Camera streams are registered and removed at runtime via go2rtc's
+		# REST API (see backend/app/services/go2rtc_client.py). All listeners
+		# are loopback-only: go2rtc has no authentication of its own, and
+		# PrintOps's token-gated HTTP/WS routes (and, if HA RTSP passthrough
+		# is enabled, backend/app/services/rtsp_auth_proxy.py) are the only
+		# sanctioned way to reach it. RTSP is on a non-standard port
+		# (18554, not 8554) specifically so it's never mistaken for a
+		# directly-reachable, unauthenticated RTSP server — the passthrough
+		# proxy is the only thing allowed to dial it, and it does so
+		# explicitly by this port number, kept in sync in that module.
+		api:
+		  listen: "127.0.0.1:1984"
+		rtsp:
+		  listen: "127.0.0.1:18554"
+		webrtc:
+		  listen: "127.0.0.1:8555"
+		EOF
+
+    if [ "$(id -u)" -eq 0 ]; then
+        chown -R -h -- "${PUID}:${PGID}" "$GO2RTC_CONFIG_DIR" 2>/dev/null || true
+        gosu "${PUID}:${PGID}" "$GO2RTC_BIN" -config "${GO2RTC_CONFIG_DIR}/go2rtc.yaml" &
+    else
+        "$GO2RTC_BIN" -config "${GO2RTC_CONFIG_DIR}/go2rtc.yaml" &
+    fi
+    GO2RTC_PID=$!
+    echo "[entrypoint] go2rtc started (pid ${GO2RTC_PID})"
+}
+
+# Supervise the main app (and go2rtc) instead of exec'ing directly, so a
+# SIGTERM/SIGINT from Docker can be forwarded to both children before this
+# script exits. This intentionally stays a plain trap+wait loop rather than
+# pulling in a real init system (s6, supervisord, tini): two long-running
+# children is the simplest case that still needs *some* supervision, and
+# this script already ran as PID 1 with full signal responsibility before
+# go2rtc existed.
+run_supervised() {
+    if [ "$(id -u)" -ne 0 ]; then
+        "$@" &
+    else
+        gosu "${PUID}:${PGID}" "$@" &
+    fi
+    app_pid=$!
+
+    term_handler() {
+        echo "[entrypoint] shutting down"
+        if [ -n "$GO2RTC_PID" ]; then
+            kill -TERM "$GO2RTC_PID" 2>/dev/null || true
+        fi
+        kill -TERM "$app_pid" 2>/dev/null || true
+        wait "$app_pid" 2>/dev/null
+        if [ -n "$GO2RTC_PID" ]; then
+            wait "$GO2RTC_PID" 2>/dev/null
+        fi
+        exit 0
+    }
+    trap term_handler TERM INT
+
+    wait "$app_pid"
+    app_exit=$?
+    if [ -n "$GO2RTC_PID" ]; then
+        kill -TERM "$GO2RTC_PID" 2>/dev/null || true
+        wait "$GO2RTC_PID" 2>/dev/null
+    fi
+    exit "$app_exit"
+}
+
+# If we're not root, we can't chown anything. Start go2rtc and the main app
+# as the current user and trust that host-side ownership is already correct.
 if [ "$(id -u)" -ne 0 ]; then
-    exec "$@"
+    start_go2rtc
+    run_supervised "$@"
 fi
 
 # `chown -R` is gated behind a top-level ownership check so a correctly-
@@ -115,4 +220,5 @@ chown_if_needed /app/logs
 # (cap_net_bind_service=+ep, set in the Dockerfile) survive the uid
 # switch, so binding to :322 / :990 still works post-drop.
 echo "[entrypoint] starting application as ${PUID}:${PGID}"
-exec gosu "${PUID}:${PGID}" "$@"
+start_go2rtc
+run_supervised "$@"

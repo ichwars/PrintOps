@@ -173,6 +173,23 @@ class Settings(BaseSettings):
     slicer_api_url: str = "http://localhost:3003"
     bambu_studio_api_url: str = "http://localhost:3001"
 
+    # go2rtc restreaming sidecar (deploy/docker-entrypoint.sh starts it
+    # alongside uvicorn). Loopback-only — go2rtc has no auth of its own,
+    # so its API/RTSP/WebRTC ports must never be reachable from outside
+    # the container. PrintOps's own token-gated routes are the only
+    # sanctioned way to reach camera data derived from it.
+    go2rtc_api_url: str = "http://127.0.0.1:1984"
+
+    # HA RTSP passthrough (Phase E) — opt-in, off by default. When enabled,
+    # backend/app/services/rtsp_auth_proxy.py listens on a real network
+    # interface and relays token-gated RTSP sessions to go2rtc's (loopback
+    # only) internal RTSP server, so Home Assistant's Generic Camera
+    # integration can use a plain rtsp:// stream_source instead of MJPEG.
+    # Off by default because it opens a new port — existing MJPEG/MSE URLs
+    # keep working unchanged either way.
+    enable_ha_rtsp_passthrough: bool = False
+    ha_rtsp_passthrough_port: int = 8554
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

@@ -257,6 +257,29 @@ function JustCreatedModal({ token, onClose }: JustCreatedModalProps) {
             {t('cameraTokens.created.copy', 'Copy')}
           </Button>
         </div>
+        {token.scope === 'camera_stream' && (
+          <div className="mb-4 px-3 py-2.5 bg-bambu-dark rounded-md text-xs text-bambu-gray space-y-1.5">
+            <p>{t('cameraTokens.created.urlHint', 'Use this token in a camera URL:')}</p>
+            <code className="block break-all font-mono text-white">
+              {'.../api/v1/printers/{printerId}/camera/stream?token=' + plaintext}
+            </code>
+            <p className="pt-1">
+              {t(
+                'cameraTokens.created.rtspHint',
+                'Or, for Home Assistant\'s Generic Camera "stream_source" field (needs ENABLE_HA_RTSP_PASSTHROUGH=true):',
+              )}
+            </p>
+            <code className="block break-all font-mono text-white">
+              {'rtsp://' + plaintext + ':@<host>:8554/printer-{printerId}'}
+            </code>
+            <p className="text-[11px] text-bambu-gray/70">
+              {t(
+                'cameraTokens.created.rtspColonHint',
+                'Keep the trailing ":" right after the token — it marks an empty password and some RTSP clients need it to send credentials at all.',
+              )}
+            </p>
+          </div>
+        )}
         <div className="flex justify-end">
           <Button variant="unstyled"
             type="button"
