@@ -3214,6 +3214,7 @@ export default {
     startRecording: '녹화 시작',
     stopRecording: '녹화 중지',
     chamberLight: '챔버 조명 전환',
+    overlayToggle: '온도 오버레이 전환',
     unavailable: '카메라 사용 불가',
     diagnose: {
       button: '진단',

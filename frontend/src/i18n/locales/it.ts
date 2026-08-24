@@ -3370,6 +3370,7 @@ export default {
     startRecording: 'Avvia registrazione',
     stopRecording: 'Ferma registrazione',
     chamberLight: 'Accendi/Spegni luce camera',
+    overlayToggle: 'Attiva/disattiva overlay temperatura',
     unavailable: 'Telecamera non disponibile',
     diagnose: {
       button: 'Diagnostica',

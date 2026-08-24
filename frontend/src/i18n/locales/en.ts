@@ -3448,6 +3448,7 @@ export default {
     startRecording: 'Start Recording',
     stopRecording: 'Stop Recording',
     chamberLight: 'Toggle chamber light',
+    overlayToggle: 'Toggle temperature overlay',
     unavailable: 'Camera unavailable',
     diagnose: {
       button: 'Diagnose',

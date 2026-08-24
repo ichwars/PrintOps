@@ -3371,6 +3371,7 @@ export default {
     startRecording: 'Démarrer l\'enregistrement',
     stopRecording: 'Arrêter l\'enregistrement',
     chamberLight: 'Basculer lumière chambre',
+    overlayToggle: 'Basculer l’incrustation de température',
     unavailable: 'Caméra indisponible',
     diagnose: {
       button: 'Diagnostic',

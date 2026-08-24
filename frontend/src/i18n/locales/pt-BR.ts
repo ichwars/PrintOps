@@ -3370,6 +3370,7 @@ export default {
     startRecording: 'Iniciar gravação',
     stopRecording: 'Parar gravação',
     chamberLight: 'Alternar luz da câmara',
+    overlayToggle: 'Alternar sobreposição de temperatura',
     unavailable: 'Câmera indisponível',
     diagnose: {
       button: 'Diagnóstico',

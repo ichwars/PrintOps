@@ -3370,6 +3370,7 @@ export default {
     startRecording: '开始录制',
     stopRecording: '停止录制',
     chamberLight: '切换腔室灯',
+    overlayToggle: '切换温度叠加层',
     unavailable: '摄像头不可用',
     diagnose: {
       button: '诊断',

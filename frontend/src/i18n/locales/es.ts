@@ -3391,6 +3391,7 @@ export default {
     startRecording: 'Iniciar grabación',
     stopRecording: 'Detener grabación',
     chamberLight: 'Conmutar la luz de la cámara',
+    overlayToggle: 'Alternar superposición de temperatura',
     unavailable: 'Cámara no disponible',
     diagnose: {
       button: 'Diagnosticar',

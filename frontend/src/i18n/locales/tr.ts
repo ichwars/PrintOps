@@ -3385,6 +3385,7 @@ export default {
     startRecording: 'Kaydı Başlat',
     stopRecording: 'Kaydı Durdur',
     chamberLight: 'Hazne ışığını aç/kapat',
+    overlayToggle: 'Sıcaklık katmanını aç/kapat',
     unavailable: 'Kamera kullanılamıyor',
     diagnose: {
       button: 'Tanıla',

@@ -3382,6 +3382,7 @@ export default {
     startRecording: '録画開始',
     stopRecording: '録画停止',
     chamberLight: 'チャンバーライト切替',
+    overlayToggle: '温度オーバーレイの切替',
     unavailable: 'カメラは利用できません',
     diagnose: {
       button: '診断',
