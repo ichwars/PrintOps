@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Cog, QrCode, Workflow, Info, UploadCloud } from 'lucide-react';
+import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Cog, QrCode, Workflow, Info, UploadCloud, Wrench } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import { api } from '../api/client';
@@ -1444,6 +1444,30 @@ export function SettingsPage() {
     }, 800);
   };
 
+  // URL builder for external camera sources (#102): a guided form that composes
+  // a URL and feeds it into the same handleCameraUrlChange() path as the
+  // free-text field above, so it's saved and validated identically — no
+  // separate input path around the backend's _sanitize_camera_url() checks.
+  type CameraUrlBuilderFields = { host: string; port: string; path: string; username: string; password: string };
+  const emptyBuilderFields: CameraUrlBuilderFields = { host: '', port: '', path: '', username: '', password: '' };
+  const [showCameraBuilder, setShowCameraBuilder] = useState<Record<number, boolean>>({});
+  const [cameraBuilderFields, setCameraBuilderFields] = useState<Record<number, CameraUrlBuilderFields>>({});
+
+  const buildCameraUrl = (cameraType: string, fields: CameraUrlBuilderFields): string => {
+    if (!fields.host) return '';
+    const scheme = cameraType === 'rtsp' ? 'rtsp' : 'http';
+    const auth = fields.username ? `${encodeURIComponent(fields.username)}${fields.password ? `:${encodeURIComponent(fields.password)}` : ''}@` : '';
+    const port = fields.port ? `:${fields.port}` : '';
+    const path = fields.path ? (fields.path.startsWith('/') ? fields.path : `/${fields.path}`) : '';
+    return `${scheme}://${auth}${fields.host}${port}${path}`;
+  };
+
+  const handleCameraBuilderFieldChange = (printerId: number, cameraType: string, field: keyof CameraUrlBuilderFields, value: string) => {
+    const nextFields = { ...(cameraBuilderFields[printerId] ?? emptyBuilderFields), [field]: value };
+    setCameraBuilderFields(prev => ({ ...prev, [printerId]: nextFields }));
+    handleCameraUrlChange(printerId, buildCameraUrl(cameraType, nextFields));
+  };
+
   const handleUpdatePrinterCamera = (printerId: number, updates: { type?: string; enabled?: boolean; rotation?: number }) => {
     const data: Partial<{ external_camera_type: string | null; external_camera_enabled: boolean; camera_rotation: number }> = {};
     if (updates.type !== undefined) data.external_camera_type = updates.type || null;
@@ -1912,13 +1936,72 @@ export function SettingsPage() {
 
                   {printer.external_camera_enabled && (
                     <div className="space-y-2 mt-2">
-                      <TextField
-                        type="text"
-                        placeholder={printer.external_camera_type === 'usb' ? t('settings.cameraPlaceholderUsb') : t('settings.cameraPlaceholderUrl')}
-                        value={localCameraUrls[printer.id] ?? printer.external_camera_url ?? ''}
-                        onChange={(e) => handleCameraUrlChange(printer.id, e.target.value)}
-                        className="w-full px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
-                      />
+                      <div className="flex gap-2 items-start">
+                        <TextField
+                          type="text"
+                          placeholder={printer.external_camera_type === 'usb' ? t('settings.cameraPlaceholderUsb') : t('settings.cameraPlaceholderUrl')}
+                          value={localCameraUrls[printer.id] ?? printer.external_camera_url ?? ''}
+                          onChange={(e) => handleCameraUrlChange(printer.id, e.target.value)}
+                          className="flex-1 px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                        />
+                        {printer.external_camera_type !== 'usb' && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setShowCameraBuilder(prev => ({ ...prev, [printer.id]: !prev[printer.id] }))}
+                            title={t('settings.cameraUrlBuilderToggle')}
+                            aria-pressed={!!showCameraBuilder[printer.id]}
+                          >
+                            <Wrench className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                      {showCameraBuilder[printer.id] && printer.external_camera_type !== 'usb' && (
+                        <div className="p-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded space-y-2">
+                          <div className="grid grid-cols-3 gap-2">
+                            <TextField
+                              type="text"
+                              placeholder={t('settings.cameraUrlBuilderHost')}
+                              value={cameraBuilderFields[printer.id]?.host ?? ''}
+                              onChange={(e) => handleCameraBuilderFieldChange(printer.id, printer.external_camera_type || 'mjpeg', 'host', e.target.value)}
+                              className="col-span-2 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                            />
+                            <TextField
+                              type="text"
+                              placeholder={t('settings.cameraUrlBuilderPort')}
+                              value={cameraBuilderFields[printer.id]?.port ?? ''}
+                              onChange={(e) => handleCameraBuilderFieldChange(printer.id, printer.external_camera_type || 'mjpeg', 'port', e.target.value.replace(/\D/g, ''))}
+                              className="px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                            />
+                          </div>
+                          <TextField
+                            type="text"
+                            placeholder={t('settings.cameraUrlBuilderPath')}
+                            value={cameraBuilderFields[printer.id]?.path ?? ''}
+                            onChange={(e) => handleCameraBuilderFieldChange(printer.id, printer.external_camera_type || 'mjpeg', 'path', e.target.value)}
+                            className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <TextField
+                              type="text"
+                              placeholder={t('settings.cameraUrlBuilderUsername')}
+                              value={cameraBuilderFields[printer.id]?.username ?? ''}
+                              onChange={(e) => handleCameraBuilderFieldChange(printer.id, printer.external_camera_type || 'mjpeg', 'username', e.target.value)}
+                              className="px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                            />
+                            <TextField
+                              type="password"
+                              placeholder={t('settings.cameraUrlBuilderPassword')}
+                              value={cameraBuilderFields[printer.id]?.password ?? ''}
+                              onChange={(e) => handleCameraBuilderFieldChange(printer.id, printer.external_camera_type || 'mjpeg', 'password', e.target.value)}
+                              className="px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                            />
+                          </div>
+                          <p className="text-xs text-bambu-gray opacity-75">
+                            {t('settings.cameraUrlBuilderHelp')}
+                          </p>
+                        </div>
+                      )}
                       <div className="flex gap-2">
                         <Select
                           ariaLabel={`${printer.name}: ${t('settings.externalCameras')}`}
