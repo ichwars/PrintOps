@@ -58,6 +58,11 @@ export const authUsersMethods = {
       method: 'POST',
     }),
 
+  refreshToken: () =>
+    request<LoginResponse>('/auth/refresh', {
+      method: 'POST',
+    }),
+
   getCurrentUser: () => request<UserResponse>('/auth/me'),
 
   disableAuth: () =>
