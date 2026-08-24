@@ -47,6 +47,7 @@ import { DocumentLayoutSettings } from '../components/settings/document-layout/D
 import { CalculationSettings } from '../components/orders/calculation/CalculationSettings';
 import { SmallPartsSettings } from '../components/settings/SmallPartsSettings';
 import { WarehouseNumberSequenceSettings } from '../components/settings/WarehouseNumberSequenceSettings';
+import { ExternalCameraUrlField } from '../components/settings/CameraUrlBuilder';
 import {
   DryerManagementCard,
   PrinterManagementCard,
@@ -1912,12 +1913,10 @@ export function SettingsPage() {
 
                   {printer.external_camera_enabled && (
                     <div className="space-y-2 mt-2">
-                      <TextField
-                        type="text"
-                        placeholder={printer.external_camera_type === 'usb' ? t('settings.cameraPlaceholderUsb') : t('settings.cameraPlaceholderUrl')}
+                      <ExternalCameraUrlField
+                        cameraType={printer.external_camera_type || 'mjpeg'}
                         value={localCameraUrls[printer.id] ?? printer.external_camera_url ?? ''}
-                        onChange={(e) => handleCameraUrlChange(printer.id, e.target.value)}
-                        className="w-full px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                        onUrlChange={(url) => handleCameraUrlChange(printer.id, url)}
                       />
                       <div className="flex gap-2">
                         <Select
