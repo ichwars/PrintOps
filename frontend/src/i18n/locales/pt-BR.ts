@@ -3189,9 +3189,12 @@ export default {
     noFiles: 'Nenhum arquivo na impressora',
     loadingFiles: 'Carregando arquivos...',
     failedToLoad: 'Falha ao carregar arquivos',
+    downloadRemaining: 'restante',
     toast: {
       filesDeleted: 'Arquivos excluídos: {{count}}',
       deleteFailed: 'Falha ao excluir: {{error}}',
+      downloadComplete: '{{fileName}} baixado',
+      downloadFailed: 'Falha ao baixar {{fileName}}: {{error}}',
     },
   },
 
@@ -6642,6 +6645,7 @@ export default {
         title: 'Porta de transferência de arquivos (FTPS 990)',
         pass: 'Acessível — o envio de arquivos de impressão funcionará.',
         warn: 'A porta 990 está inacessível. O monitoramento ainda pode funcionar, mas o envio de impressões para a impressora falhará. Verifique se a porta 990 não está bloqueada.',
+        fail: 'A porta 990 responde, mas o serviço de transferência de arquivos (FTPS) não conclui o handshake TLS. O PrintOps pausou novas tentativas de transferência para esta impressora por {{remaining_seconds}}s para evitar sobrecarregar os logs — capas, timelapses e o envio de impressões não funcionarão até lá. Se isso persistir, tente reiniciar a impressora.',
       },
       external_storage: {
         title: 'Armazenar arquivos enviados no armazenamento externo (passo 4 da instalação)',

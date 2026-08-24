@@ -169,6 +169,31 @@ class ConnectionManager:
             },
         )
 
+    async def send_file_download_progress(
+        self,
+        user_id: int | None,
+        download_id: str,
+        bytes_transferred: int,
+        total_bytes: int,
+    ):
+        """Progress update for a manual printer-file download (file manager).
+
+        Keyed by a client-generated ``download_id`` rather than a queue item
+        id — file-manager downloads aren't queue rows. Mirrors
+        send_queue_item_upload_progress's shape/throttling contract.
+        """
+        pct = int(round(100 * bytes_transferred / total_bytes)) if total_bytes else 0
+        await self.broadcast_to_user(
+            user_id,
+            {
+                "type": "file_download_progress",
+                "download_id": download_id,
+                "bytes_transferred": bytes_transferred,
+                "total_bytes": total_bytes,
+                "pct": pct,
+            },
+        )
+
     async def send_queue_item_acked(
         self,
         user_id: int | None,

@@ -3189,9 +3189,12 @@ export default {
     noFiles: '印表機上沒有檔案',
     loadingFiles: '載入檔案中...',
     failedToLoad: '載入檔案失敗',
+    downloadRemaining: '剩餘',
     toast: {
       filesDeleted: '已刪除 {{count}} 個檔案',
       deleteFailed: '刪除失敗：{{error}}',
+      downloadComplete: '已下載 {{fileName}}',
+      downloadFailed: '下載 {{fileName}} 失敗：{{error}}',
     },
   },
 
@@ -6641,6 +6644,7 @@ export default {
         title: '檔案傳輸連接埠（FTPS 990）',
         pass: '可達 — 傳送列印檔案將正常運作。',
         warn: '連接埠 990 無法連線。監控可能仍然有效，但向印表機傳送列印工作將失敗。請確保連接埠 990 未被封鎖。',
+        fail: '連接埠 990 有回應，但檔案傳輸（FTPS）服務無法完成 TLS 交握。為避免記錄被灌爆，PrintOps 已暫停對此印表機的檔案傳輸嘗試 {{remaining_seconds}} 秒——在此期間封面圖、縮時錄影和傳送列印工作都無法使用。若問題持續發生，請嘗試重新啟動印表機。',
       },
       external_storage: {
         title: '將傳送的檔案儲存在外部儲存中（安裝步驟 4）',

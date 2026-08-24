@@ -317,30 +317,40 @@ export const printersFilesMethods = {
   getPrinterFilePlateThumbnail: (printerId: number, plateIndex: number, path: string) =>
     withStreamToken(`${API_BASE}/printers/${printerId}/files/plate-thumbnail/${plateIndex}?path=${encodeURIComponent(path)}`),
 
-  downloadPrinterFile: async (printerId: number, path: string): Promise<void> => {
-    const headers: Record<string, string> = {};
-    if (authToken) {
-      headers['Authorization'] = `Bearer ${authToken}`;
-    }
-    const response = await fetch(
-      `${API_BASE}/printers/${printerId}/files/download?path=${encodeURIComponent(path)}`,
-      { headers }
-    );
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || `HTTP ${response.status}`);
-    }
-    const disposition = response.headers.get('Content-Disposition');
-    const filename = parseContentDispositionFilename(disposition) || path.split('/').pop() || 'download';
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+  // Downloads a single printer file (e.g. a multi-hundred-MB printer log).
+  // Returns a download_id up front (before the fetch resolves) so the
+  // caller can subscribe to WS 'file_download_progress' events — keyed by
+  // that id — before the first one could possibly arrive. The backend
+  // relays live byte progress over the same WebSocket connection used for
+  // print-queue upload progress.
+  downloadPrinterFile: (printerId: number, path: string): { downloadId: string; promise: Promise<void> } => {
+    const downloadId = crypto.randomUUID();
+    const promise = (async () => {
+      const headers: Record<string, string> = {};
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      const response = await fetch(
+        `${API_BASE}/printers/${printerId}/files/download?path=${encodeURIComponent(path)}&download_id=${downloadId}`,
+        { headers }
+      );
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || `HTTP ${response.status}`);
+      }
+      const disposition = response.headers.get('Content-Disposition');
+      const filename = parseContentDispositionFilename(disposition) || path.split('/').pop() || 'download';
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    })();
+    return { downloadId, promise };
   },
 
   downloadPrinterFilesAsZip: async (printerId: number, paths: string[]): Promise<Blob> => {

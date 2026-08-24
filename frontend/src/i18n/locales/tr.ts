@@ -3204,9 +3204,12 @@ export default {
     noFiles: 'Yazıcıda dosya yok',
     loadingFiles: 'Dosyalar yükleniyor...',
     failedToLoad: 'Dosyalar yüklenemedi',
+    downloadRemaining: 'kaldı',
     toast: {
       filesDeleted: '{{count}} dosya silindi',
       deleteFailed: 'Silme başarısız: {{error}}',
+      downloadComplete: '{{fileName}} indirildi',
+      downloadFailed: '{{fileName}} indirilemedi: {{error}}',
     },
   },
 
@@ -6592,6 +6595,7 @@ export default {
         title: 'Dosya aktarım portu (FTPS 990)',
         pass: 'Erişilebilir — baskı dosyaları gönderme çalışacak.',
         warn: 'Port 990 erişilemez. İzleme yine çalışabilir, ancak yazıcıya baskı gönderme başarısız olacak. Port 990\'ın engellenmediğinden emin olun.',
+        fail: 'Port 990 yanıt veriyor ancak dosya aktarım (FTPS) hizmeti TLS el sıkışmasını tamamlayamıyor. PrintOps, günlükleri doldurmamak için bu yazıcıya yönelik dosya aktarım denemelerini {{remaining_seconds}} saniye duraklattı — bu süre boyunca kapak görselleri, hızlandırılmış çekimler ve baskı gönderme çalışmayacak. Sorun devam ederse yazıcıyı yeniden başlatmayı deneyin.',
       },
       external_storage: {
         title: 'Gönderilen dosyaları harici depolamada sakla (kurulum adımı 4)',

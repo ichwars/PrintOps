@@ -14,6 +14,7 @@ Tests against a real mock implicit FTPS server, covering:
 """
 
 import asyncio
+import ssl
 import threading
 import time
 from pathlib import Path
@@ -22,15 +23,20 @@ import pytest
 
 from backend.app.services import bambu_ftp
 from backend.app.services.bambu_ftp import (
+    FTPS_COOLDOWN_SECONDS,
     BambuFTPClient,
     FileNotOnPrinterError,
+    FtpsCooldownActive,
+    ImplicitFTP_TLS,
     UploadCancelled,
     _upload_deadline,
     cache_3mf_download,
     clear_3mf_cache,
+    clear_ftps_cooldown,
     delete_file_async,
     download_file_async,
     download_file_try_paths_async,
+    ftps_cooldown_remaining,
     get_cached_3mf,
     list_files_async,
     normalize_3mf_name,
@@ -234,12 +240,39 @@ class TestDownload:
         assert result == content
         client.disconnect()
 
-    def test_download_file_missing(self, ftp_client_factory):
-        """download_file() returns None for missing file."""
+    def test_download_file_progress_callback_tallies_bytes(self, ftp_client_factory, ftp_server):
+        """progress_callback receives strictly increasing byte counts ending at the full size."""
+        content = b"x" * (256 * 1024)
+        ftp_server.add_file("cache/big.bin", content)
         client = ftp_client_factory()
         client.connect()
-        result = client.download_file("/cache/does_not_exist.txt")
-        assert result is None
+
+        calls: list[tuple[int, int]] = []
+        result = client.download_file(
+            "/cache/big.bin",
+            progress_callback=lambda transferred, total: calls.append((transferred, total)),
+            total_bytes=len(content),
+        )
+        client.disconnect()
+
+        assert result == content
+        assert calls, "progress_callback was never invoked"
+        assert all(total == len(content) for _, total in calls)
+        transferred = [t for t, _ in calls]
+        assert transferred == sorted(transferred)
+        assert transferred[-1] == len(content)
+
+    def test_download_file_missing(self, ftp_client_factory):
+        """download_file() raises FileNotOnPrinterError for a missing file (550).
+
+        Parity with download_to_file (#log-download-timeout): a caller needs to
+        tell "genuinely not on the printer" apart from "transfer started but
+        didn't finish", which a plain None can't distinguish.
+        """
+        client = ftp_client_factory()
+        client.connect()
+        with pytest.raises(FileNotOnPrinterError):
+            client.download_file("/cache/does_not_exist.txt", raise_on_not_found=True)
         client.disconnect()
 
     def test_download_to_file_writes_to_disk(self, ftp_client_factory, ftp_server, tmp_path):
@@ -635,6 +668,24 @@ class TestFileSize:
         """Returns None when not connected."""
         client = BambuFTPClient("127.0.0.1", "12345678")
         assert client.get_file_size("/cache/test.bin") is None
+
+    @pytest.mark.asyncio
+    async def test_get_file_size_async_returns_size(self, patch_ftp_port, tmp_path):
+        """Async wrapper connects, probes SIZE, and disconnects cleanly."""
+        server = patch_ftp_port
+        server.add_file("cache/sized_async.bin", b"a" * 12345)
+
+        from backend.app.services.bambu_ftp import get_file_size_async
+
+        size = await get_file_size_async("127.0.0.1", "12345678", "/cache/sized_async.bin")
+        assert size == 12345
+
+    @pytest.mark.asyncio
+    async def test_get_file_size_async_missing_returns_none(self, patch_ftp_port):
+        from backend.app.services.bambu_ftp import get_file_size_async
+
+        size = await get_file_size_async("127.0.0.1", "12345678", "/cache/no_such_file.bin")
+        assert size is None
 
 
 # ---------------------------------------------------------------------------
@@ -1140,13 +1191,13 @@ class TestFailureScenarios:
         assert result is False
 
     def test_retr_550_handled(self, ftp_client_factory, ftp_server):
-        """RETR 550 (file not found) returns None."""
+        """RETR 550 (file not found) raises FileNotOnPrinterError."""
         ftp_server.inject_failure("RETR", 550, "File not found.")
         ftp_server.add_file("cache/exists.bin", b"data")
         client = ftp_client_factory()
         client.connect()
-        result = client.download_file("/cache/exists.bin")
-        assert result is None
+        with pytest.raises(FileNotOnPrinterError):
+            client.download_file("/cache/exists.bin", raise_on_not_found=True)
         client.disconnect()
 
     def test_cwd_550_handled(self, ftp_client_factory, ftp_server):
@@ -1191,8 +1242,8 @@ class TestFailureScenarios:
         client = ftp_client_factory()
         client.connect()
         # First attempt fails
-        result1 = client.download_file("/cache/retry.bin")
-        assert result1 is None
+        with pytest.raises(FileNotOnPrinterError):
+            client.download_file("/cache/retry.bin", raise_on_not_found=True)
         # Second attempt succeeds (failure count exhausted)
         result2 = client.download_file("/cache/retry.bin")
         assert result2 == b"data after retry"
@@ -1222,6 +1273,110 @@ class TestFailureScenarios:
             downloaded = client2.download_file("/cache/voidresp_test.3mf")
             assert downloaded == content, f"Content mismatch for model={model}"
             client2.disconnect()
+
+
+# ---------------------------------------------------------------------------
+# FTPS TLS-handshake-failure cooldown (#88)
+# ---------------------------------------------------------------------------
+class TestFtpsCooldown:
+    """A broken TLS handshake (port answers, TLS fails) must cool down
+    further FTPS attempts to that IP for FTPS_COOLDOWN_SECONDS — distinct
+    from a closed/unreachable port, which stays immediately retry-worthy.
+    """
+
+    def test_tls_handshake_failure_arms_cooldown(self, ftp_client_factory, monkeypatch):
+        """ssl.SSLError during the handshake step raises FtpsCooldownActive and arms the cooldown."""
+        client = ftp_client_factory()
+
+        def _raise_ssl_error(self, *args, **kwargs):
+            raise ssl.SSLError("handshake failure")
+
+        monkeypatch.setattr(ImplicitFTP_TLS, "connect", _raise_ssl_error)
+
+        with pytest.raises(FtpsCooldownActive):
+            client.connect()
+
+        remaining = ftps_cooldown_remaining(client.ip_address)
+        assert remaining is not None
+        assert 0 < remaining <= FTPS_COOLDOWN_SECONDS
+
+    def test_cooldown_blocks_further_attempts_without_network(self, ftp_client_factory, monkeypatch):
+        """While cooling down, connect() raises immediately without touching the socket."""
+        client = ftp_client_factory()
+        call_count = 0
+
+        def _raise_ssl_error(self, *args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise ssl.SSLError("handshake failure")
+
+        monkeypatch.setattr(ImplicitFTP_TLS, "connect", _raise_ssl_error)
+
+        with pytest.raises(FtpsCooldownActive):
+            client.connect()
+        assert call_count == 1
+
+        # Second attempt while cooling down must not touch the network again.
+        with pytest.raises(FtpsCooldownActive):
+            client.connect()
+        assert call_count == 1
+
+    def test_closed_port_does_not_arm_cooldown(self):
+        """A refused/unreachable connection is a different failure mode — no cooldown."""
+        client = BambuFTPClient("127.0.0.1", "12345678", timeout=1.0)
+        client.FTP_PORT = 1  # Almost certainly not listening
+
+        assert client.connect() is False
+        assert ftps_cooldown_remaining(client.ip_address) is None
+
+        # A later attempt must still reach the socket layer (not short-circuited).
+        assert client.connect() is False
+
+    def test_cooldown_expires_after_deadline(self, ftp_client_factory, monkeypatch):
+        """ftps_cooldown_remaining returns None once the deadline has passed."""
+        client = ftp_client_factory()
+        fake_now = 1000.0
+        monkeypatch.setattr(bambu_ftp.time, "monotonic", lambda: fake_now)
+
+        def _raise_ssl_error(self, *args, **kwargs):
+            raise ssl.SSLError("handshake failure")
+
+        monkeypatch.setattr(ImplicitFTP_TLS, "connect", _raise_ssl_error)
+        with pytest.raises(FtpsCooldownActive):
+            client.connect()
+        assert ftps_cooldown_remaining(client.ip_address) is not None
+
+        fake_now += FTPS_COOLDOWN_SECONDS + 1
+        assert ftps_cooldown_remaining(client.ip_address) is None
+
+    def test_successful_connect_clears_cooldown(self, ftp_client_factory):
+        """A subsequent successful connect clears a prior cooldown immediately."""
+        client = ftp_client_factory()
+        bambu_ftp._ftps_cooldown_until[client.ip_address] = time.monotonic() - 1  # already expired
+        assert client.connect() is True
+        client.disconnect()
+        assert ftps_cooldown_remaining(client.ip_address) is None
+
+    def test_clear_ftps_cooldown_helper(self):
+        """clear_ftps_cooldown removes an armed cooldown outright."""
+        bambu_ftp._ftps_cooldown_until["10.0.0.5"] = time.monotonic() + 100
+        clear_ftps_cooldown("10.0.0.5")
+        assert ftps_cooldown_remaining("10.0.0.5") is None
+
+    @pytest.mark.asyncio
+    async def test_with_ftp_retry_does_not_retry_cooldown(self):
+        """with_ftp_retry raises FtpsCooldownActive immediately, without retry sleeps."""
+        call_count = 0
+
+        async def _op():
+            nonlocal call_count
+            call_count += 1
+            raise FtpsCooldownActive("127.0.0.1", 300.0)
+
+        with pytest.raises(FtpsCooldownActive):
+            await with_ftp_retry(_op, max_retries=3, retry_delay=5.0, operation_name="test op")
+
+        assert call_count == 1
 
 
 # ---------------------------------------------------------------------------
@@ -1535,3 +1690,33 @@ class TestUploadDeadline:
         assert await asyncio.gather(dispatch("a"), dispatch("b")) == [True, True]
         assert slow_upload_client["attempts"] == 2
         assert slow_upload_client["max_concurrent"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Size-scaled download deadline (large printer-file downloads, e.g. logs)
+# ---------------------------------------------------------------------------
+class TestDownloadDeadline:
+    """A large download (printer logs can run several hundred MB) must get a
+    deadline that scales with its size instead of the old fixed 300s default,
+    which a real file over a slow link routinely exceeded with no feedback."""
+
+    def test_deadline_scales_with_size(self):
+        from backend.app.services.bambu_ftp import _download_deadline
+
+        assert _download_deadline(1024) == bambu_ftp._UPLOAD_MIN_TIMEOUT
+
+        big = 650 * 1024 * 1024
+        assert _download_deadline(big) == pytest.approx(big / bambu_ftp._UPLOAD_FLOOR_BYTES_PER_SEC)
+        # A 650 MB file must get meaningfully more than the old 300s default.
+        assert _download_deadline(big) > 300.0
+
+    def test_download_and_upload_deadlines_agree_for_the_same_size(self, tmp_path):
+        """Downloads and uploads share one size->deadline curve — no reason
+        to assume a link tolerates one direction better than the other."""
+        local = tmp_path / "same_size.bin"
+        size = 10 * 1024 * 1024
+        local.write_bytes(b"x" * size)
+
+        from backend.app.services.bambu_ftp import _download_deadline
+
+        assert _download_deadline(size) == _upload_deadline(local)

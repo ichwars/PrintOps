@@ -14,7 +14,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.app.services.firmware_check import FirmwareCheckService, FirmwareVersion
+from backend.app.services.firmware_check import (
+    API_KEY_TO_DEV_MODEL,
+    MODEL_TO_API_KEY,
+    FirmwareCheckService,
+    FirmwareVersion,
+)
 
 WIKI_SAMPLE = """
 <h2 id="h-01030000-20260303" class="toc-header">01.03.00.00 (20260303)</h2>
@@ -50,6 +55,15 @@ async def test_wiki_extraction_ignores_prose_version_mentions():
 async def test_wiki_extraction_returns_empty_for_unknown_api_key():
     svc = FirmwareCheckService()
     assert await svc._fetch_all_versions_from_wiki("no-such-key") == []
+
+
+def test_c13_dev_model_code_maps_to_x1e():
+    """C13 is X1E's SSDP model code, not P2S's (that's N7). Regression for a
+    copy-paste bug where MODEL_TO_API_KEY["C13"] pointed at "p2s", which would
+    send X1E firmware-version lookups to the P2S wiki page instead of X1E's."""
+    assert MODEL_TO_API_KEY["C13"] == "x1e"
+    # Round-trips back to the same dev model code.
+    assert API_KEY_TO_DEV_MODEL[MODEL_TO_API_KEY["C13"]] == "C13"
 
 
 # P2S and X2D wiki pages publish anchor ids without a dash between the

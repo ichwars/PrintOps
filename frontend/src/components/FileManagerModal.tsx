@@ -41,6 +41,31 @@ interface FileManagerModalProps {
 
 type PrinterViewerTab = '3d' | 'gcode';
 
+// Smoothed throughput (bytes/sec) and ETA (seconds) from recent progress
+// samples — a single instantaneous delta is too noisy on a chunky FTP link,
+// so this averages over the whole retained window instead.
+function computeSpeedAndEta(
+  samples: { bytes: number; time: number }[],
+  totalBytes: number
+): { bytesPerSec: number | null; etaSeconds: number | null } {
+  if (samples.length < 2) return { bytesPerSec: null, etaSeconds: null };
+  const first = samples[0];
+  const last = samples[samples.length - 1];
+  const elapsedSec = (last.time - first.time) / 1000;
+  if (elapsedSec <= 0) return { bytesPerSec: null, etaSeconds: null };
+  const bytesPerSec = (last.bytes - first.bytes) / elapsedSec;
+  if (bytesPerSec <= 0) return { bytesPerSec: null, etaSeconds: null };
+  const remaining = totalBytes - last.bytes;
+  return { bytesPerSec, etaSeconds: remaining > 0 ? remaining / bytesPerSec : 0 };
+}
+
+function formatEta(seconds: number): string {
+  const total = Math.round(seconds);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
 interface PrinterFileViewerModalProps {
   printerId: number;
   filePath: string;
@@ -290,7 +315,46 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
   const [filesToDelete, setFilesToDelete] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<SortOption>('name-asc');
   const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number } | null>(null);
+  // Single large-file download progress (percent/speed/ETA) — separate from
+  // downloadProgress above, which tracks file-count for the multi-file ZIP
+  // path. Fed by WS 'file_download_progress' events, correlated by downloadId.
+  const [singleFileDownload, setSingleFileDownload] = useState<{
+    downloadId: string;
+    fileName: string;
+    bytesTransferred: number;
+    totalBytes: number;
+    // Recent {bytes, time} samples, oldest first, capped — used to compute
+    // a smoothed throughput/ETA rather than a single noisy instantaneous delta.
+    samples: { bytes: number; time: number }[];
+  } | null>(null);
   const [viewerFile, setViewerFile] = useState<{ path: string; name: string } | null>(null);
+
+  useEffect(() => {
+    if (!singleFileDownload) return;
+    const downloadId = singleFileDownload.downloadId;
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ download_id: string; bytes_transferred: number; total_bytes: number }>)
+        .detail;
+      if (!detail || detail.download_id !== downloadId) return;
+      setSingleFileDownload((prev) => {
+        if (!prev || prev.downloadId !== downloadId) return prev;
+        const samples = [...prev.samples, { bytes: detail.bytes_transferred, time: Date.now() }].slice(-6);
+        return {
+          ...prev,
+          bytesTransferred: detail.bytes_transferred,
+          totalBytes: detail.total_bytes || prev.totalBytes,
+          samples,
+        };
+      });
+    };
+    window.addEventListener('printops:file-download-progress', handler);
+    return () => window.removeEventListener('printops:file-download-progress', handler);
+    // Intentionally keyed on downloadId only — re-subscribing on every
+    // byte-progress update (the full singleFileDownload object changes
+    // constantly) would tear down and rebuild the listener dozens of times
+    // a second on a fast link.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [singleFileDownload?.downloadId]);
 
   // Close on Escape key
   useEffect(() => {
@@ -380,11 +444,30 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
     const paths = Array.from(selectedFiles);
 
     if (paths.length === 1) {
-      // Single file - direct download with auth
-      api.downloadPrinterFile(printerId, paths[0]).catch((err) => {
-        console.error('Printer file download failed:', err);
-      });
+      // Single file - direct download with auth. Large files (printer logs
+      // can run several hundred MB) can take minutes over a slow Wi-Fi
+      // link, so this tracks live progress via WS 'file_download_progress'
+      // (see the effect above) instead of leaving the UI blank until done.
+      const fileName = paths[0].split('/').pop() || paths[0];
+      const { downloadId, promise } = api.downloadPrinterFile(printerId, paths[0]);
+      setSingleFileDownload({ downloadId, fileName, bytesTransferred: 0, totalBytes: 0, samples: [] });
       setSelectedFiles(new Set());
+      promise
+        .then(() => {
+          showToast(t('printerFiles.toast.downloadComplete', { fileName }));
+        })
+        .catch((err) => {
+          showToast(
+            t('printerFiles.toast.downloadFailed', {
+              fileName,
+              error: err instanceof Error ? err.message : String(err),
+            }),
+            'error'
+          );
+        })
+        .finally(() => {
+          setSingleFileDownload(null);
+        });
       return;
     }
 
@@ -413,6 +496,10 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
     if (selectedFiles.size === 0) return;
     setFilesToDelete(Array.from(selectedFiles));
   };
+
+  const singleFileDownloadSpeed = singleFileDownload
+    ? computeSpeedAndEta(singleFileDownload.samples, singleFileDownload.totalBytes)
+    : null;
 
   // Quick navigation buttons for common directories
   const quickDirs = [
@@ -648,7 +735,8 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
           </div>
 
         {/* Action bar */}
-        <div className="flex items-center justify-between p-4 border-t border-bambu-dark-tertiary bg-bambu-dark/50 flex-shrink-0">
+        <div className="border-t border-bambu-dark-tertiary bg-bambu-dark/50 flex-shrink-0">
+        <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-4">
             <div className="text-sm text-bambu-gray">
               {selectedFiles.size > 0
@@ -684,13 +772,20 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
           <div className="flex gap-2">
             <Button
               variant="secondary"
-              disabled={selectedFiles.size === 0 || downloadProgress !== null}
+              disabled={selectedFiles.size === 0 || downloadProgress !== null || singleFileDownload !== null}
               onClick={handleDownload}
             >
               {downloadProgress ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   {downloadProgress.current}/{downloadProgress.total}
+                </>
+              ) : singleFileDownload ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {singleFileDownload.totalBytes > 0
+                    ? `${Math.round((100 * singleFileDownload.bytesTransferred) / singleFileDownload.totalBytes)}%`
+                    : formatFileSize(singleFileDownload.bytesTransferred)}
                 </>
               ) : (
                 <>
@@ -714,6 +809,35 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
             </Button>
           </div>
         </div>
+        {singleFileDownload && (
+          <div className="px-4 pb-3 -mt-1">
+            <div className="flex items-center justify-between text-xs text-bambu-gray mb-1">
+              <span className="truncate">{singleFileDownload.fileName}</span>
+              <span className="flex-shrink-0 ml-2">
+                {formatFileSize(singleFileDownload.bytesTransferred)}
+                {singleFileDownload.totalBytes > 0 && ` / ${formatFileSize(singleFileDownload.totalBytes)}`}
+                {singleFileDownloadSpeed?.bytesPerSec != null && (
+                  <> · {formatFileSize(singleFileDownloadSpeed.bytesPerSec)}/s</>
+                )}
+                {singleFileDownloadSpeed?.etaSeconds != null && (
+                  <> · {formatEta(singleFileDownloadSpeed.etaSeconds)} {t('printerFiles.downloadRemaining')}</>
+                )}
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-bambu-dark-tertiary overflow-hidden">
+              <div
+                className="h-full bg-bambu-green transition-all duration-200"
+                style={{
+                  width:
+                    singleFileDownload.totalBytes > 0
+                      ? `${Math.min(100, (100 * singleFileDownload.bytesTransferred) / singleFileDownload.totalBytes)}%`
+                      : '100%',
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
       </div>
 
       {/* Delete Confirmation Modal */}

@@ -3046,9 +3046,12 @@ export default {
     noFiles: '프린터에 파일 없음',
     loadingFiles: '파일 로딩 중...',
     failedToLoad: '파일 로드 실패',
+    downloadRemaining: '남음',
     toast: {
       filesDeleted: '{{count}}개 파일이 삭제되었습니다',
-      deleteFailed: '삭제 실패: {{error}}'
+      deleteFailed: '삭제 실패: {{error}}',
+      downloadComplete: '{{fileName}} 다운로드 완료',
+      downloadFailed: '{{fileName}} 다운로드 실패: {{error}}'
     }
   },
   confirm: {
@@ -6717,7 +6720,8 @@ export default {
       port_ftps: {
         title: '파일 전송 포트 (FTPS 990)',
         pass: '연결 가능 — 인쇄 파일 전송이 작동합니다.',
-        warn: '포트 990에 연결할 수 없습니다. 모니터링은 작동할 수 있지만 프린터로 파일 전송에 실패합니다. 포트 990이 차단되지 않았는지 확인하세요.'
+        warn: '포트 990에 연결할 수 없습니다. 모니터링은 작동할 수 있지만 프린터로 파일 전송에 실패합니다. 포트 990이 차단되지 않았는지 확인하세요.',
+        fail: '포트 990은 응답하지만 파일 전송(FTPS) 서비스가 TLS 핸드셰이크를 완료하지 못하고 있습니다. 로그가 과도하게 쌓이는 것을 막기 위해 PrintOps는 이 프린터에 대한 파일 전송 재시도를 {{remaining_seconds}}초 동안 일시 중지했습니다 — 그동안 커버 이미지, 타임랩스, 인쇄 전송이 작동하지 않습니다. 이 문제가 계속되면 프린터를 재시작해 보세요.'
       },
       external_storage: {
         title: '전송된 파일을 외부 저장소에 저장 (설치 단계 4)',

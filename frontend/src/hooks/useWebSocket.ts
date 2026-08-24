@@ -438,6 +438,12 @@ export function useWebSocket() {
       case 'queue_item_failed':
         window.dispatchEvent(new CustomEvent('printops:dispatch-toast', { detail: message }));
         break;
+      // File-manager single-file download progress (percent/speed/ETA for
+      // large printer files, e.g. logs) — a separate channel from the
+      // dispatch-toast queue-job lifecycle above since this isn't a queue row.
+      case 'file_download_progress':
+        window.dispatchEvent(new CustomEvent('printops:file-download-progress', { detail: message }));
+        break;
       // Slicer Pipeline runs (#1425 PR C). State transitions on the run
       // refresh both the dashboard list AND the per-pipeline "Last run"
       // chip in Settings → Pipelines.

@@ -3238,9 +3238,12 @@ export default {
     noFiles: 'Keine Dateien auf dem Drucker',
     loadingFiles: 'Dateien werden geladen...',
     failedToLoad: 'Dateien konnten nicht geladen werden',
+    downloadRemaining: 'verbleibend',
     toast: {
       filesDeleted: '{{count}} Datei(en) gelöscht',
       deleteFailed: 'Löschen fehlgeschlagen: {{error}}',
+      downloadComplete: '{{fileName}} heruntergeladen',
+      downloadFailed: 'Herunterladen von {{fileName}} fehlgeschlagen: {{error}}',
     },
   },
 
@@ -6690,6 +6693,7 @@ export default {
         title: 'Dateiübertragungsport (FTPS 990)',
         pass: 'Erreichbar — das Senden von Druckdateien funktioniert.',
         warn: 'Port 990 ist nicht erreichbar. Die Überwachung funktioniert möglicherweise weiterhin, aber das Senden von Drucken an den Drucker schlägt fehl. Stellen Sie sicher, dass Port 990 nicht blockiert ist.',
+        fail: 'Port 990 antwortet, aber der Dateiübertragungsdienst (FTPS) schließt den TLS-Handshake nicht ab. PrintOps hat weitere Dateiübertragungsversuche zu diesem Drucker für {{remaining_seconds}}s pausiert, um die Logs nicht zu überfluten — Cover, Zeitraffer und das Senden von Drucken funktionieren bis dahin nicht. Tritt das dauerhaft auf, versuchen Sie, den Drucker neu zu starten.',
       },
       external_storage: {
         title: 'Gesendete Dateien auf externem Speicher speichern (Installationsschritt 4)',

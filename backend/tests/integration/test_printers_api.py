@@ -341,9 +341,15 @@ class TestPrintersAPI:
         printer = await printer_factory()
         file_bytes = b"fake 3mf content"
 
-        with patch(
-            "backend.app.api.routes.printer_files.download_file_bytes_async",
-            new=AsyncMock(return_value=file_bytes),
+        with (
+            patch(
+                "backend.app.api.routes.printer_files.download_file_bytes_async",
+                new=AsyncMock(return_value=file_bytes),
+            ),
+            patch(
+                "backend.app.api.routes.printer_files.get_file_size_async",
+                new=AsyncMock(return_value=len(file_bytes)),
+            ),
         ):
             response = await async_client.get(
                 f"/api/v1/printers/{printer.id}/files/download",

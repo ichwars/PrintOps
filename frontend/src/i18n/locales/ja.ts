@@ -3201,9 +3201,12 @@ export default {
     noFiles: 'このディレクトリにファイルがありません',
     loadingFiles: 'ファイルを読み込み中...',
     failedToLoad: 'ファイルの読み込みに失敗しました',
+    downloadRemaining: '残り',
     toast: {
       filesDeleted: '{{count}}件のファイルを削除しました',
       deleteFailed: '削除に失敗: {{error}}',
+      downloadComplete: '{{fileName}} をダウンロードしました',
+      downloadFailed: '{{fileName}} のダウンロードに失敗しました: {{error}}',
     },
   },
 
@@ -6654,6 +6657,7 @@ export default {
         title: 'ファイル転送ポート (FTPS 990)',
         pass: '到達可能 — 印刷ファイルの送信は機能します。',
         warn: 'ポート990に到達できません。監視は引き続き機能する場合がありますが、プリンターへの印刷送信は失敗します。ポート990がブロックされていないことを確認してください。',
+        fail: 'ポート990は応答していますが、ファイル転送（FTPS）サービスがTLSハンドシェイクを完了できません。ログが大量に出力されるのを防ぐため、PrintOpsはこのプリンターへのファイル転送の再試行を{{remaining_seconds}}秒間停止しました — それまでの間、カバー画像・タイムラプス・印刷送信は動作しません。この状態が続く場合は、プリンターを再起動してみてください。',
       },
       external_storage: {
         title: '送信ファイルを外部ストレージに保存 (インストール手順4)',

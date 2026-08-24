@@ -3189,9 +3189,12 @@ export default {
     noFiles: 'Nessun file sulla stampante',
     loadingFiles: 'Caricamento file...',
     failedToLoad: 'Caricamento file fallito',
+    downloadRemaining: 'rimanenti',
     toast: {
       filesDeleted: 'Eliminati {{count}} file',
       deleteFailed: 'Eliminazione fallita: {{error}}',
+      downloadComplete: '{{fileName}} scaricato',
+      downloadFailed: 'Download di {{fileName}} fallito: {{error}}',
     },
   },
 
@@ -6642,6 +6645,7 @@ export default {
         title: 'Porta trasferimento file (FTPS 990)',
         pass: 'Raggiungibile — l\'invio dei file di stampa funzionerà.',
         warn: 'La porta 990 non è raggiungibile. Il monitoraggio potrebbe ancora funzionare, ma l\'invio delle stampe alla stampante fallirà. Assicurati che la porta 990 non sia bloccata.',
+        fail: 'La porta 990 risponde, ma il servizio di trasferimento file (FTPS) non completa l\'handshake TLS. PrintOps ha messo in pausa ulteriori tentativi di trasferimento verso questa stampante per {{remaining_seconds}}s per evitare di intasare i log — copertine, timelapse e invio delle stampe non funzioneranno fino ad allora. Se il problema persiste, prova a riavviare la stampante.',
       },
       external_storage: {
         title: 'Memorizza file inviati su archiviazione esterna (passo 4 dell\'installazione)',

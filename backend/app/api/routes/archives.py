@@ -2416,6 +2416,7 @@ async def scan_timelapse(
     """Scan printer for timelapse matching this archive and attach it."""
     from backend.app.models.printer import Printer
     from backend.app.services.bambu_ftp import (
+        FtpsCooldownActive,
         download_file_bytes_async,
         get_ftp_retry_settings,
         list_files_async,
@@ -2552,26 +2553,29 @@ async def scan_timelapse(
     # Get FTP retry settings
     ftp_retry_enabled, ftp_retry_count, ftp_retry_delay, ftp_timeout = await get_ftp_retry_settings()
 
-    if ftp_retry_enabled:
-        timelapse_data = await with_ftp_retry(
-            download_file_bytes_async,
-            printer.ip_address,
-            printer.access_code,
-            remote_path,
-            socket_timeout=ftp_timeout,
-            printer_model=printer.model,
-            max_retries=ftp_retry_count,
-            retry_delay=ftp_retry_delay,
-            operation_name=f"Download timelapse {matching_file['name']}",
-        )
-    else:
-        timelapse_data = await download_file_bytes_async(
-            printer.ip_address,
-            printer.access_code,
-            remote_path,
-            socket_timeout=ftp_timeout,
-            printer_model=printer.model,
-        )
+    try:
+        if ftp_retry_enabled:
+            timelapse_data = await with_ftp_retry(
+                download_file_bytes_async,
+                printer.ip_address,
+                printer.access_code,
+                remote_path,
+                socket_timeout=ftp_timeout,
+                printer_model=printer.model,
+                max_retries=ftp_retry_count,
+                retry_delay=ftp_retry_delay,
+                operation_name=f"Download timelapse {matching_file['name']}",
+            )
+        else:
+            timelapse_data = await download_file_bytes_async(
+                printer.ip_address,
+                printer.access_code,
+                remote_path,
+                socket_timeout=ftp_timeout,
+                printer_model=printer.model,
+            )
+    except FtpsCooldownActive as e:
+        raise HTTPException(503, str(e)) from e
 
     if not timelapse_data:
         raise HTTPException(500, "Failed to download timelapse")
@@ -2599,6 +2603,7 @@ async def select_timelapse(
     """Manually select a timelapse from the printer to attach."""
     from backend.app.models.printer import Printer
     from backend.app.services.bambu_ftp import (
+        FtpsCooldownActive,
         download_file_bytes_async,
         get_ftp_retry_settings,
         list_files_async,
@@ -2641,26 +2646,29 @@ async def select_timelapse(
     # Download and attach
     ftp_retry_enabled, ftp_retry_count, ftp_retry_delay, ftp_timeout = await get_ftp_retry_settings()
 
-    if ftp_retry_enabled:
-        timelapse_data = await with_ftp_retry(
-            download_file_bytes_async,
-            printer.ip_address,
-            printer.access_code,
-            remote_path,
-            socket_timeout=ftp_timeout,
-            printer_model=printer.model,
-            max_retries=ftp_retry_count,
-            retry_delay=ftp_retry_delay,
-            operation_name=f"Download timelapse {filename}",
-        )
-    else:
-        timelapse_data = await download_file_bytes_async(
-            printer.ip_address,
-            printer.access_code,
-            remote_path,
-            socket_timeout=ftp_timeout,
-            printer_model=printer.model,
-        )
+    try:
+        if ftp_retry_enabled:
+            timelapse_data = await with_ftp_retry(
+                download_file_bytes_async,
+                printer.ip_address,
+                printer.access_code,
+                remote_path,
+                socket_timeout=ftp_timeout,
+                printer_model=printer.model,
+                max_retries=ftp_retry_count,
+                retry_delay=ftp_retry_delay,
+                operation_name=f"Download timelapse {filename}",
+            )
+        else:
+            timelapse_data = await download_file_bytes_async(
+                printer.ip_address,
+                printer.access_code,
+                remote_path,
+                socket_timeout=ftp_timeout,
+                printer_model=printer.model,
+            )
+    except FtpsCooldownActive as e:
+        raise HTTPException(503, str(e)) from e
 
     if not timelapse_data:
         raise HTTPException(500, "Failed to download timelapse")
