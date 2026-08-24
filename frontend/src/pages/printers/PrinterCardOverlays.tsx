@@ -832,6 +832,16 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
                         {t('printers.drying.rotateTray')}
                       </span>
                     </button>
+                    {/* Spelled out inline, not just in the hover title — the
+                        disabled button alone reads as broken (#63): users with
+                        filament still threaded into the feed tube have no way
+                        to discover *why* it's greyed out, especially on touch
+                        devices where a `title` tooltip never appears. */}
+                    {trayLoadedInThisAms && (
+                      <p className="mt-1 text-[10px] leading-snug text-amber-400/90">
+                        {t('printers.drying.rotateUnavailableReason')}
+                      </p>
+                    )}
                   </div>
                 );
               })()}

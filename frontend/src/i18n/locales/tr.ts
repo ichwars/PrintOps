@@ -607,7 +607,7 @@ export default {
       toastNotStarted: 'Yazıcı komutu kabul etti, ancak AMS kurutmayı başlatmadı. AMS güç adaptörünün bağlı olduğunu ve yazıcının boşta olduğunu kontrol edin.',
       screenOnly: 'Kurutma yalnızca bu yazıcının ekranından kontrol edilebilir',
       rotateTray: 'Kurutma sırasında makarayı döndür',
-      rotateUnavailableReason: 'Kullanılamaz — bu AMS\'nin bir yuvası kafaya doğru yüklenmiş durumda. Makara besleme borusu tarafından kilitlendiği için döndürülemez. Önce filamenti geri çekin.',
+      rotateUnavailableReason: 'Kullanılamaz: bu AMS\'deki bir yuvada filament hâlâ besleme borusuna takılı, bu da tüm üniteyi kilitliyor. Önce o yuvada "Filamenti çıkar" işlemini yapın, ardından döndürmeyi etkinleştirebilirsiniz.',
     },
     amsBackup: {
       titleOn: 'AMS Filament Backup AÇIK. Devre dışı bırakmak için tıklayın.',

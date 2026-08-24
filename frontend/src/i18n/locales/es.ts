@@ -614,7 +614,7 @@ export default {
       toastNotStarted: 'La impresora aceptó el comando, pero el AMS no inició el secado. Compruebe que el adaptador de corriente del AMS esté conectado y que la impresora esté inactiva.',
       screenOnly: 'El secado solo se puede controlar desde la pantalla de esta impresora',
       rotateTray: 'Girar la bobina durante el secado',
-      rotateUnavailableReason: 'No disponible — un slot de este AMS está cargado hacia el cabezal. La bobina está bloqueada por el tubo de alimentación y no puede girar. Retira el filamento primero.',
+      rotateUnavailableReason: 'No disponible: una ranura de este AMS todavía tiene filamento metido en el tubo de alimentación, lo que bloquea toda la unidad. Usa primero "Descargar filamento" en esa ranura para poder activar la rotación.',
     },
     amsBackup: {
       titleOn: 'AMS Filament Backup está ACTIVADO. Haz clic para desactivar.',
