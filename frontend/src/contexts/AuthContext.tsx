@@ -1,6 +1,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { ApiError, api, getAuthToken, setAuthToken } from '../api/client';
+import { ApiError, api, getAuthToken, getTokenExpiry, getTokenPersistence, setAuthToken } from '../api/client';
 import type { LoginResponse, Permission, TokenPersistence, UserResponse } from '../api/client';
+
+// Renew the token this long before it actually expires, so a request made
+// right at the boundary doesn't race an expiring token.
+const REFRESH_BUFFER_MS = 5 * 60 * 1000;
+// setTimeout delays overflow past ~24.8 days (2^31-1 ms); the admin-configurable
+// session ceiling is 30 days, so long-lived tokens must reschedule in chunks.
+const MAX_TIMEOUT_MS = 20 * 24 * 60 * 60 * 1000;
 
 interface AuthContextType {
   user: UserResponse | null;
@@ -30,6 +37,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const hasRedirectedRef = useRef(false);
   const mountedRef = useRef(true);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearRefreshTimer = () => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+  };
+
+  // Silently renew the JWT shortly before it expires so a long-open tab (or,
+  // for SSO users, one where a full IdP round-trip would otherwise be needed)
+  // doesn't get logged out just because the session lifetime elapsed while
+  // the user was actively using the app.
+  const scheduleTokenRefresh = useCallback(() => {
+    clearRefreshTimer();
+    const token = getAuthToken();
+    if (!token) return;
+    const exp = getTokenExpiry(token); // null for non-JWT tokens (e.g. API keys) — nothing to refresh
+    if (exp === null) return;
+
+    const msUntilRefresh = exp * 1000 - Date.now() - REFRESH_BUFFER_MS;
+    const delay = Math.max(5000, Math.min(msUntilRefresh, MAX_TIMEOUT_MS));
+
+    refreshTimerRef.current = setTimeout(async () => {
+      if (!mountedRef.current) return;
+      const currentToken = getAuthToken();
+      if (!currentToken) return;
+      const currentExp = getTokenExpiry(currentToken);
+      if (currentExp !== null && currentExp * 1000 - Date.now() > REFRESH_BUFFER_MS) {
+        // Delay was clamped to MAX_TIMEOUT_MS and the token isn't actually due yet.
+        scheduleTokenRefresh();
+        return;
+      }
+      try {
+        const resp = await api.refreshToken();
+        if (!mountedRef.current || !resp.access_token) return;
+        setAuthToken(resp.access_token, getTokenPersistence());
+        scheduleTokenRefresh();
+      } catch {
+        // Refresh failed (token already expired/revoked, offline, etc.) — the
+        // existing 401 handling (`auth:expired`) takes over on the next
+        // authenticated request rather than forcing anything here.
+      }
+    }, delay);
+  }, []);
 
   const checkAuthStatus = async () => {
     try {
@@ -141,8 +193,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mountedRef.current = false;
       window.removeEventListener('auth:expired', handleAuthExpired);
+      clearRefreshTimer();
     };
   }, []);
+
+  // (Re)schedule silent renewal whenever a user session becomes active (initial
+  // load, login, 2FA/OIDC completion) and stop it once logged out.
+  useEffect(() => {
+    if (user) {
+      scheduleTokenRefresh();
+    } else {
+      clearRefreshTimer();
+    }
+  }, [user, scheduleTokenRefresh]);
 
   // Separate effect to handle redirect only when setup is required
   useEffect(() => {
@@ -177,6 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    clearRefreshTimer();
     setAuthToken(null);
     setUser(null);
     api.logout().catch(() => {

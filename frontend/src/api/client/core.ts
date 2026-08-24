@@ -72,6 +72,31 @@ export function getAuthToken(): string | null {
   return authToken;
 }
 
+/** Which persistence the current token was stored with, so a silent refresh can preserve it. */
+export function getTokenPersistence(): TokenPersistence {
+  try {
+    return localStorage.getItem('auth_token') ? 'persistent' : 'session';
+  } catch {
+    return 'session';
+  }
+}
+
+/** Decode the `exp` claim (seconds since epoch) from a JWT without verifying it — the
+ *  server is the source of truth for validity; this is only used to time a client-side
+ *  refresh. Returns null for non-JWT tokens (e.g. API keys) or malformed payloads. */
+export function getTokenExpiry(token: string): number | null {
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = atob(base64);
+    const payload = JSON.parse(json) as { exp?: number };
+    return typeof payload.exp === 'number' ? payload.exp : null;
+  } catch {
+    return null;
+  }
+}
+
 // Stream token for image/video URLs loaded via <img>/<video> tags
 // (these can't send Authorization headers, so a query param token is used)
 let streamToken: string | null = null;

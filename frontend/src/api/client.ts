@@ -2,6 +2,8 @@ export {
   ApiError,
   getAuthToken,
   getStreamToken,
+  getTokenExpiry,
+  getTokenPersistence,
   request,
   setAuthToken,
   setStreamToken,

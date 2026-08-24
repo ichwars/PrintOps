@@ -57,6 +57,13 @@ _PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", "/api/v1/auth/login"),
         # Logout — clears server-side JTI revocation; degraded behaviour on bad token is acceptable.
         ("POST", "/api/v1/auth/logout"),
+        # Silent token renewal — the presented JWT itself IS the auth: the handler
+        # decodes and validates it (signature, jti revocation, user active,
+        # password-change freshness) inline before rotating it. No FastAPI Depends
+        # is used because an already-invalid/expired token must return 401 from
+        # this route, not be rejected upstream by a Depends before the handler can
+        # respond — same shape as /auth/logout above.
+        ("POST", "/api/v1/auth/refresh"),
         # Status heartbeat — used by the login UI to decide whether to show login form.
         ("GET", "/api/v1/auth/status"),
         # Advanced-auth status (whether 2FA / OIDC / LDAP are configured) — read by login form.
