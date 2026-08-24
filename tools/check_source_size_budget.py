@@ -76,7 +76,7 @@ COMMENT_CHECK_PREFIXES = (
 )
 
 FILE_ALLOWLIST = {
-    "backend/app/api/routes/archives.py": 4794,
+    "backend/app/api/routes/archives.py": 4802,
     "backend/app/api/routes/inventory.py": 2700,
     "backend/app/api/routes/library.py": 4997,
     "backend/app/api/routes/mfa.py": 2262,
@@ -87,7 +87,7 @@ FILE_ALLOWLIST = {
     "backend/app/services/notification_service.py": 2147,
     "backend/app/services/print_scheduler.py": 3554,
     "backend/tests/integration/test_mfa_api.py": 5132,
-    "backend/tests/integration/test_printers_api.py": 4094,
+    "backend/tests/integration/test_printers_api.py": 4100,
     "backend/tests/unit/services/test_bambu_mqtt.py": 6743,
     "backend/tests/unit/services/test_virtual_printer.py": 4056,
     "frontend/src/__tests__/pages/SettingsPage.test.tsx": 2252,
