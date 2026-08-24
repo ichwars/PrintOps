@@ -645,7 +645,7 @@ export default {
       screenOnly: 'Trocknung kann auf diesem Drucker nur am Druckerdisplay gesteuert werden',
       stoppingDrying: 'Trocknung wird gestoppt...',
       rotateTray: 'Spule während der Trocknung drehen',
-      rotateUnavailableReason: 'Nicht verfügbar — in diesem AMS ist ein Slot zum Druckkopf hin geladen. Die Spule ist durch den Zuführschlauch blockiert und kann nicht rotieren. Filament zuerst zurückziehen.',
+      rotateUnavailableReason: 'Nicht verfügbar: Ein Fach in diesem AMS hat noch Filament im Zuführschlauch stecken — dadurch kann sich die ganze Einheit nicht drehen. Erst dieses Fach über „Filament entladen" zurückziehen, danach lässt sich die Drehfunktion aktivieren.',
     },
     amsBackup: {
       titleOn: 'AMS Filament Backup ist EIN. Zum Deaktivieren klicken.',

@@ -608,7 +608,7 @@ export default {
       toastNotStarted: 'L\'imprimante a accepté la commande, mais l\'AMS n\'a pas démarré le séchage. Vérifiez que l\'adaptateur secteur AMS est branché et que l\'imprimante est inactive.',
       screenOnly: 'Le séchage ne peut être contrôlé que depuis l\'écran de cette imprimante',
       rotateTray: 'Tourner la bobine pendant le séchage',
-      rotateUnavailableReason: 'Indisponible — un emplacement de cet AMS est chargé vers la tête d\'impression. La bobine est bloquée par le tube d\'alimentation et ne peut pas tourner. Rétractez d\'abord le filament.',
+      rotateUnavailableReason: 'Indisponible : un emplacement de cet AMS a encore du filament engagé dans le tube d\'alimentation, ce qui bloque toute l\'unité. Utilisez d\'abord « Décharger le filament » sur cet emplacement, la rotation pourra ensuite être activée.',
     },
     amsBackup: {
       titleOn: "AMS Filament Backup est ACTIVÉ. Cliquez pour désactiver.",

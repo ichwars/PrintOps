@@ -608,7 +608,7 @@ export default {
       toastNotStarted: '打印机已接受命令，但 AMS 未开始干燥。请检查 AMS 电源适配器是否已连接，且打印机处于空闲状态。',
       screenOnly: '只能从此打印机屏幕控制干燥',
       rotateTray: '干燥时旋转料盘',
-      rotateUnavailableReason: '不可用 — 此 AMS 中有插槽已装入打印头。料盘被送料管固定，无法旋转。请先回退耗材。',
+      rotateUnavailableReason: '不可用：此 AMS 中有一个插槽的耗材仍处于送料管中，导致整个单元无法旋转。请先对该插槽执行"卸载耗材"，然后即可开启旋转。',
     },
     amsBackup: {
       titleOn: 'AMS 备用料盘已开启。点击以禁用。',

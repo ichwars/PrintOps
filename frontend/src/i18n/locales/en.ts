@@ -648,7 +648,7 @@ export default {
       screenOnly: 'Drying can only be controlled from this printer\'s screen',
       stoppingDrying: 'Stopping drying...',
       rotateTray: 'Rotate spool during drying',
-      rotateUnavailableReason: 'Unavailable — a slot in this AMS is loaded to the toolhead. The spool is locked by the feed tube and cannot rotate. Retract the filament first.',
+      rotateUnavailableReason: 'Unavailable: a slot in this AMS still has filament fed into the tube, which locks the whole unit and stops it turning. Use "Unload filament" on that slot first, then rotation can be enabled.',
     },
     // AMS Filament Backup status badge (printer-wide auto-switch to another spool)
     amsBackup: {

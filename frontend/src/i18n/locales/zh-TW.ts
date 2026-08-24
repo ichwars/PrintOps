@@ -608,7 +608,7 @@ export default {
       toastNotStarted: '印表機已接受命令，但 AMS 未開始乾燥。請確認 AMS 電源介面卡已連接，且印表機處於閒置狀態。',
       screenOnly: '只能從此印表機螢幕控制乾燥',
       rotateTray: '乾燥時旋轉料盤',
-      rotateUnavailableReason: '無法使用 — 此 AMS 中有插槽已裝入列印頭。料盤被進料管固定，無法旋轉。請先退回耗材。',
+      rotateUnavailableReason: '無法使用：此 AMS 中有一個插槽的耗材仍在進料管中，導致整個單元無法旋轉。請先對該插槽執行「卸載耗材」，之後即可開啟旋轉。',
     },
     amsBackup: {
       titleOn: 'AMS 備用料盤已開啟。點擊以停用。',
