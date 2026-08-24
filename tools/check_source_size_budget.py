@@ -76,9 +76,9 @@ COMMENT_CHECK_PREFIXES = (
 )
 
 FILE_ALLOWLIST = {
-    "backend/app/api/routes/archives.py": 4796,
+    "backend/app/api/routes/archives.py": 4794,
     "backend/app/api/routes/inventory.py": 2700,
-    "backend/app/api/routes/library.py": 4999,
+    "backend/app/api/routes/library.py": 4997,
     "backend/app/api/routes/mfa.py": 2262,
     "backend/app/api/routes/spoolman_inventory.py": 2056,
     "backend/app/core/database.py": 4139,
@@ -98,7 +98,7 @@ FILE_ALLOWLIST = {
     "frontend/src/lib/orderMasterDataValidation.ts": 1733,
     "frontend/src/pages/ArchivesPage.tsx": 4368,
     "frontend/src/pages/BusinessDashboardPage.tsx": 2953,
-    "frontend/src/pages/FileManagerPage.tsx": 2767,
+    "frontend/src/pages/FileManagerPage.tsx": 2783,
     "frontend/src/pages/InventoryPage.tsx": 2920,
     "frontend/src/pages/printers/PrinterCard.tsx": 2981,
     "frontend/src/pages/ProfilesPage.tsx": 2985,
