@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { RefreshCw, AlertTriangle, Camera, Maximize, Minimize, WifiOff, ZoomIn, ZoomOut, Stethoscope } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Camera, Maximize, Minimize, WifiOff, ZoomIn, ZoomOut, Stethoscope, Thermometer } from 'lucide-react';
 import { api, getAuthToken, getStreamToken, withStreamToken } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -51,6 +51,7 @@ export function CameraPage() {
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [reconnectCountdown, setReconnectCountdown] = useState(0);
+  const [showTempOverlay, setShowTempOverlay] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -701,6 +702,14 @@ export function CameraPage() {
             <RefreshCw className={`w-4 h-4 text-bambu-gray ${isDisabled ? 'animate-spin' : ''}`} />
           </button>
           <button
+            onClick={() => setShowTempOverlay((prev) => !prev)}
+            aria-pressed={showTempOverlay}
+            className={`p-1.5 rounded ${showTempOverlay ? 'bg-bambu-dark-tertiary text-white' : 'hover:bg-bambu-dark-tertiary text-bambu-gray'}`}
+            title={t('camera.overlayToggle')}
+          >
+            <Thermometer className="w-4 h-4" />
+          </button>
+          <button
             onClick={() => setShowDiagnoseModal(true)}
             className="p-1.5 hover:bg-bambu-dark-tertiary rounded"
             title={t('camera.diagnose.button')}
@@ -734,6 +743,31 @@ export function CameraPage() {
         style={{ touchAction: 'none' }}
       >
         <div className="relative w-full h-full flex items-center justify-center">
+          {showTempOverlay && status?.temperatures && (
+            <div className="absolute top-4 right-4 flex flex-col gap-1 bg-black/60 rounded-lg px-3 py-2 text-xs text-white pointer-events-none">
+              {status.temperatures.nozzle !== undefined && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-bambu-gray">{t('printers.temperatures.nozzle')}</span>
+                  <span className="font-medium">
+                    {Math.round(status.temperatures.nozzle)}°C
+                    {status.temperatures.nozzle_2 !== undefined && ` / ${Math.round(status.temperatures.nozzle_2)}°C`}
+                  </span>
+                </div>
+              )}
+              {status.temperatures.bed !== undefined && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-bambu-gray">{t('printers.temperatures.bed')}</span>
+                  <span className="font-medium">{Math.round(status.temperatures.bed)}°C</span>
+                </div>
+              )}
+              {status.temperatures.chamber !== undefined && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-bambu-gray">{t('printers.temperatures.chamber')}</span>
+                  <span className="font-medium">{Math.round(status.temperatures.chamber)}°C</span>
+                </div>
+              )}
+            </div>
+          )}
           {(streamLoading || transitioning) && !isReconnecting && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
               <div className="text-center">

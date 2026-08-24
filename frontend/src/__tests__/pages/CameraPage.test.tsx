@@ -138,6 +138,51 @@ describe('CameraPage', () => {
     });
   });
 
+  describe('temperature overlay (#101)', () => {
+    beforeEach(() => {
+      server.use(
+        http.get('/api/v1/printers/:id/status', () => {
+          return HttpResponse.json({
+            connected: true,
+            state: 'RUNNING',
+            progress: 42,
+            temperatures: {
+              nozzle: 219.6,
+              nozzle_target: 220,
+              bed: 59.8,
+              bed_target: 60,
+              chamber: 34.1,
+            },
+          });
+        }),
+      );
+    });
+
+    it('shows live temperature readings over the video by default', async () => {
+      renderCameraPage(1);
+
+      await waitFor(() => {
+        expect(screen.getByText('220°C')).toBeInTheDocument();
+      });
+      expect(screen.getByText('60°C')).toBeInTheDocument();
+      expect(screen.getByText('34°C')).toBeInTheDocument();
+    });
+
+    it('hides the overlay when the toggle button is clicked', async () => {
+      const { default: userEvent } = await import('@testing-library/user-event');
+      const user = userEvent.setup();
+      renderCameraPage(1);
+
+      await waitFor(() => {
+        expect(screen.getByText('220°C')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTitle('Toggle temperature overlay'));
+
+      expect(screen.queryByText('220°C')).not.toBeInTheDocument();
+    });
+  });
+
   describe('stream token handling (#979)', () => {
     it('does not render image src until stream token arrives when auth is enabled', async () => {
       let resolveToken!: (value: unknown) => void;
