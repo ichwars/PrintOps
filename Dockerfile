@@ -82,7 +82,7 @@ COPY requirements.lock.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \
     apt-get update \
  && apt-get install -y --no-install-recommends g++ \
- && python -m pip install --root-user-action=ignore --upgrade 'pip>=26.1.2' 'setuptools>=83.0.0' \
+ && python -m pip install --root-user-action=ignore --upgrade 'pip>=26.2' 'setuptools>=83.0.0' \
  && python -m pip install --root-user-action=ignore --require-hashes -r requirements.lock.txt \
  && python -m pip uninstall -y pip setuptools wheel \
  && rm -rf /usr/local/lib/python*/site-packages/pip* \
