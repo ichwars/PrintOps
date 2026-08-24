@@ -75,6 +75,11 @@ def _probe_ftps_tls(ip: str, timeout: float) -> str:
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
+        # Match ImplicitFTP_TLS's floor (bambu_ftp.py) — this is only a
+        # capability probe, but CodeQL flags create_default_context() as
+        # insecure without an explicit minimum since it otherwise still
+        # permits TLSv1/1.1.
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         with ctx.wrap_socket(sock, server_hostname=ip) as tls_sock:
             tls_sock.settimeout(timeout)
             tls_sock.do_handshake()
