@@ -608,7 +608,7 @@ export default {
       toastNotStarted: 'La stampante ha accettato il comando, ma l\'AMS non ha avviato l\'essiccazione. Verifica che l\'alimentatore AMS sia collegato e che la stampante sia inattiva.',
       screenOnly: 'L\'essiccazione può essere controllata solo dallo schermo di questa stampante',
       rotateTray: 'Ruota la bobina durante l\'essiccazione',
-      rotateUnavailableReason: 'Non disponibile — uno slot di questo AMS è caricato verso la testa di stampa. La bobina è bloccata dal tubo di alimentazione e non può ruotare. Ritrai prima il filamento.',
+      rotateUnavailableReason: 'Non disponibile: uno slot di questo AMS ha ancora il filamento inserito nel tubo di alimentazione, il che blocca l\'intera unità. Usa prima "Scarica filamento" su quello slot, poi potrai attivare la rotazione.',
     },
     amsBackup: {
       titleOn: 'AMS Filament Backup è ATTIVO. Clicca per disabilitare.',

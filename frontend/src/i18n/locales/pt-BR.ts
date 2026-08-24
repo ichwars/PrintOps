@@ -608,7 +608,7 @@ export default {
       toastNotStarted: 'A impressora aceitou o comando, mas o AMS não iniciou a secagem. Verifique se o adaptador de energia AMS está conectado e se a impressora está ociosa.',
       screenOnly: 'A secagem só pode ser controlada pela tela desta impressora',
       rotateTray: 'Girar o carretel durante a secagem',
-      rotateUnavailableReason: 'Indisponível — um slot deste AMS está carregado em direção ao cabeçote. O carretel está travado pelo tubo de alimentação e não pode girar. Retraia o filamento primeiro.',
+      rotateUnavailableReason: 'Indisponível: um slot deste AMS ainda tem filamento inserido no tubo de alimentação, o que trava a unidade inteira. Use "Descarregar filamento" nesse slot primeiro para poder ativar a rotação.',
     },
     amsBackup: {
       titleOn: 'AMS Filament Backup está LIGADO. Clique para desativar.',
