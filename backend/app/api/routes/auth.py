@@ -690,6 +690,73 @@ async def get_current_user_info(
     )
 
 
+@router.post("/refresh", response_model=LoginResponse)
+async def refresh_token(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Silently renew a still-valid JWT before it expires.
+
+    The SPA calls this shortly before the current token's ``exp`` so long-running
+    sessions don't force a full re-login (and, for SSO users, a full IdP round-trip)
+    just because the tab was left open past the session lifetime. Requires the
+    presented token to still be valid — this is a sliding renewal, not a way to
+    resurrect an expired or revoked session; those still require login/OIDC.
+
+    Rotates the token: the presented jti is revoked (single use) and a new token
+    with a fresh expiry is returned, honouring the same admin-configurable
+    ``session_max_hours`` ceiling as ``/auth/login``.
+    """
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    token = credentials.credentials
+    if token.startswith("bb_"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="API keys do not support refresh")
+
+    try:
+        payload = _jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    username: str | None = payload.get("sub")
+    jti: str | None = payload.get("jti")
+    iat = payload.get("iat")
+    exp = payload.get("exp")
+    if not username or not jti or not exp or await is_jti_revoked(jti, db):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = await get_user_by_username(db, username)
+    if user is None or not user.is_active or not _is_token_fresh(iat, user):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    await revoke_jti(jti, datetime.fromtimestamp(exp, tz=timezone.utc), username=username)
+
+    access_token_expires = timedelta(minutes=await resolve_session_max_minutes(db))
+    access_token = create_access_token(data={"sub": username}, expires_delta=access_token_expires)
+
+    return LoginResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=_user_to_response(user),
+    )
+
+
 @router.post("/logout")
 async def logout(
     raw_request: Request,
