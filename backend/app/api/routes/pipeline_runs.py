@@ -60,6 +60,10 @@ from backend.app.services.pipeline_eligibility import (
     EligibilityReport,
     check_pipeline_eligibility,
 )
+from backend.app.services.slice_formats import (
+    is_unsliceable_cad_filename,
+    unsliceable_detail,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -661,6 +665,12 @@ async def run_pipeline(
         archive_id=body.source_archive_id,
         user=current_user,
     )
+
+    # The sidecar cannot import STEP/STP, so refuse the run up front instead
+    # of failing mid-pipeline (#92). Sources without a recognisable extension
+    # (archives named after their print_name) stay allowed, as before.
+    if is_unsliceable_cad_filename(src_filename):
+        raise HTTPException(400, unsliceable_detail(src_filename))
 
     # Cap copies against the configured ceiling.
     raw_cap = await get_setting(db, "pipeline_max_copies")

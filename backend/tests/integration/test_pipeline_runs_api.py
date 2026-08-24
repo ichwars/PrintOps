@@ -343,6 +343,31 @@ class TestRunPipeline:
         # trackJob and render the progress toast.
         assert body["slice_job_id"] == 9001
 
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_run_rejects_step_source(
+        self,
+        async_client: AsyncClient,
+        pipeline_factory,
+        printer_factory,
+        library_file_factory,
+    ):
+        """The sidecar cannot import STEP/STP, so a pipeline run on one of
+        those sources must be refused up front rather than failing mid-run
+        (#92)."""
+        printer = await printer_factory()
+        pipeline = await pipeline_factory(target_printer_id=printer.id)
+        src = await library_file_factory(filename="bracket.step", file_type="step")
+
+        resp = await async_client.post(
+            f"/api/v1/slicer-pipelines/{pipeline['id']}/run",
+            json={"source_library_file_id": src.id},
+        )
+        assert resp.status_code == 400
+        detail = resp.json()["detail"]
+        assert "STEP/STP" in detail
+        assert "STL or 3MF" in detail
+
 
 class TestRunListAndGet:
     """Run history surfaces."""

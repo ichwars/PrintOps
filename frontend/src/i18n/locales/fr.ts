@@ -4340,6 +4340,8 @@ export default {
   // Slice (slicer-API integration via SliceModal)
   slice: {
     title: 'Slicer le modèle',
+    stepUnsupported: 'Slicing non pris en charge',
+    stepUnsupportedHint: 'Les fichiers STEP/STP ne peuvent pas être slicés sur le serveur : le slicer ne peut pas les importer. Convertissez le modèle en STL ou 3MF pour le slicer ici.',
     action: 'Slicer',
     actionAll: 'Slicer les {{count}} plateaux',
     actionAllTitle: "Slicer tous les plateaux dans une sortie multi-plateaux (une seule archive). La sélection de filament couvre chaque emplacement défini par le projet.",

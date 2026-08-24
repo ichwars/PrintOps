@@ -4360,6 +4360,8 @@ export default {
   // Slice (slicer-API integration via SliceModal)
   slice: {
     title: 'Laminar modelo',
+    stepUnsupported: 'Laminado no compatible',
+    stepUnsupportedHint: 'Los archivos STEP/STP no se pueden laminar en el servidor: el laminador no puede importarlos. Convierte el modelo a STL o 3MF para laminarlo aquí.',
     action: 'Laminar',
     actionAll: 'Laminar las {{count}} bandejas',
     actionAllTitle: 'Laminar todas las bandejas en una salida única de varias bandejas (un solo archivo). La selección de filamento cubre cada hueco que defina el proyecto.',

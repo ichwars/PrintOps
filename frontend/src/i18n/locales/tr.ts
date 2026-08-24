@@ -4340,6 +4340,8 @@ export default {
   // Dilimle (SliceModal ile slicer-API entegrasyonu)
   slice: {
     title: 'Modeli dilimle',
+    stepUnsupported: 'Dilimleme desteklenmiyor',
+    stepUnsupportedHint: 'STEP/STP dosyaları sunucuda dilimlenemez - dilimleyici bunları içe aktaramıyor. Burada dilimlemek için modeli STL veya 3MF biçimine dönüştürün.',
     action: 'Dilimle',
     actionAll: 'Tüm {{count}} plakayı dilimle',
     actionAllTitle: 'Her plakayı tek bir çok plakalı çıktıya dilimle (tek arşiv). Filament seçimi projenin tanımladığı her yuvayı kapsar.',

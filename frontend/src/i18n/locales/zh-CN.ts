@@ -4339,6 +4339,8 @@ export default {
   // Slice (slicer-API integration via SliceModal)
   slice: {
     title: '切片模型',
+    stepUnsupported: '不支持切片',
+    stepUnsupportedHint: 'STEP/STP 文件无法在服务器端切片 - 切片器无法导入这些格式。请将模型转换为 STL 或 3MF 后再切片。',
     action: '切片',
     actionAll: '切片全部 {{count}} 个盘面',
     actionAllTitle: '将所有盘面切片为单个多盘面输出（一个归档）。耗材选择覆盖项目定义的每个槽位。',
