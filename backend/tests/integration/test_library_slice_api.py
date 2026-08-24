@@ -191,9 +191,7 @@ class TestSliceValidation:
     @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.parametrize("filename", ["part.step", "part.STP"])
-    async def test_returns_400_for_step_files(
-        self, async_client: AsyncClient, db_session, slice_test_setup, filename
-    ):
+    async def test_returns_400_for_step_files(self, async_client: AsyncClient, db_session, slice_test_setup, filename):
         """STEP/STP are storable but not sliceable server-side (#92)."""
         step_path = slice_test_setup["tmp_path"] / "library" / "files" / filename
         step_path.write_bytes(b"ISO-10303-21;\n")
