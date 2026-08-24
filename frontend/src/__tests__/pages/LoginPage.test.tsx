@@ -448,7 +448,10 @@ describe('LoginPage', () => {
     });
   });
 
-  describe('OIDC with Remember Me', () => {
+  describe('OIDC persistence', () => {
+    // SSO sessions always persist to localStorage — the "Remember Me" checkbox
+    // is rarely touched before clicking an SSO button, so OIDC logins no longer
+    // key off it (see LoginPage.tsx's OIDC exchange handling).
     const mockUser = {
       id: 1,
       username: 'oidcuser',
@@ -468,8 +471,7 @@ describe('LoginPage', () => {
       sessionStorage.clear();
     });
 
-    it('persists token to localStorage after OIDC redirect when Remember Me was set', async () => {
-      sessionStorage.setItem('auth_remember_me', '1');
+    it('persists token to localStorage after OIDC redirect', async () => {
       server.use(
         http.post('/api/v1/auth/oidc/exchange', () =>
           HttpResponse.json({
@@ -486,11 +488,9 @@ describe('LoginPage', () => {
       await waitFor(() => {
         expect(vi.mocked(localStorage.setItem)).toHaveBeenCalledWith('auth_token', 'oidc-token');
       });
-      expect(sessionStorage.getItem('auth_remember_me')).toBeNull();
     });
 
-    it('carries Remember Me through OIDC + 2FA flow', async () => {
-      sessionStorage.setItem('auth_remember_me', '1');
+    it('persists token to localStorage through OIDC + 2FA flow', async () => {
       server.use(
         http.post('/api/v1/auth/oidc/exchange', () =>
           HttpResponse.json({
@@ -515,8 +515,6 @@ describe('LoginPage', () => {
       await waitFor(() => {
         expect(screen.getByRole('heading', { name: /Two-Factor Authentication/i })).toBeInTheDocument();
       });
-      // Flag consumed on mount — no stale value for future flows
-      expect(sessionStorage.getItem('auth_remember_me')).toBeNull();
 
       await user.type(screen.getByRole('textbox', { name: /Verification Code/i }), '123456');
       await user.click(screen.getByRole('button', { name: /Verify/i }));
@@ -526,18 +524,9 @@ describe('LoginPage', () => {
       });
     });
 
-    it('cleans up auth_remember_me flag when OIDC returns an error', async () => {
-      sessionStorage.setItem('auth_remember_me', '1');
-      window.history.pushState({}, '', '/login?oidc_error=invalid_state');
-      render(<LoginPage />);
-
-      await waitFor(() => {
-        expect(sessionStorage.getItem('auth_remember_me')).toBeNull();
-      });
-    });
-
-    it('does not persist token to localStorage after OIDC redirect when Remember Me was not set', async () => {
-      // No auth_remember_me flag set — token must stay session-only
+    it('persists token to localStorage even when Remember Me was left unchecked', async () => {
+      // Remember Me only governs local username/password login now — SSO
+      // ignores it and always persists.
       server.use(
         http.post('/api/v1/auth/oidc/exchange', () =>
           HttpResponse.json({
@@ -552,13 +541,11 @@ describe('LoginPage', () => {
       render(<LoginPage />);
 
       await waitFor(() => {
-        expect(sessionStorage.getItem('auth_token')).toBe('oidc-session-token');
+        expect(vi.mocked(localStorage.setItem)).toHaveBeenCalledWith('auth_token', 'oidc-session-token');
       });
-      expect(vi.mocked(localStorage.setItem)).not.toHaveBeenCalledWith('auth_token', expect.any(String));
     });
 
     it('shows error toast when OIDC exchange returns unexpected response shape', async () => {
-      sessionStorage.setItem('auth_remember_me', '1');
       server.use(
         // Response is missing both access_token and requires_2fa — hits the else branch
         http.post('/api/v1/auth/oidc/exchange', () =>
@@ -571,60 +558,6 @@ describe('LoginPage', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/Login.*failed|failed.*login/i)).toBeInTheDocument();
-      });
-      // Flag must still be cleaned up even on malformed response
-      expect(sessionStorage.getItem('auth_remember_me')).toBeNull();
-    });
-
-    it('writes auth_remember_me flag to sessionStorage before OIDC provider redirect', async () => {
-      server.use(
-        http.get('/api/v1/auth/oidc/providers', () =>
-          HttpResponse.json([
-            {
-              id: 42,
-              name: 'FlagIdP',
-              issuer_url: 'https://flag.test',
-              client_id: 'c',
-              is_enabled: true,
-              icon_url: null,
-              has_icon: false,
-              email_claim: 'email',
-              require_email_verified: true,
-              auto_create_users: false,
-              auto_link_existing_accounts: false,
-            },
-          ])
-        ),
-        http.get('/api/v1/auth/oidc/authorize/42', () =>
-          HttpResponse.json({ auth_url: 'https://flag.test/authorize?state=abc' })
-        )
-      );
-
-      const user = userEvent.setup();
-      render(<LoginPage />);
-
-      // Tick "Remember Me"
-      await waitFor(() => {
-        expect(screen.getByRole('checkbox', { name: /Remember Me/i })).toBeInTheDocument();
-      });
-      await user.click(screen.getByRole('checkbox', { name: /Remember Me/i }));
-
-      // Wait for OIDC provider button to appear
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /FlagIdP/i })).toBeInTheDocument();
-      });
-
-      // Stub window.location so the OIDC redirect doesn't actually navigate.
-      // Keep href valid so relative fetch URLs resolve correctly.
-      Object.defineProperty(window, 'location', {
-        writable: true,
-        value: { ...window.location, href: 'http://localhost:3000/' },
-      });
-
-      await user.click(screen.getByRole('button', { name: /FlagIdP/i }));
-
-      await waitFor(() => {
-        expect(sessionStorage.getItem('auth_remember_me')).toBe('1');
       });
     });
   });
