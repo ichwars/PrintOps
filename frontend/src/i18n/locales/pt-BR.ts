@@ -4347,6 +4347,8 @@ export default {
   // Slice (slicer-API integration via SliceModal)
   slice: {
     title: 'Fatiar modelo',
+    stepUnsupported: 'Fatiamento não suportado',
+    stepUnsupportedHint: 'Arquivos STEP/STP não podem ser fatiados no servidor - o fatiador não consegue importá-los. Converta o modelo para STL ou 3MF para fatiá-lo aqui.',
     action: 'Fatiar',
     actionAll: 'Fatiar todas as {{count}} bandejas',
     actionAllTitle: 'Fatiar todas as bandejas em uma saída multi-bandeja única (um único arquivo). A seleção de filamento cobre cada slot definido pelo projeto.',

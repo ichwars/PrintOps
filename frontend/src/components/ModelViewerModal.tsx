@@ -7,6 +7,7 @@ import { GcodeViewer } from './GcodeViewer';
 import { Button } from './Button';
 import { api, withStreamToken } from '../api/client';
 import { openInSlicer, type SlicerType } from '../utils/slicer';
+import { isServerSliceableFileType } from '../utils/sliceFormats';
 import type { ArchivePlatesResponse, LibraryFilePlatesResponse, PlateMetadata } from '../types/plates';
 
 type ViewTab = '3d' | 'gcode';
@@ -287,11 +288,9 @@ export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, on
   // button into PrintOps's own SliceModal — same behaviour as the Cog button
   // in the file-row actions. Falls back to the external-slicer launcher when
   // the API is off, when no in-app handler is wired (e.g. archive preview),
-  // or when the file type can't be sliced (.gcode / .gcode.3mf, etc.).
-  const sliceableType = (() => {
-    const t = (fileType || '').toLowerCase();
-    return t === '3mf' || t === 'stl' || t === 'step' || t === 'stp';
-  })();
+  // or when the file type can't be sliced (.gcode / .gcode.3mf, STEP/STP —
+  // the sidecar cannot import CAD formats, see #92).
+  const sliceableType = isServerSliceableFileType(fileType);
   const usePrintOpsSlicer = Boolean(
     isLibrary && settings?.use_slicer_api && onSliceWithPrintOps && sliceableType,
   );

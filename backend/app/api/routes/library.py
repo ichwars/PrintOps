@@ -66,6 +66,10 @@ from backend.app.schemas.library import (
 from backend.app.schemas.slicer import SliceRequest, SliceResponse
 from backend.app.services.archive import ThreeMFParser
 from backend.app.services.plate_thumbnail import inject_plate_thumbnails_if_missing
+from backend.app.services.slice_formats import (
+    is_server_sliceable_filename,
+    unsliceable_detail,
+)
 from backend.app.services.stl_thumbnail import MIN_USABLE_STL_BYTES, generate_stl_thumbnail
 from backend.app.utils.archive_budget import (
     MAX_UPLOAD_BYTES,
@@ -4263,14 +4267,8 @@ async def slice_library_file(
     user, can_read_all = auth_result
     lib_file = _ensure_library_file_visible(src_result.scalar_one_or_none(), user, can_read_all)
 
-    src_lower = (lib_file.filename or "").lower()
-    if not (
-        src_lower.endswith(".stl")
-        or src_lower.endswith(".3mf")
-        or src_lower.endswith(".step")
-        or src_lower.endswith(".stp")
-    ):
-        raise HTTPException(status_code=400, detail="Source file must be STL, 3MF, or STEP")
+    if not is_server_sliceable_filename(lib_file.filename):
+        raise HTTPException(status_code=400, detail=unsliceable_detail(lib_file.filename))
 
     src_path = Path(app_settings.base_dir) / lib_file.file_path
     if not src_path.exists():

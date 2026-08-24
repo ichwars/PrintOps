@@ -4396,6 +4396,8 @@ export default {
   // Slice (slicer-API integration via SliceModal)
   slice: {
     title: 'Modell slicen',
+    stepUnsupported: 'Slicing nicht möglich',
+    stepUnsupportedHint: 'STEP-/STP-Dateien können nicht serverseitig gesliced werden - der Slicer kann sie nicht importieren. Konvertiere das Modell in STL oder 3MF, um es hier zu slicen.',
     action: 'Slicen',
     actionAll: 'Alle {{count}} Plates slicen',
     actionAllTitle: 'Alle Plates in eine einzelne Multi-Plate-Ausgabe slicen (ein Archiv). Die Filamentauswahl gilt für jeden Slot des Projekts.',

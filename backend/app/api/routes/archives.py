@@ -37,6 +37,10 @@ from backend.app.schemas.archive import (
 from backend.app.schemas.print_log import PrintLogResponse
 from backend.app.schemas.slicer import SliceRequest
 from backend.app.services.archive import ArchiveService
+from backend.app.services.slice_formats import (
+    is_server_sliceable_filename,
+    unsliceable_detail,
+)
 from backend.app.utils.archive_budget import MAX_TIMELAPSE_UPLOAD_BYTES, ArchiveBudgetError, read_upload_limited
 from backend.app.utils.http import build_content_disposition
 from backend.app.utils.safe_path import safe_join_under
@@ -4147,16 +4151,10 @@ async def slice_archive(
         raise HTTPException(status_code=404, detail="Archive source file missing on disk")
 
     raw_filename = archive.filename or src_path.name
-    src_lower = raw_filename.lower()
-    if not (
-        src_lower.endswith(".stl")
-        or src_lower.endswith(".3mf")
-        or src_lower.endswith(".step")
-        or src_lower.endswith(".stp")
-    ):
+    if not is_server_sliceable_filename(raw_filename):
         raise HTTPException(
             status_code=400,
-            detail="Archive's source file must be STL, 3MF, or STEP to slice",
+            detail=unsliceable_detail(raw_filename, subject="Archive's source file"),
         )
 
     # Match the library route: derive the sliced output's filename from

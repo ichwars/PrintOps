@@ -4347,6 +4347,8 @@ export default {
   // Slice (slicer-API integration via SliceModal)
   slice: {
     title: 'Slicing modello',
+    stepUnsupported: 'Slicing non supportato',
+    stepUnsupportedHint: 'I file STEP/STP non possono essere sliciati sul server: lo slicer non è in grado di importarli. Converti il modello in STL o 3MF per sliciarlo qui.',
     action: 'Slice',
     actionAll: 'Slicia tutti i {{count}} piatti',
     actionAllTitle: 'Slicia tutti i piatti in un unico output multi-piatto (un solo archivio). La selezione del filamento copre ogni slot definito dal progetto.',

@@ -4151,6 +4151,8 @@ export default {
   },
   slice: {
     title: '모델 슬라이싱',
+    stepUnsupported: '슬라이싱 미지원',
+    stepUnsupportedHint: 'STEP/STP 파일은 서버에서 슬라이싱할 수 없습니다. 슬라이서가 가져올 수 없기 때문입니다. 여기서 슬라이싱하려면 STL 또는 3MF로 변환하세요.',
     action: '슬라이싱',
     slicing: '슬라이싱 중…',
     printer: '프린터 프로필',

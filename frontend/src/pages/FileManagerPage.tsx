@@ -72,6 +72,7 @@ import { usePageFileDrop } from '../hooks/usePageFileDrop';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDuration, parseUTCDate, formatDate } from '../utils/date';
 import { formatFileSize } from '../utils/file';
+import { isServerSliceableFilename, isUnsliceableCadFilename } from '../utils/sliceFormats';
 import { Checkbox, LegacySelect, TextField } from '../components/ui';
 
 type SortField = 'name' | 'date' | 'size' | 'type' | 'prints';
@@ -712,12 +713,9 @@ function isSlicedFilename(filename: string): boolean {
 }
 
 // Files that can be fed to the slicer sidecar (model geometry inputs).
-// Excludes .gcode.* (already sliced) and any other non-model formats.
-function isSliceableFilename(filename: string): boolean {
-  const lower = filename.toLowerCase();
-  if (lower.endsWith('.gcode') || lower.endsWith('.gcode.3mf')) return false;
-  return lower.endsWith('.stl') || lower.endsWith('.3mf') || lower.endsWith('.step') || lower.endsWith('.stp');
-}
+// Excludes .gcode.* (already sliced), STEP/STP (the sidecar cannot import
+// them, #92) and any other non-model formats.
+const isSliceableFilename = isServerSliceableFilename;
 
 // File Card
 interface FileCardProps {
@@ -873,6 +871,15 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
                   <Cog className="w-3.5 h-3.5" />
                   {t('slice.action')}
                 </button>
+              )}
+              {useSlicerApi && isUnsliceableCadFilename(file.filename) && (
+                <div
+                  className="w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 text-bambu-gray cursor-help"
+                  title={t('slice.stepUnsupportedHint')}
+                >
+                  <Cog className="w-3.5 h-3.5" />
+                  {t('slice.stepUnsupported')}
+                </div>
               )}
               {onRunPipeline && useSlicerApi && isSliceableFilename(file.filename) && (
                 <button
@@ -2502,6 +2509,15 @@ export function FileManagerPage() {
                         >
                           <Cog className="w-4 h-4" />
                         </button>
+                      )}
+                      {(settings?.use_slicer_api ?? false) && isUnsliceableCadFilename(file.filename) && (
+                        <span
+                          className="p-1.5 rounded text-bambu-gray/40 cursor-help"
+                          title={t('slice.stepUnsupportedHint')}
+                          aria-label={t('slice.stepUnsupportedHint')}
+                        >
+                          <Cog className="w-4 h-4" />
+                        </span>
                       )}
                       {(settings?.use_slicer_api ?? false) && isSliceableFilename(file.filename) && (
                         <button

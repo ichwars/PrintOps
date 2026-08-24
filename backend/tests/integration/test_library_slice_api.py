@@ -186,7 +186,73 @@ class TestSliceValidation:
             },
         )
         assert response.status_code == 400
-        assert "STL, 3MF, or STEP" in response.json()["detail"]
+        assert "STL or 3MF" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.parametrize("filename", ["part.step", "part.STP"])
+    async def test_returns_400_for_step_files(self, async_client: AsyncClient, db_session, slice_test_setup, filename):
+        """STEP/STP are storable but not sliceable server-side (#92)."""
+        step_path = slice_test_setup["tmp_path"] / "library" / "files" / filename
+        step_path.write_bytes(b"ISO-10303-21;\n")
+        step_file = LibraryFile(
+            filename=filename,
+            file_path=str(step_path.relative_to(slice_test_setup["tmp_path"])),
+            file_type="step",
+            file_size=14,
+        )
+        db_session.add(step_file)
+        await db_session.commit()
+        await db_session.refresh(step_file)
+
+        _install_mock_sidecar(lambda r: httpx.Response(200, content=b""))
+        response = await async_client.post(
+            f"/api/v1/library/files/{step_file.id}/slice",
+            json={
+                "printer_preset_id": slice_test_setup["printer_id"],
+                "process_preset_id": slice_test_setup["process_id"],
+                "filament_preset_id": slice_test_setup["filament_id"],
+            },
+        )
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert "STEP/STP" in detail
+        assert "STL or 3MF" in detail
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_returns_400_for_step_files_on_archive_route(
+        self, async_client: AsyncClient, db_session, slice_test_setup
+    ):
+        """Same format gate applies to POST /archives/{id}/slice (#92)."""
+        from backend.app.models.archive import PrintArchive
+
+        step_path = slice_test_setup["tmp_path"] / "archives" / "src" / "part.step"
+        step_path.parent.mkdir(parents=True, exist_ok=True)
+        step_path.write_bytes(b"ISO-10303-21;\n")
+        archive = PrintArchive(
+            filename="part.step",
+            file_path=str(step_path.relative_to(slice_test_setup["tmp_path"])),
+            source_3mf_path=str(step_path.relative_to(slice_test_setup["tmp_path"])),
+            file_size=14,
+        )
+        db_session.add(archive)
+        await db_session.commit()
+        await db_session.refresh(archive)
+
+        _install_mock_sidecar(lambda r: httpx.Response(200, content=b""))
+        response = await async_client.post(
+            f"/api/v1/archives/{archive.id}/slice",
+            json={
+                "printer_preset_id": slice_test_setup["printer_id"],
+                "process_preset_id": slice_test_setup["process_id"],
+                "filament_preset_id": slice_test_setup["filament_id"],
+            },
+        )
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert "STEP/STP" in detail
+        assert "STL or 3MF" in detail
 
 
 # ---------------------------------------------------------------------------

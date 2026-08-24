@@ -4359,6 +4359,8 @@ export default {
   // Slice (slicer-API integration via SliceModal)
   slice: {
     title: 'モデルをスライス',
+    stepUnsupported: 'スライス非対応',
+    stepUnsupportedHint: 'STEP/STP ファイルはサーバー側でスライスできません（スライサーが読み込めません）。ここでスライスするには STL または 3MF に変換してください。',
     action: 'スライス',
     actionAll: '{{count}} プレートすべてをスライス',
     actionAllTitle: 'すべてのプレートを 1 つのマルチプレート出力としてスライスします（アーカイブは 1 件）。フィラメントの選択はプロジェクトで定義されたすべてのスロットを対象とします。',
