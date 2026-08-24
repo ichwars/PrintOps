@@ -185,9 +185,7 @@ async def run_connection_diagnostic(
     # directly instead of re-probing into a handshake we already know fails.
     ftps_remaining = ftps_cooldown_remaining(ip_address)
     if ftps_remaining is not None:
-        checks.append(
-            DiagnosticCheck(id="port_ftps", status="fail", params={"remaining_seconds": int(ftps_remaining)})
-        )
+        checks.append(DiagnosticCheck(id="port_ftps", status="fail", params={"remaining_seconds": int(ftps_remaining)}))
     else:
         ftps_result = await _check_ftps_tls(ip_address)
         if ftps_result == "ok":
@@ -195,9 +193,7 @@ async def run_connection_diagnostic(
         elif ftps_result == "invalid_tls":
             _arm_ftps_cooldown(ip_address)
             checks.append(
-                DiagnosticCheck(
-                    id="port_ftps", status="fail", params={"remaining_seconds": int(FTPS_COOLDOWN_SECONDS)}
-                )
+                DiagnosticCheck(id="port_ftps", status="fail", params={"remaining_seconds": int(FTPS_COOLDOWN_SECONDS)})
             )
         else:  # "closed"
             checks.append(DiagnosticCheck(id="port_ftps", status="warn"))
