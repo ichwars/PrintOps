@@ -9,9 +9,21 @@ import types
 from contextlib import ExitStack
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from backend.app.services import bambu_ftp
 from backend.app.services.printer_diagnostic import _same_subnet, run_connection_diagnostic
 
 MOD = "backend.app.services.printer_diagnostic"
+
+
+@pytest.fixture(autouse=True)
+def clear_ftps_cooldown():
+    """Every test below probes the same fixed IPs — an FTPS cooldown armed
+    by one test (invalid_tls) must not leak into a later one."""
+    bambu_ftp._ftps_cooldown_until.clear()
+    yield
+    bambu_ftp._ftps_cooldown_until.clear()
 
 
 def _statuses(result):
@@ -45,6 +57,7 @@ class _Env:
         self,
         *,
         ports=None,
+        ftps="ok",
         in_docker=True,
         network_mode="host",
         host_ip="192.168.1.5",
@@ -53,6 +66,8 @@ class _Env:
         report_messages_since_connect: int | None = 5,
     ):
         self.ports = ports or _port_probe()
+        # 'ok' / 'closed' / 'invalid_tls' — result of the FTPS TLS probe (#88).
+        self.ftps = ftps
         self.in_docker = in_docker
         self.network_mode = network_mode
         self.host_ip = host_ip
@@ -74,6 +89,9 @@ class _Env:
             client.report_messages_since_connect = self.report_messages_since_connect
             manager.get_client.return_value = client
         self._stack.enter_context(patch(f"{MOD}._check_port", new_callable=AsyncMock, side_effect=self.ports))
+        self.ftps_probe_mock = self._stack.enter_context(
+            patch(f"{MOD}._check_ftps_tls", new_callable=AsyncMock, return_value=self.ftps)
+        )
         self._stack.enter_context(patch(f"{MOD}.is_running_in_docker", return_value=self.in_docker))
         self._stack.enter_context(patch(f"{MOD}._detect_docker_network_mode", return_value=self.network_mode))
         self._stack.enter_context(patch(f"{MOD}._get_host_ip", return_value=self.host_ip))
@@ -134,13 +152,36 @@ class TestExistingPrinter:
         assert s["mqtt_auth"] == "skip"
 
     async def test_ftps_and_rtsps_only_warn(self):
-        with _Env(ports=_port_probe({990: False, 322: False}), state=_state()):
+        with _Env(ports=_port_probe({322: False}), ftps="closed", state=_state()):
             result = await run_connection_diagnostic("192.168.1.50", printer=_printer())
         s = _statuses(result)
         # No critical failure -> warnings, not problems.
         assert result.overall == "warnings"
         assert s["port_ftps"] == "warn"
         assert s["port_rtsps"] == "warn"
+
+    async def test_ftps_invalid_tls_is_a_problem_and_arms_cooldown(self):
+        """A port that answers but fails the TLS handshake is worse than a
+        closed port — 'fail', not 'warn' — and arms the shared FTPS cooldown
+        so download paths don't hammer the same doomed handshake (#88)."""
+        with _Env(ftps="invalid_tls", state=_state()):
+            result = await run_connection_diagnostic("192.168.1.50", printer=_printer())
+        s = _statuses(result)
+        assert result.overall == "problems"
+        assert s["port_ftps"] == "fail"
+        check = next(c for c in result.checks if c.id == "port_ftps")
+        assert check.params["remaining_seconds"] == int(bambu_ftp.FTPS_COOLDOWN_SECONDS)
+        assert bambu_ftp.ftps_cooldown_remaining("192.168.1.50") is not None
+
+    async def test_ftps_cooldown_already_active_skips_reprobe(self):
+        """If a cooldown is already armed, the diagnostic reports it directly
+        instead of re-triggering the doomed TLS handshake."""
+        bambu_ftp._arm_ftps_cooldown("192.168.1.50")
+        with _Env(state=_state()) as env:
+            result = await run_connection_diagnostic("192.168.1.50", printer=_printer())
+        s = _statuses(result)
+        assert s["port_ftps"] == "fail"
+        env.ftps_probe_mock.assert_not_called()
 
     async def test_a1_mini_uses_chamber_image_camera_port(self):
         # A1/P1-family printers use the chamber-image camera protocol on 6000,

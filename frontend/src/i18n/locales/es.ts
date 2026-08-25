@@ -3210,9 +3210,12 @@ export default {
     noFiles: 'No hay archivos en la impresora',
     loadingFiles: 'Cargando archivos...',
     failedToLoad: 'Error al cargar los archivos',
+    downloadRemaining: 'restante',
     toast: {
       filesDeleted: 'Se eliminaron {{count}} archivo(s)',
       deleteFailed: 'Error al eliminar: {{error}}',
+      downloadComplete: 'Se descargó {{fileName}}',
+      downloadFailed: 'Error al descargar {{fileName}}: {{error}}',
     },
   },
 
@@ -6668,6 +6671,7 @@ export default {
         title: 'Puerto de transferencia de archivos (FTPS 990)',
         pass: 'Accesible — el envío de archivos de impresión funcionará.',
         warn: 'El puerto 990 no es accesible. La supervisión puede seguir funcionando, pero el envío de impresiones a la impresora fallará. Asegúrese de que el puerto 990 no esté bloqueado.',
+        fail: 'El puerto 990 responde, pero el servicio de transferencia de archivos (FTPS) no completa el protocolo de enlace TLS. PrintOps ha pausado nuevos intentos de transferencia a esta impresora durante {{remaining_seconds}}s para evitar saturar los registros — las portadas, los timelapses y el envío de impresiones no funcionarán hasta entonces. Si esto persiste, intente reiniciar la impresora.',
       },
       external_storage: {
         title: 'Almacenar archivos enviados en almacenamiento externo (paso 4 de instalación)',

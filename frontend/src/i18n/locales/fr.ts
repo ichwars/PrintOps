@@ -3190,9 +3190,12 @@ export default {
     noFiles: 'Aucun fichier sur l\'imprimante',
     loadingFiles: 'Chargement...',
     failedToLoad: 'Échec chargement fichiers',
+    downloadRemaining: 'restant',
     toast: {
       filesDeleted: '{{count}} fichier(s) supprimé(s)',
       deleteFailed: 'Échec suppression : {{error}}',
+      downloadComplete: '{{fileName}} téléchargé',
+      downloadFailed: 'Échec du téléchargement de {{fileName}} : {{error}}',
     },
   },
 
@@ -6643,6 +6646,7 @@ export default {
         title: 'Port de transfert de fichiers (FTPS 990)',
         pass: 'Accessible — l\'envoi de fichiers d\'impression fonctionnera.',
         warn: 'Le port 990 est inaccessible. La surveillance peut toujours fonctionner, mais l\'envoi d\'impressions vers l\'imprimante échouera. Assurez-vous que le port 990 n\'est pas bloqué.',
+        fail: 'Le port 990 répond, mais le service de transfert de fichiers (FTPS) n\'aboutit pas à la négociation TLS. PrintOps a mis en pause les nouvelles tentatives de transfert vers cette imprimante pendant {{remaining_seconds}}s pour éviter de saturer les journaux — les couvertures, les timelapses et l\'envoi d\'impressions ne fonctionneront pas d\'ici là. Si le problème persiste, essayez de redémarrer l\'imprimante.',
       },
       external_storage: {
         title: 'Stocker les fichiers envoyés sur stockage externe (étape 4 de l\'installation)',

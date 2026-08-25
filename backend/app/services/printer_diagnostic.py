@@ -13,9 +13,11 @@ import asyncio
 import ipaddress
 import logging
 import socket
+import ssl
 
 from backend.app.models.printer import Printer
 from backend.app.schemas.printer import DiagnosticCheck, PrinterDiagnosticResult
+from backend.app.services.bambu_ftp import FTPS_COOLDOWN_SECONDS, _arm_ftps_cooldown, ftps_cooldown_remaining
 from backend.app.services.camera import get_camera_port
 from backend.app.services.discovery import is_running_in_docker
 from backend.app.services.printer_manager import printer_manager
@@ -54,6 +56,46 @@ async def _check_port(ip: str, port: int, timeout: float = _PORT_PROBE_TIMEOUT) 
         return True
     except Exception:
         return False
+
+
+def _probe_ftps_tls(ip: str, timeout: float) -> str:
+    """Blocking implicit-FTPS probe. Returns 'ok' / 'closed' / 'invalid_tls'.
+
+    A closed port (connection refused/timeout) means the printer is
+    unreachable or the port is blocked — the existing, retry-worthy case.
+    A port that accepts the TCP connection but fails the TLS handshake
+    means the file-transfer service itself is wedged (#88) — distinct
+    from "closed" and the trigger for the FTPS cooldown.
+    """
+    try:
+        sock = socket.create_connection((ip, PORT_FTPS), timeout=timeout)
+    except OSError:
+        return "closed"
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        # Match ImplicitFTP_TLS's floor (bambu_ftp.py) — this is only a
+        # capability probe, but CodeQL flags create_default_context() as
+        # insecure without an explicit minimum since it otherwise still
+        # permits TLSv1/1.1.
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        with ctx.wrap_socket(sock, server_hostname=ip) as tls_sock:
+            tls_sock.settimeout(timeout)
+            tls_sock.do_handshake()
+        return "ok"
+    except (ssl.SSLError, OSError):
+        return "invalid_tls"
+    finally:
+        try:
+            sock.close()
+        except OSError:
+            pass
+
+
+async def _check_ftps_tls(ip: str, timeout: float = _PORT_PROBE_TIMEOUT) -> str:
+    """Async wrapper for _probe_ftps_tls — see its docstring."""
+    return await asyncio.get_running_loop().run_in_executor(None, _probe_ftps_tls, ip, timeout)
 
 
 def _camera_port_for_printer(printer: Printer | None) -> tuple[int, str]:
@@ -134,14 +176,33 @@ async def run_connection_diagnostic(
 
     # --- Port reachability (probed in parallel) ---
     camera_port, camera_protocol = _camera_port_for_printer(printer)
-    mqtt_ok, ftps_ok, camera_ok = await asyncio.gather(
+    mqtt_ok, camera_ok = await asyncio.gather(
         _check_port(ip_address, PORT_MQTT),
-        _check_port(ip_address, PORT_FTPS),
         _check_port(ip_address, camera_port),
     )
     # MQTT is connection-critical; FTPS/camera only degrade printing/camera.
     checks.append(DiagnosticCheck(id="port_mqtt", status="pass" if mqtt_ok else "fail"))
-    checks.append(DiagnosticCheck(id="port_ftps", status="pass" if ftps_ok else "warn"))
+
+    # FTPS (#88): distinguish a closed/unreachable port (still just "warn",
+    # unchanged) from a port that answers but fails the TLS handshake (the
+    # file-transfer service is wedged — "fail", and arms the same cooldown
+    # real downloads respect). If a cooldown is already active, report it
+    # directly instead of re-probing into a handshake we already know fails.
+    ftps_remaining = ftps_cooldown_remaining(ip_address)
+    if ftps_remaining is not None:
+        checks.append(DiagnosticCheck(id="port_ftps", status="fail", params={"remaining_seconds": int(ftps_remaining)}))
+    else:
+        ftps_result = await _check_ftps_tls(ip_address)
+        if ftps_result == "ok":
+            checks.append(DiagnosticCheck(id="port_ftps", status="pass"))
+        elif ftps_result == "invalid_tls":
+            _arm_ftps_cooldown(ip_address)
+            checks.append(
+                DiagnosticCheck(id="port_ftps", status="fail", params={"remaining_seconds": int(FTPS_COOLDOWN_SECONDS)})
+            )
+        else:  # "closed"
+            checks.append(DiagnosticCheck(id="port_ftps", status="warn"))
+
     checks.append(
         DiagnosticCheck(
             id="port_rtsps",

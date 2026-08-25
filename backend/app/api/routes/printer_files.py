@@ -4,10 +4,12 @@ Split out of ``printers.py`` so printer CRUD/control and slow FTP-backed file
 operations can evolve independently.
 """
 
+import asyncio
 import io
 import json
 import logging
 import re
+import time
 import zipfile
 
 import defusedxml.ElementTree as ET
@@ -18,18 +20,79 @@ from sqlalchemy import select
 from backend.app.core import database
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.permissions import Permission
+from backend.app.core.websocket import ws_manager
 from backend.app.models.printer import Printer
+from backend.app.models.user import User
 from backend.app.services.bambu_ftp import (
     DeleteResult,
+    FileNotOnPrinterError,
+    FtpsCooldownActive,
+    _download_deadline,
     delete_file_async,
     download_file_bytes_async,
+    get_file_size_async,
     get_storage_info_async,
     list_files_async,
+)
+from backend.app.services.print_scheduler import (
+    _DISPATCH_PROGRESS_BYTE_STEP,
+    _DISPATCH_PROGRESS_MIN_INTERVAL_SECS,
 )
 from backend.app.utils.http import build_content_disposition
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/printers", tags=["printers"])
+
+
+class _DownloadProgressBridge:
+    """Thread-safe bridge from download_file_bytes_async's progress_callback
+    to the WS broadcaster — mirrors print_scheduler._UploadProgressBridge.
+
+    download_file_bytes_async runs the FTP transfer in an executor thread
+    and invokes progress_callback from that thread, so this callback body
+    cannot ``await`` directly; it hops back to the request's event loop via
+    ``run_coroutine_threadsafe``. Failures inside the emit are swallowed —
+    progress is a UX nicety, the download itself must not fail on a WS hiccup.
+    """
+
+    def __init__(self, user_id: int | None, download_id: str):
+        self._user_id = user_id
+        self._download_id = download_id
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loop = None
+        self._last_emit_bytes = 0
+        self._last_emit_monotonic = 0.0
+        self._has_emitted = False
+
+    def __call__(self, bytes_transferred: int, total_bytes: int) -> None:
+        if self._loop is None or total_bytes <= 0:
+            return
+        now = time.monotonic()
+        should_emit = (
+            not self._has_emitted
+            or bytes_transferred >= total_bytes
+            or now - self._last_emit_monotonic >= _DISPATCH_PROGRESS_MIN_INTERVAL_SECS
+            or bytes_transferred - self._last_emit_bytes >= _DISPATCH_PROGRESS_BYTE_STEP
+        )
+        if not should_emit:
+            return
+        self._has_emitted = True
+        self._last_emit_bytes = bytes_transferred
+        self._last_emit_monotonic = now
+        try:
+            asyncio.run_coroutine_threadsafe(
+                ws_manager.send_file_download_progress(
+                    user_id=self._user_id,
+                    download_id=self._download_id,
+                    bytes_transferred=bytes_transferred,
+                    total_bytes=total_bytes,
+                ),
+                self._loop,
+            )
+        except Exception:
+            pass  # progress is best-effort, never block the download
 
 
 async def _load_printer_or_404(printer_id: int) -> Printer:
@@ -60,13 +123,50 @@ async def list_printer_files(
 async def download_printer_file(
     printer_id: int,
     path: str,
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_FILES),
+    download_id: str | None = Query(None),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_FILES),
 ):
-    """Download a file from the printer."""
+    """Download a file from the printer.
+
+    Large files (printer logs can run several hundred MB) over a slow Wi-Fi
+    link routinely exceed a fixed short timeout — the deadline scales with
+    the file's actual size instead. When ``download_id`` is supplied (the
+    file-manager UI), live byte-level progress is relayed over the WS
+    connection so the UI can show percent/speed/ETA instead of nothing.
+    """
     printer = await _load_printer_or_404(printer_id)
-    data = await download_file_bytes_async(printer.ip_address, printer.access_code, path, printer_model=printer.model)
+
+    try:
+        total_bytes = await get_file_size_async(
+            printer.ip_address, printer.access_code, path, printer_model=printer.model
+        )
+        deadline = _download_deadline(total_bytes or 0)
+        progress_callback = (
+            _DownloadProgressBridge(current_user.id if current_user else None, download_id) if download_id else None
+        )
+        data = await download_file_bytes_async(
+            printer.ip_address,
+            printer.access_code,
+            path,
+            printer_model=printer.model,
+            timeout=deadline,
+            socket_timeout=deadline,
+            progress_callback=progress_callback,
+            total_bytes=total_bytes or 0,
+            raise_on_not_found=True,
+        )
+    except FtpsCooldownActive as e:
+        raise HTTPException(503, str(e)) from e
+    except FileNotOnPrinterError as e:
+        raise HTTPException(404, f"File not found: {path}") from e
+
     if data is None:
-        raise HTTPException(404, f"File not found: {path}")
+        size_hint = f" ({total_bytes} bytes)" if total_bytes else ""
+        raise HTTPException(
+            504,
+            f"Download of '{path}'{size_hint} did not complete within {deadline:.0f}s. "
+            f"Check the printer's Wi-Fi signal or try again.",
+        )
 
     filename = path.split("/")[-1]
     ext = filename.lower().split(".")[-1] if "." in filename else ""

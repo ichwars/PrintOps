@@ -3267,9 +3267,12 @@ export default {
     noFiles: 'No files on printer',
     loadingFiles: 'Loading files...',
     failedToLoad: 'Failed to load files',
+    downloadRemaining: 'remaining',
     toast: {
       filesDeleted: 'Deleted {{count}} file(s)',
       deleteFailed: 'Delete failed: {{error}}',
+      downloadComplete: 'Downloaded {{fileName}}',
+      downloadFailed: 'Failed to download {{fileName}}: {{error}}',
     },
   },
 
@@ -6734,6 +6737,7 @@ export default {
         title: 'File transfer port (FTPS 990)',
         pass: 'Reachable — sending print files will work.',
         warn: 'Port 990 is unreachable. Monitoring may still work, but sending prints to the printer will fail. Make sure port 990 is not blocked.',
+        fail: 'Port 990 answers, but the file-transfer (FTPS) service is not completing its TLS handshake. PrintOps has paused further file-transfer attempts to this printer for {{remaining_seconds}}s to avoid flooding the logs — covers, timelapses, and sending prints will not work until this clears. If it keeps happening, try restarting the printer.',
       },
       external_storage: {
         title: 'Store sent files on external storage (install step 4)',

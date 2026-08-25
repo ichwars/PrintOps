@@ -414,4 +414,46 @@ describe('FileManagerModal', () => {
       expect(loader).toBeInTheDocument();
     });
   });
+
+  describe('single file download', () => {
+    // Regression: a failed single-file download used to be caught with
+    // `.catch((err) => console.error(...))` — the user saw nothing at all.
+    // It must now surface as a toast (see FileManagerModal.tsx handleDownload).
+    it('shows an error toast when the download fails', async () => {
+      server.use(
+        http.get('/api/v1/printers/:id/files/download', () => {
+          return HttpResponse.json({ detail: 'Download of \'/benchy.3mf\' did not complete in time.' }, { status: 504 });
+        })
+      );
+
+      render(
+        <FileManagerModal
+          printerId={1}
+          printerName="X1 Carbon"
+          onClose={mockOnClose}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('benchy.3mf')).toBeInTheDocument();
+      });
+
+      const checkboxes = screen.getAllByRole('button').filter(btn =>
+        btn.querySelector('svg')?.classList.contains('lucide-square')
+      );
+      expect(checkboxes.length).toBeGreaterThan(0);
+      fireEvent.click(checkboxes[0]);
+
+      await waitFor(() => {
+        expect(screen.getByText('1 selected')).toBeInTheDocument();
+      });
+
+      const downloadButton = screen.getByRole('button', { name: /Download/i });
+      fireEvent.click(downloadButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/did not complete in time/i)).toBeInTheDocument();
+      });
+    });
+  });
 });

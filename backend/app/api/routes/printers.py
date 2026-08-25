@@ -25,6 +25,7 @@ from backend.app.schemas.printer import (
     PrinterUpdate,
 )
 from backend.app.services.bambu_ftp import (
+    FtpsCooldownActive,
     cache_3mf_download,
     download_file_try_paths_async,
     get_cached_3mf,
@@ -482,6 +483,13 @@ async def get_printer_cover(
                 )
                 if downloaded:
                     break
+            except FtpsCooldownActive as e:
+                # Printer's FTPS TLS handshake is already known broken and
+                # cooling down (#88) — retrying here would just repeat the
+                # same doomed handshake.
+                last_error = e
+                logger.warning("FTP download for %s skipped: %s", subtask_name, e)
+                break
             except Exception as e:
                 last_error = e
                 if attempt < max_retries:

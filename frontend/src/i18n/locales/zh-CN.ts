@@ -3189,9 +3189,12 @@ export default {
     noFiles: '打印机上没有文件',
     loadingFiles: '加载文件中...',
     failedToLoad: '加载文件失败',
+    downloadRemaining: '剩余',
     toast: {
       filesDeleted: '已删除 {{count}} 个文件',
       deleteFailed: '删除失败：{{error}}',
+      downloadComplete: '已下载 {{fileName}}',
+      downloadFailed: '下载 {{fileName}} 失败：{{error}}',
     },
   },
 
@@ -6641,6 +6644,7 @@ export default {
         title: '文件传输端口（FTPS 990）',
         pass: '可达 — 发送打印文件将正常工作。',
         warn: '端口 990 不可达。监控可能仍然有效，但向打印机发送打印任务将失败。请确保端口 990 未被阻止。',
+        fail: '端口 990 有响应，但文件传输（FTPS）服务无法完成 TLS 握手。为避免日志被刷爆，PrintOps 已暂停对该打印机的文件传输尝试 {{remaining_seconds}} 秒——在此期间封面图、延时视频和发送打印任务都将无法使用。如果问题持续存在，请尝试重启打印机。',
       },
       external_storage: {
         title: '将发送的文件存储在外部存储中（安装步骤 4）',

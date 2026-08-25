@@ -128,6 +128,21 @@ def clear_ftp_mode_cache():
     BambuFTPClient._mode_cache.clear()
 
 
+@pytest.fixture(autouse=True)
+def clear_ftps_cooldown():
+    """Clear the module-level FTPS cooldown registry (#88) around each test.
+
+    Every test in this module connects to 127.0.0.1 (the mock server), so a
+    cooldown armed by one TLS-failure test would otherwise poison every
+    later test that tries to connect() against that same IP.
+    """
+    from backend.app.services import bambu_ftp
+
+    bambu_ftp._ftps_cooldown_until.clear()
+    yield
+    bambu_ftp._ftps_cooldown_until.clear()
+
+
 @pytest.fixture()
 def patch_ftp_port(ftp_server):
     """Patch FTP_PORT at class level for async wrapper tests.
