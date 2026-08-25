@@ -75,7 +75,7 @@ jobs:
         run: docker build -t printops:security-scan .
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'printops:security-scan'
           format: 'sarif'
@@ -86,7 +86,7 @@ jobs:
           # database and explicit full scans, but cannot be resolved here.
           ignore-unfixed: true
           trivyignores: '.trivyignore.yaml'
-          version: 'v0.69.3'
+          version: 'v0.74.0'
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v4
@@ -96,7 +96,7 @@ jobs:
           category: trivy
 
       - name: Run Trivy for Dockerfile/IaC
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'config'
           scan-ref: '.'
@@ -104,7 +104,7 @@ jobs:
           output: 'trivy-config-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
           trivyignores: '.trivyignore.yaml'
-          version: 'v0.69.3'
+          version: 'v0.74.0'
 
       - name: Upload Trivy config results
         uses: github/codeql-action/upload-sarif@v4
