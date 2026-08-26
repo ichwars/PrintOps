@@ -5,6 +5,7 @@ These tests cover pure functions and frame parsing logic.
 """
 
 import asyncio
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -70,6 +71,7 @@ class _FakeMjpegSession:
         return None
 
 
+@contextmanager
 def _patch_mjpeg_session(response):
     """Patch `aiohttp.ClientSession` inside the external_camera module so the
     real `_capture_mjpeg_frame` runs against our fake stream."""
@@ -77,7 +79,14 @@ def _patch_mjpeg_session(response):
     def _factory(*_args, **_kwargs):
         return _FakeMjpegSession(response)
 
-    return patch("backend.app.services.external_camera.aiohttp.ClientSession", _factory)
+    with (
+        patch("backend.app.services.external_camera.aiohttp.ClientSession", _factory),
+        patch(
+            "backend.app.services.camera_source_security._resolve_allowed_address",
+            new=AsyncMock(return_value="192.168.1.50"),
+        ),
+    ):
+        yield
 
 
 class _FakeUsbStdout:
@@ -640,7 +649,7 @@ class TestUsbCameraHandling:
 
         with (
             patch("backend.app.services.external_camera.get_ffmpeg_path", return_value="/usr/bin/ffmpeg"),
-            patch("backend.app.services.external_camera.Path.exists", return_value=True),
+            patch("backend.app.services.camera_source_security.Path.exists", return_value=True),
             patch("backend.app.services.external_camera.asyncio.sleep", new=AsyncMock()),
             patch(
                 "backend.app.services.external_camera.asyncio.create_subprocess_exec",

@@ -52,6 +52,12 @@ _registrations: dict[int, _Registration] = {}
 _lock = asyncio.Lock()
 
 
+async def _close_local_server(server: asyncio.Server | None) -> None:
+    if server is not None:
+        server.close()
+        await server.wait_closed()
+
+
 def is_registered(printer_id: int) -> bool:
     """True iff printer_id has a live (non-torn-down) go2rtc registration.
 
@@ -95,20 +101,44 @@ async def acquire(printer_id: int, source: CameraSource) -> str:
             reg.refcount += 1
             return reg.go2rtc_name
 
-        go2rtc_name = go2rtc_client.stream_name(printer_id)
+    # DNS resolution and relay creation may be slow; never hold the one global
+    # registry lock while resolving an unrelated printer's source.
+    go2rtc_name = go2rtc_client.stream_name(printer_id)
+    try:
         result = await source.resolve(go2rtc_name)
+    except (OSError, ValueError) as exc:
+        raise RuntimeError("invalid camera source") from exc
 
-        registered = await go2rtc_client.ensure_stream_multi(go2rtc_name, result.go2rtc_sources)
-        if not registered:
-            if result.local_server is not None:
-                result.local_server.close()
-                await result.local_server.wait_closed()
-            raise RuntimeError("go2rtc unavailable")
+    transferred = False
+    try:
+        async with _lock:
+            # Another caller may have completed registration while this source
+            # resolved. Reuse it and dispose of our redundant relay below.
+            reg = _registrations.get(printer_id)
+            if reg is not None:
+                if reg.grace_task is not None and not reg.grace_task.done():
+                    reg.grace_task.cancel()
+                    reg.grace_task = None
+                reg.refcount += 1
+                reuse_name = reg.go2rtc_name
+            else:
+                reuse_name = None
+                registered = await go2rtc_client.ensure_stream_multi(go2rtc_name, result.go2rtc_sources)
+                if not registered:
+                    raise RuntimeError("go2rtc unavailable")
+                new_reg = _Registration(go2rtc_name, result.local_server)
+                new_reg.refcount = 1
+                _registrations[printer_id] = new_reg
+                transferred = True
 
-        new_reg = _Registration(go2rtc_name, result.local_server)
-        new_reg.refcount = 1
-        _registrations[printer_id] = new_reg
+        if reuse_name is not None:
+            await _close_local_server(result.local_server)
+            return reuse_name
         return go2rtc_name
+    except BaseException:
+        if not transferred:
+            await _close_local_server(result.local_server)
+        raise
 
 
 async def release(printer_id: int) -> None:
