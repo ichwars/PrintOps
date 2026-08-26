@@ -32,6 +32,10 @@ from backend.app.services.bambu_ftp import (
     with_ftp_retry,
 )
 from backend.app.services.filament_deficit import compute_deficit_for_queue_item
+from backend.app.services.library_queue_references import (
+    consume_transient_library_source,
+    fail_missing_library_source,
+)
 from backend.app.services.notification_service import notification_service
 from backend.app.services.printer_manager import (
     printer_manager,
@@ -2762,11 +2766,7 @@ class PrintScheduler:
             result = await db.execute(LibraryFile.active().where(LibraryFile.id == item.library_file_id))
             library_file = result.scalar_one_or_none()
             if not library_file:
-                item.status = "failed"
-                item.error_message = "Library file not found"
-                item.completed_at = datetime.now(timezone.utc)
-                await db.commit()
-                logger.error("Queue item %s: Library file %s not found", item.id, item.library_file_id)
+                await fail_missing_library_source(db, item)
                 await self._power_off_if_needed(db, item)
                 return
             # Library files store absolute paths
@@ -2776,6 +2776,7 @@ class PrintScheduler:
 
             # Create archive from library file so usage tracking has access to the 3MF
             queue_item_id = item.id
+            source_library_file_id = item.library_file_id
             try:
                 from backend.app.services.archive import ArchiveService
 
@@ -2790,14 +2791,13 @@ class PrintScheduler:
                 if archive:
                     item.archive_id = archive.id
                     if item.cleanup_library_after_dispatch and not library_file.is_external:
-                        item.library_file_id = None
                         cleanup_disk_paths.append(file_path)
                         if library_file.thumbnail_path:
                             thumb_path = Path(library_file.thumbnail_path)
                             if not thumb_path.is_absolute():
                                 thumb_path = settings.base_dir / library_file.thumbnail_path
                             cleanup_disk_paths.append(thumb_path)
-                        await db.delete(library_file)
+                        await consume_transient_library_source(db, item, library_file, archive.id)
                         file_path = settings.base_dir / archive.file_path
                         filename = archive.filename
                     # Commit, not flush — flush opens the SQLite write
@@ -2810,7 +2810,7 @@ class PrintScheduler:
                         "Queue item %s: Created archive %s from library file %s",
                         item.id,
                         archive.id,
-                        item.library_file_id,
+                        source_library_file_id,
                     )
             except Exception as e:
                 logger.warning(
