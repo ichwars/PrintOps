@@ -11,7 +11,9 @@ import pytest
 
 from backend.app.services.camera_source import ExternalHttpSource, ExternalRtspSource
 from backend.app.services.camera_source_security import (
+    _open_connection_any,
     _parse_camera_url,
+    _resolve_allowed_address,
     prepare_external_camera_url,
 )
 from backend.app.services.external_camera import _sanitize_camera_url, _stderr_preview
@@ -93,6 +95,12 @@ def test_rtsps_without_explicit_port_keeps_the_existing_port_322_default() -> No
     assert parsed.port == 322
 
 
+def test_url_sanitization_preserves_path_parameters() -> None:
+    parsed = _parse_camera_url("rtsp://camera.example/stream;track=1?quality=high", ("rtsp",))
+    assert parsed is not None
+    assert parsed.path_and_query == "/stream;track=1?quality=high"
+
+
 def test_ffmpeg_stderr_preview_redacts_external_camera_password() -> None:
     """ffmpeg echoes input URLs; diagnostics must never persist camera credentials."""
     stderr = b"Input #0, rtsp, from 'rtsp://camera-user:s3cr3t@127.0.0.1:45000/live':"
@@ -122,6 +130,33 @@ async def test_external_http_source_rejects_mixed_safe_and_link_local_dns_answer
         pytest.raises(ValueError, match="unsafe external camera"),
     ):
         await ExternalHttpSource("http://camera.example/live.mjpeg").resolve("printer-7")
+
+
+@pytest.mark.asyncio
+async def test_dns_resolution_is_bounded() -> None:
+    async def never_returns(*_args, **_kwargs):
+        await asyncio.sleep(60)
+
+    loop = asyncio.get_running_loop()
+    with (
+        patch.object(loop, "getaddrinfo", new=never_returns),
+        patch("backend.app.services.camera_source_security._DNS_TIMEOUT", 0.01),
+    ):
+        assert await _resolve_allowed_address("camera.example", 80) is None
+
+
+@pytest.mark.asyncio
+async def test_connection_falls_back_across_all_validated_dns_answers() -> None:
+    reader = asyncio.StreamReader()
+    writer = MagicMock()
+    with patch(
+        "backend.app.services.camera_source_security.asyncio.open_connection",
+        new=AsyncMock(side_effect=[OSError("unreachable"), (reader, writer)]),
+    ) as connect:
+        result = await _open_connection_any(("2001:db8::20", "192.0.2.20"), 8554)
+
+    assert result == (reader, writer)
+    assert [call.args[0] for call in connect.await_args_list] == ["2001:db8::20", "192.0.2.20"]
 
 
 @pytest.mark.asyncio
@@ -271,6 +306,41 @@ async def test_http_relay_dials_pinned_ip_and_restores_original_host_header() ->
         request_head = await asyncio.wait_for(received, 1)
         assert response.startswith(b"HTTP/1.1 200 OK")
         assert f"Host: camera.example:{upstream_port}\r\n".encode() in request_head
+        assert b"Connection: close\r\n" in request_head
+    finally:
+        await prepared.close()
+        upstream.close()
+        await upstream.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_http_relay_blocks_upstream_redirects() -> None:
+    async def handle_upstream(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        await reader.readuntil(b"\r\n\r\n")
+        writer.write(
+            b"HTTP/1.1 302 Found\r\nLocation: http://169.254.169.254/latest/meta-data\r\nContent-Length: 0\r\n\r\n"
+        )
+        await writer.drain()
+        writer.close()
+
+    upstream = await asyncio.start_server(handle_upstream, "127.0.0.1", 0)
+    upstream_port = upstream.sockets[0].getsockname()[1]
+    with patch(
+        "backend.app.services.camera_source_security._resolve_allowed_address",
+        new=AsyncMock(return_value="127.0.0.1"),
+    ):
+        prepared = await prepare_external_camera_url(f"http://camera.example:{upstream_port}/live", ("http",))
+    assert prepared is not None
+    try:
+        local = urlparse(prepared.url)
+        reader, writer = await asyncio.open_connection(local.hostname, local.port)
+        writer.write(b"GET /live HTTP/1.1\r\nHost: relay\r\n\r\n")
+        await writer.drain()
+        response = await reader.read()
+        assert response.startswith(b"HTTP/1.1 502")
+        assert b"169.254.169.254" not in response
+        writer.close()
+        await writer.wait_closed()
     finally:
         await prepared.close()
         upstream.close()
@@ -306,7 +376,10 @@ async def test_rtsp_relay_dials_pinned_ip_and_restores_original_authority() -> N
         local = urlparse(prepared.url)
         reader, writer = await asyncio.open_connection(local.hostname, local.port)
         local_authority = f"rtsp://{local.hostname}:{local.port}"
-        writer.write(f"DESCRIBE {local_authority}/stream RTSP/1.0\r\nCSeq: 1\r\n\r\n".encode())
+        request = f"DESCRIBE {local_authority}/stream RTSP/1.0\r\nCSeq: 1\r\n\r\n".encode()
+        writer.write(request[:17])
+        await writer.drain()
+        writer.write(request[17:])
         await writer.drain()
         response = await reader.read()
         writer.close()
@@ -317,6 +390,104 @@ async def test_rtsp_relay_dials_pinned_ip_and_restores_original_authority() -> N
         assert response.startswith(b"RTSP/1.0 200 OK")
         assert request_head.startswith(expected)
         assert local_authority.encode() not in request_head
+    finally:
+        await prepared.close()
+        upstream.close()
+        await upstream.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_registry_closes_relay_when_registration_is_cancelled() -> None:
+    from backend.app.services import go2rtc_client, go2rtc_registry
+    from backend.app.services.camera_source import CameraSourceResult
+
+    entered = asyncio.Event()
+    never = asyncio.Event()
+    server = MagicMock()
+    server.wait_closed = AsyncMock()
+    source = MagicMock()
+    source.resolve = AsyncMock(return_value=CameraSourceResult(["http://127.0.0.1:1234/live"], server))
+
+    async def blocked_registration(*_args):
+        entered.set()
+        await never.wait()
+
+    with patch.object(go2rtc_client, "ensure_stream_multi", new=blocked_registration):
+        task = asyncio.create_task(go2rtc_registry.acquire(84002, source))
+        await asyncio.wait_for(entered.wait(), 1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    server.close.assert_called_once()
+    server.wait_closed.assert_awaited_once()
+    assert not go2rtc_registry.is_registered(84002)
+
+
+@pytest.mark.asyncio
+async def test_slow_source_resolution_does_not_hold_global_registry_lock() -> None:
+    from backend.app.services import go2rtc_client, go2rtc_registry
+    from backend.app.services.camera_source import CameraSourceResult
+
+    entered = asyncio.Event()
+    never = asyncio.Event()
+    slow_source = MagicMock()
+
+    async def slow_resolve(_name):
+        entered.set()
+        await never.wait()
+
+    slow_source.resolve = slow_resolve
+    fast_source = MagicMock()
+    fast_source.resolve = AsyncMock(return_value=CameraSourceResult(["rtsp://10.0.0.2/live"]))
+
+    with patch.object(go2rtc_client, "ensure_stream_multi", new=AsyncMock(return_value=True)):
+        slow_task = asyncio.create_task(go2rtc_registry.acquire(84003, slow_source))
+        await asyncio.wait_for(entered.wait(), 1)
+        assert await asyncio.wait_for(go2rtc_registry.acquire(84004, fast_source), 1) == "printer-84004"
+        slow_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await slow_task
+
+    go2rtc_registry._registrations.pop(84004, None)
+
+
+@pytest.mark.asyncio
+async def test_rtsp_relay_buffers_fragmented_request_and_preserves_digest_uri() -> None:
+    loop = asyncio.get_running_loop()
+    received = loop.create_future()
+
+    async def handle_upstream(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        received.set_result(await reader.readuntil(b"\r\n\r\n"))
+        writer.write(b"RTSP/1.0 200 OK\r\nCSeq: 2\r\n\r\n")
+        await writer.drain()
+        writer.close()
+
+    upstream = await asyncio.start_server(handle_upstream, "127.0.0.1", 0)
+    upstream_port = upstream.sockets[0].getsockname()[1]
+    with patch(
+        "backend.app.services.camera_source_security._resolve_allowed_address",
+        new=AsyncMock(return_value="127.0.0.1"),
+    ):
+        prepared = await prepare_external_camera_url(f"rtsp://camera.example:{upstream_port}/stream", ("rtsp",))
+    assert prepared is not None
+    try:
+        local = urlparse(prepared.url)
+        reader, writer = await asyncio.open_connection(local.hostname, local.port)
+        local_url = f"rtsp://{local.hostname}:{local.port}/stream"
+        request = (
+            f"DESCRIBE {local_url} RTSP/1.0\r\nCSeq: 2\r\n"
+            f'Authorization: Digest username="cam", uri="{local_url}"\r\n\r\n'
+        ).encode()
+        writer.write(request[:19])
+        await writer.drain()
+        writer.write(request[19:])
+        await writer.drain()
+        assert (await reader.read()).startswith(b"RTSP/1.0 200")
+        request_head = await asyncio.wait_for(received, 1)
+        assert request_head.startswith(f"DESCRIBE {local_url} RTSP/1.0".encode())
+        writer.close()
+        await writer.wait_closed()
     finally:
         await prepared.close()
         upstream.close()
