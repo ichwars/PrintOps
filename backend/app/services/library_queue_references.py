@@ -33,6 +33,7 @@ async def release_queue_references(db: AsyncSession, file_ids: list[int]) -> int
     for item_id, library_file_id in waiting_rows:
         waiting_by_file.setdefault(library_file_id, []).append(item_id)
 
+    cancelled = 0
     if waiting_by_file:
         names = dict(
             (
@@ -43,21 +44,25 @@ async def release_queue_references(db: AsyncSession, file_ids: list[int]) -> int
         )
         now = utcnow_naive()
         for library_file_id, item_ids in waiting_by_file.items():
-            await db.execute(
+            result = await db.execute(
                 update(PrintQueueItem)
                 .where(PrintQueueItem.id.in_(item_ids))
+                .where(PrintQueueItem.library_file_id == library_file_id)
+                .where(PrintQueueItem.archive_id.is_(None))
+                .where(PrintQueueItem.status.in_(("pending", "skipped")))
                 .values(
                     status="cancelled",
                     completed_at=now,
                     error_message=f"'{names.get(library_file_id, 'The library file')}' was deleted from the library",
                 )
             )
-        logger.info("Library delete: cancelled %d queued item(s) whose source file was removed", len(waiting_rows))
+            cancelled += result.rowcount or 0
+        logger.info("Library delete: cancelled %d queued item(s) whose source file was removed", cancelled)
 
     await db.execute(
         update(PrintQueueItem).where(PrintQueueItem.library_file_id.in_(file_ids)).values(library_file_id=None)
     )
-    return len(waiting_rows)
+    return cancelled
 
 
 async def folder_tree_file_ids(db: AsyncSession, folder_id: int) -> list[int]:
@@ -130,11 +135,15 @@ async def repoint_siblings_at_archive(
         .all()
     )
     if repoint_ids:
-        await db.execute(
+        result = await db.execute(
             update(PrintQueueItem)
             .where(PrintQueueItem.id.in_(repoint_ids))
+            .where(PrintQueueItem.library_file_id == consumed_library_file_id)
+            .where(PrintQueueItem.archive_id.is_(None))
+            .where(PrintQueueItem.status.in_(("pending", "printing", "skipped")))
             .values(archive_id=archive_id, library_file_id=None, cleanup_library_after_dispatch=False)
         )
+        repointed = result.rowcount or 0
         logger.info(
             "Queue items %s: re-pointed at archive %s before library file %s was consumed by item %s",
             sorted(repoint_ids),
@@ -143,13 +152,16 @@ async def repoint_siblings_at_archive(
             dispatched_item_id,
         )
 
+    else:
+        repointed = 0
+
     await db.execute(
         update(PrintQueueItem)
         .where(PrintQueueItem.id != dispatched_item_id)
         .where(PrintQueueItem.library_file_id == consumed_library_file_id)
         .values(library_file_id=None)
     )
-    return len(repoint_ids)
+    return repointed
 
 
 async def consume_transient_library_source(
