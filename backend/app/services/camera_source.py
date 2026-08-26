@@ -36,9 +36,9 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
-from urllib.parse import urlparse
 
 from backend.app.services.camera import create_tls_proxy, get_camera_port, is_chamber_image_model
+from backend.app.services.camera_source_security import prepare_external_camera_url
 
 if TYPE_CHECKING:
     from backend.app.models.printer import Printer
@@ -148,28 +148,12 @@ class ExternalRtspSource:
         self.url = url
 
     async def resolve(self, go2rtc_name: str) -> CameraSourceResult:
-        if not self.url.lower().startswith("rtsps://"):
-            return CameraSourceResult(go2rtc_sources=[self.url, f"ffmpeg:{go2rtc_name}#video=mjpeg"])
-
-        # Same TLS-proxy rewrite external_camera.py's own RTSP path used to
-        # do inline — go2rtc's RTSP client speaks plain rtsp://, so an
-        # rtsps:// source needs a local TLS terminator first, same as
-        # BambuRtspSource above.
-        parsed = urlparse(self.url)
-        target_port = parsed.port or 322
-        proxy_port, proxy_server = await create_tls_proxy(parsed.hostname or "", target_port)
-        userinfo = ""
-        if parsed.username:
-            userinfo = parsed.username
-            if parsed.password:
-                userinfo += f":{parsed.password}"
-            userinfo += "@"
-        rewritten = f"rtsp://{userinfo}127.0.0.1:{proxy_port}{parsed.path}"
-        if parsed.query:
-            rewritten += f"?{parsed.query}"
+        prepared = await prepare_external_camera_url(self.url, ("rtsp", "rtsps"))
+        if prepared is None:
+            raise ValueError("unsafe external camera URL")
         return CameraSourceResult(
-            go2rtc_sources=[rewritten, f"ffmpeg:{go2rtc_name}#video=mjpeg"],
-            local_server=proxy_server,
+            go2rtc_sources=[prepared.url, f"ffmpeg:{go2rtc_name}#video=mjpeg"],
+            local_server=prepared.local_server,
         )
 
 
@@ -190,7 +174,10 @@ class ExternalHttpSource:
         self.pipeline_label = pipeline_label
 
     async def resolve(self, go2rtc_name: str) -> CameraSourceResult:
-        return CameraSourceResult(go2rtc_sources=[self.url])
+        prepared = await prepare_external_camera_url(self.url, ("http", "https"))
+        if prepared is None:
+            raise ValueError("unsafe external camera URL")
+        return CameraSourceResult(go2rtc_sources=[prepared.url], local_server=prepared.local_server)
 
 
 def get_camera_source(printer: Printer) -> CameraSource | None:

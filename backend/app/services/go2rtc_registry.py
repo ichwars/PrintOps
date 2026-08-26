@@ -96,7 +96,10 @@ async def acquire(printer_id: int, source: CameraSource) -> str:
             return reg.go2rtc_name
 
         go2rtc_name = go2rtc_client.stream_name(printer_id)
-        result = await source.resolve(go2rtc_name)
+        try:
+            result = await source.resolve(go2rtc_name)
+        except (OSError, ValueError) as exc:
+            raise RuntimeError("invalid camera source") from exc
 
         registered = await go2rtc_client.ensure_stream_multi(go2rtc_name, result.go2rtc_sources)
         if not registered:

@@ -6,12 +6,12 @@ import asyncio
 import os
 import time
 from contextlib import suppress
-from unittest.mock import mock_open, patch
+from unittest.mock import AsyncMock, mock_open, patch
 
 import pytest
 
 from backend.app.api.routes import camera
-from backend.app.services import external_camera
+from backend.app.services import camera_source_security, external_camera
 
 
 async def _instant_sleep(*_args, **_kwargs) -> None:
@@ -70,7 +70,7 @@ async def test_stream_usb_registers_process_via_on_process(monkeypatch):
         return proc
 
     monkeypatch.setattr(external_camera, "get_ffmpeg_path", lambda: "/fake/ffmpeg")
-    monkeypatch.setattr(external_camera, "Path", _FakePath)
+    monkeypatch.setattr(camera_source_security, "Path", _FakePath)
     monkeypatch.setattr(external_camera.asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
     monkeypatch.setattr(external_camera.asyncio, "sleep", _instant_sleep)
 
@@ -84,6 +84,24 @@ async def test_stream_usb_registers_process_via_on_process(monkeypatch):
             await stream.aclose()
 
     assert captured == [proc]
+
+
+@pytest.mark.asyncio
+async def test_stream_usb_rejects_prefix_traversal_before_ffmpeg(monkeypatch):
+    """`/dev/video` is a full allowlist, not a path prefix."""
+    proc = _UsbProc()
+    spawn = AsyncMock(return_value=proc)
+
+    monkeypatch.setattr(external_camera, "get_ffmpeg_path", lambda: "/fake/ffmpeg")
+    monkeypatch.setattr(external_camera.Path, "exists", lambda _path: True)
+    monkeypatch.setattr(external_camera.asyncio, "create_subprocess_exec", spawn)
+    monkeypatch.setattr(external_camera.asyncio, "sleep", _instant_sleep)
+
+    stream = external_camera._stream_usb("/dev/video0/../../etc/passwd", 10)
+    async for _frame in stream:
+        pass
+
+    spawn.assert_not_awaited()
 
 
 @pytest.mark.asyncio
