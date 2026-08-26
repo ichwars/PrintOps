@@ -65,6 +65,11 @@ from backend.app.schemas.library import (
 )
 from backend.app.schemas.slicer import SliceRequest, SliceResponse
 from backend.app.services.archive import ThreeMFParser
+from backend.app.services.library_queue_references import (
+    folder_tree_file_ids,
+    prepare_folder_hard_delete,
+    release_queue_references,
+)
 from backend.app.services.plate_thumbnail import inject_plate_thumbnails_if_missing
 from backend.app.services.slice_formats import (
     is_server_sliceable_filename,
@@ -1286,37 +1291,8 @@ async def delete_folder(
     # External folders: only remove DB records, never delete files from external path
     is_ext = folder.is_external
 
-    # Get all files in this folder and subfolders to delete from disk
-    async def get_all_file_ids(fid: int) -> list[int]:
-        """Recursively get all file IDs in a folder tree."""
-        file_ids = []
-
-        # Get files in this folder
-        files_result = await db.execute(
-            select(LibraryFile.id, LibraryFile.file_path, LibraryFile.thumbnail_path, LibraryFile.is_external).where(
-                LibraryFile.folder_id == fid
-            )
-        )
-        for fid_val, file_path, thumb_path, file_is_ext in files_result.all():
-            file_ids.append(fid_val)
-            # Only delete non-external files from disk
-            if not is_ext and not file_is_ext:
-                try:
-                    if file_path and os.path.exists(file_path):
-                        os.remove(file_path)
-                    if thumb_path and os.path.exists(thumb_path):
-                        os.remove(thumb_path)
-                except OSError as e:
-                    logger.warning("Failed to delete file: %s", e)
-
-        # Get child folders and recurse
-        children_result = await db.execute(select(LibraryFolder.id).where(LibraryFolder.parent_id == fid))
-        for (child_id,) in children_result.all():
-            file_ids.extend(await get_all_file_ids(child_id))
-
-        return file_ids
-
-    await get_all_file_ids(folder_id)
+    doomed_file_ids = await prepare_folder_hard_delete(db, folder_id, delete_managed_files=not is_ext)
+    await release_queue_references(db, doomed_file_ids)
 
     # Delete folder (cascade will handle files and subfolders)
     await db.delete(folder)
@@ -4573,6 +4549,7 @@ async def delete_file(
                 abs_thumb_path.unlink()
             except OSError as e:
                 logger.warning("Failed to delete thumbnail from disk: %s", e)
+        await release_queue_references(db, [file.id])
         await db.delete(file)
         await db.commit()
         return {"status": "success", "message": "File deleted", "trashed": False}
@@ -4877,6 +4854,7 @@ async def bulk_delete(
     deleted_files = 0
     deleted_folders = 0
     skipped_files = 0
+    hard_deleted: list[LibraryFile] = []
 
     # Delete files first. Managed files go to trash (sweeper hard-deletes bytes
     # later); external files bypass trash since their disk state is outside our
@@ -4898,10 +4876,16 @@ async def bulk_delete(
                     abs_thumb_path.unlink()
                 except OSError as e:
                     logger.warning("Failed to delete thumbnail from disk: %s", e)
-            await db.delete(file)
+            hard_deleted.append(file)
         else:
             file.deleted_at = now
         deleted_files += 1
+
+    if hard_deleted:
+        hard_deleted_ids = [file.id for file in hard_deleted]
+        await release_queue_references(db, hard_deleted_ids)
+        for file in hard_deleted:
+            await db.delete(file)
 
     # Delete folders (cascade will handle contents)
     # Note: Folders don't have ownership tracking currently, require *_all permission
@@ -4921,6 +4905,7 @@ async def bulk_delete(
                 )
             )
             deleted_files += file_count_result.scalar() or 0
+            await release_queue_references(db, await folder_tree_file_ids(db, folder_id))
             await db.delete(folder)
             deleted_folders += 1
 
