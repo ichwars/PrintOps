@@ -61,7 +61,7 @@ logger = logging.getLogger(__name__)
 #                           delete of admin resources, settings writes, user/
 #                           group/api-key/backup admin ops, discovery scan,
 #                           cloud auth, library ALL-ownership perms, purges
-_APIKEY_SCOPE_BY_PERMISSION: dict[Permission, str] = {
+_APIKEY_SCOPE_BY_PERMISSION: dict[Permission, str | tuple[str, ...]] = {
     # can_read_status — read-only access to status, history, and configuration
     Permission.PRINTERS_READ: "can_read_status",
     # Legacy flat permissions retained for back-compat with custom API keys —
@@ -99,6 +99,7 @@ _APIKEY_SCOPE_BY_PERMISSION: dict[Permission, str] = {
     # working (they need the UI-language setting via API key).
     Permission.SETTINGS_READ: "can_read_status",
     Permission.MAKERWORLD_VIEW: "can_read_status",
+    Permission.PIPELINES_READ: "can_read_status",
     Permission.WEBSOCKET_CONNECT: "can_read_status",
     # can_queue — queue write ops + reprint (which enqueues an existing archive)
     Permission.QUEUE_CREATE: "can_queue",
@@ -179,6 +180,9 @@ _APIKEY_SCOPE_BY_PERMISSION: dict[Permission, str] = {
     Permission.PROJECTS_CREATE: "can_manage_projects",
     Permission.PROJECTS_UPDATE: "can_manage_projects",
     Permission.PROJECTS_DELETE: "can_manage_projects",
+    # Running a pipeline writes the slice to the library and queues prints;
+    # neither independently-managed scope may imply the other.
+    Permission.PIPELINES_RUN: ("can_queue", "can_manage_library"),
     # can_render_documents deliberately excludes draft/approve/issue/correct
     # and tax mutation. External systems may maintain layouts, render an
     # immutable snapshot, download it and inspect its audit evidence.
@@ -296,19 +300,15 @@ _APIKEY_DENIED_PERMISSIONS: frozenset[Permission] = frozenset(
         Permission.ACCOUNTING_INTEGRATIONS_MANAGE,
         # Network scanning — operator only (no API-key scope for this).
         Permission.DISCOVERY_SCAN,
-        # Slicer Pipelines (#1425) — admin authoring + the print-spending Run
-        # action. PR A only ships CRUD; PR B / PR C may move PIPELINES_RUN onto
-        # `can_queue` (it queues prints) once the run dispatch lands. PR A keeps
-        # all three denied so they fail closed for any API-key surface.
-        Permission.PIPELINES_READ,
+        # Pipeline definitions remain administrator-authored. Reading and
+        # running are explicitly scoped in the allowlist above.
         Permission.PIPELINES_WRITE,
-        Permission.PIPELINES_RUN,
     }
 )
 
 
-def _resolve_apikey_scope(perm_string: str) -> str | None:
-    """Return the scope-flag attribute name gating ``perm_string`` for API keys.
+def _required_apikey_scopes(perm_string: str) -> tuple[str, ...] | None:
+    """Return every API-key scope required for ``perm_string``.
 
     None when the permission is unmapped (= admin-only / not API-key-usable).
     """
@@ -316,7 +316,10 @@ def _resolve_apikey_scope(perm_string: str) -> str | None:
         perm = Permission(perm_string)
     except ValueError:
         return None
-    return _APIKEY_SCOPE_BY_PERMISSION.get(perm)
+    scopes = _APIKEY_SCOPE_BY_PERMISSION.get(perm)
+    if scopes is None:
+        return None
+    return (scopes,) if isinstance(scopes, str) else tuple(scopes)
 
 
 def _check_apikey_permissions(api_key: APIKey, perm_strings: list[str], *, require_any: bool = False) -> None:
@@ -342,16 +345,17 @@ def _check_apikey_permissions(api_key: APIKey, perm_strings: list[str], *, requi
 
     last_failure: HTTPException | None = None
     for perm_str in perm_strings:
-        scope_attr = _resolve_apikey_scope(perm_str)
-        if scope_attr is None:
+        scopes = _required_apikey_scopes(perm_str)
+        missing = [scope for scope in scopes or () if not getattr(api_key, scope, False)]
+        if not scopes:
             failure = HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="API keys cannot be used for administrative operations",
             )
-        elif not getattr(api_key, scope_attr, False):
+        elif missing:
             failure = HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"API key does not have '{scope_attr}' permission",
+                detail=f"API key does not have {' and '.join(repr(scope) for scope in missing)} permission",
             )
         else:
             failure = None
@@ -1368,6 +1372,28 @@ async def get_api_key(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid API key",
     )
+
+
+async def resolve_optional_api_key(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)] = None,
+    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+    db: AsyncSession = Depends(get_db),
+) -> APIKey | None:
+    """Return the caller's validated API key, or None for non-key callers.
+
+    Permission dependencies intentionally return ``None`` for API keys so a
+    key never gains a synthetic User identity. Routes that also need the key's
+    printer scope can depend on this resolver alongside their normal
+    permission gate.
+    """
+    if not await is_auth_enabled(db):
+        return None
+    api_key_value = x_api_key
+    if api_key_value is None and credentials is not None and credentials.credentials.startswith("bb_"):
+        api_key_value = credentials.credentials
+    if api_key_value is None:
+        return None
+    return await _validate_api_key(db, api_key_value)
 
 
 async def caller_is_api_key(

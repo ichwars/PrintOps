@@ -174,6 +174,16 @@ class TestApiKeyDenylistIntegrity:
         assert not incorrectly_denied, f"Operational permissions incorrectly in API key denylist: {incorrectly_denied}"
 
 
+def _flags_in_use() -> set[str]:
+    """Return every scope flag named by the API-key allowlist."""
+    from backend.app.core.auth import _APIKEY_SCOPE_BY_PERMISSION
+
+    flags: set[str] = set()
+    for value in _APIKEY_SCOPE_BY_PERMISSION.values():
+        flags.update((value,) if isinstance(value, str) else value)
+    return flags
+
+
 class TestApiKeyScopeAllowlist:
     """GHSA-r2qv-8222-hqg3 (CVSS 9.9) — allowlist-based scope enforcement.
 
@@ -230,7 +240,7 @@ class TestApiKeyScopeAllowlist:
             "can_render_documents",
             "can_access_cloud",
         }
-        used_flags = set(_APIKEY_SCOPE_BY_PERMISSION.values())
+        used_flags = _flags_in_use()
         assert used_flags <= valid_flags, f"Unknown scope flags in mapping: {used_flags - valid_flags}"
         # And every flag must actually exist on the model.
         for flag in valid_flags:
@@ -263,9 +273,7 @@ class TestApiKeyScopeAllowlist:
     )
     def test_each_scope_flag_has_at_least_one_permission(self, scope_flag):
         """If a scope flag has no permissions, it's dead code — fail loudly."""
-        from backend.app.core.auth import _APIKEY_SCOPE_BY_PERMISSION
-
-        assert scope_flag in _APIKEY_SCOPE_BY_PERMISSION.values(), (
+        assert scope_flag in _flags_in_use(), (
             f"No permission maps to {scope_flag} — either remove the flag or classify a permission under it."
         )
 
@@ -361,6 +369,7 @@ class TestCheckApiKeyPermissionsMatrix:
         ("PROJECTS_CREATE", "can_manage_projects", "create a project"),
         ("PROJECTS_UPDATE", "can_manage_projects", "update a project / add archives"),
         ("PROJECTS_DELETE", "can_manage_projects", "delete a project"),
+        ("PIPELINES_READ", "can_read_status", "list pipelines / read run history"),
         ("DOCUMENT_LAYOUTS_READ", "can_render_documents", "read document layouts"),
         ("DOCUMENT_LAYOUTS_MANAGE", "can_render_documents", "manage document layouts"),
         ("COMMERCIAL_DOCUMENTS_READ", "can_render_documents", "read immutable document evidence"),
@@ -386,6 +395,7 @@ class TestCheckApiKeyPermissionsMatrix:
         # print's stats contribution, mirroring LIBRARY_PURGE.
         "ARCHIVES_PURGE",
         "DISCOVERY_SCAN",
+        "PIPELINES_WRITE",
     ]
 
     @pytest.mark.parametrize("perm_name,required_flag,_descr", _SCOPE_CASES)
@@ -506,3 +516,366 @@ class TestCheckApiKeyPermissionsMatrix:
                 [Permission.QUEUE_CREATE.value, Permission.PRINTERS_CONTROL.value],
             )
         assert exc.value.status_code == 403
+
+
+class TestPipelineApiKeyScopes:
+    """Pipeline execution spans queue and library trust dimensions."""
+
+    def test_run_requires_queue_and_library_together(self):
+        from fastapi import HTTPException
+
+        from backend.app.core.auth import _check_apikey_permissions
+        from backend.app.core.permissions import Permission
+
+        run = Permission.PIPELINES_RUN.value
+        _check_apikey_permissions(_FakeApiKey(can_queue=True, can_manage_library=True), [run])
+
+        for partial in (
+            _FakeApiKey(),
+            _FakeApiKey(can_queue=True),
+            _FakeApiKey(can_manage_library=True),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                _check_apikey_permissions(partial, [run])
+            assert exc.value.status_code == 403
+
+    def test_run_error_names_all_missing_scopes(self):
+        from fastapi import HTTPException
+
+        from backend.app.core.auth import _check_apikey_permissions
+        from backend.app.core.permissions import Permission
+
+        with pytest.raises(HTTPException) as exc:
+            _check_apikey_permissions(_FakeApiKey(), [Permission.PIPELINES_RUN.value])
+        assert "can_queue" in exc.value.detail
+        assert "can_manage_library" in exc.value.detail
+
+    def test_single_scope_error_message_is_unchanged(self):
+        from fastapi import HTTPException
+
+        from backend.app.core.auth import _check_apikey_permissions
+        from backend.app.core.permissions import Permission
+
+        with pytest.raises(HTTPException) as exc:
+            _check_apikey_permissions(_FakeApiKey(), [Permission.QUEUE_CREATE.value])
+        assert exc.value.detail == "API key does not have 'can_queue' permission"
+
+
+class TestPipelineRoutesAcceptApiKeys:
+    @pytest.fixture
+    async def auth_on(self, db_session):
+        from backend.app.models.settings import Settings
+
+        db_session.add(Settings(key="auth_enabled", value="true"))
+        await db_session.commit()
+
+    async def _key(self, db_session, **flags):
+        from backend.app.core.auth import generate_api_key
+        from backend.app.models.api_key import APIKey
+
+        full_key, key_hash, key_prefix = generate_api_key()
+        db_session.add(
+            APIKey(
+                name="pipeline-key",
+                key_hash=key_hash,
+                key_prefix=key_prefix,
+                enabled=True,
+                **{"can_read_status": False, "can_queue": False, "can_manage_library": False, **flags},
+            )
+        )
+        await db_session.commit()
+        return full_key
+
+    async def _printer(self, db_session, *, name: str, model: str = "X1C"):
+        from backend.app.models.printer import Printer
+
+        printer = Printer(
+            name=name,
+            serial_number=f"SERIAL-{name}",
+            ip_address="192.0.2.10",
+            access_code="ABCD1234",
+            model=model,
+            is_active=True,
+        )
+        db_session.add(printer)
+        await db_session.commit()
+        await db_session.refresh(printer)
+        return printer
+
+    async def _pipeline(
+        self,
+        db_session,
+        *,
+        target_printer_id: int | None = None,
+        target_model_class: str | None = None,
+    ):
+        from backend.app.models.slicer_pipeline import SlicerPipeline
+
+        pipeline = SlicerPipeline(
+            name="Scoped pipeline",
+            description=None,
+            printer_preset_source="local",
+            printer_preset_id="1",
+            process_preset_source="local",
+            process_preset_id="2",
+            filament_presets_json="[]",
+            bed_type=None,
+            target_kind="specific_printer" if target_printer_id is not None else "printer_class",
+            target_printer_id=target_printer_id,
+            target_model_class=target_model_class,
+            fanout_strategy="max_parallel",
+        )
+        db_session.add(pipeline)
+        await db_session.commit()
+        await db_session.refresh(pipeline)
+        return pipeline
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_read_scope_can_list_pipelines_and_runs(self, async_client: AsyncClient, db_session, auth_on):
+        key = await self._key(db_session, can_read_status=True)
+        headers = {"X-API-Key": key}
+
+        pipelines = await async_client.get("/api/v1/slicer-pipelines/", headers=headers)
+        runs = await async_client.get("/api/v1/pipeline-runs", headers=headers)
+
+        assert pipelines.status_code == 200
+        assert runs.status_code == 200
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_read_scope_cannot_author_pipeline(self, async_client: AsyncClient, db_session, auth_on):
+        key = await self._key(
+            db_session,
+            can_read_status=True,
+            can_queue=True,
+            can_manage_library=True,
+        )
+
+        response = await async_client.post(
+            "/api/v1/slicer-pipelines/",
+            json={"name": "not-authorized"},
+            headers={"X-API-Key": key},
+        )
+
+        assert response.status_code == 403
+        assert "administrative operations" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_read_scope_cannot_run_pipeline(self, async_client: AsyncClient, db_session, auth_on):
+        key = await self._key(db_session, can_read_status=True)
+
+        response = await async_client.post(
+            "/api/v1/slicer-pipelines/1/run",
+            json={"source_library_file_id": 1},
+            headers={"X-API-Key": key},
+        )
+
+        assert response.status_code == 403
+        assert "can_queue" in response.json()["detail"]
+        assert "can_manage_library" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_both_run_scopes_get_past_permission_gate(self, async_client: AsyncClient, db_session, auth_on):
+        key = await self._key(
+            db_session,
+            can_read_status=True,
+            can_queue=True,
+            can_manage_library=True,
+        )
+
+        response = await async_client.post(
+            "/api/v1/slicer-pipelines/999999/run",
+            json={"source_library_file_id": 1},
+            headers={"X-API-Key": key},
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_restricted_key_cannot_run_pipeline_for_other_printer(
+        self, async_client: AsyncClient, db_session, auth_on
+    ):
+        allowed = await self._printer(db_session, name="allowed")
+        denied = await self._printer(db_session, name="denied")
+        pipeline = await self._pipeline(db_session, target_printer_id=denied.id)
+        key = await self._key(
+            db_session,
+            can_queue=True,
+            can_manage_library=True,
+            printer_ids=[allowed.id],
+        )
+
+        response = await async_client.post(
+            f"/api/v1/slicer-pipelines/{pipeline.id}/run",
+            json={"source_library_file_id": 999999},
+            headers={"X-API-Key": key},
+        )
+
+        assert response.status_code == 403
+        assert f"printer {denied.id}" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_auth_disabled_ignores_restricted_key_printer_scope(self, async_client: AsyncClient, db_session):
+        allowed = await self._printer(db_session, name="auth-off-allowed")
+        denied = await self._printer(db_session, name="auth-off-denied")
+        pipeline = await self._pipeline(db_session, target_printer_id=denied.id)
+        key = await self._key(
+            db_session,
+            can_queue=True,
+            can_manage_library=True,
+            printer_ids=[allowed.id],
+        )
+
+        response = await async_client.post(
+            f"/api/v1/slicer-pipelines/{pipeline.id}/run",
+            json={"source_library_file_id": 999999},
+            headers={"X-API-Key": key},
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_restricted_key_cannot_run_class_containing_other_printer(
+        self, async_client: AsyncClient, db_session, auth_on
+    ):
+        allowed = await self._printer(db_session, name="class-allowed")
+        denied = await self._printer(db_session, name="class-denied")
+        pipeline = await self._pipeline(db_session, target_model_class="X1C")
+        key = await self._key(
+            db_session,
+            can_queue=True,
+            can_manage_library=True,
+            printer_ids=[allowed.id],
+        )
+
+        response = await async_client.post(
+            f"/api/v1/slicer-pipelines/{pipeline.id}/run",
+            json={"source_library_file_id": 999999},
+            headers={"X-API-Key": key},
+        )
+
+        assert response.status_code == 403
+        assert f"printer {denied.id}" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_restricted_key_cannot_cancel_run_on_other_printer(
+        self, async_client: AsyncClient, db_session, auth_on
+    ):
+        from backend.app.models.pipeline_run import PipelineJob, PipelineRun
+
+        allowed = await self._printer(db_session, name="cancel-allowed")
+        denied = await self._printer(db_session, name="cancel-denied")
+        pipeline = await self._pipeline(db_session, target_printer_id=denied.id)
+        run = PipelineRun(pipeline_id=pipeline.id, copies=1, status="queued")
+        db_session.add(run)
+        await db_session.flush()
+        db_session.add(
+            PipelineJob(
+                pipeline_run_id=run.id,
+                copy_index=0,
+                assigned_printer_id=denied.id,
+                status="pending",
+            )
+        )
+        await db_session.commit()
+        key = await self._key(
+            db_session,
+            can_queue=True,
+            can_manage_library=True,
+            printer_ids=[allowed.id],
+        )
+
+        response = await async_client.post(
+            f"/api/v1/pipeline-runs/{run.id}/cancel",
+            headers={"X-API-Key": key},
+        )
+
+        assert response.status_code == 403
+        assert f"printer {denied.id}" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_restricted_key_cannot_retry_run_on_other_printer(
+        self, async_client: AsyncClient, db_session, auth_on
+    ):
+        from backend.app.models.library import LibraryFile
+        from backend.app.models.pipeline_run import PipelineJob, PipelineRun
+
+        allowed = await self._printer(db_session, name="retry-allowed")
+        denied = await self._printer(db_session, name="retry-denied")
+        pipeline = await self._pipeline(db_session, target_printer_id=denied.id)
+        source = LibraryFile(
+            filename="retry.3mf",
+            file_path="retry.3mf",
+            file_type="3mf",
+            file_size=0,
+            file_hash="retry-source",
+            source_type="uploaded",
+        )
+        db_session.add(source)
+        await db_session.flush()
+        run = PipelineRun(
+            pipeline_id=pipeline.id,
+            source_library_file_id=source.id,
+            copies=1,
+            status="failed",
+        )
+        db_session.add(run)
+        await db_session.flush()
+        db_session.add(
+            PipelineJob(
+                pipeline_run_id=run.id,
+                copy_index=0,
+                assigned_printer_id=denied.id,
+                status="failed",
+            )
+        )
+        await db_session.commit()
+        key = await self._key(
+            db_session,
+            can_queue=True,
+            can_manage_library=True,
+            printer_ids=[allowed.id],
+        )
+
+        response = await async_client.post(
+            f"/api/v1/pipeline-runs/{run.id}/retry-failed",
+            headers={"X-API-Key": key},
+        )
+
+        assert response.status_code == 403
+        assert f"printer {denied.id}" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_cloud_key_websocket_token_carries_owner_principal(
+        self, async_client: AsyncClient, db_session, auth_on
+    ):
+        from backend.app.core.auth import verify_websocket_token
+        from backend.app.models.user import User
+
+        owner = User(username="pipeline-ws-owner", role="user", is_active=True)
+        db_session.add(owner)
+        await db_session.commit()
+        await db_session.refresh(owner)
+        key = await self._key(
+            db_session,
+            user_id=owner.id,
+            can_read_status=True,
+            can_access_cloud=True,
+        )
+
+        response = await async_client.post(
+            "/api/v1/auth/ws-token",
+            headers={"X-API-Key": key},
+        )
+
+        assert response.status_code == 200
+        assert await verify_websocket_token(response.json()["token"]) == owner.username

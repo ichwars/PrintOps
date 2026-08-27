@@ -4,6 +4,9 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+- **Pipeline API-key permissions now match their granted scopes** — Read-only keys can inspect pipeline definitions and run history, while starting, cancelling, or retrying a run requires both Manage Queue and Manage Library. Printer-restricted keys can only run, cancel, or retry work targeting their allowed printers, including every candidate in a printer class. Pipeline authoring remains administrator-only. Cloud-enabled keys resolve presets as their owner and keep that principal on WebSocket connections so targeted run updates reach the initiating key; other API keys remain anonymous.
+
 ## [1.2.7.7] - 2026-08-07
 
 ### Added
