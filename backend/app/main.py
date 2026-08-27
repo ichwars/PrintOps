@@ -116,6 +116,10 @@ from backend.app.services.mqtt_relay import mqtt_relay
 from backend.app.services.mqtt_smart_plug import mqtt_smart_plug_service
 from backend.app.services.notification_service import notification_service
 from backend.app.services.obico_detection import obico_detection_service
+from backend.app.services.print_completion_identity import (
+    bump_library_file_usage_if_completed as _bump_library_file_usage_if_completed,
+    update_queue_status_for_completion,
+)
 from backend.app.services.print_scheduler import scheduler as print_scheduler
 from backend.app.services.printer_manager import (
     init_printer_connections,
@@ -998,23 +1002,6 @@ def _format_hms_error_summary(hms_errors: list[dict]) -> str | None:
         description = get_error_description(short_code)
         parts.append(f"[{short_code}] {description}" if description else f"[{short_code}]")
     return "; ".join(parts) if parts else None
-
-
-async def _bump_library_file_usage_if_completed(db, item, queue_status: str) -> None:
-    """Increment LibraryFile.print_count and stamp last_printed_at when a queued
-    print completes successfully. Gated to status=='completed': failed, cancelled
-    and aborted prints do not count as usage. Caller is responsible for committing
-    the session. No-op when the queue item has no linked library file (e.g. reprints
-    from an archive). See #1008."""
-    if queue_status != "completed" or item.library_file_id is None:
-        return
-    from backend.app.models.library import LibraryFile
-
-    lib_file = await db.scalar(select(LibraryFile).where(LibraryFile.id == item.library_file_id))
-    if lib_file is None:
-        return
-    lib_file.print_count = (lib_file.print_count or 0) + 1
-    lib_file.last_printed_at = datetime.now(timezone.utc)
 
 
 def mark_printer_stopped_by_user(printer_id: int) -> None:
@@ -4258,39 +4245,16 @@ async def on_print_complete(printer_id: int, data: dict):
 
         async def _update_queue_status(db):
             nonlocal queue_item_id, queue_status, queue_auto_off
-            result = await db.execute(
-                select(PrintQueueItem)
-                .where(PrintQueueItem.printer_id == printer_id)
-                .where(PrintQueueItem.status == "printing")
+            updated = await update_queue_status_for_completion(
+                db,
+                printer_id=printer_id,
+                data=data,
+                event_archive_id=archive_id if isinstance(archive_id, int) else None,
+                failure_summary=_format_hms_error_summary(data.get("hms_errors") or []),
+                bump_usage=_bump_library_file_usage_if_completed,
             )
-            printing_items = list(result.scalars().all())
-            if len(printing_items) > 1:
-                logger.warning(
-                    "BUG: Multiple queue items in 'printing' status for printer %s: %s",
-                    printer_id,
-                    [(i.id, i.archive_id, i.library_file_id) for i in printing_items],
-                )
-            item = printing_items[0] if printing_items else None
-            if item:
-                queue_status = data.get("status", "completed")
-                # MQTT sends "aborted" for cancelled prints; normalise to
-                # "cancelled" so it matches the queue schema Literal.
-                if queue_status == "aborted":
-                    queue_status = "cancelled"
-                item.status = queue_status
-                item.completed_at = datetime.now(timezone.utc)
-                if queue_status == "failed" and not item.error_message:
-                    item.error_message = _format_hms_error_summary(data.get("hms_errors") or [])
-
-                # Bump usage counters on the source library file so admins can
-                # sort by "last printed" and (eventually) auto-purge stale
-                # files — #1008.
-                await _bump_library_file_usage_if_completed(db, item, queue_status)
-
-                await db.commit()
-                queue_item_id = item.id
-                queue_auto_off = item.auto_off_after
-                logger.info("Updated queue item %s status to %s", item.id, queue_status)
+            if updated:
+                queue_item_id, queue_status, queue_auto_off = updated
 
         await run_with_retry(_update_queue_status, label="queue status update")
 

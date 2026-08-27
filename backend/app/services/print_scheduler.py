@@ -37,6 +37,7 @@ from backend.app.services.library_queue_references import (
     fail_missing_library_source,
 )
 from backend.app.services.notification_service import notification_service
+from backend.app.services.print_completion_identity import StrandedPrintRecovery, clear_stale_dispatch_claims
 from backend.app.services.printer_manager import (
     printer_manager,
     supports_airduct,
@@ -207,6 +208,7 @@ class PrintScheduler:
         # FTP transfer completes, so each queue tick excludes these reservations
         # from re-selection and launches only free pool slots.
         self._inflight: dict[int, tuple[asyncio.Task, int | None]] = {}
+        self._stranded_print_recovery = StrandedPrintRecovery()
 
     async def run(self):
         """Main loop - check queue every interval."""
@@ -218,6 +220,7 @@ class PrintScheduler:
         while self._running:
             dispatched = False
             try:
+                await self._stranded_print_recovery.tick()
                 dispatched = await self.check_queue()
             except Exception as e:
                 logger.error("Scheduler error: %s", e)
@@ -230,17 +233,7 @@ class PrintScheduler:
         logger.info("Print scheduler stopped")
 
     async def _clear_stale_dispatch_claims(self) -> None:
-        """Clear dispatch claims left behind by a process restart."""
-        try:
-            async with async_session() as db:
-                result = await db.execute(
-                    update(PrintQueueItem).where(PrintQueueItem.dispatching_at.is_not(None)).values(dispatching_at=None)
-                )
-                await db.commit()
-                if result.rowcount:
-                    logger.info("Cleared %d stale queue dispatch claim(s)", result.rowcount)
-        except Exception as exc:
-            logger.error("Failed to clear stale queue dispatch claims: %s", exc)
+        await clear_stale_dispatch_claims(async_session)
 
     async def _dispatch_with_claim(self, db: AsyncSession, item: PrintQueueItem) -> bool:
         if not await self._claim_for_dispatch(db, item.id):
