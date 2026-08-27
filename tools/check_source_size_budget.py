@@ -78,7 +78,7 @@ COMMENT_CHECK_PREFIXES = (
 FILE_ALLOWLIST = {
     "backend/app/api/routes/archives.py": 4802,
     "backend/app/api/routes/inventory.py": 2700,
-    "backend/app/api/routes/library.py": 4982,
+    "backend/app/api/routes/library.py": 4990,
     "backend/app/api/routes/mfa.py": 2262,
     "backend/app/api/routes/spoolman_inventory.py": 2056,
     "backend/app/core/database.py": 4139,
@@ -110,7 +110,7 @@ FILE_ALLOWLIST = {
 
 FUNCTION_ALLOWLIST = {
     "backend/app/api/routes/archives.py::get_archive_plates": 302,
-    "backend/app/api/routes/library.py::_run_slicer_with_fallback": 353,
+    "backend/app/api/routes/library.py::_run_slicer_with_fallback": 358,
     "backend/app/api/routes/library.py::scan_external_folder": 325,
     "backend/app/api/routes/metrics.py::get_metrics": 370,
     "backend/app/api/routes/mfa.py::oidc_callback": 404,

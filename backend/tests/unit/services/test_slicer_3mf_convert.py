@@ -372,6 +372,39 @@ class TestSubstituteUnusedPlateFilaments:
         result = substitute_unused_plate_filaments(zip_bytes, plate_id=1, items=items)
         assert result == ["pla.json", "pla.json"]
 
+    def test_enabled_process_profile_preserves_support_slot_when_source_disables_supports(self):
+        model_settings = self._model_settings_xml([(1, [1])])
+        source_settings = json.dumps(
+            {
+                "enable_support": "0",
+                "support_filament": "2",
+                "support_interface_filament": "2",
+            }
+        ).encode()
+        zip_bytes = _make_3mf(
+            {
+                "Metadata/model_settings.config": model_settings,
+                "Metadata/project_settings.config": source_settings,
+            }
+        )
+        process_profile = json.dumps(
+            {
+                "enable_support": "1",
+                "support_filament": "2",
+                "support_interface_filament": "2",
+            }
+        )
+        items = ["pla.json", "pva_support.json"]
+
+        result = substitute_unused_plate_filaments(
+            zip_bytes,
+            plate_id=1,
+            items=items,
+            process_profile_json=process_profile,
+        )
+
+        assert result == items
+
     # ---- #2628: the anchor is the lowest USED slot, not slot 1 ----------
 
     def test_substitutes_from_first_used_slot_when_slot_1_is_unused(self):

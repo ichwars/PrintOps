@@ -91,6 +91,7 @@ from backend.app.utils.threemf_tools import (
     extract_embedded_presets_from_3mf,
     extract_nozzle_mapping_from_3mf,
     extract_project_filaments_from_3mf,
+    supports_enabled_in_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -3415,6 +3416,8 @@ def _patch_process_support_settings(process_json: str, source_3mf_bytes: bytes) 
         return process_json
     if not isinstance(src_cfg, dict):
         return process_json
+    if not supports_enabled_in_config(src_cfg):
+        return process_json
 
     try:
         process_cfg = json.loads(process_json)
@@ -3683,7 +3686,12 @@ async def _run_slicer_with_fallback(
     if is_3mf and request.plate != 0:
         from backend.app.services.slicer_3mf_convert import substitute_unused_plate_filaments
 
-        filament_jsons = substitute_unused_plate_filaments(primary_bytes, request.plate or 1, filament_jsons)
+        filament_jsons = substitute_unused_plate_filaments(
+            primary_bytes,
+            request.plate or 1,
+            filament_jsons,
+            process_profile_json=presets["process"],
+        )
 
     # Cross-class slice-all loop (#1493): when the user asks for
     # ``plate=0`` (all plates) AND the source's nozzle class differs from
