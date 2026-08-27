@@ -1,10 +1,12 @@
 import json
 from contextlib import ExitStack
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import backend.app.models  # noqa: F401 - populate Base.metadata
@@ -20,13 +22,19 @@ from backend.app.services.print_scheduler import PrintScheduler
 @pytest.fixture
 async def queue_factory(tmp_path):
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _enable_foreign_keys(dbapi_connection, _connection_record):
+        """Exercise the PostgreSQL CASCADE behavior on the SQLite test DB."""
+        dbapi_connection.execute("PRAGMA foreign_keys=ON")
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     session_maker = async_sessionmaker(engine, expire_on_commit=False)
     case_counter = 0
 
-    async def make_case(*, cleanup=True, is_external=False, thumbnail_path=None):
+    async def make_case(*, cleanup=True, is_external=False, thumbnail_path=None, sibling_statuses=(), trashed=False):
         nonlocal case_counter
         case_counter += 1
 
@@ -69,6 +77,7 @@ async def queue_factory(tmp_path):
                 thumbnail_path=thumbnail_db_path,
                 file_metadata=None,
                 is_external=is_external,
+                deleted_at=datetime.now(timezone.utc) if trashed else None,
             )
             db.add_all([printer, library_file])
             await db.flush()
@@ -87,6 +96,19 @@ async def queue_factory(tmp_path):
                 nozzle_offset_cali=True,
             )
             db.add(item)
+            await db.flush()
+
+            sibling_ids = []
+            for status in sibling_statuses:
+                sibling = PrintQueueItem(
+                    printer_id=printer.id,
+                    library_file_id=library_file.id,
+                    status=status,
+                    cleanup_library_after_dispatch=cleanup,
+                )
+                db.add(sibling)
+                await db.flush()
+                sibling_ids.append(sibling.id)
             await db.commit()
 
             return SimpleNamespace(
@@ -97,6 +119,7 @@ async def queue_factory(tmp_path):
                 printer_id=printer.id,
                 library_file_id=library_file.id,
                 queue_item_id=item.id,
+                sibling_ids=sibling_ids,
                 archive_path=None,
                 upload=AsyncMock(return_value=True),
                 start_print=MagicMock(return_value=True),
@@ -177,6 +200,11 @@ async def _queue_snapshot(ctx):
         return item, library_file, archive
 
 
+async def _sibling_snapshot(ctx):
+    async with ctx.session_maker() as db:
+        return [await db.get(PrintQueueItem, sibling_id) for sibling_id in ctx.sibling_ids]
+
+
 @pytest.mark.asyncio
 async def test_cleanup_unlinks_library_file_and_removes_db_row(queue_factory):
     ctx = await queue_factory(cleanup=True)
@@ -223,6 +251,22 @@ async def test_archive_creation_failure_skips_cleanup_and_dispatch(queue_factory
     ctx.start_print.assert_not_called()
 
 
+@pytest.mark.asyncio
+async def test_dispatch_explains_when_library_file_is_in_trash(queue_factory):
+    ctx = await queue_factory(cleanup=False, trashed=True)
+
+    await _dispatch_library_item(ctx)
+
+    item, library_file, archive = await _queue_snapshot(ctx)
+    assert item.status == "failed"
+    assert "library trash" in item.error_message
+    assert "restore" in item.error_message
+    assert library_file is not None
+    assert archive is None
+    ctx.upload.assert_not_awaited()
+    ctx.start_print.assert_not_called()
+
+
 @pytest.mark.parametrize("thumbnail_path", ["absolute", "relative"])
 @pytest.mark.asyncio
 async def test_cleanup_resolves_absolute_and_relative_thumbnail_paths(queue_factory, thumbnail_path):
@@ -249,6 +293,36 @@ async def test_archive_copy_survives_library_cleanup(queue_factory):
     assert ctx.archive_path.read_bytes() == b"library source"
     uploaded_path = ctx.upload.await_args.args[2]
     assert uploaded_path == ctx.archive_path
+
+
+@pytest.mark.asyncio
+async def test_cleanup_repoints_pending_and_skipped_siblings_at_archive(queue_factory):
+    """The first transient dispatch must leave every runnable copy with a durable source."""
+    ctx = await queue_factory(cleanup=True, sibling_statuses=("pending", "skipped"))
+
+    await _dispatch_library_item(ctx)
+
+    _, library_file, archive = await _queue_snapshot(ctx)
+    assert library_file is None
+    for sibling in await _sibling_snapshot(ctx):
+        assert sibling.archive_id == archive.id
+        assert sibling.library_file_id is None
+        assert sibling.cleanup_library_after_dispatch is False
+
+
+@pytest.mark.parametrize("status", ["completed", "failed", "cancelled", "aborted"])
+@pytest.mark.asyncio
+async def test_cleanup_preserves_terminal_sibling_history(queue_factory, status):
+    """Finished batch rows must survive the library delete with their outcome unchanged."""
+    ctx = await queue_factory(cleanup=True, sibling_statuses=(status,))
+
+    await _dispatch_library_item(ctx)
+
+    (sibling,) = await _sibling_snapshot(ctx)
+    assert sibling is not None
+    assert sibling.status == status
+    assert sibling.archive_id is None
+    assert sibling.library_file_id is None
 
 
 @pytest.mark.asyncio

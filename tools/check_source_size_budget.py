@@ -78,7 +78,7 @@ COMMENT_CHECK_PREFIXES = (
 FILE_ALLOWLIST = {
     "backend/app/api/routes/archives.py": 4802,
     "backend/app/api/routes/inventory.py": 2700,
-    "backend/app/api/routes/library.py": 4997,
+    "backend/app/api/routes/library.py": 4982,
     "backend/app/api/routes/mfa.py": 2262,
     "backend/app/api/routes/spoolman_inventory.py": 2056,
     "backend/app/core/database.py": 4139,
@@ -129,7 +129,7 @@ FUNCTION_ALLOWLIST = {
     "backend/app/services/bambu_mqtt.py::_handle_ams_data": 570,
     "backend/app/services/bambu_mqtt.py::_update_state": 1277,
     "backend/app/services/printer_manager.py::printer_state_to_dict": 335,
-    "backend/app/services/print_scheduler.py::_start_print": 611,
+    "backend/app/services/print_scheduler.py::_start_print": 607,
     "backend/app/services/print_scheduler.py::check_queue": 420,
     "backend/app/services/usage_tracker.py::_track_from_3mf": 537,
 }
