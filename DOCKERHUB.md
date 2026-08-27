@@ -108,7 +108,22 @@ Beta builds with the latest fixes are pushed regularly to the same beta version 
 docker pull ichwars/PrintOps:0.2.2b1
 ```
 
-Use [Watchtower](https://containrrr.dev/watchtower/) to automatically update when new daily builds are pushed.
+To automatically update when new daily builds are pushed, use the maintained
+[Watchtower fork](https://watchtower.nickfedor.com/) with its current image:
+
+```yaml
+services:
+  watchtower:
+    image: nickfedor/watchtower:latest
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+```
+
+Mounting the Docker socket grants the updater broad control over the Docker
+host, so only run it on a trusted system. Existing users of the archived
+`containrrr/watchtower` image must replace the image name and recreate their
+Watchtower container manually; PrintOps does not migrate updater containers.
 
 > **Note:** Beta builds use version tags like `0.2.2b1` — they are never tagged as `latest`. Your stable installation won't auto-update to a beta unless you explicitly pull a beta tag.
 
