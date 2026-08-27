@@ -13,6 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from backend.app.api.routes.cloud import resolve_api_key_cloud_owner
 from backend.app.api.routes.settings import get_external_login_url
 from backend.app.core.auth import (
     ALGORITHM,
@@ -583,6 +584,7 @@ async def login(raw_request: Request, request: LoginRequest, response: Response,
 @router.post("/ws-token")
 async def mint_websocket_token(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.WEBSOCKET_CONNECT),
+    api_key_cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
 ):
     """Mint a short-lived token for ``/api/v1/ws`` connections (GHSA-r2qv follow-up).
 
@@ -597,9 +599,12 @@ async def mint_websocket_token(
     Returns ``{"token": <opaque string>}``. The token is valid for 60
     minutes; the SPA refreshes it on reconnect if expired. API keys can
     mint tokens too — their scope flags decide whether ``WEBSOCKET_CONNECT``
-    passes via the standard allowlist (``can_read_status`` covers it).
+    passes via the standard allowlist (``can_read_status`` covers it). A
+    cloud-enabled key records its owner as the principal so owner-targeted
+    pipeline events reach that key's WebSocket; other keys stay anonymous.
     """
-    username = current_user.username if current_user is not None else None
+    principal = current_user or api_key_cloud_owner
+    username = principal.username if principal is not None else None
     return {"token": await create_websocket_token(username)}
 
 

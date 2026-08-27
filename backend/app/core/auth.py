@@ -1374,6 +1374,28 @@ async def get_api_key(
     )
 
 
+async def resolve_optional_api_key(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)] = None,
+    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+    db: AsyncSession = Depends(get_db),
+) -> APIKey | None:
+    """Return the caller's validated API key, or None for non-key callers.
+
+    Permission dependencies intentionally return ``None`` for API keys so a
+    key never gains a synthetic User identity. Routes that also need the key's
+    printer scope can depend on this resolver alongside their normal
+    permission gate.
+    """
+    if not await is_auth_enabled(db):
+        return None
+    api_key_value = x_api_key
+    if api_key_value is None and credentials is not None and credentials.credentials.startswith("bb_"):
+        api_key_value = credentials.credentials
+    if api_key_value is None:
+        return None
+    return await _validate_api_key(db, api_key_value)
+
+
 async def caller_is_api_key(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)] = None,
     x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
