@@ -16,9 +16,11 @@ PrintOps vollständig bedienbar bleiben.
 ## Ausgangslage
 
 Die lokale PrintOps-Datenbank enthält zwei aktive Drucker: einen P2S und einen
-X1C. Ein H2C, O1C oder O1C2 ist nicht registriert. Firmwarestände werden im
-aktuellen Druckermodell nicht dauerhaft gespeichert, sodass es lokal auch
-keinen H2C-Firmwarestand zu bewerten gibt.
+X1C. Ein Gerät der H2C-Familie ist nicht registriert. PrintOps normalisiert die
+rohen Bambu-Modellcodes O1C und O1C2 beide zum Anzeigenamen H2C; O1C2 ist dabei
+als Dual-Nozzle-Variante dokumentiert. Firmwarestände und rohe Modellcodes
+werden im aktuellen Druckermodell nicht dauerhaft gespeichert, sodass es lokal
+auch keinen H2C-Firmwarestand oder Gerätecode zu bewerten gibt.
 
 Home Assistant ist in der Laufzeitumgebung konfiguriert. Die bestehende
 Integration unterstützt schaltbare Entitäten, Energie-Sensoren und
@@ -31,7 +33,7 @@ und einen getesteten Ausfallpfad.
 
 | Kandidat | Gerätebezug | Entscheidung | Folgeissue |
 | --- | --- | --- | --- |
-| Erweiterte H2C-Düsenrack- und Schlittenauswahl | Nur H2C/O1C/O1C2; lokal nicht vorhanden | Zurückstellen | – |
+| Erweiterte H2C-Düsenrack- und Schlittenauswahl | H2C-Familie; lokal nicht vorhanden | Zurückstellen; vorhandenen Dispatch vor Inbetriebnahme auditieren | [#126](https://github.com/ichwars/PrintOps/issues/126) |
 | Zusätzliche Home-Assistant-Sensoren auf Druckerkarten | Modellunabhängig; P2S und X1C profitieren | Selektiv annehmen | [#123](https://github.com/ichwars/PrintOps/issues/123) |
 | Home-Assistant-Interlocks vor dem Druckstart | Modellunabhängig; optional pro Drucker | Getrennt und enger annehmen | [#124](https://github.com/ichwars/PrintOps/issues/124) |
 
@@ -49,24 +51,34 @@ Mappings werden bewusst weggelassen, weil eine falsche physische ID zu einem
 falschen Reinigungs-/ABL-Ablauf und Drucken in der Luft führen kann.
 
 Die endgültige Zuordnung wurde an einem echten H2C mit Firmware 01.02.00.00
-für gemischte und feste Hotend-Jobs bestätigt. Das ist ein validierter
-Einzelstand, aber kein belegter Mindest-Firmwarestand. Für O1C/O1C2 liegt in
-den untersuchten Nachweisen keine entsprechende lokale Hardwarevalidierung
-vor. Die explizite Rackpositionsauswahl aus `3954d3a7e` vergrößert zusätzlich
+für gemischte und feste Hotend-Jobs bestätigt. Der Nachweis beschreibt einen
+Dual-Nozzle-H2C mit Vortek-Rack und entspricht damit fachlich der in PrintOps
+als O1C2 dokumentierten Variante; der rohe, vom Gerät gemeldete Modellcode ist
+im Upstream-Nachweis jedoch nicht genannt und darf nicht nachträglich geraten
+werden. Das ist ein validierter Einzelstand, aber kein belegter
+Mindest-Firmwarestand und kein Nachweis für jeden auf H2C normalisierten Code.
+Die explizite Rackpositionsauswahl aus `3954d3a7e` vergrößert zusätzlich
 Datenmodell, API, Slicer-Mapping und UI.
 
 ### Entscheidung
 
-**Zurückstellen und kein Folgeissue anlegen.** PrintOps portiert die neue
-Rack- und Schlittenlogik nicht vorsorglich für Hardware, die im tatsächlichen
-Bestand nicht existiert. Ohne reales Gerät könnten weder Live-Telemetrie,
-Firmwaregrenzen noch physische Wechsel und Z-Höhen sicher geprüft werden.
+**Die neue Rack- und Schlittenauswahl zurückstellen.** PrintOps portiert sie
+nicht vorsorglich für Hardware, die im tatsächlichen Bestand nicht existiert.
+Ohne reales Gerät könnten weder Live-Telemetrie, Firmwaregrenzen noch
+physische Wechsel und Z-Höhen sicher geprüft werden.
 
 Neu bewertet wird die Funktion erst, wenn mindestens ein H2C/O1C/O1C2
 registriert werden soll. Vor einer Umsetzung sind Modellcode, Firmwarestand,
 Live-Rack-IDs sowie feste, reine Rack- und gemischte Testdrucke zu erfassen.
-Bis dahin bleibt bereits vorhandene allgemeine H2C-Anzeige unberührt; die neue
-Dispatch- und Pickerlogik wird nicht übernommen.
+PrintOps besitzt allerdings bereits den mit #1780 eingeführten
+Virtual-Printer-Pfad, der ein physisches `nozzle_mapping` aus der
+Bambu-Studio-Payload in die Queue übernimmt und bei Dual-Nozzle-Druckern wieder
+versendet. Dieser bestehende Dispatch ist keine neue Upstream-Übernahme, muss
+wegen derselben Hardwaregefahr aber vor der ersten H2C-Registrierung
+modellgenau auditiert und bis zur Hardwarevalidierung sicher begrenzt werden.
+Das verpflichtende Folgeissue #126 erfasst Modellcode, Firmware, Payloadformen
+und reale feste, Rack- und gemischte Testdrucke. Die neue UI-Auswahl bleibt
+weiterhin zurückgestellt.
 
 ## 2. Sensoren auf Druckerkarten
 
@@ -128,9 +140,11 @@ vollständig bedienbar.
 
 ## Ergebnis
 
-Die H2C-Erweiterung bleibt mangels passender Hardware und belastbarer
-Firmwaregrenze außerhalb von PrintOps. Die beiden modellunabhängigen
-Home-Assistant-Funktionen werden getrennt umgesetzt: #123 liefert eine
-best-effort Sensoranzeige, #124 ergänzt ausdrücklich konfigurierte Interlocks
-mit nachvollziehbarer Fail-open-/Fail-closed-Entscheidung, Wartegrund, Tests
-und Fallbacks.
+Die neue H2C-Erweiterung bleibt mangels passender Hardware und belastbarer
+Firmwaregrenze außerhalb von PrintOps; #126 macht die Prüfung und sichere
+Begrenzung des bereits vorhandenen #1780-Dispatchs zur Voraussetzung einer
+späteren H2C-Inbetriebnahme. Die beiden modellunabhängigen Home-Assistant-
+Funktionen werden getrennt umgesetzt: #123 liefert eine best-effort
+Sensoranzeige, #124 ergänzt ausdrücklich konfigurierte Interlocks mit
+nachvollziehbarer Fail-open-/Fail-closed-Entscheidung, Wartegrund, Tests und
+Fallbacks.
