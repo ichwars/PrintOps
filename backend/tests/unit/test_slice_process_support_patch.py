@@ -65,24 +65,39 @@ class TestPatchProcessSupportSettings:
         assert result["layer_height"] == "0.20"
         assert result["name"] == "0.20mm Standard @BBL H2D"
 
-    def test_source_supports_off_beats_preset_supports_on(self):
-        # Symmetric: a source with supports explicitly disabled must win
-        # over a process preset that happens to have supports on. Rare in
-        # practice (Bambu's presets ship off) but the semantic is "source
-        # wins" regardless of direction — a user who exported without
-        # supports doesn't want a preset accidentally re-enabling them.
+    def test_preset_supports_on_survives_source_supports_off(self):
         source = _make_3mf(
             {
                 "enable_support": "0",
                 "support_filament": "0",
                 "support_interface_filament": "0",
+                "support_type": "tree(auto)",
             }
         )
-        preset = json.dumps({"enable_support": "1", "support_filament": "2", "support_interface_filament": "2"})
+        preset = json.dumps(
+            {
+                "enable_support": "1",
+                "support_filament": "2",
+                "support_interface_filament": "2",
+                "support_type": "normal(auto)",
+                "support_style": "snug",
+            }
+        )
         result = json.loads(_patch_process_support_settings(preset, source))
-        assert result["enable_support"] == "0"
-        assert result["support_filament"] == "0"
-        assert result["support_interface_filament"] == "0"
+        assert result == json.loads(preset)
+
+    def test_source_without_enable_support_carries_nothing(self):
+        source = _make_3mf({"support_filament": "3", "support_interface_filament": "3"})
+        preset = json.dumps({"support_filament": "0", "support_interface_filament": "0"})
+        assert json.loads(_patch_process_support_settings(preset, source)) == json.loads(preset)
+
+    def test_non_string_enabled_values_still_activate_supports(self):
+        for enabled in (True, 1, "1", "true"):
+            source = _make_3mf({"enable_support": enabled, "support_interface_filament": "2"})
+            preset = json.dumps({"enable_support": "0", "support_interface_filament": "0"})
+            result = json.loads(_patch_process_support_settings(preset, source))
+            assert result["enable_support"] == enabled
+            assert result["support_interface_filament"] == "2"
 
     def test_only_patches_keys_present_in_source(self):
         # Source with a partial support config (e.g. legacy 3MFs from an

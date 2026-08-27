@@ -969,6 +969,32 @@ def extract_project_filaments_from_3mf(zf: zipfile.ZipFile) -> list[dict]:
     return out
 
 
+_SUPPORTS_DISABLED_VALUES = (False, 0, "0", "false", "False", "", None)
+
+
+def supports_enabled_in_config(config: dict[str, object]) -> bool:
+    """Return whether embedded project settings explicitly enable supports."""
+    return config.get("enable_support") not in _SUPPORTS_DISABLED_VALUES
+
+
+def extract_support_filament_slots_from_config(config: dict[str, object]) -> set[int]:
+    """Return dedicated support slots from an effective process configuration."""
+    if not supports_enabled_in_config(config):
+        return set()
+    slots: set[int] = set()
+    for key in ("support_filament", "support_interface_filament"):
+        raw = config.get(key)
+        if raw is None:
+            continue
+        try:
+            slot = int(raw)
+        except (ValueError, TypeError):
+            continue
+        if slot > 0:
+            slots.add(slot)
+    return slots
+
+
 def extract_support_filament_slots_from_3mf(zf: zipfile.ZipFile) -> set[int]:
     """Slots referenced by the process settings for support material.
 
@@ -998,22 +1024,7 @@ def extract_support_filament_slots_from_3mf(zf: zipfile.ZipFile) -> set[int]:
     # project_settings.config, but forks / older versions occasionally
     # write real booleans or ints — accept anything that isn't
     # unambiguously falsy.
-    enable = cfg.get("enable_support")
-    if enable in (False, 0, "0", "false", "False", "", None):
-        return set()
-    out: set[int] = set()
-    for key in ("support_filament", "support_interface_filament"):
-        raw = cfg.get(key)
-        if raw is None:
-            continue
-        try:
-            slot = int(raw)
-        except (ValueError, TypeError):
-            continue
-        # Slot 0 means "same as model" — no dedicated slot to preserve.
-        if slot > 0:
-            out.add(slot)
-    return out
+    return extract_support_filament_slots_from_config(cfg)
 
 
 _PAINT_COLOR_ATTR_RE = re.compile(rb'paint_color="([0-9A-Fa-f]+)"')

@@ -14,6 +14,7 @@ that schema logic locally.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import zipfile
@@ -261,7 +262,13 @@ def merge_plate_3mfs(
     return result
 
 
-def substitute_unused_plate_filaments(source_3mf_bytes: bytes, plate_id: int | None, items: list[str]) -> list[str]:
+def substitute_unused_plate_filaments(
+    source_3mf_bytes: bytes,
+    plate_id: int | None,
+    items: list[str],
+    *,
+    process_profile_json: str | None = None,
+) -> list[str]:
     """Replace any filament-list entry whose 1-indexed slot isn't used by
     ``plate_id`` with the entry from the plate's lowest *used* slot.
 
@@ -304,6 +311,7 @@ def substitute_unused_plate_filaments(source_3mf_bytes: bytes, plate_id: int | N
     from backend.app.utils.threemf_tools import (
         extract_plate_extruder_set_from_3mf,
         extract_support_filament_slots_from_3mf,
+        extract_support_filament_slots_from_config,
     )
 
     try:
@@ -318,6 +326,15 @@ def substitute_unused_plate_filaments(source_3mf_bytes: bytes, plate_id: int | N
     except (zipfile.BadZipFile, ArchiveBudgetError, OSError) as exc:
         logger.warning("Plate-filament parse failed (%s); leaving filament list unchanged", exc)
         return items
+    if process_profile_json:
+        try:
+            process_config = json.loads(process_profile_json)
+        except (json.JSONDecodeError, TypeError):
+            process_config = None
+        if isinstance(process_config, dict):
+            # The selected process preset is the effective source of truth when
+            # the original 3MF has supports disabled or omits enable_support.
+            used |= extract_support_filament_slots_from_config(process_config)
     if not used:
         # Empty result usually means the source 3MF has no per-object
         # extruder metadata (single-filament unsliced project). Treating
