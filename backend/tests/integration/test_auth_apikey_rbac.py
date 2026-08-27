@@ -720,9 +720,7 @@ class TestPipelineRoutesAcceptApiKeys:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_auth_disabled_ignores_restricted_key_printer_scope(
-        self, async_client: AsyncClient, db_session
-    ):
+    async def test_auth_disabled_ignores_restricted_key_printer_scope(self, async_client: AsyncClient, db_session):
         allowed = await self._printer(db_session, name="auth-off-allowed")
         denied = await self._printer(db_session, name="auth-off-denied")
         pipeline = await self._pipeline(db_session, target_printer_id=denied.id)

@@ -90,8 +90,8 @@ async def _check_pipeline_api_key_printer_access(
         return
     if pipeline.target_model_class:
         printer_ids = (
-            await db.execute(select(Printer.id).where(Printer.model == pipeline.target_model_class))
-        ).scalars().all()
+            (await db.execute(select(Printer.id).where(Printer.model == pipeline.target_model_class))).scalars().all()
+        )
         for printer_id in printer_ids:
             check_printer_access(api_key, printer_id)
 
@@ -104,9 +104,7 @@ async def _check_run_api_key_printer_access(
     """Check assigned jobs and any still-unassigned target before mutation."""
     if api_key is None:
         return
-    jobs = (
-        await db.execute(select(PipelineJob).where(PipelineJob.pipeline_run_id == run.id))
-    ).scalars().all()
+    jobs = (await db.execute(select(PipelineJob).where(PipelineJob.pipeline_run_id == run.id))).scalars().all()
     for job in jobs:
         if job.assigned_printer_id is not None:
             check_printer_access(api_key, job.assigned_printer_id)
