@@ -18,6 +18,7 @@ Screenshots gehören nicht in das Repository.
 | Netzwerk | [Proxy-Modus](images/proxy-mode-diagram.png) | Architekturdiagramm des Proxy-Modus |
 | Sicherheit | [Alert-Triage 2026-07-23](security-alert-triage-2026-07-23.md) | Befund und Disposition der bereinigten GitHub-Sicherheitswarnungen |
 | Upstream | [Queue- und Projektfunktionen 2026-08-27](upstream-queue-project-evaluation-2026-08-27.md) | Bewertung, Abgrenzung und Folgeissues für optionale Bambuddy-Funktionen |
+| Upstream | [Slicer-Funktionen 2026-08-27](upstream-slicer-evaluation-2026-08-27.md) | Nutzen-, Plattform- und Wartungsbewertung optionaler Bambuddy-Slicer-Funktionen |
 | Entwicklung | [README Editorial Guide](readme-editorial-guide.md) | Zielgruppen, Positionierung und Regeln für die zentrale Projekt-README |
 
 Die allgemeine Projektübersicht, Installation und erste Schritte stehen in der
