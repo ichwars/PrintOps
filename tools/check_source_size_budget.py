@@ -82,7 +82,7 @@ FILE_ALLOWLIST = {
     "backend/app/api/routes/mfa.py": 2262,
     "backend/app/api/routes/spoolman_inventory.py": 2056,
     "backend/app/core/database.py": 4139,
-    "backend/app/main.py": 6989,
+    "backend/app/main.py": 6975,
     "backend/app/services/bambu_mqtt.py": 5914,
     "backend/app/services/notification_service.py": 2147,
     "backend/app/services/print_scheduler.py": 3547,

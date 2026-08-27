@@ -116,7 +116,10 @@ from backend.app.services.mqtt_relay import mqtt_relay
 from backend.app.services.mqtt_smart_plug import mqtt_smart_plug_service
 from backend.app.services.notification_service import notification_service
 from backend.app.services.obico_detection import obico_detection_service
-from backend.app.services.print_completion_identity import update_queue_status_for_completion
+from backend.app.services.print_completion_identity import (
+    bump_library_file_usage_if_completed as _bump_library_file_usage_if_completed,
+    update_queue_status_for_completion,
+)
 from backend.app.services.print_scheduler import scheduler as print_scheduler
 from backend.app.services.printer_manager import (
     init_printer_connections,
@@ -999,23 +1002,6 @@ def _format_hms_error_summary(hms_errors: list[dict]) -> str | None:
         description = get_error_description(short_code)
         parts.append(f"[{short_code}] {description}" if description else f"[{short_code}]")
     return "; ".join(parts) if parts else None
-
-
-async def _bump_library_file_usage_if_completed(db, item, queue_status: str) -> None:
-    """Increment LibraryFile.print_count and stamp last_printed_at when a queued
-    print completes successfully. Gated to status=='completed': failed, cancelled
-    and aborted prints do not count as usage. Caller is responsible for committing
-    the session. No-op when the queue item has no linked library file (e.g. reprints
-    from an archive). See #1008."""
-    if queue_status != "completed" or item.library_file_id is None:
-        return
-    from backend.app.models.library import LibraryFile
-
-    lib_file = await db.scalar(select(LibraryFile).where(LibraryFile.id == item.library_file_id))
-    if lib_file is None:
-        return
-    lib_file.print_count = (lib_file.print_count or 0) + 1
-    lib_file.last_printed_at = datetime.now(timezone.utc)
 
 
 def mark_printer_stopped_by_user(printer_id: int) -> None:

@@ -13,6 +13,7 @@ from sqlalchemy import select, update
 
 from backend.app.core.database import async_session
 from backend.app.models.archive import PrintArchive
+from backend.app.models.library import LibraryFile
 from backend.app.models.print_queue import PrintQueueItem
 from backend.app.services.printer_manager import printer_manager
 
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 STRANDED_PRINTING_GRACE_SECONDS = 300.0
 _TRUNCATION_MARKER = "..."
-_TERMINAL_QUEUE_STATUS = {"FINISH": "completed", "FAILED": "failed", "IDLE": "cancelled"}
+_TERMINAL_QUEUE_STATUS = {"FINISH": "completed", "FAILED": "failed"}
 
 
 def subtask_name_from_filename(filename: str) -> str:
@@ -68,15 +69,14 @@ async def completion_belongs_to_queue_item(
     """Reject only a positive identity disagreement with the printing row."""
     item_archive_id = item.archive_id
     if isinstance(item_archive_id, int) and isinstance(event_archive_id, int):
-        if item_archive_id == event_archive_id:
-            return True
-        logger.warning(
-            "Ignoring completion for archive %s: queue item %s is printing archive %s",
-            event_archive_id,
-            item.id,
-            item_archive_id,
-        )
-        return False
+        if item_archive_id != event_archive_id:
+            logger.warning(
+                "Ignoring completion for archive %s: queue item %s is printing archive %s",
+                event_archive_id,
+                item.id,
+                item_archive_id,
+            )
+            return False
     if not isinstance(item_archive_id, int):
         return True
 
@@ -96,6 +96,12 @@ async def completion_belongs_to_queue_item(
             expected_subtask_id,
         )
         return False
+
+    # Archive equality is a strong match, but not strong enough to override
+    # the conflicting subtask-ID check above: reprints intentionally reuse an
+    # archive while the printer assigns a fresh ID to each run.
+    if item_archive_id == event_archive_id:
+        return True
 
     observed_names = [name for name in (data.get("subtask_name"),) if isinstance(name, str) and name]
     if isinstance(data.get("filename"), str) and data["filename"]:
@@ -159,6 +165,17 @@ async def update_queue_status_for_completion(
     return item.id, queue_status, item.auto_off_after
 
 
+async def bump_library_file_usage_if_completed(db, item: PrintQueueItem, queue_status: str) -> None:
+    """Record successful use of a library-backed queue item."""
+    if queue_status != "completed" or item.library_file_id is None:
+        return
+    library_file = await db.scalar(select(LibraryFile).where(LibraryFile.id == item.library_file_id))
+    if library_file is None:
+        return
+    library_file.print_count = (library_file.print_count or 0) + 1
+    library_file.last_printed_at = datetime.now(timezone.utc)
+
+
 def terminal_queue_status(state: Any) -> str | None:
     """Return the queue status proven by a connected terminal printer state."""
     if state is None or not getattr(state, "connected", False):
@@ -189,10 +206,14 @@ class StrandedPrintRecovery:
         session_factory: Callable = async_session,
         status_getter: Callable[[int], Any] = printer_manager.get_status,
         monotonic: Callable[[], float] = time.monotonic,
+        plate_clear_setter: Callable[[int, bool], None] = printer_manager.set_awaiting_plate_clear,
+        bump_usage: Callable = bump_library_file_usage_if_completed,
     ) -> None:
         self._session_factory = session_factory
         self._status_getter = status_getter
         self._monotonic = monotonic
+        self._plate_clear_setter = plate_clear_setter
+        self._bump_usage = bump_usage
         self._terminal_since: dict[int, float] = {}
 
     async def tick(self) -> None:
@@ -226,8 +247,12 @@ class StrandedPrintRecovery:
                 since = self._terminal_since.setdefault(printer_id, now)
                 if now - since < STRANDED_PRINTING_GRACE_SECONDS:
                     continue
+                # Raise the in-memory dispatch gate before the row stops being
+                # "printing". The manager also persists and broadcasts it.
+                self._plate_clear_setter(printer_id, True)
                 item.status = status
                 item.completed_at = datetime.now(timezone.utc)
+                await self._bump_usage(db, item, status)
                 self._terminal_since.pop(printer_id, None)
                 closed = True
                 logger.warning(

@@ -75,6 +75,26 @@ async def test_completion_uses_subtask_and_print_identity():
 
 
 @pytest.mark.asyncio
+async def test_matching_archive_still_rejects_conflicting_subtask_id():
+    archive = SimpleNamespace(
+        id=10,
+        filename="Calibration Cube.gcode.3mf",
+        print_name="Calibration Cube",
+        subtask_id="current-run",
+    )
+    db = AsyncMock()
+    db.get.return_value = archive
+    item = SimpleNamespace(id=4, archive_id=10)
+
+    assert not await completion_belongs_to_queue_item(
+        db,
+        item,
+        {"subtask_name": "Calibration Cube", "subtask_id": "previous-run"},
+        event_archive_id=10,
+    )
+
+
+@pytest.mark.asyncio
 async def test_unverifiable_completion_is_not_rejected():
     item = SimpleNamespace(id=4, archive_id=None)
     assert await completion_belongs_to_queue_item(AsyncMock(), item, {}, event_archive_id=None)
@@ -113,7 +133,7 @@ async def test_foreign_completion_does_not_mutate_printing_item():
 
 @pytest.mark.parametrize(
     ("state", "expected"),
-    [("FINISH", "completed"), ("FAILED", "failed"), ("IDLE", "cancelled"), ("RUNNING", None)],
+    [("FINISH", "completed"), ("FAILED", "failed"), ("IDLE", None), ("RUNNING", None)],
 )
 def test_terminal_queue_status(state, expected):
     assert terminal_queue_status(SimpleNamespace(state=state, connected=True)) == expected
@@ -122,17 +142,21 @@ def test_terminal_queue_status(state, expected):
 
 @pytest.mark.asyncio
 async def test_stranded_printing_item_closes_after_grace_period():
-    item = SimpleNamespace(id=7, printer_id=3, status="printing", completed_at=None)
+    item = SimpleNamespace(id=7, printer_id=3, library_file_id=9, status="printing", completed_at=None)
     result = MagicMock()
     result.scalars.return_value.all.return_value = [item]
     db = AsyncMock()
     db.execute.return_value = result
     db.__aenter__.return_value = db
     clock = [10.0]
+    plate_clear_setter = MagicMock()
+    bump_usage = AsyncMock()
     recovery = StrandedPrintRecovery(
         session_factory=lambda: db,
         status_getter=lambda _printer_id: SimpleNamespace(state="FINISH", connected=True),
         monotonic=lambda: clock[0],
+        plate_clear_setter=plate_clear_setter,
+        bump_usage=bump_usage,
     )
 
     await recovery.tick()
@@ -141,7 +165,34 @@ async def test_stranded_printing_item_closes_after_grace_period():
     await recovery.tick()
 
     assert item.status == "completed"
+    plate_clear_setter.assert_called_once_with(3, True)
+    bump_usage.assert_awaited_once_with(db, item, "completed")
     db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_idle_state_does_not_infer_a_stranded_print_outcome():
+    item = SimpleNamespace(id=7, printer_id=3, library_file_id=None, status="printing", completed_at=None)
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [item]
+    db = AsyncMock()
+    db.execute.return_value = result
+    db.__aenter__.return_value = db
+    clock = [10.0]
+    recovery = StrandedPrintRecovery(
+        session_factory=lambda: db,
+        status_getter=lambda _printer_id: SimpleNamespace(state="IDLE", connected=True),
+        monotonic=lambda: clock[0],
+        plate_clear_setter=MagicMock(),
+        bump_usage=AsyncMock(),
+    )
+
+    await recovery.tick()
+    clock[0] += STRANDED_PRINTING_GRACE_SECONDS + 1
+    await recovery.tick()
+
+    assert item.status == "printing"
+    db.commit.assert_not_awaited()
 
 
 @pytest.mark.asyncio
