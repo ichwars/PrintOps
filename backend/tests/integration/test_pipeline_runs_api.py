@@ -950,3 +950,166 @@ class TestCancelTerminal:
         resp = await async_client.post(f"/api/v1/pipeline-runs/{run.id}/cancel")
         assert resp.status_code == 200
         assert resp.json()["status"] == "completed"  # unchanged
+
+
+class TestRunViaApiKey:
+    async def _admin_and_key(self, async_client: AsyncClient, db_session, **flags):
+        from sqlalchemy import select
+
+        from backend.app.core.auth import generate_api_key
+        from backend.app.models.api_key import APIKey
+        from backend.app.models.user import User
+
+        await async_client.post(
+            "/api/v1/auth/setup",
+            json={"auth_enabled": True, "admin_username": "pipeadmin", "admin_password": "AdminPass1!"},
+        )
+        admin = (await db_session.execute(select(User).where(User.username == "pipeadmin"))).scalar_one()
+        full_key, key_hash, key_prefix = generate_api_key()
+        db_session.add(
+            APIKey(
+                name="pipeline-runner",
+                key_hash=key_hash,
+                key_prefix=key_prefix,
+                user_id=admin.id,
+                enabled=True,
+                **{"can_read_status": False, "can_queue": False, "can_manage_library": False, **flags},
+            )
+        )
+        await db_session.commit()
+        return admin, full_key
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_signed_in_user_runs_as_self(
+        self,
+        async_client: AsyncClient,
+        pipeline_factory,
+        printer_factory,
+        library_file_factory,
+        db_session,
+    ):
+        from dataclasses import dataclass
+
+        @dataclass
+        class _FakeSliceJob:
+            id: int = 7777
+
+        printer = await printer_factory()
+        pipeline = await pipeline_factory(target_printer_id=printer.id)
+        source = await library_file_factory()
+        admin, _ = await self._admin_and_key(async_client, db_session)
+        login = await async_client.post(
+            "/api/v1/auth/login",
+            json={"username": "pipeadmin", "password": "AdminPass1!"},
+        )
+        token = login.json()["access_token"]
+        enqueue = AsyncMock(return_value=_FakeSliceJob())
+        live_status = {"connected": True, "raw_data": {"ams": []}}
+
+        with (
+            patch(
+                "backend.app.api.routes.pipeline_runs._load_printer_status",
+                new=AsyncMock(return_value=live_status),
+            ),
+            patch("backend.app.services.slice_dispatch.slice_dispatch.enqueue", new=enqueue),
+        ):
+            response = await async_client.post(
+                f"/api/v1/slicer-pipelines/{pipeline['id']}/run",
+                json={"source_library_file_id": source.id, "copies": 1, "force": True},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+        assert response.status_code == 202, response.text
+        assert enqueue.await_args.kwargs["owner_id"] == admin.id
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_cloud_scoped_key_runs_as_its_owner(
+        self,
+        async_client: AsyncClient,
+        pipeline_factory,
+        printer_factory,
+        library_file_factory,
+        db_session,
+    ):
+        from dataclasses import dataclass
+
+        @dataclass
+        class _FakeSliceJob:
+            id: int = 7778
+
+        printer = await printer_factory()
+        pipeline = await pipeline_factory(target_printer_id=printer.id)
+        source = await library_file_factory()
+        admin, key = await self._admin_and_key(
+            async_client,
+            db_session,
+            can_read_status=True,
+            can_queue=True,
+            can_manage_library=True,
+            can_access_cloud=True,
+        )
+        enqueue = AsyncMock(return_value=_FakeSliceJob())
+        live_status = {"connected": True, "raw_data": {"ams": []}}
+
+        with (
+            patch(
+                "backend.app.api.routes.pipeline_runs._load_printer_status",
+                new=AsyncMock(return_value=live_status),
+            ),
+            patch("backend.app.services.slice_dispatch.slice_dispatch.enqueue", new=enqueue),
+        ):
+            response = await async_client.post(
+                f"/api/v1/slicer-pipelines/{pipeline['id']}/run",
+                json={"source_library_file_id": source.id, "copies": 1, "force": True},
+                headers={"X-API-Key": key},
+            )
+
+        assert response.status_code == 202, response.text
+        assert enqueue.await_args.kwargs["owner_id"] == admin.id
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_key_without_cloud_scope_remains_anonymous(
+        self,
+        async_client: AsyncClient,
+        pipeline_factory,
+        printer_factory,
+        library_file_factory,
+        db_session,
+    ):
+        from dataclasses import dataclass
+
+        @dataclass
+        class _FakeSliceJob:
+            id: int = 7779
+
+        printer = await printer_factory()
+        pipeline = await pipeline_factory(target_printer_id=printer.id)
+        source = await library_file_factory()
+        _, key = await self._admin_and_key(
+            async_client,
+            db_session,
+            can_read_status=True,
+            can_queue=True,
+            can_manage_library=True,
+        )
+        enqueue = AsyncMock(return_value=_FakeSliceJob())
+        live_status = {"connected": True, "raw_data": {"ams": []}}
+
+        with (
+            patch(
+                "backend.app.api.routes.pipeline_runs._load_printer_status",
+                new=AsyncMock(return_value=live_status),
+            ),
+            patch("backend.app.services.slice_dispatch.slice_dispatch.enqueue", new=enqueue),
+        ):
+            response = await async_client.post(
+                f"/api/v1/slicer-pipelines/{pipeline['id']}/run",
+                json={"source_library_file_id": source.id, "copies": 1, "force": True},
+                headers={"X-API-Key": key},
+            )
+
+        assert response.status_code == 202, response.text
+        assert enqueue.await_args.kwargs["owner_id"] is None

@@ -33,6 +33,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.api.routes.cloud import resolve_api_key_cloud_owner
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.config import settings as app_settings
 from backend.app.core.database import async_session, get_db
@@ -653,6 +654,7 @@ async def run_pipeline(
     pipeline_id: int,
     body: PipelineRunCreateRequest,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PIPELINES_RUN),
+    api_key_cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
 ):
     from backend.app.api.routes.settings import get_setting
@@ -665,6 +667,9 @@ async def run_pipeline(
         archive_id=body.source_archive_id,
         user=current_user,
     )
+    # API keys deliberately have no per-row identity. Only the explicit cloud
+    # scope resolves the key owner for cloud-preset token lookup/attribution.
+    creator = current_user or api_key_cloud_owner
 
     # The sidecar cannot import STEP/STP, so refuse the run up front instead
     # of failing mid-pipeline (#92). Sources without a recognisable extension
@@ -708,7 +713,7 @@ async def run_pipeline(
         copies=body.copies,
         status="queued",
         eligibility_overridden=(not report.ok and body.force),
-        created_by=current_user.id if current_user else None,
+        created_by=creator.id if creator else None,
     )
     db.add(run)
     await db.flush()
@@ -733,14 +738,14 @@ async def run_pipeline(
         src_id=src_id,
         src_filename=src_filename,
         src_path=src_path,
-        creator_user_id=current_user.id if current_user else None,
+        creator_user_id=creator.id if creator else None,
         copies=body.copies,
     )
     slice_job = await slice_dispatch.enqueue(
         kind="library_file" if src_kind == "library_file" else "archive",
         source_id=src_id,
         source_name=src_filename,
-        owner_id=current_user.id if current_user else None,
+        owner_id=creator.id if creator else None,
         run=orchestrate,
     )
 
@@ -909,6 +914,7 @@ async def cancel_run(
 async def retry_failed(
     run_id: int,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PIPELINES_RUN),
+    api_key_cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new run with copies = (failed + cancelled count) from the
@@ -950,7 +956,13 @@ async def retry_failed(
 
     # Reuse the run_pipeline route logic via a direct call — keeps the
     # orchestration single-sourced. The result inherits parent_run_id.
-    new_run_response = await run_pipeline(parent.pipeline_id, body, current_user=current_user, db=db)
+    new_run_response = await run_pipeline(
+        parent.pipeline_id,
+        body,
+        current_user=current_user,
+        api_key_cloud_owner=api_key_cloud_owner,
+        db=db,
+    )
 
     # Stamp parent_run_id on the freshly-created run.
     new_row = (await db.execute(select(PipelineRun).where(PipelineRun.id == new_run_response.id))).scalar_one_or_none()
