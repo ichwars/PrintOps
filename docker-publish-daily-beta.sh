@@ -15,7 +15,8 @@
 # Builds and pushes a multi-arch Docker image tagged as 'daily'. Each push overwrites the
 # previous 'daily' image. A GitHub prerelease is created with a date-stamped tag for history.
 #
-# Users can stay up to date by pulling the 'daily' tag or using Watchtower:
+# Users can stay up to date by pulling the 'daily' tag or using Watchtower
+# (https://watchtower.nickfedor.com, image 'nickfedor/watchtower:latest'):
 #   docker pull ghcr.io/ichwars/printops:daily
 #
 # Prerequisites:
@@ -340,7 +341,10 @@ docker pull ichwars/PrintOps:daily"
 > ${PULL_COMMANDS}
 > \`\`\`
 >
-> **Tip:** Use [Watchtower](https://containrrr.dev/watchtower/) to automatically update when new daily builds are pushed.
+> **Tip:** Use the maintained [Watchtower fork](https://watchtower.nickfedor.com/) (image
+> \`nickfedor/watchtower:latest\`) to automatically update when new daily builds are pushed.
+> Existing \`containrrr/watchtower\` containers must be switched and recreated manually;
+> PrintOps does not migrate updater containers.
 
 ---
 
