@@ -5364,6 +5364,9 @@ class TestStartPrintNozzleMappingDispatch:
             ip_address="192.168.1.100",
             serial_number="TEST_O1C2",
             access_code="12345678",
+            model="H2C",
+            model_code="O1C2",
+            firmware_version="01.02.00.00",
         )
         client._client = MagicMock()
         client.state.connected = True
@@ -5373,19 +5376,30 @@ class TestStartPrintNozzleMappingDispatch:
         call_args = mqtt_client._client.publish.call_args
         return json.loads(call_args[0][1])["print"]
 
-    def test_dual_nozzle_includes_nozzle_mapping(self, mqtt_client):
-        """Dual-nozzle + nozzle_mapping present → parsed JSON array injected
-        verbatim onto the dispatched project_file command."""
+    def test_unvalidated_h2c_omits_nozzle_mapping(self, mqtt_client, caplog):
+        """No physical ID is emitted before hardware capability is released."""
         mqtt_client._is_dual_nozzle = True
 
+        with caplog.at_level("WARNING"):
+            mqtt_client.start_print(
+                "test.3mf",
+                nozzle_mapping=json.dumps([16, -1, -1, 1, -1, -1, -1, -1]),
+            )
+
+        cmd = self._published_print_cmd(mqtt_client)
+        assert "nozzle_mapping" not in cmd
+        assert any("capability not confirmed" in rec.message for rec in caplog.records)
+
+    def test_validated_capability_includes_physical_mapping(self, mqtt_client, monkeypatch):
+        from backend.app.utils import printer_models
+
+        monkeypatch.setitem(printer_models.H2C_NOZZLE_MAPPING_MIN_FIRMWARE, "O1C2", "01.02.00.00")
+        mqtt_client._is_dual_nozzle = True
         mqtt_client.start_print(
             "test.3mf",
             nozzle_mapping=json.dumps([16, -1, -1, 1, -1, -1, -1, -1]),
         )
-
-        cmd = self._published_print_cmd(mqtt_client)
-        # List, not string — the wire shape must match BambuStudio's.
-        assert cmd["nozzle_mapping"] == [16, -1, -1, 1, -1, -1, -1, -1]
+        assert self._published_print_cmd(mqtt_client)["nozzle_mapping"] == [16, -1, -1, 1, -1, -1, -1, -1]
 
     def test_single_nozzle_omits_nozzle_mapping_even_if_set(self, mqtt_client):
         """A single-nozzle printer must NOT emit the rack field even if the
@@ -5396,7 +5410,7 @@ class TestStartPrintNozzleMappingDispatch:
 
         mqtt_client.start_print(
             "test.3mf",
-            nozzle_mapping=json.dumps([16, 0, 19]),
+            nozzle_mapping=json.dumps([16, -1, 19, -1, -1, -1, -1, -1]),
         )
 
         cmd = self._published_print_cmd(mqtt_client)

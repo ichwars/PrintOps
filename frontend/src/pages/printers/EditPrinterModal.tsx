@@ -25,6 +25,7 @@ export function EditPrinterModal({
     ip_address: printer.ip_address,
     access_code: '',
     model: printer.model || '',
+    model_code: printer.model_code || '',
     location: printer.location || '',
     auto_archive: printer.auto_archive,
     is_active: printer.is_active,
@@ -59,6 +60,7 @@ export function EditPrinterModal({
       name: form.name,
       ip_address: form.ip_address,
       model: form.model || undefined,
+      model_code: form.model === 'H2C' ? form.model_code || undefined : undefined,
       location: form.location || undefined,
       auto_archive: form.auto_archive,
       is_active: form.is_active,
@@ -148,7 +150,11 @@ export function EditPrinterModal({
               <LegacySelect
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                 value={form.model}
-                onChange={(e) => setForm({ ...form, model: e.target.value })}
+                onChange={(e) => setForm({
+                  ...form,
+                  model: e.target.value,
+                  model_code: e.target.value === 'H2C' ? form.model_code : '',
+                })}
               >
                 <option value="">{t('printers.modal.selectModel')}</option>
                 <optgroup label="A1 Series">
@@ -179,6 +185,24 @@ export function EditPrinterModal({
                 </optgroup>
               </LegacySelect>
             </div>
+            {form.model === 'H2C' && (
+              <div>
+                <label className="block text-sm text-bambu-gray mb-1">{t('printers.modal.rawModelCode', 'Raw model code')}</label>
+                <LegacySelect
+                  required
+                  className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+                  value={form.model_code}
+                  onChange={(e) => setForm({ ...form, model_code: e.target.value })}
+                >
+                  <option value="">{t('printers.modal.selectRawModelCode', 'Select the code reported by the device')}</option>
+                  <option value="O1C">O1C</option>
+                  <option value="O1C2">O1C2 ({t('printers.modal.dualNozzle', 'dual nozzle')})</option>
+                </LegacySelect>
+                <p className="text-xs text-amber-500 mt-1">
+                  {t('printers.modal.h2cMappingSafety', 'Physical H2C nozzle mappings remain disabled until this exact model code and firmware are hardware-validated.')}
+                </p>
+              </div>
+            )}
             <div>
               <label className="block text-sm text-bambu-gray mb-1">Location / Group</label>
               <TextField

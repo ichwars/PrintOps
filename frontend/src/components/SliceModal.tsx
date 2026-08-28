@@ -222,6 +222,14 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
   const [bedType, setBedType] = useState<string | null>(null);
   const [useEmbedded, setUseEmbedded] = useState(false);
 
+  // Auto-orient / auto-arrange (#2548) — the GUI's two layout buttons,
+  // forwarded as the slicer's --orient / --arrange CLI actions. Per-slice
+  // and off by default: both rewrite the object placement the file came
+  // with, so they are something the user asks for, never a default. Kept
+  // enabled in embedded mode, unlike the process-level options around
+  // them — these act on the geometry, whichever config drives the slice.
+  const [autoOrient, setAutoOrient] = useState(false);
+  const [autoArrange, setAutoArrange] = useState(false);
   // Slicer Pipelines (#1425) — apply a saved preset bundle to all four slots
   // with one pick, or save the current selection as a new pipeline.
   const pipelinesQuery = useQuery({
@@ -489,6 +497,10 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
       ...(plate != null ? { plate } : {}),
       ...(bedType != null ? { bed_type: bedType } : {}),
       ...(useEmbedded && canUseEmbedded ? { use_embedded_settings: true } : {}),
+      // Sent only when on. The backend defaults both to false, so omitting
+      // them keeps the request identical to what older clients send.
+      ...(autoOrient ? { auto_orient: true } : {}),
+      ...(autoArrange ? { auto_arrange: true } : {}),
     };
   }
 
@@ -758,6 +770,38 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
                 onChange={setBedType}
                 disabled={isEnqueuing || useEmbedded}
               />
+              {/* Layout passes (#2548) — the GUI's "Auto orient" / "Auto
+                  arrange". Not disabled in embedded mode: these are CLI
+                  actions on the geometry, so they work regardless of where
+                  the print config comes from. */}
+              <div className="flex flex-col gap-2">
+                <Checkbox
+                  checked={autoOrient}
+                  onCheckedChange={setAutoOrient}
+                  disabled={isEnqueuing}
+                  label={(
+                    <span>
+                      {t('slice.autoOrient')}
+                      <span className="block text-xs text-bambu-gray/70">
+                        {t('slice.autoOrientHint')}
+                      </span>
+                    </span>
+                  )}
+                />
+                <Checkbox
+                  checked={autoArrange}
+                  onCheckedChange={setAutoArrange}
+                  disabled={isEnqueuing}
+                  label={(
+                    <span>
+                      {t('slice.autoArrange')}
+                      <span className="block text-xs text-bambu-gray/70">
+                        {t('slice.autoArrangeHint')}
+                      </span>
+                    </span>
+                  )}
+                />
+              </div>
               {/* Filament reqs may need a server-side preview-slice for
                   unsliced project files (single-pass, then cached). Show a
                   scoped spinner so the user sees the printer/process

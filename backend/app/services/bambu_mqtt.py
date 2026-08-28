@@ -495,6 +495,8 @@ class BambuMQTTClient:
         serial_number: str,
         access_code: str,
         model: str | None = None,
+        model_code: str | None = None,
+        firmware_version: str | None = None,
         on_state_change: Callable[[PrinterState], None] | None = None,
         on_print_start: Callable[[dict], None] | None = None,
         on_print_complete: Callable[[dict], None] | None = None,
@@ -509,6 +511,7 @@ class BambuMQTTClient:
         self.serial_number = serial_number
         self.access_code = access_code
         self.model = model
+        self.model_code = model_code
         self.on_state_change = on_state_change
         self.on_print_start = on_print_start
         self.on_print_complete = on_print_complete
@@ -548,6 +551,7 @@ class BambuMQTTClient:
         self._drying_targets: dict[int, dict[str, object]] = {}
 
         self.state = PrinterState()
+        self.state.firmware_version = firmware_version
         self._client: mqtt.Client | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._previous_gcode_state: str | None = None
@@ -3971,26 +3975,46 @@ class BambuMQTTClient:
                 command["print"]["ams_mapping"] = flat_ams_mapping
                 command["print"]["ams_mapping2"] = ams_mapping2
 
-            # H2C dual-nozzle-rack slicer-pick preservation (#1780).
-            # `nozzle_mapping` carries per-filament physical nozzle position
-            # IDs (`list[int]`), JSON-string-encoded when it leaves the queue
-            # item; parse here so the wire ships an array, matching
-            # BambuStudio's project_file shape. Gate by `is_dual_nozzle`
-            # defensively — single-nozzle firmwares would ignore the field
-            # but we err on the side of not emitting unrecognised fields. A
-            # parse failure is logged but never blocks the dispatch — the
-            # firmware will fall back to its auto-pick path, which is the
-            # pre-fix behaviour.
-            if is_dual_nozzle and nozzle_mapping:
-                try:
-                    command["print"]["nozzle_mapping"] = json.loads(nozzle_mapping)
-                except json.JSONDecodeError:
+            # #126: physical H2C rack IDs are safety-sensitive. A generic
+            # dual-nozzle check cannot distinguish O1C/O1C2, firmware support,
+            # compact logical maps or ambiguous grouped payloads. Validate the
+            # wire shape and require an explicit hardware-backed capability;
+            # until that boundary is populated, omit the field and let the
+            # firmware use its normal fallback.
+            if nozzle_mapping:
+                from backend.app.utils.printer_models import (
+                    h2c_nozzle_mapping_capability,
+                    validate_h2c_nozzle_mapping,
+                )
+
+                parsed_mapping, mapping_error = validate_h2c_nozzle_mapping(nozzle_mapping)
+                capable, capability_reason = h2c_nozzle_mapping_capability(
+                    self.model,
+                    self.model_code,
+                    self.state.firmware_version,
+                )
+                if mapping_error:
                     logger.warning(
-                        "[%s] Invalid nozzle_mapping JSON on dispatch, omitting from "
-                        "project_file (firmware will auto-pick): %r",
+                        "[%s] Invalid nozzle_mapping on dispatch; omitted "
+                        "(model=%s model_code=%s firmware=%s reason=%s)",
                         self.serial_number,
-                        nozzle_mapping,
+                        self.model,
+                        self.model_code,
+                        self.state.firmware_version,
+                        mapping_error,
                     )
+                elif not is_dual_nozzle or not capable:
+                    logger.warning(
+                        "[%s] Physical nozzle_mapping suppressed; capability not confirmed "
+                        "(model=%s model_code=%s firmware=%s reason=%s)",
+                        self.serial_number,
+                        self.model,
+                        self.model_code,
+                        self.state.firmware_version,
+                        "not_dual_nozzle" if not is_dual_nozzle else capability_reason,
+                    )
+                else:
+                    command["print"]["nozzle_mapping"] = parsed_mapping
 
             logger.info("[%s] Sending print command: %s", self.serial_number, json.dumps(command))
             self._client.publish(self.topic_publish, json.dumps(command), qos=1)

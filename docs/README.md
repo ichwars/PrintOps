@@ -20,6 +20,7 @@ Screenshots gehören nicht in das Repository.
 | Upstream | [Queue- und Projektfunktionen 2026-08-27](upstream-queue-project-evaluation-2026-08-27.md) | Bewertung, Abgrenzung und Folgeissues für optionale Bambuddy-Funktionen |
 | Upstream | [Slicer-Funktionen 2026-08-27](upstream-slicer-evaluation-2026-08-27.md) | Nutzen-, Plattform- und Wartungsbewertung optionaler Bambuddy-Slicer-Funktionen |
 | Upstream | [H2C- und Home-Assistant-Funktionen 2026-08-27](upstream-h2c-home-assistant-evaluation-2026-08-27.md) | Gerätebestand, Sensorzustände, Interlock-Fallbacks und Folgeissues |
+| Betrieb | [H2C-Nozzle-Mapping-Audit](h2c-nozzle-mapping-dispatch-audit.md) | Software-Sicherheitsgrenze und Hardware-Freigabenachweis für physische H2C-Düsen-IDs |
 | Entwicklung | [README Editorial Guide](readme-editorial-guide.md) | Zielgruppen, Positionierung und Regeln für die zentrale Projekt-README |
 
 Die allgemeine Projektübersicht, Installation und erste Schritte stehen in der

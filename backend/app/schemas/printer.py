@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from backend.app.services.equipment_costs import calculate_hourly_rate, calculate_residual_value
 from backend.app.utils.printer_models import supports_nozzle_flow_type
@@ -34,6 +34,16 @@ class PrinterBase(BaseModel):
         pattern=r"^(\d{1,3}(\.\d{1,3}){3}|[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*)$",
     )
     model: str | None = None
+    model_code: str | None = Field(default=None, max_length=20)
+
+    @field_validator("model_code")
+    @classmethod
+    def _normalize_model_code(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        return normalized or None
+
     location: str | None = None  # Group/location name
     auto_archive: bool = True
     external_camera_url: str | None = None
@@ -55,6 +65,12 @@ class PrinterCreate(PrinterBase):
     # connect to the printer's MQTT and bypass PrintOps's RBAC.
     access_code: str = Field(..., min_length=1, max_length=20)
 
+    @model_validator(mode="after")
+    def _require_h2c_raw_model_code(self) -> "PrinterCreate":
+        if (self.model or "").strip().upper() == "H2C" and self.model_code not in {"O1C", "O1C2"}:
+            raise ValueError("H2C printers require raw model_code O1C or O1C2")
+        return self
+
 
 class PlateDetectionROI(BaseModel):
     """Region of interest for plate detection (percentages 0.0-1.0)."""
@@ -74,6 +90,7 @@ class PrinterUpdate(BaseModel):
     )
     access_code: str | None = None
     model: str | None = None
+    model_code: str | None = Field(default=None, max_length=20)
     location: str | None = None
     is_active: bool | None = None
     auto_archive: bool | None = None
@@ -97,6 +114,7 @@ class PrinterResponse(PrinterBase):
     id: int
     is_active: bool
     nozzle_count: int = 1  # 1 or 2, auto-detected from MQTT
+    firmware_version: str | None = None
     supports_nozzle_flow_type: bool = True
     print_hours_offset: float = 0.0
     external_camera_url: str | None = None
@@ -123,6 +141,8 @@ class PrinterResponse(PrinterBase):
             "serial_number": printer.serial_number,
             "ip_address": printer.ip_address,
             "model": printer.model,
+            "model_code": printer.model_code,
+            "firmware_version": printer.firmware_version,
             "location": printer.location,
             "auto_archive": printer.auto_archive,
             "external_camera_url": printer.external_camera_url,

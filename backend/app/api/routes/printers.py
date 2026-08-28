@@ -247,6 +247,11 @@ async def update_printer(
 
     update_data = printer_data.model_dump(exclude_unset=True)
 
+    effective_model = update_data.get("model", printer.model)
+    effective_model_code = update_data.get("model_code", printer.model_code)
+    if (effective_model or "").strip().upper() == "H2C" and effective_model_code not in {"O1C", "O1C2"}:
+        raise HTTPException(400, "H2C printers require raw model_code O1C or O1C2")
+
     # Handle nested ROI object - flatten to individual columns
     if "plate_detection_roi" in update_data:
         roi = update_data.pop("plate_detection_roi")
@@ -269,7 +274,7 @@ async def update_printer(
     await db.refresh(printer)
 
     # Reconnect if connection settings changed
-    if any(k in update_data for k in ["ip_address", "access_code", "is_active"]):
+    if any(k in update_data for k in ["ip_address", "access_code", "model", "model_code", "is_active"]):
         printer_manager.disconnect_printer(printer_id)
         if printer.is_active:
             await printer_manager.connect_printer(printer)

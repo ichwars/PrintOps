@@ -20,6 +20,7 @@ export interface NotificationProvider {
   on_ai_failure_detection: boolean;
   on_filament_low: boolean;
   on_maintenance_due: boolean;
+  on_ha_sensor_alert: boolean;
   // AMS environmental alarms (regular AMS)
   on_ams_humidity_high: boolean;
   on_ams_temperature_high: boolean;
@@ -79,6 +80,7 @@ export interface NotificationProviderCreate {
   on_ai_failure_detection?: boolean;
   on_filament_low?: boolean;
   on_maintenance_due?: boolean;
+  on_ha_sensor_alert?: boolean;
   // AMS environmental alarms (regular AMS)
   on_ams_humidity_high?: boolean;
   on_ams_temperature_high?: boolean;
@@ -131,6 +133,7 @@ export interface NotificationProviderUpdate {
   on_ai_failure_detection?: boolean;
   on_filament_low?: boolean;
   on_maintenance_due?: boolean;
+  on_ha_sensor_alert?: boolean;
   // AMS environmental alarms (regular AMS)
   on_ams_humidity_high?: boolean;
   on_ams_temperature_high?: boolean;
@@ -226,10 +229,74 @@ export interface GitHubBackupStatus {
   configured: boolean;
   enabled: boolean;
   is_running: boolean;
+  restore_running: boolean;
   progress: string | null;
   last_backup_at: string | null;
   last_backup_status: string | null;
   next_scheduled_run: string | null;
+}
+
+export type RestoreCategory = 'kprofiles' | 'settings' | 'spools' | 'archives';
+
+export interface GitHubCommitInfo {
+  sha: string;
+  message: string;
+  author: string;
+  date: string;
+}
+
+export interface GitHubCommitListResponse {
+  success: boolean;
+  message: string;
+  branch: string;
+  commits: GitHubCommitInfo[];
+}
+
+export type GitHubRestoreParams = Record<string, string | number>;
+
+export interface GitHubRestorePreviewCategory {
+  category: RestoreCategory;
+  available: boolean;
+  item_count: number;
+  detail: string | null;
+  detail_code: string | null;
+  detail_params: GitHubRestoreParams;
+}
+
+export interface GitHubRestorePreview {
+  success: boolean;
+  message: string;
+  ref: string;
+  commit: GitHubCommitInfo | null;
+  metadata_version: string | null;
+  categories: GitHubRestorePreviewCategory[];
+}
+
+export interface GitHubRestoreRequest {
+  ref?: string;
+  categories: RestoreCategory[];
+  overwrite_existing?: boolean;
+}
+
+export interface GitHubRestoreNote {
+  code: string;
+  params: GitHubRestoreParams;
+  message: string;
+}
+
+export interface GitHubRestoreCategoryResult {
+  restored: number;
+  skipped: number;
+  failed: number;
+  notes: GitHubRestoreNote[];
+}
+
+export interface GitHubRestoreResponse {
+  success: boolean;
+  message: string;
+  log_id: number | null;
+  ref: string | null;
+  results: Record<string, GitHubRestoreCategoryResult>;
 }
 
 export interface CloudAccountCounts {

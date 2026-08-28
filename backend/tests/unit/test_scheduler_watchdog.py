@@ -152,6 +152,84 @@ class TestWatchdogRevertsWhenStuck:
         client.force_reconnect_stale_session.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_variant_retry_clears_the_transient_printer_assignment(self, db_session):
+        """A reverted alternative must return to model selection next pass."""
+        from sqlalchemy import select
+
+        from backend.app.models.library import LibraryFile
+        from backend.app.models.print_queue import PrintQueueVariant
+
+        async with db_session() as db:
+            selected = LibraryFile(
+                filename="job_h2s.gcode.3mf",
+                file_path="/library/job_h2s.gcode.3mf",
+                file_type="gcode.3mf",
+                file_size=1,
+            )
+            alternative = LibraryFile(
+                filename="job_h2c.gcode.3mf",
+                file_path="/library/job_h2c.gcode.3mf",
+                file_type="gcode.3mf",
+                file_size=1,
+            )
+            db.add_all([selected, alternative])
+            await db.flush()
+            item = await db.get(PrintQueueItem, 1)
+            item.archive_id = None
+            item.library_file_id = selected.id
+            item.target_model = "H2S"
+            db.add_all(
+                [
+                    PrintQueueVariant(
+                        queue_item_id=item.id,
+                        position=0,
+                        library_file_id=selected.id,
+                        target_model="H2S",
+                    ),
+                    PrintQueueVariant(
+                        queue_item_id=item.id,
+                        position=1,
+                        library_file_id=alternative.id,
+                        target_model="H2C",
+                    ),
+                ]
+            )
+            await db.commit()
+
+        client = MagicMock()
+        with (
+            patch(
+                "backend.app.services.print_scheduler.printer_manager.get_status",
+                MagicMock(return_value=_status("FINISH", "OLD_SUBTASK")),
+            ),
+            patch(
+                "backend.app.services.print_scheduler.printer_manager.get_client",
+                MagicMock(return_value=client),
+            ),
+            patch("backend.app.services.print_scheduler.async_session", db_session),
+            patch("backend.app.core.database.async_session", db_session),
+        ):
+            await PrintScheduler._watchdog_print_start(
+                queue_item_id=1,
+                printer_id=42,
+                pre_state="FINISH",
+                pre_subtask_id="OLD_SUBTASK",
+                timeout=0.2,
+                poll_interval=0.05,
+            )
+
+        async with db_session() as db:
+            item = await db.get(PrintQueueItem, 1)
+            variants = list(
+                (await db.execute(select(PrintQueueVariant).where(PrintQueueVariant.queue_item_id == item.id)))
+                .scalars()
+                .all()
+            )
+            assert item.status == "pending"
+            assert item.printer_id is None
+            assert [variant.attempt_count for variant in variants] == [1, 0]
+
+    @pytest.mark.asyncio
     async def test_reverts_on_finish_to_idle_user_dismissed_prompt(self, db_session):
         """Regression for #1370: when pre_state is FINISH and the printer
         transitions to IDLE during the watchdog window, that's the user

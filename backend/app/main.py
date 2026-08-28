@@ -43,12 +43,14 @@ from backend.app.api.routes import (
     firmware,
     github_backup,
     groups,
+    ha_sensors,
     inventory,
     kprofiles,
     labels,
     library,
     library_tags,
     library_trash,
+    library_variants,
     local_backup,
     local_presets,
     maintenance,
@@ -109,6 +111,7 @@ from backend.app.services.bambu_ftp import (
 )
 from backend.app.services.bambu_mqtt import PrinterState
 from backend.app.services.github_backup import github_backup_service
+from backend.app.services.ha_sensor_manager import ha_sensor_manager
 from backend.app.services.homeassistant import homeassistant_service
 from backend.app.services.library_trash import library_trash_service
 from backend.app.services.local_backup import local_backup_service
@@ -1018,6 +1021,7 @@ def mark_printer_stopped_by_user(printer_id: int) -> None:
 _last_status_broadcast: dict[int, str] = {}
 # Track printers where we've updated nozzle_count
 _nozzle_count_updated: set[int] = set()
+_persisted_firmware_versions: dict[int, str] = {}
 
 
 async def _maybe_notify_printer_offline(printer_id: int) -> None:
@@ -1158,6 +1162,20 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
                 logging.getLogger(__name__).info(
                     f"Auto-detected dual-nozzle printer {printer_id}, updated nozzle_count=2"
                 )
+
+    # Persist the last firmware reported by get_version so dispatch safety
+    # decisions remain auditable across reconnects and restarts (#126).
+    firmware_version = state.firmware_version
+    if firmware_version and _persisted_firmware_versions.get(printer_id) != firmware_version:
+        async with async_session() as db:
+            from backend.app.models.printer import Printer
+
+            result = await db.execute(select(Printer).where(Printer.id == printer_id))
+            printer = result.scalar_one_or_none()
+            if printer and printer.firmware_version != firmware_version:
+                printer.firmware_version = firmware_version
+                await db.commit()
+            _persisted_firmware_versions[printer_id] = firmware_version
 
     # Include target temps for heating phase detection
     bed_target = round(temps.get("bed_target", 0))
@@ -4261,6 +4279,18 @@ async def on_print_complete(printer_id: int, data: dict):
         # Post-commit side effects (notifications, MQTT relay, auto-off) use
         # their own sessions and have their own error handling — no retry needed.
         if queue_item_id is not None:
+            # Batch orders (#342): this run may have been the last one an order
+            # owed. Re-evaluate here rather than lazily on read, so a finished
+            # order reports itself complete without someone opening the page.
+            try:
+                from backend.app.services.print_batch import refresh_batch_status_for_item
+
+                async with async_session() as db:
+                    await refresh_batch_status_for_item(db, queue_item_id)
+                    await db.commit()
+            except Exception as e:
+                logger.warning("[BATCH] Failed to refresh batch status for queue item %s: %s", queue_item_id, e)
+
             # MQTT relay - publish queue job completed
             try:
                 printer_info = printer_manager.get_printer(printer_id)
@@ -4612,6 +4642,10 @@ async def on_print_complete(printer_id: int, data: dict):
                 await write_log_entry(
                     db,
                     archive_id=archive.id,
+                    # Captured by _update_queue_status above; None for
+                    # printer-initiated prints with no queue row. Batch
+                    # cost/energy roll-up joins on it (#342).
+                    queue_item_id=queue_item_id,
                     status=_run_status,
                     print_name=archive.print_name,
                     printer_name=p_info.name if p_info else None,
@@ -5977,6 +6011,17 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logging.warning("Failed to recover document preview jobs: %s", exc)
 
+    # Close out batches that finished before `completed` was a reachable status
+    # (#342). Without this the Batches tab opens on every batch created since
+    # the feature shipped, all still marked active. Never blocks startup.
+    try:
+        from backend.app.services.print_batch import backfill_batch_statuses
+
+        async with async_session() as batch_db:
+            await backfill_batch_statuses(batch_db)
+    except Exception as exc:
+        logging.warning("[BATCH] Startup status backfill failed: %s", exc)
+
     # Register an app-scoped httpx client for Bambu Cloud services so
     # per-request BambuCloudService instances reuse the same connection pool
     # (important for routes like /cloud/filament-info that chain many
@@ -6214,6 +6259,9 @@ async def lifespan(app: FastAPI):
     # Start the smart plug scheduler for time-based on/off
     smart_plug_manager.start_scheduler()
 
+    # Start the Home Assistant sensor poller (#1148)
+    ha_sensor_manager.start()
+
     # Resume any pending auto-offs that were interrupted by restart
     await smart_plug_manager.resume_pending_auto_offs()
 
@@ -6280,6 +6328,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     print_scheduler.stop()
     smart_plug_manager.stop_scheduler()
+    ha_sensor_manager.stop()
     notification_service.stop_digest_scheduler()
     github_backup_service.stop_scheduler()
     local_backup_service.stop_scheduler()
@@ -6768,6 +6817,7 @@ app.include_router(cloud.router, prefix=app_settings.api_prefix)
 app.include_router(orca_cloud.router, prefix=app_settings.api_prefix)
 app.include_router(local_presets.router, prefix=app_settings.api_prefix)
 app.include_router(smart_plugs.router, prefix=app_settings.api_prefix)
+app.include_router(ha_sensors.router, prefix=app_settings.api_prefix)
 app.include_router(print_log.router, prefix=app_settings.api_prefix)
 app.include_router(print_queue.router, prefix=app_settings.api_prefix)
 app.include_router(kprofiles.router, prefix=app_settings.api_prefix)
@@ -6786,6 +6836,7 @@ app.include_router(projects.router, prefix=app_settings.api_prefix)
 app.include_router(library.router, prefix=app_settings.api_prefix)
 app.include_router(library_tags.router, prefix=app_settings.api_prefix)
 app.include_router(library_trash.router, prefix=app_settings.api_prefix)
+app.include_router(library_variants.router, prefix=app_settings.api_prefix)
 app.include_router(slice_jobs.router, prefix=app_settings.api_prefix)
 app.include_router(slicer_pipelines.router, prefix=app_settings.api_prefix)
 app.include_router(pipeline_runs.pipeline_run_create_router, prefix=app_settings.api_prefix)

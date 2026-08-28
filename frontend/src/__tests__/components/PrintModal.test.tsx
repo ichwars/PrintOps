@@ -7,10 +7,16 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import type React from 'react';
+import { screen, waitFor, fireEvent, render as rtlRender } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter } from 'react-router';
 import { render } from '../utils';
 import { PrintModal } from '../../components/PrintModal';
+import { AuthProvider } from '../../contexts/AuthContext';
+import { ThemeProvider } from '../../contexts/ThemeContext';
+import { ToastProvider } from '../../contexts/ToastContext';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
 import type { PrintQueueItem } from '../../api/client';
@@ -1551,5 +1557,166 @@ describe('PrintModal', () => {
       // Either omitted entirely or explicitly undefined — both interpret as "keep file"
       expect(capturedBody?.cleanup_library_after_dispatch).toBeUndefined();
     });
+  });
+});
+
+describe('PrintModal — per-plate quantity (#342)', () => {
+  const mockOnClose = vi.fn();
+
+  const PLATES = {
+    is_multi_plate: true,
+    plates: [
+      { index: 1, name: 'Plate 1', has_thumbnail: false, thumbnail_url: null, objects: ['A'], filaments: [{ type: 'PLA', color: '#FF0000' }], print_time_seconds: 1800, filament_used_grams: 50 },
+      { index: 2, name: 'Plate 2', has_thumbnail: false, thumbnail_url: null, objects: ['B'], filaments: [{ type: 'PLA', color: '#FF0000' }], print_time_seconds: 1800, filament_used_grams: 50 },
+      { index: 3, name: 'Plate 3', has_thumbnail: false, thumbnail_url: null, objects: ['C'], filaments: [{ type: 'PLA', color: '#FF0000' }], print_time_seconds: 1800, filament_used_grams: 50 },
+    ],
+  };
+
+  const renderModal = (ui: React.ReactElement) => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData(['archive-plates', 1], PLATES);
+    return rtlRender(
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthProvider>
+            <ThemeProvider>
+              <ToastProvider>{ui}</ToastProvider>
+            </ThemeProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </QueryClientProvider>,
+    );
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    server.use(
+      http.get('/api/v1/printers/', () => HttpResponse.json(mockPrinters)),
+      http.get('/api/v1/archives/:id/plates', () => HttpResponse.json(PLATES)),
+      http.get('/api/v1/archives/:id/filament-requirements', () =>
+        HttpResponse.json({ filaments: [{ slot_id: 1, type: 'PLA', color: '#FF0000', tray_info_idx: '', used_grams: 50 }] }),
+      ),
+      http.get('/api/v1/printers/available-filaments', () => HttpResponse.json([])),
+      http.post('/api/v1/queue/batches', () => HttpResponse.json({ id: 42, name: 'Order', status: 'active' })),
+      http.post('/api/v1/queue/', () => HttpResponse.json({ id: 1, status: 'pending' })),
+    );
+  });
+
+  const qtyInput = (plateName: string) =>
+    screen.getByRole('spinbutton', { name: new RegExp(plateName, 'i') });
+
+  it('replaces the single Quantity field with one control per selected plate', async () => {
+    const user = userEvent.setup();
+    renderModal(<PrintModal mode="create" archiveId={1} archiveName="Three.gcode.3mf" onClose={mockOnClose} />);
+
+    await waitFor(() => expect(screen.getByText('Plate 2')).toBeInTheDocument());
+    // Plate 1 is auto-selected and already carries its own quantity control.
+    expect(qtyInput('Plate 1')).toBeInTheDocument();
+    // The global field is gone — two controls for the same number would be ambiguous.
+    expect(screen.queryByLabelText(/^Quantity$/i)).not.toBeInTheDocument();
+    // Unselected plates have no control.
+    expect(screen.queryByRole('spinbutton', { name: /Plate 2/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByText('Plate 2'));
+    await waitFor(() => expect(qtyInput('Plate 2')).toBeInTheDocument());
+  });
+
+  it('keeps the single Quantity field for a single-plate file', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData(['archive-plates', 1], { is_multi_plate: false, plates: [] });
+    rtlRender(
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthProvider>
+            <ThemeProvider>
+              <ToastProvider>
+                <PrintModal mode="create" archiveId={1} archiveName="One.gcode.3mf" onClose={mockOnClose} />
+              </ToastProvider>
+            </ThemeProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByLabelText(/^Quantity$/i)).toBeInTheDocument());
+  });
+
+  it('queues the reporter\'s example: plate 1 once, plate 2 twice, plate 3 three times', async () => {
+    type Queued = { plate_id: number | null; quantity?: number; batch_id?: number };
+    type OrderBody = { plates?: Array<{ plate_id: number | null; quantity_target: number }> };
+    const queued: Queued[] = [];
+    let order: OrderBody | null = null;
+    server.use(
+      http.post('/api/v1/queue/batches', async ({ request }) => {
+        order = (await request.json()) as OrderBody;
+        return HttpResponse.json({ id: 42, name: 'Order', status: 'active' });
+      }),
+      http.post('/api/v1/queue/', async ({ request }) => {
+        queued.push((await request.json()) as Queued);
+        return HttpResponse.json({ id: queued.length, status: 'pending' });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderModal(<PrintModal mode="create" archiveId={1} archiveName="Three.gcode.3mf" onClose={mockOnClose} />);
+
+    await waitFor(() => expect(screen.getByText('Plate 2')).toBeInTheDocument());
+    await user.click(screen.getByText('Plate 2'));
+    await user.click(screen.getByText('Plate 3'));
+
+    fireEvent.change(qtyInput('Plate 2'), { target: { value: '2' } });
+    fireEvent.change(qtyInput('Plate 3'), { target: { value: '3' } });
+
+    await waitFor(() => expect(screen.getByText(/6 runs in total/i)).toBeInTheDocument());
+
+    await user.click(screen.getAllByRole('button', { name: /X1 Carbon/i })[0]);
+    await user.click(document.querySelector('button[type="submit"]') as HTMLElement);
+
+    await waitFor(() => expect(queued.length).toBe(3));
+
+    // The order records the intent, so a failed run still reads as owed.
+    expect(order!.plates).toEqual([
+      expect.objectContaining({ plate_id: 1, quantity_target: 1 }),
+      expect.objectContaining({ plate_id: 2, quantity_target: 2 }),
+      expect.objectContaining({ plate_id: 3, quantity_target: 3 }),
+    ]);
+
+    // ...and the runs are dispatched immediately, one call per plate carrying
+    // that plate's own count. Quantity 1 is left off the payload as before.
+    const byPlate = Object.fromEntries(queued.map((q) => [q.plate_id, q]));
+    expect(byPlate[1].quantity).toBeUndefined();
+    expect(byPlate[2].quantity).toBe(2);
+    expect(byPlate[3].quantity).toBe(3);
+    expect(queued.every((q) => q.batch_id === 42)).toBe(true);
+  });
+
+  it('does not multiply per-plate counts across a multi-printer fan-out', async () => {
+    type Queued = { plate_id: number | null; quantity?: number; printer_id: number | null };
+    const queued: Queued[] = [];
+    server.use(
+      http.post('/api/v1/queue/', async ({ request }) => {
+        queued.push((await request.json()) as Queued);
+        return HttpResponse.json({ id: queued.length, status: 'pending' });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderModal(<PrintModal mode="create" archiveId={1} archiveName="Three.gcode.3mf" onClose={mockOnClose} />);
+
+    await waitFor(() => expect(screen.getByText('Plate 2')).toBeInTheDocument());
+    await user.click(screen.getByText('Plate 2'));
+    fireEvent.change(qtyInput('Plate 2'), { target: { value: '4' } });
+
+    // Two printers: the printer count already answers "how many".
+    await user.click(screen.getAllByRole('button', { name: /X1 Carbon/i })[0]);
+    await user.click(screen.getAllByRole('button', { name: /P1S/i })[0]);
+    await user.click(document.querySelector('button[type="submit"]') as HTMLElement);
+
+    await waitFor(() => expect(queued.length).toBe(4)); // 2 plates × 2 printers
+    expect(queued.every((q) => q.quantity === undefined)).toBe(true);
   });
 });

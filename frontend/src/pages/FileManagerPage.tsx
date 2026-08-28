@@ -20,6 +20,7 @@ import {
   MoveRight,
   CheckSquare,
   Square,
+  Layers,
   LayoutGrid,
   List,
   Search,
@@ -797,6 +798,14 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
             {file.sliced_for_model}
           </div>
         )}
+        {/* Counts the whole group, including members in other folders (#671 /
+            #2570) — printing this file will offer all of them. */}
+        {(file.variant_count ?? 0) > 1 && (
+          <div className="mt-1 text-xs text-bambu-green flex items-center gap-1">
+            <Layers className="w-3 h-3" />
+            {t('fileManager.variants.badge', { count: file.variant_count })}
+          </div>
+        )}
         {file.print_count > 0 && (
           <div className="mt-1 text-xs text-bambu-green">
             {t('fileManager.printedCount', { count: file.print_count })}
@@ -1388,6 +1397,20 @@ export function FileManagerPage() {
     },
   });
 
+  // "These files are the same job for different printers" (#671 / #2570).
+  // Durable, unlike the ad-hoc selection the Print button uses: once grouped,
+  // printing any member offers the others without re-selecting them.
+  const groupAsVersionsMutation = useMutation({
+    mutationFn: (fileIds: number[]) =>
+      api.createVariantGroup(fileIds.map((id) => ({ library_file_id: id }))),
+    onSuccess: (group) => {
+      queryClient.invalidateQueries({ queryKey: ['library-files'] });
+      showToast(t('fileManager.variants.grouped', { count: group.members.length }), 'success');
+      setSelectedFiles([]);
+    },
+    onError: (error: Error) => showToast(error.message, 'error'),
+  });
+
   const bulkDeleteMutation = useMutation({
     mutationFn: (fileIds: number[]) => api.bulkDeleteLibrary(fileIds, []),
     onSuccess: (_, fileIds) => {
@@ -1520,6 +1543,36 @@ export function FileManagerPage() {
     if (!files) return [];
     return files.filter(f => selectedFiles.includes(f.id) && isSlicedFile(f.filename));
   }, [files, selectedFiles, isSlicedFile]);
+
+  // The clicked file's variant group, so printing one member offers the rest
+  // without the user re-selecting them (#2570).
+  const { data: printFileGroup } = useQuery({
+    queryKey: ['variant-group', printFile?.variant_group_id],
+    queryFn: () => api.getVariantGroup(printFile!.variant_group_id!),
+    enabled: !!printFile?.variant_group_id,
+  });
+
+  // Candidates for a cross-model print (#671), or undefined for an ordinary one.
+  // An explicit multi-selection wins over the group: the user just said, in this
+  // action, which files they meant.
+  const printVariantFiles = useMemo(() => {
+    if (!printFile) return undefined;
+    if (selectedSlicedFiles.length > 1) {
+      return selectedSlicedFiles.map(f => ({
+        id: f.id,
+        filename: f.filename,
+        sliced_for_model: f.sliced_for_model,
+      }));
+    }
+    if (printFileGroup && printFileGroup.members.length > 1) {
+      return printFileGroup.members.map(m => ({
+        id: m.library_file_id,
+        filename: m.filename,
+        sliced_for_model: m.target_model,
+      }));
+    }
+    return undefined;
+  }, [printFile, selectedSlicedFiles, printFileGroup]);
 
   // Handlers
   const handleFileSelect = useCallback((id: number) => {
@@ -2193,7 +2246,11 @@ export function FileManagerPage() {
                   </span>
                   <div className="hidden sm:block flex-1" />
                   <div className="w-full sm:w-auto flex flex-wrap items-center gap-2 mt-2 sm:mt-0">
-                    {selectedSlicedFiles.length === 1 && (
+                    {/* Print used to disappear the moment a second sliced file was
+                        selected. Selecting several is now how you say "same job,
+                        different printers" (#671) — one queue item, whichever
+                        machine frees up first. */}
+                    {selectedSlicedFiles.length >= 1 && (
                       <Button
                         variant="primary"
                         size="sm"
@@ -2202,7 +2259,26 @@ export function FileManagerPage() {
                         title={!hasPermission('queue:create') ? t('fileManager.noPermissionAddToQueue') : undefined}
                       >
                         <Printer className="w-4 h-4 sm:mr-1" />
-                        <span className="hidden sm:inline">{t('common.print')}</span>
+                        <span className="hidden sm:inline">
+                          {selectedSlicedFiles.length > 1
+                            ? t('fileManager.variants.printAlternatives', { count: selectedSlicedFiles.length })
+                            : t('common.print')}
+                        </span>
+                      </Button>
+                    )}
+                    {selectedSlicedFiles.length >= 2 && !selectedSlicedFiles.some(f => f.variant_group_id) && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => groupAsVersionsMutation.mutate(selectedSlicedFiles.map(f => f.id))}
+                        disabled={
+                          groupAsVersionsMutation.isPending
+                          || !hasAnyPermission('library:update_own', 'library:update_all')
+                        }
+                        title={t('fileManager.variants.groupTooltip')}
+                      >
+                        <Layers className="w-4 h-4 sm:mr-1" />
+                        <span className="hidden sm:inline">{t('fileManager.variants.groupAction')}</span>
                       </Button>
                     )}
                     <Button
@@ -2712,11 +2788,21 @@ export function FileManagerPage() {
         />
       )}
 
-      {printFile && (
+      {/* Held back until the variant group has loaded. The modal reads its
+          candidate list once, on mount, so opening before the group arrives
+          would show a single-file print for a file that has alternatives. */}
+      {printFile && (!printFile.variant_group_id || printFileGroup !== undefined) && (
         <PrintModal
           mode="create"
-          libraryFileId={printFile.id}
-          archiveName={printFile.print_name || printFile.filename}
+          libraryFileId={printVariantFiles?.[0]?.id ?? printFile.id}
+          variantFiles={printVariantFiles}
+          // Naming a cross-model job after one of its files reads as though the
+          // others aren't part of it.
+          archiveName={
+            printVariantFiles && printVariantFiles.length > 1
+              ? `${printVariantFiles[0].filename} ${t('common.plusNMore', { count: printVariantFiles.length - 1 })}`
+              : printFile.print_name || printFile.filename
+          }
           onClose={() => setPrintFile(null)}
           onSuccess={() => {
             setPrintFile(null);

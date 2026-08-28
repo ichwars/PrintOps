@@ -276,6 +276,21 @@ export interface LibraryFileListItem {
   // legacy code path (or mock) that constructs a LibraryFileListItem without
   // it doesn't crash the renderer. Read sites use `file.tags ?? []`.
   tags?: LibraryTagSummary[];
+  variant_group_id?: number | null;
+  variant_count?: number;
+}
+
+export interface VariantGroupMember {
+  library_file_id: number;
+  filename: string;
+  target_model: string;
+  position: number;
+}
+
+export interface VariantGroup {
+  id: number;
+  name: string;
+  members: VariantGroupMember[];
 }
 
 // Library tag catalog (#1268)

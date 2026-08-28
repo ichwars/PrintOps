@@ -23,6 +23,7 @@ import { PlateSelector } from './PlateSelector';
 import { PrinterSelector } from './PrinterSelector';
 import { PrintOptionsPanel } from './PrintOptions';
 import { ScheduleOptionsPanel } from './ScheduleOptions';
+import { VariantCandidates, type VariantCandidate } from './VariantCandidates';
 import type {
   AssignmentMode,
   PrintModalProps,
@@ -51,6 +52,7 @@ export function PrintModal({
   onSuccess,
   projectId,
   cleanupLibraryAfterDispatch,
+  variantFiles,
 }: PrintModalProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -60,6 +62,27 @@ export function PrintModal({
   // Determine if we're printing a library file
   const isLibraryFile = !!libraryFileId && !archiveId;
   const isEditing = mode === 'edit-queue-item';
+
+  // Cross-model alternatives (#671). One candidate is not a choice, so a
+  // single-entry list behaves exactly like an ordinary print.
+  const isCrossModel = mode === 'create' && (variantFiles?.length ?? 0) > 1;
+  // Editing an already-queued cross-model item. The candidates are shown so the
+  // dialog doesn't misrepresent the job as a plain "Any H2D" — which is what it
+  // did before, offering a printer picker whose Save would have left a row with
+  // both variants and a printer_id. They are not editable here: changing the
+  // set after queueing needs a variant-level API that doesn't exist, and the
+  // backend refuses the printer/model change either way.
+  const editingVariants: VariantCandidate[] =
+    mode === 'edit-queue-item' && (queueItem?.variants?.length ?? 0) > 1
+      ? queueItem!.variants!.map((v) => ({
+          id: v.library_file_id,
+          filename: v.filename,
+          sliced_for_model: v.target_model,
+        }))
+      : [];
+  const hasEditingVariants = editingVariants.length > 0;
+  const [candidates, setCandidates] = useState<VariantCandidate[]>(variantFiles ?? []);
+  const [candidatePlates, setCandidatePlates] = useState<Record<number, number | null>>({});
 
   type FilamentWarningItem = {
     printerName: string;
@@ -93,6 +116,11 @@ export function PrintModal({
 
   // Quantity — number of copies (creates a batch if > 1)
   const [quantity, setQuantity] = useState(1);
+
+  // Per-plate quantities for multi-plate files (#342). Keyed by plate index;
+  // a plate with no entry means one run. Only used in create mode on a
+  // multi-plate file, where it replaces the single global Quantity field.
+  const [plateQuantities, setPlateQuantities] = useState<Record<number, number>>({});
 
   const [printOptions, setPrintOptions] = useState<PrintOptions>(() => {
     if (mode === 'edit-queue-item' && queueItem) {
@@ -158,6 +186,11 @@ export function PrintModal({
 
   // Assignment mode: 'printer' (specific) or 'model' (any of model)
   const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>(() => {
+    // Cross-model alternatives are model-based by definition — naming one
+    // printer would defeat the point of offering the other file.
+    if (isCrossModel) {
+      return 'model';
+    }
     // Initialize from queue item if editing with target_model
     if (mode === 'edit-queue-item' && queueItem?.target_model) {
       return 'model';
@@ -364,6 +397,42 @@ export function PrintModal({
     queryFn: () => api.getAvailableFilaments(targetModel!, targetLocation ?? undefined),
     enabled: assignmentMode === 'model' && !!targetModel,
   });
+
+  // A cross-model job (#671) has no single target model, so the query above is
+  // disabled and the override UI would silently vanish — leaving less control
+  // than the ordinary "Any X1C" flow offers. Ask each candidate's model instead
+  // and offer the union: the job can land on any of them, so anything loaded on
+  // any of them is a legitimate choice. Picking one only some models have is
+  // allowed and meaningful — it narrows which candidates can match.
+  const candidateModels = useMemo(
+    () => Array.from(new Set(candidates.map((c) => c.sliced_for_model).filter((m): m is string => !!m))),
+    [candidates],
+  );
+  const candidateFilamentQueries = useQueries({
+    queries: isCrossModel
+      ? candidateModels.map((model) => ({
+          queryKey: ['available-filaments', model, targetLocation],
+          queryFn: () => api.getAvailableFilaments(model, targetLocation ?? undefined),
+        }))
+      : [],
+  });
+  const crossModelFilaments = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: NonNullable<typeof availableFilaments> = [];
+    for (const query of candidateFilamentQueries) {
+      for (const filament of query.data ?? []) {
+        // Same type+colour loaded on two models is one choice, not two.
+        const key = `${filament.type}|${filament.color}|${filament.tray_info_idx}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          merged.push(filament);
+        }
+      }
+    }
+    return merged;
+  }, [candidateFilamentQueries]);
+
+  const effectiveAvailableFilaments = isCrossModel ? crossModelFilaments : availableFilaments;
 
   // Only fetch printer status when single printer selected (for filament mapping)
   const { data: printerStatus } = useQuery({
@@ -640,11 +709,13 @@ export function PrintModal({
       showToast('Please select at least one printer', 'error');
       return;
     }
-    if (assignmentMode === 'model' && !targetModel) {
+    // A cross-model job has no single target model — each candidate carries its
+    // own, and the backend gates each of them separately. Both checks below are
+    // about the one-model case only.
+    if (!isCrossModel && assignmentMode === 'model' && !targetModel) {
       showToast('Please select a target printer model', 'error');
       return;
     }
-
     setIsSubmitting(true);
     // Calculate total API calls: plates × printers (or 1 for model-based)
     const platesToQueue = selectedPlates.size > 1
@@ -706,28 +777,101 @@ export function PrintModal({
 
     const filamentOverridesArray = buildFilamentOverridesArray();
 
-    // Multi-plate auto-batch: when the user adds 2+ plates from one source in
-    // a single create submission, pre-create a PrintBatch and pass its
-    // id to each subsequent addToQueue call so the queue UI groups them as a
-    // collapsible batch. Only triggered for single-target submissions —
-    // multi-printer fan-out keeps the old per-item shape.
+    // Cross-model alternatives (#671): ONE item carrying a candidate per file,
+    // in the order the user arranged. This returns before the plate/printer
+    // fan-out below because it deliberately fans out to nothing — the whole
+    // point is that exactly one of these candidates ever runs.
+    //
+    // Filament overrides are shared rather than per-candidate, matching how
+    // single-model assignment already behaves: the printer is unknown at queue
+    // time, so what is expressed here is "this job needs PETG", which is true of
+    // every slice of the same job. The AMS mapping is likewise absent — the
+    // scheduler computes it against the printer it actually picks.
+    if (isCrossModel) {
+      try {
+        let crossModelBatchId: number | undefined;
+        if (quantity > 1) {
+          const baseName = (archiveName || '').replace(/\.gcode\.3mf$/i, '').replace(/\.3mf$/i, '');
+          const batch = await api.createBatch({
+            name: `${baseName || 'Batch'} ×${quantity}`,
+            // A variant's physical plate number can differ between slices.
+            // NULL means "this logical job", independent of which candidate
+            // the scheduler resolves for a particular copy.
+            plates: [{ plate_id: null, plate_name: null, quantity_target: quantity, sort_order: 0 }],
+            project_id: projectId ?? undefined,
+          });
+          crossModelBatchId = batch.id;
+        }
+        await api.addToQueue({
+          variants: candidates.map((c) => ({
+            library_file_id: c.id,
+            plate_id: candidatePlates[c.id] ?? null,
+            filament_overrides: filamentOverridesArray,
+          })),
+          target_location: targetLocation,
+          require_previous_success: scheduleOptions.requirePreviousSuccess,
+          auto_off_after: scheduleOptions.autoOffAfter,
+          gcode_injection: scheduleOptions.gcodeInjection,
+          manual_start: scheduleOptions.scheduleType === 'queue' && scheduleOptions.requireManualStart,
+          scheduled_time: scheduleOptions.scheduleType === 'scheduled' && scheduleOptions.scheduledTime
+            ? new Date(scheduleOptions.scheduledTime).toISOString()
+            : undefined,
+          quantity,
+          batch_id: crossModelBatchId,
+          ...printOptions,
+          project_id: projectId ?? undefined,
+        });
+        showToast(t('printModal.variants.queued', { count: candidates.length }), 'success');
+        queryClient.invalidateQueries({ queryKey: ['queue'] });
+        onSuccess?.();
+        onClose();
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : String(error), 'error');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    // Batch order (#342): a create submission that produces more than one run
+    // from one source is pre-created as a batch carrying per-plate targets,
+    // and its id is passed to each subsequent addToQueue call. The targets are
+    // what make the order able to say a failed run is still owed — without
+    // them the batch only knows what it happened to queue. Only for
+    // single-target submissions; multi-printer fan-out keeps the old per-item
+    // shape, where "how many" is answered by the printer count.
+    const plateTargets = platesToQueue.map((plate, index) => {
+      const plateIndex = plate ? plate.index : selectedPlate;
+      return {
+        plate_id: plateIndex,
+        plate_name: plate ? (plate.name || null) : null,
+        quantity_target: quantityForPlate(plateIndex),
+        sort_order: index,
+      };
+    });
+    const totalRuns = plateTargets.reduce((sum, target) => sum + target.quantity_target, 0);
     const shouldAutoBatch =
       mode === 'create'
-      && platesToQueue.length > 1
+      && (platesToQueue.length > 1 || totalRuns > 1)
       && (assignmentMode === 'model' || selectedPrinters.length === 1);
     let autoBatchId: number | null = null;
     if (shouldAutoBatch) {
       try {
         const baseName = (archiveName || '').replace(/\.gcode\.3mf$/i, '').replace(/\.3mf$/i, '');
-        const batchName = `${baseName || 'Batch'} · ${platesToQueue.length} plates`;
+        const batchName = platesToQueue.length > 1
+          ? `${baseName || 'Batch'} · ${platesToQueue.length} plates`
+          : `${baseName || 'Batch'} ×${totalRuns}`;
         const batch = await api.createBatch({
           name: batchName,
           archive_id: isLibraryFile ? undefined : archiveId,
           library_file_id: isLibraryFile ? libraryFileId : undefined,
+          plates: plateTargets,
         });
         autoBatchId = batch.id;
       } catch {
         // Non-fatal: fall back to ungrouped items so the queue still works.
+        // The server still creates a plain batch when quantity > 1, so the
+        // queue grouping survives even when the order layer doesn't.
         autoBatchId = null;
       }
     }
@@ -806,8 +950,9 @@ export function PrintModal({
           } else {
             // Add-to-queue mode with model-based assignment
             const queueData = getQueueData(null, plateId);
-            if (effectiveQuantity > 1) queueData.quantity = effectiveQuantity;
-            applyAsapInsertion(queueData, null, effectiveQuantity);
+            const plateQuantity = quantityForPlate(plateId);
+            if (plateQuantity > 1) queueData.quantity = plateQuantity;
+            applyAsapInsertion(queueData, null, plateQuantity);
             await addToQueueMutation.mutateAsync(queueData);
           }
           results.success++;
@@ -861,8 +1006,9 @@ export function PrintModal({
             } else {
               // New print mode, staggered print, or edit mode with additional entries
               const queueData = getQueueData(printerId, plateId);
-              if (effectiveQuantity > 1) queueData.quantity = effectiveQuantity;
-              applyAsapInsertion(queueData, printerId, effectiveQuantity);
+              const plateQuantity = quantityForPlate(plateId);
+              if (plateQuantity > 1) queueData.quantity = plateQuantity;
+              applyAsapInsertion(queueData, printerId, plateQuantity);
               // Apply stagger offset for groups after the first
               if (useStagger) {
                 const groupIndex = Math.floor(i / scheduleOptions.staggerGroupSize);
@@ -930,16 +1076,41 @@ export function PrintModal({
 
     // Need valid printer/model selection
     if (assignmentMode === 'printer' && selectedPrinters.length === 0) return false;
-    if (assignmentMode === 'model' && !targetModel) return false;
+    // Both are about the single-model case. A cross-model job has no one target
+    // model, and each candidate is gated against its own by the backend (#671).
+    if (!isCrossModel && assignmentMode === 'model' && !targetModel) return false;
 
     // For multi-plate files, need at least one plate selected
     if (isMultiPlate && selectedPlates.size === 0) return false;
 
     return true;
-  }, [selectedPrinters.length, assignmentMode, targetModel, isMultiPlate, selectedPlates.size, isPending]);
+  }, [
+    selectedPrinters.length,
+    assignmentMode,
+    targetModel,
+    isMultiPlate,
+    selectedPlates.size,
+    isPending,
+    isCrossModel,
+  ]);
 
   // Quantity only applies for single-printer or model-based assignment (not multi-printer)
   const effectiveQuantity = (assignmentMode === 'printer' && selectedPrinters.length > 1) ? 1 : quantity;
+
+  // On a multi-plate file the per-plate steppers own the quantity and the
+  // global field is hidden (#342) — the reporter's case is "plate 1 once,
+  // plate 2 twice", which one shared number cannot express. Single-plate
+  // files, and edit mode, keep the single field exactly as before.
+  const usePerPlateQuantities = mode === 'create' && isMultiPlate && plates.length > 1;
+
+  /** Runs to queue for one plate. `null` = the single-plate / whole-file case. */
+  const quantityForPlate = (plateIndex: number | null): number => {
+    if (!usePerPlateQuantities || plateIndex == null) return effectiveQuantity;
+    // Multi-printer fan-out already means one copy per printer; multiplying by
+    // a per-plate count on top would silently produce plates × printers × n.
+    if (assignmentMode === 'printer' && selectedPrinters.length > 1) return 1;
+    return Math.max(1, plateQuantities[plateIndex] ?? 1);
+  };
 
   // Clear gcode_injection if the admin removes all snippets while the modal
   // is open — the checkbox itself hides via hasGcodeSnippets in
@@ -992,6 +1163,17 @@ export function PrintModal({
     isLibraryFile || (isMultiPlate ? selectedPlate !== null : true)
   );
 
+  // Model mode has no printer and so no trays to map onto; what it offers instead
+  // is the filament each slot must be printed in, which the scheduler matches
+  // against whatever printer of the model it picks. Needs the model's loaded
+  // filaments to offer as alternatives.
+  // Cross-model items have no targetModel by design — their candidates each
+  // carry their own — so gate on having somewhere to source choices from.
+  const showFilamentOverride =
+    assignmentMode === 'model'
+    && (isCrossModel || !!targetModel)
+    && !!effectiveAvailableFilaments
+    && effectiveAvailableFilaments.length > 0;
   // Dual-nozzle gate for the Nozzle Offset Calibration toggle (#1682).
   // Mirrors backend `DUAL_NOZZLE_MODELS` so model-based assignment can show
   // the toggle without a specific printer selected. For printer-mode we rely
@@ -1083,10 +1265,39 @@ export function PrintModal({
               onSelectAll={!isEditing ? () => setSelectedPlates(new Set(plates.map(p => p.index))) : undefined}
               onDeselectAll={!isEditing ? () => setSelectedPlates(new Set()) : undefined}
               multiSelect={!isEditing}
+              quantities={usePerPlateQuantities ? plateQuantities : undefined}
+              onQuantityChange={usePerPlateQuantities
+                ? (plateIndex, value) => setPlateQuantities(prev => ({ ...prev, [plateIndex]: value }))
+                : undefined}
             />
 
+            {/* Cross-model alternatives (#671) replace the printer picker entirely:
+                the user already answered "which printer" by choosing these files,
+                and the remaining question is only which they'd rather have. */}
+            {isCrossModel && (
+              <VariantCandidates
+                candidates={candidates}
+                onReorder={setCandidates}
+                plateByFile={candidatePlates}
+                onPlateChange={(fileId, plateId) =>
+                  setCandidatePlates((prev) => ({ ...prev, [fileId]: plateId }))
+                }
+              />
+            )}
+
+            {hasEditingVariants && (
+              <VariantCandidates
+                candidates={editingVariants}
+                readOnly
+                readOnlyNote={t('printModal.variants.editNote')}
+                onReorder={() => {}}
+                plateByFile={{}}
+                onPlateChange={() => {}}
+              />
+            )}
+
             {/* Printer selection with per-printer mapping — hidden when printer is pre-selected via props */}
-            {!initialSelectedPrinterIds?.length && (
+            {!isCrossModel && !hasEditingVariants && !initialSelectedPrinterIds?.length && (
               <PrinterSelector
                 printers={printers || []}
                 selectedPrinterIds={selectedPrinters}
@@ -1110,10 +1321,10 @@ export function PrintModal({
             )}
 
             {/* Filament override - shown in model mode when filament requirements are available */}
-            {assignmentMode === 'model' && targetModel && effectiveFilamentReqs && availableFilaments && availableFilaments.length > 0 && (
+            {showFilamentOverride && effectiveFilamentReqs && (
               <FilamentOverride
                 filamentReqs={effectiveFilamentReqs}
-                availableFilaments={availableFilaments}
+                availableFilaments={effectiveAvailableFilaments!}
                 overrides={filamentOverrides}
                 onChange={setFilamentOverrides}
                 forceColorMatch={forceColorMatch}
@@ -1176,8 +1387,11 @@ export function PrintModal({
               />
             )}
 
-            {/* Quantity — create multiple copies (batch). Hidden for multi-printer selection. */}
-            {mode !== 'edit-queue-item' && (assignmentMode === 'model' || selectedPrinters.length <= 1) && (
+            {/* Quantity — create multiple copies (batch). Hidden for multi-printer
+                selection, and for multi-plate files where the per-plate steppers
+                in PlateSelector own the number instead (#342). */}
+            {mode !== 'edit-queue-item' && !usePerPlateQuantities
+              && (assignmentMode === 'model' || selectedPrinters.length <= 1) && (
               <div className="flex items-center gap-3">
                 <label htmlFor="printQuantity" className="text-sm text-bambu-gray whitespace-nowrap">
                   {t('queue.quantity', 'Quantity')}

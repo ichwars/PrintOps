@@ -158,6 +158,8 @@ export interface Printer {
   // API keys receive a Printer without this field.
   access_code?: string;
   model: string | null;
+  model_code: string | null;
+  firmware_version: string | null;
   location: string | null;  // Group/location name
   nozzle_count: number;  // 1 or 2, auto-detected from MQTT
   supports_nozzle_flow_type: boolean;
@@ -401,6 +403,7 @@ export interface PrinterCreate {
   ip_address: string;
   access_code: string;
   model?: string;
+  model_code?: string;
   location?: string;
   auto_archive?: boolean;
   // Maintenance Mode flag (#1476). Backend already gates MQTT, queue dispatch,

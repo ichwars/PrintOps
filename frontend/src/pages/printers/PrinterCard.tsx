@@ -7,6 +7,7 @@ import { Card, CardContent } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { filterKnownHMSErrors } from '../../components/HMSErrorModal';
 import { PrinterQueueWidget } from '../../components/PrinterQueueWidget';
+import { PrinterHASensorRow } from '../../components/PrinterHASensorRow';
 import type { HeaterSensorKind } from '../../api/client';
 import { FilamentHoverCard, EmptySlotHoverCard } from '../../components/FilamentHoverCard';
 import { ChamberLight } from '../../components/icons/ChamberLight';
@@ -2904,6 +2905,8 @@ return (
             )}
           </div>
         )}
+
+        <PrinterHASensorRow printerId={printer.id} />
 
         {/* Connection Info & Actions */}
         <div className="pt-4">

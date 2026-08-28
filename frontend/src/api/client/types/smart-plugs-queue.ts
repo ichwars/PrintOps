@@ -289,6 +289,12 @@ export interface PrintQueueItem {
   target_location: string | null;  // Target location filter for model-based assignment
   required_filament_types: string[] | null;  // Required filament types for model-based assignment
   waiting_reason: string | null;  // Why a model-based job hasn't started yet
+  variants?: Array<{
+    library_file_id: number;
+    filename: string;
+    target_model: string;
+    position: number;
+  }>;
   // Either archive_id OR library_file_id must be set (archive created at print start)
   archive_id: number | null;
   library_file_id: number | null;
@@ -351,6 +357,97 @@ export interface PrintQueueItem {
   cleanup_library_after_dispatch?: boolean;
 }
 
+export interface PrinterHASensor {
+  id: number;
+  printer_id: number;
+  name: string;
+  entity_id: string;
+  kind: 'binary' | 'numeric';
+  device_class: string | null;
+  unit: string | null;
+  alert_state: 'on' | 'off' | null;
+  alert_above: number | null;
+  alert_below: number | null;
+  block_print: boolean;
+  failure_strategy: 'auto' | 'fail_open' | 'fail_closed';
+  notify_on_alert: boolean;
+  show_on_printer_card: boolean;
+  sort_order: number;
+  last_state: string | null;
+  last_changed: string | null;
+  last_checked: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PrinterHASensorReading {
+  id: number;
+  name: string;
+  entity_id: string;
+  kind: 'binary' | 'numeric';
+  device_class: string | null;
+  unit: string | null;
+  state: string | null;
+  value: number | null;
+  alerting: boolean;
+  block_print: boolean;
+  failure_strategy: 'auto' | 'fail_open' | 'fail_closed';
+  reachable: boolean;
+  last_changed: string | null;
+}
+
+export interface PrinterHAInterlockOverrideStatus {
+  printer_id: number;
+  overridden: boolean;
+  username: string | null;
+  reason: string | null;
+  created_at: string | null;
+  overrideable_sensors: string[];
+}
+
+export interface PrinterHASensorCreate {
+  printer_id: number;
+  name: string;
+  entity_id: string;
+  kind: 'binary' | 'numeric';
+  device_class?: string | null;
+  unit?: string | null;
+  alert_state?: 'on' | 'off' | null;
+  alert_above?: number | null;
+  alert_below?: number | null;
+  block_print?: boolean;
+  failure_strategy?: 'auto' | 'fail_open' | 'fail_closed';
+  notify_on_alert?: boolean;
+  show_on_printer_card?: boolean;
+  sort_order?: number;
+}
+
+export type PrinterHASensorUpdate = Partial<Omit<PrinterHASensorCreate, 'printer_id'>>;
+
+export interface HADisplayEntity {
+  entity_id: string;
+  friendly_name: string;
+  state: string | null;
+  domain: string;
+  device_class: string | null;
+  unit_of_measurement: string | null;
+}
+
+export interface QueueVariantCreate {
+  library_file_id: number;
+  target_model?: string | null;
+  plate_id?: number | null;
+  ams_mapping?: number[] | null;
+  nozzle_mapping?: number[] | null;
+  filament_overrides?: Array<{
+    slot_id: number;
+    type: string;
+    color: string;
+    color_name?: string;
+    force_color_match?: boolean;
+  }> | null;
+}
+
 export interface PrintBatch {
   id: number;
   name: string;
@@ -359,13 +456,49 @@ export interface PrintBatch {
   quantity: number;
   status: string;
   created_at: string;
+  completed_at: string | null;
   created_by_id: number | null;
   created_by_username: string | null;
+  project_id: number | null;
+  due_date: string | null;
+  notes: string | null;
   pending_count: number;
   printing_count: number;
   completed_count: number;
   failed_count: number;
   cancelled_count: number;
+  skipped_count: number;
+  has_targets: boolean;
+  target_count: number;
+  remaining_count: number;
+  actual_cost: number | null;
+  estimated_remaining_cost: number | null;
+  filament_used_grams: number | null;
+  print_time_seconds: number;
+  plates: PrintBatchPlateProgress[];
+}
+
+export interface PrintBatchPlateTarget {
+  plate_id: number | null;
+  plate_name?: string | null;
+  quantity_target: number;
+  sort_order?: number;
+}
+
+export interface PrintBatchPlateProgress extends PrintBatchPlateTarget {
+  plate_name: string | null;
+  dispatched: number;
+  remaining: number;
+  pending_count: number;
+  printing_count: number;
+  completed_count: number;
+  failed_count: number;
+  cancelled_count: number;
+  skipped_count: number;
+  actual_cost: number | null;
+  estimated_remaining_cost: number | null;
+  filament_used_grams: number | null;
+  print_time_seconds: number;
 }
 
 export interface PrintQueueItemCreate {
@@ -406,6 +539,7 @@ export interface PrintQueueItemCreate {
   project_id?: number;
   // Delete transient uploaded library file after scheduler creates the archive
   cleanup_library_after_dispatch?: boolean;
+  variants?: QueueVariantCreate[];
 }
 
 export interface PrintBatchCreate {
@@ -416,6 +550,25 @@ export interface PrintBatchCreate {
    *  (manual "Group as batch"). When omitted/empty, an empty batch is
    *  returned so the client can pass batch_id on subsequent addToQueue calls. */
   item_ids?: number[];
+  plates?: PrintBatchPlateTarget[];
+  project_id?: number | null;
+  due_date?: string | null;
+  notes?: string | null;
+}
+
+export interface PrintBatchUpdate {
+  name?: string;
+  status?: 'active' | 'cancelled';
+  plates?: PrintBatchPlateTarget[];
+  project_id?: number | null;
+  due_date?: string | null;
+  notes?: string | null;
+}
+
+export interface PrintBatchDispatchRequest {
+  plate_id?: number | null;
+  only_plate?: boolean;
+  limit?: number;
 }
 
 export interface PrintQueueItemUpdate {

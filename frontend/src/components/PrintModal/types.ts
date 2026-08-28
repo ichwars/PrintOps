@@ -1,4 +1,7 @@
 import type { PrintQueueItem, Printer } from '../../api/client';
+import type { VariantCandidate } from './VariantCandidates';
+
+export type { VariantCandidate };
 
 /**
  * Mode of operation for the PrintModal.
@@ -36,6 +39,18 @@ export interface PrintModalProps {
   /** Delete the LibraryFile after dispatch — used by the Printers-page Direct-Print flow
    *  so transient uploads don't linger in File Manager. Only applies to library-file prints. */
   cleanupLibraryAfterDispatch?: boolean;
+  /**
+   * Cross-model alternatives (#671): the same job sliced for several printers,
+   * to be queued as ONE item that runs on whichever frees up first.
+   *
+   * Supplied by the File Manager when the user multi-selects sliced files, or
+   * when the clicked file belongs to a variant group. Two or more entries put
+   * the modal in cross-model mode: the printer picker is replaced by the ordered
+   * candidate list, and submit posts `variants` instead of a single file.
+   * `libraryFileId` must still be the first candidate — the shared filament and
+   * plate preview reads from it.
+   */
+  variantFiles?: VariantCandidate[];
 }
 
 /**
@@ -181,6 +196,14 @@ export interface PlateSelectorProps {
   onDeselectAll?: () => void;
   /** Whether multi-select (checkboxes) is enabled */
   multiSelect?: boolean;
+  /**
+   * How many runs of each plate to queue, keyed by plate index (#342). When
+   * provided, each selected plate gets its own quantity control and the
+   * modal's single global Quantity field is hidden — one number per plate is
+   * the whole point, and two controls for the same value would be ambiguous.
+   */
+  quantities?: Record<number, number>;
+  onQuantityChange?: (plateIndex: number, quantity: number) => void;
 }
 
 /**

@@ -261,6 +261,12 @@ export interface ProjectChildPreview {
   color: string | null;
   status: string;
   progress_percent: number | null;
+  descendant_count: number;
+  total_archives: number;
+  completed_prints: number;
+  total_print_time_hours: number;
+  total_filament_grams: number;
+  total_cost: number;
 }
 
 export interface Project {
@@ -282,9 +288,11 @@ export interface Project {
   parent_id: number | null;
   parent_name: string | null;
   children: ProjectChildPreview[];
+  descendant_count: number;
   created_at: string;
   updated_at: string;
   stats?: ProjectStats;
+  rollup_stats?: ProjectStats | null;
   url: string | null;  // External link rendered next to project name on the card (#1155)
   cover_image_filename: string | null;  // Filename within project attachments dir (#1155)
 }
@@ -321,6 +329,8 @@ export interface ProjectListItem {
   failed_count: number;  // Sum of quantities for failed prints
   queue_count: number;
   progress_percent: number | null;  // Plates progress
+  parent_id: number | null;
+  child_count: number;
   archives: ArchivePreview[];
   url: string | null;  // #1155
   cover_image_filename: string | null;  // #1155

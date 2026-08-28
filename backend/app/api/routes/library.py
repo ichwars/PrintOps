@@ -1965,6 +1965,20 @@ async def list_files(
             )
             hash_counts = {h: c - 1 for h, c in dup_result.all()}  # -1 to exclude self
 
+    # Variant group sizes (#671 / #2570). Counted across the whole group rather
+    # than the rows on screen — members can sit in different folders, so counting
+    # the listing would under-report and the "2 versions" badge would blink in
+    # and out as the user navigated.
+    variant_counts: dict[int, int] = {}
+    group_ids = {f.variant_group_id for f in files if f.variant_group_id}
+    if group_ids:
+        count_result = await db.execute(
+            select(LibraryFile.variant_group_id, func.count(LibraryFile.id))
+            .where(LibraryFile.variant_group_id.in_(group_ids), LibraryFile.deleted_at.is_(None))
+            .group_by(LibraryFile.variant_group_id)
+        )
+        variant_counts = dict(count_result.all())
+
     # Prevent browser caching of file list
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
 
@@ -2001,6 +2015,8 @@ async def list_files(
                 filament_used_grams=filament_grams,
                 sliced_for_model=sliced_for_model,
                 tags=[TagSummary(id=t.id, name=t.name) for t in f.tags],
+                variant_group_id=f.variant_group_id,
+                variant_count=variant_counts.get(f.variant_group_id, 0) if f.variant_group_id else 0,
             )
         )
 
@@ -3655,6 +3671,13 @@ async def _run_slicer_with_fallback(
                 target_model,
             )
             cross_class_arrange = True
+
+    # #2548: the user can also ask for either layout pass per-slice. Arrange
+    # is a union with the cross-class decision above — a user opt-out must
+    # not be able to switch off the flag that keeps a class-crossing slice
+    # from crashing — while orient is user-driven only.
+    arrange_flag = cross_class_arrange or request.auto_arrange
+    orient_flag = request.auto_orient
     # When this slice is dispatcher-tracked, generate a request_id so
     # the sidecar publishes progress under it, and wire a callback that
     # forwards each frame onto SliceDispatchService.set_progress for the
@@ -3693,31 +3716,27 @@ async def _run_slicer_with_fallback(
             process_profile_json=presets["process"],
         )
 
-    # Cross-class slice-all loop (#1493): when the user asks for
-    # ``plate=0`` (all plates) AND the source's nozzle class differs from
-    # the target's, ``--slice 0 --arrange 1`` consolidates every plate's
-    # objects onto a single target bed (BS's ``--arrange`` is project-
-    # wide) — either packing them all together or rejecting with "Some
-    # objects are located over the boundary of the heated bed" when
-    # nothing fits. Slice each plate independently with ``--arrange 1``
-    # and merge the per-plate outputs into one multi-plate 3MF instead.
-    # Same-class slice-all goes through the regular path below — the
-    # sidecar's native ``--slice 0`` produces the right shape directly.
-    use_cross_class_slice_all = cross_class_arrange and request.plate == 0 and request.export_3mf
+    # Arrange slice-all loop (#1493): when the user asks for ``plate=0``
+    # (all plates) AND arrange is on, ``--slice 0 --arrange 1``
+    # consolidates every plate's objects onto a single target bed (BS's
+    # ``--arrange`` is project-wide) — either packing them all together or
+    # rejecting with "Some objects are located over the boundary of the
+    # heated bed" when nothing fits. Slice each plate independently with
+    # ``--arrange 1`` and merge the per-plate outputs into one multi-plate
+    # 3MF instead. Slice-all without arrange goes through the regular path
+    # below — the sidecar's native ``--slice 0`` produces the right shape
+    # directly.
+    #
+    # Keyed on ``arrange_flag``, not just the cross-class decision: the
+    # project-wide collapse is a property of ``--arrange`` itself, so a
+    # user-requested arrange over all plates (#2548) hits it identically.
+    # Orient doesn't — it rotates objects where they stand and never moves
+    # one between plates — so it isn't part of this condition.
+    use_arrange_slice_all = arrange_flag and request.plate == 0 and request.export_3mf
 
     try:
         try:
-            if embedded_mode:
-                result = await service.slice_without_profiles(
-                    model_bytes=primary_bytes,
-                    model_filename=model_filename,
-                    plate=request.plate,
-                    export_3mf=request.export_3mf,
-                    request_id=progress_request_id,
-                    on_progress=progress_callback,
-                )
-                used_embedded_settings = True
-            elif use_cross_class_slice_all:
+            if use_arrange_slice_all:
                 from backend.app.services.slicer_3mf_convert import (
                     count_plates_in_3mf,
                     merge_plate_3mfs,
@@ -3734,8 +3753,10 @@ async def _run_slicer_with_fallback(
                         ),
                     )
                 logger.info(
-                    "Cross-class slice-all: looping over %d plates with --arrange per plate, then merging",
+                    "Arrange slice-all: looping over %d plates with --arrange per plate, then merging "
+                    "(embedded_settings=%s)",
                     plate_count,
+                    embedded_mode,
                 )
                 from backend.app.services.slicer_api import SliceResult
 
@@ -3764,18 +3785,35 @@ async def _run_slicer_with_fallback(
 
                 for plate_num in range(1, plate_count + 1):
                     plate_cb = _wrap_progress_for_plate(plate_num, plate_count)
-                    per_plate = await service.slice_with_profiles(
-                        model_bytes=primary_bytes,
-                        model_filename=model_filename,
-                        printer_profile_json=presets["printer"],
-                        process_profile_json=presets["process"],
-                        filament_profile_jsons=filament_jsons,
-                        plate=plate_num,
-                        export_3mf=True,
-                        arrange=True,
-                        request_id=progress_request_id,
-                        on_progress=plate_cb,
-                    )
+                    # "Slice as designed" has to take the loop too, not skip
+                    # it: the project-wide collapse is caused by --arrange,
+                    # and which config drives the slice has no bearing on
+                    # that. Same call, minus --load-settings.
+                    if embedded_mode:
+                        per_plate = await service.slice_without_profiles(
+                            model_bytes=primary_bytes,
+                            model_filename=model_filename,
+                            plate=plate_num,
+                            export_3mf=True,
+                            arrange=True,
+                            orient=orient_flag,
+                            request_id=progress_request_id,
+                            on_progress=plate_cb,
+                        )
+                    else:
+                        per_plate = await service.slice_with_profiles(
+                            model_bytes=primary_bytes,
+                            model_filename=model_filename,
+                            printer_profile_json=presets["printer"],
+                            process_profile_json=presets["process"],
+                            filament_profile_jsons=filament_jsons,
+                            plate=plate_num,
+                            export_3mf=True,
+                            arrange=True,
+                            orient=orient_flag,
+                            request_id=progress_request_id,
+                            on_progress=plate_cb,
+                        )
                     per_plate_results.append((plate_num, per_plate))
 
                 # Merge the N single-plate 3MFs into one multi-plate 3MF.
@@ -3796,6 +3834,28 @@ async def _run_slicer_with_fallback(
                     filament_used_g=sum(r.filament_used_g for _, r in per_plate_results),
                     filament_used_mm=sum(r.filament_used_mm for _, r in per_plate_results),
                 )
+                # Report the path honestly: the loop can run either way, and
+                # the UI reads this flag to tell the user whose settings won.
+                used_embedded_settings = embedded_mode
+            elif embedded_mode:
+                # No --load-settings: feed the CLI the file's own
+                # project_settings.config untouched so the designer's tweaks
+                # (walls, infill, etc.) drive the slice. primary_bytes is
+                # already sentinel-sanitised above, the same bytes the
+                # crash-fallback uses. The resolved presets go unused here.
+                # Arrange / orient still apply: they are CLI actions on the
+                # geometry, not settings the embedded config could carry.
+                result = await service.slice_without_profiles(
+                    model_bytes=primary_bytes,
+                    model_filename=model_filename,
+                    plate=request.plate,
+                    export_3mf=request.export_3mf,
+                    arrange=arrange_flag,
+                    orient=orient_flag,
+                    request_id=progress_request_id,
+                    on_progress=progress_callback,
+                )
+                used_embedded_settings = True
             else:
                 result = await service.slice_with_profiles(
                     model_bytes=primary_bytes,
@@ -3805,7 +3865,8 @@ async def _run_slicer_with_fallback(
                     filament_profile_jsons=filament_jsons,
                     plate=request.plate,
                     export_3mf=request.export_3mf,
-                    arrange=cross_class_arrange,
+                    arrange=arrange_flag,
+                    orient=orient_flag,
                     request_id=progress_request_id,
                     on_progress=progress_callback,
                 )
@@ -3821,6 +3882,14 @@ async def _run_slicer_with_fallback(
                 raise HTTPException(status_code=400, detail=rejection) from exc
             if not is_3mf or embedded_mode:
                 raise
+            if use_arrange_slice_all:
+                # The fallback is a single ``--slice 0`` call, and with
+                # arrange on that collapses every plate onto one bed — the
+                # exact outcome the per-plate loop above exists to avoid.
+                # Retrying would hand back a one-plate result for a job the
+                # user asked to slice as N, which reads as a Bambuddy bug
+                # rather than a slicer failure. Surface the error instead.
+                raise
             logger.warning(
                 "Slicer CLI failed on the --load-settings path for %s (%s); retrying with embedded settings",
                 model_filename,
@@ -3834,11 +3903,17 @@ async def _run_slicer_with_fallback(
             # there too, so without sanitisation the fallback would die
             # on the same sentinel error (#1201). The SliceModal flags
             # the difference to the user via used_embedded_settings.
+            # Carry the layout flags across too — the retry is meant to
+            # differ from the failed attempt only in where the print
+            # config came from, so dropping them here would silently
+            # produce an un-arranged result the user did ask for.
             result = await service.slice_without_profiles(
                 model_bytes=primary_bytes,
                 model_filename=model_filename,
                 plate=request.plate,
                 export_3mf=request.export_3mf,
+                arrange=arrange_flag,
+                orient=orient_flag,
                 request_id=progress_request_id,
                 on_progress=progress_callback,
             )
@@ -4214,11 +4289,16 @@ async def slice_and_persist_as_archive(
         created_by_id=current_user_id,
     )
     db.add(new_archive)
+    # Allocate the identifier before committing.  The async session is
+    # configured with ``expire_on_commit=False``, so a second round-trip to
+    # refresh the row is unnecessary and can race with status polling when
+    # tests use SQLite's single shared in-memory connection.
+    await db.flush()
+    new_archive_id = new_archive.id
     await db.commit()
-    await db.refresh(new_archive)
 
     return SliceArchiveResponse(
-        archive_id=new_archive.id,
+        archive_id=new_archive_id,
         name=new_archive.print_name or out_filename,
         print_time_seconds=result.print_time_seconds,
         filament_used_g=filament_g,
@@ -4558,6 +4638,9 @@ async def delete_file(
             except OSError as e:
                 logger.warning("Failed to delete thumbnail from disk: %s", e)
         await release_queue_references(db, [file.id])
+        from backend.app.services.library_trash import delete_dependent_variants
+
+        await delete_dependent_variants(db, [file.id])
         await db.delete(file)
         await db.commit()
         return {"status": "success", "message": "File deleted", "trashed": False}

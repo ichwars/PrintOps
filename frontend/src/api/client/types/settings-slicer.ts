@@ -413,6 +413,10 @@ export interface SliceRequest {
   // 3MF only: honour the file's embedded project settings instead of the
   // selected profile triplet.
   use_embedded_settings?: boolean;
+  // Per-slice geometry passes. Omitted means off, preserving the source
+  // model's deliberate orientation and layout.
+  auto_orient?: boolean;
+  auto_arrange?: boolean;
 }
 
 // GET /api/v1/slicer/presets — unified listing across cloud / local / standard.
