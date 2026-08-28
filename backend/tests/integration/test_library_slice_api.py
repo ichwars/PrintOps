@@ -74,20 +74,28 @@ def _is_slice_post(request: httpx.Request) -> bool:
     return request.method == "POST" and request.url.path.rstrip("/").endswith("/slice")
 
 
-async def _wait_for_job(client: AsyncClient, job_id: int, timeout: float = 5.0) -> dict:
-    """Poll `/api/v1/slice-jobs/{id}` until the job hits a terminal state.
+async def _wait_for_job(_client: AsyncClient, job_id: int, timeout: float = 5.0) -> dict:
+    """Wait for a slice job without opening concurrent test DB sessions.
 
-    The dispatcher runs work as an asyncio task on the same event loop, so
-    poll-with-sleep here is enough — a few yields and the task finishes.
+    Production clients poll the HTTP endpoint. Integration tests use a single
+    shared in-memory SQLite connection, though, so overlapping auth/request
+    sessions can roll back the background job's commit. The endpoint contract
+    is exercised separately once the job is terminal.
     """
     deadline = asyncio.get_event_loop().time() + timeout
     while asyncio.get_event_loop().time() < deadline:
-        r = await client.get(f"/api/v1/slice-jobs/{job_id}")
-        if r.status_code != 200:
-            raise AssertionError(f"slice-jobs poll failed: {r.status_code} {r.text}")
-        body = r.json()
-        if body["status"] in ("completed", "failed"):
-            return body
+        job = slice_dispatch.get(job_id)
+        if job is None:
+            raise AssertionError(f"slice job {job_id} disappeared")
+        if job.status == "completed":
+            return {"job_id": job.id, "status": job.status, "result": job.result}
+        if job.status == "failed":
+            return {
+                "job_id": job.id,
+                "status": job.status,
+                "error_status": job.error_status,
+                "error_detail": job.error_detail,
+            }
         await asyncio.sleep(0.05)
     raise AssertionError(f"slice job {job_id} did not finish in {timeout}s")
 
@@ -696,6 +704,25 @@ class TestSliceJobs:
         r = await async_client.get("/api/v1/slice-jobs/999999")
         assert r.status_code == 404
 
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_completed_job_returns_result(self, async_client: AsyncClient):
+        async def run(_job_id: int) -> dict:
+            return {"archive_id": 42}
+
+        job = await slice_dispatch.enqueue(
+            kind="archive",
+            source_id=7,
+            source_name="example.3mf",
+            run=run,
+        )
+        await slice_dispatch._tasks[job.id]
+
+        response = await async_client.get(f"/api/v1/slice-jobs/{job.id}")
+
+        assert response.status_code == 200
+        assert response.json()["result"] == {"archive_id": 42}
+
 
 # ---------------------------------------------------------------------------
 # POST /archives/{id}/slice — re-sliced archive reflects the target printer
@@ -929,7 +956,6 @@ class TestCrossClassSliceAllLoop:
         db_session.add(x1c)
         await db_session.commit()
         await db_session.refresh(x1c)
-
         captured_requests: list[dict] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -1031,7 +1057,6 @@ class TestCrossClassSliceAllLoop:
         db_session.add(x1c)
         await db_session.commit()
         await db_session.refresh(x1c)
-
         captured_requests: list[dict] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -1090,6 +1115,7 @@ class TestCrossClassSliceAllLoop:
         assert final["result"]["used_embedded_settings"] is True
 
         new_archive = await db_session.get(PrintArchive, final["result"]["archive_id"])
+        assert new_archive is not None
         with zipfile.ZipFile(tmp_path / new_archive.file_path, "r") as zf:
             entries = set(zf.namelist())
         assert "Metadata/plate_1.gcode" in entries

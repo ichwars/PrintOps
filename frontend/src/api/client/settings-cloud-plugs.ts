@@ -30,6 +30,7 @@ import type {
   PrinterHASensor,
   PrinterHASensorCreate,
   PrinterHASensorReading,
+  PrinterHAInterlockOverrideStatus,
   PrinterHASensorUpdate,
   SmartPlugCreate,
   SmartPlugStatus,
@@ -346,6 +347,20 @@ export const settingsCloudPlugsMethods = {
 
   getHASensorReadings: (printerId: number) =>
     request<PrinterHASensorReading[]>(`/ha-sensors/by-printer/${printerId}/readings`),
+
+  getHAInterlockOverride: (printerId: number) =>
+    request<PrinterHAInterlockOverrideStatus>(`/ha-sensors/printers/${printerId}/interlock-override`),
+
+  setHAInterlockOverride: (printerId: number, reason: string) =>
+    request<PrinterHAInterlockOverrideStatus>(`/ha-sensors/printers/${printerId}/interlock-override`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
+  clearHAInterlockOverride: (printerId: number) =>
+    request<PrinterHAInterlockOverrideStatus>(`/ha-sensors/printers/${printerId}/interlock-override`, {
+      method: 'DELETE',
+    }),
 
   getBindableHAEntities: (search?: string) => {
     const params = search ? `?search=${encodeURIComponent(search)}` : '';

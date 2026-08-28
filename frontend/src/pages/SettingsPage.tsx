@@ -4185,9 +4185,21 @@ export function SettingsPage() {
                         </div>
                         <div className="flex flex-wrap gap-1 mt-3">
                           {sensor.block_print && (
-                            <span className="px-2 py-0.5 text-xs rounded bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400">
-                              {t('haSensors.badgeBlocks')}
-                            </span>
+                            <>
+                              <span className="px-2 py-0.5 text-xs rounded bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400">
+                                {t('haSensors.badgeBlocks')}
+                              </span>
+                              <span className="px-2 py-0.5 text-xs rounded bg-bambu-dark-tertiary text-bambu-gray">
+                                {t(`haSensors.failure.${sensor.failure_strategy}`)}
+                              </span>
+                              {sensor.kind === 'binary' && sensor.alert_state ? (
+                                <span className="px-2 py-0.5 text-xs rounded bg-bambu-dark-tertiary text-bambu-gray">
+                                  {t('haSensors.safeState', {
+                                    state: t(`haSensors.states.${sensor.alert_state === 'on' ? 'off' : 'on'}`),
+                                  })}
+                                </span>
+                              ) : null}
+                            </>
                           )}
                           {sensor.notify_on_alert && (
                             <span className="px-2 py-0.5 text-xs rounded bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400">

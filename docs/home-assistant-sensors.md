@@ -11,8 +11,22 @@ the selected failure strategy. Automatic mode fails closed for `smoke`, `gas`,
 `moisture`, `problem` and `safety` device classes, and fails open for ordinary
 readiness sensors. An administrator with queue-wide update permission can
 temporarily override an uncertain fail-closed reading by supplying a reason;
-the user, printer and reason are written to the application log. A confirmed
-unsafe reading is never bypassed by that override.
+the user, timestamp, printer and reason are written to the durable interlock
+audit and the application log. The printer card shows the active override and
+lets the same permission holder restore the interlock. Overrides live only for
+the current server process, so a restart automatically restores the configured
+fail-closed posture. A confirmed unsafe reading is never bypassed by an
+override.
+
+The REST surface is available below `/api/v1/ha-sensors/printers/{printer_id}`:
+
+- `GET /interlock-override` reports the active override and which unavailable
+  fail-closed sensors are currently eligible.
+- `POST /interlock-override` enables a temporary override and requires a
+  three-character-or-longer `reason` plus `queue:update_all`.
+- `DELETE /interlock-override` restores the interlock.
+- `GET /interlock-audit` returns the durable enable/clear history and also
+  requires `queue:update_all`.
 
 These interlocks are operational assistance, not certified physical safety
 equipment. Use appropriate independent guards, emergency stops and fire

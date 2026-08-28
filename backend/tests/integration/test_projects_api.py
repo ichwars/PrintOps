@@ -1298,6 +1298,8 @@ class TestProjectExportImport:
         assert response.status_code == 200, response.text
         data = response.json()
         assert data["name"] == "nested-ok"
+
+
 class TestSubProjectRollup:
     """Tests for #1264 — nesting projects and rolling their figures up.
 

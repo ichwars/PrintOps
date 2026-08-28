@@ -4,6 +4,7 @@ import type { PlateSelectorProps } from './types';
 import { formatDuration } from '../../utils/date';
 import { withStreamToken } from '../../api/client';
 import { getBedTypeInfo } from '../../utils/bedType';
+import { NumberField } from '../ui';
 
 /**
  * Plate selection grid for multi-plate 3MF files.
@@ -130,8 +131,7 @@ export function PlateSelector({
             {showQuantities && isSelected && (
               <div className="flex items-center gap-1 flex-shrink-0">
                 <span className="text-xs text-bambu-gray" aria-hidden="true">×</span>
-                <input
-                  type="number"
+                <NumberField
                   min={1}
                   max={999}
                   value={quantities[plate.index] ?? 1}
@@ -141,7 +141,8 @@ export function PlateSelector({
                   onChange={(e) =>
                     onQuantityChange(plate.index, Math.max(1, Math.min(999, parseInt(e.target.value) || 1)))
                   }
-                  className="w-14 px-1.5 py-1 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center focus:outline-none focus:ring-1 focus:ring-bambu-green"
+                  containerClassName="w-20"
+                  className="px-1.5 py-1 text-center text-sm"
                 />
               </div>
             )}

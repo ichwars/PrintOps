@@ -101,8 +101,31 @@ class PrinterHASensorReading(BaseModel):
     value: float | None = None  # numeric sensors only, parsed from state
     alerting: bool = False
     block_print: bool = False
+    failure_strategy: Literal["auto", "fail_open", "fail_closed"] = "auto"
     reachable: bool = True
     last_changed: datetime | None = None
+
+
+class PrinterHAInterlockOverrideStatus(BaseModel):
+    printer_id: int
+    overridden: bool
+    username: str | None = None
+    reason: str | None = None
+    created_at: datetime | None = None
+    overrideable_sensors: list[str] = Field(default_factory=list)
+
+
+class PrinterHAInterlockAuditResponse(BaseModel):
+    id: int
+    printer_id: int
+    printer_name: str
+    username: str
+    action: Literal["enabled", "cleared"]
+    reason: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 class HADisplayEntity(BaseModel):

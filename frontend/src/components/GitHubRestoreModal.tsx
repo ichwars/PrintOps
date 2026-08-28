@@ -17,6 +17,7 @@ import { Card, CardContent } from './Card';
 import { Button } from './Button';
 import { Toggle } from './Toggle';
 import { ConfirmModal } from './ConfirmModal';
+import { Checkbox, LegacySelect } from './ui';
 import {
   api,
   type RestoreCategory,
@@ -364,7 +365,7 @@ export function GitHubRestoreModal({ onClose }: GitHubRestoreModalProps) {
                   <label htmlFor="restore-commit" className="block text-sm font-medium text-white mb-1">
                     {t('backup.restoreFromGit.commitLabel')}
                   </label>
-                  <select
+                  <LegacySelect
                     id="restore-commit"
                     value={selectedRef}
                     onChange={(e) => {
@@ -383,7 +384,7 @@ export function GitHubRestoreModal({ onClose }: GitHubRestoreModalProps) {
                         {formatCommitLabel(c.sha, c.message, c.date)}
                       </option>
                     ))}
-                  </select>
+                  </LegacySelect>
                   {commitsError && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{commitsError}</p>}
                 </div>
 
@@ -406,9 +407,9 @@ export function GitHubRestoreModal({ onClose }: GitHubRestoreModalProps) {
                         const isAvailable = Boolean(info?.available);
                         const isChecked = Boolean(selected[category.id]) && isAvailable;
                         return (
-                          <label
+                          <div
                             key={category.id}
-                            className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
+                            className={`rounded-lg p-3 transition-colors ${
                               isAvailable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
                             } ${
                               isChecked
@@ -416,33 +417,38 @@ export function GitHubRestoreModal({ onClose }: GitHubRestoreModalProps) {
                                 : 'bg-bambu-dark hover:bg-bambu-dark-tertiary border border-transparent'
                             }`}
                           >
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               checked={isChecked}
                               disabled={!isAvailable || isRestoring}
-                              onChange={() =>
-                                setSelected((prev) => ({ ...prev, [category.id]: !prev[category.id] }))
+                              onCheckedChange={(checked) =>
+                                setSelected((prev) => ({ ...prev, [category.id]: checked }))
                               }
-                              className="w-4 h-4 rounded border-bambu-gray bg-bambu-dark text-bambu-green focus:ring-bambu-green focus:ring-offset-0"
-                            />
-                            <div className={isChecked ? 'text-bambu-green' : 'text-bambu-gray'}>{category.icon}</div>
-                            <div className="flex-1">
-                              <div className="text-white text-sm font-medium">
-                                {t(category.labelKey)}
-                                {isAvailable && info?.itemCount ? (
-                                  <span className="ml-2 text-xs text-bambu-gray">
-                                    {t('backup.restoreFromGit.itemCount', { count: info.itemCount })}
-                                  </span>
-                                ) : null}
-                              </div>
-                              {info?.detail && <div className="text-xs text-bambu-gray">{info.detail}</div>}
-                              {category.id === 'kprofiles' && isChecked && warnKprofilesOverwrite && (
-                                <div className="text-xs text-yellow-700 dark:text-yellow-200">
-                                  {t('backup.restoreFromGit.kprofilesOverwriteCaveat')}
-                                </div>
+                              className="w-full"
+                              label={(
+                                <>
+                                  <div className={isChecked ? 'text-bambu-green' : 'text-bambu-gray'}>
+                                    {category.icon}
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="text-white text-sm font-medium">
+                                      {t(category.labelKey)}
+                                      {isAvailable && info?.itemCount ? (
+                                        <span className="ml-2 text-xs text-bambu-gray">
+                                          {t('backup.restoreFromGit.itemCount', { count: info.itemCount })}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    {info?.detail && <div className="text-xs text-bambu-gray">{info.detail}</div>}
+                                    {category.id === 'kprofiles' && isChecked && warnKprofilesOverwrite && (
+                                      <div className="text-xs text-yellow-700 dark:text-yellow-200">
+                                        {t('backup.restoreFromGit.kprofilesOverwriteCaveat')}
+                                      </div>
+                                    )}
+                                  </div>
+                                </>
                               )}
-                            </div>
-                          </label>
+                            />
+                          </div>
                         );
                       })}
                     </div>

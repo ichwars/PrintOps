@@ -463,13 +463,11 @@ describe('ProjectsPage', () => {
         />,
       );
 
-      const parentSelect = () =>
-        Array.from(document.querySelectorAll('select')).find((s) =>
-          s.querySelector('option[value=""]'),
-        ) as HTMLSelectElement;
-      await waitFor(() => expect(parentSelect().value).toBe('9'));
+      const parentSelect = await screen.findByLabelText('projects.parentLabel');
+      await waitFor(() => expect(parentSelect).toHaveAttribute('data-value', '9'));
 
-      await user.selectOptions(parentSelect(), '');
+      await user.click(parentSelect);
+      await user.click(screen.getByRole('option', { name: 'projects.parentNone' }));
       await user.click(screen.getByRole('button', { name: 'common.save' }));
 
       expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ parent_id: 0 }));

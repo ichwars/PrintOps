@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -16,13 +17,15 @@ import { useTranslation } from 'react-i18next';
 
 import { api } from '../api/client';
 import type { PrinterHASensorReading } from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
+import { TextField } from './ui';
 
 /**
  * The Home Assistant sensors bound to a printer, on its card (#1148, #448).
  *
- * Read-only by design — these are contacts and thermometers, not switches, so
- * nothing here is clickable. The sibling "HA:" row above handles the entities
- * you can actually operate.
+ * Sensor values are read-only. A queue supervisor can temporarily override an
+ * unavailable fail-closed interlock here, with a mandatory audited reason;
+ * positive unsafe readings remain non-bypassable.
  */
 
 // Home Assistant's own device_class decides the wording, so a door reads
@@ -82,6 +85,10 @@ interface Props {
 
 export function PrinterHASensorRow({ printerId }: Props) {
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
+  const queryClient = useQueryClient();
+  const [showOverrideForm, setShowOverrideForm] = useState(false);
+  const [overrideReason, setOverrideReason] = useState('');
 
   const { data: readings } = useQuery({
     queryKey: ['haSensorReadings', printerId],
@@ -92,7 +99,33 @@ export function PrinterHASensorRow({ printerId }: Props) {
     refetchInterval: 15000,
   });
 
-  if (!readings?.length) return null;
+  const { data: override } = useQuery({
+    queryKey: ['haInterlockOverride', printerId],
+    queryFn: () => api.getHAInterlockOverride(printerId),
+    refetchInterval: 15000,
+  });
+
+  const refreshOverride = (status: Awaited<ReturnType<typeof api.getHAInterlockOverride>>) => {
+    queryClient.setQueryData(['haInterlockOverride', printerId], status);
+    queryClient.invalidateQueries({ queryKey: ['printQueue'] });
+  };
+
+  const overrideMutation = useMutation({
+    mutationFn: () => api.setHAInterlockOverride(printerId, overrideReason.trim()),
+    onSuccess: (status) => {
+      refreshOverride(status);
+      setOverrideReason('');
+      setShowOverrideForm(false);
+    },
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: () => api.clearHAInterlockOverride(printerId),
+    onSuccess: refreshOverride,
+  });
+
+  const showOverride = Boolean(override?.overridden || override?.overrideable_sensors.length);
+  if (!readings?.length && !showOverride) return null;
 
   const describe = (reading: PrinterHASensorReading): string => {
     if (!reading.reachable || reading.state === null) return t('haSensors.unavailable');
@@ -106,12 +139,13 @@ export function PrinterHASensorRow({ printerId }: Props) {
   };
 
   return (
-    <div className="flex items-center gap-2 mt-2">
-      <Gauge className="w-[var(--pc-i35,0.875rem)] h-[var(--pc-i35,0.875rem)] text-blue-600 dark:text-blue-400 flex-shrink-0" />
-      <span className="text-xs text-bambu-gray">{t('haSensors.label')}</span>
-      <div className="h-[2px] w-5 bg-bambu-dark-tertiary/50" />
-      <div className="flex flex-wrap gap-1">
-        {readings.map((reading) => {
+    <div className="mt-2 space-y-1.5">
+      {readings?.length ? <div className="flex items-center gap-2">
+        <Gauge className="w-[var(--pc-i35,0.875rem)] h-[var(--pc-i35,0.875rem)] text-blue-600 dark:text-blue-400 flex-shrink-0" />
+        <span className="text-xs text-bambu-gray">{t('haSensors.label')}</span>
+        <div className="h-[2px] w-5 bg-bambu-dark-tertiary/50" />
+        <div className="flex flex-wrap gap-1">
+          {readings.map((reading) => {
           const Icon = iconFor(reading);
           const unreachable = !reading.reachable || reading.state === null;
           return (
@@ -135,8 +169,81 @@ export function PrinterHASensorRow({ printerId }: Props) {
               <span className="font-medium">{describe(reading)}</span>
             </span>
           );
-        })}
+          })}
+        </div>
       </div>
+      : null}
+
+      {showOverride && hasPermission('queue:update_all') ? (
+        <div className="ml-6 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-200">
+          {override?.overridden ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                {t('haSensors.override.active', {
+                  user: override.username ?? t('haSensors.override.unknownUser'),
+                  reason: override.reason ?? '',
+                })}
+              </span>
+              <button
+                type="button"
+                className="rounded bg-bambu-dark px-2 py-1 text-white hover:bg-bambu-dark-tertiary disabled:opacity-50"
+                onClick={() => clearMutation.mutate()}
+                disabled={clearMutation.isPending}
+              >
+                {t('haSensors.override.clear')}
+              </button>
+            </div>
+          ) : showOverrideForm ? (
+            <div className="space-y-1.5">
+              <label className="block" htmlFor={`ha-override-reason-${printerId}`}>
+                {t('haSensors.override.reasonLabel')}
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                <TextField
+                  id={`ha-override-reason-${printerId}`}
+                  value={overrideReason}
+                  onChange={(event) => setOverrideReason(event.target.value)}
+                  maxLength={500}
+                  className="min-w-48 flex-1 rounded border border-bambu-dark-tertiary bg-bambu-dark px-2 py-1 text-white"
+                />
+                <button
+                  type="button"
+                  className="rounded bg-amber-600 px-2 py-1 text-white disabled:opacity-50"
+                  onClick={() => overrideMutation.mutate()}
+                  disabled={overrideReason.trim().length < 3 || overrideMutation.isPending}
+                >
+                  {t('haSensors.override.confirm')}
+                </button>
+                <button
+                  type="button"
+                  className="rounded bg-bambu-dark px-2 py-1 text-white"
+                  onClick={() => setShowOverrideForm(false)}
+                >
+                  {t('common.cancel')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                {t('haSensors.override.unavailable', {
+                  sensors: override?.overrideable_sensors.join(', '),
+                })}
+              </span>
+              <button
+                type="button"
+                className="rounded bg-amber-600 px-2 py-1 text-white"
+                onClick={() => setShowOverrideForm(true)}
+              >
+                {t('haSensors.override.open')}
+              </button>
+            </div>
+          )}
+          {overrideMutation.isError || clearMutation.isError ? (
+            <p className="mt-1 text-red-300">{t('haSensors.override.error')}</p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

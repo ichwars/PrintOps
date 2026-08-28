@@ -10,15 +10,15 @@ the result in memory. Three things consume it:
 * the print interlock, which holds queued jobs for a printer while one of its
   sensors is alerting.
 
-Everything degrades to "no opinion" when Home Assistant cannot be reached: an
-unreadable sensor never alerts, never notifies, and never holds a print. A
-door contact that stops responding must not strand the queue.
+An unreadable sensor never creates a positive alert or notification. Print
+interlocks follow their saved failure strategy: ordinary readiness sensors
+default to fail-open, while critical safety classes default to fail-closed.
 """
 
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,6 +47,13 @@ class SensorReading:
     reachable: bool
 
 
+@dataclass(frozen=True)
+class InterlockOverride:
+    username: str
+    reason: str
+    created_at: datetime
+
+
 class HASensorManager:
     def __init__(self):
         self._task: asyncio.Task | None = None
@@ -62,7 +69,7 @@ class HASensorManager:
         self._last_alerting: dict[int, bool] = {}
         # Manual overrides are intentionally runtime-only: a restart restores
         # the configured safety posture instead of silently carrying a bypass.
-        self._overrides: dict[int, dict[str, str]] = {}
+        self._overrides: dict[int, InterlockOverride] = {}
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -89,10 +96,36 @@ class HASensorManager:
         self._last_alerting.pop(sensor_id, None)
 
     def set_interlock_override(self, printer_id: int, *, username: str, reason: str) -> None:
-        self._overrides[printer_id] = {"username": username, "reason": reason}
+        self._overrides[printer_id] = InterlockOverride(
+            username=username,
+            reason=reason,
+            created_at=utcnow_naive(),
+        )
+
+    def get_interlock_override(self, printer_id: int) -> InterlockOverride | None:
+        return self._overrides.get(printer_id)
 
     def clear_interlock_override(self, printer_id: int) -> None:
         self._overrides.pop(printer_id, None)
+
+    async def overrideable_sensor_names(self, db: AsyncSession, printer_id: int) -> list[str]:
+        """Return fail-closed interlocks currently blocked only by uncertainty."""
+        result = await db.execute(
+            select(PrinterHASensor).where(
+                PrinterHASensor.printer_id == printer_id,
+                PrinterHASensor.block_print.is_(True),
+            )
+        )
+        names: list[str] = []
+        for sensor in result.scalars().all():
+            if not self._fails_closed(sensor):
+                continue
+            reading = self._readings.get(sensor.id)
+            last_checked = getattr(sensor, "last_checked", None)
+            stale = last_checked is not None and utcnow_naive() - last_checked > STALE_AFTER
+            if reading is None or not reading.reachable or stale:
+                names.append(sensor.name)
+        return names
 
     @staticmethod
     def _fails_closed(sensor: PrinterHASensor) -> bool:
@@ -106,9 +139,10 @@ class HASensorManager:
     async def blocked_printers(self, db: AsyncSession) -> dict[int, str]:
         """Printers currently held by an interlock, mapped to the sensor names.
 
-        A sensor counts only when it is configured to block, *and* was read
-        successfully, *and* is in its alert state. Anything we could not read
-        is omitted, so the queue keeps moving when Home Assistant is down.
+        A sensor counts when it is configured to block and either has a fresh,
+        positive unsafe reading or is unreadable under a fail-closed strategy.
+        A reasoned manual override bypasses uncertainty only; it cannot bypass
+        a positive unsafe reading.
 
         One query for the whole fleet — the scheduler calls this on every pass,
         and per-printer lookups would put a query per printer in that loop.

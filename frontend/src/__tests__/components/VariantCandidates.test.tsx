@@ -115,7 +115,8 @@ describe('VariantCandidates', () => {
     const { onPlateChange } = setup();
 
     const pickers = await screen.findAllByRole('combobox');
-    await user.selectOptions(pickers[1], '2');
+    await user.click(pickers[1]);
+    await user.click(screen.getByRole('option', { name: 'Plate 2' }));
 
     expect(onPlateChange).toHaveBeenCalledWith(2, 2);
   });

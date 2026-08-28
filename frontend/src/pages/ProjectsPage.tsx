@@ -212,9 +212,10 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
             <label className="block text-sm font-medium text-white mb-1">
               {t('projects.parentLabel')}
             </label>
-            <select
+            <LegacySelect
               value={parentId ?? ''}
               onChange={(e) => setParentId(e.target.value ? parseInt(e.target.value, 10) : null)}
+              aria-label={t('projects.parentLabel')}
               className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded px-3 py-2 text-white focus:outline-none focus:border-bambu-green"
             >
               <option value="">{t('projects.parentNone')}</option>
@@ -223,7 +224,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
                   {option.name}
                 </option>
               ))}
-            </select>
+            </LegacySelect>
             <p className="text-xs text-bambu-gray mt-1">{t('projects.parentHint')}</p>
           </div>
 

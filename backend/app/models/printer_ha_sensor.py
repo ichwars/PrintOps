@@ -72,4 +72,25 @@ class PrinterHASensor(Base):
     printer: Mapped["Printer"] = relationship(back_populates="ha_sensors")
 
 
+class PrinterHAInterlockAudit(Base):
+    """Durable, append-style evidence for manual HA interlock overrides.
+
+    The live override intentionally remains in memory so a process restart
+    restores the configured fail-closed posture.  These rows preserve who
+    enabled or cleared that temporary bypass, when, for which printer, and why.
+    Printer and user names are snapshotted so the evidence remains meaningful
+    even after either source row is renamed or removed.
+    """
+
+    __tablename__ = "printer_ha_interlock_audit"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    printer_id: Mapped[int] = mapped_column(Integer, index=True)
+    printer_name: Mapped[str] = mapped_column(String(100))
+    username: Mapped[str] = mapped_column(String(100))
+    action: Mapped[str] = mapped_column(String(16))
+    reason: Mapped[str] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+
 from backend.app.models.printer import Printer  # noqa: E402

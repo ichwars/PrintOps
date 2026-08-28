@@ -391,8 +391,18 @@ export interface PrinterHASensorReading {
   value: number | null;
   alerting: boolean;
   block_print: boolean;
+  failure_strategy: 'auto' | 'fail_open' | 'fail_closed';
   reachable: boolean;
   last_changed: string | null;
+}
+
+export interface PrinterHAInterlockOverrideStatus {
+  printer_id: number;
+  overridden: boolean;
+  username: string | null;
+  reason: string | null;
+  created_at: string | null;
+  overrideable_sensors: string[];
 }
 
 export interface PrinterHASensorCreate {

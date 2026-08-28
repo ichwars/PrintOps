@@ -3,6 +3,7 @@ import { useQueries } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, Layers, Printer as PrinterIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
+import { LegacySelect } from '../ui';
 
 /** One sliced file offered as an alternative for a cross-model job (#671). */
 export interface VariantCandidate {
@@ -114,7 +115,7 @@ export function VariantCandidates({
               {plates && (
                 <label className="flex items-center gap-1 text-xs text-bambu-gray shrink-0">
                   <Layers className="w-3 h-3" />
-                  <select
+                  <LegacySelect
                     className="bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded px-1 py-0.5 text-xs text-white"
                     value={plateByFile[candidate.id] ?? plates[0].index}
                     onChange={(e) => onPlateChange(candidate.id, Number(e.target.value))}
@@ -125,7 +126,7 @@ export function VariantCandidates({
                         {p.name || t('printModal.plateN', { n: p.index })}
                       </option>
                     ))}
-                  </select>
+                  </LegacySelect>
                 </label>
               )}
 

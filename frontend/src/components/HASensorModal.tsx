@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import type { HADisplayEntity, Printer, PrinterHASensor } from '../api/client';
 import { Button } from './Button';
+import { Checkbox, LegacySelect, NumberField, TextField } from './ui';
 import { useToast } from '../contexts/ToastContext';
 
 /**
@@ -214,7 +215,7 @@ export function HASensorModal({ sensor, printers, onClose }: Props) {
           {!isEditing && (
             <div>
               <label className="block text-sm text-bambu-gray mb-1">{t('haSensors.printer')}</label>
-              <select
+              <LegacySelect
                 value={printerId}
                 onChange={(e) => setPrinterId(e.target.value === '' ? '' : Number(e.target.value))}
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white"
@@ -224,7 +225,7 @@ export function HASensorModal({ sensor, printers, onClose }: Props) {
                     {p.name}
                   </option>
                 ))}
-              </select>
+              </LegacySelect>
             </div>
           )}
 
@@ -246,7 +247,7 @@ export function HASensorModal({ sensor, printers, onClose }: Props) {
             )}
             <div className="relative mb-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
-              <input
+              <TextField
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -298,7 +299,7 @@ export function HASensorModal({ sensor, printers, onClose }: Props) {
 
           <div>
             <label className="block text-sm text-bambu-gray mb-1">{t('haSensors.name')}</label>
-            <input
+            <TextField
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -309,7 +310,7 @@ export function HASensorModal({ sensor, printers, onClose }: Props) {
           <div>
             <label className="block text-sm text-bambu-gray mb-1">{t('haSensors.alertWhen')}</label>
             {kind === 'binary' ? (
-              <select
+              <LegacySelect
                 value={alertState}
                 onChange={(e) => setAlertState(e.target.value as 'on' | 'off' | '')}
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white"
@@ -317,15 +318,14 @@ export function HASensorModal({ sensor, printers, onClose }: Props) {
                 <option value="">{t('haSensors.alertNever')}</option>
                 <option value="on">{stateLabel('on')}</option>
                 <option value="off">{stateLabel('off')}</option>
-              </select>
+              </LegacySelect>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <span className="block text-xs text-bambu-gray mb-1">
                     {t('haSensors.alertAbove')} {unit ?? ''}
                   </span>
-                  <input
-                    type="number"
+                  <NumberField
                     step="any"
                     value={alertAbove}
                     onChange={(e) => setAlertAbove(e.target.value)}
@@ -336,8 +336,7 @@ export function HASensorModal({ sensor, printers, onClose }: Props) {
                   <span className="block text-xs text-bambu-gray mb-1">
                     {t('haSensors.alertBelow')} {unit ?? ''}
                   </span>
-                  <input
-                    type="number"
+                  <NumberField
                     step="any"
                     value={alertBelow}
                     onChange={(e) => setAlertBelow(e.target.value)}
@@ -349,59 +348,59 @@ export function HASensorModal({ sensor, printers, onClose }: Props) {
             <p className="mt-1 text-xs text-bambu-gray">{t('haSensors.alertHint')}</p>
           </div>
 
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showOnCard}
-              onChange={(e) => setShowOnCard(e.target.checked)}
-              className="w-4 h-4"
-            />
-            <span className="text-sm text-white">{t('haSensors.showOnCard')}</span>
-          </label>
+          <Checkbox
+            checked={showOnCard}
+            onCheckedChange={setShowOnCard}
+            label={<span className="text-sm text-white">{t('haSensors.showOnCard')}</span>}
+          />
 
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={notifyOnAlert}
-              onChange={(e) => setNotifyOnAlert(e.target.checked)}
-              disabled={!hasAlertCondition}
-              className="w-4 h-4"
-            />
-            <span className={`text-sm ${hasAlertCondition ? 'text-white' : 'text-bambu-gray'}`}>
-              {t('haSensors.notifyOnAlert')}
-            </span>
-          </label>
-
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={blockPrint}
-              onChange={(e) => setBlockPrint(e.target.checked)}
-              disabled={!hasAlertCondition}
-              className="w-4 h-4 mt-0.5"
-            />
-            <span>
-              <span className={`block text-sm ${hasAlertCondition ? 'text-white' : 'text-bambu-gray'}`}>
-                {t('haSensors.blockPrint')}
+          <Checkbox
+            checked={notifyOnAlert}
+            onCheckedChange={setNotifyOnAlert}
+            disabled={!hasAlertCondition}
+            label={(
+              <span className={`text-sm ${hasAlertCondition ? 'text-white' : 'text-bambu-gray'}`}>
+                {t('haSensors.notifyOnAlert')}
               </span>
-              <span className="block text-xs text-bambu-gray">{t('haSensors.blockPrintHint')}</span>
-            </span>
-          </label>
+            )}
+          />
+
+          <Checkbox
+            checked={blockPrint}
+            onCheckedChange={setBlockPrint}
+            disabled={!hasAlertCondition}
+            label={(
+              <span>
+                <span className={`block text-sm ${hasAlertCondition ? 'text-white' : 'text-bambu-gray'}`}>
+                  {t('haSensors.blockPrint')}
+                </span>
+                <span className="block text-xs text-bambu-gray">{t('haSensors.blockPrintHint')}</span>
+              </span>
+            )}
+          />
 
           {blockPrint && (
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">When Home Assistant is unavailable</label>
-              <select
+              {kind === 'binary' && alertState ? (
+                <p className="mb-2 text-xs text-bambu-gray">
+                  {t('haSensors.safeState', {
+                    state: t(`haSensors.states.${alertState === 'on' ? 'off' : 'on'}`),
+                  })}
+                </p>
+              ) : null}
+              <label className="block text-sm text-bambu-gray mb-1">{t('haSensors.failureStrategyLabel')}</label>
+              <LegacySelect
                 value={failureStrategy}
                 onChange={(e) => setFailureStrategy(e.target.value as 'auto' | 'fail_open' | 'fail_closed')}
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white"
               >
-                <option value="auto">Automatic (critical safety sensors fail closed)</option>
-                <option value="fail_open">Allow printing (fail open)</option>
-                <option value="fail_closed">Hold printing (fail closed)</option>
-              </select>
-              <p className="mt-1 text-xs text-bambu-gray">
-                Smoke, gas, moisture, problem and safety sensors default to holding the queue when no fresh reading is available.
+                <option value="auto">{t('haSensors.failureAuto')}</option>
+                <option value="fail_open">{t('haSensors.failureOpen')}</option>
+                <option value="fail_closed">{t('haSensors.failureClosed')}</option>
+              </LegacySelect>
+              <p className="mt-1 text-xs text-bambu-gray">{t('haSensors.failureStrategyHint')}</p>
+              <p className="mt-2 rounded border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-200">
+                {t('haSensors.primarySafetyWarning')}
               </p>
             </div>
           )}

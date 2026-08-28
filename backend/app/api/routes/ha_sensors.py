@@ -11,10 +11,12 @@ from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.models.printer import Printer
-from backend.app.models.printer_ha_sensor import PrinterHASensor
+from backend.app.models.printer_ha_sensor import PrinterHAInterlockAudit, PrinterHASensor
 from backend.app.models.user import User
 from backend.app.schemas.printer_ha_sensor import (
     HADisplayEntity,
+    PrinterHAInterlockAuditResponse,
+    PrinterHAInterlockOverrideStatus,
     PrinterHASensorCreate,
     PrinterHASensorReading,
     PrinterHASensorResponse,
@@ -40,6 +42,18 @@ _OVERRIDE = RequirePermissionIfAuthEnabled(Permission.QUEUE_UPDATE_ALL)
 
 class InterlockOverrideRequest(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
+
+
+async def _override_status(printer_id: int, db: AsyncSession) -> PrinterHAInterlockOverrideStatus:
+    current = ha_sensor_manager.get_interlock_override(printer_id)
+    return PrinterHAInterlockOverrideStatus(
+        printer_id=printer_id,
+        overridden=current is not None,
+        username=current.username if current else None,
+        reason=current.reason if current else None,
+        created_at=current.created_at if current else None,
+        overrideable_sensors=await ha_sensor_manager.overrideable_sensor_names(db, printer_id),
+    )
 
 
 async def _refresh_quietly(sensor: PrinterHASensor, db: AsyncSession) -> None:
@@ -90,16 +104,64 @@ async def list_bindable_entities(
     return [HADisplayEntity(**e) for e in entities]
 
 
-@router.post("/printers/{printer_id}/interlock-override")
+@router.get(
+    "/printers/{printer_id}/interlock-override",
+    response_model=PrinterHAInterlockOverrideStatus,
+)
+async def get_printer_interlock_override(
+    printer_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = _READ,
+):
+    if await db.get(Printer, printer_id) is None:
+        raise HTTPException(404, "Printer not found")
+    return await _override_status(printer_id, db)
+
+
+@router.get(
+    "/printers/{printer_id}/interlock-audit",
+    response_model=list[PrinterHAInterlockAuditResponse],
+)
+async def get_printer_interlock_audit(
+    printer_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = _OVERRIDE,
+):
+    result = await db.execute(
+        select(PrinterHAInterlockAudit)
+        .where(PrinterHAInterlockAudit.printer_id == printer_id)
+        .order_by(PrinterHAInterlockAudit.created_at.desc(), PrinterHAInterlockAudit.id.desc())
+    )
+    return list(result.scalars().all())
+
+
+@router.post(
+    "/printers/{printer_id}/interlock-override",
+    response_model=PrinterHAInterlockOverrideStatus,
+)
 async def override_printer_interlock(
     printer_id: int,
     data: InterlockOverrideRequest,
     db: AsyncSession = Depends(get_db),
     user: User | None = _OVERRIDE,
 ):
-    if await db.get(Printer, printer_id) is None:
+    printer = await db.get(Printer, printer_id)
+    if printer is None:
         raise HTTPException(404, "Printer not found")
+    overrideable = await ha_sensor_manager.overrideable_sensor_names(db, printer_id)
+    if not overrideable:
+        raise HTTPException(409, "No unavailable fail-closed interlock can be overridden")
     username = user.username if user else "anonymous"
+    db.add(
+        PrinterHAInterlockAudit(
+            printer_id=printer_id,
+            printer_name=printer.name,
+            username=username,
+            action="enabled",
+            reason=data.reason,
+        )
+    )
+    await db.commit()
     ha_sensor_manager.set_interlock_override(printer_id, username=username, reason=data.reason)
     logger.warning(
         "HA_INTERLOCK_OVERRIDE user=%s printer_id=%s reason=%s",
@@ -107,21 +169,40 @@ async def override_printer_interlock(
         printer_id,
         data.reason,
     )
-    return {"overridden": True, "printer_id": printer_id}
+    return await _override_status(printer_id, db)
 
 
-@router.delete("/printers/{printer_id}/interlock-override")
+@router.delete(
+    "/printers/{printer_id}/interlock-override",
+    response_model=PrinterHAInterlockOverrideStatus,
+)
 async def clear_printer_interlock_override(
     printer_id: int,
+    db: AsyncSession = Depends(get_db),
     user: User | None = _OVERRIDE,
 ):
-    ha_sensor_manager.clear_interlock_override(printer_id)
+    printer = await db.get(Printer, printer_id)
+    if printer is None:
+        raise HTTPException(404, "Printer not found")
+    current = ha_sensor_manager.get_interlock_override(printer_id)
+    if current:
+        db.add(
+            PrinterHAInterlockAudit(
+                printer_id=printer_id,
+                printer_name=printer.name,
+                username=user.username if user else "anonymous",
+                action="cleared",
+                reason=current.reason,
+            )
+        )
+        await db.commit()
+        ha_sensor_manager.clear_interlock_override(printer_id)
     logger.warning(
         "HA_INTERLOCK_OVERRIDE_CLEARED user=%s printer_id=%s",
         user.username if user else "anonymous",
         printer_id,
     )
-    return {"overridden": False, "printer_id": printer_id}
+    return await _override_status(printer_id, db)
 
 
 @router.get("/by-printer/{printer_id}/readings", response_model=list[PrinterHASensorReading])
@@ -161,6 +242,7 @@ async def get_printer_sensor_readings(
                 value=cached.value if cached else None,
                 alerting=cached.alerting if cached else False,
                 block_print=sensor.block_print,
+                failure_strategy=sensor.failure_strategy,
                 reachable=cached.reachable if cached else False,
                 last_changed=sensor.last_changed,
             )

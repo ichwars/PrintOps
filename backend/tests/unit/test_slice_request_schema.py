@@ -159,6 +159,7 @@ class TestPresetsRequired:
         assert req.process_preset is None
         assert req.filament_presets == []
 
+
 class TestLayoutFlags:
     """#2548: auto-orient / auto-arrange are per-slice options on the
     request, not stored settings. Both must default to off — they rewrite

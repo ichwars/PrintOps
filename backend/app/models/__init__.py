@@ -95,7 +95,7 @@ from backend.app.models.pending_upload import PendingUpload
 from backend.app.models.pipeline_run import PipelineJob, PipelineRun
 from backend.app.models.print_batch import PrintBatch, PrintBatchPlate
 from backend.app.models.printer import Printer
-from backend.app.models.printer_ha_sensor import PrinterHASensor
+from backend.app.models.printer_ha_sensor import PrinterHAInterlockAudit, PrinterHASensor
 from backend.app.models.printer_sensor_history import PrinterSensorHistory
 from backend.app.models.procurement import ProcurementOffer, Supplier
 from backend.app.models.project import Project
@@ -142,6 +142,7 @@ __all__ = [
     "AMSSensorHistory",
     "PrinterSensorHistory",
     "PrinterHASensor",
+    "PrinterHAInterlockAudit",
     "AmsLabel",
     "PendingUpload",
     "PrintBatch",

@@ -7,7 +7,7 @@
  * tells us which word to use.
  */
 
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PrinterHASensorRow } from '../../components/PrinterHASensorRow';
@@ -16,10 +16,31 @@ import { render } from '../utils';
 
 vi.mock('../../api/client', async () => {
   const actual = await vi.importActual<typeof import('../../api/client')>('../../api/client');
-  return { ...actual, api: { ...actual.api, getHASensorReadings: vi.fn() } };
+  return {
+    ...actual,
+    api: {
+      ...actual.api,
+      getHASensorReadings: vi.fn(),
+      getHAInterlockOverride: vi.fn(),
+      setHAInterlockOverride: vi.fn(),
+      clearHAInterlockOverride: vi.fn(),
+    },
+  };
 });
 
 const getReadings = vi.mocked(api.getHASensorReadings);
+const getOverride = vi.mocked(api.getHAInterlockOverride);
+const setOverride = vi.mocked(api.setHAInterlockOverride);
+const clearOverride = vi.mocked(api.clearHAInterlockOverride);
+
+const emptyOverride = {
+  printer_id: 4,
+  overridden: false,
+  username: null,
+  reason: null,
+  created_at: null,
+  overrideable_sensors: [],
+};
 
 function reading(overrides = {}) {
   return {
@@ -33,6 +54,7 @@ function reading(overrides = {}) {
     value: null,
     alerting: false,
     block_print: false,
+    failure_strategy: 'auto' as const,
     reachable: true,
     last_changed: null,
     ...overrides,
@@ -42,6 +64,10 @@ function reading(overrides = {}) {
 describe('PrinterHASensorRow', () => {
   beforeEach(() => {
     getReadings.mockReset();
+    getOverride.mockReset();
+    setOverride.mockReset();
+    clearOverride.mockReset();
+    getOverride.mockResolvedValue(emptyOverride);
   });
 
   it('renders nothing when the printer has no sensors', async () => {
@@ -157,5 +183,35 @@ describe('PrinterHASensorRow', () => {
 
     expect(await screen.findByText('Enclosure Door')).toBeInTheDocument();
     expect(screen.getByText('Enclosure Temp')).toBeInTheDocument();
+  });
+
+  it('requires a reason and exposes a fail-closed override on the printer card', async () => {
+    getReadings.mockResolvedValue([
+      reading({ reachable: false, state: null, block_print: true, failure_strategy: 'fail_closed' }),
+    ]);
+    getOverride.mockResolvedValue({
+      ...emptyOverride,
+      overrideable_sensors: ['Enclosure Door'],
+    });
+    setOverride.mockResolvedValue({
+      ...emptyOverride,
+      overridden: true,
+      username: 'operator',
+      reason: 'HA gateway maintenance',
+      created_at: '2026-08-28T12:00:00',
+    });
+
+    render(<PrinterHASensorRow printerId={4} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Override temporarily' }));
+    const confirm = screen.getByRole('button', { name: 'Confirm override' });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Reason for temporary override'), {
+      target: { value: 'HA gateway maintenance' },
+    });
+    fireEvent.click(confirm);
+
+    await waitFor(() => expect(setOverride).toHaveBeenCalledWith(4, 'HA gateway maintenance'));
+    expect(await screen.findByText(/Override active by operator/)).toBeInTheDocument();
   });
 });

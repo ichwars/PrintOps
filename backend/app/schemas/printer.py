@@ -43,6 +43,7 @@ class PrinterBase(BaseModel):
             return None
         normalized = value.strip().upper()
         return normalized or None
+
     location: str | None = None  # Group/location name
     auto_archive: bool = True
     external_camera_url: str | None = None

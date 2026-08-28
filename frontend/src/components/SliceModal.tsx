@@ -775,36 +775,32 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
                   actions on the geometry, so they work regardless of where
                   the print config comes from. */}
               <div className="flex flex-col gap-2">
-                <label className="flex items-start gap-2 text-sm text-bambu-gray cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={autoOrient}
-                    onChange={(e) => setAutoOrient(e.target.checked)}
-                    disabled={isEnqueuing}
-                    className="mt-0.5 cursor-pointer"
-                  />
-                  <span>
-                    {t('slice.autoOrient')}
-                    <span className="block text-xs text-bambu-gray/70">
-                      {t('slice.autoOrientHint')}
+                <Checkbox
+                  checked={autoOrient}
+                  onCheckedChange={setAutoOrient}
+                  disabled={isEnqueuing}
+                  label={(
+                    <span>
+                      {t('slice.autoOrient')}
+                      <span className="block text-xs text-bambu-gray/70">
+                        {t('slice.autoOrientHint')}
+                      </span>
                     </span>
-                  </span>
-                </label>
-                <label className="flex items-start gap-2 text-sm text-bambu-gray cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={autoArrange}
-                    onChange={(e) => setAutoArrange(e.target.checked)}
-                    disabled={isEnqueuing}
-                    className="mt-0.5 cursor-pointer"
-                  />
-                  <span>
-                    {t('slice.autoArrange')}
-                    <span className="block text-xs text-bambu-gray/70">
-                      {t('slice.autoArrangeHint')}
+                  )}
+                />
+                <Checkbox
+                  checked={autoArrange}
+                  onCheckedChange={setAutoArrange}
+                  disabled={isEnqueuing}
+                  label={(
+                    <span>
+                      {t('slice.autoArrange')}
+                      <span className="block text-xs text-bambu-gray/70">
+                        {t('slice.autoArrangeHint')}
+                      </span>
                     </span>
-                  </span>
-                </label>
+                  )}
+                />
               </div>
               {/* Filament reqs may need a server-side preview-slice for
                   unsliced project files (single-pass, then cached). Show a

@@ -103,13 +103,15 @@ describe('GitHubRestoreModal', () => {
   });
 
   it('defaults to the latest commit and lists recent commits', async () => {
+    const user = userEvent.setup();
     render(<GitHubRestoreModal onClose={vi.fn()} />);
 
-    const select = (await screen.findByLabelText('Backup commit')) as HTMLSelectElement;
-    expect(select.value).toBe('HEAD');
+    const select = await screen.findByLabelText('Backup commit');
+    expect(select).toHaveAttribute('data-value', 'HEAD');
     await waitFor(() => {
       expect(screen.getByText(/Latest backup/)).toBeInTheDocument();
     });
+    await user.click(select);
     // Commits are labelled by short SHA.
     await waitFor(() => {
       expect(screen.getByRole('option', { name: /aaa1111/ })).toBeInTheDocument();
@@ -300,7 +302,9 @@ describe('GitHubRestoreModal', () => {
     await userEvent.click(checkboxes[1]);
     await waitFor(() => expect(screen.getByText('1 selected')).toBeInTheDocument());
 
-    await userEvent.selectOptions(screen.getByLabelText('Backup commit'), mockCommits.commits[1].sha);
+    const commitPicker = screen.getByLabelText('Backup commit');
+    await userEvent.click(commitPicker);
+    await userEvent.click(screen.getByRole('option', { name: /bbb2222/ }));
 
     await waitFor(() => expect(screen.getByText('Reading backup contents...')).toBeInTheDocument());
     expect(screen.getByText('0 selected')).toBeInTheDocument();

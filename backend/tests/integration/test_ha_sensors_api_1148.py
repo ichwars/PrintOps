@@ -4,7 +4,13 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
+from backend.app.core.auth import create_access_token
+from backend.app.core.permissions import Permission
+from backend.app.models.group import Group
+from backend.app.models.printer_ha_sensor import PrinterHAInterlockAudit
+from backend.app.models.user import User
 from backend.app.services.ha_sensor_manager import SensorReading, ha_sensor_manager
 
 DOOR = {
@@ -35,6 +41,16 @@ def _clean_cache():
     yield
     ha_sensor_manager._readings.clear()
     ha_sensor_manager._last_alerting.clear()
+    ha_sensor_manager._overrides.clear()
+
+
+async def _permission_token(db_session, *, username: str, permissions: list[str]) -> str:
+    group = Group(name=f"{username}-permissions", permissions=permissions)
+    user = User(username=username, password_hash="unused", role="user")
+    user.groups.append(group)
+    db_session.add_all([group, user])
+    await db_session.commit()
+    return create_access_token(data={"sub": username})
 
 
 class TestCrud:
@@ -181,6 +197,24 @@ class TestReadings:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_reading_names_the_saved_failure_strategy(self, async_client: AsyncClient, printer_factory):
+        printer = await printer_factory()
+        await async_client.post(
+            "/api/v1/ha-sensors/",
+            json={
+                **DOOR,
+                "printer_id": printer.id,
+                "block_print": True,
+                "failure_strategy": "fail_closed",
+            },
+        )
+
+        response = await async_client.get(f"/api/v1/ha-sensors/by-printer/{printer.id}/readings")
+
+        assert response.json()[0]["failure_strategy"] == "fail_closed"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_unpolled_sensor_reports_unreachable_not_missing(self, async_client: AsyncClient, printer_factory):
         """Right after a restart the card should still list the sensor, greyed
         out — not drop it and reflow the layout."""
@@ -317,3 +351,101 @@ class TestSaveSurvivesHomeAssistant:
         assert response.status_code == 200
         listed = await async_client.get(f"/api/v1/ha-sensors/?printer_id={printer.id}")
         assert len(listed.json()) == 1
+
+
+class TestInterlockOverride:
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_requires_queue_update_all_and_writes_durable_audit(
+        self,
+        async_client: AsyncClient,
+        printer_factory,
+        db_session,
+    ):
+        printer = await printer_factory(name="Safety Printer")
+        await async_client.post(
+            "/api/v1/ha-sensors/",
+            json={
+                **DOOR,
+                "printer_id": printer.id,
+                "block_print": True,
+                "failure_strategy": "fail_closed",
+            },
+        )
+        denied_token = await _permission_token(
+            db_session,
+            username="sensor-reader",
+            permissions=[Permission.SMART_PLUGS_READ.value],
+        )
+        allowed_token = await _permission_token(
+            db_session,
+            username="queue-supervisor",
+            permissions=[Permission.QUEUE_UPDATE_ALL.value],
+        )
+        endpoint = f"/api/v1/ha-sensors/printers/{printer.id}/interlock-override"
+
+        with patch("backend.app.core.auth.is_auth_enabled", return_value=True):
+            denied = await async_client.post(
+                endpoint,
+                headers={"Authorization": f"Bearer {denied_token}"},
+                json={"reason": "HA gateway maintenance"},
+            )
+            allowed = await async_client.post(
+                endpoint,
+                headers={"Authorization": f"Bearer {allowed_token}"},
+                json={"reason": "HA gateway maintenance"},
+            )
+
+        assert denied.status_code == 403
+        assert allowed.status_code == 200, allowed.text
+        assert allowed.json()["overridden"] is True
+        assert allowed.json()["username"] == "queue-supervisor"
+        assert allowed.json()["created_at"]
+
+        result = await db_session.execute(select(PrinterHAInterlockAudit))
+        events = list(result.scalars().all())
+        assert len(events) == 1
+        assert events[0].action == "enabled"
+        assert events[0].username == "queue-supervisor"
+        assert events[0].printer_id == printer.id
+        assert events[0].printer_name == "Safety Printer"
+        assert events[0].reason == "HA gateway maintenance"
+        assert events[0].created_at is not None
+
+        with patch("backend.app.core.auth.is_auth_enabled", return_value=True):
+            cleared = await async_client.delete(
+                endpoint,
+                headers={"Authorization": f"Bearer {allowed_token}"},
+            )
+            audit = await async_client.get(
+                f"/api/v1/ha-sensors/printers/{printer.id}/interlock-audit",
+                headers={"Authorization": f"Bearer {allowed_token}"},
+            )
+
+        assert cleared.status_code == 200
+        assert cleared.json()["overridden"] is False
+        assert [event["action"] for event in audit.json()] == ["cleared", "enabled"]
+        assert all(event["reason"] == "HA gateway maintenance" for event in audit.json())
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_positive_unsafe_state_cannot_be_overridden(self, async_client: AsyncClient, printer_factory):
+        printer = await printer_factory()
+        created = await async_client.post(
+            "/api/v1/ha-sensors/",
+            json={
+                **DOOR,
+                "printer_id": printer.id,
+                "block_print": True,
+                "failure_strategy": "fail_closed",
+            },
+        )
+        ha_sensor_manager._readings[created.json()["id"]] = SensorReading("on", None, True, True)
+
+        response = await async_client.post(
+            f"/api/v1/ha-sensors/printers/{printer.id}/interlock-override",
+            json={"reason": "Operator inspected the door"},
+        )
+
+        assert response.status_code == 409
+        assert ha_sensor_manager.get_interlock_override(printer.id) is None
