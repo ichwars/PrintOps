@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-CcMKBbx5.js";import{i as t}from"./ui-BpIW2C1a.js";var n=e();function r({checked:e,onChange:r,disabled:i,ariaLabel:a}){return(0,n.jsx)(t,{checked:e,onCheckedChange:r,disabled:i,ariaLabel:a??`Toggle`,stopPropagation:!0})}export{r as t};

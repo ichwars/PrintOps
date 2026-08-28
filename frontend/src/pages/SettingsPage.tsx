@@ -668,7 +668,7 @@ export function SettingsPage() {
   const { data: haSensors } = useQuery({
     queryKey: ['haSensors'],
     queryFn: () => api.getHASensors(),
-    enabled: activeTab === 'plugs',
+    enabled: activeTab === 'integrations' && integrationSubTab === 'smart-plugs',
   });
   const { data: notificationTemplates, isLoading: templatesLoading } = useQuery({
     queryKey: ['notification-templates'],
