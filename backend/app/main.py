@@ -1018,6 +1018,7 @@ def mark_printer_stopped_by_user(printer_id: int) -> None:
 _last_status_broadcast: dict[int, str] = {}
 # Track printers where we've updated nozzle_count
 _nozzle_count_updated: set[int] = set()
+_persisted_firmware_versions: dict[int, str] = {}
 
 
 async def _maybe_notify_printer_offline(printer_id: int) -> None:
@@ -1158,6 +1159,20 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
                 logging.getLogger(__name__).info(
                     f"Auto-detected dual-nozzle printer {printer_id}, updated nozzle_count=2"
                 )
+
+    # Persist the last firmware reported by get_version so dispatch safety
+    # decisions remain auditable across reconnects and restarts (#126).
+    firmware_version = state.firmware_version
+    if firmware_version and _persisted_firmware_versions.get(printer_id) != firmware_version:
+        async with async_session() as db:
+            from backend.app.models.printer import Printer
+
+            result = await db.execute(select(Printer).where(Printer.id == printer_id))
+            printer = result.scalar_one_or_none()
+            if printer and printer.firmware_version != firmware_version:
+                printer.firmware_version = firmware_version
+                await db.commit()
+            _persisted_firmware_versions[printer_id] = firmware_version
 
     # Include target temps for heating phase detection
     bed_target = round(temps.get("bed_target", 0))

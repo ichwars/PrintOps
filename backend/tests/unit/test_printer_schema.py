@@ -40,3 +40,27 @@ def test_already_normalized_serial_unchanged():
 def test_blank_serial_number_rejected():
     with pytest.raises(ValidationError):
         _make("   ")
+
+
+def test_h2c_requires_raw_model_code():
+    with pytest.raises(ValidationError, match="raw model_code"):
+        PrinterCreate(
+            name="H2C",
+            serial_number="09400A000000000",
+            ip_address="192.168.1.51",
+            access_code="12345678",
+            model="H2C",
+        )
+
+
+@pytest.mark.parametrize("raw_code", ["O1C", "O1C2", " o1c2 "])
+def test_h2c_preserves_normalized_raw_model_code(raw_code):
+    request = PrinterCreate(
+        name="H2C",
+        serial_number="09400A000000000",
+        ip_address="192.168.1.51",
+        access_code="12345678",
+        model="H2C",
+        model_code=raw_code,
+    )
+    assert request.model_code in {"O1C", "O1C2"}

@@ -1,8 +1,10 @@
-"""Printer model normalization utilities.
+"""Printer model normalization and model-specific safety utilities.
 
 Converts 3MF printer model names (e.g., "Bambu Lab X1 Carbon") to
 normalized short names (e.g., "X1C") that match database storage.
 """
+
+import json
 
 # Map from 3MF printer_model strings to normalized short names
 PRINTER_MODEL_MAP = {
@@ -189,6 +191,73 @@ DUAL_NOZZLE_MODELS = frozenset(
         "N6",  # X2D
     ]
 )
+
+
+# Deliberately empty until a raw H2C model code and minimum firmware have been
+# validated on real hardware against native Bambu Studio dispatches (#126).
+# Adding a code here is the explicit release step; display name or nozzle count
+# alone must never enable physical rack IDs.
+H2C_NOZZLE_MAPPING_MIN_FIRMWARE: dict[str, str] = {}
+
+
+def validate_h2c_nozzle_mapping(raw: object) -> tuple[list[int] | None, str | None]:
+    """Parse only unambiguous physical H2C nozzle mappings.
+
+    Native payloads observed by the project use flat 8- or 32-element arrays.
+    ``-1`` means unused, ``1`` is the fixed carriage and ``16..21`` are rack
+    positions. Compact logical maps, nested/multi-group data and unknown IDs
+    are rejected so they cannot be mistaken for physical wire identifiers.
+    """
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            return None, "unparseable_json"
+    if not isinstance(raw, list):
+        return None, "not_a_flat_list"
+    if len(raw) not in {8, 32}:
+        return None, "unsupported_length"
+    if any(isinstance(value, bool) or not isinstance(value, int) for value in raw):
+        return None, "non_integer_or_grouped_value"
+    allowed_ids = {-1, 1, *range(16, 22)}
+    if any(value not in allowed_ids for value in raw):
+        return None, "logical_or_unknown_physical_id"
+    if all(value == -1 for value in raw):
+        return None, "empty_mapping"
+    return list(raw), None
+
+
+def h2c_nozzle_mapping_capability(
+    display_model: str | None,
+    raw_model_code: str | None,
+    firmware_version: str | None,
+) -> tuple[bool, str]:
+    """Return whether physical H2C rack IDs have explicit hardware evidence."""
+    normalized_display = (display_model or "").strip().upper().replace(" ", "")
+    normalized_code = (raw_model_code or "").strip().upper()
+    if normalized_display != "H2C":
+        return False, "not_h2c"
+    if normalized_code not in {"O1C", "O1C2"}:
+        return False, "missing_or_unknown_raw_model_code"
+    minimum = H2C_NOZZLE_MAPPING_MIN_FIRMWARE.get(normalized_code)
+    if minimum is None:
+        return False, "raw_model_code_not_hardware_validated"
+    if not firmware_version:
+        return False, "firmware_unknown"
+
+    def _version_tuple(value: str) -> tuple[int, ...] | None:
+        try:
+            return tuple(int(part) for part in value.split("."))
+        except ValueError:
+            return None
+
+    current = _version_tuple(firmware_version)
+    required = _version_tuple(minimum)
+    if current is None or required is None:
+        return False, "firmware_unparseable"
+    if current < required:
+        return False, "firmware_below_validated_boundary"
+    return True, "validated"
 
 
 SINGLE_NOZZLE_FLOW_MODELS = frozenset(

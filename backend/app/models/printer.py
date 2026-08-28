@@ -17,6 +17,11 @@ class Printer(Base):
     ip_address: Mapped[str] = mapped_column(String(253))
     access_code: Mapped[str] = mapped_column(String(20))
     model: Mapped[str | None] = mapped_column(String(50))
+    # Keep the device-reported/internal code separate from the display model.
+    # H2C-family codes O1C and O1C2 intentionally share the display name but
+    # do not establish the same hardware capability (#126).
+    model_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    firmware_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     location: Mapped[str | None] = mapped_column(String(100))  # Group/location name
     nozzle_count: Mapped[int] = mapped_column(default=1)  # 1 or 2, auto-detected from MQTT
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

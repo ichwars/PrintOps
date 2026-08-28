@@ -566,6 +566,8 @@ class PrinterManager:
             serial_number=printer.serial_number,
             access_code=printer.access_code,
             model=printer.model,
+            model_code=printer.model_code,
+            firmware_version=printer.firmware_version,
             on_state_change=on_state_change,
             on_print_start=on_print_start,
             on_print_complete=on_print_complete,

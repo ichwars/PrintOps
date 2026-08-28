@@ -2271,6 +2271,11 @@ async def run_migrations(conn):
     # Migration: Add awaiting_plate_clear column to printers (#961)
     await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN awaiting_plate_clear BOOLEAN DEFAULT FALSE NOT NULL")
 
+    # #126: preserve the raw device model independently from the display name
+    # and retain the last firmware seen over MQTT for capability audits.
+    await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN model_code VARCHAR(20)")
+    await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN firmware_version VARCHAR(50)")
+
     # Migration: Add REST/Webhook smart plug fields
     await _safe_execute(conn, "ALTER TABLE smart_plugs ADD COLUMN rest_on_url VARCHAR(500)")
     await _safe_execute(conn, "ALTER TABLE smart_plugs ADD COLUMN rest_on_body TEXT")
