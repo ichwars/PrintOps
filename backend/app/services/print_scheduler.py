@@ -3717,17 +3717,17 @@ class PrintScheduler:
                 return "already_moved_on"
             item.dispatch_attempts = (item.dispatch_attempts or 0) + 1
             item.started_at = None
-            # Charge the attempt to the candidate that was actually dispatched, so
-            # a cross-model item (#671) reaches for its other file next lap instead
-            # of retrying the printer that just failed to start. Matched by file
-            # because that is what the resolver copied onto the row.
+            # Charge the candidate that was actually copied onto the row.
             if item.library_file_id is not None:
-                await db.execute(
+                charged = await db.execute(
                     update(PrintQueueVariant)
                     .where(PrintQueueVariant.queue_item_id == item.id)
                     .where(PrintQueueVariant.library_file_id == item.library_file_id)
                     .values(attempt_count=PrintQueueVariant.attempt_count + 1)
                 )
+                if charged.rowcount:
+                    # Return the resolved candidate to model selection on retry.
+                    item.printer_id = None
             if item.dispatch_attempts >= DISPATCH_MAX_ATTEMPTS:
                 item.status = "failed"
                 item.error_message = (

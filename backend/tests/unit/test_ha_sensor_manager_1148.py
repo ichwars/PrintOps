@@ -105,11 +105,15 @@ class TestEvaluateNumeric:
         """Strict comparison, so a 35 °C limit does not alarm at exactly 35."""
         assert evaluate(_numeric(alert_above=35), {"state": "35"}).alerting is False
 
-    def test_a_sensor_that_stops_reporting_numbers_does_not_alert(self):
-        """Reachable, but no value to compare — so no verdict either way."""
+    def test_a_sensor_that_stops_reporting_numbers_is_unreachable(self):
+        """Malformed safety input is uncertainty, not a healthy reading.
+
+        Marking it reachable would bypass a fail-closed interlock because there
+        is neither a numeric value nor a positive alert to hold the printer.
+        """
         reading = evaluate(_numeric(alert_above=35), {"state": "calibrating"})
 
-        assert reading.reachable is True
+        assert reading.reachable is False
         assert reading.value is None
         assert reading.alerting is False
 

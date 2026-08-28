@@ -3771,54 +3771,54 @@ async def _migrate_backfill_variant_groups(conn) -> None:
     from backend.app.models.library import FileVariantGroup
 
     if is_sqlite():
-        source_expr = "json_extract(file_metadata, '$.sliced_from_library_file_id')"
-        model_expr = "json_extract(file_metadata, '$.sliced_for_model')"
+        candidate_query = text(
+            "SELECT id, json_extract(file_metadata, '$.sliced_from_library_file_id') AS source_id, "
+            "json_extract(file_metadata, '$.sliced_for_model') AS model, created_by_id "
+            "FROM library_files WHERE json_extract(file_metadata, '$.sliced_from_library_file_id') IS NOT NULL "
+            "AND json_extract(file_metadata, '$.sliced_for_model') IS NOT NULL "
+            "AND variant_group_id IS NULL AND deleted_at IS NULL ORDER BY id"
+        )
     else:
-        # file_metadata is JSON, not JSONB — cast before using the -> operators,
-        # matching _migrate_drop_library_print_name above.
-        source_expr = "file_metadata::jsonb->>'sliced_from_library_file_id'"
-        model_expr = "file_metadata::jsonb->>'sliced_for_model'"
-
+        candidate_query = text(
+            "SELECT id, file_metadata::jsonb->>'sliced_from_library_file_id' AS source_id, "
+            "file_metadata::jsonb->>'sliced_for_model' AS model, created_by_id "
+            "FROM library_files WHERE file_metadata::jsonb->>'sliced_from_library_file_id' IS NOT NULL "
+            "AND file_metadata::jsonb->>'sliced_for_model' IS NOT NULL "
+            "AND variant_group_id IS NULL AND deleted_at IS NULL ORDER BY id"
+        )
     async with conn.begin_nested():
-        rows = (
-            await conn.execute(
-                text(
-                    f"SELECT id, {source_expr} AS source_id, {model_expr} AS model "  # noqa: S608 — dialect literals
-                    "FROM library_files "
-                    f"WHERE {source_expr} IS NOT NULL AND {model_expr} IS NOT NULL "
-                    "AND variant_group_id IS NULL AND deleted_at IS NULL "
-                    "ORDER BY id"
-                )
-            )
-        ).fetchall()
+        rows = (await conn.execute(candidate_query)).fetchall()
 
-        by_source: dict[str, list[tuple[int, str]]] = {}
-        for file_id, source_id, model in rows:
-            by_source.setdefault(str(source_id), []).append((file_id, str(model)))
+        by_source: dict[str, list[tuple[int, str, int | None]]] = {}
+        for file_id, source_id, model, created_by_id in rows:
+            by_source.setdefault(str(source_id), []).append((file_id, str(model), created_by_id))
 
         for source_id, members in by_source.items():
             if len(members) < 2:
                 continue
-            models = [m for _, m in members]
+            models = [model for _, model, _owner_id in members]
             if len(set(models)) != len(models):
                 # Same printer sliced twice — ambiguous, leave it to the user.
                 continue
 
-            # Name the group after the source file when it is still around; its
-            # filename is what the user recognises. A deleted source leaves the
-            # variants perfectly usable, so fall back rather than skip.
             name_row = (
                 await conn.execute(
-                    text("SELECT filename FROM library_files WHERE id = :sid"),
+                    text("SELECT filename, created_by_id FROM library_files WHERE id = :sid"),
                     {"sid": int(source_id)},
                 )
             ).fetchone()
             group_name = name_row[0] if name_row else f"{members[0][1]} + {len(members) - 1} more"
 
-            result = await conn.execute(FileVariantGroup.__table__.insert().values(name=group_name))
+            member_owners = {owner_id for _file_id, _model, owner_id in members}
+            group_owner = next(iter(member_owners)) if len(member_owners) == 1 else None
+            # A conflicting attributed source means there is no common owner.
+            if name_row and name_row[1] is not None and name_row[1] != group_owner:
+                group_owner = None
+            result = await conn.execute(
+                FileVariantGroup.__table__.insert().values(name=group_name, created_by_id=group_owner)
+            )
             group_id = result.inserted_primary_key[0]
-
-            for position, (file_id, _model) in enumerate(members):
+            for position, (file_id, _model, _owner_id) in enumerate(members):
                 await conn.execute(
                     text("UPDATE library_files SET variant_group_id = :gid, variant_position = :pos WHERE id = :fid"),
                     {"gid": group_id, "pos": position, "fid": file_id},

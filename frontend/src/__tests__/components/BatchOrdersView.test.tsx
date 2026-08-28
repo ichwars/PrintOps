@@ -143,6 +143,27 @@ describe('BatchOrdersView (#342)', () => {
     expect(dispatched).toEqual({});
   });
 
+  it('allows an active failed-only order to be cancelled', async () => {
+    server.use(
+      http.get('/api/v1/queue/batches', () =>
+        HttpResponse.json([
+          batch({
+            pending_count: 0,
+            failed_count: 1,
+            target_count: 1,
+            remaining_count: 1,
+            plates: [plate({ dispatched: 0, remaining: 1, failed_count: 1 })],
+          }),
+        ]),
+      ),
+    );
+
+    render(<BatchOrdersView hasPermission={allow} t={passthroughT} />);
+
+    await waitFor(() => expect(screen.getByText('Widget run')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'queue.cancelBatch' })).toBeInTheDocument();
+  });
+
   it('dispatches a single plate from its own row', async () => {
     let dispatched: { plate_id?: number | null; only_plate?: boolean } | null = null;
     server.use(

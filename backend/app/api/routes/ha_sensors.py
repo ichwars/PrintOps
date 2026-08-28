@@ -69,6 +69,31 @@ async def _refresh_quietly(sensor: PrinterHASensor, db: AsyncSession) -> None:
         logger.warning("Could not read %s right after saving it: %s", sensor.entity_id, e)
 
 
+async def _stage_override_revocation(
+    db: AsyncSession,
+    *,
+    printer_id: int,
+    user: User | None,
+    change: str,
+) -> bool:
+    """Add durable evidence before a sensor mutation revokes a live bypass."""
+    current = ha_sensor_manager.get_interlock_override(printer_id)
+    if current is None:
+        return False
+    printer = await db.get(Printer, printer_id)
+    reason = f"{current.reason} [auto-revoked: {change}]"[:500]
+    db.add(
+        PrinterHAInterlockAudit(
+            printer_id=printer_id,
+            printer_name=printer.name if printer else f"Printer {printer_id}",
+            username=user.username if user else "anonymous",
+            action="cleared",
+            reason=reason,
+        )
+    )
+    return True
+
+
 @router.get("/", response_model=list[PrinterHASensorResponse])
 async def list_ha_sensors(
     printer_id: int | None = None,
@@ -301,7 +326,7 @@ async def update_ha_sensor(
     sensor_id: int,
     data: PrinterHASensorUpdate,
     db: AsyncSession = Depends(get_db),
-    _: User | None = _UPDATE,
+    user: User | None = _UPDATE,
 ):
     sensor = await db.get(PrinterHASensor, sensor_id)
     if not sensor:
@@ -333,9 +358,17 @@ async def update_ha_sensor(
         if clash.scalar_one_or_none():
             raise HTTPException(400, f"{new_entity} is already bound to this printer")
 
+    override_revoked = await _stage_override_revocation(
+        db,
+        printer_id=sensor.printer_id,
+        user=user,
+        change="sensor updated",
+    )
     for field, value in updates.items():
         setattr(sensor, field, value)
     await db.commit()
+    if override_revoked:
+        ha_sensor_manager.clear_interlock_override(sensor.printer_id)
     await db.refresh(sensor)
 
     # The entity or its alert rule may have changed under the cached reading.
@@ -347,15 +380,24 @@ async def update_ha_sensor(
 async def delete_ha_sensor(
     sensor_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User | None = _DELETE,
+    user: User | None = _DELETE,
 ):
     sensor = await db.get(PrinterHASensor, sensor_id)
     if not sensor:
         raise HTTPException(404, "Sensor not found")
 
     name = sensor.name
+    printer_id = sensor.printer_id
+    override_revoked = await _stage_override_revocation(
+        db,
+        printer_id=printer_id,
+        user=user,
+        change="sensor deleted",
+    )
     await db.delete(sensor)
     await db.commit()
+    if override_revoked:
+        ha_sensor_manager.clear_interlock_override(printer_id)
     ha_sensor_manager.forget(sensor_id)
     logger.info("Removed HA sensor '%s'", name)
     return {"message": f"Sensor '{name}' removed"}

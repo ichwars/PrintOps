@@ -789,6 +789,19 @@ export function PrintModal({
     // scheduler computes it against the printer it actually picks.
     if (isCrossModel) {
       try {
+        let crossModelBatchId: number | undefined;
+        if (quantity > 1) {
+          const baseName = (archiveName || '').replace(/\.gcode\.3mf$/i, '').replace(/\.3mf$/i, '');
+          const batch = await api.createBatch({
+            name: `${baseName || 'Batch'} ×${quantity}`,
+            // A variant's physical plate number can differ between slices.
+            // NULL means "this logical job", independent of which candidate
+            // the scheduler resolves for a particular copy.
+            plates: [{ plate_id: null, plate_name: null, quantity_target: quantity, sort_order: 0 }],
+            project_id: projectId ?? undefined,
+          });
+          crossModelBatchId = batch.id;
+        }
         await api.addToQueue({
           variants: candidates.map((c) => ({
             library_file_id: c.id,
@@ -804,6 +817,7 @@ export function PrintModal({
             ? new Date(scheduleOptions.scheduledTime).toISOString()
             : undefined,
           quantity,
+          batch_id: crossModelBatchId,
           ...printOptions,
           project_id: projectId ?? undefined,
         });

@@ -51,6 +51,7 @@ from backend.app.services.filament_requirements import overrides_for_plate
 from backend.app.services.notification_service import notification_service
 from backend.app.services.print_batch import (
     BatchDispatchError,
+    batch_dispatch_lock,
     dispatch_remaining,
     load_progress,
     refresh_batch_status,
@@ -1365,23 +1366,22 @@ async def dispatch_batch(
     if batch.status == "cancelled":
         raise HTTPException(400, "Cannot dispatch a cancelled batch")
 
-    # Dispatch starts prints, so it must not be a weaker door than POST /queue/.
     await _assert_can_dispatch_batch_sources(db, batch.id, current_user)
+    async with batch_dispatch_lock(db, batch.id):
+        try:
+            created = await dispatch_remaining(
+                db,
+                batch,
+                plate_id=data.plate_id,
+                only_plate=data.only_plate,
+                limit=data.limit,
+                created_by_id=current_user.id if current_user else None,
+            )
+        except BatchDispatchError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
-    try:
-        created = await dispatch_remaining(
-            db,
-            batch,
-            plate_id=data.plate_id,
-            only_plate=data.only_plate,
-            limit=data.limit,
-            created_by_id=current_user.id if current_user else None,
-        )
-    except BatchDispatchError as exc:
-        raise HTTPException(400, str(exc)) from exc
-
-    await db.commit()
-    await db.refresh(batch)
+        await db.commit()
+        await db.refresh(batch)
 
     logger.info("Batch %s dispatched %d item(s)", batch.id, len(created))
     return await _build_batch_response(db, batch)

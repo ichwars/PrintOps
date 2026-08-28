@@ -5,6 +5,7 @@ failed or cancelled run does not satisfy a target, so the order keeps saying it
 owes a print until one actually completes.
 """
 
+import asyncio
 from datetime import datetime
 
 import pytest
@@ -170,6 +171,22 @@ class TestBatchOrderTargets:
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestBatchOrderProgress:
+    async def test_whole_job_target_counts_a_resolved_variant_plate(
+        self, async_client, printer_factory, archive_factory
+    ):
+        """A logical-job target is independent of a chosen slice's plate id."""
+        printer = await printer_factory()
+        archive = await archive_factory()
+        order = await _create_order(async_client, archive.id, [{"plate_id": None, "quantity_target": 2}])
+        await _queue_item(async_client, printer.id, archive.id, order["id"], plate_id=3)
+
+        result = (await async_client.get(f"/api/v1/queue/batches/{order['id']}")).json()
+
+        assert result["target_count"] == 2
+        assert result["pending_count"] == 1
+        assert result["remaining_count"] == 1
+        assert [(plate["plate_id"], plate["dispatched"]) for plate in result["plates"]] == [(None, 1)]
+
     async def test_failed_run_leaves_the_work_owed(self, async_client, printer_factory, archive_factory, db_session):
         """The whole point of storing targets: a burned print is still owed."""
         printer = await printer_factory()
@@ -444,6 +461,37 @@ class TestBatchBacklog:
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestBatchOrderDispatch:
+    async def test_concurrent_dispatches_do_not_exceed_the_target(self, async_client, printer_factory, archive_factory):
+        printer = await printer_factory()
+        archive = await archive_factory()
+        order = await _create_order(async_client, archive.id, [{"plate_id": 1, "quantity_target": 3}])
+        await _queue_item(async_client, printer.id, archive.id, order["id"], plate_id=1)
+
+        first, second = await asyncio.gather(
+            async_client.post(f"/api/v1/queue/batches/{order['id']}/dispatch", json={}),
+            async_client.post(f"/api/v1/queue/batches/{order['id']}/dispatch", json={}),
+        )
+
+        assert first.status_code == 200, first.text
+        assert second.status_code == 200, second.text
+        current = (await async_client.get(f"/api/v1/queue/batches/{order['id']}")).json()
+        assert current["pending_count"] == 3
+        assert current["remaining_count"] == 0
+
+    async def test_whole_job_target_clones_a_resolved_variant_plate(
+        self, async_client, printer_factory, archive_factory
+    ):
+        printer = await printer_factory()
+        archive = await archive_factory()
+        order = await _create_order(async_client, archive.id, [{"plate_id": None, "quantity_target": 2}])
+        await _queue_item(async_client, printer.id, archive.id, order["id"], plate_id=3)
+
+        response = await async_client.post(f"/api/v1/queue/batches/{order['id']}/dispatch", json={})
+
+        assert response.status_code == 200, response.text
+        assert response.json()["pending_count"] == 2
+        assert response.json()["remaining_count"] == 0
+
     async def test_dispatch_clones_the_print_configuration(
         self, async_client, printer_factory, archive_factory, db_session
     ):

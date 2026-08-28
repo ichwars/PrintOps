@@ -17,7 +17,10 @@ and the dispatch endpoint has nothing to do. ``has_targets`` tells callers
 which kind of batch they are looking at.
 """
 
+import asyncio
 import logging
+import weakref
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -30,6 +33,29 @@ from backend.app.models.print_log import PrintLogEntry
 from backend.app.models.print_queue import PrintQueueItem, PrintQueueVariant
 
 logger = logging.getLogger(__name__)
+
+_dispatch_locks: weakref.WeakValueDictionary[int, asyncio.Lock] = weakref.WeakValueDictionary()
+
+
+@asynccontextmanager
+async def batch_dispatch_lock(db: AsyncSession, batch_id: int):
+    """Serialize target calculation and commit for one batch.
+
+    The in-process lock covers SQLite and avoids needless database contention.
+    PostgreSQL additionally takes a transaction-scoped advisory lock so two
+    application workers cannot both calculate the same remaining quantity.
+    The caller must commit or roll back before leaving this context.
+    """
+    lock = _dispatch_locks.get(batch_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _dispatch_locks[batch_id] = lock
+
+    async with lock:
+        if db.get_bind().dialect.name == "postgresql":
+            await db.execute(text("SELECT pg_advisory_xact_lock(342, :batch_id)"), {"batch_id": batch_id})
+        yield
+
 
 # Statuses that consume a unit of the target. "printing" counts because the
 # run is in flight — re-dispatching it would double-print. "failed",
@@ -254,6 +280,26 @@ async def load_progress(db: AsyncSession, batch: PrintBatch) -> BatchProgress:
             .group_by(PrintQueueItem.plate_id)
         )
     ).all()
+
+    # A single NULL target represents the logical job as a whole. Cross-model
+    # alternatives can resolve to different physical plate numbers in their
+    # respective slices, but every run still consumes that one production
+    # target. Collapse those runtime plate ids before building the roll-up.
+    whole_job_target = len(plate_rows) == 1 and plate_rows[0].plate_id is None
+    if whole_job_target:
+        by_status: dict[str, tuple[int, int]] = {}
+        for _plate_id, status, count, time_sum in item_rows:
+            old_count, old_time = by_status.get(status, (0, 0))
+            by_status[status] = (old_count + count, old_time + int(time_sum or 0))
+        item_rows = [(None, status, count, time_sum) for status, (count, time_sum) in by_status.items()]
+        if cost_rows:
+            cost_rows = [
+                (
+                    None,
+                    sum(float(cost_sum or 0) for _plate_id, cost_sum, _gram_sum in cost_rows),
+                    sum(float(gram_sum or 0) for _plate_id, _cost_sum, gram_sum in cost_rows),
+                )
+            ]
     costs = {row[0]: (row[1], row[2]) for row in cost_rows}
 
     progress = BatchProgress(has_targets=bool(plate_rows))
@@ -494,16 +540,14 @@ async def dispatch_remaining(
         if limit is not None and len(created) >= limit:
             break
 
-        source = (
-            await db.execute(
-                select(PrintQueueItem)
-                .options(selectinload(PrintQueueItem.variants))
-                .where(PrintQueueItem.batch_id == batch.id)
-                .where(PrintQueueItem.plate_id == plate.plate_id)
-                .order_by(PrintQueueItem.id.desc())
-                .limit(1)
-            )
-        ).scalar_one_or_none()
+        source_query = (
+            select(PrintQueueItem)
+            .options(selectinload(PrintQueueItem.variants))
+            .where(PrintQueueItem.batch_id == batch.id)
+        )
+        if plate.plate_id is not None:
+            source_query = source_query.where(PrintQueueItem.plate_id == plate.plate_id)
+        source = (await db.execute(source_query.order_by(PrintQueueItem.id.desc()).limit(1))).scalar_one_or_none()
 
         if source is None:
             raise BatchDispatchError(

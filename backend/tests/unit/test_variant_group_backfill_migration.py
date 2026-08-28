@@ -91,14 +91,15 @@ async def _insert_file(
     metadata: dict | None = None,
     deleted: bool = False,
     variant_group_id: int | None = None,
+    created_by_id: int | None = None,
 ) -> None:
     """Insert a minimal LibraryFile row; only the columns the migration reads."""
     await conn.execute(
         text(
             "INSERT INTO library_files "
             "(id, filename, file_path, file_type, file_size, is_external, print_count, "
-            " file_metadata, deleted_at, variant_group_id, variant_position) "
-            "VALUES (:id, :filename, :path, 'gcode.3mf', 0, 0, 0, :meta, :deleted, :gid, 0)"
+            " file_metadata, deleted_at, variant_group_id, variant_position, created_by_id) "
+            "VALUES (:id, :filename, :path, 'gcode.3mf', 0, 0, 0, :meta, :deleted, :gid, 0, :owner)"
         ),
         {
             "id": file_id,
@@ -107,6 +108,7 @@ async def _insert_file(
             "meta": json.dumps(metadata) if metadata is not None else None,
             "deleted": "2026-01-01 00:00:00" if deleted else None,
             "gid": variant_group_id,
+            "owner": created_by_id,
         },
     )
 
@@ -148,6 +150,34 @@ async def test_groups_two_variants_of_the_same_source(engine):
 
         name = (await conn.execute(text("SELECT name FROM file_variant_groups"))).scalar()
         assert name == "bracket.3mf", "the group is named after the source the user recognises"
+
+
+@pytest.mark.asyncio
+async def test_group_inherits_the_common_variant_owner(engine):
+    """Authenticated users must retain access to automatically grouped slices."""
+    async with engine.begin() as conn:
+        await _insert_file(conn, file_id=1, filename="bracket.3mf", created_by_id=7)
+        await _insert_file(
+            conn,
+            file_id=2,
+            filename="bracket_h2s.gcode.3mf",
+            metadata=_variant(1, "H2S"),
+            created_by_id=7,
+        )
+        await _insert_file(
+            conn,
+            file_id=3,
+            filename="bracket_h2c.gcode.3mf",
+            metadata=_variant(1, "H2C"),
+            created_by_id=7,
+        )
+
+    async with engine.begin() as conn:
+        await run_migrations(conn)
+
+    async with engine.connect() as conn:
+        owner = (await conn.execute(text("SELECT created_by_id FROM file_variant_groups"))).scalar_one()
+        assert owner == 7
 
 
 @pytest.mark.asyncio

@@ -449,3 +449,50 @@ class TestInterlockOverride:
 
         assert response.status_code == 409
         assert ha_sensor_manager.get_interlock_override(printer.id) is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_deleting_a_sensor_revokes_its_printer_override(
+        self, async_client: AsyncClient, printer_factory, db_session
+    ):
+        printer = await printer_factory(name="Delete Safety Printer")
+        created = await async_client.post(
+            "/api/v1/ha-sensors/",
+            json={**DOOR, "printer_id": printer.id, "block_print": True, "failure_strategy": "fail_closed"},
+        )
+        endpoint = f"/api/v1/ha-sensors/printers/{printer.id}/interlock-override"
+        enabled = await async_client.post(endpoint, json={"reason": "HA gateway maintenance"})
+        assert enabled.status_code == 200
+
+        deleted = await async_client.delete(f"/api/v1/ha-sensors/{created.json()['id']}")
+
+        assert deleted.status_code == 200
+        assert ha_sensor_manager.get_interlock_override(printer.id) is None
+        events = list((await db_session.execute(select(PrinterHAInterlockAudit))).scalars().all())
+        assert [event.action for event in events] == ["enabled", "cleared"]
+        assert "sensor deleted" in events[-1].reason
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_updating_a_sensor_revokes_its_printer_override(
+        self, async_client: AsyncClient, printer_factory, db_session
+    ):
+        printer = await printer_factory(name="Update Safety Printer")
+        created = await async_client.post(
+            "/api/v1/ha-sensors/",
+            json={**DOOR, "printer_id": printer.id, "block_print": True, "failure_strategy": "fail_closed"},
+        )
+        endpoint = f"/api/v1/ha-sensors/printers/{printer.id}/interlock-override"
+        enabled = await async_client.post(endpoint, json={"reason": "HA gateway maintenance"})
+        assert enabled.status_code == 200
+
+        updated = await async_client.patch(
+            f"/api/v1/ha-sensors/{created.json()['id']}",
+            json={"failure_strategy": "auto"},
+        )
+
+        assert updated.status_code == 200
+        assert ha_sensor_manager.get_interlock_override(printer.id) is None
+        events = list((await db_session.execute(select(PrinterHAInterlockAudit))).scalars().all())
+        assert [event.action for event in events] == ["enabled", "cleared"]
+        assert "sensor updated" in events[-1].reason

@@ -205,7 +205,7 @@ function BatchOrderCard({
               {t('queue.batchOrders.dispatchRemaining', { count: batch.remaining_count })}
             </Button>
           )}
-          {batch.status === 'active' && batch.pending_count > 0 && canCancel && (
+          {batch.status === 'active' && canCancel && (
             <Button variant="ghost" size="sm" onClick={onCancel}>
               <XCircle className="w-4 h-4 mr-1" />
               {t('queue.cancelBatch')}

@@ -141,4 +141,32 @@ describe('PrintModal cross-model mode', () => {
     // collecting tray numbers here would only be thrown away.
     expect(screen.queryByText('Filament Mapping')).not.toBeInTheDocument();
   });
+
+  it('creates a targeted batch when queueing multiple cross-model copies', async () => {
+    type BatchBody = { plates?: Array<{ plate_id: number | null; quantity_target: number }> };
+    type QueueBody = { batch_id?: number; quantity?: number };
+    let batchBody: BatchBody | null = null;
+    let queueBody: QueueBody | null = null;
+    server.use(
+      http.post('/api/v1/queue/batches', async ({ request }) => {
+        batchBody = (await request.json()) as BatchBody;
+        return HttpResponse.json({ id: 42, name: 'bracket ×2', status: 'active' });
+      }),
+      http.post('/api/v1/queue/', async ({ request }) => {
+        queueBody = (await request.json()) as QueueBody;
+        return HttpResponse.json({ id: 1, status: 'pending' });
+      }),
+    );
+
+    renderCrossModel();
+    await screen.findByText('x1c.gcode.3mf');
+    fireEvent.change(screen.getByLabelText(/^Quantity$/i), { target: { value: '2' } });
+    fireEvent.click(document.querySelector('button[type="submit"]') as HTMLElement);
+
+    await waitFor(() => expect(queueBody).not.toBeNull());
+    expect(batchBody!.plates).toEqual([
+      expect.objectContaining({ plate_id: null, quantity_target: 2 }),
+    ]);
+    expect(queueBody).toEqual(expect.objectContaining({ batch_id: 42, quantity: 2 }));
+  });
 });

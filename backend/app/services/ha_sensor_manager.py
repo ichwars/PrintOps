@@ -311,8 +311,9 @@ def evaluate(sensor: PrinterHASensor, payload: dict | None) -> SensorReading:
         value = as_float(state)
         if value is None:
             # A sensor that used to report numbers and now reports text is
-            # not a reading we can place against a threshold.
-            return SensorReading(state=state, value=None, alerting=False, reachable=True)
+            # not a reading we can place against a threshold.  Treat that as
+            # unreachable uncertainty so fail-closed interlocks stay closed.
+            return SensorReading(state=state, value=None, alerting=False, reachable=False)
         alerting = (sensor.alert_above is not None and value > sensor.alert_above) or (
             sensor.alert_below is not None and value < sensor.alert_below
         )
