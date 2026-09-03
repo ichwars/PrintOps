@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, KeyRound, MoreVertical, Pause, Play, RefreshCw, Unplug } from 'lucide-react';
 import { lexwareApi, type LexwareConnection } from '../../../api/client/lexware';
 import { useToast } from '../../../contexts/ToastContext';
+import { ConfirmModal } from '../../ConfirmModal';
 import { Button, IconButton } from '../../ui';
 import { LexwareConnectionDialog } from './LexwareConnectionDialog';
 import { formatLexwareDate, lexwareError, useLexwareMessages } from './lexwareMessages';
@@ -15,6 +16,7 @@ export function LexwareConnectionCard({ connection, profileName }: { connection:
   const { showToast } = useToast();
   const client = useQueryClient();
   const [replaceKey, setReplaceKey] = useState(false);
+  const [disconnectConfirm, setDisconnectConfirm] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -70,6 +72,7 @@ export function LexwareConnectionCard({ connection, profileName }: { connection:
       )));
       showToast(operation === 'sync' ? text.queuedMessage : operation === 'disconnect' ? text.disconnectedMessage : text.changed, 'success');
       await refresh();
+      if (operation === 'disconnect') setDisconnectConfirm(false);
     },
   });
   const status = !connection.connected ? text.disconnected : !connection.enabled ? text.paused
@@ -129,7 +132,7 @@ export function LexwareConnectionCard({ connection, profileName }: { connection:
               </button>
               <button type="button" role="menuitem" tabIndex={-1} className={`${menuItemClass} text-red-400 hover:text-red-300 focus:text-red-300`}
                 disabled={action.isPending || !connection.connected} aria-describedby={`${menuId}-disconnect-help`}
-                onClick={() => { closeMenu(); action.mutate('disconnect'); }}><Unplug className="h-4 w-4 shrink-0" aria-hidden="true" />{text.disconnect}</button>
+                onClick={() => { closeMenu(); action.reset(); setDisconnectConfirm(true); }}><Unplug className="h-4 w-4 shrink-0" aria-hidden="true" />{text.disconnect}</button>
               <p id={`${menuId}-disconnect-help`} className="mt-1 border-t border-bambu-dark-tertiary px-3 pb-2 pt-3 text-xs leading-relaxed text-bambu-gray">{text.disconnectHelp}</p>
             </div>}
           </div>
@@ -138,11 +141,19 @@ export function LexwareConnectionCard({ connection, profileName }: { connection:
       {(failed || !active || action.isError) && <div className="space-y-1 border-t border-bambu-dark-tertiary px-5 py-3 text-sm">
         {failed && <p role="alert" className="text-amber-300">{text.stale}</p>}
         {!active && <p className="text-bambu-gray">{text.inactive}</p>}
-        {action.isError && <p role="alert" className="text-red-300">{lexwareError(action.error, text)}</p>}
+        {action.isError && !disconnectConfirm && <p role="alert" className="text-red-300">{lexwareError(action.error, text)}</p>}
       </div>}
       {replaceKey && <LexwareConnectionDialog connection={connection}
         profiles={[{ id: connection.business_profile_id, name: profileName }]}
         onClose={() => setReplaceKey(false)} onSaved={refresh} />}
+      {disconnectConfirm && <ConfirmModal title={copy.disconnectTitle} message={copy.disconnectConfirm}
+        confirmText={copy.disconnectAction} cancelText={copy.cancel} variant="danger" isLoading={action.isPending}
+        loadingText={copy.disconnectAction} onCancel={() => { action.reset(); setDisconnectConfirm(false); }}
+        onConfirm={() => action.mutate('disconnect')}>
+        {action.isError && <div role="alert" className="space-y-1 border-t border-red-500/30 pt-3 text-sm text-red-200">
+          <p>{copy.disconnectFailed}</p><p>{lexwareError(action.error, text)}</p>
+        </div>}
+      </ConfirmModal>}
     </section>
   );
 }

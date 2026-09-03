@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -112,8 +112,16 @@ async def create_connection(
         upstream = await connections.test_api_key(key)
         if upstream["organization_id"] != body.organization_id:
             raise LexwareError("Organization changed; test and confirm the connection again", 409)
-        profile = await db.get(BusinessProfile, body.business_profile_id)
-        if profile is None or not profile.is_active:
+        # Match profile deletion's SQLite writer lock / PostgreSQL profile row lock.
+        # The upstream key check above must finish before this transaction begins.
+        profile_is_active = await db.scalar(
+            update(BusinessProfile)
+            .where(BusinessProfile.id == body.business_profile_id)
+            .values(version=BusinessProfile.version, updated_at=BusinessProfile.updated_at)
+            .returning(BusinessProfile.is_active)
+            .execution_options(synchronize_session=False)
+        )
+        if profile_is_active is not True:
             raise LexwareError("Business profile is unavailable", 409)
         connection = LexwareConnection(
             business_profile_id=body.business_profile_id, encrypted_api_key=encrypted, **upstream
@@ -205,6 +213,7 @@ async def list_resources(
     request: Request,
     kind: ResourceKind = Query(),
     db: AsyncSession = Depends(get_db),
+    _: User | None = RequireAnyPermissionIfAuthEnabled(Permission.CUSTOMERS_READ, Permission.INVENTORY_READ),
 ):
     await _require(request, Permission.CUSTOMERS_READ if kind == "contacts" else Permission.INVENTORY_READ)
     rows = (

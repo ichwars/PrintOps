@@ -1,13 +1,22 @@
+import asyncio
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import func, select
+from fastapi import HTTPException
+from sqlalchemy import func, select, text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from backend.app.api.routes import lexware as lexware_routes
+from backend.app.core.database import Base
+from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.customer import Customer
 from backend.app.models.lexware import LexwareConnection, LexwareResource
-from backend.app.services import lexware_connections as connections
+from backend.app.models.number_sequence import NumberSequence
+from backend.app.schemas.lexware import ConnectionCreate
+from backend.app.services import business_profile as business_profile_service, lexware_connections as connections
 from backend.app.services.lexware_imports import snapshot_hash
+from backend.app.services.order_errors import ResourceInUseError
 from backend.tests.integration.test_business_profiles_api import create_permission_user, create_profile
 from backend.tests.integration.test_customers_api import customer_payload
 
@@ -97,6 +106,121 @@ async def test_connection_encrypts_key_and_disconnect_preserves_data(async_clien
     assert row.sync_status == "disconnected"
 
 
+@pytest.mark.parametrize("first", ["create", "delete"])
+async def test_connection_creation_serializes_with_profile_deletion_on_sqlite(tmp_path, first):
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{tmp_path / 'lexware-profile-race.db'}", connect_args={"timeout": 2}
+    )
+    async with engine.begin() as connection:
+        await connection.execute(text("PRAGMA journal_mode=WAL"))
+        assert await connection.scalar(text("PRAGMA foreign_keys")) == 0
+        await connection.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as setup_session:
+        profile = BusinessProfile(
+            name="Lexware race",
+            legal_name="Lexware Race GmbH",
+            country_code="DE",
+            default_currency="EUR",
+            timezone="Europe/Berlin",
+            default_locale="de-DE",
+            billing_mode="hybrid",
+            is_default=False,
+            is_active=True,
+        )
+        setup_session.add(profile)
+        await setup_session.flush()
+        setup_session.add(
+            NumberSequence(
+                business_profile_id=profile.id,
+                key="customer",
+                prefix="CUST",
+                pattern="{PREFIX}-{#####}",
+            )
+        )
+        await setup_session.commit()
+        profile_id = profile.id
+        profile_updated_at = profile.updated_at
+
+    commit_pending = asyncio.Event()
+    allow_commit = asyncio.Event()
+
+    class PausingCommitSession(AsyncSession):
+        async def commit(self):
+            commit_pending.set()
+            await allow_commit.wait()
+            await super().commit()
+
+    pausing_factory = async_sessionmaker(engine, class_=PausingCommitSession, expire_on_commit=False)
+    contender_started = asyncio.Event()
+
+    async def create_connection():
+        async with (pausing_factory if first == "create" else factory)() as session:
+            if first != "create":
+                contender_started.set()
+            return await lexware_routes.create_connection(
+                ConnectionCreate(
+                    business_profile_id=profile_id,
+                    organization_id=ORG,
+                    api_key="private-upstream-key",
+                ),
+                db=session,
+                _=None,
+            )
+
+    async def delete_profile():
+        async with (pausing_factory if first == "delete" else factory)() as session:
+            if first != "delete":
+                contender_started.set()
+            await business_profile_service.delete_business_profile(session, profile_id)
+            await session.commit()
+
+    tasks = []
+    try:
+        with (
+            patch.object(connections, "encrypt_api_key", return_value="fernet:test"),
+            patch.object(
+                connections,
+                "test_api_key",
+                AsyncMock(return_value={"organization_id": ORG, "company_name": "Lexware test"}),
+            ),
+        ):
+            operations = {"create": create_connection, "delete": delete_profile}
+            second = "delete" if first == "create" else "create"
+            tasks.append(asyncio.create_task(operations[first]()))
+            await asyncio.wait_for(commit_pending.wait(), timeout=2)
+            tasks.append(asyncio.create_task(operations[second]()))
+            await asyncio.wait_for(contender_started.wait(), timeout=2)
+            completed, _ = await asyncio.wait({tasks[1]}, timeout=0.2)
+            allow_commit.set()
+            results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=3)
+            outcomes = dict(zip((first, second), results, strict=True))
+
+        assert not completed, "the competing operation bypassed the uncommitted transaction"
+        async with factory() as verify_session:
+            stored_profile = await verify_session.get(BusinessProfile, profile_id)
+            stored_connection = await verify_session.scalar(
+                select(LexwareConnection.id).where(LexwareConnection.business_profile_id == profile_id)
+            )
+            if first == "create":
+                assert outcomes["create"].business_profile_id == profile_id
+                assert isinstance(outcomes["delete"], ResourceInUseError)
+                assert stored_profile is not None and stored_connection is not None
+                assert stored_profile.version == 1 and stored_profile.updated_at == profile_updated_at
+            else:
+                assert outcomes["delete"] is None
+                assert isinstance(outcomes["create"], HTTPException)
+                assert outcomes["create"].status_code == 409
+                assert stored_profile is None and stored_connection is None
+    finally:
+        allow_commit.set()
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await engine.dispose()
+
+
 async def test_contact_import_is_explicit_idempotent_and_adopts_customer_number(async_client, db_session):
     profile, connection, resource = await seed(async_client, db_session)
     preview = await async_client.post(f"{BASE}/connections/{connection.id}/preview", json={"resource_id": resource.id})
@@ -169,6 +293,36 @@ async def test_accounting_admin_without_customer_access_cannot_read_or_import(as
             f"{BASE}/connections/{connection.id}/preview", headers=headers, json={"resource_id": resource.id}
         )
         assert preview.status_code == 403
+
+
+@pytest.mark.parametrize(
+    ("permission", "allowed_kind", "denied_kind"),
+    [
+        ("customers:read", "contacts", "articles"),
+        ("inventory:read", "articles", "contacts"),
+    ],
+)
+async def test_resource_reads_keep_kind_specific_permissions(
+    async_client, db_session, permission, allowed_kind, denied_kind
+):
+    _, connection, _ = await seed(async_client, db_session)
+    token = await create_permission_user(
+        db_session,
+        username=f"{allowed_kind}-reader",
+        permissions=[permission],
+    )
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with patch("backend.app.core.auth.is_auth_enabled", return_value=True):
+        allowed = await async_client.get(
+            f"{BASE}/connections/{connection.id}/resources?kind={allowed_kind}", headers=headers
+        )
+        denied = await async_client.get(
+            f"{BASE}/connections/{connection.id}/resources?kind={denied_kind}", headers=headers
+        )
+
+    assert allowed.status_code == 200, allowed.text
+    assert denied.status_code == 403
 
 
 async def test_archived_contact_is_not_imported(async_client, db_session):

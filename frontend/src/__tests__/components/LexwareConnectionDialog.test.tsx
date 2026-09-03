@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -195,7 +195,7 @@ describe('Lexware connection banner overflow', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
-  it('dismisses the menu on Tab and exposes pause, resume and disconnect through real actions', async () => {
+  it('dismisses the menu on Tab and confirms disconnect before deleting the key', async () => {
     const user = userEvent.setup();
     const update = vi.spyOn(lexwareApi, 'update').mockResolvedValue(connection);
     const disconnect = vi.spyOn(lexwareApi, 'disconnect').mockResolvedValue(undefined);
@@ -216,7 +216,26 @@ describe('Lexware connection banner overflow', () => {
     await waitFor(() => expect(trigger).toBeEnabled());
     await user.click(trigger);
     await user.click(screen.getByRole('menuitem', { name: 'Disconnect' }));
+    const confirmation = screen.getByRole('dialog', { name: 'Disconnect Lexware Office?' });
+    expect(disconnect).not.toHaveBeenCalled();
+    await user.click(within(confirmation).getByRole('button', { name: 'Cancel' }));
+    expect(disconnect).not.toHaveBeenCalled();
+    await user.click(trigger);
+    await user.click(screen.getByRole('menuitem', { name: 'Disconnect' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Disconnect Lexware Office?' })).getByRole('button', { name: 'Disconnect' }));
     await waitFor(() => expect(disconnect).toHaveBeenCalledExactlyOnceWith(3));
+  });
+
+  it('keeps a failed disconnect confirmation open and shows its error inside the dialog', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(lexwareApi, 'disconnect').mockRejectedValue(new Error('Network unavailable'));
+    mount(<LexwareConnectionCard connection={connection} profileName="Studio Berlin" />);
+    await user.click(screen.getByRole('button', { name: 'Connection actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Disconnect' }));
+    const confirmation = screen.getByRole('dialog', { name: 'Disconnect Lexware Office?' });
+    await user.click(within(confirmation).getByRole('button', { name: 'Disconnect' }));
+    expect(await within(confirmation).findByRole('alert')).toHaveTextContent('The request failed. Please try again.');
+    expect(confirmation).toBeInTheDocument();
   });
 
   it('keeps refresh unavailable while queued and localizes the banner and key dialog in German', async () => {

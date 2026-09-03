@@ -402,3 +402,33 @@ async def test_authenticated_reader_cannot_mutate_and_actor_is_recorded(warehous
     response = await move(client, item["id"], "receipt")
     assert response.status_code == 201, response.text
     assert response.json()["actor_id"] == writer.id
+
+
+@pytest.mark.parametrize("can_archive", [False, True], ids=["update-only", "update-and-delete"])
+async def test_patch_archival_requires_delete_permission(warehouse_client, db_session, monkeypatch, can_archive):
+    from backend.app.core.auth import create_access_token
+    from backend.app.models.group import Group
+    from backend.app.models.user import User
+
+    item = await article(warehouse_client)
+    group = Group(name="warehouse-updater", permissions=["inventory:read", "inventory:update"])
+    if can_archive:
+        group.permissions = [*group.permissions, "inventory:delete"]
+    user = User(username="warehouse-updater", password_hash="unused-test-hash", is_active=True, groups=[group])
+    db_session.add(user)
+    await db_session.commit()
+    monkeypatch.setattr("backend.app.core.auth.is_auth_enabled", AsyncMock(return_value=True))
+    warehouse_client.headers["Authorization"] = f"Bearer {create_access_token(data={'sub': user.username})}"
+
+    renamed = await warehouse_client.patch(
+        f"/warehouse-articles/{item['id']}", json={"version": item["version"], "name": "Allowed rename"}
+    )
+    assert renamed.status_code == 200, renamed.text
+    archived = await warehouse_client.patch(
+        f"/warehouse-articles/{item['id']}", json={"version": renamed.json()["version"], "is_active": False}
+    )
+
+    assert archived.status_code == (200 if can_archive else 403), archived.text
+    stored = await db_session.get(WarehouseArticle, item["id"])
+    assert stored.is_active is not can_archive
+    assert stored.version == renamed.json()["version"] + int(can_archive)

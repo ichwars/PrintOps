@@ -20,6 +20,7 @@ const en = {
   opening: 'Opening balance', receipt: 'Receipt', issue: 'Free issue', transfer: 'Transfer', correction: 'Inventory correction (delta)',
   reservation: 'Reservation', release: 'Release reservation', reserved_issue: 'Issue reserved stock', counter: 'Counter-entry',
   book: 'Post movement', order: 'Order ID (optional)', reservationSelect: 'Open reservation',
+  uncertainMovement: 'The previous movement has not been confirmed. Retry it unchanged to check the result without creating a duplicate.',
   counterNote: 'A counter-entry reverses the selected movement without deleting history. Current stock constraints still apply.',
   quantityNote: 'Use a negative delta for inventory reductions. Stock and available quantity cannot be negative.',
   noLocations: 'Create a storage location in material or filament management before booking.',
@@ -46,6 +47,7 @@ const de: typeof en = {
   opening: 'Anfangsbestand', receipt: 'Wareneingang', issue: 'Freier Warenausgang', transfer: 'Umbuchung', correction: 'Inventurkorrektur (Differenz)',
   reservation: 'Reservierung', release: 'Reservierung freigeben', reserved_issue: 'Reservierte Ware ausgeben', counter: 'Gegenbuchung',
   book: 'Bewegung buchen', order: 'Auftrags-ID (optional)', reservationSelect: 'Offene Reservierung',
+  uncertainMovement: 'Die letzte Buchung ist noch nicht bestätigt. Wiederhole sie unverändert, um das Ergebnis ohne doppelte Buchung zu prüfen.',
   counterNote: 'Die Gegenbuchung macht die gewählte Bewegung nachvollziehbar rückgängig. Aktuelle Bestandsgrenzen gelten weiterhin.',
   quantityNote: 'Bestandsminderungen als negative Differenz buchen. Physische und verfügbare Mengen dürfen nicht negativ werden.',
   noLocations: 'Vor der Buchung einen Lagerort in der Material- oder Filamentverwaltung anlegen.',
@@ -58,4 +60,21 @@ export function useWarehouseCopy() {
   return (i18n.resolvedLanguage ?? i18n.language).startsWith('de') ? de : en;
 }
 
-export const warehouseQuantity = (value: string) => Number(value).toLocaleString(undefined, { maximumFractionDigits: 6 });
+export function warehouseQuantity(value: string, locale?: string) {
+  const match = value.trim().match(/^([+-]?)(\d+)(?:\.(\d+))?$/);
+  if (!match) return value;
+
+  const [, sign, rawInteger, rawFraction = ''] = match;
+  const integer = rawInteger.replace(/^0+(?=\d)/, '');
+  const fraction = rawFraction.replace(/0+$/, '');
+  const integerFormatter = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });
+  const digitFormatter = new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 0 });
+  const localizedInteger = integerFormatter.format(BigInt(integer));
+  const localizedSign = sign === '-'
+    ? new Intl.NumberFormat(locale).formatToParts(-1).find((part) => part.type === 'minusSign')?.value ?? '-'
+    : sign;
+  if (!fraction) return `${localizedSign}${localizedInteger}`;
+  const decimal = new Intl.NumberFormat(locale).formatToParts(1.1).find((part) => part.type === 'decimal')?.value ?? '.';
+  const localizedFraction = [...fraction].map((digit) => digitFormatter.format(BigInt(digit))).join('');
+  return `${localizedSign}${localizedInteger}${decimal}${localizedFraction}`;
+}

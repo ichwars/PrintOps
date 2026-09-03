@@ -158,6 +158,7 @@ async def test_sales_original_always_uses_direct_file_subresource(
 ):
     legacy_file_id = str(uuid4())
     row = snapshot(kind=kind, file_id=legacy_file_id)
+    row["detail"]["version"] = 1
     if not legacy_metadata:
         row["detail"].pop("files")
     _, documents = await seed(db_session, [row])
@@ -169,18 +170,22 @@ async def test_sales_original_always_uses_direct_file_subresource(
 
     def respond(request):
         paths.append(request.url.path)
+        if request.url.path == sources[file_id].removesuffix("/file"):
+            return httpx.Response(200, json=row["detail"])
         assert request.headers["Accept"] == "*/*"
         return httpx.Response(200, content=b"%PDF-1.7\noriginal", headers={"Content-Type": "application/pdf"})
 
     transport(monkeypatch, respond)
     response = await document_client.get(f"{BASE}/documents/{documents[0].id}/files/{file_id}")
     assert response.status_code == 200, response.text
-    assert paths == [sources[file_id]]
+    detail_path = sources[file_id].removesuffix("/file")
+    assert paths == [detail_path, sources[file_id], detail_path]
 
 
 async def test_xrechnung_direct_xml_is_cached_instead_of_legacy_pdf_preview(document_client, db_session, monkeypatch):
     legacy_file_id = str(uuid4())
     row = snapshot(file_id=legacy_file_id)
+    row["detail"]["version"] = 1
     row["detail"]["electronicDocumentProfile"] = "XRECHNUNG"
     _, documents = await seed(db_session, [row])
     source = file_sources(documents[0].payload)
@@ -191,6 +196,8 @@ async def test_xrechnung_direct_xml_is_cached_instead_of_legacy_pdf_preview(docu
 
     def respond(request):
         paths.append(request.url.path)
+        if request.url.path == direct_path.removesuffix("/file"):
+            return httpx.Response(200, json=row["detail"])
         assert request.headers["Accept"] == "*/*"
         if request.url.path == f"/v1/files/{legacy_file_id}":
             return httpx.Response(
@@ -212,7 +219,8 @@ async def test_xrechnung_direct_xml_is_cached_instead_of_legacy_pdf_preview(docu
     assert original.source_path == direct_path
     assert original.sha256 == sha256(xml).hexdigest()
     assert (await document_client.get(url)).content == xml
-    assert paths == [direct_path]
+    detail_path = direct_path.removesuffix("/file")
+    assert paths == [detail_path, direct_path, detail_path]
     assert (await document_client.get(f"{BASE}/documents/{documents[0].id}/files/{legacy_file_id}")).status_code == 404
 
 
@@ -221,12 +229,13 @@ async def test_sales_revision_retains_previous_original_evidence(document_client
     row["detail"]["version"] = 1
     connection, documents = await seed(db_session, [row])
     file_id = next(iter(file_sources(documents[0].payload)))
-    transport(
-        monkeypatch,
-        lambda request: httpx.Response(
-            200, content=b"%PDF-1.7\nversion 1", headers={"Content-Type": "application/pdf"}
-        ),
-    )
+
+    def respond(request):
+        if not request.url.path.endswith("/file"):
+            return httpx.Response(200, json=row["detail"])
+        return httpx.Response(200, content=b"%PDF-1.7\nversion 1", headers={"Content-Type": "application/pdf"})
+
+    transport(monkeypatch, respond)
     assert (await document_client.get(f"{BASE}/documents/{documents[0].id}/files/{file_id}")).status_code == 200
     row["detail"]["version"] = 2
     await replace_vouchers(db_session, connection.id, [row])
@@ -234,6 +243,48 @@ async def test_sales_revision_retains_previous_original_evidence(document_client
     detail = (await document_client.get(f"{BASE}/documents/{documents[0].id}")).json()
     assert len(detail["files"]) == 2
     assert any(file["file_id"] == file_id and file["cached"] for file in detail["files"])
+
+
+@pytest.mark.parametrize("changed_during_download", [False, True], ids=["before-download", "during-download"])
+async def test_sales_original_rejects_upstream_revision_changes(
+    document_client, db_session, monkeypatch, changed_during_download
+):
+    row = snapshot()
+    row["detail"]["version"] = 1
+    _, documents = await seed(db_session, [row])
+    sources = file_sources(documents[0].payload)
+    file_id, file_path = next(iter(sources.items()))
+    detail_path = file_path.removesuffix("/file")
+    paths = []
+    live_version = 1 if changed_during_download else 2
+
+    def respond(request):
+        nonlocal live_version
+        paths.append(request.url.path)
+        if request.url.path == detail_path:
+            return httpx.Response(200, json={**row["detail"], "version": live_version})
+        assert request.url.path == file_path
+        live_version = 2
+        return httpx.Response(200, content=b"%PDF-1.7\nversion 2", headers={"Content-Type": "application/pdf"})
+
+    transport(monkeypatch, respond)
+    response = await document_client.get(f"{BASE}/documents/{documents[0].id}/files/{file_id}")
+    assert response.status_code == 409
+    assert paths == ([detail_path, file_path, detail_path] if changed_during_download else [detail_path])
+    assert await db_session.scalar(select(func.count()).select_from(LexwareOriginal)) == 0
+
+
+async def test_sales_original_requires_a_verifiable_snapshot_revision(document_client, db_session, monkeypatch):
+    _, documents = await seed(db_session, [snapshot()])
+    file_id = next(iter(file_sources(documents[0].payload)))
+
+    def fail(request):
+        pytest.fail("A versionless original must not be assigned to an unverifiable snapshot")
+
+    transport(monkeypatch, fail)
+    response = await document_client.get(f"{BASE}/documents/{documents[0].id}/files/{file_id}")
+    assert response.status_code == 409
+    assert await db_session.scalar(select(func.count()).select_from(LexwareOriginal)) == 0
 
 
 async def test_corrupt_cache_is_not_served_or_replaced(document_client, db_session, monkeypatch):

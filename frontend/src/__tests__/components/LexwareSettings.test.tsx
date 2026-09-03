@@ -153,6 +153,9 @@ describe('Lexware setup and connection controls', () => {
     await screen.findByText('Connected');
     expect(changes).toEqual([{ enabled: false }, { enabled: true }]);
     await connectionAction('Disconnect');
+    const confirmation = await screen.findByRole('dialog', { name: 'Disconnect Lexware Office?' });
+    expect(state.connected).toBe(true);
+    fireEvent.click(within(confirmation).getByRole('button', { name: 'Disconnect', exact: true }));
     await screen.findByText('Disconnected');
     expect(screen.getByRole('button', { name: 'Refresh now' })).toBeDisabled();
     expect(screen.getByText('Source customer')).toBeInTheDocument();

@@ -24,6 +24,16 @@ MEDIA_SUFFIXES = {
 }
 
 
+def _sales_revision(detail: dict) -> tuple[str, int | str] | None:
+    version = detail.get("version")
+    if type(version) is int and version >= 0:
+        return "version", version
+    updated = detail.get("updatedDate")
+    if isinstance(updated, str) and updated.strip():
+        return "updatedDate", updated
+    return None
+
+
 def validate_original(content: bytes, media_type: str) -> None:
     if not content or len(content) > MAX_ORIGINAL_BYTES:
         raise LexwareError("Lexware original is empty or exceeds the 10 MiB cache limit")
@@ -66,6 +76,12 @@ async def get_original(
     connection_id, generation = connection.id, connection.version
     document_id, version_hash = document.id, document.version_hash
     path = file_sources(document.payload)[file_id]
+    direct_sales_file = path.endswith("/file")
+    expected_detail = dict(document.payload.get("detail", {}))
+    expected_revision = _sales_revision(expected_detail)
+    external_id, organization_id = document.external_id, connection.organization_id
+    if direct_sales_file and expected_revision is None:
+        raise HTTPException(409, "Refresh Lexware before downloading an original without a verifiable revision")
     # End even the read transaction before any HTTP. Do not carry ORM attributes across rollback.
     await db.rollback()
 
@@ -73,7 +89,26 @@ async def get_original(
         await check_connection_generation(connection_id, generation)
 
     async with LexwareClient(key, before_request=before_request) as client:
+
+        async def verify_sales_revision():
+            current_detail = await client.get_json(path.removesuffix("/file"))
+            if (
+                not isinstance(current_detail, dict)
+                or current_detail.get("id") != external_id
+                or current_detail.get("organizationId", organization_id) != organization_id
+                or _sales_revision(current_detail) != expected_revision
+                or current_detail.get("voucherStatus") != expected_detail.get("voucherStatus")
+                or current_detail.get("electronicDocumentProfile") != expected_detail.get("electronicDocumentProfile")
+            ):
+                raise HTTPException(409, "Lexware document changed; refresh before downloading its original")
+
+        # Sales /file URLs are unversioned. Bracket the download with upstream
+        # revision checks so a current file cannot become evidence for an older snapshot.
+        if direct_sales_file:
+            await verify_sales_revision()
         content, media_type, _filename = await client.get_file(path)
+        if direct_sales_file:
+            await verify_sales_revision()
     validate_original(content, media_type)
     # A conditional no-op UPDATE takes the DB write lock and checks the generation atomically.
     # Disconnect waits for this short transaction, or wins first and makes the predicate fail.

@@ -75,7 +75,7 @@ und verknüpfte Kunden werden deaktiviert beziehungsweise archiviert statt gelö
 
 ## Warenlager
 
-**Lager → Warenlage** verwaltet Fertigprodukte, Handelswaren und Dienstleistungen.
+**Lager → Warenlager** verwaltet Fertigprodukte, Handelswaren und Dienstleistungen.
 Die Artikelverwaltung ist auch ohne Lexware nutzbar. Es gibt drei Bestandsquellen:
 
 | Quelle | Verhalten |
@@ -95,6 +95,10 @@ Verfügbar ist der physische Bestand abzüglich Reservierungen. Negative Bestän
 Mengen werden mit bis zu sechs Nachkommastellen exakt gespeichert; die jeweilige
 Einheit kann weniger Nachkommastellen erlauben. Wiederholungen derselben Buchung
 mit demselben Request-Schlüssel erzeugen keine weiteren Bewegungen.
+Bei einer unklaren Netzwerkantwort bleibt der Buchungsauftrag beim erneuten Öffnen
+im selben Browser-Tab erhalten. Die unveränderte Wiederholung prüft das Ergebnis
+mit demselben Schlüssel; die gesperrten Felder verhindern eine versehentliche
+zweite Buchung mit geänderten Angaben.
 
 Das Journal ist unveränderlich. Fehler werden durch Gegenbuchungen berichtigt.
 Einheiten und Bestandsquellen sind nach Beginn der Historie geschützt. Artikel mit
@@ -125,6 +129,9 @@ Zahlungen noch Nummernkreise oder ausgestellte Dokumente.
 Originale werden bei Bedarf heruntergeladen, nach Dateityp und Größe geprüft
 (maximal 10 MiB je Original) und mit SHA-256-Prüfsumme unveränderlich in der
 Datenbank zwischengespeichert. Unterstützte Formate sind PDF, XML, PNG und JPEG.
+Bei Verkaufsbelegen wird die Lexware-Version vor und nach dem Dateidownload geprüft.
+Hat sich der Beleg geändert oder fehlt eine prüfbare Version, ist zuerst ein neuer
+Abruf erforderlich; die Datei wird nicht unter einer veralteten Version gespeichert.
 Bereits geladene Versionen bleiben nach späteren Abrufen und nach dem Trennen
 verfügbar. Es werden keine Ersatz-PDFs aus lokalen Daten erzeugt.
 

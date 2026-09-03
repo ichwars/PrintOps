@@ -1,11 +1,15 @@
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.auth import RequirePermissionIfAuthEnabled
+from backend.app.core.auth import (
+    RequirePermissionIfAuthEnabled,
+    require_permission_if_auth_enabled,
+    security,
+)
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.models.user import User
@@ -128,9 +132,14 @@ async def get_article(
 async def update_article(
     article_id: int,
     data: WarehouseArticleUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
+    if data.is_active is False:
+        await require_permission_if_auth_enabled(Permission.INVENTORY_DELETE)(
+            credentials=await security(request), x_api_key=request.headers.get("X-API-Key")
+        )
     async with _errors(db):
         article = await service.update_article(db, article_id, data)
         response = await service.read_article(db, article)

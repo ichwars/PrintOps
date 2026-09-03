@@ -1,13 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { WarehouseArticle } from '../../api/client/warehouse-articles';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { warehouseArticlesApi, type WarehouseArticle } from '../../api/client/warehouse-articles';
 import { WarehouseGoodsPage } from '../../pages/WarehouseGoodsPage';
 import { WarehouseStockPanel } from '../../components/warehouse/WarehouseStockPanel';
 import { WarehouseArticleEditor } from '../../components/warehouse/WarehouseArticleEditor';
+import { WarehouseArticleDetail } from '../../components/warehouse/WarehouseArticleDetail';
+import { warehouseQuantity } from '../../components/warehouse/warehouseGoodsCopy';
 import i18n from '../../i18n';
 import { server } from '../mocks/server';
 
@@ -22,9 +24,14 @@ const item: WarehouseArticle = {
   locations: [{ location_id: 1, location_name: 'Rack A', physical: '10', reserved: '7', available: '3', is_low_stock: false }],
 };
 
-function mount(children: React.ReactNode) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(<MemoryRouter><QueryClientProvider client={client}>{children}</QueryClientProvider></MemoryRouter>);
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+function mount(children: React.ReactNode, client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })) {
+  return { ...render(<MemoryRouter><QueryClientProvider client={client}>{children}</QueryClientProvider></MemoryRouter>), client };
 }
 
 beforeEach(async () => {
@@ -40,6 +47,8 @@ beforeEach(async () => {
     http.get('*/api/v1/small-parts/settings/units', () => HttpResponse.json([{ code: 'C62', label: 'Piece', decimal_places: 0, is_active: true }])),
   );
 });
+
+afterEach(() => vi.restoreAllMocks());
 
 describe('Warehouse goods', () => {
   it('shows stock, opens detail and prevents archiving remaining stock', async () => {
@@ -93,6 +102,111 @@ describe('Warehouse goods', () => {
     await waitFor(() => expect(keys).toHaveLength(2));
     expect(keys[0]).toBe(keys[1]);
     await waitFor(() => expect(screen.getByLabelText(/Reason/)).toHaveValue(''));
+  });
+
+  it('retains the booking command and idempotency key after an uncertain error and remount', async () => {
+    const user = userEvent.setup();
+    const addLedger = vi.spyOn(warehouseArticlesApi, 'addLedger')
+      .mockRejectedValueOnce(new Error('Response lost'))
+      .mockResolvedValueOnce({ id: 8 } as never);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const first = mount(<WarehouseStockPanel article={item} canBook />, client);
+    await user.click(await screen.findByRole('combobox', { name: 'Location' }));
+    await user.click(await screen.findByRole('option', { name: 'Rack A' }));
+    await user.type(screen.getByLabelText(/Quantity \(C62\)/), '2');
+    await user.type(screen.getByLabelText(/Reason/), 'Received after timeout');
+    await user.click(screen.getByRole('button', { name: 'Post movement' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Response lost');
+    const firstKey = addLedger.mock.calls[0][1].idempotency_key;
+    first.unmount();
+
+    mount(<WarehouseStockPanel article={item} canBook />, client);
+    expect(await screen.findByLabelText(/Quantity \(C62\)/)).toHaveValue(2);
+    expect(screen.getByLabelText(/Reason/)).toHaveValue('Received after timeout');
+    expect(screen.getByLabelText(/Quantity \(C62\)/)).toBeDisabled();
+    expect(screen.getByLabelText(/Reason/)).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Post movement' }));
+    await waitFor(() => expect(addLedger).toHaveBeenCalledTimes(2));
+    expect(addLedger.mock.calls[1][1].idempotency_key).toBe(firstKey);
+  });
+
+  it('can retry an uncertain release after the reservation disappears from the open list', async () => {
+    const user = userEvent.setup();
+    let released = false;
+    server.use(http.get('*/api/v1/warehouse-articles/1/reservations', () => HttpResponse.json(
+      released ? [] : [{ id: 9, location_id: 1, remaining: '2', order_id: null }],
+    )));
+    const addLedger = vi.spyOn(warehouseArticlesApi, 'addLedger')
+      .mockImplementationOnce(async () => { released = true; throw new Error('Response lost'); })
+      .mockResolvedValueOnce({ id: 10 } as never);
+    const first = mount(<WarehouseStockPanel article={item} canBook />);
+    await user.click(screen.getByRole('combobox', { name: 'Stock movement' }));
+    await user.click(screen.getByRole('option', { name: 'Release reservation', exact: true }));
+    await user.click(screen.getByRole('combobox', { name: 'Open reservation' }));
+    await user.click(await screen.findByRole('option', { name: /#9/ }));
+    await user.type(screen.getByLabelText(/Quantity/), '2');
+    await user.type(screen.getByLabelText(/Reason/), 'Release completed order');
+    await user.click(screen.getByRole('button', { name: 'Post movement' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Response lost');
+    const submitted = addLedger.mock.calls[0][1];
+    first.unmount();
+    await first.client.invalidateQueries({ queryKey: ['warehouse-articles', 1, 'reservations'] });
+    mount(<WarehouseStockPanel article={item} canBook />, first.client);
+    await waitFor(() => expect(first.client.getQueryData(['warehouse-articles', 1, 'reservations'])).toEqual([]));
+    expect(screen.getByRole('button', { name: 'Post movement' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Post movement' }));
+    await waitFor(() => expect(addLedger).toHaveBeenCalledTimes(2));
+    expect(addLedger.mock.calls[1][1]).toEqual(submitted);
+  });
+
+  it('blocks stock-dialog closing, edits, and duplicate submission while a movement is pending', async () => {
+    const user = userEvent.setup();
+    const response = deferred<never>();
+    const addLedger = vi.spyOn(warehouseArticlesApi, 'addLedger').mockReturnValue(response.promise);
+    const onClose = vi.fn();
+    mount(<WarehouseArticleDetail id={1} onClose={onClose} />);
+    await user.click(await screen.findByRole('combobox', { name: 'Location' }));
+    await user.click(await screen.findByRole('option', { name: 'Rack A' }));
+    await user.type(screen.getByLabelText(/Quantity \(C62\)/), '2');
+    await user.type(screen.getByLabelText(/Reason/), 'Delayed receipt');
+    await user.click(screen.getByRole('button', { name: 'Post movement' }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(screen.getByRole('button', { name: 'Close' })).toBeDisabled();
+    expect(screen.getByLabelText(/Quantity \(C62\)/)).toBeDisabled();
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    fireEvent.pointerDown(dialog.parentElement!);
+    fireEvent.submit(screen.getByLabelText(/Reason/).closest('form')!);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(addLedger).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks every editor close path, edits, and duplicate submission while saving', async () => {
+    const user = userEvent.setup();
+    const response = deferred<WarehouseArticle>();
+    const create = vi.spyOn(warehouseArticlesApi, 'create').mockReturnValue(response.promise);
+    const onClose = vi.fn();
+    mount(<WarehouseArticleEditor article={null} onClose={onClose} />);
+    await user.type(screen.getByLabelText(/Article number/), 'DELAYED-1');
+    await user.type(screen.getByLabelText(/^Name/), 'Delayed article');
+    await user.click(screen.getByRole('combobox', { name: 'Local unit' }));
+    await user.click(await screen.findByRole('option', { name: 'Piece (C62)' }));
+    await user.click(screen.getByRole('button', { name: 'Save', exact: true }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(screen.getByLabelText(/Article number/)).toBeDisabled();
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    fireEvent.pointerDown(dialog.parentElement!);
+    fireEvent.submit(screen.getByLabelText(/Article number/).closest('form')!);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledTimes(1);
+    await act(async () => response.resolve(item));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
+  it('formats maximal Decimal quantities without Number precision loss', () => {
+    expect(warehouseQuantity('999999999999.999999', 'en-US')).toBe('999,999,999,999.999999');
+    expect(warehouseQuantity('-123456789012.123456', 'de-DE')).toBe('-123.456.789.012,123456');
   });
 
   it('creates services with no stock and does not copy selling price to cost', async () => {

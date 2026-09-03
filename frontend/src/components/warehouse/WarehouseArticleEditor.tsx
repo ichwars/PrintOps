@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { smallPartsApi } from '../../api/smallParts';
 import { warehouseArticlesApi, type WarehouseArticle, type WarehouseArticleInput, type WarehouseArticleKind, type WarehouseStockSource } from '../../api/client/warehouse-articles';
 import { Button, Modal, NumberField, Select, TextArea, TextField } from '../ui';
@@ -18,6 +18,7 @@ function FormSection({ title, children }: { title: string; children: ReactNode }
 export function WarehouseArticleEditor({ article, onClose }: { article: WarehouseArticle | null; onClose: () => void }) {
   const copy = useWarehouseCopy();
   const cache = useQueryClient();
+  const pendingRef = useRef(false);
   const [reviewedVersion] = useState(article?.version);
   const [form, setForm] = useState<WarehouseArticleInput>(() => ({
     sku: article?.sku ?? '', name: article?.name ?? '', description: article?.description ?? '',
@@ -33,6 +34,7 @@ export function WarehouseArticleEditor({ article, onClose }: { article: Warehous
   const mutation = useMutation({
     mutationFn: () => article ? warehouseArticlesApi.update(article.id, { ...form, version: reviewedVersion! }) : warehouseArticlesApi.create(form),
     onSuccess: async () => { await cache.invalidateQueries({ queryKey: ['warehouse-articles'] }); onClose(); },
+    onSettled: () => { pendingRef.current = false; },
   });
   function field<K extends keyof WarehouseArticleInput>(key: K, value: WarehouseArticleInput[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
@@ -48,8 +50,15 @@ export function WarehouseArticleEditor({ article, onClose }: { article: Warehous
   }
   const frozen = article?.has_history ?? false;
   const moneyFields = [['sale_price', copy.sale], ['unit_cost', copy.cost], ['tax_rate', copy.tax]] as const;
-  return <Modal open onClose={onClose} closeDisabled={mutation.isPending} title={article ? copy.edit : copy.create} closeLabel={copy.close} className="max-w-3xl">
-    <form className="space-y-6 text-sm" onSubmit={(event) => { event.preventDefault(); mutation.mutate(); }}>
+  const close = () => { if (!pendingRef.current) onClose(); };
+  return <Modal open onClose={close} closeOnBackdrop={!mutation.isPending} closeDisabled={mutation.isPending} title={article ? copy.edit : copy.create} closeLabel={copy.close} className="max-w-3xl">
+    <form className="space-y-6 text-sm" onSubmit={(event) => {
+      event.preventDefault();
+      if (pendingRef.current) return;
+      pendingRef.current = true;
+      mutation.mutate();
+    }}>
+      <fieldset className="contents" disabled={mutation.isPending}>
       <FormSection title={copy.articleDetails}>
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField label={copy.sku} required maxLength={120} value={form.sku} onValueChange={(value) => field('sku', value)} />
@@ -101,6 +110,7 @@ export function WarehouseArticleEditor({ article, onClose }: { article: Warehous
         <Button type="button" variant="secondary" disabled={mutation.isPending} onClick={onClose}>{copy.cancel}</Button>
         <Button type="submit" loading={mutation.isPending} disabled={!form.unit_code || !form.sku.trim() || !form.name.trim() || (form.stock_source === 'material' && !form.small_part_id)}>{copy.save}</Button>
       </div>
+      </fieldset>
     </form>
   </Modal>;
 }

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { warehouseArticlesApi } from '../../api/client/warehouse-articles';
 import { useAuth } from '../../contexts/AuthContext';
@@ -15,15 +15,22 @@ export function WarehouseArticleDetail({ id, onClose }: { id: number; onClose: (
   const { hasPermission } = useAuth();
   const cache = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [stockBusy, setStockBusy] = useState(false);
+  const stockBusyRef = useRef(false);
+  const articleBusyRef = useRef(false);
   const detail = useQuery({ queryKey: ['warehouse-articles', id], queryFn: () => warehouseArticlesApi.get(id) });
   const article = detail.data;
   const mutation = useMutation({
     mutationFn: () => article!.is_active ? warehouseArticlesApi.archive(id, article!.version) : warehouseArticlesApi.update(id, { version: article!.version, is_active: true }),
     onSuccess: () => cache.invalidateQueries({ queryKey: ['warehouse-articles'] }),
+    onSettled: () => { articleBusyRef.current = false; },
   });
   const canEdit = hasPermission('inventory:update');
+  const busy = mutation.isPending || stockBusy;
+  const close = () => { if (!articleBusyRef.current && !stockBusyRef.current) onClose(); };
+  const setStockOperationBusy = (value: boolean) => { stockBusyRef.current = value; setStockBusy(value); };
   return <>
-    <Modal open onClose={onClose} title={article ? `${article.sku} · ${article.name}` : copy.title} closeLabel={copy.close} className="max-w-4xl">
+    <Modal open onClose={close} closeOnBackdrop={!busy} closeDisabled={busy} title={article ? `${article.sku} · ${article.name}` : copy.title} closeLabel={copy.close} className="max-w-4xl">
       {detail.isLoading && <p role="status" className="text-sm text-bambu-gray">{copy.loading}</p>}
       {detail.isError && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-red-950/50 p-3 text-sm text-red-300">{copy.error}<Button type="button" size="sm" variant="secondary" onClick={() => void detail.refetch()}>{copy.retry}</Button></div>}
       {article && <div className="space-y-6 text-sm">
@@ -49,8 +56,8 @@ export function WarehouseArticleDetail({ id, onClose }: { id: number; onClose: (
         </dl>
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
-            {canEdit && <Button type="button" size="sm" variant="secondary" onClick={() => setEditing(true)}>{copy.edit}</Button>}
-            {(article.is_active ? hasPermission('inventory:delete') : canEdit) && <Button type="button" size="sm" variant="secondary" loading={mutation.isPending} disabled={article.is_active && (Number(article.balance.physical) !== 0 || Number(article.balance.reserved) !== 0)} onClick={() => mutation.mutate()}>{article.is_active ? copy.archive : copy.restore}</Button>}
+            {canEdit && <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => setEditing(true)}>{copy.edit}</Button>}
+            {(article.is_active ? hasPermission('inventory:delete') : canEdit) && <Button type="button" size="sm" variant="secondary" loading={mutation.isPending} disabled={stockBusy || article.is_active && (Number(article.balance.physical) !== 0 || Number(article.balance.reserved) !== 0)} onClick={() => { if (articleBusyRef.current) return; articleBusyRef.current = true; mutation.mutate(); }}>{article.is_active ? copy.archive : copy.restore}</Button>}
           </div>
           <p className="text-xs text-bambu-gray">{copy.archiveNote}</p>
         </div>
@@ -77,7 +84,7 @@ export function WarehouseArticleDetail({ id, onClose }: { id: number; onClose: (
         )}
         {article.stock_source === 'material' && <div className="space-y-2 rounded-lg border border-bambu-dark-tertiary p-4 text-bambu-gray"><p>{copy.materialNote}</p><Link className="inline-flex font-medium text-bambu-green hover:text-bambu-green-light hover:underline" to={`/warehouse/parts?part=${article.small_part_id}`}>{copy.materialLink}</Link></div>}
         {article.stock_source === 'none' && <p className="text-bambu-gray">{copy.serviceNote}</p>}
-        {article.stock_source === 'own' && <WarehouseStockPanel article={article} canBook={canEdit} />}
+        {article.stock_source === 'own' && <WarehouseStockPanel article={article} canBook={canEdit} disabled={mutation.isPending} onBusyChange={setStockOperationBusy} />}
       </div>}
     </Modal>
     {editing && article && <WarehouseArticleEditor article={article} onClose={() => setEditing(false)} />}
