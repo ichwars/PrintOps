@@ -32,7 +32,7 @@ export type ProjectManagementSubTab = 'files';
 
 export type WarehouseMaterialSubTab = 'number-sequences' | 'filament' | 'small-parts' | 'catalogs' | 'spoolbuddy';
 
-export type OrderManagementSubTab = 'business-profile' | 'documents' | 'format-preview' | 'calculation';
+export type OrderManagementSubTab = 'business-profile' | 'documents' | 'format-preview' | 'calculation' | 'lexware';
 
 export type IntegrationSubTab = 'notifications' | 'webhooks' | 'smart-home' | 'smart-plugs' | 'api-metrics';
 
@@ -171,6 +171,7 @@ export function resolveOrderManagementSubTab(value: string | null): OrderManagem
     || value === 'documents'
     || value === 'format-preview'
     || value === 'calculation'
+    || value === 'lexware'
     ? value
     : null;
 }

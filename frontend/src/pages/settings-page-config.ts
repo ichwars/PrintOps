@@ -320,6 +320,14 @@ export const WAREHOUSE_MATERIAL_SUB_TAB_ITEMS: Array<{ id: WarehouseMaterialSubT
 ];
 
 export const ORDER_MANAGEMENT_SUB_TABS: Record<OrderManagementSubTab, SettingsHeaderMeta> = {
+  lexware: {
+    labelKey: 'settings.lexware.title',
+    fallback: 'Lexware Office',
+    descriptionKey: 'settings.lexware.description',
+    descriptionFallback: 'Read-only accounting integration and reviewed master-data imports.',
+    descriptionFallbackDe: 'Lesende Buchhaltungsanbindung und geprüfte Stammdatenübernahme.',
+    icon: Plug,
+  },
   'business-profile': {
     labelKey: 'settings.tabs.orderManagementBusinessProfile',
     fallback: 'Business Profile',
@@ -359,6 +367,7 @@ export const ORDER_MANAGEMENT_SUB_TABS: Record<OrderManagementSubTab, SettingsHe
 };
 
 export const ORDER_MANAGEMENT_SUB_TAB_ITEMS: Array<{ id: OrderManagementSubTab; meta: SettingsHeaderMeta }> = [
+  { id: 'lexware', meta: ORDER_MANAGEMENT_SUB_TABS.lexware },
   { id: 'business-profile', meta: ORDER_MANAGEMENT_SUB_TABS['business-profile'] },
   { id: 'documents', meta: ORDER_MANAGEMENT_SUB_TABS.documents },
   { id: 'format-preview', meta: ORDER_MANAGEMENT_SUB_TABS['format-preview'] },

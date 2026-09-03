@@ -14,6 +14,7 @@ from backend.app.models.business_profile import (
     BusinessProfileTaxIdentifier,
 )
 from backend.app.models.customer import CustomerAccount
+from backend.app.models.lexware import LexwareConnection
 from backend.app.models.number_sequence import NumberSequence
 from backend.app.schemas.business_profile import BusinessProfileCreate, BusinessProfileUpdate
 from backend.app.schemas.number_sequence import NumberSequenceCreate, NumberSequenceUpdate
@@ -365,6 +366,11 @@ async def delete_business_profile(session: AsyncSession, profile_id: int) -> Non
     )
     if profile.is_default:
         raise ResourceInUseError("The default business profile cannot be deleted")
+
+    if await session.scalar(select(LexwareConnection.id).where(LexwareConnection.business_profile_id == profile_id)):
+        raise ResourceInUseError(
+            "The business profile retains Lexware data and cannot be deleted; deactivate it instead"
+        )
 
     customer_account_id = await session.scalar(
         select(CustomerAccount.id).where(CustomerAccount.business_profile_id == profile_id).limit(1)

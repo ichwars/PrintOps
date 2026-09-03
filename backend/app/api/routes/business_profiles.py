@@ -201,6 +201,7 @@ async def list_business_profiles(
 async def list_business_profile_options(
     db: AsyncSession = Depends(get_db),
     _: User | None = RequireAnyPermissionIfAuthEnabled(
+        Permission.ACCOUNTING_INTEGRATIONS_MANAGE,
         Permission.CUSTOMERS_READ,
         Permission.CALCULATIONS_READ,
         Permission.ORDERS_READ,

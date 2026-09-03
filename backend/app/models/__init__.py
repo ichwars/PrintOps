@@ -81,6 +81,8 @@ from backend.app.models.filament_sku_settings import FilamentSkuSettings
 from backend.app.models.github_backup import GitHubBackupConfig, GitHubBackupLog
 from backend.app.models.group import Group, user_groups
 from backend.app.models.kprofile_note import KProfileNote
+from backend.app.models.lexware import LexwareConnection, LexwareResource
+from backend.app.models.lexware_documents import LexwareDocument, LexwareOriginal, LexwarePaymentSnapshot
 from backend.app.models.library import FileVariantGroup, LibraryFile, LibraryFolder
 from backend.app.models.local_preset import LocalPreset
 from backend.app.models.location import Location
@@ -122,6 +124,7 @@ from backend.app.models.user import User
 from backend.app.models.user_email_pref import UserEmailPreference
 from backend.app.models.user_otp_code import UserOTPCode
 from backend.app.models.user_totp import UserTOTP
+from backend.app.models.warehouse_article import WarehouseArticle, WarehouseArticleLedgerEntry
 
 __all__ = [
     "Printer",

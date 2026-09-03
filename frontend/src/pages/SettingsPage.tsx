@@ -42,9 +42,7 @@ import { ColorCatalogSettings } from '../components/ColorCatalogSettings';
 import { ExternalLinksSettings } from '../components/ExternalLinksSettings';
 import { VirtualPrinterList } from '../components/VirtualPrinterList';
 import { SpoolBuddySettings } from '../components/SpoolBuddySettings';
-import { BusinessProfileSettings } from '../components/settings/BusinessProfileSettings';
-import { DocumentSettings } from '../components/settings/documents/DocumentSettings';
-import { DocumentLayoutSettings } from '../components/settings/document-layout/DocumentLayoutSettings';
+import { OrderSettingsPanels } from '../components/settings/OrderSettingsPanels';
 import { CalculationSettings } from '../components/orders/calculation/CalculationSettings';
 import { SmallPartsSettings } from '../components/settings/SmallPartsSettings';
 import { WarehouseNumberSequenceSettings } from '../components/settings/WarehouseNumberSequenceSettings';
@@ -3562,23 +3560,7 @@ export function SettingsPage() {
         </div>
       )}
 
-      {activeTab === 'orders-calculation' && orderManagementSubTab === 'business-profile' && (
-        <div className="w-full">
-          <BusinessProfileSettings />
-        </div>
-      )}
-
-      {activeTab === 'orders-calculation' && orderManagementSubTab === 'documents' && (
-        <div className="w-full">
-          <DocumentSettings />
-        </div>
-      )}
-
-      {activeTab === 'orders-calculation' && orderManagementSubTab === 'format-preview' && (
-        <div id="card-document-layout-settings" className="w-full">
-          <DocumentLayoutSettings />
-        </div>
-      )}
+      {activeTab === 'orders-calculation' && <OrderSettingsPanels tab={orderManagementSubTab} />}
 
       {activeTab === 'orders-calculation' && orderManagementSubTab === 'calculation' && localSettings && (
         <div className="w-full space-y-3">

@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
-from sqlalchemy import case, func, select, update
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -43,6 +43,7 @@ from backend.app.schemas.project import (
     ProjectUpdate,
     TimelineEvent,
 )
+from backend.app.services import project_lifecycle
 from backend.app.utils.http import build_content_disposition
 from backend.app.utils.safe_path import safe_join_under
 
@@ -842,25 +843,7 @@ async def delete_project(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_DELETE),
 ):
     """Delete a project. Archives and queue items will have project_id set to NULL."""
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    # Sub-projects move up to the deleted project's own parent rather than
-    # being cut loose at the top level, so deleting a middle layer collapses
-    # the tree by one instead of scattering a branch (#1264). Left to the ORM
-    # this would null their parent_id instead, which loses the grandparent.
-    await db.execute(update(Project).where(Project.parent_id == project_id).values(parent_id=project.parent_id))
-
-    await db.delete(project)
-    # Persist the re-parenting and deletion as one transaction. Production's
-    # database dependency also commits on successful request completion, but an
-    # explicit commit keeps this endpoint atomic under alternate dependencies
-    # (including integrations that provide their own session).
-    await db.commit()
-
+    await project_lifecycle.delete_project(db, project_id)
     return {"message": "Project deleted"}
 
 

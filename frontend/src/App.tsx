@@ -25,6 +25,8 @@ const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage').then(({
 const FileManagerPage = lazy(() => import('./pages/FileManagerPage').then(({ FileManagerPage }) => ({ default: FileManagerPage })));
 const LibraryTrashPage = lazy(() => import('./pages/LibraryTrashPage').then(({ LibraryTrashPage }) => ({ default: LibraryTrashPage })));
 const WarehousePage = lazy(() => import('./pages/WarehousePage').then(({ WarehousePage }) => ({ default: WarehousePage })));
+const WarehouseGoodsPage = lazy(() => import('./pages/WarehouseGoodsPage').then(({ WarehouseGoodsPage }) => ({ default: WarehouseGoodsPage })));
+const LexwareDocumentsPage = lazy(() => import('./pages/LexwareDocumentsPage'));
 const SmallPartsPage = lazy(() => import('./pages/SmallPartsPage').then(({ SmallPartsPage }) => ({ default: SmallPartsPage })));
 const SuppliersPage = lazy(() => import('./pages/SuppliersPage').then(({ SuppliersPage }) => ({ default: SuppliersPage })));
 const OrdersPage = lazy(() => import('./pages/OrdersPage').then(({ OrdersPage }) => ({ default: OrdersPage })));
@@ -238,7 +240,7 @@ function App() {
                   <Route path="warehouse" element={<WarehousePage />} />
                   <Route path="warehouse/filament" element={<InventoryPage />} />
                   <Route path="warehouse/parts" element={<SmallPartsPage />} />
-                  <Route path="warehouse/stock" element={<WarehousePage />} />
+                  <Route path="warehouse/stock" element={<PermissionRoute permission="inventory:read"><WarehouseGoodsPage /></PermissionRoute>} />
                   <Route path="warehouse/suppliers" element={<PermissionRoute permission="inventory:read"><SuppliersPage /></PermissionRoute>} />
                   <Route path="warehouse/material" element={<Navigate to="/warehouse/parts" replace />} />
                   <Route path="warehouse/goods" element={<Navigate to="/warehouse/stock" replace />} />
@@ -249,6 +251,7 @@ function App() {
                   <Route path="orders/calculation" element={<CalculationsPage />} />
                   <Route path="orders/offers" element={<OffersPage />} />
                   <Route path="orders/invoices" element={<OrdersPage />} />
+                  <Route path="orders/lexware" element={<PermissionRoute permission="commercial_documents:read"><LexwareDocumentsPage /></PermissionRoute>} />
                   <Route path="files" element={<FileManagerPage />} />
                   <Route path="files/trash" element={<LibraryTrashPage />} />
                   <Route path="makerworld" element={<PermissionRoute permission="makerworld:view"><MakerworldPage /></PermissionRoute>} />

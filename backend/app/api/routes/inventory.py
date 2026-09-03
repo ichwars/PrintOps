@@ -24,7 +24,6 @@ from backend.app.models.ams_label import AmsLabel
 from backend.app.models.color_catalog import ColorCatalogEntry
 from backend.app.models.location import Location
 from backend.app.models.settings import Settings
-from backend.app.models.small_part import SmallPart
 from backend.app.models.spool import Spool
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spool_catalog import SpoolCatalogEntry
@@ -61,6 +60,7 @@ from backend.app.services.location_service import (
     get_location_by_name,
     location_name_key,
     prepare_internal_spool_payload,
+    protect_warehouse_location,
     rename_location as rename_location_record,
 )
 from backend.app.services.order_errors import ResourceNotFoundError, VersionConflictError
@@ -750,6 +750,10 @@ async def delete_location(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Delete a storage location when no inventory is assigned."""
+    try:
+        await protect_warehouse_location(db, location_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     location = await get_location_by_id(db, location_id)
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
@@ -758,10 +762,6 @@ async def delete_location(
     counts = await _spool_counts_for_locations(db, [location], settings)
     if counts.get(location.id, 0) > 0:
         raise HTTPException(status_code=409, detail="Location has spools assigned and cannot be deleted")
-
-    small_part_count = await db.scalar(select(func.count(SmallPart.id)).where(SmallPart.location_id == location.id))
-    if small_part_count:
-        raise HTTPException(status_code=409, detail="Location has materials assigned and cannot be deleted")
 
     await db.delete(location)
     await db.commit()
