@@ -18,6 +18,7 @@ const QueuePage = lazy(() => import('./pages/QueuePage').then(({ QueuePage }) =>
 const StatsPage = lazy(() => import('./pages/StatsPage').then(({ StatsPage }) => ({ default: StatsPage })));
 const BusinessDashboardPage = lazy(() => import('./pages/BusinessDashboardPage').then(({ BusinessDashboardPage }) => ({ default: BusinessDashboardPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(({ SettingsPage }) => ({ default: SettingsPage })));
+const LexwareSettingsPage = lazy(() => import('./pages/LexwareSettingsPage'));
 const ProfilesPage = lazy(() => import('./pages/ProfilesPage').then(({ ProfilesPage }) => ({ default: ProfilesPage })));
 const MaintenancePage = lazy(() => import('./pages/MaintenancePage').then(({ MaintenancePage }) => ({ default: MaintenancePage })));
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage').then(({ ProjectsPage }) => ({ default: ProjectsPage })));
@@ -159,6 +160,14 @@ function PermissionRoute({ permission, children }: { permission: string; childre
   return <>{children}</>;
 }
 
+function SettingsRoute() {
+  const { authEnabled, hasPermission } = useAuth();
+  if (authEnabled && !hasPermission('settings:read') && hasPermission('accounting_integrations:manage')) {
+    return <PermissionRoute permission="accounting_integrations:manage"><LexwareSettingsPage /></PermissionRoute>;
+  }
+  return <PermissionRoute permission="settings:read"><SettingsPage /></PermissionRoute>;
+}
+
 function SetupRoute({ children }: { children: React.ReactNode }) {
   const { authEnabled, loading } = useAuth();
 
@@ -255,7 +264,7 @@ function App() {
                   <Route path="files" element={<FileManagerPage />} />
                   <Route path="files/trash" element={<LibraryTrashPage />} />
                   <Route path="makerworld" element={<PermissionRoute permission="makerworld:view"><MakerworldPage /></PermissionRoute>} />
-                  <Route path="settings" element={<PermissionRoute permission="settings:read"><SettingsPage /></PermissionRoute>} />
+                  <Route path="settings" element={<SettingsRoute />} />
                   <Route path="groups/new" element={<PermissionRoute permission="groups:create"><GroupEditPage /></PermissionRoute>} />
                   <Route path="groups/:id/edit" element={<PermissionRoute permission="groups:update"><GroupEditPage /></PermissionRoute>} />
                   <Route path="users" element={<Navigate to="/settings?tab=users" replace />} />

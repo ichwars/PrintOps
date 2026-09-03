@@ -57,6 +57,8 @@ Daten bleiben ebenfalls erhalten. Bei einem
 Kunden, den mehrere Unternehmensprofile gemeinsam verwenden, warnt die Vorschau
 vor den Auswirkungen auf diese Profile. Neue Kunden können nach Prüfung ihrer
 Vorschauen gemeinsam übernommen werden.
+Neue Kunden erhalten die Währungs- und Sprachvorgaben des verbundenen
+Unternehmensprofils. Bei bestehenden Kunden bleiben diese Einstellungen erhalten.
 
 Neue Artikel benötigen eine lokale Artikelnummer, eine bestätigte Art und Einheit
 sowie eine Bestandsquelle. Lexware-Verkaufspreise werden nicht als Einstandskosten
@@ -154,6 +156,9 @@ keine Lagerbestände und keine vollständige Bankkontenabfrage.
 Die Prüfungen erfolgen im Backend. Finanzfelder und Originaldateien werden ohne
 Zahlungsleserecht nicht in Belegantworten ausgeliefert. Bestehende Rechte für lokale
 Lagerbuchungen gelten auch im Warenlager.
+Integrationsverwalter ohne allgemeines Einstellungsleserecht erreichen unter
+**Einstellungen** ausschließlich die Lexware-Verwaltung. Andere Einstellungsbereiche
+und deren Daten bleiben gesperrt.
 
 Der Transport verwendet ausschließlich GET gegen `https://api.lexware.io` und eine
 feste Pfadliste. Weiterleitungen werden nicht verfolgt. Abrufe werden unterhalb des

@@ -120,7 +120,9 @@ jobs:
           pip install --require-hashes -r requirements-dev.lock.txt
 
       - name: Run tests (shard ${{ matrix.shard }}/4)
-        timeout-minutes: 10
+        # The 8,500+ test suite can exceed ten minutes on the slowest shard.
+        # Keep the per-test 60s timeout below; allow the complete shard to finish.
+        timeout-minutes: 15
         run: |
           cd backend
           # -v dropped: 5300+ "PASSED foo::bar" lines per worker eat 30-60s

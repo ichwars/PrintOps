@@ -35,6 +35,7 @@ from backend.app.services import lexware_connections as connections, lexware_imp
 from backend.app.services.lexware_client import LexwareError
 from backend.app.services.lexware_sync import lexware_scheduler
 from backend.app.services.order_errors import OrderDomainError, VersionConflictError
+from backend.app.services.warehouse_articles import WarehouseError
 
 
 class CredentialSafeRoute(APIRoute):
@@ -302,6 +303,12 @@ async def import_resource(
         raise HTTPException(
             409,
             detail={"code": "import_conflict", "message": "This record is already linked or conflicts with local data"},
+        ) from None
+    except WarehouseError as error:
+        await db.rollback()
+        raise HTTPException(
+            error.status,
+            detail={"code": error.code, "message": str(error)},
         ) from None
     except VersionConflictError:
         raise HTTPException(

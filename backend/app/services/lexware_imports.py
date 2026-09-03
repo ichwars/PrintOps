@@ -142,7 +142,7 @@ async def apply_import(db: AsyncSession, connection_id: int, request: LexwareImp
     if (target.version if target else None) != request.local_version:
         raise LexwareError("Local data changed; refresh the preview", 409)
     if resource.kind == "contacts":
-        target = await _import_customer(db, connection, resource, request, target, fields)
+        target = await _import_customer(db, profile, resource, request, target, fields)
         resource.customer_id = target.id
     else:
         target = await _import_article(db, resource, request, target, fields)
@@ -157,31 +157,30 @@ async def apply_import(db: AsyncSession, connection_id: int, request: LexwareImp
     return {"customer_id": resource.customer_id, "article_id": resource.article_id, "unchanged": False}
 
 
-async def _import_customer(db, connection, resource, request, target, fields):
+async def _import_customer(db, profile, resource, request, target, fields):
     source = contact_source(resource.payload)
     if not (resource.payload.get("roles") or {}).get("customer"):
         # Lexware may represent a role with an empty object. Presence is decisive.
         if "customer" not in (resource.payload.get("roles") or {}):
             raise LexwareError("This Lexware contact is not a customer", 422)
     if target:
-        if connection.business_profile_id not in {account.business_profile_id for account in target.accounts}:
+        if profile.id not in {account.business_profile_id for account in target.accounts}:
             raise LexwareError("Customer does not belong to this business profile", 409)
         data = customer_data(target)
     else:
         if "identity" not in fields:
             raise LexwareError("Select identity when creating a customer", 422)
-        data = {"accounts": [{"business_profile_id": connection.business_profile_id, "preferred_currency": "EUR"}]}
+        data = {
+            "preferred_locale": profile.default_locale,
+            "accounts": [{"business_profile_id": profile.id, "preferred_currency": profile.default_currency}],
+        }
     for field in fields:
         if field == "identity":
             data.update(source[field])
         elif field == "customer_number":
             if source[field] is None:
                 raise LexwareError("The Lexware contact has no customer number to import", 422)
-            account_data = next(
-                account
-                for account in data["accounts"]
-                if account["business_profile_id"] == connection.business_profile_id
-            )
+            account_data = next(account for account in data["accounts"] if account["business_profile_id"] == profile.id)
             account_data["number"] = source[field]
         else:
             data[field] = source[field]
@@ -192,18 +191,12 @@ async def _import_customer(db, connection, resource, request, target, fields):
                 db, [account.business_profile_id for account in target.accounts]
             )
             if "customer_number" in fields:
-                account = next(
-                    account
-                    for account in target.accounts
-                    if account.business_profile_id == connection.business_profile_id
-                )
+                account = next(account for account in target.accounts if account.business_profile_id == profile.id)
                 number = next(
-                    account.number
-                    for account in validated.accounts
-                    if account.business_profile_id == connection.business_profile_id
+                    account.number for account in validated.accounts if account.business_profile_id == profile.id
                 )
                 await customer_service._assert_manual_number_available(
-                    db, business_profile_id=connection.business_profile_id, number=number, exclude_account_id=account.id
+                    db, business_profile_id=profile.id, number=number, exclude_account_id=account.id
                 )
             values = (
                 validated.model_dump(include={"kind", "display_name", "company_name", "first_name", "last_name"})

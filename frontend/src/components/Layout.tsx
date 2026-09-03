@@ -191,6 +191,7 @@ export function Layout() {
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: api.getSettings,
+    enabled: !authEnabled || hasPermission('settings:read'),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
@@ -412,13 +413,13 @@ export function Layout() {
       'orders-customers': 'customers:read',
       'orders-invoice': 'commercial_documents:read',
       'orders-lexware': 'commercial_documents:read',
-      settings: 'settings:read',
+      settings: ['settings:read', 'accounting_integrations:manage'],
       'settings-general': 'settings:read',
       'settings-users-security': 'settings:read',
       'settings-printers-production': 'settings:read',
       'settings-projects-files': 'settings:read',
       'settings-warehouse-material': 'settings:read',
-      'settings-orders-calculation': 'settings:read',
+      'settings-orders-calculation': ['settings:read', 'accounting_integrations:manage'],
       'settings-integrations': 'settings:read',
       'settings-operations': 'settings:read',
       // The user-email-preferences API requires notifications:user_email, so
