@@ -9,7 +9,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -20,6 +20,7 @@ from backend.app.core.permissions import Permission
 from backend.app.core.websocket import ws_manager
 from backend.app.models.small_part import SmallPart, SmallPartCategory, SmallPartLedgerEntry, SmallPartUnit
 from backend.app.models.user import User
+from backend.app.models.warehouse_article import WarehouseArticle
 from backend.app.schemas.procurement import ProcurementOfferRead, SupplierRead
 from backend.app.schemas.small_part import (
     SmallPartCategoryCreate,
@@ -163,6 +164,22 @@ async def _read_single_part(db: AsyncSession, part: SmallPart) -> SmallPartRead:
 
 def _conflict(message: str) -> HTTPException:
     return HTTPException(status.HTTP_409_CONFLICT, detail={"code": "conflict", "message": message})
+
+
+async def _protect_warehouse_material(db: AsyncSession, part: SmallPart, data: SmallPartUpdate) -> None:
+    """The linked material remains the single stock owner, including CSV edits."""
+    await db.execute(
+        update(SmallPart).where(SmallPart.id == part.id).values(id=SmallPart.id, updated_at=SmallPart.updated_at)
+    )
+    changes = data.model_dump(exclude_unset=True)
+    changes_identity = "unit_code" in changes and changes["unit_code"] != part.unit_code
+    if not changes_identity and changes.get("is_active") is not False:
+        return
+    owner = await db.scalar(select(WarehouseArticle.id).where(WarehouseArticle.small_part_id == part.id).limit(1))
+    if owner is not None:
+        raise _conflict(
+            "Verknüpftes Verkaufsmaterial kann nicht archiviert oder auf eine andere Einheit geändert werden"
+        )
 
 
 def _csv_cell(value: object) -> str:
@@ -535,10 +552,16 @@ async def update_unit(
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
+    await db.execute(
+        update(SmallPartUnit).where(SmallPartUnit.code == unit_code.upper()).values(code=SmallPartUnit.code)
+    )
     unit = await db.get(SmallPartUnit, unit_code.upper())
     if unit is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Unit not found")
     referenced = await db.scalar(select(func.count(SmallPart.id)).where(SmallPart.unit_code == unit.code))
+    referenced += await db.scalar(
+        select(func.count(WarehouseArticle.id)).where(WarehouseArticle.unit_code == unit.code)
+    )
     changes = data.model_dump(exclude_unset=True)
     if referenced and "decimal_places" in changes and changes["decimal_places"] != unit.decimal_places:
         raise _conflict("Nach Verwendung kann die Genauigkeit nicht mehr geändert werden")
@@ -555,11 +578,16 @@ async def delete_unit(
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_DELETE),
 ):
+    await db.execute(
+        update(SmallPartUnit).where(SmallPartUnit.code == unit_code.upper()).values(code=SmallPartUnit.code)
+    )
     unit = await db.get(SmallPartUnit, unit_code.upper())
     if unit is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Unit not found")
     if await db.scalar(select(func.count(SmallPart.id)).where(SmallPart.unit_code == unit.code)):
         raise _conflict("Einheit wird noch verwendet")
+    if await db.scalar(select(WarehouseArticle.id).where(WarehouseArticle.unit_code == unit.code).limit(1)):
+        raise _conflict("Einheit wird von einem Verkaufsartikel verwendet")
     await db.delete(unit)
     await db.commit()
 
@@ -655,6 +683,7 @@ async def import_small_parts_csv(
         for current_operation in operations:
             if current_operation["action"] == "update":
                 existing = current_operation["existing"]
+                await _protect_warehouse_material(db, existing, current_operation["model"])
                 await service.update_small_part(db, existing, current_operation["model"])
                 if current_operation["stock_quantity_provided"]:
                     balance = await service.get_balance(db, existing.id)
@@ -804,6 +833,7 @@ async def update_small_part(
 ) -> SmallPartRead:
     part = await _load_part(db, small_part_id)
     try:
+        await _protect_warehouse_material(db, part, data)
         await service.update_small_part(db, part, data)
         await db.commit()
     except (service.SmallPartUnitChangeNotAllowed, IntegrityError) as exc:

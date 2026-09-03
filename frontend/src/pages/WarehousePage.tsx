@@ -57,7 +57,7 @@ const COPY = {
   },
   de: {
     title: 'Lager',
-    subtitle: 'Bestandsübersicht für Filament, Materialien und Warenlage.',
+    subtitle: 'Bestandsübersicht für Filament, Materialien und Warenlager.',
     openFilament: 'Filament öffnen',
     open: 'Öffnen',
     planned: 'Geplant',
@@ -79,7 +79,7 @@ const COPY = {
         body: 'Vorgesehen für Zukaufteile, Verpackung, Hardware und Verbrauchsmaterial.',
       },
       stock: {
-        title: 'Warenlage',
+        title: 'Warenlager',
         body: 'Vorgesehen für Warenbewegungen, Nachbestellbedarf und verfügbare Ware.',
       },
     },
@@ -95,7 +95,7 @@ const COPY = {
         columns: ['Artikel', 'Lagerort', 'Status'],
       },
       stock: {
-        title: 'Warenlage',
+        title: 'Warenlager',
         subtitle: 'Zulauf, reserviert, verfügbar und nachbestellrelevante Bestände.',
         columns: ['Artikel', 'Verfügbar', 'Meldebestand'],
       },

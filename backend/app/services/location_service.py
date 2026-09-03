@@ -7,12 +7,14 @@ import time
 from dataclasses import dataclass
 
 import httpx
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.location import Location
+from backend.app.models.small_part import SmallPart
 from backend.app.models.spool import Spool
+from backend.app.models.warehouse_article import WarehouseArticleLedgerEntry
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,27 @@ class SpoolLocationFields:
 async def get_location_by_id(db: AsyncSession, location_id: int) -> Location | None:
     result = await db.execute(select(Location).where(Location.id == location_id))
     return result.scalar_one_or_none()
+
+
+async def protect_warehouse_location(db: AsyncSession, location_id: int) -> None:
+    """Lock against concurrent bookings and retain both legs of warehouse history."""
+    await db.execute(
+        update(Location).where(Location.id == location_id).values(id=Location.id, updated_at=Location.updated_at)
+    )
+    history = await db.scalar(
+        select(WarehouseArticleLedgerEntry.id)
+        .where(
+            or_(
+                WarehouseArticleLedgerEntry.location_id == location_id,
+                WarehouseArticleLedgerEntry.target_location_id == location_id,
+            )
+        )
+        .limit(1)
+    )
+    if history is not None:
+        raise ValueError("Lagerort wird in der unveränderlichen Warenhistorie verwendet")
+    if await db.scalar(select(SmallPart.id).where(SmallPart.location_id == location_id).limit(1)) is not None:
+        raise ValueError("Location has materials assigned and cannot be deleted")
 
 
 async def get_location_by_name(db: AsyncSession, name: str) -> Location | None:

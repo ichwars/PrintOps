@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import delete, or_, select, text
 
+from backend.app.api.commerce_router import router as commerce_router
 from backend.app.api.routes import (
     ams_history,
     api_keys,
@@ -24,20 +25,10 @@ from backend.app.api.routes import (
     archives,
     auth,
     bug_report,
-    business_profiles,
-    calculation_projects,
-    calculations,
     camera,
     camwall,
     cloud,
-    commercial_documents,
-    customers,
     discovery,
-    document_configurations,
-    document_layouts,
-    document_render,
-    einvoices,
-    equipment,
     external_links,
     filaments,
     firmware,
@@ -60,9 +51,7 @@ from backend.app.api.routes import (
     notification_templates,
     notifications,
     obico,
-    offers,
     orca_cloud,
-    orders,
     pending_uploads,
     pipeline_runs,
     print_log,
@@ -70,13 +59,11 @@ from backend.app.api.routes import (
     printer_files,
     printer_sensor_history,
     printers,
-    procurement,
     projects,
     settings as settings_routes,
     slice_jobs,
     slicer_pipelines,
     slicer_presets,
-    small_parts,
     smart_plugs,
     sponsor_prompt,
     spoolbuddy,
@@ -98,6 +85,7 @@ from backend.app.core.database import async_session, engine, init_db
 from backend.app.core.tasks import spawn_background_task
 from backend.app.core.websocket import ws_manager
 from backend.app.models.smart_plug import SmartPlug
+from backend.app.services import business_runtime
 from backend.app.services.archive import ArchiveService, peek_plate_index_in_3mf, swap_plate_suffix
 from backend.app.services.archive_purge import archive_purge_service
 from backend.app.services.bambu_ftp import (
@@ -114,7 +102,6 @@ from backend.app.services.github_backup import github_backup_service
 from backend.app.services.ha_sensor_manager import ha_sensor_manager
 from backend.app.services.homeassistant import homeassistant_service
 from backend.app.services.library_trash import library_trash_service
-from backend.app.services.local_backup import local_backup_service
 from backend.app.services.mqtt_relay import mqtt_relay
 from backend.app.services.mqtt_smart_plug import mqtt_smart_plug_service
 from backend.app.services.notification_service import notification_service
@@ -6272,7 +6259,7 @@ async def lifespan(app: FastAPI):
     await github_backup_service.start_scheduler()
 
     # Start the local backup scheduler
-    await local_backup_service.start_scheduler()
+    await business_runtime.start()
     await obico_detection_service.start()
 
     # Start the library trash sweeper (#1008)
@@ -6331,7 +6318,7 @@ async def lifespan(app: FastAPI):
     ha_sensor_manager.stop()
     notification_service.stop_digest_scheduler()
     github_backup_service.stop_scheduler()
-    local_backup_service.stop_scheduler()
+    await business_runtime.stop()
     library_trash_service.stop_scheduler()
     archive_purge_service.stop_scheduler()
     obico_detection_service.stop()
@@ -6790,27 +6777,14 @@ async def trace_id_middleware(request, call_next):
 app.include_router(auth.router, prefix=app_settings.api_prefix)
 app.include_router(mfa.router, prefix=app_settings.api_prefix)
 app.include_router(bug_report.router, prefix=app_settings.api_prefix)
-app.include_router(business_profiles.router, prefix=app_settings.api_prefix)
-app.include_router(document_configurations.router, prefix=app_settings.api_prefix)
-app.include_router(document_layouts.router, prefix=app_settings.api_prefix)
-app.include_router(document_render.router, prefix=app_settings.api_prefix)
-app.include_router(commercial_documents.router, prefix=app_settings.api_prefix)
-app.include_router(einvoices.router, prefix=app_settings.api_prefix)
-app.include_router(calculations.router, prefix=app_settings.api_prefix)
-app.include_router(calculation_projects.router, prefix=app_settings.api_prefix)
-app.include_router(offers.router, prefix=app_settings.api_prefix)
-app.include_router(orders.router, prefix=app_settings.api_prefix)
-app.include_router(customers.router, prefix=app_settings.api_prefix)
+app.include_router(commerce_router, prefix=app_settings.api_prefix)
 app.include_router(users.router, prefix=app_settings.api_prefix)
 app.include_router(groups.router, prefix=app_settings.api_prefix)
 app.include_router(printers.router, prefix=app_settings.api_prefix)
 app.include_router(printer_files.router, prefix=app_settings.api_prefix)
-app.include_router(procurement.router, prefix=app_settings.api_prefix)
-app.include_router(equipment.router, prefix=app_settings.api_prefix)
 app.include_router(archives.router, prefix=app_settings.api_prefix)
 app.include_router(filaments.router, prefix=app_settings.api_prefix)
 app.include_router(inventory.router, prefix=app_settings.api_prefix)
-app.include_router(small_parts.router, prefix=app_settings.api_prefix)
 app.include_router(labels.router, prefix=app_settings.api_prefix)
 app.include_router(settings_routes.router, prefix=app_settings.api_prefix)
 app.include_router(cloud.router, prefix=app_settings.api_prefix)

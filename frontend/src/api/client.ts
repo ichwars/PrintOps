@@ -12,6 +12,9 @@ export {
 export type { ApiValidationIssue, TokenPersistence } from './client/core';
 export type * from './client/types';
 export * from './client/specialized';
+export { warehouseArticlesApi } from './client/warehouse-articles';
+export { lexwareApi } from './client/lexware';
+export { lexwareDocumentsApi } from './client/lexware-documents';
 
 import { authUsersMethods } from './client/auth-users';
 import { printersFilesMethods } from './client/printers-files';

@@ -39,7 +39,7 @@ export default {
       dashboard: 'Übersicht',
       warehouse: 'Lager',
       parts: 'Material',
-      stock: 'Warenlage',
+      stock: 'Warenlager',
       orders: 'Aufträge',
       offers: 'Angebote',
       calculation: 'Kalkulation',

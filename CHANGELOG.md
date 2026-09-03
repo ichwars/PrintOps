@@ -4,6 +4,19 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+## [1.2.7.9] - 2026-09-03
+
+### Added
+- **Read-only Lexware Office integration** — Connect Lexware Office to a PrintOps business profile with an encrypted API key. Customers, articles, vouchers and voucher-related payments are fetched into separate external snapshots. Local master data changes only after an explicit field-by-field preview and confirmation; no writes are sent to Lexware.
+- **Lexware documents and finance overview** — Review supported vouchers, open amounts and overdue items by currency, retain verified original files, and explicitly associate matching local documents without duplicating their financial totals. Unknown payment data remains marked as unknown; this does not provide bank account balances or payment execution.
+- **Warehouse articles and stock journal** — Manage local articles, units, stock sources and stock movements, with explicit article setup when importing from Lexware. Lexware sales prices are kept separate from acquisition costs and do not create stock movements.
+
+### Fixed
+- **Customer number adoption** — Import Lexware customer numbers explicitly for new or linked customers in the connection's business profile, with duplicate-number and stale-preview protection.
+
+### Changed
+- **Lexware settings and warehouse presentation** — Use the shared PrintOps typography and controls, a compact connection overview, searchable customer/article tables and batch selection. Key management and import previews open in dedicated popups while preserving the current list selection and filters.
+
 ## [1.2.7.8] - 2026-08-28
 
 ### Added

@@ -59,13 +59,14 @@ export const defaultNavItems: NavItem[] = [
   { id: 'inventory', to: '/warehouse', icon: Warehouse, labelKey: 'printops.nav.warehouse', defaultLabel: 'Warehouse', defaultLabelDe: 'Lager' },
   { id: 'warehouse-filament', to: '/warehouse/filament', icon: Package, labelKey: 'nav.inventory', parentId: 'inventory' },
   { id: 'warehouse-parts', to: '/warehouse/parts', icon: Boxes, labelKey: 'printops.nav.parts', defaultLabel: 'Material', defaultLabelDe: 'Material', parentId: 'inventory' },
-  { id: 'warehouse-stock', to: '/warehouse/stock', icon: PackageCheck, labelKey: 'printops.nav.stock', defaultLabel: 'Stock position', defaultLabelDe: 'Warenlage', parentId: 'inventory' },
+  { id: 'warehouse-stock', to: '/warehouse/stock', icon: PackageCheck, labelKey: 'printops.nav.stock', defaultLabel: 'Stock position', defaultLabelDe: 'Warenlager', parentId: 'inventory' },
   { id: 'warehouse-suppliers', to: '/warehouse/suppliers', icon: Truck, labelKey: 'suppliers.navTitle', defaultLabel: 'Suppliers', defaultLabelDe: 'Lieferanten', parentId: 'inventory' },
   { id: 'orders', to: '/orders', icon: ClipboardList, labelKey: 'printops.nav.orders', defaultLabel: 'Orders', defaultLabelDe: 'Aufträge' },
   { id: 'orders-offers', to: '/orders/offers', icon: FileText, labelKey: 'printops.nav.offers', defaultLabel: 'Offers', defaultLabelDe: 'Angebote', parentId: 'orders' },
   { id: 'orders-calculation', to: '/orders/calculation', icon: Calculator, labelKey: 'printops.nav.calculation', defaultLabel: 'Calculation', defaultLabelDe: 'Kalkulation', parentId: 'orders' },
   { id: 'orders-customers', to: '/orders/customers', icon: Users, labelKey: 'printops.nav.customers', defaultLabel: 'Customers', defaultLabelDe: 'Kunden', parentId: 'orders' },
   { id: 'orders-invoice', to: '/orders/invoices', icon: Receipt, labelKey: 'printops.nav.invoice', defaultLabel: 'Invoice', defaultLabelDe: 'Rechnung', parentId: 'orders' },
+  { id: 'orders-lexware', to: '/orders/lexware', icon: Receipt, labelKey: 'printops.nav.lexware', defaultLabel: 'Lexware documents', defaultLabelDe: 'Lexware-Belege', parentId: 'orders' },
   // User-account feature: gated in isHidden() on advanced auth + user_notifications
   // + the notifications:user_email permission. Kept adjacent to Settings
   // intentionally. Do not drop this entry — without it the /notifications page
@@ -190,6 +191,7 @@ export function Layout() {
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: api.getSettings,
+    enabled: !authEnabled || hasPermission('settings:read'),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
@@ -410,13 +412,14 @@ export function Layout() {
       'orders-calculation': 'calculations:read',
       'orders-customers': 'customers:read',
       'orders-invoice': 'commercial_documents:read',
-      settings: 'settings:read',
+      'orders-lexware': 'commercial_documents:read',
+      settings: ['settings:read', 'accounting_integrations:manage'],
       'settings-general': 'settings:read',
       'settings-users-security': 'settings:read',
       'settings-printers-production': 'settings:read',
       'settings-projects-files': 'settings:read',
       'settings-warehouse-material': 'settings:read',
-      'settings-orders-calculation': 'settings:read',
+      'settings-orders-calculation': ['settings:read', 'accounting_integrations:manage'],
       'settings-integrations': 'settings:read',
       'settings-operations': 'settings:read',
       // The user-email-preferences API requires notifications:user_email, so

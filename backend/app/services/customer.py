@@ -24,6 +24,7 @@ from backend.app.models.customer import (
     CustomerTaxIdentifier,
 )
 from backend.app.models.document_configuration import CustomerDocumentPreference
+from backend.app.models.lexware import LexwareResource
 from backend.app.models.number_sequence import NumberSequence
 from backend.app.schemas.customer import (
     CustomerCreate,
@@ -489,7 +490,12 @@ def _assert_customer_deletable(customer: Customer) -> None:
 
 
 async def delete_customer(session: AsyncSession, customer_id: int) -> None:
+    # Serialize against integration imports before checking retained links, also
+    # when SQLite foreign-key enforcement is disabled for legacy tables.
+    await session.execute(update(Customer).where(Customer.id == customer_id).values(version=Customer.version))
     customer = await _load_customer(session, customer_id, for_update=True)
+    if await session.scalar(select(LexwareResource.id).where(LexwareResource.customer_id == customer_id).limit(1)):
+        raise ResourceInUseError("The customer is linked to Lexware; archive it instead of deleting it")
     _assert_customer_deletable(customer)
     await session.delete(customer)
     await session.flush()
