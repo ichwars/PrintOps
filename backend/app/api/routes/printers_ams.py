@@ -13,9 +13,11 @@ from backend.app.core.tasks import spawn_background_task
 from backend.app.models.ams_label import AmsLabel
 from backend.app.models.printer import Printer
 from backend.app.models.slot_preset import SlotPresetMapping
+from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.schemas.printer import (
     AmsLabelBody,
 )
+from backend.app.services.inventory_mode import spoolman_owns_assignments
 from backend.app.utils.filament_ids import filament_id_to_setting_id
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,17 @@ class _PrinterManagerProxy:
 
 
 printer_manager = _PrinterManagerProxy()
+
+
+async def _get_spoolman_slot_assignment(db: AsyncSession, printer_id: int, ams_id: int, tray_id: int):
+    result = await db.execute(
+        select(SpoolmanSlotAssignment).where(
+            SpoolmanSlotAssignment.printer_id == printer_id,
+            SpoolmanSlotAssignment.ams_id == ams_id,
+            SpoolmanSlotAssignment.tray_id == tray_id,
+        )
+    )
+    return result.scalar_one_or_none()
 
 
 @router.post("/{printer_id}/slots/{ams_id}/{tray_id}/configure")
@@ -274,7 +287,6 @@ async def configure_ams_slot(
             from backend.app.models.spool_assignment import SpoolAssignment
             from backend.app.models.spool_k_profile import SpoolKProfile
             from backend.app.models.spoolman_k_profile import SpoolmanKProfile
-            from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 
             # Resolve slot's extruder index for the K-profile match key. Same
             # logic as _apply_pa_after_refresh: external slots invert tray→extruder,
@@ -288,15 +300,10 @@ async def configure_ams_slot(
                     slot_extruder = slot_state.ams_extruder_map.get(str(ams_id))
             kp_extruder = slot_extruder if slot_extruder is not None else 0
 
-            # Spoolman SlotAssignment first — has UniqueConstraint, idempotent.
-            sm_result = await db.execute(
-                select(SpoolmanSlotAssignment).where(
-                    SpoolmanSlotAssignment.printer_id == printer_id,
-                    SpoolmanSlotAssignment.ams_id == ams_id,
-                    SpoolmanSlotAssignment.tray_id == tray_id,
-                )
+            spoolman_mode = await spoolman_owns_assignments(db)
+            sm_assignment = (
+                await _get_spoolman_slot_assignment(db, printer_id, ams_id, tray_id) if spoolman_mode else None
             )
-            sm_assignment = sm_result.scalar_one_or_none()
             if sm_assignment:
                 existing = await db.execute(
                     select(SpoolmanKProfile).where(
@@ -334,7 +341,7 @@ async def configure_ams_slot(
                     tray_id,
                     cali_idx,
                 )
-            else:
+            elif not spoolman_mode:
                 # Local SpoolAssignment + SpoolKProfile (no UNIQUE — use .first())
                 local_result = await db.execute(
                     select(SpoolAssignment)
@@ -618,7 +625,6 @@ async def _apply_pa_after_refresh(printer_id: int, ams_id: int, slot_id: int):
         from backend.app.models.spool import Spool
         from backend.app.models.spool_assignment import SpoolAssignment as SA
         from backend.app.models.spoolman_k_profile import SpoolmanKProfile
-        from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
         from backend.app.services.spool_tag_matcher import (
             ZERO_TAG_UID,
             ZERO_TRAY_UUID,
@@ -679,14 +685,16 @@ async def _apply_pa_after_refresh(printer_id: int, ams_id: int, slot_id: int):
             from sqlalchemy import or_, select as sa_select
             from sqlalchemy.orm import selectinload
 
-            # Stage 1: local SpoolAssignment + SpoolKProfile match
-            result = await db.execute(
-                sa_select(SA)
-                .options(selectinload(SA.spool).selectinload(Spool.k_profiles))
-                .where(SA.printer_id == printer_id, SA.ams_id == ams_id, SA.tray_id == slot_id)
-            )
-            assignment = result.scalar_one_or_none()
-            spool: Spool | None = assignment.spool if assignment else None
+            spoolman_mode = await spoolman_owns_assignments(db)
+            spool: Spool | None = None
+            if not spoolman_mode:
+                result = await db.execute(
+                    sa_select(SA)
+                    .options(selectinload(SA.spool).selectinload(Spool.k_profiles))
+                    .where(SA.printer_id == printer_id, SA.ams_id == ams_id, SA.tray_id == slot_id)
+                )
+                assignment = result.scalar_one_or_none()
+                spool = assignment.spool if assignment else None
 
             # Stage 1b: tag-based fallback. The slot may have just been reset
             # (SpoolAssignment row deleted) before the user triggered a re-read.
@@ -695,7 +703,7 @@ async def _apply_pa_after_refresh(printer_id: int, ams_id: int, slot_id: int):
             # Without this fallback we miss the stored SpoolKProfile and Stage 3
             # ends up re-asserting whatever cali_idx the firmware reset to
             # (typically the default profile).
-            if spool is None:
+            if not spoolman_mode and spool is None:
                 norm_uuid = normalize_tray_uuid(tray_uuid) if tray_uuid else ""
                 norm_tag = normalize_tag_uid(tag_uid) if tag_uid else ""
                 tag_filters = []
@@ -745,15 +753,8 @@ async def _apply_pa_after_refresh(printer_id: int, ams_id: int, slot_id: int):
             # Stage 2: Spoolman SpoolmanSlotAssignment + SpoolmanKProfile match
             # (only when no local spool was matched — local takes priority,
             # including the tag-based fallback above)
-            if matching_cali_idx is None and spool is None:
-                sm_result = await db.execute(
-                    sa_select(SpoolmanSlotAssignment).where(
-                        SpoolmanSlotAssignment.printer_id == printer_id,
-                        SpoolmanSlotAssignment.ams_id == ams_id,
-                        SpoolmanSlotAssignment.tray_id == slot_id,
-                    )
-                )
-                sm_assignment = sm_result.scalar_one_or_none()
+            if spoolman_mode and matching_cali_idx is None:
+                sm_assignment = await _get_spoolman_slot_assignment(db, printer_id, ams_id, slot_id)
                 if sm_assignment:
                     kp_result = await db.execute(
                         sa_select(SpoolmanKProfile).where(

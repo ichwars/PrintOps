@@ -1751,14 +1751,17 @@ class TestSpoolmanInventorySSRFSpoolBuddyPath:
             "http://[::ffff:169.254.169.254]/",  # IPv4-mapped IMDS bypass
         ],
     )
-    async def test_nfc_tag_scanned_with_ssrf_url_ignores_spoolman(
+    async def test_nfc_tag_scanned_with_ssrf_url_marks_spoolman_unavailable(
         self,
         async_client: AsyncClient,
         db_session,
         evil_url: str,
     ):
-        """SSRF: _get_spoolman_client_or_none silently disables Spoolman for unsafe URLs
-        on the SpoolBuddy NFC path (tag-scanned broadcasts unknown_tag, not 400)."""
+        """SSRF: an unsafe active Spoolman URL is reported as unavailable.
+
+        Spoolman remains the selected inventory backend, so the request must not
+        degrade to an internal-inventory lookup or report the tag as unknown.
+        """
         from backend.app.models.settings import Settings
 
         db_session.add(Settings(key="spoolman_enabled", value="true"))
@@ -1774,11 +1777,14 @@ class TestSpoolmanInventorySSRFSpoolBuddyPath:
                 json={"device_id": "sb-ssrf", "tag_uid": "AABBCCDD"},
             )
 
-        # Must not crash or proxy the SSRF URL — unknown_tag is the safe degraded response
+        # Must not crash, proxy the SSRF URL, or fall back to internal inventory.
         assert resp.status_code == 200
-        if mock_ws.broadcast.called:
-            msg = mock_ws.broadcast.call_args[0][0]
-            assert msg["type"] == "spoolbuddy_unknown_tag"
+        assert resp.json()["matched"] is False
+        messages = [call.args[0] for call in mock_ws.broadcast.await_args_list]
+        msg = messages[-1]
+        assert msg["type"] == "spoolman_unavailable"
+        assert msg["context"] == "nfc_tag_scanned"
+        assert all(message["type"] != "spoolbuddy_unknown_tag" for message in messages)
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -1868,8 +1874,10 @@ class TestSpoolmanInventorySSRFSpoolBuddyPath:
                 json={"device_id": "sb-ssrf-scale", "spool_id": 1, "weight_grams": 500.0},
             )
 
-        # Must not crash or proxy to an SSRF host
-        assert resp.status_code in (200, 404, 422)
+        # Spoolman is still the active backend, but its rejected URL makes it
+        # unavailable. Never fall back to a same-ID internal spool.
+        assert resp.status_code == 503
+        assert resp.json()["detail"] == "Spoolman server is not reachable"
 
 
 class TestMergeSpoolExtraPreservesKeys:

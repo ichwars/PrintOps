@@ -9,18 +9,43 @@ def printer_is_printing(state) -> bool:
     return (getattr(state, "state", "") or "").upper() in ("RUNNING", "PAUSE")
 
 
-async def capture_print_start(printer_id: int, data: dict, printer_manager, db) -> None:
-    from backend.app.api.routes.settings import get_setting
+async def capture_print_start(printer_id: int, data: dict, printer_manager, db) -> bool:
+    from backend.app.services.inventory_mode import spoolman_owns_assignments
     from backend.app.services.usage_tracker import on_print_start
 
-    spoolman_enabled = await get_setting(db, "spoolman_enabled")
+    spoolman_owns_usage = await spoolman_owns_assignments(db)
     await on_print_start(
         printer_id,
         data,
         printer_manager,
         db=db,
-        spoolman_owns_usage=bool(spoolman_enabled) and spoolman_enabled.lower() == "true",
+        spoolman_owns_usage=spoolman_owns_usage,
     )
+    return spoolman_owns_usage
+
+
+def spoolman_owns_completed_print(session, current_mode: bool) -> bool:
+    """Keep a running print on its start-time inventory path."""
+    owner = getattr(session, "spoolman_owns_usage", None) if session is not None else None
+    return current_mode if owner is None else owner
+
+
+async def resolve_completed_print_owner(session, session_factory=async_session) -> bool:
+    """Resolve ownership, consulting current mode only for legacy sessions."""
+    owner = getattr(session, "spoolman_owns_usage", None) if session is not None else None
+    if owner is not None:
+        return owner
+
+    from backend.app.services.inventory_mode import spoolman_owns_assignments
+
+    try:
+        async with session_factory() as db:
+            return await spoolman_owns_assignments(db)
+    except Exception as exc:  # noqa: BLE001 - legacy ownership probes fail closed
+        logging.getLogger(__name__).warning(
+            "Could not resolve legacy print ownership; using built-in inventory: %s", exc
+        )
+        return False
 
 
 async def restore_for_running_print(printer_id: int, state, db, logger) -> None:

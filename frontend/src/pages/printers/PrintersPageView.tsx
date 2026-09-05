@@ -287,13 +287,14 @@ export function PrintersPage() {
     queryFn: api.getSpoolmanStatus,
     staleTime: 60 * 1000, // 1 minute
   });
-  const spoolmanEnabled = spoolmanStatus?.enabled && spoolmanStatus?.connected;
+  const spoolmanEnabled = !!spoolmanStatus?.enabled;
+  const spoolmanConnected = spoolmanEnabled && !!spoolmanStatus?.connected;
 
   // Fetch Spoolman settings to get sync mode
   const { data: spoolmanSettings } = useQuery({
     queryKey: ['spoolman-settings'],
     queryFn: api.getSpoolmanSettings,
-    enabled: !!spoolmanEnabled,
+    enabled: spoolmanEnabled,
     staleTime: 60 * 1000, // 1 minute
   });
   const spoolmanSyncMode = spoolmanSettings?.spoolman_sync_mode;
@@ -302,7 +303,7 @@ export function PrintersPage() {
   const { data: unlinkedSpools } = useQuery({
     queryKey: ['unlinked-spools'],
     queryFn: api.getUnlinkedSpools,
-    enabled: !!spoolmanEnabled,
+    enabled: spoolmanConnected,
     staleTime: 30 * 1000, // 30 seconds
   });
   const hasUnlinkedSpools = unlinkedSpools && unlinkedSpools.length > 0;
@@ -311,7 +312,7 @@ export function PrintersPage() {
   const { data: linkedSpoolsData } = useQuery({
     queryKey: ['linked-spools'],
     queryFn: api.getLinkedSpools,
-    enabled: !!spoolmanEnabled,
+    enabled: spoolmanConnected,
     staleTime: 30 * 1000, // 30 seconds
   });
   const linkedSpools = linkedSpoolsData?.linked;
@@ -320,7 +321,7 @@ export function PrintersPage() {
   const { data: spoolAssignments } = useQuery({
     queryKey: ['spool-assignments'],
     queryFn: () => api.getAssignments(),
-    enabled: hasPermission('inventory:view_assignments'),
+    enabled: !spoolmanEnabled && hasPermission('inventory:view_assignments'),
     staleTime: 30 * 1000,
   });
 
@@ -335,14 +336,14 @@ export function PrintersPage() {
   const { data: spoolmanSpools, isLoading: spoolmanSpoolsLoading } = useQuery({
     queryKey: ['spoolman-inventory-spools'],
     queryFn: () => api.getSpoolmanInventorySpools(false),
-    enabled: !!spoolmanEnabled,
+    enabled: spoolmanConnected,
     staleTime: 30 * 1000,
   });
 
   const { data: spoolmanSlotAssignments, isLoading: spoolmanAssignmentsLoading } = useQuery({
     queryKey: ['spoolman-slot-assignments'],
     queryFn: () => api.getSpoolmanSlotAssignments(),
-    enabled: !!spoolmanEnabled,
+    enabled: spoolmanEnabled,
     staleTime: 30 * 1000,
   });
 

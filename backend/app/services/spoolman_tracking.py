@@ -375,6 +375,7 @@ async def store_print_data(
     printer_manager,
     ams_mapping: list[int] | None = None,
     plate_id: int | None = None,
+    spoolman_owns_usage: bool | None = None,
 ):
     """Store Spoolman tracking data at print start (persisted to database).
 
@@ -400,8 +401,10 @@ async def store_print_data(
     )
 
     # Check if Spoolman is enabled
-    spoolman_enabled = await get_setting(db, "spoolman_enabled")
-    if not spoolman_enabled or spoolman_enabled.lower() != "true":
+    if spoolman_owns_usage is None:
+        spoolman_enabled = await get_setting(db, "spoolman_enabled")
+        spoolman_owns_usage = bool(spoolman_enabled) and spoolman_enabled.lower() == "true"
+    if not spoolman_owns_usage:
         return
 
     # Get current AMS tray state up front — needed both for the 3MF path's
@@ -876,11 +879,6 @@ async def _report_partial_usage(
             logger.debug("[SPOOLMAN] Partial usage reporting disabled by setting")
             return
 
-        # Check if Spoolman is enabled
-        spoolman_enabled = await get_setting(db, "spoolman_enabled")
-        if not spoolman_enabled or spoolman_enabled.lower() != "true":
-            return
-
     # Get current printer state for layer progress.
     # On failed/aborted prints the firmware may already reset to IDLE with layer=0,
     # so we fall back to completion-time hints captured from MQTT.
@@ -1069,7 +1067,6 @@ async def report_usage(printer_id: int, archive_id: int):
        ``usage_tracker.on_print_complete`` Path 2 (line 517).
     """
     async with async_session() as db:
-        from backend.app.api.routes.settings import get_setting
         from backend.app.models.active_print_spoolman import ActivePrintSpoolman
 
         # Get tracking data stored at print start
@@ -1104,11 +1101,6 @@ async def report_usage(printer_id: int, archive_id: int):
 
         if not filament_usage and not tray_remain_start:
             logger.debug("[SPOOLMAN] No usage data or remain-snapshot for archive %s", archive_id)
-            return
-
-        # Check if Spoolman is enabled
-        spoolman_enabled = await get_setting(db, "spoolman_enabled")
-        if not spoolman_enabled or spoolman_enabled.lower() != "true":
             return
 
         client = await _get_spoolman_client_with_fallback()

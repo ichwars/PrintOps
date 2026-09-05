@@ -483,8 +483,7 @@ export default function InventoryPageRouter() {
   });
 
   const spoolmanModeReady = spoolmanSettings !== undefined;
-  const spoolmanMode =
-    spoolmanSettings?.spoolman_enabled === 'true' && !!spoolmanSettings?.spoolman_url;
+  const spoolmanMode = spoolmanSettings?.spoolman_enabled === 'true';
 
   return <InventoryPage spoolmanMode={spoolmanMode} spoolmanModeReady={spoolmanModeReady} />;
 }
@@ -692,6 +691,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     queryKey: ['spool-assignments'],
     queryFn: () => api.getAssignments(),
     refetchInterval: 30000,
+    enabled: spoolmanModeReady && !spoolmanMode,
   });
 
   // Spoolman-mode slot assignments. spool.id IS the spoolman_spool_id, so this
@@ -1069,8 +1069,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     return { totalWeight, totalValue, totalConsumed, lowStock, byMaterial, totalSpools: activeCount };
   }, [spools, lowStockThreshold]);
 
-  const inPrinterCount =
-    (assignments?.length ?? 0) + (spoolmanMode ? spoolmanSlotAssignments.length : 0);
+  const inPrinterCount = spoolmanMode ? spoolmanSlotAssignments.length : (assignments?.length ?? 0);
 
   const { currencyCode, currencySymbol } = useDisplayCurrency(settings?.currency);
   const formattedInventoryValue = new Intl.NumberFormat(undefined, {
@@ -1085,7 +1084,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   // unpredictable). spool.id IS the spoolman_spool_id in Spoolman mode.
   const assignmentMap = useMemo<Record<number, LocationDisplay>>(() => {
     const map: Record<number, LocationDisplay> = {};
-    for (const a of assignments || []) {
+    for (const a of spoolmanMode ? [] : (assignments || [])) {
       map[a.spool_id] = {
         printer_id: a.printer_id,
         printer_name: a.printer_name,
@@ -1094,7 +1093,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
         ams_label: a.ams_label ?? null,
       };
     }
-    for (const a of spoolmanSlotAssignments) {
+    for (const a of spoolmanMode ? spoolmanSlotAssignments : []) {
       // Defensive: skip malformed entries (missing or invalid spool id, ams id,
       // tray id). The Pydantic response model on the backend should already
       // reject these, but MITM proxies and stale CDN responses can drop fields.
@@ -1116,7 +1115,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
       }
     }
     return map;
-  }, [assignments, spoolmanSlotAssignments]);
+  }, [assignments, spoolmanMode, spoolmanSlotAssignments]);
 
   // Map catalog_id -> catalog entry for spool name column
   const catalogMap = useMemo(() => {

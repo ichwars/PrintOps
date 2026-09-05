@@ -341,6 +341,24 @@ describe('SpoolBuddyAmsPage Phase 13', () => {
       expect(screen.queryByText('Link a Spoolman spool to this slot')).not.toBeInTheDocument();
     });
 
+    it('keeps a slot visibly occupied when Spoolman metadata is unavailable', async () => {
+      spoolmanStatusValue = { enabled: true, connected: false };
+      apiResponses.getSpoolmanSlotAssignments = [
+        { printer_id: 1, ams_id: 0, tray_id: 1, spoolman_spool_id: 42 },
+      ];
+
+      renderPage();
+
+      const slot2 = await screen.findByTitle('AMS Slot 2');
+      fireEvent.click(slot2);
+
+      await screen.findByText('Spoolman #42');
+      expect(screen.getByText('Spool details unavailable while Spoolman is disconnected')).toBeInTheDocument();
+      expect(screen.getByText('Remove inventory spool from this slot')).toBeInTheDocument();
+      expect(screen.queryByText('Link a Spoolman spool to this slot')).not.toBeInTheDocument();
+      expect(apiCallCounts.getSpoolmanInventorySpools ?? 0).toBe(0);
+    });
+
     it('shows Link button when slot has no SpoolmanSlotAssignment AND no tag-link', async () => {
       spoolmanStatusValue = { enabled: true, connected: true };
       // No slot assignments, no linked spools — slot is truly empty

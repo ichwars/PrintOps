@@ -146,7 +146,7 @@ export function SpoolBuddyDashboard() {
     queryFn: api.getSpoolmanSettings,
     staleTime: 5 * 60 * 1000,
   });
-  const spoolmanMode = spoolmanSettings?.spoolman_enabled === 'true' && !!spoolmanSettings?.spoolman_url;
+  const spoolmanMode = spoolmanSettings?.spoolman_enabled === 'true';
 
   // Fetch spools for stats, tag lookup, and untagged list
   const { data: spools = [], refetch: refetchSpools } = useQuery({

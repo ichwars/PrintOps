@@ -98,15 +98,16 @@ class TestOnPrintStart:
         assert session.tray_remain_start == {}  # Empty, no valid remain
 
     @pytest.mark.asyncio
-    async def test_skips_without_ams_data(self):
-        """No session created when no AMS data available."""
+    async def test_creates_ownership_session_without_ams_data(self):
+        """Ownership is retained even when AMS data is not available yet."""
         state = MagicMock()
         state.raw_data = {"ams": []}
         pm = _make_printer_manager(state)
 
         await on_print_start(1, {"subtask_name": "test"}, pm)
 
-        assert 1 not in _active_sessions
+        assert 1 in _active_sessions
+        assert _active_sessions[1].tray_remain_start == {}
 
 
 class TestOnPrintCompleteAMSDelta:
@@ -195,6 +196,39 @@ class TestOnPrintCompleteAMSDelta:
         results = await on_print_complete(1, {"status": "completed"}, pm, db)
 
         assert results == []
+
+    @pytest.mark.asyncio
+    async def test_notifies_unassigned_trays_after_usage_commit(self):
+        """Notification persistence cannot commit the live usage transaction."""
+        _active_sessions[1] = PrintSession(
+            printer_id=1,
+            print_name="transaction-test.3mf",
+            started_at=datetime.now(timezone.utc),
+        )
+        events: list[str] = []
+        db = AsyncMock()
+        db.commit = AsyncMock(side_effect=lambda: events.append("commit"))
+
+        async def track_with_missing(*args, **kwargs):
+            kwargs["unassigned_trays"].append(2)
+            return [{"spool_id": 4, "weight_used": 10.0}]
+
+        async def capture_notification(*args, **kwargs):
+            events.append("notify")
+
+        with (
+            patch(
+                "backend.app.services.usage_tracker._find_3mf_by_filename",
+                new_callable=AsyncMock,
+                return_value="transaction-test.3mf",
+            ),
+            patch("backend.app.services.usage_tracker._track_from_3mf", side_effect=track_with_missing),
+            patch("backend.app.services.usage_tracker._notify_unassigned_trays", side_effect=capture_notification),
+        ):
+            results = await on_print_complete(1, {"status": "completed"}, _make_printer_manager(), db)
+
+        assert results == [{"spool_id": 4, "weight_used": 10.0}]
+        assert events == ["commit", "notify"]
 
     @pytest.mark.asyncio
     async def test_skips_fallback_for_trays_outside_print_mapping(self):

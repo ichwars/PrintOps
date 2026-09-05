@@ -1428,14 +1428,18 @@ async def on_ams_change(printer_id: int, ams_data: list):
             from backend.app.api.routes.inventory import _find_tray_in_ams_data
             from backend.app.models.spool import Spool as _Spool
             from backend.app.models.spool_assignment import SpoolAssignment as SA
+            from backend.app.services.inventory_mode import spoolman_owns_assignments
 
-            result = await db.execute(
-                select(SA)
-                .where(SA.printer_id == printer_id)
-                .options(selectinload(SA.spool).selectinload(_Spool.k_profiles))
-            )
+            assignments = []
+            if not await spoolman_owns_assignments(db):
+                result = await db.execute(
+                    select(SA)
+                    .where(SA.printer_id == printer_id)
+                    .options(selectinload(SA.spool).selectinload(_Spool.k_profiles))
+                )
+                assignments = result.scalars().all()
             stale = []
-            for assignment in result.scalars().all():
+            for assignment in assignments:
                 # External spool assignments (ams_id=255) live in vt_tray, not AMS data
                 if assignment.ams_id == 255:
                     ps = printer_manager.get_status(printer_id)
@@ -1902,26 +1906,11 @@ async def on_ams_change(printer_id: int, ams_data: list):
                 )
                 return
 
-            # Load inventory weights as fallback (when AMS MQTT data lacks remain values)
-            from sqlalchemy.orm import selectinload
-
-            from backend.app.models.spool_assignment import SpoolAssignment
             from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 
+            # Internal assignments are intentionally not a fallback here. They
+            # can now survive in this slot while Spoolman mode is active.
             inventory_weights: dict[tuple[int, int], float] = {}
-            try:
-                assign_result = await db.execute(
-                    select(SpoolAssignment)
-                    .options(selectinload(SpoolAssignment.spool))
-                    .where(SpoolAssignment.printer_id == printer_id)
-                )
-                for assignment in assign_result.scalars().all():
-                    spool = assignment.spool
-                    if spool and spool.label_weight > 0:
-                        remaining = max(0.0, spool.label_weight - (spool.weight_used or 0))
-                        inventory_weights[(assignment.ams_id, assignment.tray_id)] = remaining
-            except Exception as e:
-                logger.warning("Could not load inventory weights for printer %s: %s", printer_id, e)
 
             # Load existing Spoolman slot assignments for the no-RFID fallback path
             spoolman_slot_map: dict[tuple[int, int], int] = {}
@@ -2280,18 +2269,15 @@ async def on_print_start(printer_id: int, data: dict):
     except Exception:
         pass  # Don't fail print start callback if MQTT fails
 
-    # Capture attribution evidence for both inventory modes. Spoolman keeps
-    # stock ownership, while the shared persisted row carries restart-stable
-    # tray transitions.
+    # Capture attribution evidence and restart-stable ownership for both modes.
+    spoolman_owns_print: bool | None = None
     try:
         async with async_session() as db:
-            await print_provenance.capture_print_start(printer_id, data, printer_manager, db)
+            spoolman_owns_print = await print_provenance.capture_print_start(printer_id, data, printer_manager, db)
     except Exception as e:
         logger.warning("Usage tracker on_print_start failed: %s", e)
-
     # Track if notification was sent (to avoid sending twice)
     notification_sent = False
-
     # Smart plug automation: turn on plug when print starts
     try:
         async with async_session() as db:
@@ -2643,6 +2629,7 @@ async def on_print_start(printer_id: int, data: dict):
                         printer_manager,
                         ams_mapping=_get_start_ams_mapping(data, archive.id),
                         plate_id=_get_start_plate_id(archive.id),
+                        spoolman_owns_usage=spoolman_owns_print,
                     )
                 except Exception as e:
                     logger.warning("[SPOOLMAN] Failed to store tracking data: %s", e)
@@ -3180,6 +3167,7 @@ async def on_print_start(printer_id: int, data: dict):
                         printer_manager,
                         ams_mapping=_get_start_ams_mapping(data, fallback_archive.id),
                         plate_id=_get_start_plate_id(fallback_archive.id),
+                        spoolman_owns_usage=spoolman_owns_print,
                     )
                 except Exception as e:
                     logger.debug("[SPOOLMAN] Could not store tracking for fallback archive: %s", e)
@@ -3282,6 +3270,7 @@ async def on_print_start(printer_id: int, data: dict):
                         printer_manager,
                         ams_mapping=_get_start_ams_mapping(data, archive.id),
                         plate_id=_get_start_plate_id(archive.id),
+                        spoolman_owns_usage=spoolman_owns_print,
                     )
                 except Exception as e:
                     logger.warning("[SPOOLMAN] Failed to store tracking data: %s", e)
@@ -4369,13 +4358,10 @@ async def on_print_complete(printer_id: int, data: dict):
     if archive_id:
         notify_plate_id = _print_plate_ids.pop(archive_id, None)
 
-    # Internal inventory: track AMS remain% deltas (skip if Spoolman handles usage)
+    # Keep completion on the inventory path fixed at print start.
+    spoolman_owns_completion = await print_provenance.resolve_completed_print_owner(completion_session, async_session)
     try:
-        async with async_session() as db:
-            from backend.app.api.routes.settings import get_setting
-
-            _spoolman_on = await get_setting(db, "spoolman_enabled")
-        if not _spoolman_on or _spoolman_on.lower() != "true":
+        if not spoolman_owns_completion:
             from backend.app.services.usage_tracker import on_print_complete as usage_on_print_complete
 
             async with async_session() as db:
@@ -4403,7 +4389,7 @@ async def on_print_complete(printer_id: int, data: dict):
         logger.warning("Usage tracker on_print_complete failed: %s", e)
 
     await print_provenance.discard_print_session(printer_id, completion_session, logger)
-    if archive_id:
+    if archive_id and spoolman_owns_completion:
         if data.get("status") == "completed":
             try:
                 spoolman_run_cost = await _report_spoolman_usage(printer_id, archive_id)

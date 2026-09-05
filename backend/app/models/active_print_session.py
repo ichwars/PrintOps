@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.core.database import Base
@@ -23,3 +23,4 @@ class ActivePrintSession(Base):
     spool_assignments: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     tray_remain_start: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     tray_change_log: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    spoolman_owns_usage: Mapped[bool | None] = mapped_column(Boolean, nullable=True)

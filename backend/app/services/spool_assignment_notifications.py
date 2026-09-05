@@ -6,6 +6,7 @@ from backend.app.models.printer import Printer
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.services.bambu_mqtt import PrinterState
+from backend.app.services.inventory_mode import spoolman_owns_assignments
 from backend.app.services.notification_service import notification_service
 from backend.app.services.printer_manager import printer_manager
 
@@ -128,52 +129,55 @@ async def notify_missing_spool_assignments_on_print_start(
             printer = await db.get(Printer, printer_id)
             printer_name = printer.name if printer else f"Printer {printer_id}"
 
-            # A tray is "assigned" if it has a row in EITHER table: the legacy
-            # spool_assignment table (internal-inventory mode) or
-            # spoolman_slot_assignments (Spoolman mode — the binding
-            # source-of-truth since #1119). Querying only the legacy table
-            # flagged every used tray as missing on every Spoolman-mode print
-            # (#1473). Both tables expose printer_id / ams_id / tray_id in the
-            # same shape, so _global_tray_from_assignment works on either.
-            legacy_rows = (
-                await db.execute(SpoolAssignment.__table__.select().where(SpoolAssignment.printer_id == printer_id))
-            ).fetchall()
-            spoolman_rows = (
-                await db.execute(
-                    SpoolmanSlotAssignment.__table__.select().where(SpoolmanSlotAssignment.printer_id == printer_id)
-                )
-            ).fetchall()
-            assigned_global_trays = {
-                _global_tray_from_assignment(row.ams_id, row.tray_id) for row in (*legacy_rows, *spoolman_rows)
-            }
+            table = SpoolmanSlotAssignment if await spoolman_owns_assignments(db) else SpoolAssignment
+            rows = (await db.execute(table.__table__.select().where(table.printer_id == printer_id))).fetchall()
+            assigned_global_trays = {_global_tray_from_assignment(row.ams_id, row.tray_id) for row in rows}
 
             missing_global = sorted(used_global_trays - assigned_global_trays)
             if not missing_global:
                 return
 
-            state = printer_manager.get_status(printer_id)
-            missing_slots = []
-            for global_id in missing_global:
-                profile, color = _tray_profile_and_color_for_global_id(state, global_id)
-                missing_slots.append(
-                    {
-                        "slot": _slot_label_from_global_tray(global_id),
-                        "profile": profile,
-                        "color": color,
-                    }
-                )
-
-            await ws_manager.send_missing_spool_assignment(
-                printer_id=printer_id,
-                printer_name=printer_name,
-                missing_slots=missing_slots,
-            )
-
-            await notification_service.on_print_missing_spool_assignment(
-                printer_id=printer_id,
-                printer_name=printer_name,
-                missing_slots=missing_slots,
-                db=db,
-            )
+            await _send_missing_assignment_notification(printer_id, printer_name, missing_global, db)
     except Exception as e:
         logger.warning("Missing spool-assignment notification failed: %s", e)
+
+
+async def _send_missing_assignment_notification(printer_id: int, printer_name: str, missing: list[int], db) -> None:
+    state = printer_manager.get_status(printer_id)
+    missing_slots = []
+    for global_id in missing:
+        profile, color = _tray_profile_and_color_for_global_id(state, global_id)
+        missing_slots.append({"slot": _slot_label_from_global_tray(global_id), "profile": profile, "color": color})
+    await ws_manager.send_missing_spool_assignment(
+        printer_id=printer_id,
+        printer_name=printer_name,
+        missing_slots=missing_slots,
+    )
+    await notification_service.on_print_missing_spool_assignment(
+        printer_id=printer_id,
+        printer_name=printer_name,
+        missing_slots=missing_slots,
+        db=db,
+    )
+
+
+async def notify_missing_spool_assignments_on_print_complete(
+    printer_id: int,
+    missing_global_trays: list[int],
+    db,
+    logger: logging.Logger,
+) -> None:
+    """Surface realized internal-inventory usage that could not be booked."""
+    if not missing_global_trays:
+        return
+    try:
+        printer = await db.get(Printer, printer_id)
+        printer_name = printer.name if printer else f"Printer {printer_id}"
+        await _send_missing_assignment_notification(
+            printer_id,
+            printer_name,
+            sorted(set(missing_global_trays)),
+            db,
+        )
+    except Exception as exc:  # noqa: BLE001 - notifications cannot fail completion
+        logger.warning("Missing spool-assignment completion notification failed: %s", exc)

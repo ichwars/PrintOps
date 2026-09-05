@@ -244,23 +244,21 @@ describe('InventoryPage - LOCATION column (Spoolman mode)', () => {
     });
   });
 
-  it('local SpoolAssignment wins over Spoolman slot assignment on id collision', async () => {
-    // Both endpoints return an entry with the same numeric id (216). The local
-    // /inventory/assignments source must win — printer_name "LocalPrinter" and
-    // slot "B1" (formatSlotLabel(1, 0, false, false)) — and the Spoolman entry
-    // ("SpoolmanPrinter" / "C4") must NOT appear.
+  it('ignores preserved local assignments when Spoolman mode has no URL', async () => {
+    let localAssignmentsCalled = false;
     server.use(
       http.get('/api/v1/settings/spoolman', () =>
         HttpResponse.json({
           spoolman_enabled: 'true',
-          spoolman_url: 'http://localhost:7912',
+          spoolman_url: '',
         })
       ),
       http.get('/api/v1/spoolman/inventory/spools', () =>
         HttpResponse.json([mockSpoolmanSpool])
       ),
-      http.get('/api/v1/inventory/assignments', () =>
-        HttpResponse.json([
+      http.get('/api/v1/inventory/assignments', () => {
+        localAssignmentsCalled = true;
+        return HttpResponse.json([
           {
             id: 99,
             spool_id: 216,
@@ -271,8 +269,8 @@ describe('InventoryPage - LOCATION column (Spoolman mode)', () => {
             ams_label: null,
             created_at: '2025-01-01T00:00:00Z',
           },
-        ])
-      ),
+        ]);
+      }),
       http.get('/api/v1/spoolman/inventory/slot-assignments/all', () =>
         HttpResponse.json([
           {
@@ -290,11 +288,11 @@ describe('InventoryPage - LOCATION column (Spoolman mode)', () => {
     const { container } = render(<InventoryPageRouter />);
 
     await waitFor(() => {
-      // Local printer wins
-      expect(container.textContent).toContain('LocalPrinter');
-      expect(container.textContent).toContain('B1');
+      expect(container.textContent).toContain('SpoolmanPrinter');
+      expect(container.textContent).toContain('C4');
     });
-    expect(container.textContent).not.toContain('SpoolmanPrinter');
-    expect(container.textContent).not.toContain('C4');
+    expect(localAssignmentsCalled).toBe(false);
+    expect(container.textContent).not.toContain('LocalPrinter');
+    expect(container.textContent).not.toContain('B1');
   });
 });

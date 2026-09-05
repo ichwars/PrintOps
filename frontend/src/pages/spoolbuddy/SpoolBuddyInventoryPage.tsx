@@ -79,7 +79,7 @@ export function SpoolBuddyInventoryPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const spoolmanMode = spoolmanSettings?.spoolman_enabled === 'true' && !!spoolmanSettings?.spoolman_url;
+  const spoolmanMode = spoolmanSettings?.spoolman_enabled === 'true';
 
   const { data: spools = [], isLoading, refetch: refetchSpools } = useQuery({
     queryKey: spoolmanMode ? ['spoolman-inventory-spools'] : ['inventory-spools'],

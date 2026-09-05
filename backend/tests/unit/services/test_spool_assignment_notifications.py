@@ -6,7 +6,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from backend.app.services.spool_assignment_notifications import notify_missing_spool_assignments_on_print_start
+from backend.app.services.spool_assignment_notifications import (
+    notify_missing_spool_assignments_on_print_complete,
+    notify_missing_spool_assignments_on_print_start,
+)
 
 
 class _FakeAssignmentsResult:
@@ -64,6 +67,11 @@ async def test_missing_assignment_broadcasts_websocket_event_and_push_notificati
             "backend.app.services.spool_assignment_notifications.async_session",
             return_value=_FakeSession("Printer A", assignments),
         ),
+        patch(
+            "backend.app.services.spool_assignment_notifications.spoolman_owns_assignments",
+            new_callable=AsyncMock,
+            return_value=False,
+        ),
         patch("backend.app.services.spool_assignment_notifications.printer_manager.get_status", return_value=None),
         patch(
             "backend.app.services.spool_assignment_notifications.ws_manager.send_missing_spool_assignment",
@@ -89,9 +97,14 @@ async def test_missing_assignment_broadcasts_websocket_event_and_push_notificati
     assert notify_kwargs["missing_slots"] == [{"slot": "A2", "profile": "Unknown", "color": "Unknown"}]
 
 
-def _patches(session):
-    """Common patch set: the fake session + stubbed printer state / emitters."""
+def _patches(session, *, spoolman_mode: bool = False):
+    """Common patch set for one explicitly selected inventory mode."""
     return (
+        patch(
+            "backend.app.services.spool_assignment_notifications.spoolman_owns_assignments",
+            new_callable=AsyncMock,
+            return_value=spoolman_mode,
+        ),
         patch(
             "backend.app.services.spool_assignment_notifications.async_session",
             return_value=session,
@@ -122,8 +135,8 @@ async def test_spoolman_only_assignment_suppresses_notification():
         legacy=[],
         spoolman=[SimpleNamespace(ams_id=0, tray_id=0), SimpleNamespace(ams_id=0, tray_id=1)],
     )
-    p_session, p_status, p_ws, p_notify = _patches(session)
-    with p_session, p_status, p_ws as mock_ws, p_notify as mock_notify:
+    p_mode, p_session, p_status, p_ws, p_notify = _patches(session, spoolman_mode=True)
+    with p_mode, p_session, p_status, p_ws as mock_ws, p_notify as mock_notify:
         await notify_missing_spool_assignments_on_print_start(1, data, logger)
 
     mock_ws.assert_not_awaited()
@@ -142,8 +155,8 @@ async def test_spoolman_partial_coverage_flags_only_uncovered_tray():
         legacy=[],
         spoolman=[SimpleNamespace(ams_id=0, tray_id=0)],  # A1 only
     )
-    p_session, p_status, p_ws, p_notify = _patches(session)
-    with p_session, p_status, p_ws as mock_ws, p_notify as mock_notify:
+    p_mode, p_session, p_status, p_ws, p_notify = _patches(session, spoolman_mode=True)
+    with p_mode, p_session, p_status, p_ws as mock_ws, p_notify as mock_notify:
         await notify_missing_spool_assignments_on_print_start(1, data, logger)
 
     mock_ws.assert_awaited_once()
@@ -152,9 +165,7 @@ async def test_spoolman_partial_coverage_flags_only_uncovered_tray():
 
 
 @pytest.mark.asyncio
-async def test_mixed_mode_union_covers_all_used_trays():
-    """A1 bound in the legacy table, A2 bound in spoolman_slot_assignments —
-    the union covers both used trays, so no notification fires."""
+async def test_inactive_mode_assignment_does_not_hide_a_missing_spool():
     logger = logging.getLogger(__name__)
     data = {"ams_mapping": [0, 1], "raw_data": {}}
 
@@ -163,9 +174,36 @@ async def test_mixed_mode_union_covers_all_used_trays():
         legacy=[SimpleNamespace(ams_id=0, tray_id=0)],  # A1
         spoolman=[SimpleNamespace(ams_id=0, tray_id=1)],  # A2
     )
-    p_session, p_status, p_ws, p_notify = _patches(session)
-    with p_session, p_status, p_ws as mock_ws, p_notify as mock_notify:
+    p_mode, p_session, p_status, p_ws, p_notify = _patches(session, spoolman_mode=True)
+    with p_mode, p_session, p_status, p_ws as mock_ws, p_notify as mock_notify:
         await notify_missing_spool_assignments_on_print_start(1, data, logger)
 
-    mock_ws.assert_not_awaited()
-    mock_notify.assert_not_awaited()
+    mock_ws.assert_awaited_once()
+    assert mock_ws.await_args.kwargs["missing_slots"] == [{"slot": "A1", "profile": "Unknown", "color": "Unknown"}]
+    mock_notify.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_print_completion_reports_each_unbooked_slot_once():
+    logger = logging.getLogger(__name__)
+    session = _FakeSession("Printer A")
+
+    with (
+        patch("backend.app.services.spool_assignment_notifications.printer_manager.get_status", return_value=None),
+        patch(
+            "backend.app.services.spool_assignment_notifications.ws_manager.send_missing_spool_assignment",
+            new_callable=AsyncMock,
+        ) as mock_ws,
+        patch(
+            "backend.app.services.spool_assignment_notifications.notification_service.on_print_missing_spool_assignment",
+            new_callable=AsyncMock,
+        ) as mock_notify,
+    ):
+        await notify_missing_spool_assignments_on_print_complete(1, [1, 1, 0], session, logger)
+
+    expected = [
+        {"slot": "A1", "profile": "Unknown", "color": "Unknown"},
+        {"slot": "A2", "profile": "Unknown", "color": "Unknown"},
+    ]
+    assert mock_ws.await_args.kwargs["missing_slots"] == expected
+    assert mock_notify.await_args.kwargs["missing_slots"] == expected

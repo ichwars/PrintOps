@@ -57,6 +57,12 @@ async def migrate_active_print_spoolman(conn, safe_execute, sqlite: bool, logger
         if sqlite
         else "ALTER TABLE active_print_sessions ADD COLUMN IF NOT EXISTS subtask_id VARCHAR",
     )
+    await safe_execute(
+        conn,
+        "ALTER TABLE active_print_sessions ADD COLUMN spoolman_owns_usage BOOLEAN"
+        if sqlite
+        else "ALTER TABLE active_print_sessions ADD COLUMN IF NOT EXISTS spoolman_owns_usage BOOLEAN",
+    )
 
 
 async def _relax_sqlite_filament_usage(conn, logger) -> None:

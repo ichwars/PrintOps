@@ -2289,7 +2289,7 @@ class TestApplyPaAfterRefresh:
         from backend.app.models.spoolman_k_profile import SpoolmanKProfile
         from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 
-        printer = await printer_factory()
+        printer = await printer_factory(spoolman_enabled=True)
         db_session.add(
             SpoolmanSlotAssignment(
                 printer_id=printer.id,
@@ -2334,7 +2334,7 @@ class TestApplyPaAfterRefresh:
         from backend.app.api.routes.printers import _apply_pa_after_refresh
         from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 
-        printer = await printer_factory()
+        printer = await printer_factory(spoolman_enabled=True)
         db_session.add(
             SpoolmanSlotAssignment(
                 printer_id=printer.id,
@@ -2844,7 +2844,7 @@ class TestConfigureAmsSlotPersistsKProfile:
         from backend.app.models.spoolman_k_profile import SpoolmanKProfile
         from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 
-        printer = await printer_factory(model="H2D")
+        printer = await printer_factory(model="H2D", spoolman_enabled=True)
         db_session.add(
             SpoolmanSlotAssignment(
                 printer_id=printer.id,
@@ -3022,7 +3022,7 @@ class TestConfigureAmsSlotPersistsKProfile:
         from backend.app.models.spoolman_k_profile import SpoolmanKProfile
         from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 
-        printer = await printer_factory(model="H2D")
+        printer = await printer_factory(model="H2D", spoolman_enabled=True)
         db_session.add(
             SpoolmanSlotAssignment(
                 printer_id=printer.id,
@@ -3081,7 +3081,7 @@ class TestConfigureAmsSlotPersistsKProfile:
         from backend.app.models.spoolman_k_profile import SpoolmanKProfile
         from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 
-        printer = await printer_factory(model="H2D")
+        printer = await printer_factory(model="H2D", spoolman_enabled=True)
         db_session.add(
             SpoolmanSlotAssignment(
                 printer_id=printer.id,
@@ -3138,7 +3138,7 @@ class TestConfigureAmsSlotPersistsKProfile:
         from backend.app.models.spoolman_k_profile import SpoolmanKProfile
         from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 
-        printer = await printer_factory(model="H2D")
+        printer = await printer_factory(model="H2D", spoolman_enabled=True)
         db_session.add(
             SpoolmanSlotAssignment(
                 printer_id=printer.id,
@@ -3347,7 +3347,7 @@ class TestConfigureAmsSlotPersistsKProfile:
         """
         from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 
-        printer = await printer_factory(model="H2D")
+        printer = await printer_factory(model="H2D", spoolman_enabled=True)
         db_session.add(
             SpoolmanSlotAssignment(
                 printer_id=printer.id,

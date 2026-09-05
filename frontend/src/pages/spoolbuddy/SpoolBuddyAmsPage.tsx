@@ -84,13 +84,14 @@ export function SpoolBuddyAmsPage() {
     queryFn: api.getSpoolmanStatus,
     staleTime: 60 * 1000,
   });
-  const spoolmanEnabled = spoolmanStatus?.enabled && spoolmanStatus?.connected;
+  const spoolmanMode = !!spoolmanStatus?.enabled;
+  const spoolmanConnected = spoolmanMode && !!spoolmanStatus?.connected;
 
   // Fetch linked spools map (tag -> spool info) for Spoolman fill levels
   const { data: linkedSpoolsData } = useQuery({
     queryKey: ['linked-spools'],
     queryFn: api.getLinkedSpools,
-    enabled: !!spoolmanEnabled,
+    enabled: spoolmanConnected,
     staleTime: 30 * 1000,
   });
   const linkedSpools = linkedSpoolsData?.linked;
@@ -103,20 +104,20 @@ export function SpoolBuddyAmsPage() {
   const { data: spoolmanSlotAssignmentsAll = [] } = useQuery({
     queryKey: ['spoolman-slot-assignments-all'],
     queryFn: () => api.getSpoolmanSlotAssignments(),
-    enabled: !!spoolmanEnabled,
+    enabled: spoolmanMode,
     staleTime: 30 * 1000,
   });
   const { data: spoolmanInventorySpoolsCache = [] } = useQuery({
     queryKey: ['spoolman-inventory-spools'],
     queryFn: () => api.getSpoolmanInventorySpools(false),
-    enabled: !!spoolmanEnabled,
+    enabled: spoolmanConnected,
     staleTime: 30 * 1000,
   });
 
   const { data: assignments } = useQuery({
     queryKey: ['spool-assignments', selectedPrinterId],
     queryFn: () => api.getAssignments(selectedPrinterId!),
-    enabled: selectedPrinterId !== null,
+    enabled: selectedPrinterId !== null && !spoolmanMode,
     staleTime: 30 * 1000,
   });
 
@@ -704,7 +705,7 @@ export function SpoolBuddyAmsPage() {
         // and an Unassign button — without this branch, picking a slot that was
         // assigned via the dashboard's Assign-to-AMS flow showed only "Configure"
         // with no info about which spool was bound.
-        const spoolmanAssign = spoolmanEnabled
+        const spoolmanAssign = spoolmanMode
           ? spoolmanSlotAssignmentsAll.find(a =>
               a.printer_id === selectedPrinterId &&
               a.ams_id === slotActionPicker.amsId &&
@@ -743,7 +744,7 @@ export function SpoolBuddyAmsPage() {
               </div>
               <div className="p-4 space-y-2">
                 {/* Currently assigned/linked spool info */}
-                {!spoolmanEnabled && assignment?.spool && (
+                {!spoolmanMode && assignment?.spool && (
                   <div className="p-2.5 bg-bambu-dark rounded-lg border border-bambu-dark-tertiary mb-3">
                     <p className="text-xs text-bambu-gray mb-1">{t('inventory.assignedSpool', 'Assigned spool')}</p>
                     <div className="flex items-center gap-2">
@@ -765,7 +766,7 @@ export function SpoolBuddyAmsPage() {
                     assignment exists, regardless of whether a (possibly stale)
                     tag-link also exists. The tag-link block is the fallback
                     for slots that have only a tag-link. */}
-                {spoolmanEnabled && linked && !spoolmanAssignedSpool && (
+                {spoolmanMode && linked && !spoolmanAssign && (
                   <div className="p-2.5 bg-bambu-dark rounded-lg border border-bambu-dark-tertiary mb-3">
                     <p className="text-xs text-bambu-gray mb-1">{t('spoolman.linkedSpool', 'Linked spool')}</p>
                     <div className="flex items-center gap-2">
@@ -776,21 +777,27 @@ export function SpoolBuddyAmsPage() {
                     </div>
                   </div>
                 )}
-                {spoolmanEnabled && spoolmanAssignedSpool && (
+                {spoolmanMode && spoolmanAssign && (
                   <div className="p-2.5 bg-bambu-dark rounded-lg border border-bambu-dark-tertiary mb-3">
                     <p className="text-xs text-bambu-gray mb-1">{t('inventory.assignedSpool', 'Assigned spool')}</p>
                     <div className="flex items-center gap-2">
-                      {spoolmanAssignedSpool.rgba && (
+                      {spoolmanAssignedSpool?.rgba && (
                         <span
                           className="w-3 h-3 rounded-full border border-black/20 flex-shrink-0"
                           style={getSwatchStyle(spoolmanAssignedSpool.rgba)}
                         />
                       )}
                       <span className="text-sm text-white">
-                        {spoolmanAssignedSpool.brand ? `${spoolmanAssignedSpool.brand} ` : ''}{spoolmanAssignedSpool.material}
-                        {spoolmanAssignedSpool.color_name ? ` - ${spoolmanAssignedSpool.color_name}` : ''}
+                        {spoolmanAssignedSpool
+                          ? `${spoolmanAssignedSpool.brand ? `${spoolmanAssignedSpool.brand} ` : ''}${spoolmanAssignedSpool.material}${spoolmanAssignedSpool.color_name ? ` - ${spoolmanAssignedSpool.color_name}` : ''}`
+                          : `Spoolman #${spoolmanAssign.spoolman_spool_id}`}
                       </span>
                     </div>
+                    {!spoolmanAssignedSpool && (
+                      <p className="text-xs text-bambu-gray mt-1">
+                        {t('spoolman.detailsUnavailable', 'Spool details unavailable while Spoolman is disconnected')}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -810,7 +817,7 @@ export function SpoolBuddyAmsPage() {
                     suppress assign/unassign there to keep parity with the
                     Spoolman branch (Phase 14 A3). Manual changes would be
                     overwritten on the next RFID re-read. */}
-                {!spoolmanEnabled && (() => {
+                {!spoolmanMode && (() => {
                   if (isBambuLabSpool(slotActionPicker?.tray)) return null;
                   if (assignment) {
                     return (
@@ -842,7 +849,24 @@ export function SpoolBuddyAmsPage() {
                 })()}
 
                 {/* Spoolman: Link / Unlink (tag-linked) or Unassign (slot-only) */}
-                {spoolmanEnabled && (() => {
+                {spoolmanMode && (() => {
+                  // The local slot ledger remains authoritative for occupancy
+                  // while Spoolman is disconnected; metadata is optional.
+                  if (spoolmanAssign) {
+                    return (
+                      <button
+                        onClick={() => unassignSpoolmanSlotMutation.mutate(spoolmanAssign.spoolman_spool_id)}
+                        disabled={unassignSpoolmanSlotMutation.isPending}
+                        className="w-full flex items-center gap-3 p-3 rounded-lg bg-bambu-dark border border-bambu-dark-tertiary hover:border-amber-500 transition-colors text-left active:opacity-50"
+                      >
+                        <Unlink className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                        <div>
+                          <p className="text-amber-400 font-medium">{t('inventory.unassignSpool')}</p>
+                          <p className="text-xs text-bambu-gray">{t('spoolbuddy.ams.unassignDesc', 'Remove inventory spool from this slot')}</p>
+                        </div>
+                      </button>
+                    );
+                  }
                   if (linked?.id) {
                     return (
                       <button
@@ -854,25 +878,6 @@ export function SpoolBuddyAmsPage() {
                         <div>
                           <p className="text-amber-400 font-medium">{t('inventory.unassignSpool')}</p>
                           <p className="text-xs text-bambu-gray">{t('spoolbuddy.ams.unlinkDesc', 'Remove Spoolman link from this slot')}</p>
-                        </div>
-                      </button>
-                    );
-                  }
-                  // Slot-only assignment (no tag link): show Unassign so the
-                  // user can clear it. Previously this branch returned null
-                  // and only the Configure button remained, hiding the fact
-                  // that a spool was bound to the slot at all.
-                  if (spoolmanAssignedSpool) {
-                    return (
-                      <button
-                        onClick={() => unassignSpoolmanSlotMutation.mutate(spoolmanAssignedSpool.id)}
-                        disabled={unassignSpoolmanSlotMutation.isPending}
-                        className="w-full flex items-center gap-3 p-3 rounded-lg bg-bambu-dark border border-bambu-dark-tertiary hover:border-amber-500 transition-colors text-left active:opacity-50"
-                      >
-                        <Unlink className="w-5 h-5 text-amber-400 flex-shrink-0" />
-                        <div>
-                          <p className="text-amber-400 font-medium">{t('inventory.unassignSpool')}</p>
-                          <p className="text-xs text-bambu-gray">{t('spoolbuddy.ams.unassignDesc', 'Remove inventory spool from this slot')}</p>
                         </div>
                       </button>
                     );
@@ -912,7 +917,7 @@ export function SpoolBuddyAmsPage() {
           amsId={assignSpoolModal.amsId}
           trayId={assignSpoolModal.trayId}
           trayInfo={assignSpoolModal.trayInfo}
-          spoolmanEnabled={!!spoolmanEnabled}
+          spoolmanEnabled={spoolmanMode}
         />
       )}
 
