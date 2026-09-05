@@ -220,6 +220,8 @@ class PrintSession:
     # single plate (#1697). None for non-queue prints — the file's first/only plate
     # is the default and the 3MF parser already returns the full file in that case.
     plate_id: int | None = None
+    # Fixed at print start. None marks legacy rows that predate issue #130.
+    spoolman_owns_usage: bool | None = None
 
 
 # Module-level storage, keyed by printer_id. The same evidence is mirrored to
@@ -302,6 +304,7 @@ async def persist_session(
     row.spool_assignments = _tray_map_to_json(session.spool_assignments) or None
     row.tray_remain_start = _tray_map_to_json(session.tray_remain_start) or None
     row.tray_change_log = [list(entry) for entry in (tray_change_log or [])] or None
+    row.spoolman_owns_usage = session.spoolman_owns_usage
     await db.commit()
 
 
@@ -350,6 +353,7 @@ def _session_from_row(row) -> PrintSession:
         spool_assignments=_tray_map_from_json(row.spool_assignments),
         ams_mapping=list(row.ams_mapping) if row.ams_mapping else None,
         plate_id=row.plate_id,
+        spoolman_owns_usage=getattr(row, "spoolman_owns_usage", None),
     )
 
 
@@ -607,9 +611,10 @@ async def on_print_start(
             )
         logger.info("[UsageTracker] PRINT START printer %d AMS %d: %s", printer_id, ams_id, ", ".join(tray_summary))
 
-    # Snapshot spool assignments so usage isn't lost if on_ams_change unlinks mid-print
+    # Snapshot only the ledger that owns this print. Inactive built-in rows may
+    # remain after a mode switch and must never become Spoolman attribution.
     spool_assignments: dict[tuple[int, int], int] = {}
-    if db:
+    if db and not spoolman_owns_usage:
         assign_result = await db.execute(select(SpoolAssignment).where(SpoolAssignment.printer_id == printer_id))
         for assignment in assign_result.scalars().all():
             spool_assignments[(assignment.ams_id, assignment.tray_id)] = assignment.spool_id
@@ -648,6 +653,7 @@ async def on_print_start(
         spool_assignments=spool_assignments,
         ams_mapping=data.get("ams_mapping"),
         plate_id=plate_id,
+        spoolman_owns_usage=spoolman_owns_usage,
     )
     if spoolman_owns_usage:
         _active_sessions.pop(printer_id, None)
@@ -1154,6 +1160,27 @@ def _extract_plate_usage(file_path, plate_id):
     return filament_usage, plate_id
 
 
+def _unassigned_tray(printer_id: int, ams_id: int, tray_id: int, global_tray_id: int, grams: float) -> int:
+    logger.warning(
+        "[UsageTracker] 3MF: no spool assignment at printer %d AMS%d-T%d — %.1fg not deducted",
+        printer_id,
+        ams_id,
+        tray_id,
+        grams,
+    )
+    return global_tray_id
+
+
+async def _notify_unassigned_trays(printer_id: int, missing: list[int], db: AsyncSession) -> None:
+    if not missing:
+        return
+    from backend.app.services.spool_assignment_notifications import (
+        notify_missing_spool_assignments_on_print_complete,
+    )
+
+    await notify_missing_spool_assignments_on_print_complete(printer_id, missing, db, logger)
+
+
 async def _track_from_3mf(
     printer_id: int,
     archive_id: int | None,
@@ -1363,6 +1390,7 @@ async def _track_from_3mf(
                 pass  # Fall back to linear scaling
 
     results = []
+    unassigned_global_trays: list[int] = []
 
     for usage in filament_usage:
         slot_id = usage.get("slot_id", 0)
@@ -1454,11 +1482,8 @@ async def _track_from_3mf(
                     print_started_at=print_started_at,
                 )
                 if seg_spool_id is None:
-                    logger.info(
-                        "[UsageTracker] 3MF split: no spool at printer %d AMS%d-T%d, skipping segment",
-                        printer_id,
-                        seg_ams_id,
-                        seg_tray_id,
+                    unassigned_global_trays.append(
+                        _unassigned_tray(printer_id, seg_ams_id, seg_tray_id, tray_global, segment_grams)
                     )
                     continue
 
@@ -1589,7 +1614,7 @@ async def _track_from_3mf(
             print_started_at=print_started_at,
         )
         if spool_id is None:
-            logger.info("[UsageTracker] 3MF: no spool assignment at printer %d AMS%d-T%d", printer_id, ams_id, tray_id)
+            unassigned_global_trays.append(_unassigned_tray(printer_id, ams_id, tray_id, global_tray_id, used_g))
             continue
 
         # Load spool
@@ -1684,4 +1709,5 @@ async def _track_from_3mf(
                 )
                 archive.filament_color = joined
 
+    await _notify_unassigned_trays(printer_id, unassigned_global_trays, db)
     return results

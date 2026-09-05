@@ -698,7 +698,7 @@ export function SpoolFormModal({
   const { data: allSpools } = useQuery({
     queryKey: ['inventory-spools'],
     queryFn: () => api.getSpools(true),
-    enabled: isOpen,
+    enabled: isOpen && !spoolmanMode,
   });
   const { data: settingsForForm } = useQuery({
     queryKey: ['settings'],

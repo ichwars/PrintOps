@@ -103,7 +103,7 @@ def _tracking():
     )
 
 
-async def _report_with_state(state):
+async def _report_with_state(state, *, current_mode: str = "true"):
     from backend.app.services.spoolman_tracking import report_usage
 
     tracking = _tracking()
@@ -124,7 +124,7 @@ async def _report_with_state(state):
 
     with (
         patch("backend.app.services.spoolman_tracking.async_session", lambda: _AsyncSessionContext(db)),
-        patch("backend.app.api.routes.settings.get_setting", AsyncMock(return_value="true")),
+        patch("backend.app.api.routes.settings.get_setting", AsyncMock(return_value=current_mode)),
         patch(
             "backend.app.services.spoolman_tracking._get_spoolman_client_with_fallback",
             AsyncMock(return_value=client),
@@ -157,3 +157,13 @@ async def test_positional_guess_does_not_rewrite_archive_provenance():
 
     client.use_spool.assert_awaited_once_with(41, 2.17)
     apply_colors.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_report_uses_print_start_tracking_after_mode_was_disabled():
+    client, _ = await _report_with_state(
+        _state(changes=[(3, 0)], last_loaded=3, raw_data={"ams": AMS}),
+        current_mode="false",
+    )
+
+    client.use_spool.assert_awaited_once_with(46, 2.17)

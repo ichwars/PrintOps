@@ -123,7 +123,7 @@ export function AssignToAmsModal({ isOpen, onClose, spool, printerId, spoolmanMo
   const { data: assignments } = useQuery({
     queryKey: ['spool-assignments', printerId],
     queryFn: () => api.getAssignments(printerId!),
-    enabled: isOpen && printerId !== null,
+    enabled: isOpen && !spoolmanMode && printerId !== null,
     staleTime: 30 * 1000,
   });
 

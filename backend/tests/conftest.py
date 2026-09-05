@@ -479,6 +479,7 @@ def printer_factory(db_session):
     async def _create_printer(**kwargs):
         from backend.app.models.printer import Printer
 
+        spoolman_enabled = kwargs.pop("spoolman_enabled", None)
         _counter[0] += 1
         counter = _counter[0]
 
@@ -495,6 +496,10 @@ def printer_factory(db_session):
 
         printer = Printer(**defaults)
         db_session.add(printer)
+        if spoolman_enabled is not None:
+            from backend.app.models.settings import Settings
+
+            db_session.add(Settings(key="spoolman_enabled", value=str(spoolman_enabled).lower()))
         await db_session.commit()
         await db_session.refresh(printer)
         return printer

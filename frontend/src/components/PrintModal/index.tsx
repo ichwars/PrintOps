@@ -304,7 +304,7 @@ export function PrintModal({
     queryKey: ['spool-assignments'],
     queryFn: () => api.getAssignments(),
     staleTime: 30 * 1000,
-    enabled: !isEditing && assignmentMode === 'printer',
+    enabled: settings !== undefined && !settings.spoolman_enabled && !isEditing && assignmentMode === 'printer',
   });
 
   // Fetch per-printer Map<globalTrayId, gramsRemaining> via the dedicated

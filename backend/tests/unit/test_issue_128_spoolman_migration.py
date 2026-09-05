@@ -1,4 +1,4 @@
-"""Upgrade coverage for active_print_spoolman.tray_now_at_start."""
+"""Upgrade coverage for durable active-print tracking columns."""
 
 from __future__ import annotations
 
@@ -97,12 +97,16 @@ async def test_upgrade_adds_nullable_column_and_preserves_active_print(legacy_en
             )
         ).one()
         session_row = (
-            await conn.execute(text("SELECT subtask_id, print_name FROM active_print_sessions WHERE printer_id = 1"))
+            await conn.execute(
+                text(
+                    "SELECT subtask_id, print_name, spoolman_owns_usage FROM active_print_sessions WHERE printer_id = 1"
+                )
+            )
         ).one()
 
     assert row[0] is None
     assert "AAAA" in row[1]
-    assert session_row == (None, "legacy-print")
+    assert session_row == (None, "legacy-print", None)
 
 
 async def test_upgrade_is_idempotent(legacy_engine):
@@ -117,7 +121,7 @@ async def test_upgrade_is_idempotent(legacy_engine):
     assert "tray_now_at_start" in columns
     async with legacy_engine.begin() as conn:
         session_columns = {row[1] for row in await conn.execute(text("PRAGMA table_info(active_print_sessions)"))}
-    assert "subtask_id" in session_columns
+    assert {"subtask_id", "spoolman_owns_usage"} <= session_columns
 
 
 async def test_fresh_schema_has_tracking_columns():
@@ -134,7 +138,7 @@ async def test_fresh_schema_has_tracking_columns():
         await engine.dispose()
 
     assert "tray_now_at_start" in spoolman_columns
-    assert {"printer_id", "print_name", "subtask_id", "tray_change_log"} <= session_columns
+    assert {"printer_id", "print_name", "subtask_id", "tray_change_log", "spoolman_owns_usage"} <= session_columns
 
 
 @pytest.mark.asyncio
@@ -171,6 +175,7 @@ async def test_postgres_upgrade_is_idempotent_by_sql_construction():
     assert len(alters) == 1
     assert "IF NOT EXISTS" in alters[0]
     session_alters = [statement for statement in statements if "active_print_sessions" in statement]
-    assert len(session_alters) == 1
-    assert "subtask_id" in session_alters[0]
-    assert "IF NOT EXISTS" in session_alters[0]
+    assert len(session_alters) == 2
+    assert all("IF NOT EXISTS" in statement for statement in session_alters)
+    assert any("subtask_id" in statement for statement in session_alters)
+    assert any("spoolman_owns_usage" in statement for statement in session_alters)

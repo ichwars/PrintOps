@@ -41,6 +41,7 @@ from backend.app.schemas.spoolbuddy import (
     WriteTagRequest,
     WriteTagResultRequest,
 )
+from backend.app.services.inventory_mode import spoolman_owns_assignments
 from backend.app.services.spool_tag_matcher import get_spool_by_tag
 from backend.app.services.spoolman import SpoolmanClientError, SpoolmanNotFoundError, SpoolmanUnavailableError
 
@@ -394,13 +395,16 @@ async def nfc_tag_scanned(
     """
     from backend.app.api.routes._spoolman_helpers import _map_spoolman_spool
 
-    # _get_spoolman_client_or_none returns a usable client when spoolman_enabled
-    # is true (and the URL passes the SSRF guard), None otherwise — so its
-    # return value doubles as the mode discriminator.
-    client = await _get_spoolman_client_or_none(db)
+    spoolman_mode = await spoolman_owns_assignments(db)
+    client = await _get_spoolman_client_or_none(db) if spoolman_mode else None
 
-    if client is not None:
+    if spoolman_mode:
         # Spoolman mode — exclusive lookup, no local-DB fallback.
+        if client is None:
+            await ws_manager.broadcast(
+                {"type": "spoolman_unavailable", "device_id": req.device_id, "context": "nfc_tag_scanned"}
+            )
+            return {"status": "ok", "matched": False, "spool_id": None}
         try:
             cached_spools = await client.get_spools()
             sm_spool: dict | None = None
@@ -551,21 +555,21 @@ async def nfc_write_tag(
     if not device:
         raise HTTPException(status_code=404, detail="Device not registered")
 
-    # Try local DB first
-    result = await db.execute(select(Spool).where(Spool.id == req.spool_id))
-    spool = result.scalar_one_or_none()
-
     nfc_warnings: list[str] = []
-    if spool:
+    spoolman_mode = await spoolman_owns_assignments(db)
+    if not spoolman_mode:
+        result = await db.execute(select(Spool).where(Spool.id == req.spool_id))
+        spool = result.scalar_one_or_none()
+        if spool is None:
+            raise HTTPException(status_code=404, detail="Spool not found")
         ndef_data = encode_opentag3d(spool)
         data_origin = "local"
     else:
-        # Local DB miss — fall back to Spoolman when enabled
         from backend.app.api.routes._spoolman_helpers import _map_spoolman_spool
 
         sm_client = await _get_spoolman_client_or_none(db)
         if sm_client is None:
-            raise HTTPException(status_code=404, detail="Spool not found")
+            raise HTTPException(status_code=503, detail="Spoolman server is not reachable")
 
         async with _translate_spoolbuddy_errors():
             sm_spool = await sm_client.get_spool(req.spool_id)
@@ -881,9 +885,9 @@ async def update_spool_weight(
     from backend.app.api.routes._spoolman_helpers import _safe_float
     from backend.app.models.spool import Spool
 
-    sm_client = await _get_spoolman_client_or_none(db)
+    spoolman_mode = await spoolman_owns_assignments(db)
 
-    if sm_client is None:
+    if not spoolman_mode:
         # Local mode — exclusive update, no Spoolman fallback.
         db_result = await db.execute(select(Spool).where(Spool.id == req.spool_id))
         spool = db_result.scalar_one_or_none()
@@ -904,6 +908,9 @@ async def update_spool_weight(
         return {"status": "ok", "weight_used": spool.weight_used}
 
     # Spoolman mode — exclusive update, never touch local DB.
+    sm_client = await _get_spoolman_client_or_none(db)
+    if sm_client is None:
+        raise HTTPException(status_code=503, detail="Spoolman server is not reachable")
     async with _translate_spoolbuddy_errors():
         sm_spool = await sm_client.get_spool(req.spool_id)
 

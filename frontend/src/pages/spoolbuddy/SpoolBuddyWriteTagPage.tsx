@@ -62,8 +62,7 @@ export function SpoolBuddyWriteTagPage() {
     staleTime: 5 * 60 * 1000,
   });
   const spoolmanModeReady = spoolmanSettings !== undefined;
-  const spoolmanMode =
-    spoolmanSettings?.spoolman_enabled === 'true' && !!spoolmanSettings?.spoolman_url;
+  const spoolmanMode = spoolmanSettings?.spoolman_enabled === 'true';
 
   const { data: spools = [], refetch: refetchSpools } = useQuery({
     queryKey: [spoolmanMode ? 'spoolman-inventory-spools' : 'inventory-spools', 'write-tag'],

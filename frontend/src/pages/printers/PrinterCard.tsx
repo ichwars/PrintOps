@@ -1881,7 +1881,7 @@ return (
                                 const slotSpoolFill = (slotSpoolForFill && (slotSpoolForFill.label_weight ?? 0) > 0)
                                   ? Math.round(Math.max(0, (slotSpoolForFill.label_weight ?? 0) - slotSpoolForFill.weight_used) / (slotSpoolForFill.label_weight ?? 1) * 100)
                                   : null;
-                                const inventoryAssignment = onGetAssignment?.(printer.id, ams.id, slotIdx);
+                                const inventoryAssignment = spoolmanEnabled ? undefined : onGetAssignment?.(printer.id, ams.id, slotIdx);
                                 const inventoryFill = (() => {
                                   const sp = inventoryAssignment?.spool;
                                   if (sp && sp.label_weight > 0 && sp.weight_used != null) {
@@ -2172,7 +2172,7 @@ return (
                         const htTrayTag = (tray?.tray_uuid || tray?.tag_uid || getFallbackSpoolTag(printer.serial_number, ams.id, htSlotId))?.toUpperCase();
                         const htLinkedSpool = htTrayTag ? linkedSpools?.[htTrayTag] : undefined;
                         const htSpoolmanFill = getSpoolmanFillLevel(htLinkedSpool);
-                        const htInventoryAssignment = onGetAssignment?.(printer.id, ams.id, htSlotId);
+                        const htInventoryAssignment = spoolmanEnabled ? undefined : onGetAssignment?.(printer.id, ams.id, htSlotId);
                         const htInventoryFill = (() => {
                           const sp = htInventoryAssignment?.spool;
                           if (sp && sp.label_weight > 0 && sp.weight_used != null) {
@@ -2581,7 +2581,7 @@ return (
                               const extTrayTag = (extTray.tray_uuid || extTray.tag_uid || getFallbackSpoolTag(printer.serial_number, 255, slotTrayId))?.toUpperCase();
                               const extLinkedSpool = extTrayTag ? linkedSpools?.[extTrayTag] : undefined;
                               const extSpoolmanFill = getSpoolmanFillLevel(extLinkedSpool);
-                              const extInventoryAssignment = onGetAssignment?.(printer.id, 255, slotTrayId);
+                              const extInventoryAssignment = spoolmanEnabled ? undefined : onGetAssignment?.(printer.id, 255, slotTrayId);
                               const extInventoryFill = (() => {
                                 const sp = extInventoryAssignment?.spool;
                                 if (sp && sp.label_weight > 0 && sp.weight_used != null) {

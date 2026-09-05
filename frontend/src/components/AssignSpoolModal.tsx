@@ -85,7 +85,7 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
   const { data: assignments } = useQuery({
     queryKey: ['spool-assignments'],
     queryFn: () => api.getAssignments(),
-    enabled: isOpen,
+    enabled: isOpen && !spoolmanEnabled,
   });
 
   const { data: settings } = useQuery({

@@ -56,6 +56,7 @@ def _session(printer_id: int) -> PrintSession:
         spool_assignments={(0, 2): 69, (0, 3): 68},
         ams_mapping=[2],
         plate_id=1,
+        spoolman_owns_usage=False,
     )
 
 
@@ -88,6 +89,7 @@ async def test_session_and_backup_log_round_trip_after_restart(db_session, print
     assert restored.spool_assignments == {(0, 2): 69, (0, 3): 68}
     assert restored.tray_remain_start == {(0, 2): 84, (0, 3): 100}
     assert restored.started_at.tzinfo is not None
+    assert restored.spoolman_owns_usage is False
 
 
 @pytest.mark.asyncio
@@ -157,7 +159,35 @@ async def test_print_start_persists_provenance_for_both_inventory_modes(
     assert row is not None
     assert row.ams_mapping == [2]
     assert row.tray_change_log == [[2, 0]]
+    assert row.spoolman_owns_usage is spoolman_owns_usage
     assert (printer.id in _active_sessions) is (not spoolman_owns_usage)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("started_in_spoolman", [False, True])
+async def test_restart_keeps_print_start_inventory_owner_after_mode_switch(
+    db_session,
+    printer,
+    started_in_spoolman,
+):
+    from backend.app.models.settings import Settings
+    from backend.app.services.usage_tracker import load_persisted_session_for_completion
+
+    session = _session(printer.id)
+    session.spoolman_owns_usage = started_in_spoolman
+    await persist_session(db_session, session, [(2, 0)])
+    db_session.add(Settings(key="spoolman_enabled", value=str(not started_in_spoolman).lower()))
+    await db_session.commit()
+    _active_sessions.clear()
+
+    restored = await load_persisted_session_for_completion(
+        db_session,
+        printer.id,
+        {"subtask_name": "backup-test"},
+    )
+
+    assert restored is not None
+    assert restored.spoolman_owns_usage is started_in_spoolman
 
 
 @pytest.mark.asyncio

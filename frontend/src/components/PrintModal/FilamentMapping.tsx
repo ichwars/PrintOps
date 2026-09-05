@@ -37,18 +37,17 @@ export function FilamentMapping({
     enabled: !!printerId,
   });
 
-  const { data: assignments } = useQuery({
-    queryKey: ['spool-assignments', printerId],
-    queryFn: () => api.getAssignments(printerId),
-    enabled: !!printerId,
-  });
-
   // Settings + inventory map drive the same prefer-lowest + AMS-backup gate
   // the dispatcher uses (#1766). Without this, the per-slot dropdown's
   // auto-suggestion could disagree with what actually gets dispatched.
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: api.getSettings,
+  });
+  const { data: assignments } = useQuery({
+    queryKey: ['spool-assignments', printerId],
+    queryFn: () => api.getAssignments(printerId),
+    enabled: !!printerId && settings !== undefined && !settings.spoolman_enabled,
   });
   const { data: inventoryRemain } = useQuery({
     queryKey: ['printer-inventory-remain', printerId],

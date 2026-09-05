@@ -84,13 +84,14 @@ export function SpoolBuddyAmsPage() {
     queryFn: api.getSpoolmanStatus,
     staleTime: 60 * 1000,
   });
-  const spoolmanEnabled = spoolmanStatus?.enabled && spoolmanStatus?.connected;
+  const spoolmanMode = !!spoolmanStatus?.enabled;
+  const spoolmanConnected = spoolmanMode && !!spoolmanStatus?.connected;
 
   // Fetch linked spools map (tag -> spool info) for Spoolman fill levels
   const { data: linkedSpoolsData } = useQuery({
     queryKey: ['linked-spools'],
     queryFn: api.getLinkedSpools,
-    enabled: !!spoolmanEnabled,
+    enabled: spoolmanConnected,
     staleTime: 30 * 1000,
   });
   const linkedSpools = linkedSpoolsData?.linked;
@@ -103,20 +104,20 @@ export function SpoolBuddyAmsPage() {
   const { data: spoolmanSlotAssignmentsAll = [] } = useQuery({
     queryKey: ['spoolman-slot-assignments-all'],
     queryFn: () => api.getSpoolmanSlotAssignments(),
-    enabled: !!spoolmanEnabled,
+    enabled: spoolmanMode,
     staleTime: 30 * 1000,
   });
   const { data: spoolmanInventorySpoolsCache = [] } = useQuery({
     queryKey: ['spoolman-inventory-spools'],
     queryFn: () => api.getSpoolmanInventorySpools(false),
-    enabled: !!spoolmanEnabled,
+    enabled: spoolmanConnected,
     staleTime: 30 * 1000,
   });
 
   const { data: assignments } = useQuery({
     queryKey: ['spool-assignments', selectedPrinterId],
     queryFn: () => api.getAssignments(selectedPrinterId!),
-    enabled: selectedPrinterId !== null,
+    enabled: selectedPrinterId !== null && !spoolmanMode,
     staleTime: 30 * 1000,
   });
 
@@ -704,7 +705,7 @@ export function SpoolBuddyAmsPage() {
         // and an Unassign button — without this branch, picking a slot that was
         // assigned via the dashboard's Assign-to-AMS flow showed only "Configure"
         // with no info about which spool was bound.
-        const spoolmanAssign = spoolmanEnabled
+        const spoolmanAssign = spoolmanMode
           ? spoolmanSlotAssignmentsAll.find(a =>
               a.printer_id === selectedPrinterId &&
               a.ams_id === slotActionPicker.amsId &&
@@ -743,7 +744,7 @@ export function SpoolBuddyAmsPage() {
               </div>
               <div className="p-4 space-y-2">
                 {/* Currently assigned/linked spool info */}
-                {!spoolmanEnabled && assignment?.spool && (
+                {!spoolmanMode && assignment?.spool && (
                   <div className="p-2.5 bg-bambu-dark rounded-lg border border-bambu-dark-tertiary mb-3">
                     <p className="text-xs text-bambu-gray mb-1">{t('inventory.assignedSpool', 'Assigned spool')}</p>
                     <div className="flex items-center gap-2">
@@ -765,7 +766,7 @@ export function SpoolBuddyAmsPage() {
                     assignment exists, regardless of whether a (possibly stale)
                     tag-link also exists. The tag-link block is the fallback
                     for slots that have only a tag-link. */}
-                {spoolmanEnabled && linked && !spoolmanAssignedSpool && (
+                {spoolmanMode && linked && !spoolmanAssignedSpool && (
                   <div className="p-2.5 bg-bambu-dark rounded-lg border border-bambu-dark-tertiary mb-3">
                     <p className="text-xs text-bambu-gray mb-1">{t('spoolman.linkedSpool', 'Linked spool')}</p>
                     <div className="flex items-center gap-2">
@@ -776,7 +777,7 @@ export function SpoolBuddyAmsPage() {
                     </div>
                   </div>
                 )}
-                {spoolmanEnabled && spoolmanAssignedSpool && (
+                {spoolmanMode && spoolmanAssignedSpool && (
                   <div className="p-2.5 bg-bambu-dark rounded-lg border border-bambu-dark-tertiary mb-3">
                     <p className="text-xs text-bambu-gray mb-1">{t('inventory.assignedSpool', 'Assigned spool')}</p>
                     <div className="flex items-center gap-2">
@@ -810,7 +811,7 @@ export function SpoolBuddyAmsPage() {
                     suppress assign/unassign there to keep parity with the
                     Spoolman branch (Phase 14 A3). Manual changes would be
                     overwritten on the next RFID re-read. */}
-                {!spoolmanEnabled && (() => {
+                {!spoolmanMode && (() => {
                   if (isBambuLabSpool(slotActionPicker?.tray)) return null;
                   if (assignment) {
                     return (
@@ -842,7 +843,7 @@ export function SpoolBuddyAmsPage() {
                 })()}
 
                 {/* Spoolman: Link / Unlink (tag-linked) or Unassign (slot-only) */}
-                {spoolmanEnabled && (() => {
+                {spoolmanMode && (() => {
                   if (linked?.id) {
                     return (
                       <button
@@ -912,7 +913,7 @@ export function SpoolBuddyAmsPage() {
           amsId={assignSpoolModal.amsId}
           trayId={assignSpoolModal.trayId}
           trayInfo={assignSpoolModal.trayInfo}
-          spoolmanEnabled={!!spoolmanEnabled}
+          spoolmanEnabled={spoolmanMode}
         />
       )}
 
