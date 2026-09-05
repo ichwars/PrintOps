@@ -4,6 +4,7 @@ from sqlalchemy import JSON, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.core.database import Base
+from backend.app.models.active_print_session import ActivePrintSession  # noqa: F401
 
 
 class ActivePrintSpoolman(Base):
@@ -51,3 +52,7 @@ class ActivePrintSpoolman(Base):
     # ``tray_remain_start`` snapshot at usage_tracker.py:301.
     # Format: {"<ams_id>-<tray_id>": {"remain": int, "tray_uuid": str}, ...}
     tray_remain_start: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # Tray feeding the extruder at print start. Completion often reports 255
+    # after retract, so this is the durable single-material fallback.
+    tray_now_at_start: Mapped[int | None] = mapped_column(nullable=True)
