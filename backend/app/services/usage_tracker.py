@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.spool import Spool
@@ -21,6 +21,15 @@ from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spool_usage_history import SpoolUsageHistory
 
 logger = logging.getLogger(__name__)
+
+
+def _library_3mf_type_filter(library_file):
+    """Match current 3MF types plus legacy sliced rows not yet backfilled."""
+    return or_(
+        library_file.file_type.ilike("3mf"),
+        library_file.file_type.ilike("gcode.3mf"),
+        and_(library_file.file_type.ilike("gcode"), library_file.filename.ilike("%.gcode.3mf")),
+    )
 
 
 def _decode_mqtt_mapping(mapping_raw: list | None) -> list[int] | None:
@@ -715,6 +724,24 @@ async def _pop_or_restore_session(db: AsyncSession, printer_id: int) -> PrintSes
     return _active_sessions.pop(printer_id, None)
 
 
+async def _completion_3mf_path(printer_id, data, session, ams_mapping, db):
+    """Resolve slicer evidence for an archive-less completion."""
+    from backend.app.core.config import settings as app_settings
+
+    search_filename = data.get("filename") or data.get("subtask_name") or (session.print_name if session else "")
+    if not search_filename:
+        return None
+    return await _find_3mf_by_filename(
+        printer_id,
+        search_filename,
+        db,
+        app_settings.base_dir,
+        print_name=session.print_name if session else data.get("subtask_name"),
+        plate_id=session.plate_id if session else None,
+        ams_mapping=ams_mapping,
+    )
+
+
 async def on_print_complete(
     printer_id: int,
     data: dict,
@@ -778,13 +805,7 @@ async def on_print_complete(
 
     # When auto-archive is disabled (archive_id=None), try to find a 3MF by filename
     # from the library or previous archives so we can still track filament usage.
-    threemf_path = None
-    if not archive_id:
-        from backend.app.core.config import settings as app_settings
-
-        search_filename = data.get("filename") or data.get("subtask_name") or (session.print_name if session else "")
-        if search_filename:
-            threemf_path = await _find_3mf_by_filename(printer_id, search_filename, db, app_settings.base_dir)
+    threemf_path = None if archive_id else await _completion_3mf_path(printer_id, data, session, ams_mapping, db)
 
     if archive_id or threemf_path:
         threemf_results = await _track_from_3mf(
@@ -1013,7 +1034,14 @@ async def on_print_complete(
     return results
 
 
-async def _resolve_3mf_fallback(archive, db: AsyncSession, base_dir):
+async def _resolve_3mf_fallback(
+    archive,
+    db: AsyncSession,
+    base_dir,
+    *,
+    plate_id: int | None = None,
+    ams_mapping: list | None = None,
+):
     """Try to find a 3MF file from library or a previous archive when the current archive has none.
 
     This handles fallback archives (FTP download failed) where the 3MF may already exist
@@ -1023,30 +1051,46 @@ async def _resolve_3mf_fallback(archive, db: AsyncSession, base_dir):
 
     from backend.app.models.archive import PrintArchive
     from backend.app.models.library import LibraryFile
+    from backend.app.services.threemf_identity import (
+        candidate_3mf_conflict,
+        expected_plate_from_paths,
+        stem_matches,
+        threemf_search_stem,
+    )
 
-    # Derive search name from archive filename (e.g. "benchy.3mf" or "benchy.gcode.3mf")
-    search_name = archive.filename or archive.print_name
-    if not search_name:
-        return None
-    # Normalize: strip path parts, get base name
-    search_name = search_name.split("/")[-1]
-    search_base = search_name.replace(".gcode.3mf", "").replace(".gcode", "").replace(".3mf", "")
-    if not search_base:
+    print_data = (archive.extra_data or {}).get("_print_data") or {}
+    if not isinstance(print_data, dict):
+        print_data = {}
+    if plate_id is None:
+        plate_id = expected_plate_from_paths(print_data.get("filename"), archive.filename)
+    if ams_mapping is None:
+        ams_mapping = print_data.get("ams_mapping")
+    search_base = threemf_search_stem(
+        archive.filename,
+        archive.print_name,
+        (archive.extra_data or {}).get("original_subtask"),
+        print_data.get("subtask_name"),
+    )
+    if search_base is None:
         return None
 
     # 1. Try library files matching the name (match base name at file boundary)
     try:
         lib_result = await db.execute(
             LibraryFile.active()
-            .where(LibraryFile.file_path.ilike(f"%/{search_base}.%") | LibraryFile.file_path.ilike(f"{search_base}.%"))
-            .where(LibraryFile.file_path.ilike("%.3mf"))
+            .where(stem_matches(LibraryFile.filename, search_base))
+            .where(_library_3mf_type_filter(LibraryFile))
             .order_by(LibraryFile.created_at.desc())
             .limit(3)
         )
         for lib_file in lib_result.scalars().all():
             lib_path = Path(lib_file.file_path)
             candidate = lib_path if lib_path.is_absolute() else base_dir / lib_file.file_path
-            if candidate.exists() and candidate.suffix == ".3mf":
+            if candidate.suffix.casefold() == ".3mf" and not candidate_3mf_conflict(
+                candidate,
+                expected_plate=plate_id,
+                ams_mapping=ams_mapping,
+            ):
                 logger.info("[UsageTracker] 3MF fallback: found library file %s for archive %s", candidate, archive.id)
                 return candidate
     except Exception as e:
@@ -1061,14 +1105,18 @@ async def _resolve_3mf_fallback(archive, db: AsyncSession, base_dir):
             .where(PrintArchive.file_path != "")
             .where(PrintArchive.file_path.isnot(None))
             .where(
-                PrintArchive.filename.ilike(f"%{search_base}.%") | PrintArchive.filename.ilike(f"{search_base}.%"),
+                stem_matches(PrintArchive.filename, search_base),
             )
             .order_by(PrintArchive.created_at.desc())
             .limit(3)
         )
         for prev_archive in prev_result.scalars().all():
             candidate = base_dir / prev_archive.file_path
-            if candidate.exists() and candidate.suffix == ".3mf":
+            if candidate.suffix.casefold() == ".3mf" and not candidate_3mf_conflict(
+                candidate,
+                expected_plate=plate_id,
+                ams_mapping=ams_mapping,
+            ):
                 logger.info(
                     "[UsageTracker] 3MF fallback: found previous archive %s file for archive %s",
                     prev_archive.id,
@@ -1086,6 +1134,10 @@ async def _find_3mf_by_filename(
     filename: str,
     db: AsyncSession,
     base_dir,
+    *,
+    print_name: str | None = None,
+    plate_id: int | None = None,
+    ams_mapping: list | None = None,
 ):
     """Find a 3MF file by filename from library or previous archives.
 
@@ -1096,25 +1148,36 @@ async def _find_3mf_by_filename(
 
     from backend.app.models.archive import PrintArchive
     from backend.app.models.library import LibraryFile
+    from backend.app.services.threemf_identity import (
+        candidate_3mf_conflict,
+        expected_plate_from_paths,
+        stem_matches,
+        threemf_search_stem,
+    )
 
-    search_name = filename.split("/")[-1] if "/" in filename else filename
-    search_base = search_name.replace(".gcode.3mf", "").replace(".gcode", "").replace(".3mf", "")
-    if not search_base:
+    if plate_id is None:
+        plate_id = expected_plate_from_paths(filename)
+    search_base = threemf_search_stem(filename, print_name)
+    if search_base is None:
         return None
 
     # 1. Try library files matching the name
     try:
         lib_result = await db.execute(
             LibraryFile.active()
-            .where(LibraryFile.file_path.ilike(f"%/{search_base}.%") | LibraryFile.file_path.ilike(f"{search_base}.%"))
-            .where(LibraryFile.file_path.ilike("%.3mf"))
+            .where(stem_matches(LibraryFile.filename, search_base))
+            .where(_library_3mf_type_filter(LibraryFile))
             .order_by(LibraryFile.created_at.desc())
             .limit(3)
         )
         for lib_file in lib_result.scalars().all():
             lib_path = Path(lib_file.file_path)
             candidate = lib_path if lib_path.is_absolute() else base_dir / lib_file.file_path
-            if candidate.exists() and candidate.suffix == ".3mf":
+            if candidate.suffix.casefold() == ".3mf" and not candidate_3mf_conflict(
+                candidate,
+                expected_plate=plate_id,
+                ams_mapping=ams_mapping,
+            ):
                 logger.info("[UsageTracker] 3MF (no-archive): found library file %s for '%s'", candidate, filename)
                 return candidate
     except Exception as e:
@@ -1128,14 +1191,18 @@ async def _find_3mf_by_filename(
             .where(PrintArchive.file_path != "")
             .where(PrintArchive.file_path.isnot(None))
             .where(
-                PrintArchive.filename.ilike(f"%{search_base}.%") | PrintArchive.filename.ilike(f"{search_base}.%"),
+                stem_matches(PrintArchive.filename, search_base),
             )
             .order_by(PrintArchive.created_at.desc())
             .limit(3)
         )
         for prev_archive in prev_result.scalars().all():
             candidate = base_dir / prev_archive.file_path
-            if candidate.exists() and candidate.suffix == ".3mf":
+            if candidate.suffix.casefold() == ".3mf" and not candidate_3mf_conflict(
+                candidate,
+                expected_plate=plate_id,
+                ams_mapping=ams_mapping,
+            ):
                 logger.info(
                     "[UsageTracker] 3MF (no-archive): found previous archive %s file for '%s'",
                     prev_archive.id,
@@ -1167,6 +1234,31 @@ async def _load_dispatch_context(db, printer_id, archive_id, archive, plate_id, 
     if plate_id is None and queue_item is not None:
         plate_id = getattr(queue_item, "plate_id", None)
     return queue_item, plate_id
+
+
+async def _resolve_archive_3mf(archive_id, db, base_dir, plate_id, ams_mapping):
+    """Load an archive and its own or evidence-compatible donor 3MF."""
+    from backend.app.models.archive import PrintArchive
+
+    result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
+    archive = result.scalar_one_or_none()
+    if archive is None:
+        logger.info("[UsageTracker] 3MF: archive %s not found, skipping", archive_id)
+        return None, None
+    file_path = None
+    if archive.file_path:
+        candidate = base_dir / archive.file_path
+        if candidate.exists():
+            file_path = candidate
+    if file_path is None:
+        file_path = await _resolve_3mf_fallback(
+            archive,
+            db,
+            base_dir,
+            plate_id=plate_id,
+            ams_mapping=ams_mapping,
+        )
+    return archive, file_path
 
 
 def _extract_plate_usage(file_path, plate_id):
@@ -1254,23 +1346,10 @@ async def _track_from_3mf(
 
     file_path: Path | None = threemf_path
     archive: PrintArchive | None = None
-
     if file_path is None and archive_id:
-        result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-        archive = result.scalar_one_or_none()
-        if not archive:
-            logger.info("[UsageTracker] 3MF: archive %s not found, skipping", archive_id)
+        archive, file_path = await _resolve_archive_3mf(archive_id, db, app_settings.base_dir, plate_id, ams_mapping)
+        if archive is None:
             return []
-
-        # Try archive's own file_path first
-        if archive.file_path:
-            candidate = app_settings.base_dir / archive.file_path
-            if candidate.exists():
-                file_path = candidate
-
-        # Fallback: find 3MF from library or a previous archive with the same filename
-        if file_path is None:
-            file_path = await _resolve_3mf_fallback(archive, db, app_settings.base_dir)
 
     if file_path is None:
         logger.info("[UsageTracker] 3MF: no file available for archive %s, skipping", archive_id)

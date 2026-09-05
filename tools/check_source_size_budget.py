@@ -85,7 +85,7 @@ FILE_ALLOWLIST = {
     "backend/app/api/routes/mfa.py": 2262,
     "backend/app/api/routes/spoolman_inventory.py": 2063,
     "backend/app/core/database.py": 4229,
-    "backend/app/main.py": 6968,
+    "backend/app/main.py": 6833,
     "backend/app/services/bambu_mqtt.py": 5930,
     "backend/app/services/notification_service.py": 2184,
     "backend/app/services/print_scheduler.py": 3840,
@@ -131,13 +131,13 @@ FUNCTION_ALLOWLIST = {
     "backend/app/main.py::on_ams_change": 678,
     "backend/app/main.py::on_print_complete": 1211,
     "backend/app/main.py::on_printer_status_change": 314,
-    "backend/app/main.py::on_print_start": 1057,
+    "backend/app/main.py::on_print_start": 1046,
     "backend/app/services/bambu_mqtt.py::_handle_ams_data": 552,
     "backend/app/services/bambu_mqtt.py::_update_state": 1277,
     "backend/app/services/printer_manager.py::printer_state_to_dict": 335,
     "backend/app/services/print_scheduler.py::_start_print": 607,
     "backend/app/services/print_scheduler.py::check_queue": 515,
-    "backend/app/services/usage_tracker.py::_track_from_3mf": 521,
+    "backend/app/services/usage_tracker.py::_track_from_3mf": 508,
 }
 
 DECORATIVE_SEPARATOR_RE = re.compile(r"^\s*(?:#|//)\s*[=-]{6,}\s*$")

@@ -107,6 +107,10 @@ class FileNotOnPrinterError(Exception):
     """
 
 
+class FileListingError(Exception):
+    """Raised when callers need to distinguish a failed listing from an empty directory."""
+
+
 class ImplicitFTP_TLS(FTP_TLS):
     """FTP_TLS subclass for implicit FTPS (port 990) with model-specific SSL handling.
 
@@ -329,9 +333,15 @@ class BambuFTPClient:
                 pass  # Best-effort FTP cleanup; connection may already be closed
             self._ftp = None
 
-    def list_files(self, path: str = "/") -> list[dict]:
-        """List files in a directory."""
+    def list_files(self, path: str = "/", *, raise_on_error: bool = False) -> list[dict]:
+        """List files in a directory.
+
+        ``raise_on_error`` preserves the historic best-effort default while
+        allowing safety-sensitive callers to reject an incomplete snapshot.
+        """
         if not self._ftp:
+            if raise_on_error:
+                raise FileListingError("FTP client is not connected")
             return []
 
         files = []
@@ -385,6 +395,8 @@ class BambuFTPClient:
             logger.debug("Listed %s files in %s", len(files), path)
         except (OSError, ftplib.Error) as e:
             logger.info("FTP list_files failed for %s: %s", path, e)
+            if raise_on_error:
+                raise FileListingError(f"FTP listing failed for {path}") from e
 
         return files
 
@@ -1304,6 +1316,7 @@ async def list_files_async(
     timeout: float = 30.0,
     socket_timeout: float | None = None,
     printer_model: str | None = None,
+    raise_on_error: bool = False,
 ) -> list[dict]:
     """Async wrapper for listing files with timeout.
 
@@ -1317,16 +1330,40 @@ async def list_files_async(
         client = BambuFTPClient(ip_address, access_code, timeout=socket_timeout, printer_model=printer_model)
         if client.connect():
             try:
-                return client.list_files(path)
+                return client.list_files(path, raise_on_error=raise_on_error)
             finally:
                 client.disconnect()
+        if raise_on_error:
+            raise FileListingError(f"FTP connection failed for {ip_address}")
         return []
 
     try:
         return await asyncio.wait_for(loop.run_in_executor(None, _list), timeout=timeout)
     except TimeoutError:
         logger.warning("FTP list_files timed out after %ss for %s", timeout, path)
+        if raise_on_error:
+            raise
         return []
+
+
+async def list_files_strict_async(
+    ip_address: str,
+    access_code: str,
+    path: str = "/",
+    timeout: float = 30.0,
+    socket_timeout: float | None = None,
+    printer_model: str | None = None,
+) -> list[dict]:
+    """List files while preserving connection, directory, and timeout failures."""
+    return await list_files_async(
+        ip_address,
+        access_code,
+        path,
+        timeout,
+        socket_timeout,
+        printer_model,
+        raise_on_error=True,
+    )
 
 
 async def delete_file_async(
