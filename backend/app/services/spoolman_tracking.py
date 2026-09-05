@@ -27,8 +27,14 @@ logger = logging.getLogger(__name__)
 # Zero UUID used by Bambu printers for empty/unset tray_uuid
 _ZERO_UUID = "00000000000000000000000000000000"
 _ZERO_TAG_UID = "0000000000000000"
+_MAX_REAL_TRAY_ID = 254
 
 _SpoolmanUsageCost = tuple[float, float]
+
+
+def _is_real_tray_id(value) -> bool:
+    """Return whether a value identifies a loaded tray rather than no tray."""
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= _MAX_REAL_TRAY_ID
 
 
 def _is_non_zero_identifier(value: str) -> bool:
@@ -211,6 +217,65 @@ def _resolve_global_tray_id(slot_id: int, slot_to_tray: list | None, ams_trays: 
     return slot_id - 1
 
 
+def _single_slot_tray_from_state(
+    state,
+    filament_usage: list[dict],
+    tray_now_at_start: int | None = None,
+) -> tuple[int, int] | None:
+    """Resolve a single used slicer slot from the printer's tray evidence."""
+    nonzero = [usage for usage in filament_usage or [] if usage.get("used_g", 0) > 0]
+    if len(nonzero) != 1:
+        return None
+    slot_id = nonzero[0].get("slot_id", 0)
+    if not isinstance(slot_id, int) or isinstance(slot_id, bool) or slot_id <= 0:
+        return None
+
+    changes = list(getattr(state, "tray_change_log", None) or [])
+    if len(changes) > 1:
+        return None
+    if len(changes) == 1:
+        entry = changes[0]
+        if isinstance(entry, (tuple, list)) and entry and _is_real_tray_id(entry[0]):
+            return slot_id, entry[0]
+
+    for candidate in (
+        tray_now_at_start,
+        getattr(state, "tray_now", None),
+        getattr(state, "last_loaded_tray", None),
+    ):
+        if _is_real_tray_id(candidate):
+            return slot_id, candidate
+    return None
+
+
+def _resolve_slot_to_tray_fallback(
+    printer_id: int,
+    filament_usage: list[dict],
+    tray_now_at_start: int | None = None,
+) -> tuple[list[int] | None, str]:
+    """Resolve an absent start mapping from completion-time evidence."""
+    from backend.app.services.printer_manager import printer_manager
+    from backend.app.services.usage_tracker import _decode_mqtt_mapping, _match_slots_by_color
+
+    state = printer_manager.get_status(printer_id)
+    raw_data = getattr(state, "raw_data", None) if state else None
+    if raw_data:
+        decoded = _decode_mqtt_mapping(raw_data.get("mapping"))
+        if decoded:
+            return decoded, "mqtt"
+        matched = _match_slots_by_color(filament_usage, raw_data.get("ams"))
+        if matched:
+            return matched, "color_match"
+
+    single = _single_slot_tray_from_state(state, filament_usage, tray_now_at_start)
+    if single is None:
+        return None, "none"
+    slot_id, global_tray_id = single
+    mapping = [-1] * slot_id
+    mapping[slot_id - 1] = global_tray_id
+    return mapping, "tray_state"
+
+
 def build_ams_tray_lookup(raw_data: dict) -> dict[int, dict]:
     """Build lookup of global_tray_id -> tray info from printer state.
 
@@ -366,7 +431,7 @@ async def store_print_data(
         )
         filament_usage = extract_filament_usage_from_3mf(full_path, effective_plate_id) or None
 
-        layer_usage = extract_layer_filament_usage_from_3mf(full_path)
+        layer_usage = extract_layer_filament_usage_from_3mf(full_path, effective_plate_id)
         if layer_usage:
             # Convert int keys to string for JSON serialization
             layer_usage_json = {str(k): v for k, v in layer_usage.items()}
@@ -412,6 +477,7 @@ async def store_print_data(
         layer_usage=layer_usage_json,
         filament_properties=filament_properties,
         tray_remain_start=tray_remain_start or None,
+        tray_now_at_start=getattr(state, "tray_now", None) if state else None,
     )
     db.add(tracking)
     await db.commit()
@@ -846,6 +912,17 @@ async def _report_partial_usage(
     ams_trays = {int(k): v for k, v in (tracking.ams_trays or {}).items()}
     slot_to_tray = tracking.slot_to_tray
     tray_remain_start = tracking.tray_remain_start or {}
+    if filament_usage and not slot_to_tray:
+        slot_to_tray, mapping_source = _resolve_slot_to_tray_fallback(
+            printer_id,
+            filament_usage,
+            getattr(tracking, "tray_now_at_start", None),
+        )
+        logger.info(
+            "[SPOOLMAN] Partial usage: slot_to_tray=%s (source: %s)",
+            slot_to_tray,
+            mapping_source,
+        )
     printer_serial = await _get_printer_serial(printer_id)
 
     client = await _get_spoolman_client_with_fallback()
@@ -868,6 +945,11 @@ async def _report_partial_usage(
             current_lookup=current_lookup,
             handled_global_tray_ids=set(),
             archive_id=getattr(tracking, "archive_id", -1),
+            print_used_keys=_print_used_tray_keys(
+                slot_to_tray,
+                getattr(tracking, "tray_now_at_start", None),
+                state,
+            ),
         )
         return
 
@@ -1000,6 +1082,7 @@ async def report_usage(printer_id: int, archive_id: int):
         # on read.
         layer_usage_raw = getattr(tracking, "layer_usage", None) or {}
         filament_properties = getattr(tracking, "filament_properties", None) or {}
+        tray_now_at_start = getattr(tracking, "tray_now_at_start", None)
         printer_serial = await _get_printer_serial(printer_id)
 
         # Delete tracking row (we're done with it)
@@ -1051,6 +1134,27 @@ async def report_usage(printer_id: int, archive_id: int):
         # firmware resets it at print end). At completion the current layer
         # is the print's last valid layer.
         _layer_denom_hint = _total_layers or _current_layer
+
+        mapping_source = "stored" if slot_to_tray else "none"
+        if filament_usage and not slot_to_tray:
+            slot_to_tray, mapping_source = _resolve_slot_to_tray_fallback(
+                printer_id,
+                filament_usage,
+                tray_now_at_start,
+            )
+        logger.info(
+            "[SPOOLMAN] Archive %s: slot_to_tray=%s (source: %s)",
+            archive_id,
+            slot_to_tray,
+            mapping_source,
+        )
+        mapping_is_guess = bool(filament_usage) and mapping_source == "none" and len(tray_changes) <= 1
+        if mapping_is_guess:
+            logger.warning(
+                "[SPOOLMAN] Archive %s: no slot-to-tray mapping from any source; "
+                "charging by tray position and preserving sliced archive provenance.",
+                archive_id,
+            )
 
         slot_colors: dict[int, str] = {}
         usage_costs: list[_SpoolmanUsageCost] = []
@@ -1119,6 +1223,8 @@ async def report_usage(printer_id: int, archive_id: int):
                 # Track which physical slots the 3MF path already covered so
                 # Path 2 doesn't double-charge them.
                 for u in filament_usage:
+                    if u.get("used_g", 0) <= 0:
+                        continue
                     slot_id = u.get("slot_id", 0)
                     handled_global_tray_ids.add(_resolve_global_tray_id(slot_id, slot_to_tray, ams_trays))
 
@@ -1137,6 +1243,7 @@ async def report_usage(printer_id: int, archive_id: int):
                 current_lookup=current_lookup,
                 handled_global_tray_ids=handled_global_tray_ids,
                 archive_id=archive_id,
+                print_used_keys=_print_used_tray_keys(slot_to_tray, tray_now_at_start, current),
                 slot_colors_out=slot_colors,
                 usage_costs_out=usage_costs,
             )
@@ -1150,8 +1257,35 @@ async def report_usage(printer_id: int, archive_id: int):
         # Stamp the archive's filament colour from the matched Spoolman spools
         # so it reflects the curated inventory colour, not the slicer's 3MF
         # value (#1494) — mirrors the built-in inventory path in usage_tracker.
-        await _apply_spool_colors_to_archive(db, archive_id, filament_usage, slot_colors)
+        if mapping_is_guess:
+            if slot_colors:
+                logger.info(
+                    "[SPOOLMAN] Archive %s: leaving filament colour as sliced because tray position was a guess",
+                    archive_id,
+                )
+        else:
+            await _apply_spool_colors_to_archive(db, archive_id, filament_usage, slot_colors)
         await _apply_spoolman_costs_to_archive(db, archive_id, usage_costs)
+
+
+def _print_used_tray_keys(
+    slot_to_tray: list | None,
+    tray_now_at_start: int | None,
+    state,
+) -> set[tuple[int, int]]:
+    """Return the physical slots this print is known to have used."""
+    keys: set[tuple[int, int]] = set()
+    for global_tray_id in list(slot_to_tray or []):
+        if isinstance(global_tray_id, int) and not isinstance(global_tray_id, bool) and global_tray_id >= 0:
+            keys.add(_global_tray_id_to_ams_slot(global_tray_id))
+    for change in getattr(state, "tray_change_log", None) or []:
+        if isinstance(change, (tuple, list)) and change:
+            global_tray_id = change[0]
+            if isinstance(global_tray_id, int) and not isinstance(global_tray_id, bool) and global_tray_id >= 0:
+                keys.add(_global_tray_id_to_ams_slot(global_tray_id))
+    if _is_real_tray_id(tray_now_at_start):
+        keys.add(_global_tray_id_to_ams_slot(tray_now_at_start))
+    return keys
 
 
 async def _report_remain_delta_for_slots(
@@ -1162,6 +1296,7 @@ async def _report_remain_delta_for_slots(
     current_lookup: dict[str, dict],
     handled_global_tray_ids: set[int],
     archive_id: int,
+    print_used_keys: set[tuple[int, int]] | None = None,
     slot_colors_out: dict[int, str] | None = None,
     usage_costs_out: list[_SpoolmanUsageCost] | None = None,
 ) -> int:
@@ -1191,6 +1326,9 @@ async def _report_remain_delta_for_slots(
         else:
             global_tray_id = ams_id * 4 + tray_id
         if global_tray_id in handled_global_tray_ids:
+            continue
+
+        if print_used_keys and (ams_id, tray_id) not in print_used_keys:
             continue
 
         current = current_lookup.get(slot_key)

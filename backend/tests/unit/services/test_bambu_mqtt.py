@@ -420,8 +420,6 @@ class TestRealisticMessageFlow:
 
         mqtt_client.on_print_start = on_start
         mqtt_client.on_print_complete = on_complete
-        # Seed a prior state so the first RUNNING push is treated as a real
-        # state transition rather than a PrintOps-restart catch-up (#1304).
         mqtt_client._previous_gcode_state = "IDLE"
 
         # 1. Print starts with timelapse
@@ -1752,6 +1750,7 @@ class TestRequestTopicFailSafe:
         from backend.app.services.bambu_mqtt import BambuMQTTClient
 
         BambuMQTTClient._request_topic_cache.clear()
+        BambuMQTTClient._request_topic_probe_failures.clear()
 
     @pytest.fixture
     def mqtt_client(self):
@@ -1803,19 +1802,6 @@ class TestRequestTopicFailSafe:
 
         # Not affected — mid doesn't match
         assert mqtt_client._request_topic_supported is True
-
-    def test_disconnect_after_subscription_disables_topic(self, mqtt_client):
-        """Disconnect within 10s of subscription attempt disables request topic."""
-        import time
-
-        mqtt_client._request_topic_sub_time = time.time()
-        mqtt_client._request_topic_confirmed = False
-        mqtt_client._last_message_time = 0.0
-
-        mqtt_client._on_disconnect(None, None)
-
-        assert mqtt_client._request_topic_supported is False
-        assert mqtt_client._request_topic_sub_time == 0.0
 
     def test_disconnect_after_confirmation_does_not_disable(self, mqtt_client):
         """Disconnect after SUBACK confirmation keeps request topic enabled."""
@@ -1871,11 +1857,12 @@ class TestRequestTopicFailSafe:
         )
         assert client1._request_topic_supported is True
 
-        # Simulate disconnect-after-subscribe disabling the topic
-        client1._request_topic_sub_time = __import__("time").time()
+        # Simulate repeated disconnect-after-subscribe disabling the topic.
         client1._request_topic_confirmed = False
         client1._last_message_time = 0.0
-        client1._on_disconnect(None, None)
+        for _ in range(BambuMQTTClient._REQUEST_TOPIC_PROBE_LIMIT):
+            client1._request_topic_sub_time = __import__("time").time()
+            client1._on_disconnect(None, None)
         assert client1._request_topic_supported is False
 
         # New instance for same serial should inherit the cached state
@@ -2011,7 +1998,6 @@ class TestRequestTopicAmsMapping:
         assert mqtt_client._captured_ams_mapping == [4, 8, -1, -1]
 
     def test_print_start_callback_includes_ams_mapping(self, mqtt_client):
-        """on_print_start callback data includes captured ams_mapping."""
         start_data = {}
 
         def on_start(data):
@@ -2019,8 +2005,6 @@ class TestRequestTopicAmsMapping:
 
         mqtt_client.on_print_start = on_start
         mqtt_client._captured_ams_mapping = [0, 4, -1, -1]
-        # Seed a prior state so the first RUNNING push is treated as a real
-        # state transition rather than a PrintOps-restart catch-up (#1304).
         mqtt_client._previous_gcode_state = "IDLE"
 
         # Trigger print start
@@ -2030,11 +2014,13 @@ class TestRequestTopicAmsMapping:
                     "gcode_state": "RUNNING",
                     "gcode_file": "/data/Metadata/test.gcode",
                     "subtask_name": "Test",
+                    "subtask_id": "job-start",
                 }
             }
         )
 
         assert start_data.get("ams_mapping") == [0, 4, -1, -1]
+        assert start_data.get("subtask_id") == "job-start"
 
     def test_print_start_callback_ams_mapping_none_when_not_captured(self, mqtt_client):
         """on_print_start callback has ams_mapping=None when no mapping captured."""
@@ -2054,6 +2040,7 @@ class TestRequestTopicAmsMapping:
                     "gcode_state": "RUNNING",
                     "gcode_file": "/data/Metadata/test.gcode",
                     "subtask_name": "Test",
+                    "subtask_id": "job-complete",
                 }
             }
         )
@@ -2132,11 +2119,13 @@ class TestRequestTopicAmsMapping:
                     "gcode_state": "FINISH",
                     "gcode_file": "/data/Metadata/test.gcode",
                     "subtask_name": "Test",
+                    "subtask_id": "job-complete",
                 }
             }
         )
 
         assert complete_data.get("ams_mapping") == [0, 9, -1, -1]
+        assert complete_data.get("subtask_id") == "job-complete"
 
     def test_captured_mapping_cleared_after_print_complete(self, mqtt_client):
         """_captured_ams_mapping is reset to None after print completion."""

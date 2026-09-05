@@ -239,11 +239,47 @@ def mm_to_grams(
     return volume_cm3 * density_g_cm3
 
 
-def extract_layer_filament_usage_from_3mf(file_path: Path) -> dict[int, dict[int, float]] | None:
+def _layer_gcode_member(names: list[str], plate_id: int | None) -> str | None:
+    """Choose one G-code member without confusing zip order for plate order."""
+    gcode_names = [name for name in names if name.endswith(".gcode")]
+    if not gcode_names:
+        return None
+
+    def _plate_number(name: str) -> int | None:
+        filename = name.rsplit("/", 1)[-1]
+        if not filename.startswith("plate_") or not filename.endswith(".gcode"):
+            return None
+        try:
+            return int(filename[len("plate_") : -len(".gcode")])
+        except ValueError:
+            return None
+
+    numbered = [(number, name) for name in gcode_names if (number := _plate_number(name)) is not None]
+    if plate_id is not None:
+        for number, name in numbered:
+            if number == plate_id:
+                return name
+        # A lone unnumbered member is unambiguous even when the caller has a
+        # queue/archive plate id from a slicer that does not encode it here.
+        if len(gcode_names) == 1 and not numbered:
+            return gcode_names[0]
+        return None
+    if numbered:
+        return min(numbered)[1]
+    return gcode_names[0]
+
+
+def extract_layer_filament_usage_from_3mf(
+    file_path: Path,
+    plate_id: int | None = None,
+) -> dict[int, dict[int, float]] | None:
     """Extract per-layer filament usage from a 3MF file's embedded G-code.
 
     Args:
-        file_path: Path to the 3MF file
+        file_path: Path to the 3MF file.
+        plate_id: Plate to read. A missing requested plate returns ``None`` so
+            callers can use bounded linear scaling instead of another plate's
+            layer data.
 
     Returns:
         Dictionary mapping layers to filament usage, or None if parsing fails.
@@ -252,13 +288,9 @@ def extract_layer_filament_usage_from_3mf(file_path: Path) -> dict[int, dict[int
     try:
         with zipfile.ZipFile(file_path, "r") as zf:
             validate_zip_archive(zf)
-            # Find G-code file(s) - usually plate_1.gcode or Metadata/plate_1.gcode
-            gcode_files = [f for f in zf.namelist() if f.endswith(".gcode")]
-            if not gcode_files:
+            gcode_path = _layer_gcode_member(zf.namelist(), plate_id)
+            if gcode_path is None:
                 return None
-
-            # Use the first G-code file (typically only one per 3MF export)
-            gcode_path = gcode_files[0]
             gcode_content = read_text_member(zf, gcode_path, max_bytes=MAX_GCODE_BYTES, errors="ignore")
 
             return parse_gcode_layer_filament_usage(gcode_content)

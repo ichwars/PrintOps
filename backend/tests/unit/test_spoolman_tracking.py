@@ -243,7 +243,8 @@ class TestStorePrintData:
 
         printer_manager = MagicMock()
         printer_manager.get_status.return_value = SimpleNamespace(
-            raw_data={"ams": [{"id": 0, "tray": [{"id": 0, "tray_type": "PLA"}]}]}
+            raw_data={"ams": [{"id": 0, "tray": [{"id": 0, "tray_type": "PLA"}]}]},
+            tray_now=3,
         )
 
         mock_settings = MagicMock()
@@ -252,12 +253,13 @@ class TestStorePrintData:
         mock_settings.base_dir.__truediv__.return_value = mock_path
 
         extract_mock = MagicMock(return_value=[{"slot_id": 1, "used_g": 190.0, "type": "PETG", "color": "#888888"}])
+        layer_extract_mock = MagicMock(return_value=None)
 
         with (
             patch("backend.app.services.spoolman_tracking.app_settings", mock_settings),
             patch("backend.app.api.routes.settings.get_setting", AsyncMock(side_effect=["true", "true"])),
             patch("backend.app.utils.threemf_tools.extract_filament_usage_from_3mf", extract_mock),
-            patch("backend.app.utils.threemf_tools.extract_layer_filament_usage_from_3mf", return_value=None),
+            patch("backend.app.utils.threemf_tools.extract_layer_filament_usage_from_3mf", layer_extract_mock),
             patch("backend.app.utils.threemf_tools.extract_filament_properties_from_3mf", return_value={}),
         ):
             await store_print_data(
@@ -272,3 +274,5 @@ class TestStorePrintData:
         # plate_id=2 must be passed as the second positional arg
         assert extract_mock.call_count == 1
         assert extract_mock.call_args.args[1] == 2
+        assert layer_extract_mock.call_args.args[1] == 2
+        assert db.add.call_args.args[0].tray_now_at_start == 3

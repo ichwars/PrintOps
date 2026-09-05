@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
+from backend.app.core.active_print_migrations import migrate_active_print_spoolman
 from backend.app.core.config import settings
 from backend.app.core.db_dialect import is_sqlite
 from backend.app.core.number_sequence_migrations import migrate_number_sequence_monthly_reset_policy
@@ -1698,76 +1699,7 @@ async def run_migrations(conn):
     except (OperationalError, ProgrammingError):
         pass  # Already applied
 
-    # Create active_print_spoolman table for Spoolman per-filament tracking.
-    # filament_usage is nullable so the no-3MF branch can still create a row
-    # that carries only tray_remain_start for the remain%-delta fallback
-    # (#1820 — matches internal-inventory Path 2 in usage_tracker).
-    await _safe_execute(
-        conn,
-        """
-        CREATE TABLE IF NOT EXISTS active_print_spoolman (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            printer_id INTEGER NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
-            archive_id INTEGER NOT NULL REFERENCES print_archives(id) ON DELETE CASCADE,
-            filament_usage TEXT,
-            ams_trays TEXT NOT NULL,
-            slot_to_tray TEXT,
-            layer_usage TEXT,
-            filament_properties TEXT,
-            tray_remain_start TEXT,
-            UNIQUE(printer_id, archive_id)
-        )
-        """
-        if is_sqlite()
-        else """
-        CREATE TABLE IF NOT EXISTS active_print_spoolman (
-            id SERIAL PRIMARY KEY,
-            printer_id INTEGER NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
-            archive_id INTEGER NOT NULL REFERENCES print_archives(id) ON DELETE CASCADE,
-            filament_usage TEXT,
-            ams_trays TEXT NOT NULL,
-            slot_to_tray TEXT,
-            layer_usage TEXT,
-            filament_properties TEXT,
-            tray_remain_start TEXT,
-            UNIQUE(printer_id, archive_id)
-        )
-        """,
-    )
-    # Migration for installs that already created active_print_spoolman with
-    # the original schema: add tray_remain_start, and relax filament_usage's
-    # NOT NULL so the no-3MF branch can persist a remain-only tracking row.
-    await _safe_execute(conn, "ALTER TABLE active_print_spoolman ADD COLUMN tray_remain_start TEXT")
-    if is_sqlite():
-        # SQLite can't ALTER COLUMN; patch sqlite_master directly. Mirrors the
-        # users.password_hash NULL-relaxation a few hundred lines below — see
-        # the comment there for the schema_version bump rationale.
-        try:
-            result = await conn.execute(
-                text("SELECT sql FROM sqlite_master WHERE type='table' AND name='active_print_spoolman'")
-            )
-            tbl_sql = result.scalar()
-            if tbl_sql and "filament_usage TEXT NOT NULL" in tbl_sql:
-                version_result = await conn.execute(text("PRAGMA schema_version"))
-                schema_version = version_result.scalar() or 0
-                await conn.execute(text("PRAGMA writable_schema = ON"))
-                await conn.execute(
-                    text(
-                        "UPDATE sqlite_master "
-                        "SET sql = replace(sql, 'filament_usage TEXT NOT NULL', 'filament_usage TEXT') "
-                        "WHERE type='table' AND name='active_print_spoolman'"
-                    )
-                )
-                await conn.execute(text(f"PRAGMA schema_version = {schema_version + 1}"))
-                await conn.execute(text("PRAGMA writable_schema = OFF"))
-        except (OperationalError, ProgrammingError) as exc:
-            logger.warning(
-                "Could not relax active_print_spoolman.filament_usage NOT NULL via writable_schema: %s — "
-                "no-3MF Spoolman fallback will be a no-op on this install",
-                exc,
-            )
-    else:
-        await _safe_execute(conn, "ALTER TABLE active_print_spoolman ALTER COLUMN filament_usage DROP NOT NULL")
+    await migrate_active_print_spoolman(conn, _safe_execute, is_sqlite(), logger)
 
     # Migration: Add preset_source column to slot_preset_mappings for local preset support
     try:

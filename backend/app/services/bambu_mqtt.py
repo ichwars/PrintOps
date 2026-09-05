@@ -28,6 +28,13 @@ from backend.app.services.bambu_kprofiles import (
     publish_cali_write,
 )
 from backend.app.services.hms_actions import HMSAction, get_actions_for_error_code
+from backend.app.services.mqtt_print_provenance import (
+    REQUEST_TOPIC_PROBE_FAILURES,
+    REQUEST_TOPIC_PROBE_LIMIT,
+    clear_request_topic_probe_failure,
+    observe_loaded_tray,
+    request_topic_probe_rejected,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -486,6 +493,8 @@ class BambuMQTTClient:
     # Class-level cache: serial_number -> False when request topic is known unsupported.
     # Persists across client instances so reconnects don't re-trigger failed subscriptions.
     _request_topic_cache: dict[str, bool] = {}
+    _request_topic_probe_failures = REQUEST_TOPIC_PROBE_FAILURES
+    _REQUEST_TOPIC_PROBE_LIMIT = REQUEST_TOPIC_PROBE_LIMIT
     # Counter for generating unique MQTT client IDs across instances.
     _client_instance_counter: int = 0
 
@@ -501,6 +510,7 @@ class BambuMQTTClient:
         on_print_start: Callable[[dict], None] | None = None,
         on_print_complete: Callable[[dict], None] | None = None,
         on_ams_change: Callable[[list], None] | None = None,
+        on_tray_change: Callable[[int, int], None] | None = None,
         on_layer_change: Callable[[int], None] | None = None,
         on_bed_temp_update: Callable[[float], None] | None = None,
         on_drying_complete: Callable[[int], None] | None = None,
@@ -516,6 +526,7 @@ class BambuMQTTClient:
         self.on_print_start = on_print_start
         self.on_print_complete = on_print_complete
         self.on_ams_change = on_ams_change
+        self.on_tray_change = on_tray_change
         self.on_layer_change = on_layer_change
         self.on_bed_temp_update = on_bed_temp_update
         # #1349: fired when an AMS unit's dry_time falls from >0 to 0 — i.e.
@@ -924,6 +935,7 @@ class BambuMQTTClient:
                     )
                     self._request_topic_confirmed = True
                     BambuMQTTClient._request_topic_cache[self.serial_number] = True
+                    clear_request_topic_probe_failure(self.serial_number)
             self._request_topic_sub_mid = None
             self._request_topic_sub_time = 0.0
 
@@ -966,13 +978,11 @@ class BambuMQTTClient:
             self._request_topic_sub_time > 0
             and not self._request_topic_confirmed
             and time.time() - self._request_topic_sub_time < 10.0
+            and self._disconnection_event is None
         ):
-            logger.warning(
-                "[%s] Disconnected shortly after request topic subscription. Disabling request topic for this printer.",
-                self.serial_number,
-            )
-            self._request_topic_supported = False
-            BambuMQTTClient._request_topic_cache[self.serial_number] = False
+            if request_topic_probe_rejected(self.serial_number, logger):
+                self._request_topic_supported = False
+                BambuMQTTClient._request_topic_cache[self.serial_number] = False
         self._request_topic_sub_mid = None
         self._request_topic_sub_time = 0.0
 
@@ -1990,32 +2000,14 @@ class BambuMQTTClient:
                     # Trust the printer's reported value.
                     self.state.tray_now = parsed_tray_now
 
-                # Track last valid tray for usage tracking (survives retract → 255 at print end)
-                # Valid physical trays: 0-15 (regular AMS), 24-27 (A2L AMS Lite),
-                # 128-135 (AMS-HT), 254 (external spool)
-                tn = self.state.tray_now
-                if (
-                    (0 <= tn <= 15)
-                    or (A2L_LITE_GLOBAL_BASE <= tn <= A2L_LITE_GLOBAL_BASE + 3)
-                    or (128 <= tn <= 135)
-                    or tn == 254
-                ):
-                    # Log tray change for mid-print usage splitting. Gate on the
-                    # print-lifecycle flags (`_was_running` set on first RUNNING /
-                    # new print, `_completion_triggered` set when on_print_complete
-                    # fires) instead of `state in ("RUNNING", "PAUSE")` — P2S
-                    # firmware briefly transitions out of RUNNING during AMS
-                    # auto-fallback (#957), so a literal-string gate misses the
-                    # switch and the usage tracker double-credits at completion.
-                    if tn != self.state.last_loaded_tray and self._was_running and not self._completion_triggered:
-                        self.state.tray_change_log.append((tn, self.state.layer_num))
-                        logger.info(
-                            "[%s] Tray change during print: tray=%d at layer=%d",
-                            self.serial_number,
-                            tn,
-                            self.state.layer_num,
-                        )
-                    self.state.last_loaded_tray = self.state.tray_now
+                observe_loaded_tray(
+                    self.state,
+                    self._was_running,
+                    self._completion_triggered,
+                    self.on_tray_change,
+                    self.serial_number,
+                    logger,
+                )
 
                 logger.debug("[%s] tray_now updated: %s", self.serial_number, self.state.tray_now)
 
@@ -3435,11 +3427,10 @@ class BambuMQTTClient:
                 {
                     "filename": current_file,
                     "subtask_name": self.state.subtask_name,
-                    "remaining_time": self.state.remaining_time * 60
-                    if self.state.remaining_time > 0
-                    else None,  # Convert minutes to seconds
+                    "remaining_time": self.state.remaining_time * 60 if self.state.remaining_time > 0 else None,
                     "raw_data": data,
                     "ams_mapping": self._captured_ams_mapping,
+                    "subtask_id": self.state.subtask_id,
                 }
             )
         elif running_first_observed and self.on_print_running_observed:
@@ -3560,6 +3551,7 @@ class BambuMQTTClient:
                     "timelapse_was_active": timelapse_was_active,
                     "hms_errors": hms_errors_data,
                     "ams_mapping": self._captured_ams_mapping,
+                    "subtask_id": self.state.subtask_id,
                     # Last valid progress/layer before firmware reset (for partial usage tracking)
                     "last_progress": self._last_valid_progress,
                     "last_layer_num": self._last_valid_layer_num,

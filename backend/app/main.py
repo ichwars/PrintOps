@@ -85,7 +85,7 @@ from backend.app.core.database import async_session, engine, init_db
 from backend.app.core.tasks import spawn_background_task
 from backend.app.core.websocket import ws_manager
 from backend.app.models.smart_plug import SmartPlug
-from backend.app.services import business_runtime
+from backend.app.services import active_print_provenance as print_provenance, business_runtime
 from backend.app.services.archive import ArchiveService, peek_plate_index_in_3mf, swap_plate_suffix
 from backend.app.services.archive_purge import archive_purge_service
 from backend.app.services.bambu_ftp import (
@@ -1387,7 +1387,9 @@ async def on_ams_change(printer_id: int, ams_data: list):
     # on_print_complete may pop _active_sessions during our awaits (#880).
     from backend.app.services.usage_tracker import _active_sessions
 
-    _print_active = printer_id in _active_sessions
+    _print_active = printer_id in _active_sessions or print_provenance.printer_is_printing(
+        printer_manager.get_status(printer_id)
+    )
 
     # MQTT relay - publish AMS change
     try:
@@ -1448,15 +1450,9 @@ async def on_ams_change(printer_id: int, ams_data: list):
                         continue
                 else:
                     current_tray = _find_tray_in_ams_data(ams_data, assignment.ams_id, assignment.tray_id)
-                if not current_tray:
-                    logger.info(
-                        "Auto-unlink: spool %d AMS%d-T%d — tray not found in AMS data (slot empty?)",
-                        assignment.spool_id,
-                        assignment.ams_id,
-                        assignment.tray_id,
-                    )
-                    stale.append(assignment)  # Slot empty
-                elif _is_bambu_uuid(current_tray.get("tray_uuid", "")):
+                if print_provenance.handle_missing_assignment(current_tray, _print_active, assignment, stale, logger):
+                    continue
+                if _is_bambu_uuid(current_tray.get("tray_uuid", "")):
                     # A Bambu Lab spool is in this slot — check if it's the same spool
                     # that's currently assigned. If yes, keep the assignment (avoids
                     # unnecessary unlink/re-assign/ams_filament_setting cycle that clears
@@ -1558,6 +1554,8 @@ async def on_ams_change(printer_id: int, ams_data: list):
                         continue
 
                     if not _colors_similar(cur_color, fp_color) or cur_type.upper() != fp_type.upper():
+                        if _print_active and not cur_color.strip() and not cur_type.strip():
+                            continue
                         # Fingerprint mismatch — but check if tray now matches the
                         # assigned spool (e.g. auto-configure changed the tray).
                         spool = assignment.spool
@@ -1954,7 +1952,8 @@ async def on_ams_change(printer_id: int, ams_data: list):
                         # Empty tray slot — record for local assignment cleanup
                         # and drop any cached unknown-tag broadcast so a
                         # reinserted spool re-prompts.
-                        empty_slots.append((ams_id, tray_id_raw))
+                        if not _print_active:
+                            empty_slots.append((ams_id, tray_id_raw))
                         _clear_unknown_tag_dedup(printer_id, ams_id, tray_id_raw)
                         continue
 
@@ -2280,16 +2279,12 @@ async def on_print_start(printer_id: int, data: dict):
     except Exception:
         pass  # Don't fail print start callback if MQTT fails
 
-    # Capture AMS tray remain% for filament consumption tracking (skip if Spoolman handles usage)
+    # Capture attribution evidence for both inventory modes. Spoolman keeps
+    # stock ownership, while the shared persisted row carries restart-stable
+    # tray transitions.
     try:
         async with async_session() as db:
-            from backend.app.api.routes.settings import get_setting
-
-            _spoolman_on = await get_setting(db, "spoolman_enabled")
-            if not _spoolman_on or _spoolman_on.lower() != "true":
-                from backend.app.services.usage_tracker import on_print_start as usage_on_print_start
-
-                await usage_on_print_start(printer_id, data, printer_manager, db=db)
+            await print_provenance.capture_print_start(printer_id, data, printer_manager, db)
     except Exception as e:
         logger.warning("Usage tracker on_print_start failed: %s", e)
 
@@ -2602,22 +2597,10 @@ async def on_print_start(printer_id: int, data: dict):
                 # the MQTT request topic subscription failed (common on P1S/A1).
                 _stored_map = _print_ams_mappings.get(expected_archive_id)
                 _stored_plate_id = _print_plate_ids.get(expected_archive_id)
-                if _stored_map or _stored_plate_id is not None:
-                    try:
-                        from backend.app.services.usage_tracker import _active_sessions
-
-                        _ut_session = _active_sessions.get(printer_id)
-                        if _ut_session and _stored_map and not _ut_session.ams_mapping:
-                            _ut_session.ams_mapping = _stored_map
-                            logger.info("[CALLBACK] Injected ams_mapping into usage tracker session: %s", _stored_map)
-                        # plate_id injection covers direct-Print of plate N of a multi-plate
-                        # 3MF — queue prints already capture it via the on_print_start queue
-                        # lookup, but direct-Print never goes through the queue (#1697).
-                        if _ut_session and _stored_plate_id is not None and _ut_session.plate_id is None:
-                            _ut_session.plate_id = _stored_plate_id
-                            logger.info("[CALLBACK] Injected plate_id into usage tracker session: %s", _stored_plate_id)
-                    except Exception:
-                        pass
+                if _stored_map or _stored_plate_id is not None or effective_subtask_id:
+                    await print_provenance.enrich_print_session(
+                        printer_id, _stored_map, _stored_plate_id, effective_subtask_id, db, logger
+                    )
 
                 # Set up energy tracking (#941: persist start on archive row)
                 await _record_energy_start(archive, printer_id, db, context="expected-print")
@@ -3675,6 +3658,8 @@ async def on_print_running_observed(printer_id: int, data: dict):
     async with async_session() as db:
         from backend.app.models.printer import Printer
 
+        await print_provenance.restore_from_manager(printer_id, printer_manager, db, logger)
+
         result = await db.execute(select(Printer).where(Printer.id == printer_id))
         printer = result.scalar_one_or_none()
         if not printer:
@@ -3964,6 +3949,7 @@ async def on_print_complete(printer_id: int, data: dict):
     import time
 
     logger = logging.getLogger(__name__)
+    completion_session = await print_provenance.claim_print_session(printer_id, data, logger)
     start_time = time.time()
 
     def log_timing(section: str):
@@ -3972,9 +3958,7 @@ async def on_print_complete(printer_id: int, data: dict):
 
     logger.info("[CALLBACK] on_print_complete started for printer %s", printer_id)
 
-    # Drop the 3MF download cache for this printer (#972). The print is over,
-    # nothing else legitimately needs the bytes; keeping them would only risk
-    # handing a stale file to the next print if it reuses the same name.
+    # Drop the completed print's 3MF bytes before a same-name next print can reuse them (#972).
     clear_3mf_cache(printer_id)
 
     try:
@@ -4366,8 +4350,7 @@ async def on_print_complete(printer_id: int, data: dict):
         except Exception as e:
             logger.warning("[BED-COOL] Failed to register waiter: %s", e)
 
-    # --- Track filament consumption (must run before archive_id early-return so usage
-    # is recorded even when auto-archive is disabled) ---
+    # Track filament consumption before archive_id early-return, including auto-archive-off prints.
     usage_results: list[dict] = []
     # Prefer ams_mapping captured from MQTT request topic (works for all print sources)
     stored_ams_mapping = data.get("ams_mapping")
@@ -4402,6 +4385,8 @@ async def on_print_complete(printer_id: int, data: dict):
                     db,
                     archive_id=archive_id,
                     ams_mapping=stored_ams_mapping,
+                    claimed_session=completion_session,
+                    session_claimed=True,
                 )
                 if usage_results:
                     await ws_manager.broadcast(
@@ -4416,7 +4401,7 @@ async def on_print_complete(printer_id: int, data: dict):
     except Exception as e:
         logger.warning("Usage tracker on_print_complete failed: %s", e)
 
-    # Spoolman: report filament usage (requires archive_id for tracking data lookup)
+    await print_provenance.discard_print_session(printer_id, completion_session, logger)
     if archive_id:
         if data.get("status") == "completed":
             try:
@@ -6053,7 +6038,6 @@ async def lifespan(app: FastAPI):
     # Restore debug logging state from previous session
     await init_debug_logging()
 
-    # Set up printer manager callbacks
     loop = asyncio.get_event_loop()
     printer_manager.set_event_loop(loop)
     printer_manager.set_status_change_callback(on_printer_status_change)
@@ -6063,6 +6047,7 @@ async def lifespan(app: FastAPI):
     printer_manager.set_finish_photo_moment_callback(on_finish_photo_moment)
     printer_manager.set_ams_change_callback(on_ams_change)
 
+    printer_manager.set_tray_change_callback(print_provenance.persist_tray_change)
     # Rehydrate persisted awaiting-plate-clear gate (#961) so prompts survive restarts
     await printer_manager.load_awaiting_plate_clear_from_db()
 

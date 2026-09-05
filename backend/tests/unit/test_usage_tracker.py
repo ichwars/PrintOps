@@ -88,8 +88,10 @@ def _mock_db_sequential(responses):
         result = MagicMock()
         if idx < len(responses):
             result.scalar_one_or_none.return_value = responses[idx]
+            result.scalars.return_value.first.return_value = responses[idx]
         else:
             result.scalar_one_or_none.return_value = None
+            result.scalars.return_value.first.return_value = None
         # For cost aggregation queries that use .scalar() instead of .scalar_one_or_none()
         result.scalar.return_value = None
         return result
@@ -505,6 +507,7 @@ class TestTrackFrom3mf:
         layer_data = {10: {0: 2000.0}, 25: {0: 5000.0}, 50: {0: 10000.0}}
         filament_props = {1: {"density": 1.24, "diameter": 1.75}}
         handled_trays: set[tuple[int, int]] = set()
+        layer_extract_mock = MagicMock(return_value=layer_data)
 
         with (
             patch("backend.app.core.config.settings") as mock_settings,
@@ -514,7 +517,7 @@ class TestTrackFrom3mf:
             ),
             patch(
                 "backend.app.utils.threemf_tools.extract_layer_filament_usage_from_3mf",
-                return_value=layer_data,
+                layer_extract_mock,
             ),
             patch(
                 "backend.app.utils.threemf_tools.get_cumulative_usage_at_layer",
@@ -542,11 +545,13 @@ class TestTrackFrom3mf:
                 handled_trays=handled_trays,
                 printer_manager=printer_manager,
                 db=db,
+                plate_id=2,
             )
 
         assert len(results) == 1
         # Should use per-layer grams (12.0g), not linear scale (10.0g)
         assert results[0]["weight_used"] == 12.0
+        assert layer_extract_mock.call_args.args[1] == 2
 
     @pytest.mark.asyncio
     async def test_completed_print_uses_full_weight(self):
@@ -1767,11 +1772,12 @@ class TestMqttMappingIntegration:
         assign_red = _make_assignment(spool_id=3, ams_id=128, tray_id=0)
         archive = _make_archive(archive_id=12)
 
-        # db: archive, then 3 pairs of (assignment, spool)
-        # No queue lookup because MQTT mapping is found first
+        # db: archive, no queue item, then 3 pairs of (assignment, spool).
+        # Stable queue evidence is checked before the mutable MQTT mapping.
         db = _mock_db_sequential(
             [
                 archive,
+                None,
                 assign_white,
                 spool_white,
                 assign_black,
@@ -2471,3 +2477,54 @@ class TestTrackFrom3mfPlateId:
             )
 
         assert extract_mock.call_args.args[1] is None
+
+
+class TestIssue128MappingPriority:
+    """The dispatched queue mapping outranks mutable completion telemetry."""
+
+    @pytest.mark.asyncio
+    async def test_queue_mapping_beats_backup_rewritten_mqtt_mapping(self):
+        archive = _make_archive(archive_id=312)
+        archive.plate_id = 1
+        queue_item = MagicMock()
+        queue_item.ams_mapping = "[2]"
+        queue_item.plate_id = 1
+        queue_item.id = 629
+        assignment = _make_assignment(spool_id=69, ams_id=0, tray_id=2)
+        spool = _make_spool(spool_id=69)
+        db = _mock_db_sequential([archive, queue_item, assignment, spool])
+        printer_manager = MagicMock()
+        printer_manager.get_status.return_value = SimpleNamespace(
+            raw_data={"mapping": [3]},
+            progress=100,
+            layer_num=809,
+            tray_now=255,
+            last_loaded_tray=3,
+            tray_change_log=[],
+            total_layers=809,
+        )
+
+        with (
+            patch("backend.app.core.config.settings") as mock_settings,
+            patch(
+                "backend.app.utils.threemf_tools.extract_filament_usage_from_3mf",
+                return_value=[{"slot_id": 1, "used_g": 12.0, "type": "ABS", "color": "#808080"}],
+            ),
+        ):
+            mock_path = MagicMock()
+            mock_path.exists.return_value = True
+            mock_settings.base_dir.__truediv__ = MagicMock(return_value=mock_path)
+            results = await _track_from_3mf(
+                printer_id=1,
+                archive_id=312,
+                status="completed",
+                print_name="backup-test",
+                handled_trays=set(),
+                printer_manager=printer_manager,
+                db=db,
+                plate_id=1,
+            )
+
+        assert len(results) == 1
+        assert results[0]["spool_id"] == 69
+        assert (results[0]["ams_id"], results[0]["tray_id"]) == (0, 2)
