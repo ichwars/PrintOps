@@ -8,7 +8,6 @@ Supports accurate partial usage reporting for failed/cancelled prints.
 import json
 import logging
 from decimal import ROUND_HALF_UP, Decimal
-from math import isfinite
 
 from sqlalchemy import delete, func, select
 
@@ -20,6 +19,11 @@ from backend.app.services.spoolman import (
     SpoolmanUnavailableError,
     get_spoolman_client,
     init_spoolman_client,
+)
+from backend.app.services.spoolman_costs import (
+    mark_spoolman_actual_cost,
+    positive_finite_number,
+    spoolman_usage_cost as _spoolman_usage_cost,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,24 +48,10 @@ def _is_non_zero_identifier(value: str) -> bool:
     return set(value) != {"0"}
 
 
-def _spoolman_usage_cost(spool: dict | None, grams_used: float) -> float | None:
-    """Return the local archive cost for a successful Spoolman use_spool call."""
-    if not spool or grams_used <= 0:
-        return None
-    try:
-        cost_per_kg = float(spool.get("price"))
-    except (TypeError, ValueError):
-        return None
-    if not isfinite(cost_per_kg) or cost_per_kg <= 0:
-        return None
-    cost = (Decimal(str(grams_used)) / Decimal("1000")) * Decimal(str(cost_per_kg))
-    return float(cost.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-
-
-async def _apply_spoolman_costs_to_archive(db, archive_id: int, usage_costs: list[_SpoolmanUsageCost]) -> None:
+async def _apply_spoolman_costs_to_archive(db, archive_id: int, usage_costs: list[_SpoolmanUsageCost]) -> float | None:
     """Set PrintArchive.cost from Spoolman-priced usage reported for this print."""
     if not usage_costs:
-        return
+        return None
 
     from backend.app.api.routes.settings import get_setting
     from backend.app.models.archive import PrintArchive
@@ -69,8 +59,34 @@ async def _apply_spoolman_costs_to_archive(db, archive_id: int, usage_costs: lis
 
     archive = (await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))).scalar_one_or_none()
     if archive is None:
-        return
+        return None
 
+    valid_usage = []
+    for grams, cost in usage_costs:
+        valid_grams = positive_finite_number(grams)
+        valid_cost = positive_finite_number(cost)
+        if valid_grams is not None and valid_cost is not None:
+            valid_usage.append((valid_grams, valid_cost))
+    if not valid_usage:
+        return None
+
+    total_cost = sum(cost for _, cost in valid_usage)
+    tracked_grams = sum(grams for grams, _ in valid_usage)
+    archive_grams = positive_finite_number(archive.filament_used_grams) or 0.0
+    untracked_grams = max(0.0, archive_grams - tracked_grams)
+    if untracked_grams > 0:
+        default_cost_setting = await get_setting(db, "default_filament_cost")
+        default_cost_per_kg = (
+            25.0 if default_cost_setting in (None, "") else positive_finite_number(default_cost_setting) or 0.0
+        )
+        if default_cost_per_kg > 0:
+            total_cost += (untracked_grams / 1000.0) * default_cost_per_kg
+
+    finite_total = positive_finite_number(total_cost)
+    if finite_total is None:
+        return None
+    total = Decimal(str(finite_total)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    run_cost = float(total)
     existing_runs_result = await db.execute(
         select(func.count(PrintLogEntry.id)).where(PrintLogEntry.archive_id == archive_id)
     )
@@ -79,26 +95,16 @@ async def _apply_spoolman_costs_to_archive(db, archive_id: int, usage_costs: lis
         logger.debug(
             "[SPOOLMAN] Leaving archive %s first-run cost unchanged; %d run(s) already exist", archive_id, existing_runs
         )
-        return
+        return run_cost
 
-    total_cost = sum(cost for _, cost in usage_costs)
-    tracked_grams = sum(grams for grams, _ in usage_costs)
-    archive_grams = float(archive.filament_used_grams or 0)
-    untracked_grams = max(0.0, archive_grams - tracked_grams)
-    if untracked_grams > 0:
-        default_cost_setting = await get_setting(db, "default_filament_cost")
-        try:
-            default_cost_per_kg = float(default_cost_setting) if default_cost_setting else 25.0
-        except (TypeError, ValueError):
-            default_cost_per_kg = 25.0
-        if default_cost_per_kg > 0:
-            total_cost += (untracked_grams / 1000.0) * default_cost_per_kg
-
-    total = Decimal(str(total_cost)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    if float(total) != archive.cost:
+    source_changed = mark_spoolman_actual_cost(archive)
+    cost_changed = run_cost != archive.cost
+    if cost_changed:
         logger.info("[SPOOLMAN] Archive %s cost %r -> %s (from Spoolman spool prices)", archive_id, archive.cost, total)
-        archive.cost = float(total)
+        archive.cost = run_cost
+    if cost_changed or source_changed:
         await db.commit()
+    return run_cost
 
 
 def _to_fixed_hex(value: int, width: int) -> str:
@@ -1265,7 +1271,7 @@ async def report_usage(printer_id: int, archive_id: int):
                 )
         else:
             await _apply_spool_colors_to_archive(db, archive_id, filament_usage, slot_colors)
-        await _apply_spoolman_costs_to_archive(db, archive_id, usage_costs)
+        return await _apply_spoolman_costs_to_archive(db, archive_id, usage_costs)
 
 
 def _print_used_tray_keys(

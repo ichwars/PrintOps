@@ -123,6 +123,7 @@ from backend.app.services.spool_assignment_notifications import (
     notify_missing_spool_assignments_on_print_start,
 )
 from backend.app.services.spoolman import close_spoolman_client, get_spoolman_client, init_spoolman_client
+from backend.app.services.spoolman_costs import resolve_print_log_cost
 from backend.app.services.spoolman_tracking import (
     cleanup_tracking as _cleanup_spoolman_tracking,
     report_usage as _report_spoolman_usage,
@@ -4350,8 +4351,8 @@ async def on_print_complete(printer_id: int, data: dict):
         except Exception as e:
             logger.warning("[BED-COOL] Failed to register waiter: %s", e)
 
-    # Track filament consumption before archive_id early-return, including auto-archive-off prints.
     usage_results: list[dict] = []
+    spoolman_run_cost: float | None = None
     # Prefer ams_mapping captured from MQTT request topic (works for all print sources)
     stored_ams_mapping = data.get("ams_mapping")
     # Fallback to _print_ams_mappings for queue/reprint (set before print starts)
@@ -4405,7 +4406,7 @@ async def on_print_complete(printer_id: int, data: dict):
     if archive_id:
         if data.get("status") == "completed":
             try:
-                await _report_spoolman_usage(printer_id, archive_id)
+                spoolman_run_cost = await _report_spoolman_usage(printer_id, archive_id)
                 log_timing("Spoolman usage report")
             except Exception as e:
                 logger.warning("Spoolman usage reporting failed: %s", e)
@@ -4605,11 +4606,7 @@ async def on_print_complete(printer_id: int, data: dict):
                 # we deliberately skip the topup-to-estimate logic in
                 # usage_tracker (which assumes the print completed); the raw
                 # tracked-spool sum is closer to what THIS run actually cost.
-                _run_cost: float | None = None
-                if usage_results:
-                    _run_cost = sum(r.get("cost") or 0 for r in usage_results) or None
-                if _run_cost is None and _run_status == "completed":
-                    _run_cost = archive.cost
+                _run_cost = resolve_print_log_cost(spoolman_run_cost, usage_results, _run_status, archive.cost)
 
                 await write_log_entry(
                     db,
