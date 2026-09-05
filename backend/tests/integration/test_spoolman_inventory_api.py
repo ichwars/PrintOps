@@ -886,6 +886,47 @@ class TestSpoolmanInventoryCostPerKg:
         assert resp.status_code == 200
         mock_spoolman_client.update_spool_full.assert_not_called()
 
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_create_converts_cost_per_kg_to_nonstandard_spool_price(
+        self, async_client: AsyncClient, spoolman_settings, mock_spoolman_client
+    ):
+        half_kg_spool = {
+            **SAMPLE_SPOOLMAN_SPOOL,
+            "filament": {**SAMPLE_SPOOLMAN_SPOOL["filament"], "weight": 500},
+        }
+        mock_spoolman_client.create_spool.return_value = half_kg_spool
+        mock_spoolman_client.update_spool_full.return_value = half_kg_spool
+
+        resp = await async_client.post(
+            "/api/v1/spoolman/inventory/spools",
+            json={"material": "PLA", "label_weight": 500, "cost_per_kg": 20.0},
+        )
+
+        assert resp.status_code == 200
+        assert mock_spoolman_client.update_spool_full.call_args.kwargs["price"] == pytest.approx(10.0)
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_update_converts_cost_per_kg_to_nonstandard_spool_price(
+        self, async_client: AsyncClient, spoolman_settings, mock_spoolman_client
+    ):
+        half_kg_spool = {
+            **SAMPLE_SPOOLMAN_SPOOL,
+            "filament": {**SAMPLE_SPOOLMAN_SPOOL["filament"], "weight": 500},
+            "remaining_weight": 400.0,
+        }
+        mock_spoolman_client.get_spool.return_value = half_kg_spool
+        mock_spoolman_client.update_spool_full.return_value = half_kg_spool
+
+        resp = await async_client.patch(
+            "/api/v1/spoolman/inventory/spools/42",
+            json={"cost_per_kg": 20.0},
+        )
+
+        assert resp.status_code == 200
+        assert mock_spoolman_client.update_spool_full.call_args.kwargs["price"] == pytest.approx(10.0)
+
 
 class TestSpoolmanInventoryInputValidation:
     """Tests for input validation added as security hardening."""

@@ -183,6 +183,15 @@ class TestMapSpoolmanSpool:
         result = _map_spoolman_spool(spool)
         assert result["cost_per_kg"] == pytest.approx(9.99)
 
+    def test_full_spool_price_is_exposed_as_cost_per_kg(self):
+        spool = {
+            **MINIMAL_SPOOL,
+            "price": 10.0,
+            "filament": {**MINIMAL_SPOOL["filament"], "weight": 500.0},
+        }
+        result = _map_spoolman_spool(spool)
+        assert result["cost_per_kg"] == pytest.approx(20.0)
+
     def test_none_price_stays_none(self):
         spool = {**MINIMAL_SPOOL, "price": None}
         result = _map_spoolman_spool(spool)

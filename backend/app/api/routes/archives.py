@@ -41,6 +41,7 @@ from backend.app.services.slice_formats import (
     is_server_sliceable_filename,
     unsliceable_detail,
 )
+from backend.app.services.spoolman_costs import has_spoolman_actual_cost
 from backend.app.utils.archive_budget import MAX_TIMELAPSE_UPLOAD_BYTES, ArchiveBudgetError, read_upload_limited
 from backend.app.utils.http import build_content_disposition
 from backend.app.utils.safe_path import safe_join_under
@@ -1893,8 +1894,7 @@ async def rescan_archive(
     # When spool-based costs exist but don't cover every filament gram used
     # (#1344), fall back to the global default rate for the untracked weight
     # so the displayed cost still reflects the whole print.
-
-    if archive.filament_used_grams and archive.filament_type:
+    if archive.filament_used_grams and archive.filament_type and not has_spoolman_actual_cost(archive):
         default_cost_setting = await get_setting(db, "default_filament_cost")
         default_cost_per_kg = float(default_cost_setting) if default_cost_setting else 25.0
         usage_result = await db.execute(
@@ -1954,9 +1954,7 @@ async def recalculate_all_costs(
     default_cost_setting = await get_setting(db, "default_filament_cost")
     default_cost_per_kg = float(default_cost_setting) if default_cost_setting else 25.0
 
-    # Pre-fetch all usage costs and tracked weight by archive_id.
-    # Tracked weight is used to top-up the cost at the default rate for any
-    # filament grams not covered by an inventory spool (#1344).
+    # Pre-fetch cost and weight so untracked grams can use the default rate (#1344).
     usage_costs_result = await db.execute(
         select(
             SpoolUsageHistory.archive_id,
@@ -1973,6 +1971,8 @@ async def recalculate_all_costs(
 
     updated = 0
     for archive in archives:
+        if has_spoolman_actual_cost(archive):
+            continue
         usage = cost_map.get(archive.id)
         if usage is not None:
             usage_cost, tracked_grams = usage

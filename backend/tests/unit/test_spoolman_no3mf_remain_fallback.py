@@ -318,8 +318,9 @@ class TestReportUsageRemainDelta:
             ),
             patch("backend.app.services.printer_manager.printer_manager", printer_manager),
         ):
-            await report_usage(printer_id=1, archive_id=42)
+            run_cost = await report_usage(printer_id=1, archive_id=42)
 
+        assert run_cost == pytest.approx(8.0)
         assert archive.cost == 8.0
         assert db.commit.await_count == 2
 
@@ -374,9 +375,10 @@ class TestReportUsageRemainDelta:
             ),
             patch("backend.app.services.printer_manager.printer_manager", printer_manager),
         ):
-            await report_usage(printer_id=1, archive_id=42)
+            run_cost = await report_usage(printer_id=1, archive_id=42)
 
         client.use_spool.assert_awaited_once_with(7, 200.0)
+        assert run_cost == pytest.approx(8.0)
         assert archive.cost == 12.5
         assert db.commit.await_count == 1
 

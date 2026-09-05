@@ -14,6 +14,7 @@ from typing import Any
 from typing_extensions import TypedDict
 
 from backend.app.api.routes._url_safety import assert_safe_lan_service_url
+from backend.app.services.spoolman_costs import cost_per_kg_from_spoolman_full_price
 
 logger = logging.getLogger(__name__)
 
@@ -305,7 +306,7 @@ def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
         "created_at": created_at,
         # Spoolman has no updated_at field; use registered timestamp as best available proxy
         "updated_at": created_at,
-        "cost_per_kg": _safe_optional_float(spool.get("price")),
+        "cost_per_kg": cost_per_kg_from_spoolman_full_price(spool.get("price"), filament.get("weight")),
         "storage_location": spool.get("location") or None,
         "location_id": None,
         "k_profiles": [],

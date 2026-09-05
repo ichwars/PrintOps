@@ -68,6 +68,7 @@ from backend.app.services.spoolman import (
     get_spoolman_client,
     init_spoolman_client,
 )
+from backend.app.services.spoolman_costs import spoolman_full_price_from_cost_per_kg
 from backend.app.services.spoolman_tracking import get_fallback_spool_tag_for_slot
 from backend.app.utils.filament_ids import (
     GENERIC_FILAMENT_IDS,
@@ -258,7 +259,12 @@ def _raise_if_partial_failure(spools: list[dict], results: list, operation: str)
         )
 
 
-async def _apply_price_if_set(client: SpoolmanClient, spool: dict, cost_per_kg: float | None) -> tuple[dict, list[str]]:
+async def _apply_price_if_set(
+    client: SpoolmanClient,
+    spool: dict,
+    cost_per_kg: float | None,
+    filament_weight: float,
+) -> tuple[dict, list[str]]:
     """Patch the spool price; return (updated_spool, warnings).
 
     Returns the original spool and a non-empty warnings list when the price
@@ -267,9 +273,10 @@ async def _apply_price_if_set(client: SpoolmanClient, spool: dict, cost_per_kg: 
     """
     if cost_per_kg is None:
         return spool, []
+    spool_price = spoolman_full_price_from_cost_per_kg(cost_per_kg, filament_weight)
     try:
         async with _translate_spoolman_errors():
-            updated = await client.update_spool_full(spool["id"], price=cost_per_kg)
+            updated = await client.update_spool_full(spool["id"], price=spool_price)
         return updated, []
     except HTTPException as exc:
         if exc.status_code >= 500:
@@ -565,7 +572,7 @@ async def create_spool(
             ) from exc
         raise
 
-    spool, price_warnings = await _apply_price_if_set(client, spool, data.cost_per_kg)
+    spool, price_warnings = await _apply_price_if_set(client, spool, data.cost_per_kg, data.label_weight)
 
     # Persist slicer_filament AND color_name under the spool's extra dict
     # (mirror update_spool). Spoolman has no `color_name` field on filament
@@ -651,7 +658,7 @@ async def bulk_create_spools(
             failures.append("spool creation failed")
             continue
         try:
-            spool, price_warnings = await _apply_price_if_set(client, spool, data.cost_per_kg)
+            spool, price_warnings = await _apply_price_if_set(client, spool, data.cost_per_kg, data.label_weight)
         except HTTPException as exc:
             logger.warning(
                 "Bulk spool %d: price update failed (HTTP %d); spool not added to created list",
@@ -847,7 +854,7 @@ async def update_spool(
                 filament_id=filament_id,
                 remaining_weight=remaining,
                 comment=note or "",
-                price=data.cost_per_kg,
+                price=spoolman_full_price_from_cost_per_kg(data.cost_per_kg, label_weight),
                 extra=extra,
                 location=storage_location or None,
                 clear_location=storage_location_changed and not storage_location,
