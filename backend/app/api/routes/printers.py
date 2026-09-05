@@ -546,6 +546,13 @@ async def get_printer_cover(
             # Metadata/plate_N.gcode for the active plate, even though
             # thumbnails for all plates are bundled. Using that gcode's plate
             # number prevents falling back to plate_1.png.
+            try:
+                from backend.app.services.fallback_archive_recovery import try_recover_fallback_archive
+
+                await try_recover_fallback_archive(db, printer_id, temp_filename, temp_path)
+            except Exception as recovery_error:
+                logger.warning("Cover-triggered fallback recovery failed: %s", recovery_error)
+
             if plate_num is None:
                 plate_gcodes = [name for name in zf.namelist() if re.match(r"^Metadata/plate_\d+\.gcode$", name)]
                 if len(plate_gcodes) == 1:

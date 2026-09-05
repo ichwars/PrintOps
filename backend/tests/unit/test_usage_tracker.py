@@ -2217,7 +2217,8 @@ class TestFindThreemfByFilename:
         candidate.suffix = ".3mf"
         base_dir.__truediv__ = MagicMock(return_value=candidate)
 
-        result = await _find_3mf_by_filename(1, "BMCU-BADGE.3mf", db, base_dir)
+        with patch("backend.app.services.threemf_identity.candidate_3mf_conflict", return_value=None):
+            result = await _find_3mf_by_filename(1, "BMCU-BADGE.3mf", db, base_dir)
 
         assert result == candidate
 
@@ -2258,7 +2259,8 @@ class TestFindThreemfByFilename:
         candidate.suffix = ".3mf"
         base_dir.__truediv__ = MagicMock(return_value=candidate)
 
-        result = await _find_3mf_by_filename(1, "BMCU-BADGE.3mf", db, base_dir)
+        with patch("backend.app.services.threemf_identity.candidate_3mf_conflict", return_value=None):
+            result = await _find_3mf_by_filename(1, "BMCU-BADGE.3mf", db, base_dir)
 
         assert result == candidate
         assert db.execute.call_count == 2

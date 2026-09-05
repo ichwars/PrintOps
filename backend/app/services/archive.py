@@ -105,6 +105,30 @@ def peek_plate_index_in_3mf(file_path: Path) -> int | None:
         return None
 
 
+def plate_indexes_in_3mf(file_path: Path) -> list[int | None]:
+    """Return every plate index advertised by a candidate 3MF.
+
+    ``slice_info.config`` is authoritative when present.  Older/simpler files
+    may only expose ``Metadata/plate_N.gcode`` entries, so those names provide
+    a conservative fallback.  Callers use the complete set to reject a donor
+    that positively belongs to another plate; unknown metadata stays unknown.
+    """
+    try:
+        with zipfile.ZipFile(file_path, "r") as zf:
+            names = zf.namelist()
+            if "Metadata/slice_info.config" in names:
+                root = ET.fromstring(zf.read("Metadata/slice_info.config"))
+                plates = root.findall(".//plate")
+                if plates:
+                    return [_read_plate_index(plate) for plate in plates]
+            indexes = {
+                int(match.group(1)) for name in names if (match := re.fullmatch(r"Metadata/plate_(\d+)\.gcode", name))
+            }
+            return sorted(indexes)
+    except Exception:
+        return []
+
+
 _PLATE_SUFFIX_RE = re.compile(r"^(.*?)(\s*-\s*Plate\s+|_plate_)(\d+)$", re.IGNORECASE)
 
 
@@ -1122,6 +1146,7 @@ class ArchiveService:
         project_id: int | None = None,
         subtask_id: str | None = None,
         prefer_filename_for_name: bool = False,
+        update_archive_id: int | None = None,
     ) -> PrintArchive | None:
         """Archive a 3MF file with metadata.
 
@@ -1142,6 +1167,9 @@ class ArchiveService:
                 metadata. Used by virtual-printer flows so users who rename a job in
                 BambuStudio's "send to printer" dialog see that name instead of the
                 creator-baked title (#1152).
+            update_archive_id: Complete an existing file-less fallback archive
+                instead of creating a second row. Existing print history and
+                user/business fields are preserved.
         """
         # Verify printer exists if specified
         if printer_id is not None:
@@ -1150,21 +1178,54 @@ class ArchiveService:
             if not printer:
                 return None
 
+        recovery_archive = None
+        if update_archive_id is not None:
+            result = await self.db.execute(
+                select(PrintArchive).where(
+                    PrintArchive.id == update_archive_id,
+                    PrintArchive.deleted_at.is_(None),
+                )
+            )
+            recovery_archive = result.scalar_one_or_none()
+            if (
+                recovery_archive is None
+                or recovery_archive.printer_id != printer_id
+                or (recovery_archive.file_path or "").strip()
+            ):
+                logger.warning("Refusing incompatible fallback recovery for archive %s", update_archive_id)
+                return None
+
         # Create archive directory structure
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         display_stem = resolve_display_stem(original_filename if original_filename else source_file.name)
         archive_name = f"{timestamp}_{display_stem}"
         # Use "unassigned" folder for archives without a printer
         printer_folder = str(printer_id) if printer_id is not None else "unassigned"
-        archive_dir = (
-            settings.archive_dir / printer_folder / archive_name
-        )  # SEC-PATH-OK: printer_folder = str(int|None) → digits or "unassigned"; archive_name = f"{timestamp}_{display_stem}" where resolve_display_stem strips path components via Path(filename).name
+        if recovery_archive is not None:
+            from backend.app.utils.archive_paths import archive_dir as resolve_archive_dir
+
+            archive_dir = resolve_archive_dir(
+                recovery_archive,
+                base_dir=settings.base_dir,
+                archive_root=settings.archive_dir,
+            )
+        else:
+            archive_dir = settings.archive_dir / printer_folder / archive_name
+        # SEC-PATH-OK: fallback namespace / recovery id / printer folder are fixed or numeric;
+        # display stem drops path components.
         archive_dir.mkdir(parents=True, exist_ok=True)
 
         # Copy 3MF file with an explicit fsync'd loop (avoids a sendfile
         # short-read quirk that silently truncated 3MF archives on some
         # platforms — see _copy_and_fsync and #1032).
-        dest_file = archive_dir / source_file.name
+        dest_name = (
+            Path(original_filename).name if recovery_archive is not None and original_filename else source_file.name
+        )
+        try:
+            dest_file = safe_join_under(archive_dir, dest_name, http=False)
+        except PathTraversalError:
+            logger.warning("Refusing unsafe archive filename %r", dest_name)
+            return None
         _copy_and_fsync(source_file, dest_file)
 
         # If we just archived a 3MF, verify the dest is a valid ZIP before
@@ -1262,6 +1323,42 @@ class ArchiveService:
         if printable_objects and isinstance(printable_objects, dict):
             quantity = len(printable_objects)
             logger.debug("Auto-detected %s parts from 3MF printable objects", quantity)
+
+        if recovery_archive is not None:
+            existing_extra = dict(recovery_archive.extra_data or {})
+            merged_extra = dict(metadata)
+            merged_extra.update(existing_extra)
+            merged_extra.pop("no_3mf_available", None)
+            merged_extra.pop("no_3mf_reason", None)
+            merged_extra["recovered_no_3mf"] = True
+
+            recovery_archive.filename = original_filename or source_file.name
+            recovery_archive.file_path = str(dest_file.relative_to(settings.base_dir))
+            recovery_archive.file_size = dest_file.stat().st_size
+            recovery_archive.content_hash = content_hash
+            if thumbnail_path:
+                recovery_archive.thumbnail_path = thumbnail_path
+            for field in (
+                "print_time_seconds",
+                "filament_used_grams",
+                "filament_type",
+                "filament_color",
+                "layer_height",
+                "total_layers",
+                "nozzle_diameter",
+                "bed_temperature",
+                "bed_type",
+                "nozzle_temperature",
+                "sliced_for_model",
+                "makerworld_url",
+                "designer",
+            ):
+                if getattr(recovery_archive, field) is None and metadata.get(field) is not None:
+                    setattr(recovery_archive, field, metadata[field])
+            recovery_archive.extra_data = merged_extra
+            await self.db.commit()
+            await self.db.refresh(recovery_archive)
+            return recovery_archive
 
         # Create archive record
         archive = PrintArchive(
@@ -1426,18 +1523,15 @@ class ArchiveService:
         rules. Returns ``None`` when nothing should be removed from disk
         (no file_path, path outside archive_dir, or path not deep enough).
         """
-        if not archive.file_path or not archive.file_path.strip():
-            logger.error(
-                f"SECURITY: Refusing to delete files for archive {archive.id} - "
-                f"file_path is empty or invalid: '{archive.file_path}'"
-            )
-            return None
+        from backend.app.utils.archive_paths import archive_dir as resolve_archive_dir
 
-        file_path = settings.base_dir / archive.file_path
-        if not file_path.exists():
+        archive_dir = resolve_archive_dir(
+            archive,
+            base_dir=settings.base_dir,
+            archive_root=settings.archive_dir,
+        )
+        if not archive_dir.exists():
             return None
-
-        archive_dir = file_path.parent
         try:
             relative_path = archive_dir.resolve().relative_to(settings.archive_dir.resolve())
         except ValueError:
@@ -1460,46 +1554,9 @@ class ArchiveService:
         if not archive:
             return False
 
-        # Resolve the directory to delete BEFORE committing the DB change
-        dir_to_delete: Path | None = None
-
-        if archive.file_path and archive.file_path.strip():
-            file_path = settings.base_dir / archive.file_path
-            if file_path.exists():
-                archive_dir = file_path.parent
-
-                # Safety check 1: archive_dir must be inside archive_dir
-                try:
-                    archive_dir.resolve().relative_to(settings.archive_dir.resolve())
-                except ValueError:
-                    logger.error(
-                        f"SECURITY: Refusing to delete archive {archive_id} - "
-                        f"path {archive_dir} is outside archive directory {settings.archive_dir}"
-                    )
-                    await self.db.delete(archive)
-                    await self.db.commit()
-                    return True
-
-                # Safety check 2: archive_dir must be at least 1 level deep inside archive_dir
-                try:
-                    relative_path = archive_dir.resolve().relative_to(settings.archive_dir.resolve())
-                    if len(relative_path.parts) < 1:
-                        logger.error(
-                            f"SECURITY: Refusing to delete archive {archive_id} - "
-                            f"path {archive_dir} is not deep enough inside archive directory"
-                        )
-                        await self.db.delete(archive)
-                        await self.db.commit()
-                        return True
-                except ValueError:
-                    pass  # Already handled above
-
-                dir_to_delete = archive_dir
-        else:
-            logger.error(
-                f"SECURITY: Refusing to delete files for archive {archive_id} - "
-                f"file_path is empty or invalid: '{archive.file_path}'"
-            )
+        # Resolve the directory to delete BEFORE committing the DB change.
+        # Shared with soft delete so fallback-owned timelapses are not orphaned.
+        dir_to_delete = self._resolve_archive_dir_for_delete(archive)
 
         # NULL stale thumbnail_path on linked PrintLogEntries before the FK
         # SET-NULL cascade fires. The on-disk file is about to be removed by
@@ -1536,11 +1593,15 @@ class ArchiveService:
         if not archive:
             return False
 
-        # Get archive directory
-        file_path = (
-            settings.base_dir / archive.file_path
-        )  # SEC-PATH-OK: archive.file_path is DB-stored, set by archive_print() under settings.archive_dir
-        archive_dir = file_path.parent
+        from backend.app.utils.archive_paths import archive_dir as resolve_archive_dir
+
+        # File-less fallback archives own a stable directory under archive_dir.
+        archive_dir = resolve_archive_dir(
+            archive,
+            base_dir=settings.base_dir,
+            archive_root=settings.archive_dir,
+        )
+        archive_dir.mkdir(parents=True, exist_ok=True)
 
         # Save timelapse - use thread pool to avoid blocking event loop
         # (timelapse files can be 100MB+, sync write blocks for seconds).
