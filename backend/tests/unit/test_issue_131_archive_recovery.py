@@ -253,6 +253,44 @@ async def test_usage_fallback_rejects_same_name_from_another_plate(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("file_type", ["gcode.3mf", "gcode"])
+async def test_usage_fallback_accepts_compound_and_legacy_3mf_types(
+    db_session,
+    printer_factory,
+    tmp_path,
+    file_type,
+):
+    from backend.app.services.usage_tracker import _find_3mf_by_filename, _resolve_3mf_fallback
+
+    printer = await printer_factory()
+    candidate = tmp_path / "library" / "Widget.gcode.3mf"
+    candidate.parent.mkdir()
+    _make_3mf(candidate)
+    db_session.add(
+        LibraryFile(
+            filename="Widget.gcode.3mf",
+            file_path=str(candidate),
+            file_type=file_type,
+            file_size=candidate.stat().st_size,
+        )
+    )
+    fallback = PrintArchive(
+        printer_id=printer.id,
+        filename="Widget.gcode.3mf",
+        file_path="",
+        file_size=0,
+        print_name="Widget",
+        status="printing",
+        extra_data={},
+    )
+    db_session.add(fallback)
+    await db_session.commit()
+
+    assert await _resolve_3mf_fallback(fallback, db_session, tmp_path) == candidate
+    assert await _find_3mf_by_filename(printer.id, "Widget", db_session, tmp_path) == candidate
+
+
+@pytest.mark.asyncio
 async def test_usage_fallback_does_not_treat_dotted_prefix_as_same_name(
     db_session,
     printer_factory,

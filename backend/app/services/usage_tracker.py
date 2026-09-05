@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.spool import Spool
@@ -21,6 +21,15 @@ from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spool_usage_history import SpoolUsageHistory
 
 logger = logging.getLogger(__name__)
+
+
+def _library_3mf_type_filter(library_file):
+    """Match current 3MF types plus legacy sliced rows not yet backfilled."""
+    return or_(
+        library_file.file_type.ilike("3mf"),
+        library_file.file_type.ilike("gcode.3mf"),
+        and_(library_file.file_type.ilike("gcode"), library_file.filename.ilike("%.gcode.3mf")),
+    )
 
 
 def _decode_mqtt_mapping(mapping_raw: list | None) -> list[int] | None:
@@ -1070,7 +1079,7 @@ async def _resolve_3mf_fallback(
         lib_result = await db.execute(
             LibraryFile.active()
             .where(stem_matches(LibraryFile.filename, search_base))
-            .where(LibraryFile.file_type.ilike("3mf"))
+            .where(_library_3mf_type_filter(LibraryFile))
             .order_by(LibraryFile.created_at.desc())
             .limit(3)
         )
@@ -1157,7 +1166,7 @@ async def _find_3mf_by_filename(
         lib_result = await db.execute(
             LibraryFile.active()
             .where(stem_matches(LibraryFile.filename, search_base))
-            .where(LibraryFile.file_type.ilike("3mf"))
+            .where(_library_3mf_type_filter(LibraryFile))
             .order_by(LibraryFile.created_at.desc())
             .limit(3)
         )

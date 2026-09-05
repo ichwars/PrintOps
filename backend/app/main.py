@@ -3288,7 +3288,7 @@ async def _list_timelapse_videos(printer) -> tuple[list[dict], str | None]:
     Returns (video_files, found_path) where video_files is a list of file dicts
     and found_path is the directory where they were found, or ([], None).
     """
-    from backend.app.services.bambu_ftp import list_files_async
+    from backend.app.services.bambu_ftp import list_files_strict_async
 
     logger = logging.getLogger(__name__)
 
@@ -3296,7 +3296,7 @@ async def _list_timelapse_videos(printer) -> tuple[list[dict], str | None]:
     listing_succeeded = False
     for timelapse_path in ["/timelapse", "/timelapse/video", "/record", "/recording"]:
         try:
-            found_files = await list_files_async(
+            found_files = await list_files_strict_async(
                 printer.ip_address, printer.access_code, timelapse_path, printer_model=printer.model
             )
             listing_succeeded = True

@@ -25,6 +25,7 @@ from backend.app.services import bambu_ftp
 from backend.app.services.bambu_ftp import (
     FTPS_COOLDOWN_SECONDS,
     BambuFTPClient,
+    FileListingError,
     FileNotOnPrinterError,
     FtpsCooldownActive,
     ImplicitFTP_TLS,
@@ -39,6 +40,7 @@ from backend.app.services.bambu_ftp import (
     ftps_cooldown_remaining,
     get_cached_3mf,
     list_files_async,
+    list_files_strict_async,
     normalize_3mf_name,
     upload_file_async,
     with_ftp_retry,
@@ -1111,6 +1113,28 @@ class TestAsyncWrappers:
         )
         names = {f["name"] for f in result}
         assert "listed.bin" in names
+
+    @pytest.mark.asyncio
+    async def test_list_files_async_can_surface_connection_failure(self, monkeypatch):
+        """Strict listings distinguish an unavailable printer from an empty directory."""
+        monkeypatch.setattr(BambuFTPClient, "connect", lambda self: False)
+
+        with pytest.raises(FileListingError, match="connection failed"):
+            await list_files_strict_async(
+                "192.0.2.1",
+                "12345678",
+                "/timelapse",
+            )
+
+    def test_list_files_can_surface_directory_failure(self, ftp_client_factory, ftp_server):
+        ftp_server.inject_failure("CWD", 550, "Directory not found.")
+        client = ftp_client_factory()
+        client.connect()
+
+        with pytest.raises(FileListingError, match="listing failed"):
+            client.list_files("/missing", raise_on_error=True)
+
+        client.disconnect()
 
     @pytest.mark.asyncio
     async def test_delete_file_async_success(self, patch_ftp_port):
