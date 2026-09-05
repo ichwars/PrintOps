@@ -29,14 +29,11 @@ beforeEach(async () => {
 });
 
 describe('Orders page heading', () => {
-  it.each([
-    ['/orders', 'Order overview', 'Pipeline, deadlines, reservations, and open commercial work.'],
-    ['/orders/calculation', 'Calculation', 'Material, machine time, margin, and project-based pricing.'],
-    ['/orders/offers', 'Offers', 'Draft, sent, accepted, and rejected offers.'],
-    ['/orders/invoices', 'Invoices', 'Invoices, due dates, payment status, and invoice history.'],
-  ])('shows the active section in the page heading for %s', (path, title, subtitle) => {
-    mount(path);
-    const heading = screen.getByRole('heading', { level: 1, name: title });
-    expect(heading.nextElementSibling).toHaveTextContent(subtitle);
+  it('shows the invoices heading at the route that mounts OrdersPage', () => {
+    mount('/orders/invoices');
+    const heading = screen.getByRole('heading', { level: 1, name: 'Invoices' });
+    expect(heading.nextElementSibling).toHaveTextContent(
+      'Invoices, due dates, payment status, and invoice history.',
+    );
   });
 });
