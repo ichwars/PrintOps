@@ -1219,6 +1219,7 @@ class TestSliceArchiveResliceModel:
             filename="cube.3mf",
             file_path=str(src_3mf.relative_to(tmp_path)),
             sliced_for_model="X1C",
+            extra_data={"cost_source": "spoolman", "keep": "value"},
             with_run=False,
         )
         source_id = source.id
@@ -1257,10 +1258,13 @@ class TestSliceArchiveResliceModel:
         # The fix: the re-sliced archive reflects H2D — the printer it was
         # sliced for — instead of inheriting X1C from the source archive.
         assert new_archive.sliced_for_model == "H2D"
+        assert new_archive.extra_data.get("keep") == "value"
+        assert "cost_source" not in new_archive.extra_data
 
         # Source archive is untouched.
         source_reloaded = await db_session.get(PrintArchive, source_id)
         assert source_reloaded.sliced_for_model == "X1C"
+        assert source_reloaded.extra_data["cost_source"] == "spoolman"
 
     @pytest.mark.asyncio
     @pytest.mark.integration

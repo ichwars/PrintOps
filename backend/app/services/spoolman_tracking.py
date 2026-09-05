@@ -48,7 +48,12 @@ def _is_non_zero_identifier(value: str) -> bool:
     return set(value) != {"0"}
 
 
-async def _apply_spoolman_costs_to_archive(db, archive_id: int, usage_costs: list[_SpoolmanUsageCost]) -> float | None:
+async def _apply_spoolman_costs_to_archive(
+    db,
+    archive_id: int,
+    usage_costs: list[_SpoolmanUsageCost],
+    total_filament_grams: float | None = None,
+) -> float | None:
     """Set PrintArchive.cost from Spoolman-priced usage reported for this print."""
     if not usage_costs:
         return None
@@ -72,8 +77,10 @@ async def _apply_spoolman_costs_to_archive(db, archive_id: int, usage_costs: lis
 
     total_cost = sum(cost for _, cost in valid_usage)
     tracked_grams = sum(grams for grams, _ in valid_usage)
-    archive_grams = positive_finite_number(archive.filament_used_grams) or 0.0
-    untracked_grams = max(0.0, archive_grams - tracked_grams)
+    run_grams = positive_finite_number(total_filament_grams)
+    if run_grams is None:
+        run_grams = positive_finite_number(archive.filament_used_grams) or 0.0
+    untracked_grams = max(0.0, run_grams - tracked_grams)
     if untracked_grams > 0:
         default_cost_setting = await get_setting(db, "default_filament_cost")
         default_cost_per_kg = (
@@ -1271,7 +1278,13 @@ async def report_usage(printer_id: int, archive_id: int):
                 )
         else:
             await _apply_spool_colors_to_archive(db, archive_id, filament_usage, slot_colors)
-        return await _apply_spoolman_costs_to_archive(db, archive_id, usage_costs)
+        scoped_filament_grams = sum(positive_finite_number(item.get("used_g")) or 0.0 for item in filament_usage)
+        return await _apply_spoolman_costs_to_archive(
+            db,
+            archive_id,
+            usage_costs,
+            total_filament_grams=scoped_filament_grams or None,
+        )
 
 
 def _print_used_tray_keys(

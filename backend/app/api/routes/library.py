@@ -75,6 +75,7 @@ from backend.app.services.slice_formats import (
     is_server_sliceable_filename,
     unsliceable_detail,
 )
+from backend.app.services.spoolman_costs import without_spoolman_actual_cost
 from backend.app.services.stl_thumbnail import MIN_USABLE_STL_BYTES, generate_stl_thumbnail
 from backend.app.utils.archive_budget import (
     MAX_UPLOAD_BYTES,
@@ -4208,7 +4209,7 @@ async def slice_and_persist_as_archive(
     except Exception as exc:
         logger.warning("Failed to parse sliced 3MF metadata for %s: %s", out_filename, exc)
 
-    metadata = dict(source_archive.extra_data) if source_archive.extra_data else {}
+    metadata = without_spoolman_actual_cost(source_archive.extra_data)
     metadata.update(parsed_metadata)
     # Fall back to the produced 3MF's G-code-header totals when the sidecar
     # leaves the X-Filament-Used-* headers unset (result.filament_used_g == 0

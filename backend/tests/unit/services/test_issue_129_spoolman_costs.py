@@ -91,6 +91,29 @@ async def test_reprint_returns_its_cost_without_overwriting_first_run():
 
 
 @pytest.mark.asyncio
+async def test_reprint_plate_topup_uses_the_scoped_run_weight():
+    archive = SimpleNamespace(
+        cost=8.0,
+        filament_used_grams=200.0,
+        extra_data={"cost_source": "spoolman"},
+    )
+    db = AsyncMock()
+    db.execute = AsyncMock(side_effect=[_result(row=archive), _result(count=1)])
+
+    with patch("backend.app.api.routes.settings.get_setting", AsyncMock(return_value="20")):
+        run_cost = await _apply_spoolman_costs_to_archive(
+            db,
+            7,
+            [(25.0, 1.0)],
+            total_filament_grams=50.0,
+        )
+
+    assert run_cost == pytest.approx(1.5)
+    assert archive.cost == pytest.approx(8.0)
+    db.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_invalid_default_rate_cannot_poison_partially_priced_total():
     archive = SimpleNamespace(cost=2.5, filament_used_grams=150.0, extra_data=None)
     db = AsyncMock()

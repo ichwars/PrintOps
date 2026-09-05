@@ -30,6 +30,26 @@ def nonnegative_finite_number(value) -> float | None:
     return number if math.isfinite(number) and number >= 0 else None
 
 
+def spoolman_full_price_from_cost_per_kg(cost_per_kg, filament_weight) -> float | None:
+    """Convert PrintOps' per-kilogram input to Spoolman's full-spool price."""
+    rate = nonnegative_finite_number(cost_per_kg)
+    weight = positive_finite_number(filament_weight)
+    if rate is None or weight is None:
+        return None
+    price = rate * (weight / 1000.0)
+    return price if math.isfinite(price) else None
+
+
+def cost_per_kg_from_spoolman_full_price(price, filament_weight) -> float | None:
+    """Convert Spoolman's full-spool price to PrintOps' per-kilogram contract."""
+    full_price = nonnegative_finite_number(price)
+    weight = positive_finite_number(filament_weight)
+    if full_price is None or weight is None:
+        return None
+    rate = full_price * (1000.0 / weight)
+    return rate if math.isfinite(rate) else None
+
+
 def spoolman_usage_cost(spool: dict | None, grams_used) -> float | None:
     """Price consumed grams using Spoolman's full-spool price and net weight."""
     grams = positive_finite_number(grams_used)
@@ -83,3 +103,11 @@ def mark_spoolman_actual_cost(archive) -> bool:
         SPOOLMAN_COST_SOURCE_KEY: SPOOLMAN_COST_SOURCE,
     }
     return True
+
+
+def without_spoolman_actual_cost(extra_data) -> dict:
+    """Copy metadata without provenance that belongs only to the printed source."""
+    copied = dict(extra_data) if isinstance(extra_data, dict) else {}
+    if copied.get(SPOOLMAN_COST_SOURCE_KEY) == SPOOLMAN_COST_SOURCE:
+        copied.pop(SPOOLMAN_COST_SOURCE_KEY)
+    return copied
