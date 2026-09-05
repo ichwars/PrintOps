@@ -21,8 +21,6 @@ type InvoiceFilterMode = 'all' | 'open' | 'overdue' | 'paid';
 
 const COPY = {
   en: {
-    title: 'Orders',
-    subtitle: 'Customer work, calculations, offers, and invoices in one workflow.',
     empty: 'No records yet',
     foundation: 'Foundation',
     page: {
@@ -49,8 +47,6 @@ const COPY = {
     },
   },
   de: {
-    title: 'Aufträge',
-    subtitle: 'Kundenarbeit, Kalkulationen, Angebote und Rechnungen in einem Ablauf.',
     empty: 'Noch keine Datensätze',
     foundation: 'Basis',
     page: {
@@ -399,10 +395,10 @@ export function OrdersPage() {
     <div className="p-4 md:p-8 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-          <ClipboardList className="w-7 h-7 text-bambu-green" />
-          {copy.title}
+          <ActiveIcon className="w-7 h-7 text-bambu-green" />
+          {copy.page[activeSection].title}
         </h1>
-        <p className="text-bambu-gray mt-1">{copy.subtitle}</p>
+        <p className="text-bambu-gray mt-1">{copy.page[activeSection].subtitle}</p>
       </div>
 
       <Card>

@@ -26,7 +26,7 @@
 - Consumes: `getSection(pathname): OrderSectionId`, `copy.page[activeSection]`, and `ActiveIcon` from `OrdersPage`.
 - Produces: An `<h1>` and adjacent subtitle whose content follows the active route; no new exported interface.
 
-- [ ] **Step 1: Write the failing route-heading test**
+- [x] **Step 1: Write the failing route-heading test**
 
 Create `frontend/src/__tests__/pages/OrdersPage.test.tsx`:
 
@@ -75,13 +75,13 @@ it.each([
 });
 ```
 
-- [ ] **Step 2: Run the test and verify the regression is exposed**
+- [x] **Step 2: Run the test and verify the regression is exposed**
 
 Run: `npm.cmd run test -- --run src/__tests__/pages/OrdersPage.test.tsx`
 
-Expected: The calculation, offers, and invoices cases fail because the level-one heading still reads `Orders`.
+Expected: All four cases fail because the level-one heading still reads `Orders`.
 
-- [ ] **Step 3: Implement the minimal heading change**
+- [x] **Step 3: Implement the minimal heading change**
 
 Replace the fixed icon and module copy in the top heading with the active values:
 
@@ -92,7 +92,7 @@ Replace the fixed icon and module copy in the top heading with the active values
 {copy.page[activeSection].subtitle}
 ```
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run: `npm.cmd run test -- --run src/__tests__/pages/OrdersPage.test.tsx`
 
@@ -106,7 +106,7 @@ Run: `npx.cmd tsc -b`
 
 Expected: Exit code 0 with no TypeScript errors.
 
-- [ ] **Step 5: Verify the visible invoice page and commit**
+- [x] **Step 5: Verify the visible invoice page and commit**
 
 Open `/orders/invoices`, confirm the level-one heading reads `Rechnungen`, and confirm the matching description and receipt icon are visible. Then run:
 
