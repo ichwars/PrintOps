@@ -1210,9 +1210,7 @@ class ArchiveService:
                 archive_root=settings.archive_dir,
             )
         else:
-            archive_dir = settings.archive_dir / printer_folder / archive_name
-        # SEC-PATH-OK: fallback namespace / recovery id / printer folder are fixed or numeric;
-        # display stem drops path components.
+            archive_dir = safe_join_under(settings.archive_dir, printer_folder, archive_name, http=False)
         archive_dir.mkdir(parents=True, exist_ok=True)
 
         # Copy 3MF file with an explicit fsync'd loop (avoids a sendfile
