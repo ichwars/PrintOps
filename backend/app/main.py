@@ -2597,22 +2597,10 @@ async def on_print_start(printer_id: int, data: dict):
                 # the MQTT request topic subscription failed (common on P1S/A1).
                 _stored_map = _print_ams_mappings.get(expected_archive_id)
                 _stored_plate_id = _print_plate_ids.get(expected_archive_id)
-                if _stored_map or _stored_plate_id is not None:
-                    try:
-                        from backend.app.services.usage_tracker import _active_sessions
-
-                        _ut_session = _active_sessions.get(printer_id)
-                        if _ut_session and _stored_map and not _ut_session.ams_mapping:
-                            _ut_session.ams_mapping = _stored_map
-                            logger.info("[CALLBACK] Injected ams_mapping into usage tracker session: %s", _stored_map)
-                        # plate_id injection covers direct-Print of plate N of a multi-plate
-                        # 3MF — queue prints already capture it via the on_print_start queue
-                        # lookup, but direct-Print never goes through the queue (#1697).
-                        if _ut_session and _stored_plate_id is not None and _ut_session.plate_id is None:
-                            _ut_session.plate_id = _stored_plate_id
-                            logger.info("[CALLBACK] Injected plate_id into usage tracker session: %s", _stored_plate_id)
-                    except Exception:
-                        pass
+                if _stored_map or _stored_plate_id is not None or effective_subtask_id:
+                    await print_provenance.enrich_print_session(
+                        printer_id, _stored_map, _stored_plate_id, effective_subtask_id, db, logger
+                    )
 
                 # Set up energy tracking (#941: persist start on archive row)
                 await _record_energy_start(archive, printer_id, db, context="expected-print")
@@ -3961,6 +3949,7 @@ async def on_print_complete(printer_id: int, data: dict):
     import time
 
     logger = logging.getLogger(__name__)
+    completion_session = await print_provenance.claim_print_session(printer_id, data, logger)
     start_time = time.time()
 
     def log_timing(section: str):
@@ -3969,9 +3958,7 @@ async def on_print_complete(printer_id: int, data: dict):
 
     logger.info("[CALLBACK] on_print_complete started for printer %s", printer_id)
 
-    # Drop the 3MF download cache for this printer (#972). The print is over,
-    # nothing else legitimately needs the bytes; keeping them would only risk
-    # handing a stale file to the next print if it reuses the same name.
+    # Drop the completed print's 3MF bytes before a same-name next print can reuse them (#972).
     clear_3mf_cache(printer_id)
 
     try:
@@ -4363,8 +4350,7 @@ async def on_print_complete(printer_id: int, data: dict):
         except Exception as e:
             logger.warning("[BED-COOL] Failed to register waiter: %s", e)
 
-    # --- Track filament consumption (must run before archive_id early-return so usage
-    # is recorded even when auto-archive is disabled) ---
+    # Track filament consumption before archive_id early-return, including auto-archive-off prints.
     usage_results: list[dict] = []
     # Prefer ams_mapping captured from MQTT request topic (works for all print sources)
     stored_ams_mapping = data.get("ams_mapping")
@@ -4399,6 +4385,8 @@ async def on_print_complete(printer_id: int, data: dict):
                     db,
                     archive_id=archive_id,
                     ams_mapping=stored_ams_mapping,
+                    claimed_session=completion_session,
+                    session_claimed=True,
                 )
                 if usage_results:
                     await ws_manager.broadcast(
@@ -4413,7 +4401,7 @@ async def on_print_complete(printer_id: int, data: dict):
     except Exception as e:
         logger.warning("Usage tracker on_print_complete failed: %s", e)
 
-    await print_provenance.discard_print_session(printer_id, logger)
+    await print_provenance.discard_print_session(printer_id, completion_session, logger)
     if archive_id:
         if data.get("status") == "completed":
             try:

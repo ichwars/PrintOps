@@ -420,8 +420,6 @@ class TestRealisticMessageFlow:
 
         mqtt_client.on_print_start = on_start
         mqtt_client.on_print_complete = on_complete
-        # Seed a prior state so the first RUNNING push is treated as a real
-        # state transition rather than a PrintOps-restart catch-up (#1304).
         mqtt_client._previous_gcode_state = "IDLE"
 
         # 1. Print starts with timelapse
@@ -2000,7 +1998,6 @@ class TestRequestTopicAmsMapping:
         assert mqtt_client._captured_ams_mapping == [4, 8, -1, -1]
 
     def test_print_start_callback_includes_ams_mapping(self, mqtt_client):
-        """on_print_start callback data includes captured ams_mapping."""
         start_data = {}
 
         def on_start(data):
@@ -2008,8 +2005,6 @@ class TestRequestTopicAmsMapping:
 
         mqtt_client.on_print_start = on_start
         mqtt_client._captured_ams_mapping = [0, 4, -1, -1]
-        # Seed a prior state so the first RUNNING push is treated as a real
-        # state transition rather than a PrintOps-restart catch-up (#1304).
         mqtt_client._previous_gcode_state = "IDLE"
 
         # Trigger print start
@@ -2019,11 +2014,13 @@ class TestRequestTopicAmsMapping:
                     "gcode_state": "RUNNING",
                     "gcode_file": "/data/Metadata/test.gcode",
                     "subtask_name": "Test",
+                    "subtask_id": "job-start",
                 }
             }
         )
 
         assert start_data.get("ams_mapping") == [0, 4, -1, -1]
+        assert start_data.get("subtask_id") == "job-start"
 
     def test_print_start_callback_ams_mapping_none_when_not_captured(self, mqtt_client):
         """on_print_start callback has ams_mapping=None when no mapping captured."""
@@ -2043,6 +2040,7 @@ class TestRequestTopicAmsMapping:
                     "gcode_state": "RUNNING",
                     "gcode_file": "/data/Metadata/test.gcode",
                     "subtask_name": "Test",
+                    "subtask_id": "job-complete",
                 }
             }
         )
@@ -2121,11 +2119,13 @@ class TestRequestTopicAmsMapping:
                     "gcode_state": "FINISH",
                     "gcode_file": "/data/Metadata/test.gcode",
                     "subtask_name": "Test",
+                    "subtask_id": "job-complete",
                 }
             }
         )
 
         assert complete_data.get("ams_mapping") == [0, 9, -1, -1]
+        assert complete_data.get("subtask_id") == "job-complete"
 
     def test_captured_mapping_cleared_after_print_complete(self, mqtt_client):
         """_captured_ams_mapping is reset to None after print completion."""

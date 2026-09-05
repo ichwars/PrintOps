@@ -29,18 +29,25 @@ async def restore_for_running_print(printer_id: int, state, db, logger) -> None:
         from backend.app.api.routes.settings import get_setting
         from backend.app.services.usage_tracker import (
             clear_persisted_session,
-            get_persisted_print_name,
+            get_persisted_print_identity,
             restore_session,
         )
 
-        persisted_name = await get_persisted_print_name(db, printer_id)
+        persisted_name, persisted_subtask_id = await get_persisted_print_identity(db, printer_id)
         current_name = (getattr(state, "subtask_name", "") or "").strip()
-        if persisted_name and current_name and persisted_name.strip() != current_name:
+        current_subtask_id = str(getattr(state, "subtask_id", "") or "").strip() or None
+        if persisted_subtask_id and current_subtask_id:
+            stale_session = persisted_subtask_id != current_subtask_id
+        else:
+            stale_session = bool(persisted_name and current_name and persisted_name.strip() != current_name)
+        if stale_session:
             logger.info(
-                "[RESTART] Discarding stale print session for printer %s (%r != running %r)",
+                "[RESTART] Discarding stale print session for printer %s (name=%r/%r, subtask_id=%r/%r)",
                 printer_id,
                 persisted_name,
                 current_name,
+                persisted_subtask_id,
+                current_subtask_id,
             )
             await clear_persisted_session(db, printer_id)
             persisted_log = None
@@ -112,11 +119,57 @@ async def persist_tray_change(printer_id: int, tray_global: int, layer_num: int)
         )
 
 
-async def discard_print_session(printer_id: int, logger) -> None:
+async def enrich_print_session(
+    printer_id: int,
+    ams_mapping: list[int] | None,
+    plate_id: int | None,
+    subtask_id: str | None,
+    db,
+    logger,
+) -> None:
+    """Persist dispatch evidence that becomes authoritative after start capture."""
+    from backend.app.services.usage_tracker import update_session_context
+
+    if await update_session_context(
+        db,
+        printer_id,
+        ams_mapping=ams_mapping,
+        plate_id=plate_id,
+        subtask_id=subtask_id,
+    ):
+        logger.info(
+            "[CALLBACK] Persisted print session context: ams_mapping=%s, plate_id=%s, subtask_id=%s",
+            ams_mapping,
+            plate_id,
+            subtask_id,
+        )
+
+
+async def claim_print_session(printer_id: int, data: dict, logger):
+    """Claim the completing generation before another print can replace it."""
+    from backend.app.services.usage_tracker import (
+        load_persisted_session_for_completion,
+        take_active_session_for_completion,
+    )
+
+    session, active_seen = take_active_session_for_completion(printer_id, data)
+    if active_seen:
+        return session
+    try:
+        async with async_session() as db:
+            return await load_persisted_session_for_completion(db, printer_id, data)
+    except Exception as exc:
+        logger.warning("Failed to claim persisted print session for printer %s: %s", printer_id, exc)
+        return None
+
+
+async def discard_print_session(printer_id: int, session, logger) -> None:
+    if session is None:
+        return
     try:
         from backend.app.services.usage_tracker import discard_session
 
         async with async_session() as db:
-            await discard_session(db, printer_id)
+            await discard_session(db, printer_id, expected_session=session)
     except Exception as exc:
         logger.warning("Failed to clear persisted print session for printer %s: %s", printer_id, exc)

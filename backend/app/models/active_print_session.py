@@ -15,6 +15,7 @@ class ActivePrintSession(Base):
 
     printer_id: Mapped[int] = mapped_column(ForeignKey("printers.id", ondelete="CASCADE"), primary_key=True)
     print_name: Mapped[str] = mapped_column(default="")
+    subtask_id: Mapped[str | None] = mapped_column(nullable=True)
     started_at: Mapped[datetime] = mapped_column(DateTime)
     tray_now_at_start: Mapped[int] = mapped_column(default=-1)
     plate_id: Mapped[int | None] = mapped_column(nullable=True)

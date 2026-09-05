@@ -207,6 +207,7 @@ class PrintSession:
     printer_id: int
     print_name: str
     started_at: datetime
+    subtask_id: str | None = None
     tray_remain_start: dict[tuple[int, int], int] = field(default_factory=dict)
     # tray_now at print start (correct value, unlike at completion where it's 255)
     tray_now_at_start: int = -1
@@ -225,6 +226,31 @@ class PrintSession:
 # ``active_print_sessions`` so completion can recover after a restart.
 _active_sessions: dict[int, PrintSession] = {}
 _tray_change_locks: dict[int, asyncio.Lock] = {}
+
+
+def _normalize_subtask_id(value) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized if normalized not in ("", "0") else None
+
+
+def _session_matches_completion(session: PrintSession, data: dict) -> bool:
+    event_subtask_id = _normalize_subtask_id(data.get("subtask_id"))
+    if event_subtask_id and session.subtask_id:
+        return event_subtask_id == session.subtask_id
+    event_name = (data.get("subtask_name") or data.get("filename") or "").strip()
+    return not event_name or not session.print_name or event_name == session.print_name.strip()
+
+
+def take_active_session_for_completion(printer_id: int, data: dict) -> tuple[PrintSession | None, bool]:
+    """Atomically claim the in-memory generation before another start can replace it."""
+    session = _active_sessions.get(printer_id)
+    if session is None:
+        return None, False
+    if not _session_matches_completion(session, data):
+        return None, True
+    return _active_sessions.pop(printer_id), True
 
 
 def _tray_key_to_str(key: tuple[int, int]) -> str:
@@ -268,6 +294,7 @@ async def persist_session(
         db.add(row)
 
     row.print_name = session.print_name or ""
+    row.subtask_id = session.subtask_id
     row.started_at = session.started_at.replace(tzinfo=None)
     row.tray_now_at_start = session.tray_now_at_start
     row.plate_id = session.plate_id
@@ -296,12 +323,77 @@ async def record_tray_change(db: AsyncSession, printer_id: int, tray_global: int
         await db.commit()
 
 
-async def get_persisted_print_name(db: AsyncSession, printer_id: int) -> str | None:
-    """Return the persisted print identity used to reject stale rows."""
+async def get_persisted_print_identity(db: AsyncSession, printer_id: int) -> tuple[str | None, str | None]:
+    """Return the persisted name and printer-assigned job identity."""
     from backend.app.models.active_print_session import ActivePrintSession
 
     row = await db.get(ActivePrintSession, printer_id)
-    return row.print_name if row is not None else None
+    return (row.print_name, row.subtask_id) if row is not None else (None, None)
+
+
+async def get_persisted_print_name(db: AsyncSession, printer_id: int) -> str | None:
+    """Backward-compatible name-only identity lookup."""
+    return (await get_persisted_print_identity(db, printer_id))[0]
+
+
+def _session_from_row(row) -> PrintSession:
+    started_at = row.started_at
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=timezone.utc)
+    return PrintSession(
+        printer_id=row.printer_id,
+        print_name=row.print_name or "",
+        subtask_id=row.subtask_id,
+        started_at=started_at,
+        tray_remain_start=_tray_map_from_json(row.tray_remain_start),
+        tray_now_at_start=row.tray_now_at_start,
+        spool_assignments=_tray_map_from_json(row.spool_assignments),
+        ams_mapping=list(row.ams_mapping) if row.ams_mapping else None,
+        plate_id=row.plate_id,
+    )
+
+
+async def load_persisted_session_for_completion(db: AsyncSession, printer_id: int, data: dict) -> PrintSession | None:
+    """Load only the durable generation identified by a completion event."""
+    from backend.app.models.active_print_session import ActivePrintSession
+
+    row = await db.get(ActivePrintSession, printer_id)
+    if row is None:
+        return None
+    session = _session_from_row(row)
+    return session if _session_matches_completion(session, data) else None
+
+
+async def update_session_context(
+    db: AsyncSession,
+    printer_id: int,
+    *,
+    ams_mapping: list[int] | None,
+    plate_id: int | None,
+    subtask_id: str | None,
+) -> bool:
+    """Persist authoritative dispatch context learned after the MQTT start edge."""
+    from backend.app.models.active_print_session import ActivePrintSession
+
+    row = await db.get(ActivePrintSession, printer_id)
+    active = _active_sessions.get(printer_id)
+    changed = False
+    normalized_subtask_id = _normalize_subtask_id(subtask_id)
+    for target in (row, active):
+        if target is None:
+            continue
+        if ams_mapping and not target.ams_mapping:
+            target.ams_mapping = list(ams_mapping)
+            changed = True
+        if plate_id is not None and target.plate_id is None:
+            target.plate_id = plate_id
+            changed = True
+        if normalized_subtask_id and target.subtask_id != normalized_subtask_id:
+            target.subtask_id = normalized_subtask_id
+            changed = True
+    if row is not None and changed:
+        await db.commit()
+    return changed
 
 
 async def restore_session(db: AsyncSession, printer_id: int, register_active: bool = True) -> list[list[int]] | None:
@@ -312,19 +404,7 @@ async def restore_session(db: AsyncSession, printer_id: int, register_active: bo
     if row is None:
         return None
 
-    started_at = row.started_at
-    if started_at.tzinfo is None:
-        started_at = started_at.replace(tzinfo=timezone.utc)
-    session = PrintSession(
-        printer_id=printer_id,
-        print_name=row.print_name or "",
-        started_at=started_at,
-        tray_remain_start=_tray_map_from_json(row.tray_remain_start),
-        tray_now_at_start=row.tray_now_at_start,
-        spool_assignments=_tray_map_from_json(row.spool_assignments),
-        ams_mapping=list(row.ams_mapping) if row.ams_mapping else None,
-        plate_id=row.plate_id,
-    )
+    session = _session_from_row(row)
     if register_active:
         _active_sessions[printer_id] = session
     log = [list(entry) for entry in (row.tray_change_log or [])]
@@ -340,21 +420,34 @@ async def restore_session(db: AsyncSession, printer_id: int, register_active: bo
     return log
 
 
-async def clear_persisted_session(db: AsyncSession, printer_id: int) -> None:
+async def clear_persisted_session(
+    db: AsyncSession, printer_id: int, expected_started_at: datetime | None = None
+) -> None:
     """Delete persisted evidence after terminal completion."""
+    from sqlalchemy import delete
+
     from backend.app.models.active_print_session import ActivePrintSession
 
-    row = await db.get(ActivePrintSession, printer_id)
-    if row is not None:
-        await db.delete(row)
-        await db.commit()
+    statement = delete(ActivePrintSession).where(ActivePrintSession.printer_id == printer_id)
+    if expected_started_at is not None:
+        statement = statement.where(ActivePrintSession.started_at == expected_started_at.replace(tzinfo=None))
+    await db.execute(statement)
+    await db.commit()
 
 
-async def discard_session(db: AsyncSession, printer_id: int) -> None:
+async def discard_session(db: AsyncSession, printer_id: int, expected_session: PrintSession | None = None) -> None:
     """Clear both in-memory and persisted active-print evidence."""
-    _active_sessions.pop(printer_id, None)
-    _tray_change_locks.pop(printer_id, None)
-    await clear_persisted_session(db, printer_id)
+    active = _active_sessions.get(printer_id)
+    if expected_session is None or (
+        active is not None and _to_epoch_seconds(active.started_at) == _to_epoch_seconds(expected_session.started_at)
+    ):
+        _active_sessions.pop(printer_id, None)
+        _tray_change_locks.pop(printer_id, None)
+    await clear_persisted_session(
+        db,
+        printer_id,
+        expected_started_at=expected_session.started_at if expected_session is not None else None,
+    )
 
 
 def _to_epoch_seconds(value: datetime | None) -> float | None:
@@ -548,6 +641,7 @@ async def on_print_start(
     session = PrintSession(
         printer_id=printer_id,
         print_name=print_name,
+        subtask_id=_normalize_subtask_id(data.get("subtask_id") or getattr(state, "subtask_id", None)),
         started_at=datetime.now(timezone.utc),
         tray_remain_start=tray_remain_start,
         tray_now_at_start=tray_now_at_start,
@@ -595,6 +689,8 @@ async def on_print_complete(
     db: AsyncSession,
     archive_id: int | None = None,
     ams_mapping: list[int] | None = None,
+    claimed_session: PrintSession | None = None,
+    session_claimed: bool = False,
 ) -> list[dict]:
     """Compute consumption deltas and update spool weight_used/last_used.
 
@@ -602,14 +698,13 @@ async def on_print_complete(
     1. 3MF per-filament estimates (primary) — precise slicer data for all spools
     2. AMS remain% delta (fallback) — only for trays not already handled by 3MF
 
-    Returns a list of dicts describing what was logged (for WebSocket broadcast).
     """
     from sqlalchemy import select
 
     from backend.app.api.routes.settings import get_setting
     from backend.app.models.spool_usage_history import SpoolUsageHistory
 
-    session = await _pop_or_restore_session(db, printer_id)
+    session = claimed_session if session_claimed else await _pop_or_restore_session(db, printer_id)
     status = data.get("status", "completed")
     results = []
     handled_trays: set[tuple[int, int]] = set()
@@ -1024,7 +1119,7 @@ async def _find_3mf_by_filename(
     return None
 
 
-async def _load_dispatch_context(db, archive_id, archive, plate_id, mapping_needed: bool):
+async def _load_dispatch_context(db, printer_id, archive_id, archive, plate_id, mapping_needed: bool):
     """Load queue evidence once when plate or tray mapping may need it."""
     from backend.app.models.print_queue import PrintQueueItem
 
@@ -1035,7 +1130,9 @@ async def _load_dispatch_context(db, archive_id, archive, plate_id, mapping_need
     result = await db.execute(
         select(PrintQueueItem)
         .where(PrintQueueItem.archive_id == archive_id)
+        .where(PrintQueueItem.printer_id == printer_id)
         .where(PrintQueueItem.status.in_(["printing", "completed", "failed"]))
+        .order_by(PrintQueueItem.started_at.desc(), PrintQueueItem.id.desc())
     )
     queue_item = result.scalars().first()
     if plate_id is None and queue_item is not None:
@@ -1126,7 +1223,7 @@ async def _track_from_3mf(
         logger.info("[UsageTracker] 3MF: no file available for archive %s, skipping", archive_id)
         return []
 
-    queue_item, plate_id = await _load_dispatch_context(db, archive_id, archive, plate_id, not ams_mapping)
+    queue_item, plate_id = await _load_dispatch_context(db, printer_id, archive_id, archive, plate_id, not ams_mapping)
     filament_usage, plate_id = _extract_plate_usage(file_path, plate_id)
     if not filament_usage:
         logger.info("[UsageTracker] 3MF: no filament usage data in %s", file_path)

@@ -3427,11 +3427,10 @@ class BambuMQTTClient:
                 {
                     "filename": current_file,
                     "subtask_name": self.state.subtask_name,
-                    "remaining_time": self.state.remaining_time * 60
-                    if self.state.remaining_time > 0
-                    else None,  # Convert minutes to seconds
+                    "remaining_time": self.state.remaining_time * 60 if self.state.remaining_time > 0 else None,
                     "raw_data": data,
                     "ams_mapping": self._captured_ams_mapping,
+                    "subtask_id": self.state.subtask_id,
                 }
             )
         elif running_first_observed and self.on_print_running_observed:
@@ -3552,6 +3551,7 @@ class BambuMQTTClient:
                     "timelapse_was_active": timelapse_was_active,
                     "hms_errors": hms_errors_data,
                     "ams_mapping": self._captured_ams_mapping,
+                    "subtask_id": self.state.subtask_id,
                     # Last valid progress/layer before firmware reset (for partial usage tracking)
                     "last_progress": self._last_valid_progress,
                     "last_layer_num": self._last_valid_layer_num,
