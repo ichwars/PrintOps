@@ -2,7 +2,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { AlertCircle, AlertTriangle, Loader2, Pencil, Printer, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { PrinterStatus, PrintQueueItemCreate, PrintQueueItemUpdate, SpoolAssignment } from '../../api/client';
+import type { PrinterStatus, PrintQueueItemCreate, PrintQueueItemUpdate } from '../../api/client';
 import { api } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { Card, CardContent } from '../Card';
@@ -16,7 +16,7 @@ import { getColorName } from '../../utils/colors';
 import { useDisplayCurrency } from '../../hooks/useDisplayCurrency';
 import { getBedTypeInfo } from '../../utils/bedType';
 import { toDateTimeLocalValue, parseUTCDate } from '../../utils/date';
-import { getGlobalTrayId, isPlaceholderDate, effectivePreferLowest } from '../../utils/amsHelpers';
+import { isPlaceholderDate, effectivePreferLowest } from '../../utils/amsHelpers';
 import { FilamentMapping } from './FilamentMapping';
 import { FilamentOverride } from './FilamentOverride';
 import { PlateSelector } from './PlateSelector';
@@ -32,6 +32,7 @@ import type {
   ScheduleType,
 } from './types';
 import { DEFAULT_PRINT_OPTIONS, DEFAULT_SCHEDULE_OPTIONS } from './types';
+import { groupBuiltInSpoolAssignments } from './inventoryAssignments';
 
 /**
  * Unified PrintModal component that handles queue item creation and editing.
@@ -591,21 +592,8 @@ export function PrintModal({
   const plates = platesData?.plates ?? [];
 
   const spoolAssignmentsByPrinter = useMemo(() => {
-    const map = new Map<number, Map<number, SpoolAssignment>>();
-    if (!spoolAssignments) return map;
-    spoolAssignments.forEach((assignment) => {
-      const isExternal = assignment.ams_id === 255;
-      const globalTrayId = getGlobalTrayId(
-        assignment.ams_id,
-        assignment.tray_id,
-        isExternal
-      );
-      const printerMap = map.get(assignment.printer_id) ?? new Map();
-      printerMap.set(globalTrayId, assignment);
-      map.set(assignment.printer_id, printerMap);
-    });
-    return map;
-  }, [spoolAssignments]);
+    return groupBuiltInSpoolAssignments(spoolAssignments, !!settings?.spoolman_enabled);
+  }, [spoolAssignments, settings?.spoolman_enabled]);
 
   const filamentWarningMessage = useMemo(() => {
     if (!filamentWarningItems || filamentWarningItems.length === 0) return '';

@@ -118,6 +118,34 @@ def _archive_colors_from_spools(filament_usage: list[dict], results: list[dict])
     return ordered
 
 
+def _apply_archive_colors_from_spools(
+    archive, archive_id: int | None, filament_usage: list[dict], results: list[dict]
+) -> None:
+    """Use fully resolved inventory colours without dropping unmatched slots."""
+    if archive is None:
+        return
+    spool_colors = _archive_colors_from_spools(filament_usage, results)
+    if not spool_colors:
+        return
+    joined = ",".join(spool_colors)
+    if joined != archive.filament_color:
+        logger.info(
+            "[UsageTracker] 3MF: archive %s filament_color %r -> %r (from inventory spools)",
+            archive_id,
+            archive.filament_color,
+            joined,
+        )
+        archive.filament_color = joined
+
+
+def _global_tray_to_assignment_key(global_tray_id: int) -> tuple[int, int]:
+    if global_tray_id >= 254:
+        return (255, global_tray_id - 254)
+    if global_tray_id >= 128:
+        return (global_tray_id, 0)
+    return (global_tray_id // 4, global_tray_id % 4)
+
+
 def _match_slots_by_color(
     filament_usage: list[dict],
     ams_raw: dict | list | None,
@@ -532,11 +560,11 @@ async def on_print_start(
     publishing an internal ``_active_sessions`` guard.
     """
     state = printer_manager.get_status(printer_id)
-    if not state or not state.raw_data:
-        logger.debug("[UsageTracker] No state for printer %d, skipping", printer_id)
-        return
+    raw_data = state.raw_data if state and isinstance(state.raw_data, dict) else {}
+    if not raw_data:
+        logger.debug("[UsageTracker] No tray state for printer %d; persisting ownership only", printer_id)
 
-    ams_raw = state.raw_data.get("ams", [])
+    ams_raw = raw_data.get("ams", [])
     ams_data = ams_raw.get("ams", []) if isinstance(ams_raw, dict) else ams_raw if isinstance(ams_raw, list) else []
 
     tray_remain_start: dict[tuple[int, int], int] = {}
@@ -553,7 +581,7 @@ async def on_print_start(
                 skipped_invalid.append(f"AMS{ams_id}-T{tray_id}(remain={remain})")
 
     # Also capture VT (external) tray remain% — these are separate from AMS units
-    vt_tray_raw = state.raw_data.get("vt_tray") or []
+    vt_tray_raw = raw_data.get("vt_tray") or []
     if isinstance(vt_tray_raw, dict):
         vt_tray_raw = [vt_tray_raw]
     for vt in vt_tray_raw:
@@ -576,17 +604,16 @@ async def on_print_start(
         )
 
     if not ams_data and not vt_tray_raw:
-        logger.debug("[UsageTracker] No AMS or VT tray data for printer %d, skipping", printer_id)
-        return
+        logger.debug("[UsageTracker] No AMS or VT tray data for printer %d; persisting ownership only", printer_id)
 
     print_name = data.get("subtask_name", "") or data.get("filename", "unknown")
 
     # Capture tray_now at print start (reliable, unlike at completion where it's 255)
-    tray_now_at_start = state.tray_now if state else -1
+    tray_now_at_start = getattr(state, "tray_now", -1)
 
     # --- Diagnostic logging: dump mapping-related MQTT fields at print start ---
     # This helps us understand what each printer model reports for slot-to-tray mapping.
-    mapping_field = state.raw_data.get("mapping")
+    mapping_field = raw_data.get("mapping")
     logger.info(
         "[UsageTracker] PRINT START printer %d: mapping=%s, tray_now=%d, last_loaded_tray=%s",
         printer_id,
@@ -595,7 +622,7 @@ async def on_print_start(
         getattr(state, "last_loaded_tray", "N/A"),
     )
     # Log all raw_data keys containing "map" or "ams" for discovery
-    map_keys = {k: state.raw_data[k] for k in state.raw_data if "map" in k.lower()}
+    map_keys = {k: raw_data[k] for k in raw_data if "map" in k.lower()}
     if map_keys:
         logger.info("[UsageTracker] PRINT START printer %d: mapping-related keys: %s", printer_id, map_keys)
     # Log per-tray summary: tray_now, tray_tar, tray_type, tray_color for each slot
@@ -714,6 +741,7 @@ async def on_print_complete(
     status = data.get("status", "completed")
     results = []
     handled_trays: set[tuple[int, int]] = set()
+    unassigned_trays: list[int] = []
 
     # Fetch default filament cost from settings for fallback
     default_cost_str = await get_setting(db, "default_filament_cost")
@@ -776,6 +804,7 @@ async def on_print_complete(
             print_started_at=session.started_at if session else None,
             threemf_path=threemf_path,
             plate_id=session.plate_id if session else None,
+            unassigned_trays=unassigned_trays,
         )
         results.extend(threemf_results)
 
@@ -792,25 +821,18 @@ async def on_print_complete(
             # Without this guard, swapping a spool in an UNUSED slot mid-print
             # makes that slot's remain% drop to 0, which the fallback below
             # would otherwise charge to the originally-assigned spool.
-            def _global_to_ams_key(global_tray_id: int) -> tuple[int, int]:
-                if global_tray_id >= 254:
-                    return (255, global_tray_id - 254)
-                if global_tray_id >= 128:
-                    return (global_tray_id, 0)
-                return (global_tray_id // 4, global_tray_id % 4)
-
             print_used_keys: set[tuple[int, int]] = set()
             if ams_mapping:
                 for gid in ams_mapping:
                     if isinstance(gid, int) and gid >= 0:
-                        print_used_keys.add(_global_to_ams_key(gid))
+                        print_used_keys.add(_global_tray_to_assignment_key(gid))
             for change in getattr(state, "tray_change_log", None) or []:
                 if isinstance(change, (tuple, list)) and len(change) >= 1:
                     gid = change[0]
                     if isinstance(gid, int) and gid >= 0:
-                        print_used_keys.add(_global_to_ams_key(gid))
+                        print_used_keys.add(_global_tray_to_assignment_key(gid))
             if session.tray_now_at_start is not None and session.tray_now_at_start >= 0:
-                print_used_keys.add(_global_to_ams_key(session.tray_now_at_start))
+                print_used_keys.add(_global_tray_to_assignment_key(session.tray_now_at_start))
 
             # Collect all trays to check: AMS trays + VT (external) trays
             # Each entry: (ams_id_for_assignment, tray_id_for_assignment, current_remain, label)
@@ -987,6 +1009,7 @@ async def on_print_complete(
                     archive.cost = round(total_cost, 2)
                     await db.commit()
 
+    await _notify_unassigned_trays(printer_id, unassigned_trays)
     return results
 
 
@@ -1171,14 +1194,16 @@ def _unassigned_tray(printer_id: int, ams_id: int, tray_id: int, global_tray_id:
     return global_tray_id
 
 
-async def _notify_unassigned_trays(printer_id: int, missing: list[int], db: AsyncSession) -> None:
+async def _notify_unassigned_trays(printer_id: int, missing: list[int]) -> None:
     if not missing:
         return
+    from backend.app.core.database import async_session
     from backend.app.services.spool_assignment_notifications import (
         notify_missing_spool_assignments_on_print_complete,
     )
 
-    await notify_missing_spool_assignments_on_print_complete(printer_id, missing, db, logger)
+    async with async_session() as notification_db:
+        await notify_missing_spool_assignments_on_print_complete(printer_id, missing, notification_db, logger)
 
 
 async def _track_from_3mf(
@@ -1198,6 +1223,7 @@ async def _track_from_3mf(
     print_started_at: datetime | None = None,
     threemf_path=None,
     plate_id: int | None = None,
+    unassigned_trays: list[int] | None = None,
 ) -> list[dict]:
     """Track usage from 3MF per-filament slicer data (primary path).
 
@@ -1696,18 +1722,8 @@ async def _track_from_3mf(
     # time; now that every used slot has been resolved to an inventory spool,
     # the curated spool colour is authoritative. Committed by the caller's
     # `if results: await db.commit()`.
-    if archive is not None:
-        spool_colors = _archive_colors_from_spools(filament_usage, results)
-        if spool_colors:
-            joined = ",".join(spool_colors)
-            if joined != archive.filament_color:
-                logger.info(
-                    "[UsageTracker] 3MF: archive %s filament_color %r -> %r (from inventory spools)",
-                    archive_id,
-                    archive.filament_color,
-                    joined,
-                )
-                archive.filament_color = joined
+    _apply_archive_colors_from_spools(archive, archive_id, filament_usage, results)
 
-    await _notify_unassigned_trays(printer_id, unassigned_global_trays, db)
+    if unassigned_trays is not None:
+        unassigned_trays.extend(unassigned_global_trays)
     return results

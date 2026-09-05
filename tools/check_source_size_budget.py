@@ -137,7 +137,7 @@ FUNCTION_ALLOWLIST = {
     "backend/app/services/printer_manager.py::printer_state_to_dict": 335,
     "backend/app/services/print_scheduler.py::_start_print": 607,
     "backend/app/services/print_scheduler.py::check_queue": 515,
-    "backend/app/services/usage_tracker.py::_track_from_3mf": 530,
+    "backend/app/services/usage_tracker.py::_track_from_3mf": 521,
 }
 
 DECORATIVE_SEPARATOR_RE = re.compile(r"^\s*(?:#|//)\s*[=-]{6,}\s*$")

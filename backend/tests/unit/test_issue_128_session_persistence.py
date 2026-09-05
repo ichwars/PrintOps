@@ -164,6 +164,33 @@ async def test_print_start_persists_provenance_for_both_inventory_modes(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("spoolman_owns_usage", [False, True])
+async def test_print_start_persists_owner_without_printer_state(
+    db_session,
+    printer,
+    spoolman_owns_usage,
+):
+    from backend.app.services.usage_tracker import on_print_start
+
+    printer_manager = MagicMock()
+    printer_manager.get_status.return_value = None
+
+    await on_print_start(
+        printer.id,
+        {"subtask_name": "state-not-ready"},
+        printer_manager,
+        db=db_session,
+        spoolman_owns_usage=spoolman_owns_usage,
+    )
+
+    row = await db_session.get(ActivePrintSession, printer.id)
+    assert row is not None
+    assert row.print_name == "state-not-ready"
+    assert row.spoolman_owns_usage is spoolman_owns_usage
+    assert row.tray_remain_start is None
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("started_in_spoolman", [False, True])
 async def test_restart_keeps_print_start_inventory_owner_after_mode_switch(
     db_session,
