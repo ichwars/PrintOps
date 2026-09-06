@@ -159,18 +159,16 @@ async def apply_spool_to_slot_via_mqtt(
     tray_id: int,
     current_tray_info_idx: str = "",
     current_tray_type: str = "",
+    assignment: SpoolAssignment | None = None,
 ) -> bool:
     """Publish ams_filament_setting + extrusion_cali_sel for a spool on a slot.
 
-    Shared by `assign_spool` (initial assign for a loaded slot) and
-    `on_ams_change` (re-fire when a SpoolBuddy-pre-assigned slot transitions
-    empty → loaded). Returns True when MQTT commands were published, False if
-    no client was available or setup failed mid-way.
+    Shared by `assign_spool` and `on_ams_change`. Returns whether all MQTT
+    commands and the slot-preset update completed.
 
     `current_tray_info_idx` / `current_tray_type` describe the live tray state
     used as fallback hints when the spool's slicer_filament can't be resolved.
-    Caller should not pass these for the empty-slot re-fire path (they'll be
-    the freshly-loaded values, which is the intended fallback).
+    Freshly-loaded values are valid fallback hints on the deferred path.
     """
     from backend.app.services.printer_manager import printer_manager
 
@@ -186,12 +184,8 @@ async def apply_spool_to_slot_via_mqtt(
 
     _generic_id_values = _GENERIC_ID_VALUES
 
-    # slicer_filament → (tray_info_idx, setting_id) resolution is shared with
-    # the Spoolman-mode route via this helper (#1713). The helper handles
-    # GFS/PFUS/PFCN cloud lookup, GF normalize, integer LocalPreset id,
-    # the builtin-name realignment, AND the defensive PFUS/PFCN/material-name
-    # sanitization. When it returns an empty tray_info_idx the local
-    # current-tray-state + generic-material fallback below rescues the slot.
+    # Shared resolution covers cloud and local presets plus defensive preset-id
+    # sanitization. Live state and generic material remain the final fallbacks.
     tray_info_idx, setting_id, sub_brand_override, type_override = await resolve_slicer_filament(
         db=db,
         current_user=current_user,
@@ -212,17 +206,13 @@ async def apply_spool_to_slot_via_mqtt(
             and not current_tray_info_idx.startswith("PFCN")
             and not is_material_name(current_tray_info_idx)
             and current_tray_type
-            and current_tray_type.upper() == tray_type.upper()
+            and printer_filament_type(current_tray_type).upper() == tray_type.upper()
         ):
             tray_info_idx = current_tray_info_idx
         elif tray_type:
             tray_info_idx = generic_filament_id(spool.material, tray_type)
 
-    # Ensure setting_id is always derivable from tray_info_idx. The local-preset
-    # path above sets tray_info_idx to a generic ID (e.g. "GFL99") but leaves
-    # setting_id empty — without this fallback the slicer gets a half-configured
-    # slot (filament id without setting id) and shows empty fields in the slot
-    # detail modal.
+    # Avoid a half-configured slicer slot when a preset yields only a filament id.
     if tray_info_idx and not setting_id:
         setting_id = filament_id_to_setting_id(tray_info_idx)
 
@@ -341,13 +331,11 @@ async def apply_spool_to_slot_via_mqtt(
             spool.id,
         )
 
-    # Persist slot preset mapping for UI display (preset_name on hover card).
-    # Shared with the RFID auto-assign path — both must keep this row in sync
-    # with the currently-assigned spool, otherwise the slot card surfaces the
-    # previous spool's preset name (the PrintersPage display chain consults
-    # slot_preset_mappings.preset_name first).
+    # Keep the slot card's preferred preset mapping and assignment in sync.
     from backend.app.services.slot_preset_writer import upsert_slot_preset_for_spool
 
+    if assignment is not None:
+        assignment.fingerprint_color, assignment.fingerprint_type = tray_color, tray_type
     await upsert_slot_preset_for_spool(
         db=db,
         spool=spool,
@@ -359,7 +347,6 @@ async def apply_spool_to_slot_via_mqtt(
         tray_type=tray_type,
         setting_id=setting_id,
     )
-
     logger.info(
         "Auto-configured AMS slot ams=%d tray=%d for spool %d on printer %d",
         ams_id,
@@ -1986,6 +1973,7 @@ async def assign_spool(
                 tray_id=data.tray_id,
                 current_tray_info_idx=current_tray_info_idx,
                 current_tray_type=fingerprint_type or "",
+                assignment=assignment,
             )
         except Exception as e:
             logger.warning("MQTT auto-configure failed for spool %d: %s", spool.id, e)

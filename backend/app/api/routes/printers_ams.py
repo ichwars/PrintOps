@@ -148,7 +148,7 @@ async def configure_ams_slot(
             and current_tray_info_idx not in set(GENERIC_FILAMENT_IDS.values())
             and not is_material_name(current_tray_info_idx)
             and current_tray_type
-            and current_tray_type.upper() == tray_type.upper()
+            and printer_filament_type(current_tray_type).upper() == tray_type.upper()
         ):
             logger.info(
                 "[configure_ams_slot] Reusing slot's existing tray_info_idx=%r (same material %r)",

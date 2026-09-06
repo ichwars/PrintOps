@@ -1513,8 +1513,6 @@ async def on_ams_change(printer_id: int, ams_data: list):
                     # the slot was empty when the user pre-assigned via SpoolBuddy
                     # (the firmware drops ams_filament_setting on empty slots, so
                     # MQTT was deferred). The moment any filament gets inserted
-                    # — Bambu RFID, 3rd-party, or even an existing-but-now-
-                    # reconfigured spool — fire the deferred configuration.
                     # The "loaded" signal is state == 11 (Bambu's "filament fed to
                     # extruder" code) OR, on firmwares that don't use the state
                     # enum meaningfully, a non-empty tray_type when state is
@@ -1527,12 +1525,13 @@ async def on_ams_change(printer_id: int, ams_data: list):
                     # tray_type that might survive the relay's auto-clearing.
                     loaded = cur_state == 11 or (cur_state not in (9, 10) and cur_type.strip())
                     if not fp_type.strip() and loaded and assignment.spool:
+                        configured = False
                         try:
                             from backend.app.api.routes.inventory import (
                                 apply_spool_to_slot_via_mqtt,
                             )
 
-                            await apply_spool_to_slot_via_mqtt(
+                            configured = await apply_spool_to_slot_via_mqtt(
                                 db=db,
                                 current_user=None,
                                 spool=assignment.spool,
@@ -1541,6 +1540,7 @@ async def on_ams_change(printer_id: int, ams_data: list):
                                 tray_id=assignment.tray_id,
                                 current_tray_info_idx=current_tray.get("tray_info_idx", ""),
                                 current_tray_type=cur_type,
+                                assignment=assignment,
                             )
                             logger.info(
                                 "SpoolBuddy pre-config applied on insert: spool %d → printer %d AMS%d-T%d",
@@ -1557,8 +1557,8 @@ async def on_ams_change(printer_id: int, ams_data: list):
                                 assignment.ams_id,
                                 assignment.tray_id,
                             )
-                        assignment.fingerprint_color = cur_color
-                        assignment.fingerprint_type = cur_type
+                        if not configured:
+                            assignment.fingerprint_color, assignment.fingerprint_type = cur_color, cur_type
                         continue
 
                     if not _colors_similar(cur_color, fp_color) or cur_type.upper() != fp_type.upper():

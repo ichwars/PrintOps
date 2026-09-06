@@ -64,7 +64,7 @@ async def test_repairs_only_unedited_legacy_rfid_rows_and_remaining_grams(engine
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     async with sessions() as db:
         _, low, _ = await _seed(db)
-        stale = _spool()
+        stale = _spool(weight_used_baseline=400)
         edited = _spool(core_weight_catalog_id=1)
         manual = _spool(data_origin="manual")
         db.add_all([stale, edited, manual])
@@ -79,6 +79,8 @@ async def test_repairs_only_unedited_legacy_rfid_rows_and_remaining_grams(engine
         assert (repaired.core_weight, repaired.core_weight_catalog_id) == (250, low_id)
         assert repaired.weight_used == 450.0
         assert repaired.label_weight - repaired.weight_used == 550.0
+        assert repaired.weight_used_baseline == 434.0
+        assert repaired.weight_used - repaired.weight_used_baseline == 16.0
         assert (await db.get(Spool, ids[1])).core_weight == 216
         assert (await db.get(Spool, ids[2])).core_weight == 216
 
@@ -110,3 +112,21 @@ async def test_repair_is_idempotent_and_preserves_later_user_correction(engine):
                 text('SELECT value FROM settings WHERE "key" = :key'), {"key": RFID_CORE_WEIGHT_REPAIR_FLAG}
             )
         ).scalar_one() == "true"
+
+
+@pytest.mark.asyncio
+async def test_repairs_known_legacy_weight_when_mutable_catalog_no_longer_proves_it(engine):
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    async with sessions() as db:
+        stale = _spool(core_weight=253, last_weighed_at=None, last_scale_weight=None, weight_used=200)
+        db.add(stale)
+        await db.commit()
+        spool_id = stale.id
+
+    await _run(engine)
+
+    async with sessions() as db:
+        repaired = await db.get(Spool, spool_id)
+        assert repaired.core_weight == 250
+        assert repaired.core_weight_catalog_id is None
+        assert repaired.weight_used == 200

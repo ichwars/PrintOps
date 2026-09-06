@@ -78,7 +78,7 @@ COMMENT_CHECK_PREFIXES = (
 
 FILE_ALLOWLIST = {
     "backend/app/api/routes/archives.py": 4802,
-    "backend/app/api/routes/inventory.py": 2694,
+    "backend/app/api/routes/inventory.py": 2682,
     "backend/app/api/routes/library.py": 5006,
     "backend/app/api/routes/print_queue.py": 2136,
     "backend/app/api/routes/projects.py": 2136,

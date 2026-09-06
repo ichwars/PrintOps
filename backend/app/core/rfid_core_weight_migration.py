@@ -4,7 +4,11 @@ import logging
 
 from sqlalchemy import bindparam, text
 
-from backend.app.utils.spool_core_weights import BAMBU_RFID_CORE_CATALOG_NAME, BAMBU_RFID_CORE_WEIGHT
+from backend.app.utils.spool_core_weights import (
+    BAMBU_RFID_CORE_CATALOG_NAME,
+    BAMBU_RFID_CORE_WEIGHT,
+    BAMBU_RFID_LEGACY_WRONG_WEIGHTS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,22 +40,14 @@ async def repair_rfid_core_weights(conn) -> None:
         ).fetchone()
         correct_id = correct[0] if correct else None
         correct_weight = correct[1] if correct else BAMBU_RFID_CORE_WEIGHT
-        bambu_weights = {
-            row[0]
-            for row in (
-                await conn.execute(
-                    text("SELECT weight FROM spool_catalog WHERE UPPER(name) LIKE :prefix"),
-                    {"prefix": "BAMBU LAB%"},
-                )
-            ).fetchall()
-        }
-        wrong_weights = sorted(bambu_weights - {correct_weight})
+        wrong_weights = [weight for weight in BAMBU_RFID_LEGACY_WRONG_WEIGHTS if weight != correct_weight]
         repaired = reweighed = 0
         if wrong_weights:
             rows = (
                 await conn.execute(
                     text(
-                        "SELECT id, core_weight, label_weight, weight_used, last_weighed_at FROM spool "
+                        "SELECT id, core_weight, label_weight, weight_used, weight_used_baseline, last_weighed_at "
+                        "FROM spool "
                         "WHERE data_origin = 'rfid_auto' AND tag_type = 'bambulab' "
                         "AND core_weight_catalog_id IS NULL AND core_weight IN :wrong"
                     ).bindparams(bindparam("wrong", expanding=True)),
@@ -60,15 +56,24 @@ async def repair_rfid_core_weights(conn) -> None:
             ).fetchall()
             for row in rows:
                 used = row.weight_used or 0.0
+                baseline = row.weight_used_baseline or 0.0
                 if row.last_weighed_at is not None:
-                    used = min(max(0.0, used + correct_weight - row.core_weight), float(row.label_weight or 0))
+                    correction = correct_weight - row.core_weight
+                    used = min(max(0.0, used + correction), float(row.label_weight or 0))
+                    baseline = min(max(0.0, baseline + correction), used)
                     reweighed += 1
                 await conn.execute(
                     text(
                         "UPDATE spool SET core_weight = :weight, core_weight_catalog_id = :catalog_id, "
-                        "weight_used = :used WHERE id = :id"
+                        "weight_used = :used, weight_used_baseline = :baseline WHERE id = :id"
                     ),
-                    {"weight": correct_weight, "catalog_id": correct_id, "used": used, "id": row.id},
+                    {
+                        "weight": correct_weight,
+                        "catalog_id": correct_id,
+                        "used": used,
+                        "baseline": baseline,
+                        "id": row.id,
+                    },
                 )
                 repaired += 1
         if repaired:
