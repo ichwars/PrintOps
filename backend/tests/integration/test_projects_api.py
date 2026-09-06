@@ -1076,6 +1076,49 @@ class TestProjectExportImport:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_import_project_zip_classifies_plain_named_sliced_3mf(self, db_session):
+        """Restored project files use the same content classifier as uploads (#132)."""
+        import io
+        import json
+        import zipfile
+
+        from sqlalchemy import select
+        from starlette.datastructures import UploadFile
+
+        from backend.app.api.routes.projects import import_project_file
+        from backend.app.models.library import LibraryFile
+
+        sliced = io.BytesIO()
+        with zipfile.ZipFile(sliced, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("3D/3dmodel.model", "<model/>")
+            zf.writestr("Metadata/plate_4.gcode", "; sliced\n")
+
+        project_zip = io.BytesIO()
+        with zipfile.ZipFile(project_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr(
+                "project.json",
+                json.dumps(
+                    {
+                        "name": "Sliced Restore",
+                        "linked_folders": [{"name": "Models", "files": [{"filename": "Labyrinth.3mf"}]}],
+                    }
+                ),
+            )
+            zf.writestr("files/Models/Labyrinth.3mf", sliced.getvalue())
+
+        await import_project_file(
+            file=UploadFile(io.BytesIO(project_zip.getvalue()), filename="project.zip"),
+            db=db_session,
+            _=None,
+        )
+
+        imported = (
+            await db_session.execute(select(LibraryFile).where(LibraryFile.filename == "Labyrinth.3mf"))
+        ).scalar_one()
+        assert imported.file_type == "gcode.3mf"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_export_zip_contains_files(self, async_client: AsyncClient, project_factory, db_session):
         """Verify ZIP export contains actual files from linked folders."""
         import io

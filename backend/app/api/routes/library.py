@@ -35,6 +35,7 @@ from backend.app.models.archive import PrintArchive
 from backend.app.models.library import LibraryFile, LibraryFileTag, LibraryFolder
 from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.project import Project
+from backend.app.models.settings import Settings
 from backend.app.models.user import User
 from backend.app.schemas.library import (
     AddToQueueError,
@@ -1513,11 +1514,7 @@ async def scan_external_folder(
     db: AsyncSession = Depends(get_db),
     _: User | None = Depends(require_permission_if_auth_enabled(Permission.LIBRARY_UPLOAD)),
 ):
-    """Scan an external folder and sync files to the database.
-
-    Discovers new files, removes DB entries for deleted files.
-    Does not copy files — stores the external path directly.
-    """
+    """Sync an external folder to the database without copying files."""
     result = await db.execute(select(LibraryFolder).where(LibraryFolder.id == folder_id))
     folder = result.scalar_one_or_none()
 
@@ -1530,7 +1527,6 @@ async def scan_external_folder(
     if not ext_path.exists() or not ext_path.is_dir():
         raise HTTPException(status_code=400, detail=f"External path is not accessible: {folder.external_path}")
 
-    # Collect all existing child external subfolder IDs (single query)
     all_folder_ids = [folder_id]
     child_result = await db.execute(
         select(LibraryFolder).where(
@@ -1540,7 +1536,6 @@ async def scan_external_folder(
     )
     all_child_folders = child_result.scalars().all()
 
-    # Walk the parent chain to find all descendants of folder_id
     parent_to_children: dict[int, list] = {}
     for cf in all_child_folders:
         parent_to_children.setdefault(cf.parent_id, []).append(cf)
@@ -1552,7 +1547,6 @@ async def scan_external_folder(
             all_folder_ids.append(child.id)
             queue.append(child.id)
 
-    # Get existing DB files across root and all subfolders
     existing_result = await db.execute(
         LibraryFile.active().where(
             LibraryFile.folder_id.in_(all_folder_ids),
@@ -1560,9 +1554,11 @@ async def scan_external_folder(
         )
     )
     existing_files = {f.file_path: f for f in existing_result.scalars().all()}
+    repair_key = f"_backfill_132_external_folder_{folder_id}"
+    external_types_repaired = (
+        await db.execute(select(Settings.id).where(Settings.key == repair_key))
+    ).scalar_one_or_none() is not None
 
-    # Build folder cache: relative path -> folder_id (for resolving subfolders)
-    # Pre-populate with existing child folders keyed by their external_path
     folder_cache: dict[str, int] = {"": folder_id}
     for fid in all_folder_ids:
         if fid == folder_id:
@@ -1666,26 +1662,22 @@ async def scan_external_folder(
             except (ValueError, OSError):
                 continue  # Symlink escapes the external dir
 
+            try:
+                stat = filepath.stat()
+            except OSError:
+                continue
+            fs_mtime = _mtime_to_datetime(stat.st_mtime)
             file_path_str = str(filepath)
             found_paths.add(file_path_str)
 
             if file_path_str in existing_files:
-                # Already tracked — refresh its on-disk mtime (#2680) so a file
-                # edited/replaced over a mount re-sorts and old rows are repaired.
                 tracked = existing_files[file_path_str]
-                tracked.file_type = classify_file_type(filename, filepath)
-                try:
-                    fs_mtime = _mtime_to_datetime(filepath.stat().st_mtime)
-                except OSError:
-                    fs_mtime = None
-                if fs_mtime is not None and tracked.fs_modified_at != fs_mtime:
+                changed = tracked.file_size != stat.st_size or tracked.fs_modified_at != fs_mtime
+                if not external_types_repaired or changed:
+                    tracked.file_type = classify_file_type(filename, filepath)
+                tracked.file_size = stat.st_size
+                if tracked.fs_modified_at != fs_mtime:
                     tracked.fs_modified_at = fs_mtime
-                continue
-
-            # Get file info
-            try:
-                stat = filepath.stat()
-            except OSError:
                 continue
 
             file_type = classify_file_type(filename, filepath)
@@ -1763,7 +1755,7 @@ async def scan_external_folder(
                 file_hash=None,  # Skip hashing external files for performance
                 thumbnail_path=thumbnail_path,
                 file_metadata=_without_print_name(file_metadata),
-                fs_modified_at=_mtime_to_datetime(stat.st_mtime),  # #2680: real on-disk mtime
+                fs_modified_at=fs_mtime,
             )
             db.add(db_file)
             added += 1
@@ -1817,6 +1809,8 @@ async def scan_external_folder(
             if new_mtime is not None and folder_obj.fs_modified_at != new_mtime:
                 folder_obj.fs_modified_at = new_mtime
 
+    if not external_types_repaired:
+        db.add(Settings(key=repair_key, value="true"))
     await db.commit()
 
     # Spawn STL thumbnail backfill in the background — the scan endpoint

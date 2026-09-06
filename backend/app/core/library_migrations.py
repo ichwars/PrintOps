@@ -34,7 +34,8 @@ async def reclassify_sliced_3mf_library_files(conn: AsyncConnection, base_dir: P
                     # legacy column is added. Trashed rows still point at
                     # managed bytes and are safe to classify before restore.
                     "SELECT id, file_path FROM library_files "
-                    "WHERE file_type = '3mf' "
+                    "WHERE file_type IN ('3mf', 'model') "
+                    "AND lower(file_path) LIKE '%.3mf' "
                     "AND file_path IS NOT NULL AND file_path <> '' "
                     "AND (is_external IS NULL OR is_external = :is_external)"
                 ),

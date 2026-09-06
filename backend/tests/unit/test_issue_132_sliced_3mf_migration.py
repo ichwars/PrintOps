@@ -38,17 +38,26 @@ async def migration_engine():
     await engine.dispose()
 
 
-async def _insert_file(conn, *, file_id: int, path: str, external: bool = False, deleted: bool = False) -> None:
+async def _insert_file(
+    conn,
+    *,
+    file_id: int,
+    path: str,
+    file_type: str = "3mf",
+    external: bool = False,
+    deleted: bool = False,
+) -> None:
     await conn.execute(
         text(
             "INSERT INTO library_files "
             "(id, filename, file_path, file_type, is_external, deleted_at, project_id) "
-            "VALUES (:id, :filename, :path, '3mf', :external, :deleted_at, 77)"
+            "VALUES (:id, :filename, :path, :file_type, :external, :deleted_at, 77)"
         ),
         {
             "id": file_id,
             "filename": Path(path).name,
             "path": path,
+            "file_type": file_type,
             "external": external,
             "deleted_at": "2026-01-01" if deleted else None,
         },
@@ -60,12 +69,14 @@ async def test_repair_reclassifies_internal_rows_without_changing_files_or_relat
     sliced_bytes = _write_3mf(tmp_path / "files/sliced.3mf", ["Metadata/plate_2.gcode"])
     _write_3mf(tmp_path / "files/source.3mf", ["3D/3dmodel.model"])
     _write_3mf(tmp_path / "files/trashed.3mf", ["Metadata/plate_5.gcode"])
+    _write_3mf(tmp_path / "files/project-import.3mf", ["Metadata/plate_6.gcode"])
     (tmp_path / "files/broken.3mf").write_bytes(b"PK\x03\x04broken")
     async with migration_engine.begin() as conn:
         await _insert_file(conn, file_id=1, path="files/sliced.3mf")
         await _insert_file(conn, file_id=2, path="files/source.3mf")
         await _insert_file(conn, file_id=3, path="files/broken.3mf")
         await _insert_file(conn, file_id=4, path="files/trashed.3mf", deleted=True)
+        await _insert_file(conn, file_id=5, path="files/project-import.3mf", file_type="model")
 
         await reclassify_sliced_3mf_library_files(conn, tmp_path)
 
@@ -78,6 +89,7 @@ async def test_repair_reclassifies_internal_rows_without_changing_files_or_relat
         (2, "3mf"),
         (3, "3mf"),
         (4, "gcode.3mf"),
+        (5, "gcode.3mf"),
     ]
     assert all(row.project_id == 77 for row in rows)
     assert rows[0].file_path == "files/sliced.3mf"

@@ -333,6 +333,30 @@ class TestExternalFolderScan:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_rescan_does_not_reopen_unchanged_external_3mf(self, async_client, tmp_path, monkeypatch):
+        from backend.app.api.routes import library as library_routes
+
+        ext_dir = tmp_path / "unchanged-rescan"
+        ext_dir.mkdir()
+        _write_test_3mf(ext_dir / "source.3mf", ["3D/3dmodel.model"])
+        folder = (
+            await async_client.post(
+                "/api/v1/library/folders/external",
+                json={"name": "Unchanged Rescan", "external_path": str(ext_dir), "readonly": True},
+            )
+        ).json()
+        await async_client.post(f"/api/v1/library/folders/{folder['id']}/scan")
+
+        def fail_if_reopened(*_args, **_kwargs):
+            raise AssertionError("unchanged 3MF was reopened")
+
+        monkeypatch.setattr(library_routes, "classify_file_type", fail_if_reopened)
+        response = await async_client.post(f"/api/v1/library/folders/{folder['id']}/scan")
+
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_scan_removes_deleted_files(
         self, async_client: AsyncClient, db_session, external_folder, external_dir
     ):
