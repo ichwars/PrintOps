@@ -24,6 +24,7 @@ from backend.app.models.settings import Settings
 from backend.app.models.smart_plug import SmartPlug
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
+from backend.app.services.archive_plate_metadata import refresh_archive_plate_metadata
 from backend.app.services.bambu_ftp import (
     FtpFailureReport,
     UploadCancelled,
@@ -3017,7 +3018,6 @@ class PrintScheduler:
             )
             return
 
-        # Determine source: archive or library file
         archive = None
         library_file = None
         file_path = None
@@ -3036,9 +3036,6 @@ class PrintScheduler:
                 logger.error("Queue item %s: Archive %s not found", item.id, item.archive_id)
                 await self._power_off_if_needed(db, item)
                 return
-
-            if archive.plate_id is None and item.plate_id is not None:
-                archive.plate_id = item.plate_id
 
             file_path = settings.base_dir / archive.file_path
             filename = archive.filename
@@ -3137,9 +3134,11 @@ class PrintScheduler:
             await self._power_off_if_needed(db, item)
             return
 
-        # Preheat / heat-soak (#1468) — fires before upload so the printer's
-        # bed (and chamber, if applicable) is at temperature when the firmware
-        # starts the actual print routine. Best-effort: any failure logs and
+        if archive and archive.plate_id is None and item.plate_id is not None:
+            refresh_archive_plate_metadata(archive, file_path, item.plate_id)
+            await db.commit()
+
+        # Preheat / heat-soak (#1468) before upload. Best-effort: any failure logs and
         # falls through to the normal upload+start path rather than turning a
         # configuration issue into a failed queue item.
         await self._preheat_and_soak(db, item, printer, archive)

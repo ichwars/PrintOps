@@ -19,12 +19,12 @@ def _write_3mf(path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     config = {
         "curr_bed_type": "Cool Plate",
-        "cool_plate_temp_initial_layer": ["35"],
-        "textured_plate_temp_initial_layer": ["70"],
+        "cool_plate_temp_initial_layer": ["35", "0"],
+        "textured_plate_temp_initial_layer": ["0", "70"],
     }
     slice_info = """<config>
-      <plate><metadata key="index" value="1"/><metadata key="curr_bed_type" value="Cool Plate"/></plate>
-      <plate><metadata key="index" value="2"/><metadata key="curr_bed_type" value="Textured PEI Plate"/></plate>
+      <plate><metadata key="index" value="1"/><metadata key="curr_bed_type" value="Cool Plate"/><filament id="1" used_g="8"/></plate>
+      <plate><metadata key="index" value="2"/><metadata key="curr_bed_type" value="Textured PEI Plate"/><filament id="2" used_g="9"/></plate>
     </config>"""
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr("Metadata/project_settings.config", json.dumps(config))

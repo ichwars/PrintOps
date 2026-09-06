@@ -1,4 +1,5 @@
 import json
+import zipfile
 from contextlib import ExitStack
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +17,7 @@ from backend.app.models.archive import PrintArchive
 from backend.app.models.library import LibraryFile
 from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.printer import Printer
+from backend.app.services.archive_plate_metadata import refresh_archive_plate_metadata
 from backend.app.services.print_scheduler import PrintScheduler
 
 
@@ -134,7 +136,7 @@ async def queue_factory(tmp_path):
         await engine.dispose()
 
 
-async def _dispatch_library_item(ctx, *, archive_failure=False, unlink_side_effect=None):
+async def _dispatch_library_item(ctx, *, archive_failure=False, unlink_side_effect=None, preheat=None):
     scheduler = PrintScheduler()
 
     async def archive_print(
@@ -188,6 +190,8 @@ async def _dispatch_library_item(ctx, *, archive_failure=False, unlink_side_effe
     ]
     if unlink_side_effect:
         patches.append(patch.object(type(ctx.source_path), "unlink", unlink_side_effect))
+    if preheat:
+        patches.append(patch.object(scheduler, "_preheat_and_soak", preheat))
 
     with ExitStack() as stack:
         for patcher in patches:
@@ -235,6 +239,70 @@ async def test_library_archive_captures_selected_plate(queue_factory):
     item, _, archive = await _queue_snapshot(ctx)
     assert item.status == "printing"
     assert archive.plate_id == 3
+
+
+def test_existing_archive_plate_refreshes_all_plate_scoped_fields(tmp_path):
+    source = tmp_path / "selected.3mf"
+    source.write_bytes(b"3mf")
+    archive = SimpleNamespace(
+        plate_id=None,
+        layer_height=0.2,
+        bed_type="Cool Plate",
+        bed_temperature=35,
+    )
+
+    with patch("backend.app.services.archive_plate_metadata.ThreeMFParser") as parser:
+        parser.return_value.parse.return_value = {
+            "layer_height": 0.08,
+            "bed_type": "Textured PEI Plate",
+            "bed_temperature": 70,
+        }
+        refresh_archive_plate_metadata(archive, source, 2)
+
+    parser.assert_called_once_with(source, plate_number=2)
+    assert (archive.plate_id, archive.layer_height) == (2, 0.08)
+    assert (archive.bed_type, archive.bed_temperature) == ("Textured PEI Plate", 70)
+
+
+@pytest.mark.asyncio
+async def test_existing_archive_plate_metadata_commits_before_preheat(queue_factory):
+    ctx = await queue_factory(cleanup=False, plate_id=2)
+    with zipfile.ZipFile(ctx.source_path, "w") as source:
+        source.writestr(
+            "Metadata/project_settings.config",
+            json.dumps({"textured_plate_temp_initial_layer": ["35", "70"]}),
+        )
+        source.writestr(
+            "Metadata/slice_info.config",
+            '<config><plate><metadata key="index" value="2"/><metadata key="curr_bed_type" '
+            'value="Textured PEI Plate"/><filament id="2" used_g="10"/></plate></config>',
+        )
+        source.writestr("Metadata/plate_2.gcode", "; layer_height = 0.08\n")
+
+    async with ctx.session_maker() as db:
+        item = await db.get(PrintQueueItem, ctx.queue_item_id)
+        archive = PrintArchive(
+            printer_id=ctx.printer_id,
+            filename=ctx.source_path.name,
+            file_path=str(ctx.source_path.relative_to(ctx.base_dir)),
+            file_size=ctx.source_path.stat().st_size,
+            plate_id=None,
+            layer_height=0.2,
+            bed_type="Cool Plate",
+            bed_temperature=35,
+        )
+        db.add(archive)
+        await db.flush()
+        item.library_file_id = None
+        item.archive_id = archive.id
+        await db.commit()
+
+    async def assert_committed(db, _item, _printer, archive):
+        assert not db.in_transaction(), "plate metadata must not hold SQLite's writer lock during preheat"
+        assert (archive.plate_id, archive.layer_height) == (2, 0.08)
+        assert (archive.bed_type, archive.bed_temperature) == ("Textured PEI Plate", 70)
+
+    await _dispatch_library_item(ctx, preheat=assert_committed)
 
 
 @pytest.mark.asyncio

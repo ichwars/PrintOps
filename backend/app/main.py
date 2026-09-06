@@ -85,7 +85,11 @@ from backend.app.core.database import async_session, engine, init_db
 from backend.app.core.tasks import spawn_background_task
 from backend.app.core.websocket import ws_manager
 from backend.app.models.smart_plug import SmartPlug
-from backend.app.services import active_print_provenance as print_provenance, business_runtime
+from backend.app.services import (
+    active_print_provenance as print_provenance,
+    business_runtime,
+    fallback_archive_recovery as fallback_recovery,
+)
 from backend.app.services.archive import ArchiveService, peek_plate_index_in_3mf, swap_plate_suffix
 from backend.app.services.archive_purge import archive_purge_service
 from backend.app.services.bambu_ftp import (
@@ -97,7 +101,6 @@ from backend.app.services.bambu_ftp import (
     with_ftp_retry,
 )
 from backend.app.services.bambu_mqtt import PrinterState
-from backend.app.services.fallback_archive_recovery import fallback_print_name, fallback_print_time
 from backend.app.services.github_backup import github_backup_service
 from backend.app.services.ha_sensor_manager import ha_sensor_manager
 from backend.app.services.homeassistant import homeassistant_service
@@ -3071,20 +3074,14 @@ async def on_print_start(printer_id: int, data: dict):
 
         if not downloaded_filename or not temp_path:
             logger.warning("Could not find 3MF file for print: %s", filename or subtask_name)
-            # Create a fallback archive without 3MF data so the print is still tracked
-            # This commonly happens with P1S/A1 printers where FTP has file size limitations
+            # Create a fallback archive without 3MF data so the print is still tracked.
             try:
                 from backend.app.models.archive import PrintArchive
 
-                print_name = fallback_print_name(filename, subtask_name)
-                fallback_time = fallback_print_time(data)
+                print_name = fallback_recovery.fallback_print_name(filename, subtask_name)
+                fallback_time = fallback_recovery.fallback_print_time(data)
 
-                # Best-effort filament metadata from MQTT — see
-                # _extract_filament_data_from_mqtt. Without this the fallback
-                # archive's filament fields stayed NULL even though the AMS
-                # state at print start was sitting right there in `data`.
-                # The slicer's ams_mapping (when present) narrows the result
-                # to slots actually used by the print (#1533).
+                # Use live MQTT metadata, narrowed to used slots by slicer mapping (#1533).
                 mqtt_filament_meta = _extract_filament_data_from_mqtt(data, _get_start_ams_mapping(data, None))
 
                 # Create minimal archive entry
@@ -3098,6 +3095,7 @@ async def on_print_start(printer_id: int, data: dict):
                     status="printing",
                     started_at=datetime.now(timezone.utc),
                     subtask_id=subtask_id,
+                    plate_id=fallback_recovery.resolve_fallback_plate(printer_id, filename),
                     filament_type=mqtt_filament_meta.get("filament_type"),
                     filament_color=mqtt_filament_meta.get("filament_color"),
                     extra_data={"no_3mf_available": True, "original_subtask": subtask_name, "_print_data": data},

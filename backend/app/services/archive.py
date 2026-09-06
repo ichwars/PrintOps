@@ -189,6 +189,7 @@ class ThreeMFParser:
                 # Clean up internal keys
                 self.metadata.pop("_slice_filament_type", None)
                 self.metadata.pop("_slice_filament_color", None)
+                self.metadata.pop("_slice_filament_ids", None)
                 self.metadata.pop("_plate_index", None)
         except Exception as e:
             # Return whatever metadata was extracted before the error, but
@@ -302,7 +303,21 @@ class ThreeMFParser:
                 # Get filament info from filaments ACTUALLY USED in the print
                 # slice_info has <filament id="1" type="PLA" color="#FFFFFF" used_g="100" />
                 # Only include filaments where used_g > 0
-                filaments = root.findall(".//filament")
+                selected_plates = plates
+                if self.plate_number is not None:
+                    selected_plates = []
+                    for plate in plates:
+                        index_meta = next(
+                            (meta for meta in plate.findall("metadata") if meta.get("key") == "index"),
+                            None,
+                        )
+                        try:
+                            index = int(index_meta.get("value", "")) if index_meta is not None else None
+                        except ValueError:
+                            index = None
+                        if index == self.plate_number:
+                            selected_plates.append(plate)
+                filaments = [filament for plate in selected_plates for filament in plate.findall("filament")]
                 if filaments:
                     # Collect unique filament types and colors for filaments that are actually used
                     types = []
@@ -328,6 +343,17 @@ class ThreeMFParser:
                         self.metadata["_slice_filament_type"] = ", ".join(types)
                     if colors:
                         self.metadata["_slice_filament_color"] = ",".join(colors)
+
+                    used_filament_ids: set[int] = set()
+                    for filament in filaments:
+                        try:
+                            if float(filament.get("used_g", "0")) > 0:
+                                used_filament_ids.add(int(filament.get("id", "0")))
+                        except (TypeError, ValueError):
+                            continue
+                    used_filament_ids.discard(0)
+                    if used_filament_ids:
+                        self.metadata["_slice_filament_ids"] = used_filament_ids
 
                     # Collect per-slot filament usage for tracking & notifications
                     filament_slots = []
@@ -487,7 +513,11 @@ class ThreeMFParser:
                 elif isinstance(val, (int, float, str)):
                     self.metadata["nozzle_diameter"] = float(val)
 
-            bed_temperature = bed_temperature_from_config(data, self.metadata.get("bed_type"))
+            bed_temperature = bed_temperature_from_config(
+                data,
+                self.metadata.get("bed_type"),
+                self.metadata.get("_slice_filament_ids"),
+            )
             if bed_temperature is not None:
                 self.metadata["bed_temperature"] = bed_temperature
 
@@ -509,7 +539,7 @@ class ThreeMFParser:
 
             # Build plate type — only set from project_settings if slice_info didn't already
             # provide it (slice_info is more authoritative as it reflects the exported plate).
-            if "bed_type" not in self.metadata and "curr_bed_type" in data:
+            if self.plate_number is None and "bed_type" not in self.metadata and "curr_bed_type" in data:
                 val = data["curr_bed_type"]
                 if isinstance(val, str) and val.strip():
                     self.metadata["bed_type"] = val.strip()

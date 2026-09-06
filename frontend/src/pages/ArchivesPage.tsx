@@ -91,6 +91,7 @@ import type { PlateMetadata } from '../types/plates';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { formatFileSize } from '../utils/file';
+import { archiveDisplayName } from '../utils/archiveDisplayName';
 import { Checkbox, FileInput, LegacyDatePicker, LegacySelect, TextField } from '../components/ui';
 
 type TFunction = (key: string, options?: Record<string, unknown>) => string;
@@ -111,8 +112,6 @@ function isSlicedFile(archive: { filename?: string | null; total_layers?: number
   if (archive.total_layers || archive.print_time_seconds) return true;
   return false;
 }
-
-// formatDate imported from '../utils/date' - handles UTC conversion
 
 /**
  * Open an archive file in the slicer.
@@ -948,7 +947,7 @@ function ArchiveCard({
         {/* Title */}
         <div className="flex items-center justify-between gap-2 mb-1">
           <h3 className="min-w-0 font-medium text-white truncate">
-            {archive.print_name || archive.filename}{archive.plate_id != null && archive.plate_id > 1 && ` — ${t('printers.plateNumber', { number: archive.plate_id })}`}
+            {archiveDisplayName(archive, t)}
           </h3>
           <Button
             variant="ghost"
@@ -2095,7 +2094,7 @@ function ArchiveListRow({
         </div>
         <div className="col-span-4">
           <div className="flex items-center gap-2">
-            <p className="text-white text-sm truncate">{archive.print_name || archive.filename}{archive.plate_id != null && archive.plate_id > 1 && ` — ${t('printers.plateNumber', { number: archive.plate_id })}`}</p>
+            <p className="text-white text-sm truncate">{archiveDisplayName(archive, t)}</p>
             {(archive.status === 'failed' || archive.status === 'aborted') && (
               <span className="px-1.5 py-0.5 rounded text-[10px] leading-tight bg-status-error/80 text-white flex-shrink-0">
                 {archive.status === 'aborted' ? t('archives.card.cancelled') : t('archives.card.failed')}

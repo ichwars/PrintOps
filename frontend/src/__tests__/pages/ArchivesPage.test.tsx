@@ -323,6 +323,19 @@ describe('ArchivesPage', () => {
       await waitFor(() => expect(screen.getByText('Benchy')).toBeInTheDocument());
       expect(screen.queryByText(/Plate 1/)).not.toBeInTheDocument();
     });
+
+    it('does not duplicate a plate suffix already stored in the print name', async () => {
+      server.use(http.get('/api/v1/archives/', () => HttpResponse.json([{
+        ...mockArchives[1],
+        print_name: 'Bracket v2 - Plate 3',
+        plate_id: 3,
+      }])));
+
+      render(<ArchivesPage />);
+
+      await waitFor(() => expect(screen.getByText('Bracket v2 - Plate 3')).toBeInTheDocument());
+      expect(screen.queryByText(/Plate 3.*Plate 3/)).not.toBeInTheDocument();
+    });
   });
 
   describe('timelapse management', () => {
