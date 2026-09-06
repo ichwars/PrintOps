@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from backend.app.core import database
+from backend.app.core.library_migrations import reclassify_sliced_3mf_library_files
 
 
 def _write_3mf(path: Path, names: list[str]) -> bytes:
@@ -56,21 +56,18 @@ async def _insert_file(conn, *, file_id: int, path: str, external: bool = False,
 
 
 @pytest.mark.asyncio
-async def test_repair_reclassifies_internal_rows_without_changing_files_or_relationships(
-    migration_engine, tmp_path, monkeypatch
-):
+async def test_repair_reclassifies_internal_rows_without_changing_files_or_relationships(migration_engine, tmp_path):
     sliced_bytes = _write_3mf(tmp_path / "files/sliced.3mf", ["Metadata/plate_2.gcode"])
     _write_3mf(tmp_path / "files/source.3mf", ["3D/3dmodel.model"])
     _write_3mf(tmp_path / "files/trashed.3mf", ["Metadata/plate_5.gcode"])
     (tmp_path / "files/broken.3mf").write_bytes(b"PK\x03\x04broken")
-    monkeypatch.setattr(database.settings, "base_dir", tmp_path)
     async with migration_engine.begin() as conn:
         await _insert_file(conn, file_id=1, path="files/sliced.3mf")
         await _insert_file(conn, file_id=2, path="files/source.3mf")
         await _insert_file(conn, file_id=3, path="files/broken.3mf")
         await _insert_file(conn, file_id=4, path="files/trashed.3mf", deleted=True)
 
-        await database._reclassify_sliced_3mf_library_files(conn)
+        await reclassify_sliced_3mf_library_files(conn, tmp_path)
 
         rows = (
             await conn.execute(text("SELECT id, file_type, file_path, project_id FROM library_files ORDER BY id"))
@@ -88,19 +85,18 @@ async def test_repair_reclassifies_internal_rows_without_changing_files_or_relat
 
 
 @pytest.mark.asyncio
-async def test_repair_is_one_shot_and_skips_external_mounts(migration_engine, tmp_path, monkeypatch):
+async def test_repair_is_one_shot_and_skips_external_mounts(migration_engine, tmp_path):
     source_path = tmp_path / "files/source.3mf"
     external_path = tmp_path / "mount/external.3mf"
     _write_3mf(source_path, ["3D/3dmodel.model"])
     _write_3mf(external_path, ["Metadata/plate_1.gcode"])
-    monkeypatch.setattr(database.settings, "base_dir", tmp_path)
     async with migration_engine.begin() as conn:
         await _insert_file(conn, file_id=1, path="files/source.3mf")
         await _insert_file(conn, file_id=2, path=str(external_path), external=True)
 
-        await database._reclassify_sliced_3mf_library_files(conn)
+        await reclassify_sliced_3mf_library_files(conn, tmp_path)
         _write_3mf(source_path, ["Metadata/plate_9.gcode"])
-        await database._reclassify_sliced_3mf_library_files(conn)
+        await reclassify_sliced_3mf_library_files(conn, tmp_path)
 
         rows = dict((await conn.execute(text("SELECT id, file_type FROM library_files"))).fetchall())
         flags = (

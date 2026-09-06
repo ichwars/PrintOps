@@ -88,8 +88,8 @@ from backend.app.utils.archive_budget import (
     validate_zip_archive,
 )
 from backend.app.utils.filename import InvalidFilenameError, validate_print_filename
+from backend.app.utils.library_files import classify_file_type, is_sliced_file
 from backend.app.utils.threemf_tools import (
-    carries_gcode,
     extract_embedded_presets_from_3mf,
     extract_nozzle_mapping_from_3mf,
     extract_project_filaments_from_3mf,
@@ -140,31 +140,6 @@ def get_library_files_dir() -> Path:
     files_dir = get_library_dir() / "files"
     files_dir.mkdir(parents=True, exist_ok=True)
     return files_dir
-
-
-def classify_file_type(filename: str, file_path: Path | str | None = None) -> str:
-    """Return the canonical ``LibraryFile.file_type`` for *filename*.
-
-    Compound extensions are preserved — a `.gcode.3mf` file (a sliced
-    output, still a 3MF zip on disk) is classified ``gcode.3mf`` rather
-    than ``3mf``. Pre-#1600 this was only done in the external-scan
-    path; the upload / ZIP-extract / in-process paths all stripped to
-    the trailing extension and stored ``3mf``, so the FE had to accept
-    both. Unified here so every ingest path stores the same value and
-    downstream gates (gcode download, file-type filter, thumbnail
-    extraction) only need to handle one canonical name per file family.
-    Files with no extension classify as ``unknown``. When a path is available,
-    an otherwise ambiguous ``.3mf`` is classified from its ZIP contents so a
-    sliced export named ``Foo.3mf`` remains printable (issue #132).
-    """
-    lower = filename.lower()
-    if lower.endswith(".gcode.3mf"):
-        return "gcode.3mf"
-    ext = os.path.splitext(lower)[1]
-    file_type = ext[1:] if ext else "unknown"
-    if file_type == "3mf" and file_path is not None and carries_gcode(file_path):
-        return "gcode.3mf"
-    return file_type
 
 
 def get_library_thumbnails_dir() -> Path:
@@ -1696,15 +1671,9 @@ async def scan_external_folder(
 
             if file_path_str in existing_files:
                 # Already tracked — refresh its on-disk mtime (#2680) so a file
-                # edited/replaced over the mount (samba, etc.) re-sorts correctly
-                # and old rows scanned before this field existed get backfilled.
-                # The explicit scan is also the safe place to repair external
-                # rows whose `.3mf` filename hid embedded G-code (#132); startup
-                # migrations deliberately avoid possibly unavailable mounts.
+                # edited/replaced over a mount re-sorts and old rows are repaired.
                 tracked = existing_files[file_path_str]
-                detected_type = classify_file_type(filename, filepath)
-                if tracked.file_type != detected_type:
-                    tracked.file_type = detected_type
+                tracked.file_type = classify_file_type(filename, filepath)
                 try:
                     fs_mtime = _mtime_to_datetime(filepath.stat().st_mtime)
                 except OSError:
@@ -2623,19 +2592,6 @@ async def batch_generate_stl_thumbnails(
 
 # ============ Queue Operations ============
 # NOTE: These routes must be defined BEFORE /files/{file_id} to avoid path parameter conflicts
-
-
-def is_sliced_file(filename: str, file_type: str | None = None) -> bool:
-    """Check if a file is a sliced (printable) file.
-
-    Content-derived ``file_type`` is authoritative for ambiguous ``.3mf``
-    names. The filename remains a compatibility signal for legacy rows.
-    """
-    normalized_type = (file_type or "").lower()
-    if normalized_type in ("gcode", "gcode.3mf"):
-        return True
-    lower = filename.lower()
-    return lower.endswith(".gcode") or lower.endswith(".gcode.3mf")
 
 
 @router.post("/files/add-to-queue", response_model=AddToQueueResponse)

@@ -3212,8 +3212,6 @@ async def get_archive_capabilities(
         with zipfile.ZipFile(file_path, "r") as zf:
             names = zf.namelist()
 
-            # Use the same content predicate as library import classification,
-            # so an archive and its re-import cannot disagree (#132).
             has_gcode = names_carry_gcode(names)
 
             # Check for 3D model in sliced file (fallback if no source)

@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from backend.app.api.routes.library import classify_file_type, is_sliced_file, save_3mf_bytes_to_library
+from backend.app.api.routes.library import save_3mf_bytes_to_library
+from backend.app.utils.library_files import classify_file_type, is_sliced_file
 from backend.app.utils.threemf_tools import carries_gcode, names_carry_gcode
 
 
