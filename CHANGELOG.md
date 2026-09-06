@@ -4,6 +4,9 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+- **Sliced 3MF detection no longer depends on the filename (#132)** — Library uploads, ZIP imports, external-folder scans and archive capabilities now recognize embedded G-code inside ordinary `.3mf` files. Existing internal library rows are repaired once without changing file bytes or relationships, external rows are repaired on scan, and the library/project UI consistently offers Print instead of Slice for detected sliced files.
+
 ## [1.2.7.9] - 2026-09-03
 
 ### Added

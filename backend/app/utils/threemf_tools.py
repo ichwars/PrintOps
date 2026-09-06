@@ -269,6 +269,29 @@ def _layer_gcode_member(names: list[str], plate_id: int | None) -> str | None:
     return gcode_names[0]
 
 
+def names_carry_gcode(names: list[str]) -> bool:
+    """Return whether 3MF member names include printer-executable G-code.
+
+    Archive capabilities and library imports must use the same answer. 3MF
+    filenames are not reliable evidence: sliced exports may be named either
+    ``Foo.3mf`` or ``Foo.gcode.3mf`` (issue #132).
+    """
+    return _layer_gcode_member(names, plate_id=None) is not None
+
+
+def carries_gcode(file_path: Path | str) -> bool:
+    """Inspect a 3MF central directory without extracting its members.
+
+    Missing, unreadable, or malformed files are treated as not carrying
+    G-code so classification remains fail-safe for imports and migrations.
+    """
+    try:
+        with zipfile.ZipFile(file_path, "r") as archive:
+            return names_carry_gcode(archive.namelist())
+    except (OSError, zipfile.BadZipFile):
+        return False
+
+
 def extract_layer_filament_usage_from_3mf(
     file_path: Path,
     plate_id: int | None = None,

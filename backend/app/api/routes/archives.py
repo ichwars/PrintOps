@@ -49,6 +49,7 @@ from backend.app.utils.threemf_tools import (
     extract_embedded_presets_from_3mf,
     extract_nozzle_mapping_from_3mf,
     extract_project_filaments_from_3mf,
+    names_carry_gcode,
 )
 
 logger = logging.getLogger(__name__)
@@ -3211,8 +3212,9 @@ async def get_archive_capabilities(
         with zipfile.ZipFile(file_path, "r") as zf:
             names = zf.namelist()
 
-            # Check for G-code in the sliced file
-            has_gcode = any(n.startswith("Metadata/") and n.endswith(".gcode") for n in names)
+            # Use the same content predicate as library import classification,
+            # so an archive and its re-import cannot disagree (#132).
+            has_gcode = names_carry_gcode(names)
 
             # Check for 3D model in sliced file (fallback if no source)
             if not has_model:

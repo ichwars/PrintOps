@@ -73,7 +73,8 @@ import { usePageFileDrop } from '../hooks/usePageFileDrop';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDuration, parseUTCDate, formatDate } from '../utils/date';
 import { formatFileSize } from '../utils/file';
-import { isServerSliceableFilename, isUnsliceableCadFilename } from '../utils/sliceFormats';
+import { isUnsliceableCadFilename } from '../utils/sliceFormats';
+import { isSliceableLibraryFile, isSlicedLibraryFile } from '../utils/libraryFiles';
 import { Checkbox, LegacySelect, TextField } from '../components/ui';
 
 type SortField = 'name' | 'date' | 'size' | 'type' | 'prints';
@@ -707,17 +708,6 @@ function FolderTreeItem({ folder, selectedFolderId, onSelect, onDelete, onLink, 
   );
 }
 
-// Helper to check if a file is sliced (printable)
-function isSlicedFilename(filename: string): boolean {
-  const lower = filename.toLowerCase();
-  return lower.endsWith('.gcode') || lower.endsWith('.gcode.3mf');
-}
-
-// Files that can be fed to the slicer sidecar (model geometry inputs).
-// Excludes .gcode.* (already sliced), STEP/STP (the sidecar cannot import
-// them, #92) and any other non-model formats.
-const isSliceableFilename = isServerSliceableFilename;
-
 // File Card
 interface FileCardProps {
   file: LibraryFileListItem;
@@ -855,7 +845,7 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
           <>
             <div className="fixed inset-0 z-10" onClick={() => setShowActions(false)} />
             <div className="absolute right-0 bottom-8 z-20 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl py-1 min-w-[140px]">
-              {onPrint && isSlicedFilename(file.filename) && (
+              {onPrint && isSlicedLibraryFile(file) && (
                 <button
                   className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
                     hasPermission('queue:create') ? 'text-bambu-green hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
@@ -868,7 +858,7 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
                   {t('common.print')}
                 </button>
               )}
-              {onSlice && useSlicerApi && isSliceableFilename(file.filename) && (
+              {onSlice && useSlicerApi && isSliceableLibraryFile(file) && (
                 <button
                   className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
                     hasPermission('library:upload') ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
@@ -890,7 +880,7 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
                   {t('slice.stepUnsupported')}
                 </div>
               )}
-              {onRunPipeline && useSlicerApi && isSliceableFilename(file.filename) && (
+              {onRunPipeline && useSlicerApi && isSliceableLibraryFile(file) && (
                 <button
                   className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
                     hasPermission('pipelines:run') ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
@@ -1532,17 +1522,11 @@ export function FileManagerPage() {
     onError: (error: Error) => showToast(error.message, 'error'),
   });
 
-  // Helper to check if a file is sliced (printable)
-  const isSlicedFile = useCallback((filename: string) => {
-    const lower = filename.toLowerCase();
-    return lower.endsWith('.gcode') || lower.includes('.gcode.');
-  }, []);
-
   // Get sliced files from selection
   const selectedSlicedFiles = useMemo(() => {
     if (!files) return [];
-    return files.filter(f => selectedFiles.includes(f.id) && isSlicedFile(f.filename));
-  }, [files, selectedFiles, isSlicedFile]);
+    return files.filter(f => selectedFiles.includes(f.id) && isSlicedLibraryFile(f));
+  }, [files, selectedFiles]);
 
   // The clicked file's variant group, so printing one member offers the rest
   // without the user re-selecting them (#2570).
@@ -2398,11 +2382,11 @@ export function FileManagerPage() {
                     onRunPipeline={setRunPipelineFile}
                     useSlicerApi={settings?.use_slicer_api ?? false}
                     onPreview3d={(f) => {
-                      // Sliced files (.gcode / .gcode.3mf) open the same
+                      // Content-classified sliced files open the same
                       // full-page gcode viewer the archive card uses, so
                       // the two paths feel consistent. STL / source 3MF
                       // continue to use the in-app 3D model viewer modal.
-                      if (isSlicedFilename(f.filename)) {
+                      if (isSlicedLibraryFile(f)) {
                         navigate(`/gcode-viewer?library_file=${f.id}`);
                       } else {
                         setViewerFile(f);
@@ -2556,7 +2540,7 @@ export function FileManagerPage() {
                     </div>
                     {/* Actions */}
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                      {isSlicedFilename(file.filename) && (
+                      {isSlicedLibraryFile(file) && (
                         <>
                           <button
                             onClick={() => hasPermission('queue:create') && setPrintFile(file)}
@@ -2572,7 +2556,7 @@ export function FileManagerPage() {
                           </button>
                         </>
                       )}
-                      {(settings?.use_slicer_api ?? false) && isSliceableFilename(file.filename) && (
+                      {(settings?.use_slicer_api ?? false) && isSliceableLibraryFile(file) && (
                         <button
                           onClick={() => hasPermission('library:upload') && setSliceFile(file)}
                           className={`p-1.5 rounded transition-colors ${
@@ -2595,7 +2579,7 @@ export function FileManagerPage() {
                           <Cog className="w-4 h-4" />
                         </span>
                       )}
-                      {(settings?.use_slicer_api ?? false) && isSliceableFilename(file.filename) && (
+                      {(settings?.use_slicer_api ?? false) && isSliceableLibraryFile(file) && (
                         <button
                           onClick={() => hasPermission('pipelines:run') && setRunPipelineFile(file)}
                           className={`p-1.5 rounded transition-colors ${
@@ -2613,7 +2597,7 @@ export function FileManagerPage() {
                         <button
                           onClick={() => {
                             if (!hasPermission('library:read')) return;
-                            if (isSlicedFilename(file.filename)) {
+                            if (isSlicedLibraryFile(file)) {
                               navigate(`/gcode-viewer?library_file=${file.id}`);
                             } else {
                               setViewerFile(file);
@@ -2837,7 +2821,7 @@ export function FileManagerPage() {
           onSliceWithPrintOps={
             // Only offer in-app slicing on files the SliceModal can actually
             // handle (matches the file-row Cog visibility check at :2127).
-            isSliceableFilename(viewerFile.filename) && hasPermission('library:upload')
+            isSliceableLibraryFile(viewerFile) && hasPermission('library:upload')
               ? () => {
                   const f = viewerFile;
                   setViewerFile(null);

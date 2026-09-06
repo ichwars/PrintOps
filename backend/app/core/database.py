@@ -761,6 +761,66 @@ async def migrate_document_layout_schema(conn) -> None:
     )
 
 
+async def _reclassify_sliced_3mf_library_files(conn) -> None:
+    """Repair existing internal 3MF rows classified from names alone (#132).
+
+    This is deliberately one-shot: genuine source 3MF files remain candidates
+    forever. External rows are left to their explicit folder scan so startup
+    never blocks on a slow or unavailable mount.
+    """
+    from pathlib import Path
+
+    from sqlalchemy import text
+
+    from backend.app.utils.threemf_tools import carries_gcode
+
+    flag = "_backfill_132_sliced_3mf_type_done"
+
+    async with conn.begin_nested():
+        already_done = (
+            await conn.execute(text('SELECT value FROM settings WHERE "key" = :key'), {"key": flag})
+        ).scalar_one_or_none()
+        if already_done:
+            return
+
+        rows = (
+            await conn.execute(
+                text(
+                    # Do not filter on deleted_at here: this pass intentionally
+                    # runs before that legacy column is added later below. Rows
+                    # already in the trash still point at managed bytes and are
+                    # safe to classify before a possible restore.
+                    "SELECT id, file_path FROM library_files "
+                    "WHERE file_type = '3mf' "
+                    "AND file_path IS NOT NULL AND file_path <> '' "
+                    "AND (is_external IS NULL OR is_external = :is_external)"
+                ),
+                {"is_external": False},
+            )
+        ).fetchall()
+
+        reclassified = 0
+        for row in rows:
+            path = Path(row.file_path)
+            if not path.is_absolute():
+                path = settings.base_dir / path
+            if not carries_gcode(path):
+                continue
+            await conn.execute(
+                text("UPDATE library_files SET file_type = 'gcode.3mf' WHERE id = :id"),
+                {"id": row.id},
+            )
+            reclassified += 1
+
+        if reclassified:
+            logger.info("Issue #132: reclassified %d sliced 3MF library file(s)", reclassified)
+
+        await conn.execute(
+            text('INSERT INTO settings ("key", value) VALUES (:key, :value)'),
+            {"key": flag, "value": "true"},
+        )
+
+
 async def run_migrations(conn):
     """Run all schema migrations and data backfills on startup.
 
@@ -2151,6 +2211,10 @@ async def run_migrations(conn):
             "WHERE file_type = '3mf' AND LOWER(filename) LIKE '%.gcode.3mf'"
         )
     )
+
+    # A plain `.3mf` can also be sliced; repair rows imported before the
+    # content-based classifier existed. External rows are handled on scan.
+    await _reclassify_sliced_3mf_library_files(conn)
 
     # Migration: Add per-user Bambu Cloud credential columns
     await _safe_execute(conn, "ALTER TABLE users ADD COLUMN cloud_token VARCHAR(500)")

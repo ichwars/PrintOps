@@ -2,10 +2,17 @@
 
 import os
 import tempfile
+import zipfile
 from pathlib import Path
 
 import pytest
 from httpx import AsyncClient
+
+
+def _write_test_3mf(path: Path, names: list[str]) -> None:
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name in names:
+            archive.writestr(name, b"x")
 
 
 @pytest.fixture(autouse=True)
@@ -278,6 +285,51 @@ class TestExternalFolderScan:
         response2 = await async_client.post(f"/api/v1/library/folders/{external_folder['id']}/scan")
         assert response2.json()["added"] == 0
         assert response2.json()["removed"] == 0
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_scan_classifies_plain_named_sliced_3mf_from_content(
+        self, async_client: AsyncClient, db_session, tmp_path
+    ):
+        ext_dir = tmp_path / "sliced-scan"
+        ext_dir.mkdir()
+        _write_test_3mf(ext_dir / "unusual-name.3mf", ["Metadata/plate_4.gcode"])
+        folder_response = await async_client.post(
+            "/api/v1/library/folders/external",
+            json={"name": "Sliced Scan", "external_path": str(ext_dir), "readonly": True},
+        )
+        folder = folder_response.json()
+
+        response = await async_client.post(f"/api/v1/library/folders/{folder['id']}/scan")
+
+        assert response.status_code == 200
+        files = (await async_client.get(f"/api/v1/library/files?folder_id={folder['id']}")).json()
+        assert files[0]["file_type"] == "gcode.3mf"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_rescan_reclassifies_existing_external_3mf_without_touching_the_file(
+        self, async_client: AsyncClient, db_session, tmp_path
+    ):
+        ext_dir = tmp_path / "sliced-rescan"
+        ext_dir.mkdir()
+        path = ext_dir / "same-name.3mf"
+        _write_test_3mf(path, ["3D/3dmodel.model"])
+        folder_response = await async_client.post(
+            "/api/v1/library/folders/external",
+            json={"name": "Sliced Rescan", "external_path": str(ext_dir), "readonly": True},
+        )
+        folder = folder_response.json()
+        await async_client.post(f"/api/v1/library/folders/{folder['id']}/scan")
+        original_path = str(path.resolve())
+
+        _write_test_3mf(path, ["3D/3dmodel.model", "Metadata/plate_2.gcode"])
+        response = await async_client.post(f"/api/v1/library/folders/{folder['id']}/scan")
+
+        assert response.status_code == 200
+        files = (await async_client.get(f"/api/v1/library/files?folder_id={folder['id']}")).json()
+        assert files[0]["file_type"] == "gcode.3mf"
+        assert str(path.resolve()) == original_path
 
     @pytest.mark.asyncio
     @pytest.mark.integration
