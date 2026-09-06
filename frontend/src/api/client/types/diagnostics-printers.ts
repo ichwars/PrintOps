@@ -9,6 +9,23 @@ export interface CameraDiagnoseStage {
   code: string | null;
 }
 
+/** Inventory-bound AMS slot data shared by dispatch and pre-flight checks. */
+export interface SlotMaterial {
+  ams_id: number;
+  tray_id: number;
+  global_tray_id: number;
+  /** Opaque backend identity; matching keys and extruders may be pooled. */
+  material_key: string;
+  remaining_g: number;
+  /** 0 = right/single nozzle, 1 = left. */
+  extruder: number;
+}
+
+export interface InventoryRemainResponse {
+  inventory_remain_g: Record<string, number>;
+  slot_materials: SlotMaterial[];
+}
+
 export interface CameraDiagnoseResult {
   printer_id: number;
   protocol: 'rtsp' | 'chamber_image';

@@ -5028,6 +5028,7 @@ useEmbeddedHint: 'Esegue lo slicing come impostato dal designer (pareti, riempim
     insufficientFilamentTitle: 'Filamento insufficiente',
     insufficientFilamentMessage: 'Alcune bobine assegnate hanno meno filamento rimanente di quanto necessario per questa stampa:',
     insufficientFilamentLine: '{{printer}} - {{slot}}: necessita di {{required}}g, rimanenti {{remaining}}g',
+    insufficientFilamentLinePooled: '{{printer}} - {{slot}}: necessita di {{required}}g, {{remaining}}g disponibili tra le bobine corrispondenti (AMS Filament Backup)',
     printAnyway: 'Stampa comunque',
     forceColorMatch: 'Forza corrispondenza colore',
     staggerPrinterStarts: 'Scaglionare avvii',

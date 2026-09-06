@@ -2,7 +2,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { AlertCircle, AlertTriangle, Loader2, Pencil, Printer, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { PrinterStatus, PrintQueueItemCreate, PrintQueueItemUpdate } from '../../api/client';
+import type { PrinterStatus, PrintQueueItemCreate, PrintQueueItemUpdate, SlotMaterial } from '../../api/client';
 import { api } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { Card, CardContent } from '../Card';
@@ -32,7 +32,7 @@ import type {
   ScheduleType,
 } from './types';
 import { DEFAULT_PRINT_OPTIONS, DEFAULT_SCHEDULE_OPTIONS } from './types';
-import { groupBuiltInSpoolAssignments } from './inventoryAssignments';
+import { computeFilamentWarnings } from './filamentWarnings';
 
 /**
  * Unified PrintModal component that handles queue item creation and editing.
@@ -90,6 +90,7 @@ export function PrintModal({
     slotLabel: string;
     requiredGrams: number;
     remainingGrams: number;
+    pooled: boolean;
   };
 
   // Multiple printer selection (used for all modes now)
@@ -301,13 +302,6 @@ export function PrintModal({
     queryFn: api.getPrinters,
   });
 
-  const { data: spoolAssignments } = useQuery({
-    queryKey: ['spool-assignments'],
-    queryFn: () => api.getAssignments(),
-    staleTime: 30 * 1000,
-    enabled: settings !== undefined && !settings.spoolman_enabled && !isEditing && assignmentMode === 'printer',
-  });
-
   // Fetch per-printer Map<globalTrayId, gramsRemaining> via the dedicated
   // backend endpoint (#1766). Server-side mirrors `_build_inventory_remain_overrides`
   // so internal and Spoolman modes both work uniformly, VT/external slots are
@@ -332,6 +326,15 @@ export function PrintModal({
         if (!Number.isNaN(gtid)) printerMap.set(gtid, grams);
       });
       result.set(printerId, printerMap);
+    });
+    return result;
+  }, [selectedPrinters, inventoryRemainQueries]);
+
+  const slotMaterialsPerPrinter = useMemo(() => {
+    const result = new Map<number, SlotMaterial[]>();
+    selectedPrinters.forEach((printerId, idx) => {
+      const slots = inventoryRemainQueries[idx]?.data?.slot_materials;
+      if (slots) result.set(printerId, slots);
     });
     return result;
   }, [selectedPrinters, inventoryRemainQueries]);
@@ -591,14 +594,10 @@ export function PrintModal({
   const isMultiPlate = platesData?.is_multi_plate ?? false;
   const plates = platesData?.plates ?? [];
 
-  const spoolAssignmentsByPrinter = useMemo(() => {
-    return groupBuiltInSpoolAssignments(spoolAssignments, !!settings?.spoolman_enabled);
-  }, [spoolAssignments, settings?.spoolman_enabled]);
-
   const filamentWarningMessage = useMemo(() => {
     if (!filamentWarningItems || filamentWarningItems.length === 0) return '';
     const lines = filamentWarningItems.map((item) =>
-      t('printModal.insufficientFilamentLine', {
+      t(item.pooled ? 'printModal.insufficientFilamentLinePooled' : 'printModal.insufficientFilamentLine', {
         printer: item.printerName,
         slot: item.slotLabel,
         required: Math.round(item.requiredGrams),
@@ -639,13 +638,7 @@ export function PrintModal({
       const warningItems: FilamentWarningItem[] = [];
       const filamentReqs = effectiveFilamentReqs?.filaments ?? [];
 
-      if (filamentReqs.length > 0 && spoolAssignmentsByPrinter.size > 0) {
-        const getRemainingWeight = (labelWeight: number, weightUsed: number) => {
-          if (!Number.isFinite(labelWeight) || labelWeight <= 0) return null;
-          if (!Number.isFinite(weightUsed) || weightUsed < 0) return null;
-          return Math.max(0, labelWeight - weightUsed);
-        };
-
+      if (filamentReqs.length > 0 && slotMaterialsPerPrinter.size > 0) {
         for (const printerId of selectedPrinters) {
           const printerMapping = selectedPrinters.length > 1
             ? multiPrinterMapping.getFinalMapping(printerId)
@@ -658,29 +651,22 @@ export function PrintModal({
 
           const loadedFilaments = buildLoadedFilaments(printerStatusForWarning);
           const slotLabelByTray = new Map(loadedFilaments.map((f) => [f.globalTrayId, f.label]));
-          const assignments = spoolAssignmentsByPrinter.get(printerId);
+          const slotMaterials = slotMaterialsPerPrinter.get(printerId);
           const printerName = printers?.find((p) => p.id === printerId)?.name ?? `Printer ${printerId}`;
 
-          if (!assignments) continue;
-
-          filamentReqs.forEach((req) => {
-            if (!req.slot_id || req.slot_id <= 0) return;
-            const globalTrayId = printerMapping[req.slot_id - 1];
-            if (!Number.isFinite(globalTrayId) || globalTrayId < 0) return;
-
-            const assignment = assignments.get(globalTrayId);
-            const spool = assignment?.spool;
-            if (!spool) return;
-
-            const remainingGrams = getRemainingWeight(spool.label_weight, spool.weight_used);
-            if (remainingGrams === null) return;
-            if (remainingGrams >= req.used_grams) return;
-
+          if (!slotMaterials) continue;
+          computeFilamentWarnings(
+            filamentReqs,
+            printerMapping,
+            slotMaterials,
+            printerStatusForWarning?.ams_filament_backup === true,
+          ).forEach((warning) => {
             warningItems.push({
               printerName,
-              slotLabel: slotLabelByTray.get(globalTrayId) ?? `Slot ${req.slot_id}`,
-              requiredGrams: req.used_grams,
-              remainingGrams,
+              slotLabel: slotLabelByTray.get(warning.globalTrayId) ?? `Tray ${warning.globalTrayId}`,
+              requiredGrams: warning.requiredGrams,
+              remainingGrams: warning.remainingGrams,
+              pooled: warning.pooled,
             });
           });
         }

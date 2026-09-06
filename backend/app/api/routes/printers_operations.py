@@ -320,17 +320,26 @@ async def get_inventory_remain(
     the dispatcher uses (#1766). Works for both internal inventory and
     Spoolman; unbound slots are absent from the map (client falls back to the
     printer's MQTT `remain` for those).
+
+    ``slot_materials`` exposes every inventory binding with the backend's
+    material/color identity and extruder side. PrintModal uses that same pool
+    as dispatch when AMS Filament Backup is enabled.
     """
+    from backend.app.services.filament_deficit import build_slot_materials
     from backend.app.services.print_scheduler import PrintScheduler
 
     state = printer_manager.get_status(printer_id)
     if not state:
-        return {"inventory_remain_g": {}}
+        return {"inventory_remain_g": {}, "slot_materials": []}
 
     scheduler = PrintScheduler()
     loaded = scheduler._build_loaded_filaments(state)
     overrides = await scheduler._build_inventory_remain_overrides(db, printer_id, loaded)
-    return {"inventory_remain_g": {str(k): v for k, v in overrides.items()}}
+    slot_materials = await build_slot_materials(db, printer_id)
+    return {
+        "inventory_remain_g": {str(k): v for k, v in overrides.items()},
+        "slot_materials": [slot.to_dict() for slot in slot_materials],
+    }
 
 
 @router.post("/{printer_id}/calibration")

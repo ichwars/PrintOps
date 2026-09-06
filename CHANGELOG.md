@@ -5,6 +5,7 @@ All notable changes to PrintOps will be documented in this file.
 ## Unreleased
 
 ### Fixed
+- **Library queue filament checks and AMS backup parity (#134)** — Relative Library paths are now resolved from the configured data directory while legacy absolute paths remain valid, missing sources leave a diagnostic warning, and the selected plate stays scoped through the deficit parser. The print dialog and dispatch now share the backend's material-, colour-, and extruder-aware backup-spool pool for both built-in inventory and Spoolman, without counting a slot or warning twice.
 - **Sliced 3MF detection no longer depends on the filename (#132)** — Library uploads, ZIP imports, external-folder scans and archive capabilities now recognize embedded G-code inside ordinary `.3mf` files. Existing internal library rows are repaired once without changing file bytes or relationships, external rows are repaired on scan, and the library/project UI consistently offers Print instead of Slice for detected sliced files.
 
 ## [1.2.7.9] - 2026-09-03
