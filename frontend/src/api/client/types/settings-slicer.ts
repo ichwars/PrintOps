@@ -402,6 +402,9 @@ export interface SliceRequest {
   // backend validator promotes a singular into a one-element list when this
   // is omitted, so legacy single-color clients keep working unchanged.
   filament_presets?: PresetRef[];
+  // Per-slot colours aligned with filament_presets. Empty entries let the
+  // backend use the preset default or source-project colour.
+  filament_colours?: string[];
   plate?: number;
   export_3mf?: boolean;
   // Build-plate override (#1337). When omitted, the slicer uses the process
@@ -435,7 +438,7 @@ export interface UnifiedPreset {
   filament_colour?: string | null;
   // Printer-preset names a process / filament preset declares itself
   // compatible with. Populated for the local tier (the slicer's own
-  // `compatible_printers`); null for cloud / standard. The SliceModal filters
+  // `compatible_printers`); null when a source or older sidecar omits it. The SliceModal filters
   // the process / filament dropdowns by the selected printer using this when
   // present (#1325).
   compatible_printers?: string[] | null;

@@ -42,6 +42,7 @@ export const EMPTY_COMPATIBILITY_INDEX: PrinterCompatibilityIndex = {
 // (e.g. "X1" ⇄ "X1C") would silently group truly distinct printers.
 const PRINTER_MODEL_SUFFIX_ALIASES: Record<string, readonly string[]> = {
   'A1 MINI': ['A1M'],
+  'H2D PRO': ['H2DP'],
 };
 
 /**

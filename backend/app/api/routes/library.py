@@ -76,6 +76,11 @@ from backend.app.services.slice_formats import (
     is_server_sliceable_filename,
     unsliceable_detail,
 )
+from backend.app.services.slice_output_check import slicer_output_error
+from backend.app.services.slicer_profile_patch import (
+    patch_filament_colours as _patch_filament_colours,
+    patch_process_support_settings as _patch_process_support_settings,
+)
 from backend.app.services.spoolman_costs import without_spoolman_actual_cost
 from backend.app.services.stl_thumbnail import MIN_USABLE_STL_BYTES, generate_stl_thumbnail
 from backend.app.utils.archive_budget import (
@@ -94,7 +99,6 @@ from backend.app.utils.threemf_tools import (
     extract_embedded_presets_from_3mf,
     extract_nozzle_mapping_from_3mf,
     extract_project_filaments_from_3mf,
-    supports_enabled_in_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -3364,59 +3368,6 @@ def _patch_process_bed_type(process_json: str, bed_type: str) -> str:
     return json.dumps(profile)
 
 
-# Support-related keys we lift from the source 3MF's project_settings.config
-# into the picked process preset before `--load-settings` sees it (#1881).
-# BambuStudio's shipped process presets ("0.20mm Standard @BBL H2D" etc.)
-# define `enable_support: 0` as their default — supports are a per-print
-# decision, not a per-quality one. `--load-settings` is authoritative, so
-# without preserving these fields the source's per-project support intent
-# (supports on, PVA in the interface slot, tree vs normal) gets discarded
-# and the slicer produces a single-material output with no supports at all.
-_SOURCE_PROCESS_SUPPORT_KEYS_TO_PRESERVE = (
-    "enable_support",
-    "support_filament",
-    "support_interface_filament",
-    "support_type",
-)
-
-
-def _patch_process_support_settings(process_json: str, source_3mf_bytes: bytes) -> str:
-    """Overlay the source 3MF's support configuration onto the process JSON.
-
-    Only fires on 3MF sources — STL / STEP don't carry `project_settings.
-    config`. Silently no-ops when the source doesn't have the config, has
-    a malformed one, or when the process JSON isn't parseable — the slice
-    then runs with the process preset's own defaults, which is the safe
-    fall-back for both this bug and the pre-fix behaviour.
-    """
-    from io import BytesIO
-
-    try:
-        with zipfile.ZipFile(BytesIO(source_3mf_bytes), "r") as zf:
-            if "Metadata/project_settings.config" not in zf.namelist():
-                return process_json
-            src_cfg = read_json_member(zf, "Metadata/project_settings.config")
-    except (ArchiveBudgetError, zipfile.BadZipFile, ValueError, UnicodeDecodeError, OSError, KeyError):
-        return process_json
-    if not isinstance(src_cfg, dict):
-        return process_json
-    if not supports_enabled_in_config(src_cfg):
-        return process_json
-
-    try:
-        process_cfg = json.loads(process_json)
-    except json.JSONDecodeError:
-        return process_json
-    if not isinstance(process_cfg, dict):
-        return process_json
-
-    for key in _SOURCE_PROCESS_SUPPORT_KEYS_TO_PRESERVE:
-        if key in src_cfg:
-            process_cfg[key] = src_cfg[key]
-
-    return json.dumps(process_cfg)
-
-
 # The sidecar prefixes the slicer CLI's own error_string with this when the
 # slicer ran and rejected the job (model off the bed, incompatible filament
 # temps, range validation) — as opposed to the CLI crashing before it could
@@ -3542,13 +3493,9 @@ async def _run_slicer_with_fallback(
         for ref in request.filament_presets:
             assert ref is not None, "schema validator guarantees filament list is non-None"
             filament_jsons.append(await resolve_preset_ref(db, user, ref, "filament"))
+        filament_jsons = _patch_filament_colours(filament_jsons, request.filament_colours, model_bytes)
 
-    # Bed-type override (#1337): patch curr_bed_type onto the resolved
-    # process JSON so the slicer's StaticPrintConfig pass picks up the
-    # user's pick instead of whatever the process preset defaults to.
-    # Without this, slicing an STL of ABS onto a process preset whose
-    # default is "Cool Plate" fails with "Plate 1: Cool Plate does not
-    # support filament 1" — the reporter's exact scenario.
+    # Patch the selected bed onto the resolved process profile (#1337).
     if request.bed_type and not embedded_mode:
         presets["process"] = _patch_process_bed_type(presets["process"], request.bed_type)
 
@@ -3895,7 +3842,27 @@ async def _run_slicer_with_fallback(
     finally:
         await service.close()
 
+    _raise_for_unsafe_slicer_output(result.content, request, used_embedded_settings)
+
     return result, used_embedded_settings
+
+
+def _raise_for_unsafe_slicer_output(content: bytes, request: SliceRequest, used_embedded_settings: bool) -> None:
+    output_error = slicer_output_error(
+        content,
+        export_3mf=bool(request.export_3mf),
+        printer_preset_name=(
+            request.printer_preset.id
+            if not used_embedded_settings
+            and request.printer_preset is not None
+            and request.printer_preset.source == "standard"
+            else None
+        ),
+        filament_preset_names=([] if used_embedded_settings else [ref.id for ref in request.filament_presets]),
+    )
+    if output_error:
+        logger.error("Refusing unsafe slicer output: %s", output_error)
+        raise HTTPException(status_code=502, detail=output_error)
 
 
 def _canonical_printer_model(raw: str | None) -> str | None:

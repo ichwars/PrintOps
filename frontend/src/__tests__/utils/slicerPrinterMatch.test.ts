@@ -111,6 +111,7 @@ describe('presetCompatibility — @BBL name fallback', () => {
     ['0.20mm Standard @BBL H2D', 'Bambu Lab H2D 0.4 nozzle', 'match'],
     ['0.20mm Standard @BBL H2D', 'Bambu Lab H2D Pro 0.4 nozzle', 'mismatch'],
     ['0.20mm Standard @BBL H2D Pro', 'Bambu Lab H2D Pro 0.4 nozzle', 'match'],
+    ['0.20mm Standard @BBL H2DP', 'Bambu Lab H2D Pro 0.4 nozzle', 'match'],
     // Models the original hardcoded list missed, now resolved via the
     // backend registry.
     ['Bambu PLA Basic @BBL P2S', P2S, 'match'],

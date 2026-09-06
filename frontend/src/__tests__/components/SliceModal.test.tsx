@@ -256,6 +256,7 @@ describe('SliceModal', () => {
         process_preset: { source: 'local', id: '2' },
         filament_preset: { source: 'local', id: '3' },
         filament_presets: [{ source: 'local', id: '3' }],
+        filament_colours: [''],
       });
     });
     await waitFor(() => expect(onClose).toHaveBeenCalled());
@@ -728,6 +729,95 @@ describe('SliceModal', () => {
     await waitFor(() => {
       const [, body] = mockApi.sliceLibraryFile.mock.calls[0];
       expect(body).not.toHaveProperty('plate');
+    });
+  });
+
+  it('submits the process the user explicitly selected', async () => {
+    mockApi.sliceLibraryFile.mockResolvedValue({ job_id: 42, status: 'pending' });
+    renderWithTracker({
+      source: { kind: 'libraryFile', id: 100, filename: 'Cube.stl' },
+      onClose: vi.fn(),
+    });
+
+    await waitForPrinterSelection('Imported X1C 0.4');
+    selectComboboxOption(screen.getByRole('combobox', { name: 'Process profile' }), 'My 0.16mm Tweaked');
+    await userEvent.click(screen.getByRole('button', { name: /^Slice$/ }));
+
+    await waitFor(() => {
+      const [, body] = mockApi.sliceLibraryFile.mock.calls[0];
+      expect(body.process_preset).toEqual({ source: 'cloud', id: 'PFUcloud-process' });
+    });
+  });
+
+  it('keeps the explicit embedded-settings choice off unless the user enables it', async () => {
+    mockApi.getLibraryFilePlates.mockResolvedValue({
+      file_id: 100,
+      filename: 'Designed.3mf',
+      is_multi_plate: false,
+      plates: [],
+      embedded_printer: 'Imported X1C 0.4',
+      embedded_process: 'Imported 0.20mm',
+    });
+    mockApi.sliceLibraryFile.mockResolvedValue({ job_id: 42, status: 'pending' });
+    renderWithTracker({
+      source: { kind: 'libraryFile', id: 100, filename: 'Designed.3mf' },
+      onClose: vi.fn(),
+    });
+
+    await waitForPrinterSelection('Imported X1C 0.4');
+    expect(screen.getByRole('checkbox', { name: /built-in settings/i })).not.toBeChecked();
+    await userEvent.click(screen.getByRole('button', { name: /^Slice$/ }));
+
+    await waitFor(() => {
+      const [, body] = mockApi.sliceLibraryFile.mock.calls[0];
+      expect(body).not.toHaveProperty('use_embedded_settings');
+    });
+  });
+
+  it('sends use_embedded_settings only after the user explicitly enables it', async () => {
+    mockApi.getLibraryFilePlates.mockResolvedValue({
+      file_id: 100,
+      filename: 'Designed.3mf',
+      is_multi_plate: false,
+      plates: [],
+      embedded_printer: 'Imported X1C 0.4',
+      embedded_process: 'Imported 0.20mm',
+    });
+    mockApi.sliceLibraryFile.mockResolvedValue({ job_id: 42, status: 'pending' });
+    renderWithTracker({
+      source: { kind: 'libraryFile', id: 100, filename: 'Designed.3mf' },
+      onClose: vi.fn(),
+    });
+
+    await waitForPrinterSelection('Imported X1C 0.4');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('checkbox', { name: /built-in settings/i }));
+    await user.click(screen.getByRole('button', { name: /^Slice$/ }));
+
+    await waitFor(() => {
+      expect(mockApi.sliceLibraryFile).toHaveBeenCalledWith(
+        100,
+        expect.objectContaining({ use_embedded_settings: true }),
+      );
+    });
+  });
+
+  it('submits the filament colour selected in the modal', async () => {
+    mockApi.sliceLibraryFile.mockResolvedValue({ job_id: 42, status: 'pending' });
+    renderWithTracker({
+      source: { kind: 'libraryFile', id: 100, filename: 'Cube.stl' },
+      onClose: vi.fn(),
+    });
+
+    await waitForPrinterSelection('Imported X1C 0.4');
+    fireEvent.change(screen.getByLabelText(/filament colour/i), {
+      target: { value: '#123456' },
+    });
+    await userEvent.click(screen.getByRole('button', { name: /^Slice$/ }));
+
+    await waitFor(() => {
+      const [, body] = mockApi.sliceLibraryFile.mock.calls[0];
+      expect(body.filament_colours).toEqual(['#123456']);
     });
   });
 
