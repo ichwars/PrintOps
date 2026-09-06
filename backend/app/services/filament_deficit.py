@@ -43,6 +43,7 @@ from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.services.filament_requirements import extract_filament_requirements
+from backend.app.utils.safe_path import PathTraversalError, safe_join_under
 
 logger = logging.getLogger(__name__)
 
@@ -93,9 +94,16 @@ def _resolve_source_3mf(item: PrintQueueItem) -> Path | None:
         return app_settings.base_dir / item.archive.file_path
     if item.library_file is not None and item.library_file.file_path:
         library_path = Path(item.library_file.file_path)
-        # SEC-PATH-OK: the Library stores this path after ingest; dispatch uses
-        # the same DB value to locate the file that will be sent to the printer.
-        return library_path if library_path.is_absolute() else app_settings.base_dir / library_path
+        if library_path.is_absolute():
+            return library_path
+        try:
+            return safe_join_under(app_settings.base_dir, item.library_file.file_path, http=False)
+        except PathTraversalError:
+            logger.warning(
+                "Filament check skipped for queue item %s: library path escapes the data directory",
+                item.id,
+            )
+            return None
     return None
 
 

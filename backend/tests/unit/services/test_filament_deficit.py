@@ -287,6 +287,41 @@ class TestFilamentDeficit:
         assert deficit[0].remaining_grams == 9.0
 
     @pytest.mark.asyncio
+    async def test_library_file_path_cannot_escape_data_directory(
+        self,
+        db_session,
+        printer_factory,
+        tmp_path,
+        caplog,
+    ):
+        printer = await printer_factory()
+        library_file = LibraryFile(
+            filename="escaped.3mf",
+            file_path="../escaped.3mf",
+            file_type="3mf",
+            file_size=0,
+        )
+        db_session.add(library_file)
+        await db_session.commit()
+        await db_session.refresh(library_file)
+        item = await _queue_item(
+            db_session,
+            printer_id=printer.id,
+            archive=None,
+            library_file=library_file,
+            ams_mapping=[0],
+        )
+
+        with (
+            patch("backend.app.services.filament_deficit.app_settings.base_dir", tmp_path),
+            caplog.at_level(logging.WARNING, logger="backend.app.services.filament_deficit"),
+        ):
+            deficit = await compute_deficit_for_queue_item(db_session, item)
+
+        assert deficit == []
+        assert any("escapes the data directory" in record.getMessage() for record in caplog.records)
+
+    @pytest.mark.asyncio
     async def test_selected_plate_is_forwarded_to_requirement_parser(self, db_session, printer_factory, tmp_path):
         printer = await printer_factory()
         archive = await _setup_archive_3mf(
