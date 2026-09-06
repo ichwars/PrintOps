@@ -25,9 +25,11 @@ from backend.app.models.smart_plug import SmartPlug
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.services.bambu_ftp import (
+    FtpFailureReport,
     UploadCancelled,
     cache_3mf_download,
     delete_file_async,
+    describe_upload_failure,
     get_ftp_retry_settings,
     upload_file_async,
     with_ftp_retry,
@@ -3165,21 +3167,17 @@ class PrintScheduler:
                             )
             except Exception as e:
                 logger.warning("Queue item %s: G-code injection failed, using original: %s", item.id, e)
-
         # Upload to root directory (not /cache/) - the start_print command references
         # files by name only (ftp://{filename}), so they must be in the root
         remote_filename = derive_remote_filename(filename)
         remote_path = f"/{remote_filename}"
-
         # Get FTP retry settings
         ftp_retry_enabled, ftp_retry_count, ftp_retry_delay, ftp_timeout = await get_ftp_retry_settings()
-
         logger.info(
             f"Queue item {item.id}: FTP upload starting - printer={printer.name} ({printer.model}), "
             f"ip={printer.ip_address}, file={remote_filename}, local_path={file_path}, "
             f"retry_enabled={ftp_retry_enabled}, retry_count={ftp_retry_count}, timeout={ftp_timeout}"
         )
-
         # Delete existing file if present (avoids 553 error on overwrite)
         try:
             logger.debug("Queue item %s: Deleting existing file %s if present...", item.id, remote_path)
@@ -3189,11 +3187,11 @@ class PrintScheduler:
                 remote_path,
                 socket_timeout=ftp_timeout,
                 printer_model=printer.model,
+                respect_handshake_cooldown=False,
             )
             logger.debug("Queue item %s: Delete result: %s", item.id, delete_result)
         except Exception as e:
             logger.debug("Queue item %s: Delete failed (may not exist): %s", item.id, e)
-
         # Dispatch toast — announce the upload start with the total byte
         # count so the frontend can render an honest progress bar.
         toast_uid = item.created_by_id
@@ -3213,10 +3211,9 @@ class PrintScheduler:
             )
         except Exception:
             pass  # toast is best-effort
-
         progress_bridge = _UploadProgressBridge(toast_uid, item.id)
         upload_error: str | None = None
-
+        upload_failure = FtpFailureReport()
         try:
             if ftp_retry_enabled:
                 uploaded = await with_ftp_retry(
@@ -3228,6 +3225,8 @@ class PrintScheduler:
                     socket_timeout=ftp_timeout,
                     printer_model=printer.model,
                     progress_callback=progress_bridge,
+                    respect_handshake_cooldown=False,
+                    failure=upload_failure,
                     max_retries=ftp_retry_count,
                     retry_delay=ftp_retry_delay,
                     operation_name=f"Upload print to {printer.name}",
@@ -3241,6 +3240,8 @@ class PrintScheduler:
                     socket_timeout=ftp_timeout,
                     printer_model=printer.model,
                     progress_callback=progress_bridge,
+                    respect_handshake_cooldown=False,
+                    failure=upload_failure,
                 )
         except UploadCancelled as e:
             uploaded = False
@@ -3258,10 +3259,7 @@ class PrintScheduler:
             injected_path.unlink(missing_ok=True)
 
         if not uploaded:
-            error_msg = upload_error or (
-                "Failed to upload file to printer. Check if SD card is inserted and properly formatted (FAT32/exFAT). "
-                "See server logs for detailed diagnostics."
-            )
+            error_msg = upload_error or describe_upload_failure(upload_failure.failure)
             item.status = "failed"
             item.error_message = error_msg
             item.completed_at = datetime.now(timezone.utc)
@@ -3276,7 +3274,7 @@ class PrintScheduler:
                 job_name=filename.replace(".gcode.3mf", "").replace(".3mf", ""),
                 printer_id=printer.id,
                 printer_name=printer.name,
-                reason="Failed to upload file to printer",
+                reason=error_msg,
                 db=db,
             )
             try:

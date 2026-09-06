@@ -937,7 +937,7 @@ class TestAsyncWrappers:
             def connect(self):
                 return True
 
-            def download_to_file(self, remote_path, local_path):
+            def download_to_file(self, remote_path, local_path, **kwargs):
                 time.sleep(0.4)  # longer than wait_for timeout=0.1
                 local_path.write_bytes(expected_content)
                 return True
@@ -986,7 +986,7 @@ class TestAsyncWrappers:
             def connect(self):
                 return True
 
-            def download_to_file(self, remote_path, local_path):
+            def download_to_file(self, remote_path, local_path, **kwargs):
                 # Simulate an in-progress partial write that never completes
                 # within the salvage grace period.
                 local_path.write_bytes(b"partial...")
@@ -1043,7 +1043,7 @@ class TestAsyncWrappers:
             def connect(self):
                 return True
 
-            def download_to_file(self, remote_path, local_path):
+            def download_to_file(self, remote_path, local_path, **kwargs):
                 time.sleep(1.5)  # wait_for times out at 1.0 s; zombie finishes 0.5 s later
                 local_path.write_bytes(expected_content)
                 return True
