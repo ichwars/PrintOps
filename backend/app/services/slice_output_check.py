@@ -79,8 +79,8 @@ def unresolved_filament_message(slots: list[int], preset_names: list[str]) -> st
         parts.append(f"slot {slot} ({name})" if name else f"slot {slot}")
     return (
         f"The slicer could not resolve the filament preset for {', '.join(parts)} and silently "
-        "substituted its built-in PLA defaults. The unsafe output was not saved. Update the "
-        "slicer sidecar image or choose a preset from that sidecar's bundled list, then slice again."
+        "substituted its built-in PLA defaults. The unsafe output was not saved. Install the latest "
+        "slicer sidecar image or choose one of its bundled presets, then slice again."
     )
 
 
