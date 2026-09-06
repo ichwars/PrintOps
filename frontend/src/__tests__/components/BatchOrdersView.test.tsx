@@ -15,55 +15,63 @@ import { server } from '../mocks/server';
 import { BatchOrdersView } from '../../components/BatchOrdersView';
 import type { PrintBatch, PrintBatchPlateProgress } from '../../api/client';
 
-const plate = (over: Partial<PrintBatchPlateProgress> = {}): PrintBatchPlateProgress => ({
-  plate_id: 1,
-  plate_name: null,
-  quantity_target: 1,
-  dispatched: 1,
-  remaining: 0,
-  pending_count: 0,
-  printing_count: 0,
-  completed_count: 1,
-  failed_count: 0,
-  cancelled_count: 0,
-  skipped_count: 0,
-  actual_cost: null,
-  estimated_remaining_cost: null,
-  filament_used_grams: null,
-  print_time_seconds: 0,
-  ...over,
-});
+const plate = (over: Partial<PrintBatchPlateProgress> = {}): PrintBatchPlateProgress => {
+  const merged = {
+    plate_id: 1,
+    plate_name: null,
+    quantity_target: 1,
+    dispatched: 1,
+    remaining: 0,
+    pending_count: 0,
+    printing_count: 0,
+    completed_count: 1,
+    failed_count: 0,
+    cancelled_count: 0,
+    skipped_count: 0,
+    actual_cost: null,
+    estimated_remaining_cost: null,
+    filament_used_grams: null,
+    print_time_seconds: 0,
+    can_dispatch: false,
+    ...over,
+  };
+  return { ...merged, can_dispatch: over.can_dispatch ?? merged.remaining > 0 };
+};
 
-const batch = (over: Partial<PrintBatch> = {}): PrintBatch => ({
-  id: 1,
-  name: 'Widget run',
-  archive_id: 7,
-  library_file_id: null,
-  quantity: 6,
-  status: 'active',
-  created_at: '2026-08-01T10:00:00Z',
-  completed_at: null,
-  created_by_id: null,
-  created_by_username: null,
-  project_id: null,
-  due_date: null,
-  notes: null,
-  pending_count: 0,
-  printing_count: 0,
-  completed_count: 0,
-  failed_count: 0,
-  cancelled_count: 0,
-  skipped_count: 0,
-  has_targets: true,
-  target_count: 6,
-  remaining_count: 6,
-  actual_cost: null,
-  estimated_remaining_cost: null,
-  filament_used_grams: null,
-  print_time_seconds: 0,
-  plates: [],
-  ...over,
-});
+const batch = (over: Partial<PrintBatch> = {}): PrintBatch => {
+  const merged = {
+    id: 1,
+    name: 'Widget run',
+    archive_id: 7,
+    library_file_id: null,
+    quantity: 6,
+    status: 'active',
+    created_at: '2026-08-01T10:00:00Z',
+    completed_at: null,
+    created_by_id: null,
+    created_by_username: null,
+    project_id: null,
+    due_date: null,
+    notes: null,
+    pending_count: 0,
+    printing_count: 0,
+    completed_count: 0,
+    failed_count: 0,
+    cancelled_count: 0,
+    skipped_count: 0,
+    has_targets: true,
+    target_count: 6,
+    remaining_count: 6,
+    dispatchable_count: 0,
+    actual_cost: null,
+    estimated_remaining_cost: null,
+    filament_used_grams: null,
+    print_time_seconds: 0,
+    plates: [],
+    ...over,
+  };
+  return { ...merged, dispatchable_count: over.dispatchable_count ?? merged.remaining_count };
+};
 
 const allow = () => true;
 const deny = () => false;
@@ -246,5 +254,70 @@ describe('BatchOrdersView (#342)', () => {
     await waitFor(() => expect(screen.getByText('Priced')).toBeInTheDocument());
     // One cost line, belonging to the priced order — never a fabricated 0.00.
     expect(screen.getAllByText('queue.batchOrders.costSoFar')).toHaveLength(1);
+  });
+
+  it('explains old stranded data instead of offering dispatch actions that fail', async () => {
+    server.use(
+      http.get('/api/v1/queue/batches', () =>
+        HttpResponse.json([
+          batch({
+            target_count: 3,
+            remaining_count: 3,
+            dispatchable_count: 0,
+            plates: [
+              plate({
+                quantity_target: 3,
+                dispatched: 0,
+                completed_count: 0,
+                remaining: 3,
+                can_dispatch: false,
+              }),
+            ],
+          }),
+        ]),
+      ),
+    );
+    render(<BatchOrdersView hasPermission={allow} t={passthroughT} />);
+
+    await waitFor(() => expect(screen.getByText('Widget run')).toBeInTheDocument());
+    expect(screen.getByText('queue.batchOrders.strandedNotice')).toBeInTheDocument();
+    expect(screen.getByText('queue.batchOrders.strandedPlate')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /queue.batchOrders.dispatchRemaining/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'queue.batchOrders.dispatchPlate' })).not.toBeInTheDocument();
+  });
+
+  it('still offers a permission-aware cancellation path for a stranded order', async () => {
+    server.use(
+      http.get('/api/v1/queue/batches', () =>
+        HttpResponse.json([
+          batch({
+            pending_count: 0,
+            target_count: 3,
+            remaining_count: 3,
+            dispatchable_count: 0,
+            plates: [
+              plate({
+                quantity_target: 3,
+                dispatched: 0,
+                completed_count: 0,
+                remaining: 3,
+                can_dispatch: false,
+              }),
+            ],
+          }),
+        ]),
+      ),
+    );
+
+    const { unmount } = render(<BatchOrdersView hasPermission={allow} t={passthroughT} />);
+    await waitFor(() => expect(screen.getByText('Widget run')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'queue.cancelBatch' })).toBeInTheDocument();
+    unmount();
+
+    render(<BatchOrdersView hasPermission={deny} t={passthroughT} />);
+    await waitFor(() => expect(screen.getByText('Widget run')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'queue.cancelBatch' })).not.toBeInTheDocument();
   });
 });

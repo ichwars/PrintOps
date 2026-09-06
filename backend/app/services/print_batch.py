@@ -138,6 +138,7 @@ class PlateProgress:
     actual_cost: float | None = None
     filament_used_grams: float | None = None
     print_time_seconds: int = 0
+    has_source: bool = False
 
     @property
     def dispatched(self) -> int:
@@ -146,6 +147,10 @@ class PlateProgress:
     @property
     def remaining(self) -> int:
         return max(0, self.quantity_target - self.dispatched)
+
+    @property
+    def can_dispatch(self) -> bool:
+        return self.remaining > 0 and self.has_source
 
     @property
     def cost_per_run(self) -> float | None:
@@ -208,6 +213,10 @@ class BatchProgress:
     @property
     def remaining(self) -> int:
         return self._sum("remaining")
+
+    @property
+    def dispatchable_remaining(self) -> int:
+        return sum(plate.remaining for plate in self.plates if plate.has_source)
 
     @property
     def actual_cost(self) -> float | None:
@@ -326,6 +335,9 @@ async def load_progress(db: AsyncSession, batch: PrintBatch) -> BatchProgress:
                 plate.quantity_target += count
         elif not progress.has_targets and status in CONSUMING_STATUSES:
             plate.quantity_target += count
+        # Any surviving row can be cloned, regardless of whether its status
+        # consumes a target. This is intentionally set before status handling.
+        plate.has_source = True
         if status in COUNTED_STATUSES:
             setattr(plate, status, getattr(plate, status) + count)
         else:
@@ -451,6 +463,76 @@ async def refresh_batch_status_for_item(db: AsyncSession, queue_item_id: int) ->
     await refresh_batch_status(db, batch)
 
 
+async def _open_batch_needing_last_source(db: AsyncSession, item: PrintQueueItem) -> PrintBatch | None:
+    """Return the open batch that would be stranded by deleting ``item``."""
+    if item.batch_id is None:
+        return None
+
+    batch = (
+        await db.execute(select(PrintBatch).where(PrintBatch.id == item.batch_id).where(PrintBatch.status == "active"))
+    ).scalar_one_or_none()
+    if batch is None:
+        return None
+
+    targets = (
+        await db.execute(
+            select(PrintBatchPlate.plate_id, PrintBatchPlate.quantity_target)
+            .where(PrintBatchPlate.batch_id == batch.id)
+            .order_by(PrintBatchPlate.quantity_target.desc())
+        )
+    ).all()
+    whole_job = len(targets) == 1 and targets[0].plate_id is None
+    matching_targets = targets if whole_job else [target for target in targets if target.plate_id == item.plate_id]
+    if not matching_targets or matching_targets[0].quantity_target <= 0:
+        return None
+
+    survivor_query = (
+        select(PrintQueueItem.id).where(PrintQueueItem.batch_id == batch.id).where(PrintQueueItem.id != item.id)
+    )
+    if not whole_job:
+        if item.plate_id is None:
+            survivor_query = survivor_query.where(PrintQueueItem.plate_id.is_(None))
+        else:
+            survivor_query = survivor_query.where(PrintQueueItem.plate_id == item.plate_id)
+    survivor = (await db.execute(survivor_query.limit(1))).scalar_one_or_none()
+    return batch if survivor is None else None
+
+
+async def delete_or_retain_queue_item(db: AsyncSession, item: PrintQueueItem) -> dict[str, object]:
+    """Delete an item unless it is an open batch plate's last clone source."""
+
+    async def remove_locked() -> dict[str, object]:
+        protected_batch = await _open_batch_needing_last_source(db, item)
+        if protected_batch is None:
+            await db.delete(item)
+            return {"message": "Queue item deleted", "deleted": True}
+
+        if item.status != "completed":
+            item.status = "cancelled"
+            await db.flush()
+            await refresh_batch_status(db, protected_batch)
+
+        return {
+            "message": (
+                f'Queue item retained for batch "{protected_batch.name}": '
+                "it is the last reusable template for this plate"
+            ),
+            "deleted": False,
+            "batch_id": protected_batch.id,
+            "batch_name": protected_batch.name,
+            "retention_reason": "last_batch_plate_source",
+        }
+
+    if item.batch_id is None:
+        result = await remove_locked()
+        await db.commit()
+        return result
+    async with batch_dispatch_lock(db, item.batch_id):
+        result = await remove_locked()
+        await db.commit()
+        return result
+
+
 async def _next_position(db: AsyncSession, printer_id: int | None) -> int:
     """Next free queue position in the scope a clone will land in.
 
@@ -522,9 +604,9 @@ async def dispatch_remaining(
     otherwise every plate with work outstanding is dispatched in plate order.
     ``limit`` caps the total number of items created across all plates.
 
-    Raises :class:`BatchDispatchError` when a plate owes runs but has no
-    existing item to clone — the order can describe work it has never once
-    dispatched, and there is no configuration to copy in that case.
+    Raises :class:`BatchDispatchError` when none of the requested plates has a
+    reusable source. Stranded plates are otherwise skipped so healthy plates
+    in the same order can still be dispatched.
     """
     progress = await load_progress(db, batch)
     if not progress.has_targets:
@@ -535,6 +617,7 @@ async def dispatch_remaining(
         targets = [p for p in targets if p.plate_id == plate_id]
 
     created: list[PrintQueueItem] = []
+    stranded: list[PlateProgress] = []
 
     for plate in targets:
         if limit is not None and len(created) >= limit:
@@ -550,10 +633,8 @@ async def dispatch_remaining(
         source = (await db.execute(source_query.order_by(PrintQueueItem.id.desc()).limit(1))).scalar_one_or_none()
 
         if source is None:
-            raise BatchDispatchError(
-                f"Plate {plate.plate_id if plate.plate_id is not None else 1} has no queued or finished run to "
-                "copy settings from. Queue it once from the file, then dispatch the rest from here."
-            )
+            stranded.append(plate)
+            continue
 
         wanted = plate.remaining
         if limit is not None:
@@ -575,11 +656,24 @@ async def dispatch_remaining(
                 db.add(cloned_variant)
             created.append(clone)
 
+    if not created and stranded:
+        labels = [
+            plate.plate_name or f"Plate {plate.plate_id if plate.plate_id is not None else 1}" for plate in stranded
+        ]
+        names = ", ".join(labels)
+        verb = "have" if len(labels) > 1 else "has"
+        raise BatchDispatchError(
+            f"{names} {verb} no queued or finished run to copy settings from. "
+            "Queue the plate once from the file, then dispatch the rest from here."
+        )
+
     if created:
         # Dispatching more work can only ever un-fulfil an order, but run the
         # check anyway so a reopened batch flips back from completed.
         await db.flush()
         await refresh_batch_status(db, batch)
 
+    if stranded:
+        logger.info("Batch %s: skipped %d plate(s) with no item to clone", batch.id, len(stranded))
     logger.info("Dispatched %d item(s) for batch %s", len(created), batch.id)
     return created

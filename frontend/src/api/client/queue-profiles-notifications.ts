@@ -35,6 +35,16 @@ import type {
 } from './types';
 import { request } from './core';
 
+type QueueRemovalResult =
+  | { message: string; deleted: true }
+  | {
+      message: string;
+      deleted: false;
+      batch_id: number;
+      batch_name: string;
+      retention_reason: 'last_batch_plate_source';
+    };
+
 export const queueProfilesNotificationsMethods = {
   // Print Queue
   getQueue: (printerId?: number, status?: string, targetModel?: string) => {
@@ -60,7 +70,7 @@ export const queueProfilesNotificationsMethods = {
     }),
 
   removeFromQueue: (id: number) =>
-    request<{ message: string }>(`/queue/${id}`, { method: 'DELETE' }),
+    request<QueueRemovalResult>(`/queue/${id}`, { method: 'DELETE' }),
 
   reorderQueue: (items: { id: number; position: number }[]) =>
     request<{ message: string }>('/queue/reorder', {
