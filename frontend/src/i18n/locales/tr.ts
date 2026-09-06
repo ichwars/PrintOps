@@ -5017,6 +5017,7 @@ useEmbeddedHint: 'Yukarıdaki profiller yerine tasarımcının ayarlarıyla (duv
     insufficientFilamentTitle: 'Yeterli filament yok',
     insufficientFilamentMessage: 'Bazı atanmış makaralarda bu baskının ihtiyaç duyduğundan daha az filament kaldı:',
     insufficientFilamentLine: '{{printer}} - {{slot}}: {{required}}g gerekli, {{remaining}}g kaldı',
+    insufficientFilamentLinePooled: '{{printer}} - {{slot}}: {{required}}g gerekli, eşleşen makaralarda toplam {{remaining}}g (AMS Filament Backup)',
     printAnyway: 'Yine de yazdır',
     forceColorMatch: 'Renk eşleşmesini zorla',
     staggerPrinterStarts: 'Yazıcı başlangıçlarını kademelendir',

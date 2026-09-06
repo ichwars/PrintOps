@@ -5029,6 +5029,7 @@ useEmbeddedHint: 'Découpe comme le concepteur l\'a configuré (parois, rempliss
     insufficientFilamentTitle: 'Filament insuffisant',
     insufficientFilamentMessage: 'Certaines bobines assignées ont moins de filament restant que nécessaire pour cette impression :',
     insufficientFilamentLine: '{{printer}} - {{slot}} : nécessite {{required}}g, restant {{remaining}}g',
+    insufficientFilamentLinePooled: '{{printer}} - {{slot}} : nécessite {{required}}g, {{remaining}}g disponibles sur les bobines correspondantes (AMS Filament Backup)',
     printAnyway: 'Imprimer quand même',
     forceColorMatch: 'Forcer correspondance des couleurs',
     staggerPrinterStarts: 'Échelonner démarrages',

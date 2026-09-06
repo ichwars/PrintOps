@@ -2,6 +2,7 @@ import type {
   Equipment,
   EquipmentInput,
   HMSActionBody,
+  InventoryRemainResponse,
   MQTTLogsResponse,
   Printer,
   PrinterCreate,
@@ -198,7 +199,7 @@ export const printersFilesMethods = {
   // when computing the AMS mapping; mirrors backend `_build_inventory_remain_overrides`
   // so internal and Spoolman modes both work uniformly.
   getInventoryRemain: (printerId: number) =>
-    request<{ inventory_remain_g: Record<string, number> }>(
+    request<InventoryRemainResponse>(
       `/printers/${printerId}/inventory-remain`,
     ),
 

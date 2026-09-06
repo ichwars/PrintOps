@@ -5121,6 +5121,7 @@ export default {
     insufficientFilamentTitle: 'Not enough filament',
     insufficientFilamentMessage: 'Some assigned spools have less filament remaining than this print needs:',
     insufficientFilamentLine: '{{printer}} - {{slot}}: needs {{required}}g, remaining {{remaining}}g',
+    insufficientFilamentLinePooled: '{{printer}} - {{slot}}: needs {{required}}g, {{remaining}}g available across matching spools (AMS Filament Backup)',
     printAnyway: 'Print anyway',
     forceColorMatch: 'Force color match',
     staggerPrinterStarts: 'Stagger printer starts',
