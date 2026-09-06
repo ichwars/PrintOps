@@ -400,10 +400,12 @@ async def _fetch_bundled_presets(db: AsyncSession, *, refresh: bool = False) -> 
                 continue
             # Bundled presets are addressed by name (the slicer resolves them
             # by name during the `inherits:` walk), so name doubles as id.
-            extra: dict[str, str | None] = {}
+            extra: dict[str, object] = {}
             if slot == "filament":
                 extra["filament_type"] = entry.get("filament_type")
                 extra["filament_colour"] = entry.get("filament_colour")
+            if slot in ("process", "filament"):
+                extra["compatible_printers"] = _content_compatible_printers(entry)
             slots[slot].append(
                 UnifiedPreset(id=name, name=name, source="standard", **extra),
             )

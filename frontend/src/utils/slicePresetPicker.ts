@@ -25,7 +25,11 @@ import type {
   UnifiedPreset,
   UnifiedPresetsResponse,
 } from '../api/client';
-import { colorsAreSimilar, normalizeColorForCompare } from './amsHelpers';
+import {
+  colorsAreSimilar,
+  filamentTypesCompatible,
+  normalizeColorForCompare,
+} from './amsHelpers';
 import {
   presetCompatibility,
   type PrinterCompatibilityIndex,
@@ -100,14 +104,48 @@ export function pickProcessDefault(
   }
   for (const wanted of ['match', 'unknown'] as const) {
     for (const tier of SLICE_MODAL_TIER_ORDER) {
-      for (const p of by[tier].process) {
-        if (presetCompatibility(p, 'process', printerName, compatIndex) === wanted) {
-          return { source: p.source, id: p.id };
-        }
-      }
+      const candidates = by[tier].process.filter(
+        (preset) => presetCompatibility(preset, 'process', printerName, compatIndex) === wanted,
+      );
+      const chosen = preferDefaultLayerHeight(candidates);
+      if (chosen) return { source: chosen.source, id: chosen.id };
     }
   }
   return pickDefault(by, 'process');
+}
+
+const DEFAULT_LAYER_HEIGHT_MM = 0.2;
+const PROCESS_LAYER_HEIGHT = /^\s*([\d.]+)\s*mm\b/i;
+
+function preferDefaultLayerHeight(candidates: UnifiedPreset[]): UnifiedPreset | null {
+  let best: UnifiedPreset | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  let bestHeight = Number.NEGATIVE_INFINITY;
+  for (const preset of candidates) {
+    const match = PROCESS_LAYER_HEIGHT.exec(preset.name);
+    const height = match ? Number.parseFloat(match[1]) : Number.NaN;
+    const usable = Number.isFinite(height) && height > 0;
+    const distance = usable ? Math.abs(height - DEFAULT_LAYER_HEIGHT_MM) : Number.POSITIVE_INFINITY;
+    if (
+      best == null ||
+      distance < bestDistance ||
+      (distance === bestDistance && usable && height > bestHeight)
+    ) {
+      best = preset;
+      bestDistance = distance;
+      bestHeight = usable ? height : Number.NEGATIVE_INFINITY;
+    }
+  }
+  return best;
+}
+
+export function statesDifferentMaterial(
+  preset: Pick<UnifiedPreset, 'filament_type'>,
+  requiredType: string,
+): boolean {
+  const required = requiredType.trim().toUpperCase();
+  const stated = (preset.filament_type ?? '').trim().toUpperCase();
+  return Boolean(required) && Boolean(stated) && !filamentTypesCompatible(required, stated);
 }
 
 export function pickFilamentForSlot(
@@ -141,19 +179,24 @@ export function pickFilamentForSlot(
 
   let bestCompatible: { ref: PresetRef; score: number } | null = null;
   let bestMismatch: { ref: PresetRef; score: number } | null = null;
+  let bestWrongType: { ref: PresetRef; score: number } | null = null;
   for (const tier of SLICE_MODAL_TIER_ORDER) {
     for (const p of by[tier].filament) {
       let score = 0;
       const presetType = (p.filament_type ?? '').trim().toUpperCase();
       const presetColor = normalizeColorForCompare(p.filament_colour ?? '');
-      if (reqType && presetType && reqType === presetType) score += 10;
+      if (reqType && presetType && filamentTypesCompatible(reqType, presetType)) score += 10;
       if (reqColor && presetColor) {
         if (presetColor === reqColor) score += 5;
         else if (colorsAreSimilar(p.filament_colour ?? '', required.color)) score += 2;
       }
       score += TIER_BONUS[tier];
       const ref = { source: p.source, id: p.id };
-      if (presetCompatibility(p, 'filament', printerName, compatIndex) === 'mismatch') {
+      if (statesDifferentMaterial(p, reqType)) {
+        if (bestWrongType == null || score > bestWrongType.score) {
+          bestWrongType = { ref, score };
+        }
+      } else if (presetCompatibility(p, 'filament', printerName, compatIndex) === 'mismatch') {
         if (bestMismatch == null || score > bestMismatch.score) {
           bestMismatch = { ref, score };
         }
@@ -164,6 +207,7 @@ export function pickFilamentForSlot(
   }
   if (bestCompatible != null) return bestCompatible.ref;
   if (bestMismatch != null) return bestMismatch.ref;
+  if (bestWrongType != null) return bestWrongType.ref;
   // Final fallback when there are no filament presets at all (empty
   // registry) — pickDefault returns null in that case too, but keeping the
   // call mirrors the rest of the picker logic for shape consistency.

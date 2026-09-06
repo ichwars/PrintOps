@@ -4434,6 +4434,8 @@ export default {
     printer: 'Perfil de impresora',
     process: 'Perfil de proceso',
     filament: 'Perfil de filamento',
+    filamentColour: 'color del filamento',
+    filamentColourAuto: 'Automático',
     filamentSlot: 'Filamento {{index}} ({{type}})',
     selectPreset: '— Seleccione un preajuste —',
     loadingPresets: 'Cargando preajustes…',

@@ -1,5 +1,5 @@
 import { Cloud, CloudOff, Cog, Loader2, RefreshCw, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -29,9 +29,10 @@ import {
   pickDefault,
   pickFilamentForSlot,
   pickProcessDefault,
+  statesDifferentMaterial,
   type Slot,
 } from '../utils/slicePresetPicker';
-import { Checkbox, LegacySelect, TextField } from './ui';
+import { Checkbox, ColorInput, LegacySelect, TextField } from './ui';
 
 export type SliceSource =
   | { kind: 'libraryFile'; id: number; filename: string }
@@ -46,6 +47,18 @@ function toRefValue(ref: PresetRef | null): string {
   // The HTML `<select>` value space is flat strings; encode source + id so
   // the same preset name can live in multiple tiers without collision.
   return ref ? `${ref.source}:${ref.id}` : '';
+}
+
+const SLICER_DEFAULT_COLOUR = '#00AE42';
+
+function hasFilamentColour(value?: string): boolean {
+  return /^#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$/.test(value ?? '');
+}
+
+function colourInputValue(value?: string): string {
+  return hasFilamentColour(value)
+    ? (value as string).slice(0, 7).toUpperCase()
+    : SLICER_DEFAULT_COLOUR;
 }
 
 function fromRefValue(raw: string): PresetRef | null {
@@ -199,6 +212,8 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
   // entry per AMS slot the plate uses. Pre-pick (effect below) initialises
   // each slot from the source plate's required (type, colour).
   const [filamentPresets, setFilamentPresets] = useState<(PresetRef | null)[]>([]);
+  const explicitFilamentSlots = useRef<Set<number>>(new Set());
+  const [filamentColours, setFilamentColours] = useState<(string | null)[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   // null = plate not yet picked (or single-plate / non-3MF — picker is skipped
   // and we'll backfill 1 at submit time). Set to a 1-indexed plate number once
@@ -445,7 +460,15 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
         const cur = current[i] ?? null;
         if (cur) {
           const p = findPreset(data, cur, 'filament');
-          if (p && presetCompatibility(p, 'filament', selectedPrinterName, compatIndex) !== 'mismatch') {
+          const wrongMaterial =
+            p &&
+            !explicitFilamentSlots.current.has(i) &&
+            statesDifferentMaterial(p, slot.type);
+          if (
+            p &&
+            !wrongMaterial &&
+            presetCompatibility(p, 'filament', selectedPrinterName, compatIndex) !== 'mismatch'
+          ) {
             return cur;
           }
         }
@@ -458,6 +481,14 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
       });
     });
   }, [presetsQuery.data, filamentSlots, selectedPrinterName, compatIndex]);
+
+  useEffect(() => {
+    setFilamentColours((current) => {
+      if (current.length === filamentSlots.length) return current;
+      explicitFilamentSlots.current = new Set();
+      return filamentSlots.map(() => null);
+    });
+  }, [filamentSlots]);
 
   const enqueueMutation = useMutation({
     mutationFn: async (plate: number | null) => {
@@ -494,6 +525,7 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
       process_preset: processPreset,
       filament_preset: filamentPresets[0] as PresetRef,
       filament_presets: filamentPresets as PresetRef[],
+      filament_colours: filamentSlots.map((slot, index) => filamentColours[index] ?? slot.color ?? ''),
       ...(plate != null ? { plate } : {}),
       ...(bedType != null ? { bed_type: bedType } : {}),
       ...(useEmbedded && canUseEmbedded ? { use_embedded_settings: true } : {}),
@@ -639,6 +671,7 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
                       for (let i = 0; i < next.length; i++) {
                         if (i < picked.filament_presets.length) {
                           next[i] = picked.filament_presets[i];
+                          explicitFilamentSlots.current.add(i);
                         }
                       }
                       return next;
@@ -838,17 +871,27 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
                       slot="filament"
                       data={presetsQuery.data}
                       value={filamentPresets[idx] ?? null}
-                      onChange={(ref) =>
+                      onChange={(ref) => {
+                        explicitFilamentSlots.current.add(idx);
                         setFilamentPresets((current) => {
                           const next = current.length === filamentSlots.length
                             ? [...current]
                             : filamentSlots.map((_, i) => current[i] ?? null);
                           next[idx] = ref;
                           return next;
+                        });
+                      }}
+                      disabled={isEnqueuing || !isUsed || useEmbedded}
+                      swatchColor={filamentColours[idx] ?? slot.color}
+                      onSwatchColorChange={(colour) =>
+                        setFilamentColours((current) => {
+                          const next = current.length === filamentSlots.length
+                            ? [...current]
+                            : filamentSlots.map((_, i) => current[i] ?? null);
+                          next[idx] = colour;
+                          return next;
                         })
                       }
-                      disabled={isEnqueuing || !isUsed || useEmbedded}
-                      swatchColor={filamentSlots.length > 1 ? slot.color : undefined}
                       selectedPrinterName={selectedPrinterName}
                       compatIndex={compatIndex}
                     />
@@ -1042,6 +1085,7 @@ interface PresetDropdownProps {
   // filament slots so the user can see at a glance which slot they're
   // configuring against the source 3MF's per-slot colour.
   swatchColor?: string;
+  onSwatchColorChange?: (colour: string) => void;
   // Selected printer context (#1325). When provided for a process / filament
   // slot, presets that resolve to a different printer (per compatIndex) move
   // into a trailing "Other printers" group instead of the main tier list.
@@ -1057,6 +1101,7 @@ function PresetDropdown({
   onChange,
   disabled,
   swatchColor,
+  onSwatchColorChange,
   selectedPrinterName,
   compatIndex,
 }: PresetDropdownProps) {
@@ -1110,9 +1155,9 @@ function PresetDropdown({
     sections.reduce((sum, s) => sum + s.entries.length, 0) + otherEntries.length;
 
   return (
-    <label className="block">
-      <span className="flex items-center gap-2 text-xs text-bambu-gray mb-1">
-        {swatchColor && (
+    <div className="block">
+      <div className="flex items-center gap-2 text-xs text-bambu-gray mb-1">
+        {!onSwatchColorChange && swatchColor && (
           <span
             className="inline-block w-3 h-3 rounded-full border border-bambu-dark-tertiary"
             style={{ backgroundColor: swatchColor || 'transparent' }}
@@ -1120,7 +1165,21 @@ function PresetDropdown({
           />
         )}
         <span>{label}</span>
-      </span>
+        {onSwatchColorChange && (
+          <label className="ml-auto flex items-center gap-1.5 font-mono text-white">
+            <ColorInput
+              value={colourInputValue(swatchColor)}
+              onChange={(event) => onSwatchColorChange(event.target.value.toUpperCase())}
+              disabled={disabled}
+              aria-label={`${label} ${t('slice.filamentColour')}`}
+              className="!h-5 !w-5 !rounded !p-0 max-[768px]:!h-5 max-[768px]:!w-5"
+            />
+            {hasFilamentColour(swatchColor)
+              ? colourInputValue(swatchColor)
+              : t('slice.filamentColourAuto')}
+          </label>
+        )}
+      </div>
       <LegacySelect
         aria-label={label}
         value={toRefValue(value)}
@@ -1152,6 +1211,6 @@ function PresetDropdown({
           </optgroup>
         )}
       </LegacySelect>
-    </label>
+    </div>
   );
 }

@@ -4462,6 +4462,8 @@ export default {
     printer: 'Drucker-Profil',
     process: 'Prozess-Profil',
     filament: 'Filament-Profil',
+    filamentColour: 'Filamentfarbe',
+    filamentColourAuto: 'Automatisch',
     filamentSlot: 'Filament {{index}} – {{type}}',
     selectPreset: '— Profil auswählen —',
     loadingPresets: 'Profile werden geladen…',

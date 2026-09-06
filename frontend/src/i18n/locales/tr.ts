@@ -4414,6 +4414,8 @@ export default {
     printer: 'Yazıcı profili',
     process: 'İşlem profili',
     filament: 'Filament profili',
+    filamentColour: 'filament rengi',
+    filamentColourAuto: 'Otomatik',
     filamentSlot: 'Filament {{index}} ({{type}})',
     selectPreset: '— Bir ön ayar seçin —',
     loadingPresets: 'Ön ayarlar yükleniyor…',

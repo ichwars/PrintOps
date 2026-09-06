@@ -4413,6 +4413,8 @@ export default {
     printer: 'Perfil de impressora',
     process: 'Perfil de processo',
     filament: 'Perfil de filamento',
+    filamentColour: 'cor do filamento',
+    filamentColourAuto: 'Automático',
     filamentSlot: 'Filamento {{index}} ({{type}})',
     selectPreset: '— Selecione uma predefinição —',
     loadingPresets: 'Carregando predefinições…',

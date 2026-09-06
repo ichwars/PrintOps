@@ -4413,6 +4413,8 @@ export default {
     printer: 'Profilo stampante',
     process: 'Profilo processo',
     filament: 'Profilo filamento',
+    filamentColour: 'colore del filamento',
+    filamentColourAuto: 'Automatico',
     filamentSlot: 'Filamento {{index}} ({{type}})',
     selectPreset: '— Seleziona un preset —',
     loadingPresets: 'Caricamento preset…',

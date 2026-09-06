@@ -4425,6 +4425,8 @@ export default {
     printer: 'プリンタープロファイル',
     process: 'プロセスプロファイル',
     filament: 'フィラメントプロファイル',
+    filamentColour: 'フィラメント色',
+    filamentColourAuto: '自動',
     filamentSlot: 'フィラメント {{index}}（{{type}}）',
     selectPreset: '— プリセットを選択 —',
     loadingPresets: 'プリセットを読み込み中…',

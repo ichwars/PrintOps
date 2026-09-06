@@ -4414,6 +4414,8 @@ export default {
     printer: 'Profil d\'imprimante',
     process: 'Profil de processus',
     filament: 'Profil de filament',
+    filamentColour: 'couleur du filament',
+    filamentColourAuto: 'Auto',
     filamentSlot: 'Filament {{index}} – {{type}}',
     selectPreset: '— Sélectionner un préréglage —',
     loadingPresets: 'Chargement des préréglages…',

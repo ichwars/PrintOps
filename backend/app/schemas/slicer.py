@@ -1,8 +1,11 @@
 """Pydantic schemas for slice requests."""
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
+
+_HEX_COLOUR = re.compile(r"#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?")
 
 
 class PresetRef(BaseModel):
@@ -66,6 +69,13 @@ class SliceRequest(BaseModel):
     # validator promotes a singular field into ``[singular]`` when the list
     # is empty so older clients keep working.
     filament_presets: list[PresetRef] = Field(default_factory=list)
+    filament_colours: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Per-slot '#RRGGBB' or '#RRGGBBAA' colours aligned with filament_presets. "
+            "Empty entries use the preset default or source-project colour."
+        ),
+    )
 
     plate: int | None = Field(
         default=None,
@@ -169,6 +179,17 @@ class SliceRequest(BaseModel):
             # Multi-color caller: backfill the singular from the first slot
             # so callers that still read the legacy field see a stable value.
             self.filament_preset = self.filament_presets[0]
+
+        normalised_colours: list[str] = []
+        for index, colour in enumerate(self.filament_colours):
+            value = (colour or "").strip()
+            if not value:
+                normalised_colours.append("")
+                continue
+            if not _HEX_COLOUR.fullmatch(value):
+                raise ValueError(f"filament_colours[{index}] must be '#RRGGBB' or '#RRGGBBAA', got {colour!r}")
+            normalised_colours.append(value.upper())
+        self.filament_colours = normalised_colours
         return self
 
 
