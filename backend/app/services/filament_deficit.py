@@ -322,9 +322,7 @@ async def build_slot_materials(db: AsyncSession, printer_id: int) -> list[SlotMa
         )
 
     if await _is_spoolman_mode(db):
-        result = await db.execute(
-            select(SpoolmanSlotAssignment).where(SpoolmanSlotAssignment.printer_id == printer_id)
-        )
+        result = await db.execute(select(SpoolmanSlotAssignment).where(SpoolmanSlotAssignment.printer_id == printer_id))
         try:
             from backend.app.services.spoolman import get_spoolman_client
 
