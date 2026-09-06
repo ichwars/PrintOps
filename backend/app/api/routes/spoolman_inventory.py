@@ -71,10 +71,14 @@ from backend.app.services.spoolman import (
 from backend.app.services.spoolman_costs import spoolman_full_price_from_cost_per_kg
 from backend.app.services.spoolman_tracking import get_fallback_spool_tag_for_slot
 from backend.app.utils.filament_ids import (
-    GENERIC_FILAMENT_IDS,
-    MATERIAL_TEMPS,
     filament_id_to_setting_id,
     normalize_slicer_filament,
+)
+from backend.app.utils.filament_types import (
+    generic_filament_id,
+    nozzle_temp_range,
+    printer_filament_type,
+    tray_sub_brand,
 )
 
 logger = logging.getLogger(__name__)
@@ -1555,15 +1559,11 @@ async def assign_spoolman_slot(
     try:
         mqtt_client = printer_manager.get_client(body.printer_id)
         if mqtt_client:
-            tray_type = mapped.get("material") or ""
+            material = mapped.get("material") or ""
+            tray_type = printer_filament_type(material)
             brand = mapped.get("brand") or ""
             subtype = mapped.get("subtype") or ""
-            if brand:
-                tray_sub_brands = f"{brand} {tray_type} {subtype}".strip()
-            elif subtype:
-                tray_sub_brands = f"{tray_type} {subtype}".strip()
-            else:
-                tray_sub_brands = tray_type
+            tray_sub_brands = tray_sub_brand(brand, material, subtype)
 
             tray_color = (mapped.get("rgba") or "808080FF").upper()
             if len(tray_color) == 6:
@@ -1577,26 +1577,23 @@ async def assign_spoolman_slot(
             # configured profile never reached the printer. Shared with the
             # internal-mode route via the same helper so the two flows can't
             # drift again.
-            tray_info_idx, setting_id, sub_brand_override = await resolve_slicer_filament(
+            tray_info_idx, setting_id, sub_brand_override, type_override = await resolve_slicer_filament(
                 db=db,
                 current_user=current_user,
                 slicer_filament=mapped.get("slicer_filament"),
                 slicer_filament_name=mapped.get("slicer_filament_name"),
-                material=tray_type,
+                material=material,
             )
             if sub_brand_override:
                 tray_sub_brands = sub_brand_override
+            if type_override:
+                tray_type = printer_filament_type(type_override)
 
-            material_upper = tray_type.upper().strip()
             # Fall back to generic-material id when slicer_filament is empty
             # or the resolver discarded an unresolvable value. Matches the
             # internal-mode tail in inventory.py:_apply_spool_to_slot_inner.
             if not tray_info_idx:
-                tray_info_idx = (
-                    GENERIC_FILAMENT_IDS.get(material_upper)
-                    or GENERIC_FILAMENT_IDS.get(material_upper.split("-")[0].split(" ")[0])
-                    or ""
-                )
+                tray_info_idx = generic_filament_id(material, tray_type)
 
             # Ensure setting_id is always derivable from tray_info_idx. The
             # local-preset path can leave it empty when the LP's setting JSON
@@ -1607,7 +1604,7 @@ async def assign_spoolman_slot(
             if tray_info_idx and not setting_id:
                 setting_id = filament_id_to_setting_id(tray_info_idx)
 
-            temp_defaults = MATERIAL_TEMPS.get(material_upper, (200, 240))
+            temp_defaults = nozzle_temp_range(material, tray_type)
             temp_min = mapped.get("nozzle_temp_min") or temp_defaults[0]
             temp_max = temp_defaults[1]
 

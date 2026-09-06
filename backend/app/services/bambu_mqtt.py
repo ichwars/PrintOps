@@ -1,11 +1,4 @@
-"""Bambu Lab MQTT communication service.
-
-IMPORTANT: Always use qos=1 for all MQTT publish calls!
-The printer ignores qos=0 messages when busy broadcasting status updates.
-Using qos=1 ensures the printer acknowledges and processes our commands immediately.
-This was discovered when K-profile requests with qos=0 took 20-30 seconds,
-but with qos=1 they respond instantly.
-"""
+"""Bambu Lab MQTT communication service; publish commands with qos=1."""
 
 import asyncio
 import json
@@ -75,6 +68,11 @@ A2L_LITE_GLOBAL_BASE = A2L_LITE_NORMALIZED_AMS_ID * 4
 def normalize_am_unit_id(ams_id: int) -> int:
     """Normalize the A2L AMS Lite's physical unit id 16 to id 6."""
     return A2L_LITE_NORMALIZED_AMS_ID if ams_id == A2L_LITE_PHYSICAL_AMS_ID else ams_id
+
+
+def wire_tray_color(tray_color: str | None) -> str:
+    """Return bare uppercase hex, the format AMS firmware parses reliably."""
+    return (tray_color or "").strip().lstrip("#").upper()
 
 
 def a2l_lite_wire_ids(ams_id: int, tray_id: int) -> tuple[int, int, int] | None:
@@ -5388,7 +5386,7 @@ class BambuMQTTClient:
                 "tray_info_idx": tray_info_idx,
                 "tray_type": tray_type,
                 "tray_sub_brands": tray_sub_brands,
-                "tray_color": tray_color,
+                "tray_color": wire_tray_color(tray_color),
                 "nozzle_temp_min": nozzle_temp_min,
                 "nozzle_temp_max": nozzle_temp_max,
                 "sequence_id": "0",

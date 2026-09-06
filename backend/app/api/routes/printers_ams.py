@@ -18,7 +18,8 @@ from backend.app.schemas.printer import (
     AmsLabelBody,
 )
 from backend.app.services.inventory_mode import spoolman_owns_assignments
-from backend.app.utils.filament_ids import filament_id_to_setting_id
+from backend.app.utils.filament_ids import GENERIC_FILAMENT_IDS, filament_id_to_setting_id
+from backend.app.utils.filament_types import generic_filament_id, is_material_name, printer_filament_type
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["printers"])
@@ -95,6 +96,8 @@ async def configure_ams_slot(
     logger.info(
         f"[configure_ams_slot] setting_id={setting_id!r}, kprofile_filament_id={kprofile_filament_id!r}, kprofile_setting_id={kprofile_setting_id!r}"
     )
+    requested_tray_type = tray_type
+    tray_type = printer_filament_type(requested_tray_type)
 
     # Get MQTT client for this printer
     client = printer_manager.get_client(printer_id)
@@ -108,23 +111,6 @@ async def configure_ams_slot(
     #   2. Reuse the slot's existing tray_info_idx if it's a specific
     #      (non-generic) preset for the same material.
     #   3. Fall back to a generic Bambu filament ID.
-    _GENERIC_FILAMENT_IDS = {
-        "PLA": "GFL99",
-        "PETG": "GFG99",
-        "ABS": "GFB99",
-        "ASA": "GFB98",
-        "PC": "GFC99",
-        "PA": "GFN99",
-        "NYLON": "GFN99",
-        "TPU": "GFU99",
-        "PVA": "GFS99",
-        "HIPS": "GFS98",
-        "PLA-CF": "GFL98",
-        "PETG-CF": "GFG98",
-        "PA-CF": "GFN98",
-        "PETG HF": "GFG96",
-    }
-    _GENERIC_ID_VALUES = set(_GENERIC_FILAMENT_IDS.values())
     effective_tray_info_idx = tray_info_idx
 
     if not tray_info_idx:
@@ -159,7 +145,8 @@ async def configure_ams_slot(
 
         if (
             current_tray_info_idx
-            and current_tray_info_idx not in _GENERIC_ID_VALUES
+            and current_tray_info_idx not in set(GENERIC_FILAMENT_IDS.values())
+            and not is_material_name(current_tray_info_idx)
             and current_tray_type
             and current_tray_type.upper() == tray_type.upper()
         ):
@@ -170,12 +157,7 @@ async def configure_ams_slot(
             )
             effective_tray_info_idx = current_tray_info_idx
         elif tray_type:
-            material = tray_type.upper().strip()
-            generic = (
-                _GENERIC_FILAMENT_IDS.get(material)
-                or _GENERIC_FILAMENT_IDS.get(material.split("-")[0].split(" ")[0])
-                or ""
-            )
+            generic = generic_filament_id(requested_tray_type, tray_type)
             if generic:
                 logger.info("[configure_ams_slot] Falling back to generic %r for material %r", generic, tray_type)
                 effective_tray_info_idx = generic

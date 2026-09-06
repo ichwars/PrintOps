@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.app.models.spool import Spool
 from backend.app.models.spool_assignment import SpoolAssignment
+from backend.app.utils.spool_core_weights import BAMBU_RFID_CORE_CATALOG_NAME, BAMBU_RFID_CORE_WEIGHT
 from backend.app.utils.tag_normalization import (
     normalize_tag_uid as _normalize_tag_uid,
     normalize_tray_uuid as _normalize_tray_uuid,
@@ -136,13 +137,19 @@ async def create_spool_from_tray(db: AsyncSession, tray_data: dict) -> Spool:
         color_name,
     )
 
-    # Look up core weight from spool catalog
-    core_weight = 250  # Default for Bambu Lab plastic spools
-    cat_result = await db.execute(select(SpoolCatalogEntry).where(SpoolCatalogEntry.name.ilike("Bambu Lab%")).limit(10))
-    for entry in cat_result.scalars().all():
-        # Pick the best match (prefer exact, fallback to first Bambu Lab entry)
-        core_weight = entry.weight
-        break
+    # The old prefix query picked an arbitrary one of three Bambu spool rows.
+    core_weight = BAMBU_RFID_CORE_WEIGHT
+    core_weight_catalog_id = None
+    cat_result = await db.execute(
+        select(SpoolCatalogEntry)
+        .where(func.upper(SpoolCatalogEntry.name) == BAMBU_RFID_CORE_CATALOG_NAME.upper())
+        .order_by(SpoolCatalogEntry.id)
+        .limit(1)
+    )
+    catalog_entry = cat_result.scalar_one_or_none()
+    if catalog_entry:
+        core_weight = catalog_entry.weight
+        core_weight_catalog_id = catalog_entry.id
 
     # Resolve slicer filament name from builtin table
     slicer_filament_name = None
@@ -176,6 +183,7 @@ async def create_spool_from_tray(db: AsyncSession, tray_data: dict) -> Spool:
         brand="Bambu Lab",
         label_weight=label_weight,
         core_weight=core_weight,
+        core_weight_catalog_id=core_weight_catalog_id,
         weight_used=weight_used,
         slicer_filament=tray_info_idx or None,
         slicer_filament_name=slicer_filament_name,

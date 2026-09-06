@@ -123,6 +123,7 @@ from backend.app.services.smart_plug_manager import smart_plug_manager
 from backend.app.services.spool_assignment_notifications import (
     notify_missing_spool_assignments_on_print_start,
 )
+from backend.app.services.spool_slot_material import expected_spool_protocol_types
 from backend.app.services.spoolman import close_spoolman_client, get_spoolman_client, init_spoolman_client
 from backend.app.services.spoolman_costs import resolve_print_log_cost
 from backend.app.services.spoolman_tracking import (
@@ -131,10 +132,10 @@ from backend.app.services.spoolman_tracking import (
     store_print_data as _store_spoolman_print_data,
 )
 from backend.app.services.tasmota import tasmota_service
+from backend.app.utils.filament_types import printer_filament_type
 from backend.app.utils.print_jobs import ignore_internal_printer_job
 
 
-# Dependency Check - runs before other imports to give helpful error messages
 def _start_error_server(missing_packages: list):
     """Start a minimal HTTP server to display dependency errors in browser."""
     import os
@@ -1563,13 +1564,12 @@ async def on_ams_change(printer_id: int, ams_data: list):
                     if not _colors_similar(cur_color, fp_color) or cur_type.upper() != fp_type.upper():
                         if _print_active and not cur_color.strip() and not cur_type.strip():
                             continue
-                        # Fingerprint mismatch — but check if tray now matches the
-                        # assigned spool (e.g. auto-configure changed the tray).
                         spool = assignment.spool
                         if spool:
                             spool_color = (spool.rgba or "FFFFFFFF").upper()
-                            spool_type = (spool.material or "").upper()
-                            if _colors_similar(cur_color, spool_color) and cur_type.upper() == spool_type:
+                            spool_types = await expected_spool_protocol_types(db, spool)
+                            same_type = printer_filament_type(cur_type).upper() in spool_types
+                            if _colors_similar(cur_color, spool_color) and same_type:
                                 logger.info(
                                     "Auto-unlink: spool %d AMS%d-T%d — fingerprint mismatch but tray matches spool, updating fp",
                                     assignment.spool_id,

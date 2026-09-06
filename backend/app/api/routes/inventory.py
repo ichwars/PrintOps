@@ -75,9 +75,15 @@ from backend.app.services.spool_csv import (
 from backend.app.services.spoolman import SpoolmanClient, get_spoolman_client, init_spoolman_client
 from backend.app.utils.filament_ids import (
     GENERIC_FILAMENT_IDS,
-    MATERIAL_TEMPS,
     filament_id_to_setting_id,
     normalize_slicer_filament,
+)
+from backend.app.utils.filament_types import (
+    generic_filament_id,
+    is_material_name,
+    nozzle_temp_range,
+    printer_filament_type,
+    tray_sub_brand,
 )
 from backend.app.utils.tag_normalization import normalize_tag_uid, normalize_tray_uuid
 
@@ -174,18 +180,11 @@ async def apply_spool_to_slot_via_mqtt(
 
     state = printer_manager.get_status(printer_id)
 
-    tray_type = spool.material
-    tray_sub_brands = (
-        f"{spool.brand} {spool.material} {spool.subtype}".strip()
-        if spool.brand
-        else f"{spool.material} {spool.subtype}"
-        if spool.subtype
-        else spool.material
-    )
+    tray_type = printer_filament_type(spool.material)
+    tray_sub_brands = tray_sub_brand(spool.brand, spool.material, spool.subtype)
     tray_color = spool.rgba or "FFFFFFFF"
 
     _generic_id_values = _GENERIC_ID_VALUES
-    _known_materials = set(MATERIAL_TEMPS.keys()) | set(GENERIC_FILAMENT_IDS.keys())
 
     # slicer_filament → (tray_info_idx, setting_id) resolution is shared with
     # the Spoolman-mode route via this helper (#1713). The helper handles
@@ -193,7 +192,7 @@ async def apply_spool_to_slot_via_mqtt(
     # the builtin-name realignment, AND the defensive PFUS/PFCN/material-name
     # sanitization. When it returns an empty tray_info_idx the local
     # current-tray-state + generic-material fallback below rescues the slot.
-    tray_info_idx, setting_id, sub_brand_override = await resolve_slicer_filament(
+    tray_info_idx, setting_id, sub_brand_override, type_override = await resolve_slicer_filament(
         db=db,
         current_user=current_user,
         slicer_filament=spool.slicer_filament,
@@ -202,6 +201,8 @@ async def apply_spool_to_slot_via_mqtt(
     )
     if sub_brand_override:
         tray_sub_brands = sub_brand_override
+    if type_override:
+        tray_type = printer_filament_type(type_override)
 
     if not tray_info_idx:
         if (
@@ -209,20 +210,13 @@ async def apply_spool_to_slot_via_mqtt(
             and current_tray_info_idx not in _generic_id_values
             and not current_tray_info_idx.startswith("PFUS")
             and not current_tray_info_idx.startswith("PFCN")
-            and current_tray_info_idx.upper() not in _known_materials
+            and not is_material_name(current_tray_info_idx)
             and current_tray_type
             and current_tray_type.upper() == tray_type.upper()
         ):
             tray_info_idx = current_tray_info_idx
         elif tray_type:
-            material = tray_type.upper().strip()
-            generic = (
-                GENERIC_FILAMENT_IDS.get(material)
-                or GENERIC_FILAMENT_IDS.get(material.split("-")[0].split(" ")[0])
-                or ""
-            )
-            if generic:
-                tray_info_idx = generic
+            tray_info_idx = generic_filament_id(spool.material, tray_type)
 
     # Ensure setting_id is always derivable from tray_info_idx. The local-preset
     # path above sets tray_info_idx to a generic ID (e.g. "GFL99") but leaves
@@ -232,7 +226,7 @@ async def apply_spool_to_slot_via_mqtt(
     if tray_info_idx and not setting_id:
         setting_id = filament_id_to_setting_id(tray_info_idx)
 
-    temp_min, temp_max = MATERIAL_TEMPS.get((spool.material or "").upper(), (200, 240))
+    temp_min, temp_max = nozzle_temp_range(spool.material, tray_type)
     if spool.nozzle_temp_min is not None:
         temp_min = spool.nozzle_temp_min
     if spool.nozzle_temp_max is not None:
