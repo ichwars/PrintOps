@@ -459,14 +459,20 @@ async def get_printer_cover(
     # socket (which produces the 425 errors that feed the retry storm).
     downloaded = False
     using_cached = False
-    for candidate_name in possible_filenames:
-        cached = get_cached_3mf(printer_id, candidate_name)
-        if cached:
-            logger.info("Cover using cached 3MF from %s (avoided duplicate FTP)", cached)
-            temp_path = cached
-            downloaded = True
-            using_cached = True
-            break
+
+    def _reuse_cached_download() -> bool:
+        nonlocal downloaded, temp_path, using_cached
+        for candidate_name in possible_filenames:
+            cached = get_cached_3mf(printer_id, candidate_name)
+            if cached:
+                logger.info("Cover using cached 3MF from %s (avoided duplicate FTP)", cached)
+                temp_path = cached
+                downloaded = True
+                using_cached = True
+                return True
+        return False
+
+    _reuse_cached_download()
 
     if not downloaded:
         logger.info(
@@ -478,6 +484,10 @@ async def get_printer_cover(
         last_error = None
 
         for attempt in range(max_retries + 1):
+            # The archive flow may have completed while the previous FTP
+            # attempt was running. Re-check before opening another connection.
+            if _reuse_cached_download():
+                break
             try:
                 downloaded = await download_file_try_paths_async(
                     printer.ip_address,

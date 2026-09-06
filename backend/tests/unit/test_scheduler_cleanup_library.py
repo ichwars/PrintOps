@@ -217,6 +217,28 @@ async def test_cleanup_unlinks_library_file_and_removes_db_row(queue_factory):
     assert item.archive_id == archive.id
     assert library_file is None
     assert not ctx.source_path.exists()
+    assert ctx.upload.await_args.kwargs["respect_handshake_cooldown"] is False
+
+
+@pytest.mark.asyncio
+async def test_upload_failure_surfaces_recorded_network_cause(queue_factory):
+    from backend.app.services.bambu_ftp import FtpFailure, FtpFailureKind
+
+    ctx = await queue_factory(cleanup=False)
+
+    async def fail_upload(*args, failure, **kwargs):
+        failure.failure = FtpFailure(FtpFailureKind.NETWORK, "connection reset")
+        return False
+
+    ctx.upload.side_effect = fail_upload
+    await _dispatch_library_item(ctx)
+
+    item, library_file, archive = await _queue_snapshot(ctx)
+    assert item.status == "failed"
+    assert "network" in item.error_message
+    assert "Check that its SD card" not in item.error_message
+    assert library_file is not None
+    assert archive is not None
 
 
 @pytest.mark.asyncio

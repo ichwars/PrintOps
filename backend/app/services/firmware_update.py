@@ -344,6 +344,7 @@ class FirmwareUpdateService:
                     progress_callback=on_upload_progress,
                     socket_timeout=ftp_timeout,
                     printer_model=model,
+                    respect_handshake_cooldown=False,
                     max_retries=ftp_retry_count,
                     retry_delay=ftp_retry_delay,
                     operation_name=f"Upload firmware to printer {printer_id}",
@@ -357,6 +358,7 @@ class FirmwareUpdateService:
                     progress_callback=on_upload_progress,
                     socket_timeout=ftp_timeout,
                     printer_model=model,
+                    respect_handshake_cooldown=False,
                 )
 
             if not success:
