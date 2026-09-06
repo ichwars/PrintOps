@@ -159,6 +159,128 @@ async def test_late_path_search_error_is_consumed_after_timeout(tmp_path: Path):
     assert loop_errors == []
 
 
+@pytest.mark.asyncio
+async def test_download_timeout_does_not_wait_forever_for_stalled_worker(tmp_path: Path):
+    entered = threading.Event()
+    release = threading.Event()
+
+    class Client(_FakeClient):
+        def download_to_file(self, remote_path: str, local_path: Path, **kwargs) -> bool:
+            entered.set()
+            release.wait(2.0)
+            return False
+
+    with (
+        patch.object(ftp_mod, "BambuFTPClient", Client),
+        patch.object(ftp_mod, "_download_extension", lambda size, base: 0.0),
+    ):
+        task = asyncio.create_task(
+            ftp_mod.download_file_async(
+                "10.0.0.6",
+                "code",
+                "/stalled.3mf",
+                tmp_path / "stalled.3mf",
+                timeout=0.01,
+                socket_timeout=0.01,
+            )
+        )
+        assert await asyncio.get_running_loop().run_in_executor(None, entered.wait, 1.0)
+        await asyncio.sleep(0.75)
+        try:
+            assert task.done(), "the timeout path waited beyond its bounded unwind grace"
+        finally:
+            release.set()
+            await asyncio.wait_for(task, timeout=1.0)
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_kind"),
+    [
+        (TimeoutError("transfer timed out"), ftp_mod.FtpFailureKind.TIMEOUT),
+        (ssl.SSLError(1, "data-channel TLS failure"), ftp_mod.FtpFailureKind.HANDSHAKE),
+    ],
+)
+def test_upload_classifies_timeout_and_tls_before_generic_os_errors(
+    tmp_path: Path,
+    error: OSError,
+    expected_kind: ftp_mod.FtpFailureKind,
+):
+    source = tmp_path / "upload.3mf"
+    source.write_bytes(b"3mf")
+    client = ftp_mod.BambuFTPClient("192.0.2.138", "code")
+    client._ftp = MagicMock()
+    client._ftp.transfercmd.side_effect = error
+
+    assert client.upload_file(source, "/upload.3mf") is False
+    assert client.last_failure is not None
+    assert client.last_failure.kind is expected_kind
+
+
+@pytest.mark.asyncio
+async def test_byte_download_shares_the_per_printer_download_gate(tmp_path: Path):
+    byte_entered = threading.Event()
+    release_byte = threading.Event()
+    same_printer_entered = threading.Event()
+    other_printer_entered = threading.Event()
+
+    class Client(_FakeClient):
+        def __init__(self, ip_address: str, *args, **kwargs):
+            self.ip_address = ip_address
+
+        def download_file(self, remote_path: str, **kwargs) -> bytes:
+            byte_entered.set()
+            release_byte.wait(2.0)
+            return b"bytes"
+
+        def download_to_file(self, remote_path: str, local_path: Path, **kwargs) -> bool:
+            event = same_printer_entered if self.ip_address == "10.0.0.7" else other_printer_entered
+            event.set()
+            local_path.write_bytes(b"file")
+            return True
+
+    with patch.object(ftp_mod, "BambuFTPClient", Client):
+        byte_task = asyncio.create_task(
+            ftp_mod.download_file_bytes_async("10.0.0.7", "code", "/bytes.3mf", timeout=1.0)
+        )
+        assert await asyncio.get_running_loop().run_in_executor(None, byte_entered.wait, 1.0)
+        same_task = asyncio.create_task(
+            ftp_mod.download_file_async("10.0.0.7", "code", "/same.3mf", tmp_path / "same.3mf", timeout=1.0)
+        )
+        other_task = asyncio.create_task(
+            ftp_mod.download_file_async("10.0.0.8", "code", "/other.3mf", tmp_path / "other.3mf", timeout=1.0)
+        )
+        try:
+            assert await asyncio.get_running_loop().run_in_executor(None, other_printer_entered.wait, 1.0)
+            await asyncio.sleep(0.05)
+            assert not same_printer_entered.is_set()
+        finally:
+            release_byte.set()
+            await asyncio.gather(byte_task, same_task, other_task)
+
+
+@pytest.mark.asyncio
+async def test_path_search_preserves_success_during_timeout_unwind(tmp_path: Path):
+    payload = b"completed during unwind"
+    local_path = tmp_path / "late-success.3mf"
+
+    class Client(_FakeClient):
+        def download_to_file(self, remote_path: str, destination: Path, **kwargs) -> bool:
+            time.sleep(0.05)
+            destination.write_bytes(payload)
+            return True
+
+    with (
+        patch.object(ftp_mod, "BambuFTPClient", Client),
+        patch.object(ftp_mod, "_DOWNLOAD_UNWIND_SECONDS", 0.2),
+    ):
+        result = await ftp_mod.download_file_try_paths_async(
+            "10.0.0.9", "code", ["/late-success.3mf"], local_path, timeout=0.01
+        )
+
+    assert result is True
+    assert local_path.read_bytes() == payload
+
+
 def test_bounded_client_bypasses_existing_cooldown_without_changing_default():
     ip_address = "192.0.2.136"
     ftp_mod._arm_ftps_cooldown(ip_address)

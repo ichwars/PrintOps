@@ -927,6 +927,14 @@ class BambuFTPClient:
             elif error_code == "552":
                 logger.error("FTP 552 error - Storage quota exceeded (SD card full?)")
             return False
+        except TimeoutError as e:
+            self.last_failure = FtpFailure(FtpFailureKind.TIMEOUT, str(e), _ftp_reply_code(e))
+            logger.error("FTP upload timed out for %s: %s", remote_path, e)
+            return False
+        except ssl.SSLError as e:
+            self.last_failure = FtpFailure(FtpFailureKind.HANDSHAKE, str(e), _ftp_reply_code(e))
+            logger.error("FTP upload TLS failure for %s: %s", remote_path, e)
+            return False
         except OSError as e:
             self.last_failure = FtpFailure(FtpFailureKind.NETWORK, str(e), _ftp_reply_code(e))
             logger.error("FTP upload failed for %s: %s (type: %s)", remote_path, e, type(e).__name__)
@@ -1303,10 +1311,13 @@ async def download_file_async(
             attempt_cancel.set()
             grace = max(min(socket_timeout or timeout, 30.0), 0.5)
             finished_in_grace = await loop.run_in_executor(None, done.wait, grace)
-            try:
-                await asyncio.shield(worker)
-            except (DownloadCancelled, OSError, ftplib.Error):
-                pass
+            if finished_in_grace:
+                try:
+                    await asyncio.shield(worker)
+                except (DownloadCancelled, OSError, ftplib.Error):
+                    pass
+            else:
+                _discard_worker_outcome(worker)
             if finished_in_grace and completion["success"] and local_path.exists() and local_path.stat().st_size > 0:
                 logger.info("FTP download of %s completed while its %.0fs deadline unwound", remote_path, allowed)
                 return True
@@ -1406,8 +1417,15 @@ async def download_file_try_paths_async(
         except TimeoutError:
             cancel.set()
             await loop.run_in_executor(None, _abort_download)
-            await loop.run_in_executor(None, done.wait, _DOWNLOAD_UNWIND_SECONDS)
-            _discard_worker_outcome(future)
+            finished_in_grace = await loop.run_in_executor(None, done.wait, _DOWNLOAD_UNWIND_SECONDS)
+            if finished_in_grace:
+                try:
+                    if await asyncio.shield(future):
+                        return True
+                except (DownloadCancelled, OSError, ftplib.Error):
+                    pass
+            else:
+                _discard_worker_outcome(future)
             logger.warning("FTP download_try_paths exceeded its %ss cap for %s", timeout, ip_address)
             return False
 
@@ -1718,11 +1736,12 @@ async def download_file_bytes_async(
                 client.disconnect()
         return None
 
-    try:
-        return await asyncio.wait_for(loop.run_in_executor(None, _download), timeout=timeout)
-    except TimeoutError:
-        logger.warning("FTP download_bytes exceeded its %ss cap for %s", timeout, ip_address)
-        return None
+    async with _serialized_download(ip_address, f"byte download of {remote_path}"):
+        try:
+            return await asyncio.wait_for(loop.run_in_executor(None, _download), timeout=timeout)
+        except TimeoutError:
+            logger.warning("FTP download_bytes exceeded its %ss cap for %s", timeout, ip_address)
+            return None
 
 
 async def get_storage_info_async(
