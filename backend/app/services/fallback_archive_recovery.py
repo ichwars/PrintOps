@@ -13,6 +13,7 @@ from backend.app.core.websocket import ws_manager
 from backend.app.models.active_print_session import ActivePrintSession
 from backend.app.models.archive import PrintArchive
 from backend.app.services.archive import ArchiveService
+from backend.app.services.printer_manager import parse_plate_id, printer_manager, resolve_plate_id
 from backend.app.services.threemf_identity import (
     candidate_3mf_conflict,
     expected_plate_from_paths,
@@ -45,6 +46,17 @@ def fallback_print_time(data: dict) -> int | None:
     if isinstance(remaining_minutes, (int, float)) and not isinstance(remaining_minutes, bool):
         return int(remaining_minutes * 60) if remaining_minutes > 0 else None
     return None
+
+
+def resolve_fallback_plate(printer_id: int, filename: str | None) -> int | None:
+    """Use live dispatch evidence first, then the printer's G-code path."""
+    client = printer_manager.get_client(printer_id)
+    printer_state = getattr(client, "state", None)
+    if printer_state is not None:
+        plate_id = resolve_plate_id(printer_state)
+        if plate_id is not None:
+            return plate_id
+    return parse_plate_id(filename)
 
 
 def _archive_identity_names(archive: PrintArchive) -> tuple[str | None, ...]:
@@ -139,6 +151,7 @@ async def try_recover_fallback_archive(
             source_file=candidate_path,
             print_data=stored_print_data,
             original_filename=Path(candidate_name).name,
+            plate_id=expected_plate,
             update_archive_id=archive.id,
         )
         if recovered is not None:

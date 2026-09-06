@@ -137,6 +137,7 @@ async def test_later_3mf_completes_same_row_and_preserves_history(
     assert fallback.filament_used_grams == 9.5 and fallback.cost == 1.25
     assert fallback.energy_kwh == 0.42 and fallback.notes == "keep me"
     assert fallback.file_path.endswith("Widget.3mf")
+    assert fallback.plate_id == 1
     assert fallback.extra_data["business"] == "keep"
     assert fallback.extra_data["recovered_no_3mf"] is True
     assert "no_3mf_available" not in fallback.extra_data

@@ -10,6 +10,7 @@ directly, NOT by calling the full on_print_start callback.
 """
 
 import time
+from unittest.mock import patch
 
 import pytest
 
@@ -90,6 +91,29 @@ class TestRegisterExpectedPrint:
     def test_get_start_plate_id_returns_none_for_unregistered(self):
         assert _get_start_plate_id(10) is None
         assert _get_start_plate_id(None) is None
+
+    def test_resolved_start_plate_prefers_live_dispatch_evidence(self):
+        from backend.app.services.fallback_archive_recovery import resolve_fallback_plate
+
+        state = type(
+            "State",
+            (),
+            {
+                "gcode_file": "/Metadata/plate_2.gcode",
+                "dispatched_plate_id": 4,
+                "dispatched_subtask": "job-4",
+                "subtask_name": "job-4",
+            },
+        )()
+        with patch("backend.app.services.fallback_archive_recovery.printer_manager.get_client") as get_client:
+            get_client.return_value.state = state
+            assert resolve_fallback_plate(1, "/Metadata/plate_2.gcode") == 4
+
+    def test_resolved_start_plate_falls_back_to_filename(self):
+        from backend.app.services.fallback_archive_recovery import resolve_fallback_plate
+
+        with patch("backend.app.services.fallback_archive_recovery.printer_manager.get_client", return_value=None):
+            assert resolve_fallback_plate(1, "/Metadata/plate_3.gcode") == 3
 
 
 class TestExpectedPrintDetection:

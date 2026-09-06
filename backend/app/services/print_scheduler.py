@@ -24,6 +24,7 @@ from backend.app.models.settings import Settings
 from backend.app.models.smart_plug import SmartPlug
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
+from backend.app.services.archive_plate_metadata import refresh_archive_plate_metadata
 from backend.app.services.bambu_ftp import (
     FtpFailureReport,
     UploadCancelled,
@@ -53,6 +54,7 @@ from backend.app.services.printer_manager import (
 from backend.app.services.smart_plug_manager import smart_plug_manager
 from backend.app.utils.filename import derive_remote_filename
 from backend.app.utils.printer_models import is_gcode_compatible, normalize_printer_model
+from backend.app.utils.threemf_tools import extract_bed_temperature_from_3mf
 
 logger = logging.getLogger(__name__)
 
@@ -2604,7 +2606,13 @@ class PrintScheduler:
             chamber_target = self._derive_chamber_target(printer, targets)
             chamber_source = "filament-map"
 
-        bed_target = int(archive.bed_temperature) if archive and archive.bed_temperature else 0
+        plate_id = getattr(item, "plate_id", None)
+        if archive and plate_id is not None:
+            path = settings.base_dir / archive.file_path
+            selected_temperature = extract_bed_temperature_from_3mf(path, plate_id)
+            bed_target = int(selected_temperature) if selected_temperature else 0
+        else:
+            bed_target = int(archive.bed_temperature) if archive and archive.bed_temperature else 0
         if bed_target <= 0:
             logger.info(
                 "Queue item %s: preheat skipped — archive has no bed_temperature metadata",
@@ -2989,13 +2997,8 @@ class PrintScheduler:
             await self._power_off_if_needed(db, item)
             return
 
-        # Cancel-while-dispatching race (#1853): the scheduler's snapshot of
-        # `items` was taken at the top of check_queue, but the user can /cancel
-        # any pending row in the gap before we reach this point. Re-read the
-        # row and bail out cleanly instead of starting an FTP upload for a row
-        # that's already cancelled. The atomic CAS at the pending→printing
-        # transition (below, before start_print) is the load-bearing guard;
-        # this is the early-exit optimisation that avoids wasted FTP I/O.
+        # Re-read before FTP to avoid wasted upload after a concurrent cancel;
+        # the pending→printing CAS below remains the load-bearing guard (#1853).
         await db.refresh(item)
         if item.status != "pending":
             logger.info(
@@ -3015,7 +3018,6 @@ class PrintScheduler:
             )
             return
 
-        # Determine source: archive or library file
         archive = None
         library_file = None
         file_path = None
@@ -3064,6 +3066,7 @@ class PrintScheduler:
                     original_filename=filename,
                     created_by_id=item.created_by_id,
                     project_id=item.project_id,
+                    plate_id=item.plate_id,
                 )
                 if archive:
                     item.archive_id = archive.id
@@ -3077,11 +3080,7 @@ class PrintScheduler:
                         await consume_transient_library_source(db, item, library_file, archive.id)
                         file_path = settings.base_dir / archive.file_path
                         filename = archive.filename
-                    # Commit, not flush — flush opens the SQLite write
-                    # transaction (item.archive_id update + library_file
-                    # delete) and would hold the WAL writer lock through the
-                    # FTP upload below, causing "database is locked" cascades
-                    # for sensor history + concurrent cancels (#1853).
+                    # Commit before FTP so SQLite does not hold the WAL writer lock (#1853).
                     await db.commit()
                     logger.info(
                         "Queue item %s: Created archive %s from library file %s",
@@ -3135,9 +3134,11 @@ class PrintScheduler:
             await self._power_off_if_needed(db, item)
             return
 
-        # Preheat / heat-soak (#1468) — fires before upload so the printer's
-        # bed (and chamber, if applicable) is at temperature when the firmware
-        # starts the actual print routine. Best-effort: any failure logs and
+        if archive and archive.plate_id is None and item.plate_id is not None:
+            refresh_archive_plate_metadata(archive, file_path, item.plate_id)
+            await db.commit()
+
+        # Preheat / heat-soak (#1468) before upload. Best-effort: any failure logs and
         # falls through to the normal upload+start path rather than turning a
         # configuration issue into a failed queue item.
         await self._preheat_and_soak(db, item, printer, archive)
@@ -3317,21 +3318,8 @@ class PrintScheduler:
         # items) or when the user clicks the manual-start button.
         await self._propagate_owner_to_printer_manager(db, item)
 
-        # IMPORTANT: Set status to "printing" BEFORE sending the print command.
-        # This prevents phantom reprints if the backend crashes/restarts after the
-        # print command is sent but before the status update is committed.
-        # If we crash after this commit but before start_print(), the item will be
-        # in "printing" status without actually printing - but that's safer than
-        # accidentally reprinting the same file hours later.
-        #
-        # Atomic CAS (#1853): a user pressing /cancel mid-dispatch (between the
-        # initial pending read at the top of check_queue and this point) flips
-        # the row to "cancelled" in a separate session. Without the WHERE
-        # status='pending' clause, the unconditional update here would silently
-        # overwrite that cancellation and we'd ship the MQTT start_print below
-        # — printer obeys, user sees "I pressed cancel and the print started".
-        # rowcount==0 means the user won the race; bail out, best-effort delete
-        # the file we just uploaded, do NOT send start_print.
+        # Persist "printing" before MQTT to prevent phantom retries after a crash.
+        # The CAS also lets a concurrent cancellation win before printer dispatch (#1853).
         now_utc = datetime.now(timezone.utc)
         cas = await db.execute(
             update(PrintQueueItem)

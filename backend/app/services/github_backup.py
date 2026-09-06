@@ -905,6 +905,7 @@ class GitHubBackupService:
                 "id": a.id,
                 "printer_id": a.printer_id,
                 "project_id": a.project_id,
+                "plate_id": a.plate_id,
                 "filename": a.filename,
                 "file_size": a.file_size,
                 "content_hash": a.content_hash,

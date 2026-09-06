@@ -19,6 +19,7 @@ from backend.app.models.archive import PrintArchive
 from backend.app.models.filament import Filament
 from backend.app.models.printer import Printer
 from backend.app.utils.safe_path import PathTraversalError, safe_join_under
+from backend.app.utils.threemf_tools import bed_temperature_from_config
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +131,7 @@ def plate_indexes_in_3mf(file_path: Path) -> list[int | None]:
 
 
 _PLATE_SUFFIX_RE = re.compile(r"^(.*?)(\s*-\s*Plate\s+|_plate_)(\d+)$", re.IGNORECASE)
+_GCODE_SCAN_BYTES = 64 * 1024
 
 
 def swap_plate_suffix(name: str | None, target_plate: int) -> str | None:
@@ -187,6 +189,7 @@ class ThreeMFParser:
                 # Clean up internal keys
                 self.metadata.pop("_slice_filament_type", None)
                 self.metadata.pop("_slice_filament_color", None)
+                self.metadata.pop("_slice_filament_ids", None)
                 self.metadata.pop("_plate_index", None)
         except Exception as e:
             # Return whatever metadata was extracted before the error, but
@@ -242,6 +245,7 @@ class ThreeMFParser:
                     # is also single-valued; we take the first plate's value
                     # as a best-effort default for the archive metadata.
                     plate_index_value: int | None = None
+                    plate_bed_type: str | None = None
                     for meta in plate.findall("metadata"):
                         key = meta.get("key")
                         value = meta.get("value")
@@ -262,14 +266,17 @@ class ThreeMFParser:
                                 any_grams_seen = True
                             except ValueError:
                                 pass
-                        elif key == "curr_bed_type" and value and "bed_type" not in self.metadata:
-                            self.metadata["bed_type"] = value
+                        elif key == "curr_bed_type" and value:
+                            plate_bed_type = value
+
+                    if plate_bed_type and (len(plates) == 1 or plate_index_value == self.plate_number):
+                        self.metadata["bed_type"] = plate_bed_type
 
                     # Per-plate object lists are only kept at the file level
                     # when there's one plate — the skip-object affordance
                     # operates on the plate being printed, which is the
                     # `/plates` endpoint's job for multi-plate exports.
-                    if len(plates) == 1:
+                    if len(plates) == 1 or plate_index_value == self.plate_number:
                         if plate_index_value is not None:
                             if not self.plate_number:
                                 self.plate_number = plate_index_value
@@ -296,7 +303,21 @@ class ThreeMFParser:
                 # Get filament info from filaments ACTUALLY USED in the print
                 # slice_info has <filament id="1" type="PLA" color="#FFFFFF" used_g="100" />
                 # Only include filaments where used_g > 0
-                filaments = root.findall(".//filament")
+                selected_plates = plates
+                if self.plate_number is not None:
+                    selected_plates = []
+                    for plate in plates:
+                        index_meta = next(
+                            (meta for meta in plate.findall("metadata") if meta.get("key") == "index"),
+                            None,
+                        )
+                        try:
+                            index = int(index_meta.get("value", "")) if index_meta is not None else None
+                        except ValueError:
+                            index = None
+                        if index == self.plate_number:
+                            selected_plates.append(plate)
+                filaments = [filament for plate in selected_plates for filament in plate.findall("filament")]
                 if filaments:
                     # Collect unique filament types and colors for filaments that are actually used
                     types = []
@@ -322,6 +343,17 @@ class ThreeMFParser:
                         self.metadata["_slice_filament_type"] = ", ".join(types)
                     if colors:
                         self.metadata["_slice_filament_color"] = ",".join(colors)
+
+                    used_filament_ids: set[int] = set()
+                    for filament in filaments:
+                        try:
+                            if float(filament.get("used_g", "0")) > 0:
+                                used_filament_ids.add(int(filament.get("id", "0")))
+                        except (TypeError, ValueError):
+                            continue
+                    used_filament_ids.discard(0)
+                    if used_filament_ids:
+                        self.metadata["_slice_filament_ids"] = used_filament_ids
 
                     # Collect per-slot filament usage for tracking & notifications
                     filament_slots = []
@@ -360,6 +392,21 @@ class ThreeMFParser:
         except Exception:
             pass  # Skip unreadable project settings file
 
+    def _printed_plate_gcode(self, gcode_files: list[str]) -> str | None:
+        """Return the selected plate G-code without substituting another plate."""
+        if self.plate_number is not None:
+            wanted = f"Metadata/plate_{self.plate_number}.gcode"
+            if wanted in gcode_files:
+                return wanted
+            unnumbered = [name for name in gcode_files if not re.search(r"plate_\d+\.gcode$", name)]
+            return unnumbered[0] if len(gcode_files) == 1 and unnumbered else None
+
+        def plate_index(name: str) -> int:
+            match = re.search(r"plate_(\d+)\.gcode$", name)
+            return int(match.group(1)) if match else 10**6
+
+        return min(gcode_files, key=lambda name: (plate_index(name), gcode_files.index(name)))
+
     def _parse_gcode_header(self, zf: zipfile.ZipFile):
         """Parse G-code file header for total layer count and printer model."""
         try:
@@ -368,15 +415,20 @@ class ThreeMFParser:
             if not gcode_files:
                 return
 
-            # Read first 4KB of G-code (header contains metadata)
-            gcode_path = gcode_files[0]
+            gcode_path = self._printed_plate_gcode(gcode_files)
+            if gcode_path is None:
+                return
             with zf.open(gcode_path) as f:
-                header = f.read(4096).decode("utf-8", errors="ignore")
+                header = f.read(_GCODE_SCAN_BYTES).decode("utf-8", errors="ignore")
 
             # Look for "; total layer number: XX" pattern
             match = re.search(r";\s*total\s+layer\s+number[:\s]+(\d+)", header, re.IGNORECASE)
             if match:
                 self.metadata["total_layers"] = int(match.group(1))
+
+            match = re.search(r"^;\s*layer_height\s*=\s*([\d.]+)\s*$", header, re.IGNORECASE | re.MULTILINE)
+            if match:
+                self.metadata["layer_height"] = float(match.group(1))
 
             # Total filament usage. The slicer writes the print's totals into
             # the G-code header ("; total filament weight [g] : 126.26"). Only
@@ -461,15 +513,13 @@ class ThreeMFParser:
                 elif isinstance(val, (int, float, str)):
                     self.metadata["nozzle_diameter"] = float(val)
 
-            # Bed temperature - first layer or regular
-            for key in ["bed_temperature_initial_layer", "bed_temperature"]:
-                if key in data:
-                    val = data[key]
-                    if isinstance(val, list) and val:
-                        self.metadata["bed_temperature"] = int(float(val[0]))
-                    elif isinstance(val, (int, float, str)):
-                        self.metadata["bed_temperature"] = int(float(val))
-                    break
+            bed_temperature = bed_temperature_from_config(
+                data,
+                self.metadata.get("bed_type"),
+                self.metadata.get("_slice_filament_ids"),
+            )
+            if bed_temperature is not None:
+                self.metadata["bed_temperature"] = bed_temperature
 
             # Nozzle temperature
             for key in ["nozzle_temperature_initial_layer", "nozzle_temperature"]:
@@ -489,7 +539,7 @@ class ThreeMFParser:
 
             # Build plate type — only set from project_settings if slice_info didn't already
             # provide it (slice_info is more authoritative as it reflects the exported plate).
-            if "bed_type" not in self.metadata and "curr_bed_type" in data:
+            if self.plate_number is None and "bed_type" not in self.metadata and "curr_bed_type" in data:
                 val = data["curr_bed_type"]
                 if isinstance(val, str) and val.strip():
                     self.metadata["bed_type"] = val.strip()
@@ -1146,6 +1196,7 @@ class ArchiveService:
         project_id: int | None = None,
         subtask_id: str | None = None,
         prefer_filename_for_name: bool = False,
+        plate_id: int | None = None,
         update_archive_id: int | None = None,
     ) -> PrintArchive | None:
         """Archive a 3MF file with metadata.
@@ -1265,16 +1316,18 @@ class ArchiveService:
         content_hash = self.compute_file_hash(dest_file)
 
         # Extract plate number from filename (e.g., "plate_5" from "/data/Metadata/plate_5.gcode")
-        plate_number = None
+        plate_number = plate_id
         if print_data:
             filename = print_data.get("filename", "")
             match = re.search(r"plate_(\d+)", filename)
-            if match:
+            if match and plate_number is None:
                 plate_number = int(match.group(1))
 
         # Parse 3MF metadata
         parser = ThreeMFParser(dest_file, plate_number=plate_number)
         metadata = parser.parse()
+        if plate_number is None:
+            plate_number = parser.plate_number
 
         # Save thumbnail if present
         thumbnail_path = None
@@ -1336,6 +1389,8 @@ class ArchiveService:
             recovery_archive.content_hash = content_hash
             if thumbnail_path:
                 recovery_archive.thumbnail_path = thumbnail_path
+            if recovery_archive.plate_id is None:
+                recovery_archive.plate_id = plate_number
             for field in (
                 "print_time_seconds",
                 "filament_used_grams",
@@ -1389,6 +1444,7 @@ class ArchiveService:
             created_by_id=created_by_id,
             project_id=project_id,
             subtask_id=subtask_id,
+            plate_id=plate_number,
         )
 
         self.db.add(archive)

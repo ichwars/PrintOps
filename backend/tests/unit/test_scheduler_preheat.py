@@ -317,6 +317,50 @@ async def test_no_bed_temperature_in_archive_skips(scheduler, item):
 
 
 @pytest.mark.asyncio
+async def test_selected_plate_temperature_overrides_archive_default(scheduler, item):
+    db = MagicMock()
+    client = _make_client()
+    item.preheat_override = "on"
+    item.preheat_chamber_target_override = 0
+    item.plate_id = 2
+    selected_archive = SimpleNamespace(bed_temperature=35, file_path="archives/multi.3mf")
+
+    with (
+        patch.object(scheduler, "_get_bool_setting", AsyncMock(return_value=True)),
+        patch.object(scheduler, "_get_int_setting", _ints(preheat_soak_seconds=0)),
+        patch("backend.app.services.print_scheduler.extract_bed_temperature_from_3mf", return_value=70),
+        patch("backend.app.services.print_scheduler.printer_manager") as pm,
+        patch("backend.app.services.print_scheduler.asyncio.sleep", AsyncMock()),
+    ):
+        pm.get_client.return_value = client
+        pm.get_status.return_value = _make_state(70.0)
+        await scheduler._preheat_and_soak(db, item, _make_printer("H2D"), selected_archive)
+
+    client.set_bed_temperature.assert_called_once_with(70)
+
+
+@pytest.mark.asyncio
+async def test_missing_selected_plate_temperature_does_not_reuse_another_plate(scheduler, item):
+    db = MagicMock()
+    client = _make_client()
+    item.preheat_override = "on"
+    item.preheat_chamber_target_override = 0
+    item.plate_id = 2
+    selected_archive = SimpleNamespace(bed_temperature=35, file_path="archives/multi.3mf")
+
+    with (
+        patch.object(scheduler, "_get_bool_setting", AsyncMock(return_value=True)),
+        patch.object(scheduler, "_get_int_setting", _ints()),
+        patch("backend.app.services.print_scheduler.extract_bed_temperature_from_3mf", return_value=None),
+        patch("backend.app.services.print_scheduler.printer_manager") as pm,
+    ):
+        pm.get_client.return_value = client
+        await scheduler._preheat_and_soak(db, item, _make_printer("H2D"), selected_archive)
+
+    client.set_bed_temperature.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_x1c_skips_m141_but_waits_passively(scheduler, item, archive):
     """X1C has a chamber sensor but no active heater — M141 must NOT fire even
     when the filament map derives a non-zero target."""

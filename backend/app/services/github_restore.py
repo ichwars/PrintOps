@@ -1088,6 +1088,8 @@ class GitHubRestoreService:
                 "energy_kwh": entry.get("energy_kwh"),
                 "energy_cost": entry.get("energy_cost"),
             }
+            if "plate_id" in entry:
+                fields["plate_id"] = entry.get("plate_id")
 
             # Printer and project ids are local autoincrement keys, not stable
             # identities. A rebuilt PrintOps instance can have perfectly valid

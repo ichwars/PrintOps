@@ -55,6 +55,7 @@ class ArchiveResponse(BaseModel):
     object_count: int | None = None
 
     print_name: str | None
+    plate_id: int | None = None
     print_time_seconds: int | None  # Estimated time from slicer
     actual_time_seconds: int | None = None  # Computed from started_at/completed_at
     # Percentage: 100 = perfect, >100 = faster than estimated

@@ -50,6 +50,18 @@ MAX_GCODE_SNIPPET_CHARS = 1024 * 1024
 MAX_GCODE_OUTPUT_BYTES = MAX_GCODE_BYTES + (2 * MAX_GCODE_SNIPPET_CHARS)
 MIN_TEMP_FREE_RESERVE_BYTES = 64 * 1024 * 1024
 
+_BED_TEMPERATURE_KEYS: dict[str, tuple[str, str]] = {
+    "cool plate": ("cool_plate_temp_initial_layer", "cool_plate_temp"),
+    "engineering plate": ("eng_plate_temp_initial_layer", "eng_plate_temp"),
+    "high temp plate": ("hot_plate_temp_initial_layer", "hot_plate_temp"),
+    "smooth pei plate": ("hot_plate_temp_initial_layer", "hot_plate_temp"),
+    "textured pei": ("textured_plate_temp_initial_layer", "textured_plate_temp"),
+    "textured pei plate": ("textured_plate_temp_initial_layer", "textured_plate_temp"),
+    "supertack plate": ("supertack_plate_temp_initial_layer", "supertack_plate_temp"),
+    "cool plate supertack": ("supertack_plate_temp_initial_layer", "supertack_plate_temp"),
+}
+_GENERIC_BED_TEMPERATURE_KEYS = ("bed_temperature_initial_layer", "bed_temperature")
+
 
 class _OutputBudgetWriter:
     """File adapter that prevents a ZIP rewrite from exceeding its output cap."""
@@ -743,6 +755,121 @@ def extract_bed_type_from_3mf(file_path: Path, plate_id: int | None = None) -> s
         pass  # Return None on any failure rather than raising — caller decides
 
     return None
+
+
+def _positive_temperature(value: object, filament_ids: set[int] | None = None) -> int | None:
+    """Return the highest positive temperature from a slicer scalar/list."""
+    if isinstance(value, list):
+        values = [
+            candidate for index, candidate in enumerate(value, start=1) if filament_ids is None or index in filament_ids
+        ]
+    else:
+        values = [value]
+    parsed: list[int] = []
+    for candidate in values:
+        try:
+            temperature = int(float(candidate))
+        except (TypeError, ValueError):
+            continue
+        if temperature > 0:
+            parsed.append(temperature)
+    return max(parsed) if parsed else None
+
+
+def _normalized_bed_type(value: object) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", str(value).strip().lower()).strip()
+
+
+def bed_temperature_from_config(
+    data: dict,
+    bed_type: str | None = None,
+    filament_ids: set[int] | None = None,
+) -> int | None:
+    """Resolve the target from ``curr_bed_type`` and its matching slicer keys.
+
+    Bambu stores temperatures for every supported plate in one project config.
+    Reading the first generic-looking key therefore selects the wrong plate.
+    Unknown/Orca plate names may use only the generic keys; we deliberately do
+    not guess from another named plate's value.
+    """
+    selected_type = bed_type if bed_type is not None else data.get("curr_bed_type")
+    specific_keys = _BED_TEMPERATURE_KEYS.get(_normalized_bed_type(selected_type), ())
+    for key in (*specific_keys, *_GENERIC_BED_TEMPERATURE_KEYS):
+        temperature = _positive_temperature(data.get(key), filament_ids)
+        if temperature is not None:
+            return temperature
+    return None
+
+
+def _bed_context_for_plate(zf: zipfile.ZipFile, plate_id: int | None) -> tuple[str | None, set[int] | None, bool]:
+    """Return bed type, used filament slots, and ambiguity for one plate."""
+    if "Metadata/slice_info.config" not in zf.namelist():
+        return None, None, plate_id is not None
+    root = read_xml_member(zf, "Metadata/slice_info.config")
+    plates = root.findall(".//plate")
+    if plate_id is None and len(plates) != 1:
+        return None, None, True
+    for plate in plates:
+        index: int | None = None
+        bed_type: str | None = None
+        for meta in plate.findall("metadata"):
+            if meta.get("key") == "index":
+                try:
+                    index = int(meta.get("value", ""))
+                except ValueError:
+                    pass
+            elif meta.get("key") == "curr_bed_type":
+                bed_type = (meta.get("value") or "").strip() or None
+        if plate_id is None or index == plate_id:
+            if plate_id is not None and bed_type is None:
+                return None, None, True
+            used_filament_ids: set[int] = set()
+            for filament in plate.findall("filament"):
+                try:
+                    if float(filament.get("used_g", "0")) <= 0:
+                        continue
+                    filament_id = int(filament.get("id", "0"))
+                except (TypeError, ValueError):
+                    continue
+                if filament_id > 0:
+                    used_filament_ids.add(filament_id)
+            # Known used slots always scope the array. In a multi-plate project,
+            # an empty set intentionally refuses unscoped arrays.
+            filament_scope = used_filament_ids if used_filament_ids or len(plates) > 1 else None
+            return bed_type, filament_scope, False
+    return None, None, True
+
+
+def extract_bed_temperature_from_3mf(file_path: Path, plate_id: int | None = None) -> int | None:
+    """Extract a selected plate's bed target, refusing ambiguous values."""
+    try:
+        with zipfile.ZipFile(file_path, "r") as zf:
+            validate_zip_archive(zf)
+            if "Metadata/project_settings.config" not in zf.namelist():
+                return None
+            bed_type, filament_ids, ambiguous = _bed_context_for_plate(zf, plate_id)
+            if ambiguous:
+                return None
+            data = read_json_member(zf, "Metadata/project_settings.config")
+            return bed_temperature_from_config(data, bed_type, filament_ids)
+    except Exception:
+        return None
+
+
+def extract_layer_height_from_3mf(file_path: Path, plate_id: int | None = None) -> float | None:
+    """Read layer height from the selected plate's embedded G-code header."""
+    try:
+        with zipfile.ZipFile(file_path, "r") as zf:
+            validate_zip_archive(zf)
+            member = _layer_gcode_member(zf.namelist(), plate_id)
+            if member is None:
+                return None
+            with zf.open(member) as gcode:
+                header = gcode.read(64 * 1024).decode("utf-8", errors="ignore")
+            match = re.search(r"^;\s*layer_height\s*=\s*([\d.]+)", header, re.IGNORECASE | re.MULTILINE)
+            return float(match.group(1)) if match else None
+    except Exception:
+        return None
 
 
 # Header values exposed as `{placeholder}` substitutions inside snippets.

@@ -206,6 +206,19 @@ class TestArchivesAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_archive_responses_expose_selected_plate(self, async_client, archive_factory, printer_factory):
+        printer = await printer_factory()
+        selected = await archive_factory(printer.id, plate_id=3)
+
+        listed = await async_client.get("/api/v1/archives/")
+        detail = await async_client.get(f"/api/v1/archives/{selected.id}")
+
+        assert listed.status_code == detail.status_code == 200
+        assert next(row for row in listed.json() if row["id"] == selected.id)["plate_id"] == 3
+        assert detail.json()["plate_id"] == 3
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_get_archive_not_found(self, async_client: AsyncClient):
         """Verify 404 for non-existent archive."""
         response = await async_client.get("/api/v1/archives/9999")

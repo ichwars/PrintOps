@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import DeclarativeBase
 
 from backend.app.core.active_print_migrations import migrate_active_print_spoolman
+from backend.app.core.archive_metadata_migration import repair_archive_plate_metadata
 from backend.app.core.config import settings
 from backend.app.core.db_dialect import is_sqlite
 from backend.app.core.library_migrations import reclassify_sliced_3mf_library_files
@@ -818,6 +819,7 @@ async def run_migrations(conn):
 
     # Migration: Add f3d_path column to print_archives for Fusion 360 design files
     await _safe_execute(conn, "ALTER TABLE print_archives ADD COLUMN f3d_path VARCHAR(500)")
+    await _safe_execute(conn, "ALTER TABLE print_archives ADD COLUMN plate_id INTEGER")
 
     # Migration: Add on_maintenance_due column to notification_providers
     await _safe_execute(conn, "ALTER TABLE notification_providers ADD COLUMN on_maintenance_due BOOLEAN DEFAULT 0")
@@ -3540,14 +3542,8 @@ async def run_migrations(conn):
         await _safe_execute(conn, "ALTER TABLE oidc_providers ADD COLUMN allow_private_network BOOLEAN DEFAULT false")
         await _safe_execute(conn, "ALTER TABLE oidc_providers ADD COLUMN is_env_managed BOOLEAN DEFAULT false")
 
-    # Migration: real filesystem mtime for library files/folders (#2680). The
-    # folder tree's "sort by recent activity" and the file pane's date sort must
-    # track the on-disk mtime (``ls -t``), not PrintOps's DB ``updated_at`` — for
-    # a bulk external scan every row's ``updated_at`` is the same scan instant, so
-    # ordering was arbitrary. Nullable; the timestamp type differs by dialect
-    # (SQLite DATETIME vs Postgres TIMESTAMP) so an existing-DB upgrade doesn't hit
-    # "type datetime does not exist" on Postgres. On a fresh DB create_all() already
-    # built the column, so the ALTER is swallowed as "already exists".
+    # Persist real filesystem mtime for stable external-folder ordering (#2680).
+    # The timestamp spelling differs by dialect; fresh schemas already have it.
     if is_sqlite():
         await _safe_execute(conn, "ALTER TABLE library_files ADD COLUMN fs_modified_at DATETIME")
         await _safe_execute(conn, "ALTER TABLE library_folders ADD COLUMN fs_modified_at DATETIME")
@@ -3568,6 +3564,7 @@ async def run_migrations(conn):
             "ALTER TABLE payment_policies ADD COLUMN installments JSON DEFAULT '[]'::json NOT NULL",
         )
     await _migrate_document_configurations(conn)
+    await repair_archive_plate_metadata(conn)
     await repair_rfid_core_weights(conn)
 
 

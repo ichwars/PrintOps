@@ -408,6 +408,7 @@ def archive_to_response(
         "duplicate_sequence": duplicate_sequence,
         "original_archive_id": original_archive_id,
         "print_name": archive.print_name,
+        "plate_id": archive.plate_id,
         "print_time_seconds": archive.print_time_seconds,
         "filament_used_grams": archive.filament_used_grams,
         "filament_type": archive.filament_type,
@@ -456,6 +457,14 @@ def archive_to_response(
         data["failed_run_count"] = run_aggregate.get("failed_run_count", 0)
 
     return data
+
+
+def _apply_scanned_metadata(archive: PrintArchive, metadata: dict) -> None:
+    fields = "filament_type filament_color print_time_seconds filament_used_grams layer_height nozzle_diameter"
+    fields += " bed_temperature bed_type nozzle_temperature makerworld_url designer"
+    for field in fields.split():
+        if metadata.get(field) is not None:
+            setattr(archive, field, metadata[field])
 
 
 @router.get("/", response_model=list[ArchiveResponse])
@@ -1864,32 +1873,11 @@ async def rescan_archive(
         raise HTTPException(404, "Archive file not found")
 
     # Parse the 3MF file
-    parser = ThreeMFParser(file_path)
+    parser = ThreeMFParser(file_path, plate_number=archive.plate_id)
     metadata = parser.parse()
 
     # Update fields from metadata
-    if metadata.get("filament_type"):
-        archive.filament_type = metadata["filament_type"]
-    if metadata.get("filament_color"):
-        archive.filament_color = metadata["filament_color"]
-    if metadata.get("print_time_seconds"):
-        archive.print_time_seconds = metadata["print_time_seconds"]
-    if metadata.get("filament_used_grams"):
-        archive.filament_used_grams = metadata["filament_used_grams"]
-    if metadata.get("layer_height"):
-        archive.layer_height = metadata["layer_height"]
-    if metadata.get("nozzle_diameter"):
-        archive.nozzle_diameter = metadata["nozzle_diameter"]
-    if metadata.get("bed_temperature"):
-        archive.bed_temperature = metadata["bed_temperature"]
-    if metadata.get("bed_type"):
-        archive.bed_type = metadata["bed_type"]
-    if metadata.get("nozzle_temperature"):
-        archive.nozzle_temperature = metadata["nozzle_temperature"]
-    if metadata.get("makerworld_url"):
-        archive.makerworld_url = metadata["makerworld_url"]
-    if metadata.get("designer"):
-        archive.designer = metadata["designer"]
+    _apply_scanned_metadata(archive, metadata)
 
     # Calculate cost: prefer spool-based cost if available, else catalog-based.
     # When spool-based costs exist but don't cover every filament gram used
@@ -2029,25 +2017,9 @@ async def rescan_all_archives(
                 errors.append({"id": archive.id, "error": "File not found"})
                 continue
 
-            parser = ThreeMFParser(file_path)
+            parser = ThreeMFParser(file_path, plate_number=archive.plate_id)
             metadata = parser.parse()
-
-            if metadata.get("filament_type"):
-                archive.filament_type = metadata["filament_type"]
-            if metadata.get("filament_color"):
-                archive.filament_color = metadata["filament_color"]
-            if metadata.get("print_time_seconds"):
-                archive.print_time_seconds = metadata["print_time_seconds"]
-            if metadata.get("filament_used_grams"):
-                archive.filament_used_grams = metadata["filament_used_grams"]
-            if metadata.get("layer_height"):
-                archive.layer_height = metadata["layer_height"]
-            if metadata.get("nozzle_diameter"):
-                archive.nozzle_diameter = metadata["nozzle_diameter"]
-            if metadata.get("makerworld_url"):
-                archive.makerworld_url = metadata["makerworld_url"]
-            if metadata.get("designer"):
-                archive.designer = metadata["designer"]
+            _apply_scanned_metadata(archive, metadata)
 
             updated += 1
         except Exception as e:
