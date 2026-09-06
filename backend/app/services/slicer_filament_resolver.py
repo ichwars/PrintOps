@@ -42,14 +42,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.models.user import User
 from backend.app.utils.filament_ids import (
     GENERIC_FILAMENT_IDS,
-    MATERIAL_TEMPS,
     filament_id_to_setting_id,
     normalize_slicer_filament,
 )
+from backend.app.utils.filament_types import is_material_name
 
 logger = logging.getLogger(__name__)
 
-_KNOWN_MATERIALS = set(MATERIAL_TEMPS.keys()) | set(GENERIC_FILAMENT_IDS.keys())
+
+def _preset_filament_type(raw: object) -> str | None:
+    """Read the array or string form used by slicer filament profiles."""
+    if isinstance(raw, list):
+        raw = raw[0] if raw else None
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return None
 
 
 async def resolve_slicer_filament(
@@ -59,7 +66,7 @@ async def resolve_slicer_filament(
     slicer_filament: str | None,
     slicer_filament_name: str | None,
     material: str | None,
-) -> tuple[str, str, str | None]:
+) -> tuple[str, str, str | None, str | None]:
     """Resolve a spool's slicer-preset reference to printer-side ids.
 
     ``slicer_filament``: the spool's stored reference (e.g. ``"GFA01"``,
@@ -74,18 +81,17 @@ async def resolve_slicer_filament(
     ``material``: spool material string for the local-preset fallback
     branch when the LocalPreset's setting JSON doesn't carry a filament_id.
 
-    Returns ``(tray_info_idx, setting_id, sub_brand_override)`` — all empty
-    when nothing resolved. ``sub_brand_override`` is non-None when a more
-    specific brand label is available (cloud detail name or local preset
-    name); ``None`` means the caller should use its own default.
+    Returns the two preset IDs plus optional descriptive-name and protocol-type
+    overrides supplied by the resolved slicer preset.
     """
     sf = (slicer_filament or "").strip()
     if not sf:
-        return ("", "", None)
+        return ("", "", None, None)
 
     tray_info_idx = ""
     setting_id = ""
     sub_brand_override: str | None = None
+    type_override: str | None = None
 
     base_sf = sf.split("_")[0] if "_" in sf else sf
 
@@ -106,6 +112,9 @@ async def resolve_slicer_filament(
             if cloud is not None and cloud.is_authenticated:
                 try:
                     detail = await cloud.get_setting_detail(base_sf)
+                    nested = detail.get("setting")
+                    source = nested if isinstance(nested, dict) else detail
+                    type_override = _preset_filament_type(source.get("filament_type"))
                     if detail.get("filament_id"):
                         tray_info_idx = detail["filament_id"]
                         cloud_name = detail.get("name", "")
@@ -136,6 +145,7 @@ async def resolve_slicer_filament(
             lp_result = await db.execute(select(LP).where(LP.id == local_id, LP.preset_type == "filament"))
             lp = lp_result.scalar_one_or_none()
             if lp:
+                type_override = _preset_filament_type(lp.filament_type)
                 # Local preset's setting JSON carries the printer-recognized
                 # filament_id (e.g. "P4d64437") — use that directly so the
                 # slicer can resolve the specific preset. Falls through to
@@ -195,9 +205,7 @@ async def resolve_slicer_filament(
     # Valid tray_info_idx values: "GF" + letter + digits (Bambu official) or
     # "P" followed by hex (user/local presets, NOT "PFUS" or "PFCN").
     if tray_info_idx and (
-        tray_info_idx.upper() in _KNOWN_MATERIALS
-        or tray_info_idx.startswith("PFUS")
-        or tray_info_idx.startswith("PFCN")
+        is_material_name(tray_info_idx) or tray_info_idx.startswith("PFUS") or tray_info_idx.startswith("PFCN")
     ):
         tray_info_idx = ""
         # Preserve setting_id when it's still a valid slicer reference
@@ -215,4 +223,4 @@ async def resolve_slicer_filament(
         ):
             setting_id = ""
 
-    return (tray_info_idx, setting_id, sub_brand_override)
+    return (tray_info_idx, setting_id, sub_brand_override, type_override)

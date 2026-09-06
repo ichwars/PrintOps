@@ -29,10 +29,12 @@ from backend.app.services.spoolman import (
     get_spoolman_client,
     init_spoolman_client,
 )
-from backend.app.utils.filament_ids import (
-    GENERIC_FILAMENT_IDS,
-    MATERIAL_TEMPS,
-    normalize_slicer_filament,
+from backend.app.utils.filament_ids import normalize_slicer_filament
+from backend.app.utils.filament_types import (
+    generic_filament_id,
+    nozzle_temp_range,
+    printer_filament_type,
+    tray_sub_brand,
 )
 
 logger = logging.getLogger(__name__)
@@ -891,28 +893,19 @@ async def link_spool(
 
             mqtt_client = printer_manager.get_client(p_id)
             if mqtt_client:
-                tray_type = mapped.get("material") or ""
+                material = mapped.get("material") or ""
+                tray_type = printer_filament_type(material)
                 brand = mapped.get("brand") or ""
                 subtype = mapped.get("subtype") or ""
-                if brand:
-                    tray_sub_brands = f"{brand} {tray_type} {subtype}".strip()
-                elif subtype:
-                    tray_sub_brands = f"{tray_type} {subtype}".strip()
-                else:
-                    tray_sub_brands = tray_type
+                tray_sub_brands = tray_sub_brand(brand, material, subtype)
 
                 tray_color = (mapped.get("rgba") or "808080FF").upper()
                 if len(tray_color) == 6:
                     tray_color = tray_color + "FF"
 
-                material_upper = tray_type.upper().strip()
-                tray_info_idx = (
-                    GENERIC_FILAMENT_IDS.get(material_upper)
-                    or GENERIC_FILAMENT_IDS.get(material_upper.split("-")[0].split(" ")[0])
-                    or ""
-                )
+                tray_info_idx = generic_filament_id(material, tray_type)
                 setting_id = ""
-                temp_defaults = MATERIAL_TEMPS.get(material_upper, (200, 240))
+                temp_defaults = nozzle_temp_range(material, tray_type)
                 temp_min = mapped.get("nozzle_temp_min") or temp_defaults[0]
                 temp_max = temp_defaults[1]
 

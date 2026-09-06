@@ -11,6 +11,7 @@ from backend.app.core.config import settings
 from backend.app.core.db_dialect import is_sqlite
 from backend.app.core.library_migrations import reclassify_sliced_3mf_library_files
 from backend.app.core.number_sequence_migrations import migrate_number_sequence_monthly_reset_policy
+from backend.app.core.rfid_core_weight_migration import repair_rfid_core_weights
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +19,7 @@ logger = logging.getLogger(__name__)
 def _set_sqlite_pragmas(dbapi_conn, connection_record):
     """Set SQLite pragmas on each new connection for concurrency and performance."""
     cursor = dbapi_conn.cursor()
-    # WAL mode allows concurrent readers + one writer (vs default DELETE mode which locks entirely)
     cursor.execute("PRAGMA journal_mode = WAL")
-    # Wait up to 15 seconds when the database is locked instead of failing immediately
     cursor.execute("PRAGMA busy_timeout = 15000")
     cursor.execute("PRAGMA synchronous = NORMAL")
     cursor.close()
@@ -3556,8 +3555,7 @@ async def run_migrations(conn):
         await _safe_execute(conn, "ALTER TABLE library_files ADD COLUMN fs_modified_at TIMESTAMP")
         await _safe_execute(conn, "ALTER TABLE library_folders ADD COLUMN fs_modified_at TIMESTAMP")
 
-    # Migration: Disambiguate the four ``user_print_*`` notification template
-    # names by appending " Email" (#1792). See ``_migrate_rename_user_print_template_names``.
+    # Disambiguate the four ``user_print_*`` notification template names (#1792).
     await _migrate_rename_user_print_template_names(conn)
     if is_sqlite():
         await _safe_execute(
@@ -3570,6 +3568,7 @@ async def run_migrations(conn):
             "ALTER TABLE payment_policies ADD COLUMN installments JSON DEFAULT '[]'::json NOT NULL",
         )
     await _migrate_document_configurations(conn)
+    await repair_rfid_core_weights(conn)
 
 
 async def _migrate_document_configurations(conn) -> None:
@@ -4156,7 +4155,6 @@ async def seed_default_groups():
             operators_result = await session.execute(select(Group).where(Group.name == "Operators"))
             operators_group = operators_result.scalar_one_or_none()
 
-            # Get all users
             users_result = await session.execute(select(User))
             users = users_result.scalars().all()
 

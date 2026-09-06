@@ -35,7 +35,7 @@ async def test_pfus_cloud_unavailable_preserves_setting_id():
         "backend.app.api.routes.cloud.build_authenticated_cloud",
         AsyncMock(return_value=None),
     ):
-        tray_info_idx, setting_id, sub_brand = await resolve_slicer_filament(
+        tray_info_idx, setting_id, sub_brand, _ = await resolve_slicer_filament(
             db=db,
             current_user=None,
             slicer_filament="PFUS990b6e19965353",
@@ -56,7 +56,7 @@ async def test_pfcn_cloud_unavailable_preserves_setting_id():
         "backend.app.api.routes.cloud.build_authenticated_cloud",
         AsyncMock(return_value=None),
     ):
-        tray_info_idx, setting_id, sub_brand = await resolve_slicer_filament(
+        tray_info_idx, setting_id, sub_brand, _ = await resolve_slicer_filament(
             db=db,
             current_user=None,
             slicer_filament="PFCN1234567890",
@@ -82,7 +82,7 @@ async def test_pfus_cloud_resolves_filament_id_regression_guard():
         "backend.app.api.routes.cloud.build_authenticated_cloud",
         AsyncMock(return_value=cloud_mock),
     ):
-        tray_info_idx, setting_id, sub_brand = await resolve_slicer_filament(
+        tray_info_idx, setting_id, sub_brand, _ = await resolve_slicer_filament(
             db=db,
             current_user=MagicMock(),
             slicer_filament="PFUS990b6e19965353",
@@ -106,7 +106,7 @@ async def test_gfs_cloud_unavailable_resolves_via_normalize():
         "backend.app.api.routes.cloud.build_authenticated_cloud",
         AsyncMock(return_value=None),
     ):
-        tray_info_idx, setting_id, sub_brand = await resolve_slicer_filament(
+        tray_info_idx, setting_id, sub_brand, _ = await resolve_slicer_filament(
             db=db,
             current_user=None,
             slicer_filament="GFSG02",
@@ -130,7 +130,7 @@ async def test_literal_material_name_clears_both():
         "backend.app.api.routes.cloud.build_authenticated_cloud",
         AsyncMock(return_value=None),
     ):
-        tray_info_idx, setting_id, sub_brand = await resolve_slicer_filament(
+        tray_info_idx, setting_id, sub_brand, _ = await resolve_slicer_filament(
             db=db,
             current_user=None,
             slicer_filament="PETG",
@@ -140,3 +140,30 @@ async def test_literal_material_name_clears_both():
     assert tray_info_idx == ""
     assert setting_id == ""
     assert sub_brand is None
+
+
+@pytest.mark.asyncio
+async def test_cloud_preset_returns_its_authoritative_protocol_type():
+    db = MagicMock()
+    cloud = MagicMock()
+    cloud.is_authenticated = True
+    cloud.get_setting_detail = AsyncMock(
+        return_value={
+            "filament_id": "GFL99",
+            "name": "Bambu PLA Aero @P1S",
+            "setting": {"filament_type": ["PLA-AERO"]},
+        }
+    )
+    cloud.close = AsyncMock()
+    with patch("backend.app.api.routes.cloud.build_authenticated_cloud", AsyncMock(return_value=cloud)):
+        tray_info_idx, setting_id, sub_brand, type_override = await resolve_slicer_filament(
+            db=db,
+            current_user=MagicMock(),
+            slicer_filament="GFSB02",
+            slicer_filament_name=None,
+            material="PLA",
+        )
+
+    assert (tray_info_idx, setting_id) == ("GFL99", "GFSB02")
+    assert sub_brand == "Bambu PLA Aero"
+    assert type_override == "PLA-AERO"
