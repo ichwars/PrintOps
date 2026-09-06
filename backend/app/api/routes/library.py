@@ -35,6 +35,7 @@ from backend.app.models.archive import PrintArchive
 from backend.app.models.library import LibraryFile, LibraryFileTag, LibraryFolder
 from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.project import Project
+from backend.app.models.settings import Settings
 from backend.app.models.user import User
 from backend.app.schemas.library import (
     AddToQueueError,
@@ -88,6 +89,7 @@ from backend.app.utils.archive_budget import (
     validate_zip_archive,
 )
 from backend.app.utils.filename import InvalidFilenameError, validate_print_filename
+from backend.app.utils.library_files import classify_file_type, is_sliced_file
 from backend.app.utils.threemf_tools import (
     extract_embedded_presets_from_3mf,
     extract_nozzle_mapping_from_3mf,
@@ -139,26 +141,6 @@ def get_library_files_dir() -> Path:
     files_dir = get_library_dir() / "files"
     files_dir.mkdir(parents=True, exist_ok=True)
     return files_dir
-
-
-def classify_file_type(filename: str) -> str:
-    """Return the canonical ``LibraryFile.file_type`` for *filename*.
-
-    Compound extensions are preserved — a `.gcode.3mf` file (a sliced
-    output, still a 3MF zip on disk) is classified ``gcode.3mf`` rather
-    than ``3mf``. Pre-#1600 this was only done in the external-scan
-    path; the upload / ZIP-extract / in-process paths all stripped to
-    the trailing extension and stored ``3mf``, so the FE had to accept
-    both. Unified here so every ingest path stores the same value and
-    downstream gates (gcode download, file-type filter, thumbnail
-    extraction) only need to handle one canonical name per file family.
-    Files with no extension classify as ``unknown``.
-    """
-    lower = filename.lower()
-    if lower.endswith(".gcode.3mf"):
-        return "gcode.3mf"
-    ext = os.path.splitext(lower)[1]
-    return ext[1:] if ext else "unknown"
 
 
 def get_library_thumbnails_dir() -> Path:
@@ -553,7 +535,7 @@ async def save_3mf_bytes_to_library(
         is_external=is_external,
         filename=filename,
         file_path=_stored_file_path(file_path, is_external),
-        file_type=classify_file_type(filename),
+        file_type=classify_file_type(filename, file_path),
         file_size=len(file_bytes),
         file_hash=file_hash,
         thumbnail_path=to_relative_path(thumbnail_path) if thumbnail_path else None,
@@ -1532,11 +1514,7 @@ async def scan_external_folder(
     db: AsyncSession = Depends(get_db),
     _: User | None = Depends(require_permission_if_auth_enabled(Permission.LIBRARY_UPLOAD)),
 ):
-    """Scan an external folder and sync files to the database.
-
-    Discovers new files, removes DB entries for deleted files.
-    Does not copy files — stores the external path directly.
-    """
+    """Sync an external folder to the database without copying files."""
     result = await db.execute(select(LibraryFolder).where(LibraryFolder.id == folder_id))
     folder = result.scalar_one_or_none()
 
@@ -1549,7 +1527,6 @@ async def scan_external_folder(
     if not ext_path.exists() or not ext_path.is_dir():
         raise HTTPException(status_code=400, detail=f"External path is not accessible: {folder.external_path}")
 
-    # Collect all existing child external subfolder IDs (single query)
     all_folder_ids = [folder_id]
     child_result = await db.execute(
         select(LibraryFolder).where(
@@ -1559,7 +1536,6 @@ async def scan_external_folder(
     )
     all_child_folders = child_result.scalars().all()
 
-    # Walk the parent chain to find all descendants of folder_id
     parent_to_children: dict[int, list] = {}
     for cf in all_child_folders:
         parent_to_children.setdefault(cf.parent_id, []).append(cf)
@@ -1571,7 +1547,6 @@ async def scan_external_folder(
             all_folder_ids.append(child.id)
             queue.append(child.id)
 
-    # Get existing DB files across root and all subfolders
     existing_result = await db.execute(
         LibraryFile.active().where(
             LibraryFile.folder_id.in_(all_folder_ids),
@@ -1579,9 +1554,11 @@ async def scan_external_folder(
         )
     )
     existing_files = {f.file_path: f for f in existing_result.scalars().all()}
+    repair_key = f"_backfill_132_external_folder_{folder_id}"
+    external_types_repaired = (
+        await db.execute(select(Settings.id).where(Settings.key == repair_key))
+    ).scalar_one_or_none() is not None
 
-    # Build folder cache: relative path -> folder_id (for resolving subfolders)
-    # Pre-populate with existing child folders keyed by their external_path
     folder_cache: dict[str, int] = {"": folder_id}
     for fid in all_folder_ids:
         if fid == folder_id:
@@ -1685,29 +1662,25 @@ async def scan_external_folder(
             except (ValueError, OSError):
                 continue  # Symlink escapes the external dir
 
-            file_path_str = str(filepath)
-            found_paths.add(file_path_str)
-
-            if file_path_str in existing_files:
-                # Already tracked — refresh its on-disk mtime (#2680) so a file
-                # edited/replaced over the mount (samba, etc.) re-sorts correctly
-                # and old rows scanned before this field existed get backfilled.
-                tracked = existing_files[file_path_str]
-                try:
-                    fs_mtime = _mtime_to_datetime(filepath.stat().st_mtime)
-                except OSError:
-                    fs_mtime = None
-                if fs_mtime is not None and tracked.fs_modified_at != fs_mtime:
-                    tracked.fs_modified_at = fs_mtime
-                continue
-
-            # Get file info
             try:
                 stat = filepath.stat()
             except OSError:
                 continue
+            fs_mtime = _mtime_to_datetime(stat.st_mtime)
+            file_path_str = str(filepath)
+            found_paths.add(file_path_str)
 
-            file_type = classify_file_type(filename)
+            if file_path_str in existing_files:
+                tracked = existing_files[file_path_str]
+                changed = tracked.file_size != stat.st_size or tracked.fs_modified_at != fs_mtime
+                if not external_types_repaired or changed:
+                    tracked.file_type = classify_file_type(filename, filepath)
+                tracked.file_size = stat.st_size
+                if tracked.fs_modified_at != fs_mtime:
+                    tracked.fs_modified_at = fs_mtime
+                continue
+
+            file_type = classify_file_type(filename, filepath)
 
             # Extract thumbnail for 3mf files (including .gcode.3mf sliced
             # outputs — those are 3MF zips on disk and carry the same
@@ -1782,7 +1755,7 @@ async def scan_external_folder(
                 file_hash=None,  # Skip hashing external files for performance
                 thumbnail_path=thumbnail_path,
                 file_metadata=_without_print_name(file_metadata),
-                fs_modified_at=_mtime_to_datetime(stat.st_mtime),  # #2680: real on-disk mtime
+                fs_modified_at=fs_mtime,
             )
             db.add(db_file)
             added += 1
@@ -1836,6 +1809,8 @@ async def scan_external_folder(
             if new_mtime is not None and folder_obj.fs_modified_at != new_mtime:
                 folder_obj.fs_modified_at = new_mtime
 
+    if not external_types_repaired:
+        db.add(Settings(key=repair_key, value="true"))
     await db.commit()
 
     # Spawn STL thumbnail backfill in the background — the scan endpoint
@@ -2045,11 +2020,11 @@ async def upload_file(
         except InvalidFilenameError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
         ext = os.path.splitext(filename)[1].lower()
-        # `file_type` is compound-aware (`gcode.3mf` for sliced outputs).
         # `ext` stays the trailing extension because the on-disk filename
         # uses it directly and the 3MF-parse branch below still gates on
         # `ext == ".3mf"`, which is correct for both `.3mf` and `.gcode.3mf`.
-        file_type = classify_file_type(filename)
+        # The compound-aware `file_type` is decided after the bytes are on
+        # disk, because a plain-named `.3mf` may still carry G-code (#132).
 
         # Verify folder exists if specified
         target_folder = None
@@ -2079,6 +2054,8 @@ async def upload_file(
         # Save file
         with open(file_path, "wb") as f:
             f.write(content)
+
+        file_type = classify_file_type(filename, file_path)
 
         # Calculate hash
         file_hash = calculate_file_hash(file_path)
@@ -2350,7 +2327,6 @@ async def extract_zip_file(
                     # Extract file
                     filename = os.path.basename(zip_path)
                     ext = os.path.splitext(filename)[1].lower()
-                    file_type = classify_file_type(filename)
 
                     # Generate unique filename for storage
                     unique_filename = f"{uuid.uuid4().hex}{ext}"
@@ -2362,6 +2338,8 @@ async def extract_zip_file(
                     file_content = read_zip_member(zf, zip_path)
                     with open(file_path, "wb") as f:
                         f.write(file_content)
+
+                    file_type = classify_file_type(filename, file_path)
 
                     # Calculate hash
                     file_hash = calculate_file_hash(file_path)
@@ -2610,17 +2588,6 @@ async def batch_generate_stl_thumbnails(
 # NOTE: These routes must be defined BEFORE /files/{file_id} to avoid path parameter conflicts
 
 
-def is_sliced_file(filename: str) -> bool:
-    """Check if a file is a sliced (printable) file.
-
-    Sliced files are:
-    - .gcode files
-    - .3mf files that contain '.gcode.' in the name (e.g., filename.gcode.3mf)
-    """
-    lower = filename.lower()
-    return lower.endswith(".gcode") or ".gcode." in lower
-
-
 @router.post("/files/add-to-queue", response_model=AddToQueueResponse)
 async def add_files_to_queue(
     request: AddToQueueRequest,
@@ -2632,7 +2599,7 @@ async def add_files_to_queue(
 ):
     """Add library files to the print queue.
 
-    Only sliced files (.gcode or .gcode.3mf) can be added to the queue.
+    Only files carrying printable G-code can be added to the queue.
     The archive will be created automatically when the print starts.
     """
     added: list[AddToQueueResult] = []
@@ -2657,12 +2624,12 @@ async def add_files_to_queue(
             continue
 
         # Validate file is sliced
-        if not is_sliced_file(lib_file.filename):
+        if not is_sliced_file(lib_file.filename, lib_file.file_type):
             errors.append(
                 AddToQueueError(
                     file_id=file_id,
                     filename=lib_file.filename,
-                    error="Not a sliced file. Only .gcode or .gcode.3mf files can be printed.",
+                    error="Not a sliced file. Only files containing printable G-code can be printed.",
                 )
             )
             continue

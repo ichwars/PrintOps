@@ -45,6 +45,7 @@ from backend.app.schemas.project import (
 )
 from backend.app.services import project_lifecycle
 from backend.app.utils.http import build_content_disposition
+from backend.app.utils.library_files import classify_file_type
 from backend.app.utils.safe_path import safe_join_under
 
 logger = logging.getLogger(__name__)
@@ -2090,16 +2091,7 @@ async def import_project_file(
             file_disk_path.parent.mkdir(parents=True, exist_ok=True)
             file_disk_path.write_bytes(file_content)
 
-            # Determine file type
-            ext = Path(relative_path).suffix.lower()
-            if ext in [".stl", ".3mf", ".obj"]:
-                file_type = "model"
-            elif ext in [".gcode"]:
-                file_type = "gcode"
-            elif ext in [".jpg", ".jpeg", ".png", ".gif", ".webp"]:
-                file_type = "image"
-            else:
-                file_type = "other"
+            file_type = classify_file_type(relative_path, file_disk_path)
 
             # Create library file record
             lib_file = LibraryFile(

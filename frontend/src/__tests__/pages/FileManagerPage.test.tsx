@@ -505,6 +505,34 @@ describe('FileManagerPage', () => {
       });
     });
 
+    it('uses the detected file type for a sliced 3MF with a plain filename', async () => {
+      const user = userEvent.setup();
+      server.use(
+        http.get('/api/v1/library/files', () => {
+          return HttpResponse.json([
+            {
+              ...mockFiles[0],
+              id: 132,
+              filename: 'Labyrinth - Plate 3.3mf',
+              file_type: 'gcode.3mf',
+              print_name: null,
+            },
+          ]);
+        })
+      );
+
+      render(<FileManagerPage />);
+
+      const fileName = await screen.findByText('Labyrinth - Plate 3.3mf');
+      const fileCard = fileName.closest('div[class*="cursor-pointer"]');
+      expect(fileCard).not.toBeNull();
+      await user.click(fileCard!);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /^Print$/ })).toBeInTheDocument();
+      });
+    });
+
     it('hides the bulk Print button when multiple files are selected', async () => {
       const user = userEvent.setup();
       render(<FileManagerPage />);

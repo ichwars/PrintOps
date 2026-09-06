@@ -1,6 +1,6 @@
 /**
  * Tests for the ProjectDetailPage component.
- * Covers: isSlicedFilename conditional print-button logic, linked folder file rendering,
+ * Covers: content-aware sliced-file print-button logic, linked folder file rendering,
  * and the PrintModal open trigger with projectId.
  */
 
@@ -109,6 +109,22 @@ describe('ProjectDetailPage', () => {
       server.use(
         http.get('/api/v1/library/files', () => {
           return HttpResponse.json([makeFile({ id: 2, filename: 'benchy.gcode.3mf', file_type: '3mf' })]);
+        })
+      );
+
+      render(<ProjectDetailPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTitle('Print')).toBeInTheDocument();
+      });
+    });
+
+    it('shows print button for a content-detected sliced 3MF with a plain filename', async () => {
+      server.use(
+        http.get('/api/v1/library/files', () => {
+          return HttpResponse.json([
+            makeFile({ id: 132, filename: 'Labyrinth - Plate 3.3mf', file_type: 'gcode.3mf' }),
+          ]);
         })
       );
 

@@ -714,6 +714,31 @@ class TestLibraryAddToQueueAPI:
         assert len(result["errors"]) == 1
         assert "sliced" in result["errors"][0]["error"].lower()
 
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_add_content_detected_plain_named_3mf_to_queue(
+        self, async_client: AsyncClient, printer_factory, library_file_factory, db_session, tmp_path
+    ):
+        await printer_factory()
+        file_path = tmp_path / "Labyrinth - Plate 3.3mf"
+        with zipfile.ZipFile(file_path, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("Metadata/plate_3.gcode", "; G-code\nG28\n")
+        lib_file = await library_file_factory(
+            filename="Labyrinth - Plate 3.3mf",
+            file_path=str(file_path),
+            file_type="gcode.3mf",
+        )
+
+        response = await async_client.post(
+            "/api/v1/library/files/add-to-queue",
+            json={"file_ids": [lib_file.id]},
+        )
+
+        assert response.status_code == 200
+        result = response.json()
+        assert [item["file_id"] for item in result["added"]] == [lib_file.id]
+        assert result["errors"] == []
+
 
 class TestLibraryZipExtractAPI:
     """Integration tests for ZIP extraction endpoint."""
@@ -748,6 +773,32 @@ class TestLibraryZipExtractAPI:
         assert result["extracted"] == 2
         assert len(result["files"]) == 2
         assert len(result["errors"]) == 0
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_extract_zip_classifies_plain_named_sliced_3mf_from_content(
+        self, async_client: AsyncClient, db_session
+    ):
+        from backend.app.models.library import LibraryFile
+
+        inner = io.BytesIO()
+        with zipfile.ZipFile(inner, "w", zipfile.ZIP_DEFLATED) as threemf:
+            threemf.writestr("Metadata/plate_2.gcode", "; G-code\nG28\n")
+
+        outer = io.BytesIO()
+        with zipfile.ZipFile(outer, "w", zipfile.ZIP_DEFLATED) as bundle:
+            bundle.writestr("odd-name.3mf", inner.getvalue())
+
+        response = await async_client.post(
+            "/api/v1/library/files/extract-zip",
+            files={"file": ("bundle.zip", outer.getvalue(), "application/zip")},
+        )
+
+        assert response.status_code == 200
+        file_id = response.json()["files"][0]["file_id"]
+        row = await db_session.get(LibraryFile, file_id)
+        assert row is not None
+        assert row.file_type == "gcode.3mf"
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -1563,6 +1614,24 @@ class TestPrintFileUploadValidation:
             )
         }
         response = await async_client.post("/api/v1/library/files", files=files)
+        assert response.status_code == 200
+        assert response.json()["file_type"] == "gcode.3mf"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_library_upload_classifies_plain_named_sliced_3mf_from_content(
+        self, async_client: AsyncClient, db_session
+    ):
+        files = {
+            "file": (
+                "Labyrinth - Plate 3.3mf",
+                self._valid_3mf_bytes(name="Metadata/plate_3.gcode"),
+                "application/zip",
+            )
+        }
+
+        response = await async_client.post("/api/v1/library/files", files=files)
+
         assert response.status_code == 200
         assert response.json()["file_type"] == "gcode.3mf"
 

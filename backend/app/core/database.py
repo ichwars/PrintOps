@@ -9,6 +9,7 @@ from sqlalchemy.orm import DeclarativeBase
 from backend.app.core.active_print_migrations import migrate_active_print_spoolman
 from backend.app.core.config import settings
 from backend.app.core.db_dialect import is_sqlite
+from backend.app.core.library_migrations import reclassify_sliced_3mf_library_files
 from backend.app.core.number_sequence_migrations import migrate_number_sequence_monthly_reset_policy
 
 logger = logging.getLogger(__name__)
@@ -2136,10 +2137,8 @@ async def run_migrations(conn):
         )
 
     # Migration: Unify `LibraryFile.file_type` across ingest paths (#1600).
-    # Pre-#1600, only the external-folder scan path stored `gcode.3mf` for
-    # sliced outputs — the upload, ZIP-extract, and in-process paths all
-    # stripped to the trailing `.3mf` and stored `3mf`, so the same file
-    # family was split between two values depending on how it was ingested.
+    # Pre-#1600, only the external scan stored `gcode.3mf`; upload, ZIP
+    # extraction, and in-process imports stored `3mf`, splitting one family.
     # Going forward `classify_file_type()` is canonical; this backfill flips
     # existing legacy `3mf` rows whose filename ends in `.gcode.3mf` to the
     # canonical compound name. Idempotent (post-update rows no longer match
@@ -2152,6 +2151,7 @@ async def run_migrations(conn):
         )
     )
 
+    await reclassify_sliced_3mf_library_files(conn, settings.base_dir)
     # Migration: Add per-user Bambu Cloud credential columns
     await _safe_execute(conn, "ALTER TABLE users ADD COLUMN cloud_token VARCHAR(500)")
     await _safe_execute(conn, "ALTER TABLE users ADD COLUMN cloud_email VARCHAR(255)")
