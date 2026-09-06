@@ -251,6 +251,36 @@ def _extruder_side_for_ams(
     return int(ams_extruder_map.get(str(ams_id), 0))
 
 
+def _loaded_internal_slots(printer_id: int) -> set[tuple[int, int]]:
+    """Return live, occupied AMS slots; external/virtual trays are excluded."""
+    try:
+        from backend.app.services.printer_manager import printer_manager
+    except ImportError:
+        return set()
+
+    state = printer_manager.get_status(printer_id)
+    raw_data = getattr(state, "raw_data", None) if state is not None else None
+    if not isinstance(raw_data, dict):
+        return set()
+
+    loaded: set[tuple[int, int]] = set()
+    for ams_unit in raw_data.get("ams") or []:
+        if not isinstance(ams_unit, dict):
+            continue
+        try:
+            ams_id = int(ams_unit.get("id", 0))
+        except (TypeError, ValueError):
+            continue
+        for tray in ams_unit.get("tray") or []:
+            if not isinstance(tray, dict) or not tray.get("tray_type"):
+                continue
+            try:
+                loaded.add((ams_id, int(tray.get("id", 0))))
+            except (TypeError, ValueError):
+                continue
+    return loaded
+
+
 def _parse_ams_mapping(raw: str | None) -> list[int] | None:
     if not raw:
         return None
@@ -315,6 +345,9 @@ class SlotMaterial:
 async def build_slot_materials(db: AsyncSession, printer_id: int) -> list[SlotMaterial]:
     """Build the material pool shared by dispatch and the print dialog."""
     _, ams_extruder_map, is_dual = await _get_printer_backup_context(printer_id)
+    loaded_slots = _loaded_internal_slots(printer_id)
+    if not loaded_slots:
+        return []
     materials: list[SlotMaterial] = []
 
     def append_slot(ams_id: int, tray_id: int, material_key: str, remaining: float) -> None:
@@ -340,6 +373,8 @@ async def build_slot_materials(db: AsyncSession, printer_id: int) -> list[SlotMa
         if client is None:
             return []
         for assignment in result.scalars().all():
+            if (assignment.ams_id, assignment.tray_id) not in loaded_slots:
+                continue
             try:
                 spool = await client.get_spool(assignment.spoolman_spool_id)
             except Exception as exc:
@@ -368,6 +403,8 @@ async def build_slot_materials(db: AsyncSession, printer_id: int) -> list[SlotMa
         .where(SpoolAssignment.printer_id == printer_id)
     )
     for assignment in result.scalars().all():
+        if (assignment.ams_id, assignment.tray_id) not in loaded_slots:
+            continue
         spool = assignment.spool
         if spool is None:
             continue

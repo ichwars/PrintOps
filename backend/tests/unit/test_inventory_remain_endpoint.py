@@ -20,8 +20,8 @@ def db():
     return MagicMock()
 
 
-async def _call_endpoint(db, printer_id=1):
-    return await get_inventory_remain(printer_id=printer_id, _=None, db=db)
+async def _call_endpoint(db, printer_id=1, current_user=None):
+    return await get_inventory_remain(printer_id=printer_id, current_user=current_user, db=db)
 
 
 class TestGetInventoryRemain:
@@ -135,3 +135,31 @@ class TestGetInventoryRemain:
                 "extruder": 0,
             }
         ]
+
+    @pytest.mark.asyncio
+    async def test_hides_slot_materials_without_assignment_permission(self, db):
+        state = SimpleNamespace(raw_data={})
+        user = SimpleNamespace(has_permission=lambda _permission: False)
+        build_slot_materials = AsyncMock()
+        with (
+            patch(
+                "backend.app.services.printer_manager.printer_manager.get_status",
+                return_value=state,
+            ),
+            patch(
+                "backend.app.services.print_scheduler.PrintScheduler._build_loaded_filaments",
+                return_value=[],
+            ),
+            patch(
+                "backend.app.services.print_scheduler.PrintScheduler._build_inventory_remain_overrides",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                "backend.app.services.filament_deficit.build_slot_materials",
+                new=build_slot_materials,
+            ),
+        ):
+            result = await _call_endpoint(db, current_user=user)
+
+        assert result == {"inventory_remain_g": {}, "slot_materials": []}
+        build_slot_materials.assert_not_awaited()

@@ -436,14 +436,23 @@ class TestFilamentDeficitBackupAware:
         backup_on: bool,
         ams_extruder_map: dict | None = None,
         model: str | None = None,
+        loaded_slots: set[tuple[int, int]] | None = None,
     ):
         """Patch ``printer_manager.get_status`` + ``get_model`` for the test."""
         from types import SimpleNamespace
         from unittest.mock import patch as _patch
 
+        if loaded_slots is None:
+            loaded_slots = {(ams_id, tray_id) for ams_id in (0, 1) for tray_id in range(4)}
+        trays_by_ams: dict[int, list[dict]] = {}
+        for ams_id, tray_id in sorted(loaded_slots):
+            trays_by_ams.setdefault(ams_id, []).append({"id": tray_id, "tray_type": "PLA"})
         fake_state = SimpleNamespace(
             ams_filament_backup=backup_on if backup_on is not None else None,
             ams_extruder_map=ams_extruder_map or {},
+            raw_data={
+                "ams": [{"id": ams_id, "tray": trays} for ams_id, trays in trays_by_ams.items()],
+            },
         )
 
         return [
@@ -766,6 +775,34 @@ class TestFilamentDeficitBackupAware:
 
 class TestBuildSlotMaterials:
     @pytest.mark.asyncio
+    async def test_excludes_unloaded_and_external_assignments(self, db_session, printer_factory):
+        from backend.app.services.filament_deficit import build_slot_materials
+
+        printer = await printer_factory(model="X1C")
+        loaded = await _spool(db_session, label_weight=1000, weight_used=100, slicer_filament="GFA00")
+        unloaded = await _spool(db_session, label_weight=1000, weight_used=200, slicer_filament="GFA00")
+        external = await _spool(db_session, label_weight=1000, weight_used=300, slicer_filament="GFA00")
+        await _assign(db_session, printer_id=printer.id, spool_id=loaded.id, ams_id=0, tray_id=0)
+        await _assign(db_session, printer_id=printer.id, spool_id=unloaded.id, ams_id=0, tray_id=1)
+        await _assign(db_session, printer_id=printer.id, spool_id=external.id, ams_id=255, tray_id=0)
+
+        patches = TestFilamentDeficitBackupAware._patch_status(
+            printer_id=printer.id,
+            backup_on=True,
+            model="X1C",
+            loaded_slots={(0, 0)},
+        )
+        for status_patch in patches:
+            status_patch.start()
+        try:
+            slots = await build_slot_materials(db_session, printer.id)
+        finally:
+            for status_patch in patches:
+                status_patch.stop()
+
+        assert [(slot.ams_id, slot.tray_id) for slot in slots] == [(0, 0)]
+
+    @pytest.mark.asyncio
     async def test_internal_mode_uses_material_colour_and_extruder(self, db_session, printer_factory):
         from backend.app.services.filament_deficit import build_slot_materials
 
@@ -847,8 +884,20 @@ class TestBuildSlotMaterials:
         client = AsyncMock()
         client.get_spool = AsyncMock(side_effect=lambda spool_id: spools[spool_id])
 
-        with patch("backend.app.services.spoolman.get_spoolman_client", AsyncMock(return_value=client)):
-            slots = await build_slot_materials(db_session, printer.id)
+        patches = TestFilamentDeficitBackupAware._patch_status(
+            printer_id=printer.id,
+            backup_on=True,
+            model="X1C",
+            loaded_slots={(0, 2), (0, 3)},
+        )
+        for status_patch in patches:
+            status_patch.start()
+        try:
+            with patch("backend.app.services.spoolman.get_spoolman_client", AsyncMock(return_value=client)):
+                slots = await build_slot_materials(db_session, printer.id)
+        finally:
+            for status_patch in patches:
+                status_patch.stop()
 
         assert [slot.global_tray_id for slot in slots] == [2, 3]
         assert len({slot.material_key for slot in slots}) == 1

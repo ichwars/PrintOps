@@ -11,6 +11,7 @@ from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.models.printer import Printer
 from backend.app.models.slot_preset import SlotPresetMapping
+from backend.app.models.user import User
 from backend.app.services.printer_manager import (
     drying_screen_only,
     supports_drying,
@@ -310,7 +311,7 @@ async def set_ams_backup(
 @router.get("/{printer_id}/inventory-remain")
 async def get_inventory_remain(
     printer_id: int,
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
     db: AsyncSession = Depends(get_db),
 ):
     """Per-globalTrayId remaining grams for slots bound to an inventory spool.
@@ -321,9 +322,10 @@ async def get_inventory_remain(
     Spoolman; unbound slots are absent from the map (client falls back to the
     printer's MQTT `remain` for those).
 
-    ``slot_materials`` exposes every inventory binding with the backend's
-    material/color identity and extruder side. PrintModal uses that same pool
-    as dispatch when AMS Filament Backup is enabled.
+    ``slot_materials`` exposes loaded inventory bindings with the backend's
+    material/color identity and extruder side. It is redacted unless the
+    caller may view inventory assignments; PrintModal uses that same pool as
+    dispatch when AMS Filament Backup is enabled.
     """
     from backend.app.services.filament_deficit import build_slot_materials
     from backend.app.services.print_scheduler import PrintScheduler
@@ -335,7 +337,9 @@ async def get_inventory_remain(
     scheduler = PrintScheduler()
     loaded = scheduler._build_loaded_filaments(state)
     overrides = await scheduler._build_inventory_remain_overrides(db, printer_id, loaded)
-    slot_materials = await build_slot_materials(db, printer_id)
+    slot_materials = []
+    if current_user is None or current_user.has_permission(Permission.INVENTORY_VIEW_ASSIGNMENTS.value):
+        slot_materials = await build_slot_materials(db, printer_id)
     return {
         "inventory_remain_g": {str(k): v for k, v in overrides.items()},
         "slot_materials": [slot.to_dict() for slot in slot_materials],
