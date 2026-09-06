@@ -34,7 +34,9 @@ async def queue_factory(tmp_path):
     session_maker = async_sessionmaker(engine, expire_on_commit=False)
     case_counter = 0
 
-    async def make_case(*, cleanup=True, is_external=False, thumbnail_path=None, sibling_statuses=(), trashed=False):
+    async def make_case(
+        *, cleanup=True, is_external=False, thumbnail_path=None, sibling_statuses=(), trashed=False, plate_id=None
+    ):
         nonlocal case_counter
         case_counter += 1
 
@@ -94,6 +96,7 @@ async def queue_factory(tmp_path):
                 timelapse=False,
                 use_ams=True,
                 nozzle_offset_cali=True,
+                plate_id=plate_id,
             )
             db.add(item)
             await db.flush()
@@ -134,7 +137,9 @@ async def queue_factory(tmp_path):
 async def _dispatch_library_item(ctx, *, archive_failure=False, unlink_side_effect=None):
     scheduler = PrintScheduler()
 
-    async def archive_print(self, *, printer_id, source_file, original_filename, created_by_id=None, project_id=None):
+    async def archive_print(
+        self, *, printer_id, source_file, original_filename, created_by_id=None, project_id=None, plate_id=None
+    ):
         if archive_failure:
             raise RuntimeError("archive copy failed")
 
@@ -155,6 +160,7 @@ async def _dispatch_library_item(ctx, *, archive_failure=False, unlink_side_effe
             status="completed",
             project_id=project_id,
             created_by_id=created_by_id,
+            plate_id=plate_id,
         )
         self.db.add(archive)
         await self.db.flush()
@@ -218,6 +224,17 @@ async def test_cleanup_unlinks_library_file_and_removes_db_row(queue_factory):
     assert library_file is None
     assert not ctx.source_path.exists()
     assert ctx.upload.await_args.kwargs["respect_handshake_cooldown"] is False
+
+
+@pytest.mark.asyncio
+async def test_library_archive_captures_selected_plate(queue_factory):
+    ctx = await queue_factory(cleanup=False, plate_id=3)
+
+    await _dispatch_library_item(ctx)
+
+    item, _, archive = await _queue_snapshot(ctx)
+    assert item.status == "printing"
+    assert archive.plate_id == 3
 
 
 @pytest.mark.asyncio

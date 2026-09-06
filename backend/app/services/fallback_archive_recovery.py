@@ -139,6 +139,7 @@ async def try_recover_fallback_archive(
             source_file=candidate_path,
             print_data=stored_print_data,
             original_filename=Path(candidate_name).name,
+            plate_id=expected_plate,
             update_archive_id=archive.id,
         )
         if recovered is not None:

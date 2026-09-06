@@ -50,6 +50,15 @@ MAX_GCODE_SNIPPET_CHARS = 1024 * 1024
 MAX_GCODE_OUTPUT_BYTES = MAX_GCODE_BYTES + (2 * MAX_GCODE_SNIPPET_CHARS)
 MIN_TEMP_FREE_RESERVE_BYTES = 64 * 1024 * 1024
 
+_BED_TEMPERATURE_KEYS: dict[str, tuple[str, str]] = {
+    "Cool Plate": ("cool_plate_temp_initial_layer", "cool_plate_temp"),
+    "Engineering Plate": ("eng_plate_temp_initial_layer", "eng_plate_temp"),
+    "High Temp Plate": ("hot_plate_temp_initial_layer", "hot_plate_temp"),
+    "Textured PEI Plate": ("textured_plate_temp_initial_layer", "textured_plate_temp"),
+    "Supertack Plate": ("supertack_plate_temp_initial_layer", "supertack_plate_temp"),
+}
+_GENERIC_BED_TEMPERATURE_KEYS = ("bed_temperature_initial_layer", "bed_temperature")
+
 
 class _OutputBudgetWriter:
     """File adapter that prevents a ZIP rewrite from exceeding its output cap."""
@@ -743,6 +752,93 @@ def extract_bed_type_from_3mf(file_path: Path, plate_id: int | None = None) -> s
         pass  # Return None on any failure rather than raising — caller decides
 
     return None
+
+
+def _positive_temperature(value: object) -> int | None:
+    """Return the highest positive temperature from a slicer scalar/list."""
+    values = value if isinstance(value, list) else [value]
+    parsed: list[int] = []
+    for candidate in values:
+        try:
+            temperature = int(float(candidate))
+        except (TypeError, ValueError):
+            continue
+        if temperature > 0:
+            parsed.append(temperature)
+    return max(parsed) if parsed else None
+
+
+def bed_temperature_from_config(data: dict, bed_type: str | None = None) -> int | None:
+    """Resolve the target from ``curr_bed_type`` and its matching slicer keys.
+
+    Bambu stores temperatures for every supported plate in one project config.
+    Reading the first generic-looking key therefore selects the wrong plate.
+    Unknown/Orca plate names may use only the generic keys; we deliberately do
+    not guess from another named plate's value.
+    """
+    selected_type = bed_type if bed_type is not None else data.get("curr_bed_type")
+    specific_keys = _BED_TEMPERATURE_KEYS.get(str(selected_type).strip(), ())
+    for key in (*specific_keys, *_GENERIC_BED_TEMPERATURE_KEYS):
+        temperature = _positive_temperature(data.get(key))
+        if temperature is not None:
+            return temperature
+    return None
+
+
+def _bed_type_for_plate(zf: zipfile.ZipFile, plate_id: int | None) -> tuple[str | None, bool]:
+    """Return (bed type, ambiguous) for a selected or unambiguous plate."""
+    if "Metadata/slice_info.config" not in zf.namelist():
+        return None, False
+    root = read_xml_member(zf, "Metadata/slice_info.config")
+    plates = root.findall(".//plate")
+    if plate_id is None and len(plates) != 1:
+        return None, True
+    for plate in plates:
+        index: int | None = None
+        bed_type: str | None = None
+        for meta in plate.findall("metadata"):
+            if meta.get("key") == "index":
+                try:
+                    index = int(meta.get("value", ""))
+                except ValueError:
+                    pass
+            elif meta.get("key") == "curr_bed_type":
+                bed_type = (meta.get("value") or "").strip() or None
+        if plate_id is None or index == plate_id:
+            return bed_type, False
+    return None, True
+
+
+def extract_bed_temperature_from_3mf(file_path: Path, plate_id: int | None = None) -> int | None:
+    """Extract a selected plate's bed target, refusing ambiguous values."""
+    try:
+        with zipfile.ZipFile(file_path, "r") as zf:
+            validate_zip_archive(zf)
+            if "Metadata/project_settings.config" not in zf.namelist():
+                return None
+            bed_type, ambiguous = _bed_type_for_plate(zf, plate_id)
+            if ambiguous:
+                return None
+            data = read_json_member(zf, "Metadata/project_settings.config")
+            return bed_temperature_from_config(data, bed_type)
+    except Exception:
+        return None
+
+
+def extract_layer_height_from_3mf(file_path: Path, plate_id: int | None = None) -> float | None:
+    """Read layer height from the selected plate's embedded G-code header."""
+    try:
+        with zipfile.ZipFile(file_path, "r") as zf:
+            validate_zip_archive(zf)
+            member = _layer_gcode_member(zf.namelist(), plate_id)
+            if member is None:
+                return None
+            with zf.open(member) as gcode:
+                header = gcode.read(64 * 1024).decode("utf-8", errors="ignore")
+            match = re.search(r"^;\s*layer_height\s*=\s*([\d.]+)", header, re.IGNORECASE | re.MULTILINE)
+            return float(match.group(1)) if match else None
+    except Exception:
+        return None
 
 
 # Header values exposed as `{placeholder}` substitutions inside snippets.

@@ -948,7 +948,7 @@ function ArchiveCard({
         {/* Title */}
         <div className="flex items-center justify-between gap-2 mb-1">
           <h3 className="min-w-0 font-medium text-white truncate">
-            {archive.print_name || archive.filename}
+            {archive.print_name || archive.filename}{archive.plate_id != null && archive.plate_id > 1 && ` — ${t('printers.plateNumber', { number: archive.plate_id })}`}
           </h3>
           <Button
             variant="ghost"
@@ -2095,7 +2095,7 @@ function ArchiveListRow({
         </div>
         <div className="col-span-4">
           <div className="flex items-center gap-2">
-            <p className="text-white text-sm truncate">{archive.print_name || archive.filename}</p>
+            <p className="text-white text-sm truncate">{archive.print_name || archive.filename}{archive.plate_id != null && archive.plate_id > 1 && ` — ${t('printers.plateNumber', { number: archive.plate_id })}`}</p>
             {(archive.status === 'failed' || archive.status === 'aborted') && (
               <span className="px-1.5 py-0.5 rounded text-[10px] leading-tight bg-status-error/80 text-white flex-shrink-0">
                 {archive.status === 'aborted' ? t('archives.card.cancelled') : t('archives.card.failed')}
