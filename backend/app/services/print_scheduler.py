@@ -42,6 +42,7 @@ from backend.app.services.library_queue_references import (
     fail_missing_library_source,
 )
 from backend.app.services.notification_service import notification_service
+from backend.app.services.preheat_chamber import derive_chamber_target, normalize_filament_type
 from backend.app.services.print_completion_identity import StrandedPrintRecovery, clear_stale_dispatch_claims
 from backend.app.services.printer_manager import (
     printer_manager,
@@ -2500,44 +2501,18 @@ class PrintScheduler:
 
     @staticmethod
     def _normalize_filament_type(tray_type: str) -> str:
-        """Reduce the printer's tray_type to a preset-lookup key. Mirrors the
-        existing drying-preset normalisation (split-at-space, upper-case) so
-        the two maps share vocabulary — "PLA Basic" → "PLA", "PA-CF" stays
-        "PA-CF" (no space to split on)."""
-        return tray_type.split()[0].upper() if tray_type else ""
+        return normalize_filament_type(tray_type)
 
     def _derive_chamber_target(
         self,
         printer: Printer,
         targets: dict[str, int],
+        item: PrintQueueItem | None = None,
     ) -> int:
-        """Look up the chamber target for each loaded AMS tray and return the
-        max. Returns 0 when no AMS data is available (e.g. external-spool
-        prints) or when every loaded slot maps to 0 — the chamber phase then
-        short-circuits in the main loop.
-
-        Reads from `printer_manager.get_status(...).raw_data['ams']`, which is
-        the same source the dispatcher uses for AMS slot mapping. Empty / RFID-
-        less slots have empty `tray_type` and contribute nothing."""
+        """Return the target required by the trays this queue item maps."""
         state = printer_manager.get_status(printer.id)
-        if state is None:
-            return 0
-        ams_list = (state.raw_data or {}).get("ams") if state.raw_data else None
-        # Older Bambu firmware nests AMS as {"ams": {"ams": [...]}} — try both.
-        if isinstance(ams_list, dict):
-            ams_list = ams_list.get("ams") or []
-        if not isinstance(ams_list, list):
-            return 0
-        best = 0
-        for ams in ams_list:
-            for tray in (ams.get("tray") or []) if isinstance(ams, dict) else []:
-                normalised = self._normalize_filament_type(tray.get("tray_type") or "")
-                if not normalised:
-                    continue
-                target = targets.get(normalised, targets.get("DEFAULT", 0))
-                if target > best:
-                    best = target
-        return best
+        mapping = getattr(item, "ams_mapping", None)
+        return derive_chamber_target(getattr(state, "raw_data", None), targets, mapping)
 
     async def _preheat_and_soak(
         self,
@@ -2554,8 +2529,8 @@ class PrintScheduler:
              even if the global is off.
           2. Chamber target — `item.preheat_chamber_target_override` if non-null;
              else max of `preheat_filament_targets[normalize(t.tray_type)]`
-             across loaded AMS slots; else 0 (skips chamber phase, keeps bed
-             phase + soak timer).
+             across the trays selected by this plate's AMS mapping; else 0
+             (skips chamber phase, keeps bed phase + soak timer).
           3. Three hardware tiers branch the wait loop:
              - Chamber heater (H2C/H2D/H2DPro/H2S/X2D/X1E via supports_chamber_heater):
                send M141 to the resolved target, then wait for the chamber sensor
@@ -2591,9 +2566,8 @@ class PrintScheduler:
 
         # Chamber target resolution:
         #   1. Explicit per-item override beats everything (user knows best).
-        #   2. Otherwise derive from loaded AMS filament types via the per-
-        #      filament target map. PLA-only print derives 0 → chamber phase
-        #      auto-skips without the user touching anything.
+        #   2. Otherwise derive from the filament trays this plate maps via the
+        #      per-filament target map. A parked ASA spool cannot affect PLA.
         explicit_target = getattr(item, "preheat_chamber_target_override", None)
         if explicit_target is not None and explicit_target > 0:
             chamber_target = int(explicit_target)
@@ -2603,7 +2577,7 @@ class PrintScheduler:
             chamber_source = "item-override-zero"
         else:
             targets = await self._get_preheat_filament_targets(db)
-            chamber_target = self._derive_chamber_target(printer, targets)
+            chamber_target = self._derive_chamber_target(printer, targets, item)
             chamber_source = "filament-map"
 
         plate_id = getattr(item, "plate_id", None)
