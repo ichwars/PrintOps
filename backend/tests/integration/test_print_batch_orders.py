@@ -731,6 +731,68 @@ class TestBatchOrderDispatch:
         assert response.status_code == 400
         assert "no queued or finished run" in response.json()["detail"]
 
+    async def test_one_stranded_plate_does_not_block_dispatchable_plates(
+        self, async_client, printer_factory, archive_factory
+    ):
+        """Old stranded data stays honest without blocking healthy plates (#135)."""
+        printer = await printer_factory()
+        archive = await archive_factory()
+        order = await _create_order(
+            async_client,
+            archive.id,
+            [{"plate_id": 1, "quantity_target": 2}, {"plate_id": 2, "quantity_target": 2}],
+        )
+        await _queue_item(async_client, printer.id, archive.id, order["id"], plate_id=1)
+
+        response = await async_client.post(f"/api/v1/queue/batches/{order['id']}/dispatch", json={})
+        assert response.status_code == 200, response.text
+        result = response.json()
+        plate_one = next(p for p in result["plates"] if p["plate_id"] == 1)
+        plate_two = next(p for p in result["plates"] if p["plate_id"] == 2)
+        assert plate_one["remaining"] == 0
+        assert plate_two["remaining"] == 2
+        assert result["remaining_count"] == 2
+        assert result["dispatchable_count"] == 0
+        assert plate_one["can_dispatch"] is False
+        assert plate_two["can_dispatch"] is False
+
+    async def test_cancelled_source_keeps_a_plate_dispatchable(
+        self, async_client, printer_factory, archive_factory, db_session
+    ):
+        """A cancelled run still carries all settings required for a requeue."""
+        printer = await printer_factory()
+        archive = await archive_factory()
+        order = await _create_order(async_client, archive.id, [{"plate_id": 1, "quantity_target": 2}])
+        item = await _queue_item(async_client, printer.id, archive.id, order["id"], plate_id=1)
+        await _set_status(db_session, item["id"], "cancelled")
+
+        result = (await async_client.get(f"/api/v1/queue/batches/{order['id']}")).json()
+        assert result["remaining_count"] == 2
+        assert result["dispatchable_count"] == 2
+        assert result["plates"][0]["can_dispatch"] is True
+
+    async def test_explicit_stranded_plate_error_uses_its_display_name(
+        self, async_client, printer_factory, archive_factory
+    ):
+        printer = await printer_factory()
+        archive = await archive_factory()
+        order = await _create_order(
+            async_client,
+            archive.id,
+            [
+                {"plate_id": 1, "quantity_target": 1},
+                {"plate_id": 2, "plate_name": "Side rail.stl", "quantity_target": 1},
+            ],
+        )
+        await _queue_item(async_client, printer.id, archive.id, order["id"], plate_id=1)
+
+        response = await async_client.post(
+            f"/api/v1/queue/batches/{order['id']}/dispatch",
+            json={"plate_id": 2, "only_plate": True},
+        )
+        assert response.status_code == 400
+        assert "Side rail.stl" in response.json()["detail"]
+
     async def test_dispatch_on_legacy_batch_is_a_noop(self, async_client, printer_factory, archive_factory):
         printer = await printer_factory()
         archive = await archive_factory()
@@ -879,3 +941,151 @@ class TestBatchOrderCost:
         result = (await async_client.get(f"/api/v1/queue/batches/{order['id']}")).json()
         assert result["actual_cost"] is None
         assert result["estimated_remaining_cost"] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+class TestBatchOrderSourcePreservation:
+    """Deleting queue history must not destroy an open batch's last template (#135)."""
+
+    async def test_last_noncompleted_source_is_cancelled_instead_of_deleted(
+        self, async_client, printer_factory, archive_factory, db_session
+    ):
+        from backend.app.models.print_queue import PrintQueueItem
+
+        printer = await printer_factory()
+        archive = await archive_factory()
+        order = await _create_order(async_client, archive.id, [{"plate_id": 1, "quantity_target": 3}])
+        item = await _queue_item(async_client, printer.id, archive.id, order["id"], plate_id=1)
+
+        response = await async_client.delete(f"/api/v1/queue/{item['id']}")
+        assert response.status_code == 200
+        result = response.json()
+        assert result["deleted"] is False
+        assert result["batch_id"] == order["id"]
+        assert result["batch_name"] == "Test Order"
+        assert result["retention_reason"] == "last_batch_plate_source"
+
+        db_session.expire_all()
+        survivor = await db_session.get(PrintQueueItem, item["id"])
+        assert survivor is not None
+        assert survivor.status == "cancelled"
+
+    async def test_preserved_source_can_requeue_all_remaining_runs(
+        self, async_client, printer_factory, archive_factory
+    ):
+        printer = await printer_factory()
+        archive = await archive_factory()
+        order = await _create_order(async_client, archive.id, [{"plate_id": 1, "quantity_target": 2}])
+        item = await _queue_item(async_client, printer.id, archive.id, order["id"], plate_id=1)
+        await async_client.delete(f"/api/v1/queue/{item['id']}")
+
+        result = (await async_client.post(f"/api/v1/queue/batches/{order['id']}/dispatch", json={})).json()
+        assert result["pending_count"] == 2
+        assert result["remaining_count"] == 0
+
+    async def test_source_with_a_sibling_is_really_deleted(
+        self, async_client, printer_factory, archive_factory, db_session
+    ):
+        from backend.app.models.print_queue import PrintQueueItem
+
+        printer = await printer_factory()
+        archive = await archive_factory()
+        order = await _create_order(async_client, archive.id, [{"plate_id": 1, "quantity_target": 3}])
+        first = await _queue_item(async_client, printer.id, archive.id, order["id"], plate_id=1)
+        await _queue_item(async_client, printer.id, archive.id, order["id"], plate_id=1)
+
+        response = await async_client.delete(f"/api/v1/queue/{first['id']}")
+        assert response.json()["deleted"] is True
+        db_session.expire_all()
+        assert await db_session.get(PrintQueueItem, first["id"]) is None
+
+    async def test_history_cleanup_sequence_keeps_the_final_source(
+        self, async_client, printer_factory, archive_factory, db_session
+    ):
+        """The frontend bulk cleanup is a sequence of the same DELETE requests."""
+        from backend.app.models.print_queue import PrintQueueItem
+
+        printer = await printer_factory()
+        archive = await archive_factory()
+        order = await _create_order(async_client, archive.id, [{"plate_id": 1, "quantity_target": 4}])
+        first = await _queue_item(async_client, printer.id, archive.id, order["id"], plate_id=1)
+        second = await _queue_item(async_client, printer.id, archive.id, order["id"], plate_id=1)
+        await _set_status(db_session, first["id"], "failed")
+        await _set_status(db_session, second["id"], "cancelled")
+
+        responses = [
+            (await async_client.delete(f"/api/v1/queue/{first['id']}")).json(),
+            (await async_client.delete(f"/api/v1/queue/{second['id']}")).json(),
+        ]
+        assert [response["deleted"] for response in responses] == [True, False]
+        db_session.expire_all()
+        assert await db_session.get(PrintQueueItem, first["id"]) is None
+        assert await db_session.get(PrintQueueItem, second["id"]) is not None
+
+    async def test_completed_last_source_of_active_batch_is_retained_unchanged(
+        self, async_client, printer_factory, archive_factory, db_session
+    ):
+        """Preserve production truth and the only reusable template at once."""
+        from backend.app.models.print_queue import PrintQueueItem
+
+        printer = await printer_factory()
+        archive = await archive_factory()
+        order = await _create_order(async_client, archive.id, [{"plate_id": 1, "quantity_target": 3}])
+        item = await _queue_item(async_client, printer.id, archive.id, order["id"], plate_id=1)
+        await _set_status(db_session, item["id"], "completed")
+
+        response = await async_client.delete(f"/api/v1/queue/{item['id']}")
+        assert response.json()["deleted"] is False
+        db_session.expire_all()
+        survivor = await db_session.get(PrintQueueItem, item["id"])
+        assert survivor is not None
+        assert survivor.status == "completed"
+
+    async def test_whole_job_source_stays_protected_after_plate_resolution(
+        self, async_client, printer_factory, archive_factory
+    ):
+        """A whole-file target may resolve to a physical plate before deletion (#671)."""
+        printer = await printer_factory()
+        archive = await archive_factory()
+        order = await _create_order(async_client, archive.id, [{"plate_id": None, "quantity_target": 2}])
+        item = await _queue_item(async_client, printer.id, archive.id, order["id"], plate_id=3)
+
+        response = await async_client.delete(f"/api/v1/queue/{item['id']}")
+        assert response.json()["deleted"] is False
+
+    async def test_fulfilled_batch_does_not_protect_its_last_source(
+        self, async_client, printer_factory, archive_factory, db_session
+    ):
+        from backend.app.models.print_batch import PrintBatch
+        from backend.app.models.print_queue import PrintQueueItem
+
+        printer = await printer_factory()
+        archive = await archive_factory()
+        order = await _create_order(async_client, archive.id, [{"plate_id": 1, "quantity_target": 1}])
+        item = await _queue_item(async_client, printer.id, archive.id, order["id"], plate_id=1)
+        await _set_status(db_session, item["id"], "completed")
+        batch = await db_session.get(PrintBatch, order["id"])
+        batch.status = "completed"
+        await db_session.commit()
+
+        response = await async_client.delete(f"/api/v1/queue/{item['id']}")
+        assert response.json()["deleted"] is True
+        db_session.expire_all()
+        assert await db_session.get(PrintQueueItem, item["id"]) is None
+
+    async def test_cancelled_batch_does_not_protect_its_leftover_source(
+        self, async_client, printer_factory, archive_factory, db_session
+    ):
+        from backend.app.models.print_queue import PrintQueueItem
+
+        printer = await printer_factory()
+        archive = await archive_factory()
+        order = await _create_order(async_client, archive.id, [{"plate_id": 1, "quantity_target": 2}])
+        item = await _queue_item(async_client, printer.id, archive.id, order["id"], plate_id=1)
+        await async_client.delete(f"/api/v1/queue/batches/{order['id']}")
+
+        response = await async_client.delete(f"/api/v1/queue/{item['id']}")
+        assert response.json()["deleted"] is True
+        db_session.expire_all()
+        assert await db_session.get(PrintQueueItem, item["id"]) is None

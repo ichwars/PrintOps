@@ -52,6 +52,7 @@ from backend.app.services.notification_service import notification_service
 from backend.app.services.print_batch import (
     BatchDispatchError,
     batch_dispatch_lock,
+    delete_or_retain_queue_item,
     dispatch_remaining,
     load_progress,
     refresh_batch_status,
@@ -76,10 +77,8 @@ def _ensure_queue_printer_access(user: User | None, item: PrintQueueItem) -> Non
 def _variant_summaries(item: PrintQueueItem) -> list[QueueVariantSummary]:
     """Cross-model candidates for display (#671), or [] if they weren't loaded.
 
-    Every route that builds a queue response eager-loads ``variants``. Reading
-    the attribute unguarded would still be a landmine for the next one that
-    doesn't: a lazy load on an async session raises rather than degrading, so a
-    forgotten ``selectinload`` would turn a card render into a 500.
+    Every response route eager-loads ``variants``. If a future route forgets,
+    avoid an async lazy-load failure and degrade to an empty summary instead.
     """
     if "variants" in inspect(item).unloaded:
         return []
@@ -1574,6 +1573,7 @@ async def _build_batch_response(
         has_targets=progress.has_targets,
         target_count=progress.target,
         remaining_count=progress.remaining,
+        dispatchable_count=progress.dispatchable_remaining,
         actual_cost=progress.actual_cost,
         estimated_remaining_cost=progress.estimated_remaining_cost,
         filament_used_grams=progress.filament_used_grams,
@@ -1595,6 +1595,7 @@ async def _build_batch_response(
                 estimated_remaining_cost=plate.estimated_remaining_cost,
                 filament_used_grams=plate.filament_used_grams,
                 print_time_seconds=plate.print_time_seconds,
+                can_dispatch=plate.can_dispatch,
             )
             for plate in progress.plates
         ],
@@ -1821,7 +1822,6 @@ async def delete_queue_item(
     if not item:
         raise HTTPException(404, "Queue item not found")
 
-    # Ownership check
     if not can_modify_all:
         if item.created_by_id != user.id:
             raise HTTPException(403, "You can only delete your own queue items")
@@ -1830,11 +1830,10 @@ async def delete_queue_item(
     if item.status == "printing":
         raise HTTPException(400, "Cannot delete item that is currently printing")
 
-    await db.delete(item)
-    await db.commit()
+    removal = await delete_or_retain_queue_item(db, item)
 
-    logger.info("Deleted queue item %s", item_id)
-    return {"message": "Queue item deleted"}
+    logger.info("Queue item %s removal result: deleted=%s", item_id, removal["deleted"])
+    return removal
 
 
 @router.post("/reorder")

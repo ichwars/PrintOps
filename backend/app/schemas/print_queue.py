@@ -384,6 +384,7 @@ class PrintBatchPlateProgress(BaseModel):
     estimated_remaining_cost: float | None = None
     filament_used_grams: float | None = None
     print_time_seconds: int = 0
+    can_dispatch: bool = False
 
 
 class PrintBatchResponse(BaseModel):
@@ -415,6 +416,7 @@ class PrintBatchResponse(BaseModel):
     has_targets: bool = False
     target_count: int = 0
     remaining_count: int = 0
+    dispatchable_count: int = 0
     actual_cost: float | None = None
     estimated_remaining_cost: float | None = None
     filament_used_grams: float | None = None

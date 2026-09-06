@@ -20,6 +20,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { queueItemDisplayName } from '../utils/queueItemName';
+import { clearQueueHistory } from '../utils/queueHistory';
 import {
   Clock,
   Trash2,
@@ -1503,9 +1504,10 @@ export function QueuePage() {
 
   const removeMutation = useMutation({
     mutationFn: (id: number) => api.removeFromQueue(id),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['queue'] });
-      showToast(t('queue.toast.removed'));
+      queryClient.invalidateQueries({ queryKey: ['batches'] });
+      showToast(result.deleted ? t('queue.toast.removed') : t('queue.toast.keptForOrder', { name: result.batch_name }));
     },
     onError: () => showToast(t('queue.toast.removeFailed'), 'error'),
   });
@@ -1565,18 +1567,12 @@ export function QueuePage() {
   });
 
   const clearHistoryMutation = useMutation({
-    mutationFn: async () => {
-      const historyItems = queue?.filter(i =>
-        ['completed', 'failed', 'skipped', 'cancelled'].includes(i.status)
-      ) || [];
-      for (const item of historyItems) {
-        await api.removeFromQueue(item.id);
-      }
-      return historyItems.length;
-    },
-    onSuccess: (count) => {
+    mutationFn: () => clearQueueHistory(queue || [], api.removeFromQueue),
+    onSuccess: ({ cleared, kept }) => {
       queryClient.invalidateQueries({ queryKey: ['queue'] });
-      showToast(t('queue.toast.historyCleared', { count }));
+      queryClient.invalidateQueries({ queryKey: ['batches'] });
+      const clearedMessage = t('queue.toast.historyCleared', { count: cleared });
+      showToast(kept ? `${clearedMessage} ${t('queue.toast.historyKeptForOrders', { kept })}` : clearedMessage);
     },
     onError: () => showToast(t('queue.toast.clearHistoryFailed'), 'error'),
   });

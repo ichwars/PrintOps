@@ -471,6 +471,7 @@ export interface PrintBatch {
   has_targets: boolean;
   target_count: number;
   remaining_count: number;
+  dispatchable_count: number;
   actual_cost: number | null;
   estimated_remaining_cost: number | null;
   filament_used_grams: number | null;
@@ -499,6 +500,7 @@ export interface PrintBatchPlateProgress extends PrintBatchPlateTarget {
   estimated_remaining_cost: number | null;
   filament_used_grams: number | null;
   print_time_seconds: number;
+  can_dispatch: boolean;
 }
 
 export interface PrintQueueItemCreate {
