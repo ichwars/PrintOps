@@ -49,10 +49,16 @@ function toRefValue(ref: PresetRef | null): string {
   return ref ? `${ref.source}:${ref.id}` : '';
 }
 
+const SLICER_DEFAULT_COLOUR = '#00AE42';
+
+function hasFilamentColour(value?: string): boolean {
+  return /^#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$/.test(value ?? '');
+}
+
 function colourInputValue(value?: string): string {
-  return /^#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$/.test(value ?? '')
+  return hasFilamentColour(value)
     ? (value as string).slice(0, 7).toUpperCase()
-    : '#000000';
+    : SLICER_DEFAULT_COLOUR;
 }
 
 function fromRefValue(raw: string): PresetRef | null {
@@ -1165,10 +1171,12 @@ function PresetDropdown({
               value={colourInputValue(swatchColor)}
               onChange={(event) => onSwatchColorChange(event.target.value.toUpperCase())}
               disabled={disabled}
-              aria-label={`${label} ${t('slice.filamentColour', 'filament colour')}`}
+              aria-label={`${label} ${t('slice.filamentColour')}`}
               className="!h-5 !w-5 !rounded !p-0 max-[768px]:!h-5 max-[768px]:!w-5"
             />
-            {colourInputValue(swatchColor)}
+            {hasFilamentColour(swatchColor)
+              ? colourInputValue(swatchColor)
+              : t('slice.filamentColourAuto')}
           </label>
         )}
       </div>

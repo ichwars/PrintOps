@@ -821,6 +821,18 @@ describe('SliceModal', () => {
     });
   });
 
+  it('shows an unselected filament colour as automatic instead of a submitted black value', async () => {
+    renderWithTracker({
+      source: { kind: 'libraryFile', id: 100, filename: 'Cube.stl' },
+      onClose: vi.fn(),
+    });
+
+    await waitForPrinterSelection('Imported X1C 0.4');
+    const colourInput = screen.getByLabelText(/filament colour/i);
+    expect(colourInput).toHaveValue('#00ae42');
+    expect(colourInput.closest('label')).toHaveTextContent(/auto/i);
+  });
+
   // ----- Multi-color flow ------------------------------------------------
 
   function makeMultiColorPlateResponse() {

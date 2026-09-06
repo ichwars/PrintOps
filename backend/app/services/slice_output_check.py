@@ -7,6 +7,8 @@ import json
 import logging
 import zipfile
 
+from backend.app.utils.archive_budget import ArchiveBudgetError, read_json_member
+
 logger = logging.getLogger(__name__)
 
 _PROJECT_SETTINGS = "Metadata/project_settings.config"
@@ -24,9 +26,15 @@ def _as_text(value: object) -> str:
 def _project_settings(content: bytes) -> dict | None:
     try:
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
-            raw = archive.read(_PROJECT_SETTINGS)
-        settings = json.loads(raw)
-    except (KeyError, OSError, zipfile.BadZipFile, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            settings = read_json_member(archive, _PROJECT_SETTINGS)
+    except (
+        ArchiveBudgetError,
+        KeyError,
+        OSError,
+        zipfile.BadZipFile,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+    ) as exc:
         logger.debug("Slice output check skipped: cannot read %s (%s)", _PROJECT_SETTINGS, exc)
         return None
     return settings if isinstance(settings, dict) else None
@@ -72,7 +80,7 @@ def missing_start_gcode_message(printer_preset_name: str) -> str:
     )
 
 
-def unresolved_filament_message(slots: list[int], preset_names: list[str]) -> str:
+def unresolved_filament_message(slots: list[int], preset_names: list[str | None]) -> str:
     parts = []
     for slot in slots:
         name = preset_names[slot - 1] if slot <= len(preset_names) else ""
@@ -89,12 +97,15 @@ def slicer_output_error(
     *,
     export_3mf: bool,
     printer_preset_name: str | None,
-    filament_preset_names: list[str],
+    filament_preset_names: list[str | None],
 ) -> str | None:
     """Return a user-facing reason when a sidecar result is not print-ready."""
     if printer_preset_name and start_gcode_is_missing(content, export_3mf=export_3mf):
         return missing_start_gcode_message(printer_preset_name)
     unresolved = unresolved_filament_slots(content, export_3mf=export_3mf)
-    if unresolved and filament_preset_names:
-        return unresolved_filament_message(unresolved, filament_preset_names)
+    unresolved_standard = [
+        slot for slot in unresolved if slot <= len(filament_preset_names) and filament_preset_names[slot - 1]
+    ]
+    if unresolved_standard:
+        return unresolved_filament_message(unresolved_standard, filament_preset_names)
     return None

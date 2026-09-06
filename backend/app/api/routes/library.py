@@ -3858,7 +3858,11 @@ def _raise_for_unsafe_slicer_output(content: bytes, request: SliceRequest, used_
             and request.printer_preset.source == "standard"
             else None
         ),
-        filament_preset_names=([] if used_embedded_settings else [ref.id for ref in request.filament_presets]),
+        filament_preset_names=(
+            []
+            if used_embedded_settings
+            else [ref.id if ref.source == "standard" else None for ref in request.filament_presets]
+        ),
     )
     if output_error:
         logger.error("Refusing unsafe slicer output: %s", output_error)
@@ -3866,13 +3870,7 @@ def _raise_for_unsafe_slicer_output(content: bytes, request: SliceRequest, used_
 
 
 def _canonical_printer_model(raw: str | None) -> str | None:
-    """Normalise a printer-preset name / ``printer_model`` field to a canonical
-    model code. Strips the BambuStudio ``"# "`` user-clone prefix and the
-    ``" 0.4 nozzle"`` variant suffix that preset names carry but bare model
-    names don't — without this, ``"Bambu Lab H2D 0.4 nozzle"`` wouldn't
-    normalise to ``H2D``."""
-    import re
-
+    """Normalise a printer-preset name or model field to a canonical model code."""
     from backend.app.utils.printer_models import normalize_printer_model
 
     if not raw:

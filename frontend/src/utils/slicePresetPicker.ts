@@ -25,7 +25,11 @@ import type {
   UnifiedPreset,
   UnifiedPresetsResponse,
 } from '../api/client';
-import { colorsAreSimilar, normalizeColorForCompare } from './amsHelpers';
+import {
+  colorsAreSimilar,
+  filamentTypesCompatible,
+  normalizeColorForCompare,
+} from './amsHelpers';
 import {
   presetCompatibility,
   type PrinterCompatibilityIndex,
@@ -141,7 +145,7 @@ export function statesDifferentMaterial(
 ): boolean {
   const required = requiredType.trim().toUpperCase();
   const stated = (preset.filament_type ?? '').trim().toUpperCase();
-  return Boolean(required) && Boolean(stated) && required !== stated;
+  return Boolean(required) && Boolean(stated) && !filamentTypesCompatible(required, stated);
 }
 
 export function pickFilamentForSlot(
@@ -181,7 +185,7 @@ export function pickFilamentForSlot(
       let score = 0;
       const presetType = (p.filament_type ?? '').trim().toUpperCase();
       const presetColor = normalizeColorForCompare(p.filament_colour ?? '');
-      if (reqType && presetType && reqType === presetType) score += 10;
+      if (reqType && presetType && filamentTypesCompatible(reqType, presetType)) score += 10;
       if (reqColor && presetColor) {
         if (presetColor === reqColor) score += 5;
         else if (colorsAreSimilar(p.filament_colour ?? '', required.color)) score += 2;

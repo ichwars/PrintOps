@@ -12,6 +12,7 @@ from backend.app.api.routes.library import _run_slicer_with_fallback
 from backend.app.schemas.slicer import PresetRef, SliceRequest
 from backend.app.services.slice_output_check import slicer_output_error
 from backend.app.services.slicer_profile_patch import patch_filament_colours
+from backend.app.utils.archive_budget import ArchiveBudgetError
 
 pytestmark = pytest.mark.unit
 
@@ -127,6 +128,39 @@ class TestBadSidecarOutput:
         assert "slot 2 (Custom PETG)" in message
         assert "PLA" in message
         assert "not saved" in message
+
+    def test_local_profile_without_optional_identity_metadata_is_not_rejected(self):
+        assert (
+            slicer_output_error(
+                _3mf(
+                    {
+                        "machine_start_gcode": "M1002 gcode_claim_action : 1\n",
+                        "filament_vendor": ["(Undefined)"],
+                        "filament_ids": [""],
+                    }
+                ),
+                export_3mf=True,
+                printer_preset_name=None,
+                filament_preset_names=[None],
+            )
+            is None
+        )
+
+    def test_archive_budget_failure_skips_an_inconclusive_output_check(self):
+        with patch(
+            "backend.app.services.slice_output_check.read_json_member",
+            side_effect=ArchiveBudgetError("metadata budget exceeded"),
+        ) as read_json:
+            assert (
+                slicer_output_error(
+                    _3mf({"machine_start_gcode": "missing marker"}),
+                    export_3mf=True,
+                    printer_preset_name="Bambu Lab P1S 0.4 nozzle",
+                    filament_preset_names=["Generic PLA"],
+                )
+                is None
+            )
+        assert read_json.call_count >= 1
 
     def test_resolved_output_passes(self):
         assert (

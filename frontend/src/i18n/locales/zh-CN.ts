@@ -4413,6 +4413,8 @@ export default {
     printer: '打印机配置',
     process: '工艺配置',
     filament: '耗材配置',
+    filamentColour: '耗材颜色',
+    filamentColourAuto: '自动',
     filamentSlot: '耗材 {{index}}（{{type}}）',
     selectPreset: '— 选择预设 —',
     loadingPresets: '加载预设中…',

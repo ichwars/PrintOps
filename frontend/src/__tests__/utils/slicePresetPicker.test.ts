@@ -49,6 +49,7 @@ describe('statesDifferentMaterial', () => {
   it('only rejects a stated, different material', () => {
     expect(statesDifferentMaterial({ filament_type: 'PETG' }, 'PLA')).toBe(true);
     expect(statesDifferentMaterial({ filament_type: ' pla ' }, 'PLA')).toBe(false);
+    expect(statesDifferentMaterial({ filament_type: 'PA12-CF' }, 'PA-CF')).toBe(false);
     expect(statesDifferentMaterial({ filament_type: null }, 'PLA')).toBe(false);
     expect(statesDifferentMaterial({ filament_type: 'PETG' }, '')).toBe(false);
   });
@@ -74,6 +75,17 @@ describe('pickFilamentForSlot', () => {
     ]);
 
     expect(pickFilamentForSlot(presets, { type: 'PLA', color: '#FFFFFF' }, A1, index)?.id).toBe('Unknown');
+  });
+
+  it('prefers a canonically equivalent engineering material over an unknown preset', () => {
+    const presets = standard('filament', [
+      { name: 'Unknown', filament_type: null, filament_colour: '#FFFFFF' },
+      { name: 'PA12-CF black', filament_type: 'PA12-CF', filament_colour: '#000000' },
+    ]);
+
+    expect(pickFilamentForSlot(presets, { type: 'PA-CF', color: '#FFFFFF' }, A1, index)?.id).toBe(
+      'PA12-CF black',
+    );
   });
 });
 

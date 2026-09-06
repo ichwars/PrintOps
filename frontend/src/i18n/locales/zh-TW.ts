@@ -4413,6 +4413,8 @@ export default {
     printer: '印表機設定檔',
     process: '製程設定檔',
     filament: '耗材設定檔',
+    filamentColour: '耗材顏色',
+    filamentColourAuto: '自動',
     filamentSlot: '耗材 {{index}}（{{type}}）',
     selectPreset: '— 選擇預設 —',
     loadingPresets: '載入預設中…',

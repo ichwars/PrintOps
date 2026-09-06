@@ -4214,6 +4214,8 @@ export default {
     printer: '프린터 프로필',
     process: '프로세스 프로필',
     filament: '필라멘트 프로필',
+    filamentColour: '필라멘트 색상',
+    filamentColourAuto: '자동',
     filamentSlot: '필라멘트 {{index}} ({{type}})',
     selectPreset: '— 프리셋 선택 —',
     loadingPresets: '프리셋 불러오는 중…',
