@@ -28,7 +28,7 @@ def test_plain_named_sliced_3mf_is_classified_from_its_contents(tmp_path):
     assert classify_file_type(sliced.name, sliced) == "gcode.3mf"
 
 
-def test_multi_plate_and_unusual_gcode_locations_are_printable():
+def test_multi_plate_and_only_dispatchable_gcode_locations_are_printable():
     assert names_carry_gcode(
         [
             "3D/3dmodel.model",
@@ -36,7 +36,9 @@ def test_multi_plate_and_unusual_gcode_locations_are_printable():
             "Metadata/plate_2.gcode",
         ]
     )
-    assert names_carry_gcode(["3D/3dmodel.model", "vendor/output.gcode"])
+    assert not names_carry_gcode(["3D/3dmodel.model", "vendor/output.gcode"])
+    assert not names_carry_gcode(["nested/Metadata/plate_1.gcode"])
+    assert not names_carry_gcode(["Metadata/plate_01.gcode"])
 
 
 def test_source_only_and_malformed_3mf_stay_unprintable(tmp_path):

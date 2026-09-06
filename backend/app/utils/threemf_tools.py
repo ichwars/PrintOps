@@ -274,9 +274,10 @@ def names_carry_gcode(names: list[str]) -> bool:
 
     Archive capabilities and library imports must use the same answer. 3MF
     filenames are not reliable evidence: sliced exports may be named either
-    ``Foo.3mf`` or ``Foo.gcode.3mf`` (issue #132).
+    ``Foo.3mf`` or ``Foo.gcode.3mf`` (issue #132). Only canonical positive
+    plate members count because dispatch addresses that exact path.
     """
-    return _layer_gcode_member(names, plate_id=None) is not None
+    return any(re.fullmatch(r"Metadata/plate_[1-9]\d*\.gcode", name) for name in names)
 
 
 def carries_gcode(file_path: Path | str) -> bool:
