@@ -84,7 +84,6 @@ from backend.app.core.config import APP_VERSION, settings as app_settings
 from backend.app.core.database import async_session, engine, init_db
 from backend.app.core.tasks import spawn_background_task
 from backend.app.core.websocket import ws_manager
-from backend.app.models.smart_plug import SmartPlug
 from backend.app.services import (
     active_print_provenance as print_provenance,
     business_runtime,
@@ -123,6 +122,7 @@ from backend.app.services.printer_manager import (
     resolve_plate_id,
 )
 from backend.app.services.smart_plug_manager import smart_plug_manager
+from backend.app.services.smart_plug_selection import read_printer_energy
 from backend.app.services.spool_assignment_notifications import (
     notify_missing_spool_assignments_on_print_start,
 )
@@ -669,21 +669,19 @@ async def _record_energy_start(archive, printer_id: int, db, *, context: str = "
     """
     _logger = logging.getLogger(__name__)
     try:
-        plug_result = await db.execute(select(SmartPlug).where(SmartPlug.printer_id == printer_id))
-        plug = plug_result.scalar_one_or_none()
-        if not plug:
-            _logger.info("[ENERGY] No smart plug for printer %s (archive %s)", printer_id, archive.id)
+        selected = await read_printer_energy(
+            db, printer_id, _get_plug_energy, log_prefix="ENERGY", context=f"archive {archive.id}"
+        )
+        if selected is None:
             return False
-        energy = await _get_plug_energy(plug, db)
-        if not energy or energy.get("total") is None:
-            _logger.warning("[ENERGY] No 'total' in energy response for archive %s", archive.id)
-            return False
+        plug, energy = selected
         archive.energy_start_kwh = float(energy["total"])
         await db.commit()
         _logger.info(
-            "[ENERGY] Recorded starting energy%s for archive %s: %s kWh",
+            "[ENERGY] Recorded starting energy%s for archive %s from plug '%s': %s kWh",
             f" ({context})" if context else "",
             archive.id,
+            plug.name,
             energy["total"],
         )
         return True
@@ -4508,17 +4506,13 @@ async def on_print_complete(printer_id: int, data: dict):
                     logger.info("[ENERGY-BG] No start kWh recorded for archive %s", archive_id)
                     return
 
-                plug_result = await db.execute(select(SmartPlug).where(SmartPlug.printer_id == printer_id))
-                plug = plug_result.scalar_one_or_none()
-                if plug is None:
-                    logger.info("[ENERGY-BG] No smart plug for printer %s", printer_id)
+                selected = await read_printer_energy(
+                    db, printer_id, _get_plug_energy, log_prefix="ENERGY-BG", context=f"archive {archive_id}"
+                )
+                if selected is None:
                     return
-
-                energy = await _get_plug_energy(plug, db)
-                logger.info("[ENERGY-BG] Energy response: %s", energy)
-                if not energy or energy.get("total") is None:
-                    logger.warning("[ENERGY-BG] No 'total' in energy response")
-                    return
+                plug, energy = selected
+                logger.info("[ENERGY-BG] Energy response from plug '%s': %s", plug.name, energy)
 
                 energy_used = round(energy["total"] - starting_kwh, 4)
                 logger.info("[ENERGY-BG] Per-print energy: %s kWh", energy_used)

@@ -53,6 +53,10 @@ from backend.app.services.printer_manager import (
     supports_drying_while_printing,
 )
 from backend.app.services.smart_plug_manager import smart_plug_manager
+from backend.app.services.smart_plug_selection import (
+    pick_power_plug as select_power_plug,
+    plugs_for_printer,
+)
 from backend.app.utils.filename import derive_remote_filename
 from backend.app.utils.printer_models import is_gcode_compatible, normalize_printer_model
 from backend.app.utils.threemf_tools import extract_bed_temperature_from_3mf
@@ -600,11 +604,11 @@ class PrintScheduler:
 
                     # If printer not connected, try to power on via smart plug
                     if not printer_connected:
-                        plugs = await self._get_smart_plugs(db, item.printer_id)
+                        plugs = await plugs_for_printer(db, item.printer_id)
                         auto_on_plugs = [p for p in plugs if p.auto_on and p.enabled]
                         if auto_on_plugs:
                             logger.info("Printer %s offline, attempting to power on via smart plug(s)", item.printer_id)
-                            primary_plug = self._pick_power_plug(auto_on_plugs)
+                            primary_plug = select_power_plug(auto_on_plugs) or auto_on_plugs[0]
                             powered_on = await self._power_on_and_wait(primary_plug, item.printer_id, db)
                             if powered_on:
                                 # Also turn on any remaining auto_on plugs (e.g., filter)
@@ -2438,19 +2442,6 @@ class PrintScheduler:
                 )
                 printer_manager.send_drying_command(printer_id, ams_id, 0, 0, mode=0)
         self._drying_in_progress.pop(printer_id, None)
-
-    async def _get_smart_plugs(self, db: AsyncSession, printer_id: int) -> list[SmartPlug]:
-        """Get all smart plugs associated with a printer."""
-        result = await db.execute(select(SmartPlug).where(SmartPlug.printer_id == printer_id))
-        return list(result.scalars().all())
-
-    @staticmethod
-    def _pick_power_plug(auto_on_plugs: list[SmartPlug]) -> SmartPlug:
-        """Pick the plug that actually powers the printer, falling back to first."""
-        for plug in auto_on_plugs:
-            if plug.controls_printer_power:
-                return plug
-        return auto_on_plugs[0]
 
     # Bundled defaults for preheat_filament_targets (#1468). Values are the
     # chamber-temperature recommendations BambuStudio ships for the matching
