@@ -34,8 +34,14 @@ async def test_printer_status_exposes_error_class_and_reason_without_reporting_s
 ):
     obico_detection_service._states[1] = PrintState()
     obico_detection_service._errors[1] = "Obico ML API rejected the token (401)."
+    loaded = {"enabled": True, "enabled_printers": None}
 
-    response = await async_client.get("/api/v1/obico/printer-status")
+    with patch.object(
+        obico_detection_service,
+        "_load_settings",
+        new=AsyncMock(return_value=loaded),
+    ):
+        response = await async_client.get("/api/v1/obico/printer-status")
 
     assert response.status_code == 200
     entry = response.json()["per_printer"]["1"]
