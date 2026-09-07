@@ -105,7 +105,7 @@ FILE_ALLOWLIST = {
     "frontend/src/pages/FileManagerPage.tsx": 2853,
     "frontend/src/pages/InventoryPage.tsx": 2919,
     "frontend/src/pages/ProjectDetailPage.tsx": 1526,
-    "frontend/src/pages/printers/PrinterCard.tsx": 2984,
+    "frontend/src/pages/printers/PrinterCard.tsx": 2980,
     "frontend/src/pages/ProfilesPage.tsx": 2985,
     "frontend/src/pages/QueuePage.tsx": 2963,
     "frontend/src/pages/SettingsPage.tsx": 7169,

@@ -18,6 +18,7 @@ import type {
   LocalPresetDetail,
   LocalPresetsResponse,
   ObicoStatus,
+  ObicoPrinterStatus,
   ObicoTestConnection,
   PipelineEligibilityReport,
   PipelineRun,
@@ -118,7 +119,10 @@ export const backupsSlicerMethods = {
   getObicoStatus: () =>
     request<ObicoStatus>('/obico/status'),
 
-  testObicoConnection: (url: string, token?: string | null) =>
+  getObicoPrinterStatus: () =>
+    request<ObicoPrinterStatus>('/obico/printer-status'),
+
+  testObicoConnection: (url?: string | null, token?: string | null) =>
     request<ObicoTestConnection>('/obico/test-connection', {
       method: 'POST',
       body: JSON.stringify({ url, token }),

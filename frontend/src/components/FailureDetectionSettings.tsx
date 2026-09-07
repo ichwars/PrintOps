@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, ScanEye, Check, X, AlertTriangle, Info } from 'lucide-react';
@@ -8,6 +8,7 @@ import { Button } from './Button';
 import { Checkbox, LegacySelect, NumberField, TextField } from './ui';
 import { Toggle } from './Toggle';
 import { useToast } from '../contexts/ToastContext';
+import { aiDetectionClass, hasAiVerdict } from '../utils/aiDetection';
 
 type TestResult = { ok: boolean; message: string } | null;
 
@@ -25,6 +26,7 @@ export function FailureDetectionSettings() {
   const [enabledPrinters, setEnabledPrinters] = useState<number[] | null>(null); // null = all
   const [testResult, setTestResult] = useState<TestResult>(null);
   const [initialized, setInitialized] = useState(false);
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: settings } = useQuery({
     queryKey: ['settings'],
@@ -79,27 +81,37 @@ export function FailureDetectionSettings() {
     },
   });
 
-  // Auto-save on change (debounced)
-  useEffect(() => {
-    if (!initialized || !settings) return;
-    const changed =
+  const hasUnsavedChanges = useMemo(() => {
+    if (!initialized || !settings) return false;
+    return (
       settings.obico_enabled !== enabled ||
       settings.obico_ml_url !== mlUrl ||
-      settings.obico_ml_token !== mlToken ||
+      (settings.obico_ml_token ?? '') !== mlToken ||
       settings.obico_sensitivity !== sensitivity ||
       settings.obico_action !== action ||
       settings.obico_poll_interval !== pollInterval ||
-      settings.obico_enabled_printers !== (enabledPrinters === null ? '' : JSON.stringify(enabledPrinters));
-    if (!changed) return;
-    const id = setTimeout(() => saveMutation.mutate(), 500);
-    return () => clearTimeout(id);
+      settings.obico_enabled_printers !== (enabledPrinters === null ? '' : JSON.stringify(enabledPrinters))
+    );
+  }, [settings, initialized, enabled, mlUrl, mlToken, sensitivity, action, pollInterval, enabledPrinters]);
+
+  // Auto-save on change (debounced)
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    autoSaveTimer.current = setTimeout(() => saveMutation.mutate(), 500);
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, mlUrl, mlToken, sensitivity, action, pollInterval, enabledPrinters, initialized]);
+  }, [hasUnsavedChanges, enabled, mlUrl, mlToken, sensitivity, action, pollInterval, enabledPrinters]);
 
   const handleTest = async () => {
     setTestResult(null);
     try {
-      const res = await api.testObicoConnection(mlUrl, mlToken);
+      if (hasUnsavedChanges) {
+        if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+        await saveMutation.mutateAsync();
+      }
+      const res = await api.testObicoConnection();
       if (res.ok) {
         setTestResult({
           ok: true,
@@ -329,18 +341,27 @@ export function FailureDetectionSettings() {
                     <div className="space-y-1">
                       {Object.entries(status.per_printer).map(([pid, info]) => {
                         const printer = printers?.find((p) => String(p.id) === pid);
+                        const classification = aiDetectionClass(info);
                         const colorClass =
-                          info.class === 'failure'
+                          classification === 'failure'
                             ? 'text-red-700 dark:text-red-400'
-                            : info.class === 'warning'
+                            : classification === 'warning'
                               ? 'text-amber-700 dark:text-amber-400'
-                              : 'text-green-700 dark:text-green-400';
+                              : classification === 'safe'
+                                ? 'text-green-700 dark:text-green-400'
+                                : 'text-bambu-gray';
                         return (
-                          <div key={pid} className="flex justify-between">
-                            <span className="text-white">{printer?.name ?? `Printer ${pid}`}</span>
-                            <span className={`font-mono ${colorClass}`}>
-                              {info.class} ({info.score.toFixed(3)}, {info.frame_count}f)
-                            </span>
+                          <div key={pid} className="space-y-0.5">
+                            <div className="flex justify-between">
+                              <span className="text-white">{printer?.name ?? `Printer ${pid}`}</span>
+                              <span className={`font-mono ${colorClass}`}>
+                                {t(`printers.aiDetection.${classification}`)}
+                                {hasAiVerdict(classification) && ` (${info.score.toFixed(3)}, ${info.frame_count}f)`}
+                              </span>
+                            </div>
+                            {info.error && (
+                              <div className="break-words text-xs text-red-700 dark:text-red-400">{info.error}</div>
+                            )}
                           </div>
                         );
                       })}

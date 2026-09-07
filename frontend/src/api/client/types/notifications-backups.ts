@@ -335,10 +335,17 @@ export interface ObicoDetectionEvent {
   detections: number;
 }
 
+export interface ObicoPrinterDetection {
+  class: string;
+  frame_count: number;
+  score: number;
+  error: string | null;
+}
+
 export interface ObicoStatus {
   is_running: boolean;
   last_error: string | null;
-  per_printer: Record<string, { class: string; frame_count: number; score: number }>;
+  per_printer: Record<string, ObicoPrinterDetection>;
   thresholds: { low: number; high: number };
   history: ObicoDetectionEvent[];
   enabled: boolean;
@@ -347,6 +354,13 @@ export interface ObicoStatus {
   action: 'notify' | 'pause' | 'pause_and_off';
   poll_interval: number;
   external_url_configured: boolean;
+}
+
+export interface ObicoPrinterStatus {
+  enabled: boolean;
+  monitored_printers: number[] | null;
+  per_printer: Record<string, ObicoPrinterDetection>;
+  last_error: string | null;
 }
 
 export interface ObicoTestConnection {

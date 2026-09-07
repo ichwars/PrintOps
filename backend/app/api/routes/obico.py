@@ -16,7 +16,7 @@ router = APIRouter(prefix="/obico", tags=["obico"])
 
 
 class TestConnectionRequest(BaseModel):
-    url: str
+    url: str | None = None
     token: str | None = None
 
 
@@ -38,19 +38,42 @@ async def get_status(
     }
 
 
+@router.get("/printer-status")
+async def get_printer_status(
+    user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
+):
+    """Return live card states without exposing Obico configuration."""
+    settings = await obico_detection_service._load_settings()
+    enabled_printers = settings["enabled_printers"]
+    can_see_error = user is None or user.has_permission(Permission.SETTINGS_READ.value)
+    per_printer = obico_detection_service.get_per_printer()
+    if not can_see_error:
+        per_printer = {printer_id: {**entry, "error": None} for printer_id, entry in per_printer.items()}
+    return {
+        "enabled": settings["enabled"],
+        "monitored_printers": sorted(enabled_printers) if enabled_printers is not None else None,
+        "per_printer": per_printer,
+        "last_error": obico_detection_service._last_error if can_see_error else None,
+    }
+
+
 @router.post("/test-connection")
 async def test_connection(
     req: TestConnectionRequest,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
 ):
-    """Ping the Obico ML API health endpoint and check token acceptance."""
-    if not req.url:
-        return {"ok": False, "status_code": None, "body": None, "error": "URL is empty", "auth_ok": None}
+    """Ping an explicit configuration, or the saved one when values are omitted."""
+    url = req.url
     token = req.token
-    if token is None:
+    if url is None or token is None:
         settings = await obico_detection_service._load_settings()
-        token = settings.get("ml_token") or ""
-    return await obico_detection_service.test_connection(req.url, token)
+        if url is None:
+            url = settings.get("ml_url") or ""
+        if token is None:
+            token = settings.get("ml_token") or ""
+    if not url:
+        return {"ok": False, "status_code": None, "body": None, "error": "URL is empty", "auth_ok": None}
+    return await obico_detection_service.test_connection(url, token)
 
 
 @router.get("/cached-frame/{nonce}")
