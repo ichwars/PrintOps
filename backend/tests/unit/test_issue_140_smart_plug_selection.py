@@ -10,6 +10,7 @@ from backend.app.services.smart_plug_selection import (
     pick_power_plug,
     plugs_for_printer,
     rank_power_plugs,
+    read_printer_energy,
     reports_power,
     select_energy_reading,
 )
@@ -78,6 +79,21 @@ class TestSharedPowerPlugRanking:
         )
 
         assert pick_power_plug([metered_fan, unmetered_outlet]) is unmetered_outlet
+
+    def test_explicit_power_script_outranks_switchable_accessory(self):
+        power_script = _plug(
+            1,
+            plug_type="homeassistant",
+            ha_entity_id="script.start_printer",
+        )
+        accessory = _plug(
+            2,
+            plug_type="homeassistant",
+            ha_entity_id="switch.exhaust_fan",
+            controls_printer_power=False,
+        )
+
+        assert pick_power_plug([accessory, power_script]) is power_script
 
     def test_enabled_plug_beats_disabled_plug(self):
         disabled = _plug(1, enabled=False)
@@ -246,6 +262,28 @@ class TestEnergySelection:
         assert await select_energy_reading([_plug()], read, db=None) is None
 
     @pytest.mark.asyncio
+    async def test_completion_reads_only_the_meter_persisted_at_start(self):
+        recovered = _plug(1, name="Recovered meter")
+        starting_meter = _plug(2, name="Starting meter")
+        read = AsyncMock(return_value={"total": 12.0})
+
+        with patch(
+            "backend.app.services.smart_plug_selection.plugs_for_printer",
+            new=AsyncMock(return_value=[recovered, starting_meter]),
+        ):
+            selected = await read_printer_energy(
+                None,
+                42,
+                read,
+                log_prefix="TEST",
+                context="archive 7",
+                plug_id=starting_meter.id,
+            )
+
+        assert selected == (starting_meter, {"total": 12.0})
+        read.assert_awaited_once_with(starting_meter, None)
+
+    @pytest.mark.asyncio
     async def test_record_energy_start_handles_multiple_linked_plugs(
         self,
         db_session,
@@ -260,7 +298,7 @@ class TestEnergySelection:
             printer_id=printer.id,
             controls_printer_power=False,
         )
-        await smart_plug_factory(
+        outlet = await smart_plug_factory(
             name="Printer Outlet",
             plug_type="homeassistant",
             printer_id=printer.id,
@@ -280,3 +318,4 @@ class TestEnergySelection:
 
         assert recorded is True
         assert archive.energy_start_kwh == 41.5
+        assert archive.energy_start_plug_id == outlet.id

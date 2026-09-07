@@ -45,16 +45,15 @@ def reports_power(plug: SmartPlug) -> bool:
 def power_plug_rank(plug: SmartPlug) -> tuple[bool, bool, bool, bool, bool, int]:
     """Sort key for the row that represents the printer's power supply.
 
-    Capability comes first so the card never offers an unusable switch.  The
-    explicit printer-power relationship outranks display and metering details;
-    an accessory must not become the printer outlet merely because it reports
-    watts.  Nullable legacy flags rank behind explicit true values.  Lowest id
-    is the final stable tiebreaker.
+    The explicit printer-power relationship comes first, including HA scripts
+    that start a printer. Switchability, display, and metering details only
+    break ties between equally assigned rows. Nullable legacy flags rank behind
+    explicit true values. Lowest id is the final stable tiebreaker.
     """
     plug_id = getattr(plug, "id", None)
     return (
-        not can_be_switched(plug),
         not bool(getattr(plug, "controls_printer_power", False)),
+        not can_be_switched(plug),
         not bool(getattr(plug, "enabled", False)),
         not bool(getattr(plug, "show_on_printer_card", False)),
         not reports_power(plug),
@@ -128,9 +127,12 @@ async def read_printer_energy(
     *,
     log_prefix: str,
     context: str,
+    plug_id: int | None = None,
 ) -> tuple[SmartPlug, dict] | None:
     """Read the deterministically assigned printer meter with visible failures."""
     candidates = await plugs_for_printer(db, printer_id)
+    if plug_id is not None:
+        candidates = [candidate for candidate in candidates if candidate.id == plug_id]
     if not candidates:
         logger.info("[%s] No smart plug for printer %s (%s)", log_prefix, printer_id, context)
         return None

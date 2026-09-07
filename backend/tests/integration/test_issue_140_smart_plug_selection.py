@@ -101,6 +101,31 @@ class TestPrinterCardPowerRow:
 
         assert response.json()["name"] == "Printer Outlet"
 
+    async def test_explicit_power_script_beats_switchable_accessory(
+        self,
+        async_client: AsyncClient,
+        printer_factory,
+        smart_plug_factory,
+    ):
+        printer = await printer_factory()
+        await _ha(
+            smart_plug_factory,
+            printer,
+            "switch.exhaust_fan",
+            name="Exhaust Fan",
+            controls_printer_power=False,
+        )
+        await _ha(
+            smart_plug_factory,
+            printer,
+            "script.start_printer",
+            name="Start Printer",
+        )
+
+        response = await async_client.get(MAIN.format(printer.id))
+
+        assert response.json()["name"] == "Start Printer"
+
     async def test_no_plugs_returns_null(
         self,
         async_client: AsyncClient,

@@ -675,7 +675,7 @@ async def _record_energy_start(archive, printer_id: int, db, *, context: str = "
         if selected is None:
             return False
         plug, energy = selected
-        archive.energy_start_kwh = float(energy["total"])
+        archive.energy_start_kwh, archive.energy_start_plug_id = float(energy["total"]), plug.id
         await db.commit()
         _logger.info(
             "[ENERGY] Recorded starting energy%s for archive %s from plug '%s': %s kWh",
@@ -4483,15 +4483,10 @@ async def on_print_complete(printer_id: int, data: dict):
 
     log_timing("Print log entry")
 
-    # Run slow operations as background tasks to avoid blocking the event loop
-    # These operations can take 5-10+ seconds and would freeze the UI if awaited
+    # Slow operations run in the background so completion does not freeze the UI.
 
     async def _background_energy_calculation():
-        """Calculate and save energy usage in background.
-
-        Reads the starting kWh from the archive row (#941: persisted so a mid-print
-        backend restart no longer loses per-print energy data).
-        """
+        """Calculate energy from the persisted start reading without blocking."""
         try:
             logger.info("[ENERGY-BG] Starting energy calculation for archive %s", archive_id)
             async with async_session() as db:
@@ -4501,13 +4496,18 @@ async def on_print_complete(printer_id: int, data: dict):
                 if archive is None:
                     logger.warning("[ENERGY-BG] Archive %s no longer exists", archive_id)
                     return
-                starting_kwh = archive.energy_start_kwh
-                if starting_kwh is None:
-                    logger.info("[ENERGY-BG] No start kWh recorded for archive %s", archive_id)
+                starting_kwh, starting_plug_id = archive.energy_start_kwh, archive.energy_start_plug_id
+                if starting_kwh is None or not isinstance(starting_plug_id, int):
+                    logger.info("[ENERGY-BG] No start energy source recorded for archive %s", archive_id)
                     return
 
                 selected = await read_printer_energy(
-                    db, printer_id, _get_plug_energy, log_prefix="ENERGY-BG", context=f"archive {archive_id}"
+                    db,
+                    printer_id,
+                    _get_plug_energy,
+                    log_prefix="ENERGY-BG",
+                    context=f"archive {archive_id}",
+                    plug_id=starting_plug_id,
                 )
                 if selected is None:
                     return
@@ -4531,9 +4531,7 @@ async def on_print_complete(printer_id: int, data: dict):
                 cost_per_kwh = float(energy_cost_per_kwh) if energy_cost_per_kwh else 0.15
                 energy_cost_value = round(energy_used * cost_per_kwh, 3)
 
-                # First-run-only overwrite of archive.energy_kwh / energy_cost so a
-                # reprint doesn't visually clobber the source archive's energy data
-                # (#1378). Reprint energy lives in the matching PrintLogEntry below.
+                # Do not let reprints clobber source-archive energy (#1378).
                 from sqlalchemy import func
 
                 from backend.app.models.print_log import PrintLogEntry
