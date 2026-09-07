@@ -9,7 +9,7 @@ from sqlalchemy.orm import DeclarativeBase
 from backend.app.core.active_print_migrations import migrate_active_print_spoolman
 from backend.app.core.archive_metadata_migration import repair_archive_plate_metadata
 from backend.app.core.config import settings
-from backend.app.core.db_dialect import is_sqlite
+from backend.app.core.db_dialect import is_already_applied as _is_already_applied, is_sqlite, postgres_connect_args
 from backend.app.core.library_migrations import reclassify_sliced_3mf_library_files
 from backend.app.core.number_sequence_migrations import migrate_number_sequence_monthly_reset_policy
 from backend.app.core.rfid_core_weight_migration import repair_rfid_core_weights
@@ -48,9 +48,17 @@ def _resolve_pool_kwargs() -> dict:
     return kwargs
 
 
+def _resolve_connect_args() -> dict:
+    """Return dialect-appropriate arguments for new DB connections."""
+    return postgres_connect_args(settings.database_url, sqlite=is_sqlite())
+
+
 def _create_engine():
     """Create the async engine with dialect-appropriate settings."""
     kwargs = _resolve_pool_kwargs()
+    connect_args = _resolve_connect_args()
+    if connect_args:
+        kwargs["connect_args"] = connect_args
     global _pool_config
     _pool_config = {
         "pool_size": kwargs["pool_size"],
@@ -453,13 +461,9 @@ async def _migrate_encrypt_legacy_secrets() -> None:
 async def _safe_execute(conn, sql):
     """Execute a DDL migration statement, silently ignoring idempotency errors.
 
-    'already exists', 'duplicate column name' (SQLite ADD COLUMN), 'no such column'
-    (SQLite RENAME COLUMN), 'duplicate key', and the compound
-    'column … does not exist' (PostgreSQL RENAME COLUMN idempotency) are swallowed
-    so that re-running DDL migrations is safe.  The compound check additionally
-    requires the SQL to be a RENAME COLUMN statement so that "does not exist" errors
-    from ADD COLUMN or CREATE INDEX (which would indicate schema corruption, not
-    idempotency) are never silently swallowed.
+    PostgreSQL uses locale-independent SQLSTATE codes; SQLite retains its stable
+    error-text fallback. Missing-column errors are accepted for RENAME COLUMN
+    only, so corrupt schemas still abort startup.
     Any other error is logged and re-raised — callers must not assume silent
     recovery, as a failure will abort the migration sequence and prevent
     application startup.
@@ -477,14 +481,7 @@ async def _safe_execute(conn, sql):
         async with conn.begin_nested():
             await conn.execute(text(sql))
     except (OperationalError, ProgrammingError) as exc:
-        msg = str(exc).lower()
-        # Only swallow "column … does not exist" for RENAME COLUMN — not for ADD COLUMN
-        # or CREATE INDEX where it would indicate schema corruption, not idempotency.
-        column_not_exists = "rename column" in sql.lower() and "column" in msg and "does not exist" in msg
-        if (
-            not any(k in msg for k in ("already exists", "duplicate key", "duplicate column name", "no such column"))
-            and not column_not_exists
-        ):
+        if not _is_already_applied(exc, sql):
             logger.error("Migration statement failed: %s | SQL: %.200s", exc, sql)
             raise
 
@@ -2479,17 +2476,15 @@ async def run_migrations(conn):
     # SQLite does not support ALTER TABLE ADD CONSTRAINT — handled by __table_args__ at creation.
     # Runs AFTER the backfill so Fall B rows don't fail constraint validation.
     if not is_sqlite():
+        add_constraint = (
+            "ALTER TABLE oidc_providers ADD CONSTRAINT ck_auto_link_requires_verified_email_claim "
+            "CHECK (auto_link_existing_accounts = FALSE OR email_claim != 'email' OR require_email_verified = TRUE)"
+        )
         try:
             async with conn.begin_nested():
-                await conn.execute(
-                    text(
-                        "ALTER TABLE oidc_providers ADD CONSTRAINT ck_auto_link_requires_verified_email_claim "
-                        "CHECK (auto_link_existing_accounts = FALSE OR email_claim != 'email' OR require_email_verified = TRUE)"
-                    )
-                )
+                await conn.execute(text(add_constraint))
         except (OperationalError, ProgrammingError) as exc:
-            msg = str(exc).lower()
-            if "already exists" not in msg:
+            if not _is_already_applied(exc, add_constraint):
                 logger.error(
                     "Security constraint migration FAILED — auto_link safety constraint may not be enforced: %s",
                     exc,

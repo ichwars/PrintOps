@@ -136,6 +136,7 @@ from backend.app.services.spoolman_tracking import (
 )
 from backend.app.services.tasmota import tasmota_service
 from backend.app.utils.filament_types import printer_filament_type
+from backend.app.utils.local_time import utcnow_naive
 from backend.app.utils.print_jobs import ignore_internal_printer_job
 
 
@@ -5251,14 +5252,13 @@ async def record_ams_history():
                 _ams_cleanup_counter += 1
                 if _ams_cleanup_counter >= 288:
                     _ams_cleanup_counter = 0
-                    # Get retention days from settings
                     from backend.app.models.settings import Settings
 
                     result = await db.execute(select(Settings).where(Settings.key == "ams_history_retention_days"))
                     setting = result.scalar_one_or_none()
                     retention_days = int(setting.value) if setting else AMS_HISTORY_RETENTION_DAYS
 
-                    cutoff = datetime.utcnow() - timedelta(days=retention_days)
+                    cutoff = utcnow_naive() - timedelta(days=retention_days)
                     result = await db.execute(delete(AMSSensorHistory).where(AMSSensorHistory.recorded_at < cutoff))
                     await db.commit()
                     if result.rowcount > 0:
@@ -5384,7 +5384,7 @@ async def record_printer_sensor_history():
                     setting = result.scalar_one_or_none()
                     retention_days = int(setting.value) if setting else PRINTER_SENSOR_HISTORY_RETENTION_DAYS
 
-                    cutoff = datetime.utcnow() - timedelta(days=retention_days)
+                    cutoff = utcnow_naive() - timedelta(days=retention_days)
                     cleanup = await db.execute(
                         delete(PrinterSensorHistory).where(PrinterSensorHistory.recorded_at < cutoff)
                     )
