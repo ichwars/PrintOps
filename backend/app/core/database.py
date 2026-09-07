@@ -2356,10 +2356,9 @@ async def run_migrations(conn):
     else:
         await _safe_execute(conn, "ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL")
 
-    # Migration: Add energy_start_kwh to print_archives (#941)
-    # Persists the smart plug lifetime counter captured at print start, so per-print
-    # energy tracking survives a backend restart mid-print.
+    # Persist the starting counter and its exact plug across restarts (#941, #140).
     await _safe_execute(conn, "ALTER TABLE print_archives ADD COLUMN energy_start_kwh REAL")
+    await _safe_execute(conn, "ALTER TABLE print_archives ADD COLUMN energy_start_plug_id INTEGER")
     # Migration: Add subtask_id to print_archives (#972)
     # MQTT-provided task identifier used to resume the same archive row across a
     # backend restart mid-print. Without it, a long print (e.g. 13h) triggers

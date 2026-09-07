@@ -41,6 +41,11 @@ from backend.app.services.plug_energy_history import fill_derived_energy
 from backend.app.services.printer_manager import printer_manager
 from backend.app.services.rest_smart_plug import rest_smart_plug_service
 from backend.app.services.smart_plug_manager import smart_plug_manager
+from backend.app.services.smart_plug_selection import (
+    can_be_switched,
+    pick_power_plug,
+    plugs_for_printer,
+)
 from backend.app.services.tasmota import tasmota_service
 from backend.app.utils.local_time import utcnow_naive
 
@@ -183,25 +188,8 @@ async def get_smart_plug_by_printer(
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_READ),
 ):
-    """Get the main smart plug assigned to a printer.
-
-    When multiple plugs are assigned (e.g., a regular plug + script),
-    returns the main (non-script) plug for power control.
-    """
-    result = await db.execute(select(SmartPlug).where(SmartPlug.printer_id == printer_id))
-    plugs = result.scalars().all()
-
-    if not plugs:
-        return None
-
-    # If multiple plugs, prefer the non-script one (main power plug)
-    for plug in plugs:
-        is_script = plug.plug_type == "homeassistant" and plug.ha_entity_id and plug.ha_entity_id.startswith("script.")
-        if not is_script:
-            return plug
-
-    # All are scripts, return the first one
-    return plugs[0]
+    """Get the linked row that best represents the printer's power supply."""
+    return pick_power_plug(await plugs_for_printer(db, printer_id))
 
 
 @router.get("/by-printer/{printer_id}/scripts", response_model=list[SmartPlugResponse])
@@ -216,12 +204,20 @@ async def get_script_plugs_by_printer(
     show_on_printer_card enabled.
     Used to display action buttons alongside the main power plug.
     """
-    result = await db.execute(select(SmartPlug).where(SmartPlug.printer_id == printer_id))
-    plugs = result.scalars().all()
+    plugs = await plugs_for_printer(db, printer_id)
+    main_plug = pick_power_plug(plugs)
+    duplicate_id = main_plug.id if main_plug and can_be_switched(main_plug) else None
 
-    # Filter to HA entities with show_on_printer_card enabled
+    # A switchable main entity is already rendered in the Power row. Scripts
+    # remain here even in the script-only fallback so their one-click action is
+    # preserved.
     ha_entities = [
-        plug for plug in plugs if plug.plug_type == "homeassistant" and plug.ha_entity_id and plug.show_on_printer_card
+        plug
+        for plug in plugs
+        if plug.plug_type == "homeassistant"
+        and plug.ha_entity_id
+        and plug.show_on_printer_card
+        and plug.id != duplicate_id
     ]
     return ha_entities
 
