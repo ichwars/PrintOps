@@ -179,6 +179,14 @@ class ObicoDetectionService:
                 self._last_error = str(e) or type(e).__name__
                 await asyncio.sleep(30)
 
+    def _clear_printer_state(self, printer_id: int) -> None:
+        """Discard cached state when a printer can no longer be checked."""
+        self._states.pop(printer_id, None)
+        self._state_keys.pop(printer_id, None)
+        self._action_fired.pop(printer_id, None)
+        self._last_class.pop(printer_id, None)
+        self._errors.pop(printer_id, None)
+
     async def _poll_once(self, settings: dict):
         # Late import to avoid cycles at module load time
         from backend.app.services.printer_manager import printer_manager
@@ -186,16 +194,14 @@ class ObicoDetectionService:
         statuses = printer_manager.get_all_statuses()
         for printer_id, status in list(statuses.items()):
             if settings["enabled_printers"] is not None and printer_id not in settings["enabled_printers"]:
+                self._clear_printer_state(printer_id)
                 continue
             if not printer_manager.is_connected(printer_id):
+                self._clear_printer_state(printer_id)
                 continue
             if not status or getattr(status, "state", None) != "RUNNING":
                 # Reset state when not printing so the next print starts fresh
-                self._states.pop(printer_id, None)
-                self._state_keys.pop(printer_id, None)
-                self._action_fired.pop(printer_id, None)
-                self._last_class.pop(printer_id, None)
-                self._errors.pop(printer_id, None)
+                self._clear_printer_state(printer_id)
                 continue
 
             await self._check_printer(printer_id, status, settings)

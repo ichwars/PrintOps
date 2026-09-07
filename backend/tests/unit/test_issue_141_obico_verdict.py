@@ -138,3 +138,25 @@ async def test_print_end_clears_verdict_and_error_state():
     assert service.get_per_printer() == {}
     assert service._last_class == {}
     assert service._errors == {}
+
+
+@pytest.mark.asyncio
+async def test_disconnect_clears_verdict_and_error_state():
+    service = ObicoDetectionService()
+    service._states[1] = PrintState()
+    service._state_keys[1] = "job"
+    service._last_class[1] = "safe"
+    service._errors[1] = "camera failed"
+    manager = MagicMock()
+    manager.get_all_statuses.return_value = {1: _status()}
+    manager.is_connected.return_value = False
+
+    with patch.dict(
+        "sys.modules",
+        {"backend.app.services.printer_manager": MagicMock(printer_manager=manager)},
+    ):
+        await service._poll_once(SETTINGS)
+
+    assert service.get_per_printer() == {}
+    assert service._last_class == {}
+    assert service._errors == {}
