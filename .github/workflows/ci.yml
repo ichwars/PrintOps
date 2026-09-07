@@ -138,6 +138,58 @@ jobs:
             -n auto \
             --splits 4 --group ${{ matrix.shard }}
 
+  postgres-migrations:
+    name: PostgreSQL Migration Compatibility
+    runs-on: ubuntu-latest
+    needs: backend-lint
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: printops
+          POSTGRES_PASSWORD: printops
+          POSTGRES_DB: printops
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U printops -d printops"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://printops:printops@127.0.0.1:5432/printops
+      PRINTOPS_POSTGRES_TEST_URL: postgresql+asyncpg://printops:printops@127.0.0.1:5432/printops
+      DATA_DIR: ${{ runner.temp }}/printops-postgres-test
+      LOG_TO_FILE: 'false'
+      TESTING: '1'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements-dev.lock.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Configure non-UTC database default
+        run: >-
+          docker exec "${{ job.services.postgres.id }}"
+          psql -U printops -d printops
+          -c "ALTER DATABASE printops SET timezone TO 'Europe/Istanbul'"
+
+      - name: Run live PostgreSQL migration tests
+        run: python -m pytest backend/tests/postgres/test_issue_142_postgres_runtime.py -q
+
   # ============================================================================
   # Frontend Checks
   # ============================================================================
