@@ -27,6 +27,7 @@ import { formatKValue, getEmptySlotKind } from './printer-card-utils';
 import type { PrinterCardProps } from './printer-card-types';
 import { usePrinterCardModel } from './usePrinterCardModel';
 import { PrinterCardOverlays } from './PrinterCardOverlays';
+import { AiDetectionBadge } from '../../components/AiDetectionBadge';
 
 export function PrinterCard(props: PrinterCardProps) {
   const model = usePrinterCardModel(props);
@@ -414,12 +415,6 @@ return (
           {viewMode === 'expanded' && (
             <div className="mt-2">
               <div className="flex flex-wrap items-center gap-2">
-              {/* Connection status badge (or Maintenance pill when out of service).
-                  Defensive: only swap when is_active is EXPLICITLY false. An
-                  undefined / missing field defaults to "active" so the regular
-                  pill renders — matches the backend default and prevents test
-                  fixtures (or stale clients) from accidentally tripping the
-                  maintenance UI. */}
               {printer.is_active === false ? (
                 <span
                   className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400"
@@ -552,6 +547,7 @@ return (
                   </button>
                 );
               })()}
+              <AiDetectionBadge printerId={printer.id} printerName={printer.name} />
               {/* Maintenance Status Indicator */}
               {maintenanceInfo && (
                 <button

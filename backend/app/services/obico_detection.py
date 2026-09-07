@@ -90,6 +90,8 @@ class ObicoDetectionService:
         self._state_keys: dict[int, str] = {}
         # printer_id -> last classification ("safe"/"warning"/"failure")
         self._last_class: dict[int, str] = {}
+        # printer_id -> why the latest poll produced no verdict
+        self._errors: dict[int, str] = {}
         # printer_id -> whether an action has already been fired for the current print
         self._action_fired: dict[int, bool] = {}
         # Global detection event log (most-recent-first)
@@ -192,6 +194,8 @@ class ObicoDetectionService:
                 self._states.pop(printer_id, None)
                 self._state_keys.pop(printer_id, None)
                 self._action_fired.pop(printer_id, None)
+                self._last_class.pop(printer_id, None)
+                self._errors.pop(printer_id, None)
                 continue
 
             await self._check_printer(printer_id, status, settings)
@@ -247,6 +251,12 @@ class ObicoDetectionService:
             timeout=SNAPSHOT_CAPTURE_TIMEOUT,
         )
 
+    def _no_verdict(self, printer_id: int, reason: str) -> None:
+        """Record a failed poll without reusing an earlier successful verdict."""
+        self._errors[printer_id] = reason
+        self._last_error = reason
+        logger.warning(reason)
+
     async def _check_printer(self, printer_id: int, status, settings: dict):
         task_name = getattr(status, "task_name", None) or getattr(status, "subtask_name", "") or ""
         key = f"{task_name}"
@@ -254,6 +264,8 @@ class ObicoDetectionService:
             self._states[printer_id] = PrintState()
             self._state_keys[printer_id] = key
             self._action_fired[printer_id] = False
+            self._last_class.pop(printer_id, None)
+            self._errors.pop(printer_id, None)
 
         # Capture locally first, then hand Obico a nonce URL that returns the
         # cached bytes instantly. Obico's ML API is GET-only (/p/?img=URL) with a
@@ -261,17 +273,16 @@ class ObicoDetectionService:
         # keyframe wait.
         frame = await self._capture_frame(printer_id)
         if not frame:
-            self._last_error = f"Failed to capture snapshot for printer {printer_id}"
-            logger.warning(self._last_error)
+            self._no_verdict(printer_id, f"Failed to capture snapshot for printer {printer_id}")
             return
 
         external_url = settings.get("external_url") or ""
         if not external_url:
-            self._last_error = (
-                "external_url setting is empty — Obico's ML API needs a reachable URL to fetch the snapshot from. "
-                "Set Settings → General → External URL."
+            self._no_verdict(
+                printer_id,
+                "external_url (External URL) setting is empty — Obico's ML API needs a reachable URL to fetch the snapshot from. "
+                "Set Settings → General → External URL.",
             )
-            logger.warning(self._last_error)
             return
 
         nonce = await stash_frame(frame)
@@ -286,19 +297,18 @@ class ObicoDetectionService:
                     headers=auth_headers(settings.get("ml_token")),
                 )
                 if resp.status_code == 401:
-                    self._last_error = (
+                    reason = (
                         "Obico ML API rejected the token (401). Set Settings > Failure Detection > "
                         "ML API Token to the ML_API_TOKEN the server runs with, or clear ML_API_TOKEN "
                         "on the server."
                     )
-                    logger.warning("%s (printer %s)", self._last_error, printer_id)
+                    self._no_verdict(printer_id, reason)
                     return
                 resp.raise_for_status()
                 payload = resp.json()
         except Exception as e:
             detail = str(e) or type(e).__name__
-            self._last_error = f"ML API call failed for printer {printer_id}: {detail}"
-            logger.warning(self._last_error)
+            self._no_verdict(printer_id, f"ML API call failed for printer {printer_id}: {detail}")
             return
 
         detections = payload.get("detections", []) if isinstance(payload, dict) else []
@@ -310,6 +320,7 @@ class ObicoDetectionService:
         # A successful capture + ML call clears any transient error from previous
         # polls (typical case: cold-start RTSP timeout on first frame after startup,
         # followed by healthy polls that otherwise leave the banner stuck in the UI).
+        self._errors.pop(printer_id, None)
         self._last_error = None
 
         # Log every non-safe sample — safe samples would flood history
@@ -348,6 +359,19 @@ class ObicoDetectionService:
 
     # ---- queries ----
 
+    def get_per_printer(self) -> dict:
+        """Return honest live states for printers with an active monitored print."""
+        result = {}
+        for printer_id, state in self._states.items():
+            error = self._errors.get(printer_id)
+            result[printer_id] = {
+                "class": "error" if error else self._last_class.get(printer_id, "unknown"),
+                "frame_count": state.frame_count,
+                "score": round(state.ewm_mean, 4),
+                "error": error,
+            }
+        return result
+
     def get_status(self, sensitivity: str = "medium") -> dict:
         # Report the thresholds for the configured sensitivity, not a hardcoded
         # "medium" — otherwise the Status panel always shows the medium row
@@ -357,14 +381,7 @@ class ObicoDetectionService:
         return {
             "is_running": self._task is not None and not self._task.done(),
             "last_error": self._last_error,
-            "per_printer": {
-                pid: {
-                    "class": self._last_class.get(pid, "safe"),
-                    "frame_count": state.frame_count,
-                    "score": round(state.ewm_mean, 4),
-                }
-                for pid, state in self._states.items()
-            },
+            "per_printer": self.get_per_printer(),
             "thresholds": {"low": low, "high": high},
             "history": list(self._history),
         }

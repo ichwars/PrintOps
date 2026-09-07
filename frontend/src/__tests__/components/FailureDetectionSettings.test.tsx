@@ -69,8 +69,7 @@ describe('FailureDetectionSettings', () => {
       ),
       http.post('/api/v1/obico/test-connection', async ({ request }) => {
         called = true;
-        const body = (await request.json()) as { url: string };
-        expect(body.url).toBe('http://obico:3333');
+        expect(await request.json()).toEqual({});
         return HttpResponse.json({ ok: true, status_code: 200, body: 'ok', error: null });
       }),
     );
@@ -81,6 +80,33 @@ describe('FailureDetectionSettings', () => {
       expect(called).toBe(true);
     });
     expect(await screen.findByText(/ML API reachable/i)).toBeInTheDocument();
+  });
+
+  it('saves pending form changes before testing the persisted configuration', async () => {
+    const calls: string[] = [];
+    server.use(
+      http.get('/api/v1/settings/', () =>
+        HttpResponse.json({ ...baseSettings, obico_enabled: true, obico_ml_url: 'http://old:3333' }),
+      ),
+      http.put('/api/v1/settings/', async ({ request }) => {
+        calls.push('save');
+        return HttpResponse.json({ ...baseSettings, ...((await request.json()) as object) });
+      }),
+      http.post('/api/v1/obico/test-connection', async ({ request }) => {
+        calls.push('test');
+        expect(await request.json()).toEqual({});
+        return HttpResponse.json({ ok: true, status_code: 200, body: 'ok', error: null });
+      }),
+    );
+    render(<FailureDetectionSettings />);
+    const user = userEvent.setup();
+    const url = await screen.findByDisplayValue('http://old:3333');
+    await user.clear(url);
+    await user.type(url, 'http://saved:3333');
+
+    await user.click(screen.getByRole('button', { name: /test/i }));
+
+    await waitFor(() => expect(calls).toEqual(['save', 'test']));
   });
 
   it('shows failure class history entries with red styling', async () => {
@@ -105,5 +131,28 @@ describe('FailureDetectionSettings', () => {
     render(<FailureDetectionSettings />);
     // Match the history row's score-and-class text, which looks like "failure 0.850"
     expect(await screen.findByText(/failure\s+0\.850/)).toBeInTheDocument();
+  });
+
+  it('shows a per-printer error without a score that was never produced', async () => {
+    server.use(
+      http.get('/api/v1/obico/status', () =>
+        HttpResponse.json({
+          ...baseStatus,
+          per_printer: {
+            '1': {
+              class: 'error',
+              frame_count: 0,
+              score: 0,
+              error: 'Obico ML API rejected the token (401).',
+            },
+          },
+        }),
+      ),
+    );
+    render(<FailureDetectionSettings />);
+
+    expect(await screen.findByText('Not checking')).toBeInTheDocument();
+    expect(screen.getByText('Obico ML API rejected the token (401).')).toBeInTheDocument();
+    expect(screen.queryByText(/0\.000/)).not.toBeInTheDocument();
   });
 });
