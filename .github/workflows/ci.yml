@@ -159,7 +159,7 @@ jobs:
     env:
       DATABASE_URL: postgresql+asyncpg://printops:printops@127.0.0.1:5432/printops
       PRINTOPS_POSTGRES_TEST_URL: postgresql+asyncpg://printops:printops@127.0.0.1:5432/printops
-      DATA_DIR: ${{ runner.temp }}/printops-postgres-test
+      DATA_DIR: /tmp/printops-postgres-test
       LOG_TO_FILE: 'false'
       TESTING: '1'
     steps:
