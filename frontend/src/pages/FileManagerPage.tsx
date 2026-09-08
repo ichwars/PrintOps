@@ -9,7 +9,6 @@ import {
   Upload,
   Trash2,
   Download,
-  MoreVertical,
   ChevronRight,
   FolderPlus,
   FileBox,
@@ -68,7 +67,8 @@ import { FolderReadmePanel } from '../components/FolderReadmePanel';
 import { LibraryTagsModal } from '../components/LibraryTagsModal';
 import { PurgeOldFilesModal } from '../components/PurgeOldFilesModal';
 import { useToast } from '../contexts/ToastContext';
-import { useIsMobile } from '../hooks/useIsMobile';
+import { ActionMenu } from '../components/ui/ActionMenu';
+import { FolderActions } from './file-manager/FolderActions';
 import { usePageFileDrop } from '../hooks/usePageFileDrop';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDuration, parseUTCDate, formatDate } from '../utils/date';
@@ -564,7 +564,6 @@ interface FolderTreeItemProps {
 
 function FolderTreeItem({ folder, selectedFolderId, onSelect, onDelete, onLink, onRename, depth = 0, wrapNames = false, defaultExpanded = true, hasPermission, t }: FolderTreeItemProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
-  const [showActions, setShowActions] = useState(false);
   const hasChildren = folder.children.length > 0;
   const isLinked = folder.project_id || folder.archive_id;
   const isExternal = folder.is_external;
@@ -633,55 +632,8 @@ function FolderTreeItem({ folder, selectedFolderId, onSelect, onDelete, onLink, 
             <Link2 className="w-3.5 h-3.5 text-bambu-gray hover:text-bambu-green" />
           </button>
         )}
-        <div className={`flex-shrink-0 flex items-center gap-0.5 transition-opacity ${wrapNames ? '' : 'opacity-0 group-hover:opacity-100'}`} onClick={(e) => e.stopPropagation()}>
-          <div className="relative">
-            <button
-              onClick={() => setShowActions(!showActions)}
-              className="p-1 rounded hover:bg-bambu-dark-tertiary"
-            >
-              <MoreVertical className="w-3.5 h-3.5 text-bambu-gray" />
-            </button>
-            {showActions && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowActions(false)} />
-                <div className="absolute right-0 top-full mt-1 z-20 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl py-1 min-w-[120px]">
-                <button
-                  className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
-                    hasPermission('library:update_all') ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
-                  }`}
-                  onClick={() => { if (hasPermission('library:update_all')) { onRename(folder); setShowActions(false); } }}
-                  disabled={!hasPermission('library:update_all')}
-                  title={!hasPermission('library:update_all') ? t('fileManager.noPermissionRenameFolder') : undefined}
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                  {t('common.rename')}
-                </button>
-                <button
-                  className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
-                    hasPermission('library:update_all') ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
-                  }`}
-                  onClick={() => { if (hasPermission('library:update_all')) { onLink(folder); setShowActions(false); } }}
-                  disabled={!hasPermission('library:update_all')}
-                  title={!hasPermission('library:update_all') ? t('fileManager.noPermissionLinkFolder') : undefined}
-                >
-                  <Link2 className="w-3.5 h-3.5" />
-                  {isLinked ? t('fileManager.changeLink') : t('fileManager.linkTo')}
-                </button>
-                <button
-                  className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
-                    hasPermission('library:delete_all') ? 'text-red-700 dark:text-red-400 hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
-                  }`}
-                  onClick={() => { if (hasPermission('library:delete_all')) { onDelete(folder.id); setShowActions(false); } }}
-                  disabled={!hasPermission('library:delete_all')}
-                  title={!hasPermission('library:delete_all') ? t('fileManager.noPermissionDeleteFolder') : undefined}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  {t('common.delete')}
-                </button>
-              </div>
-              </>
-            )}
-          </div>
+        <div className={`flex-shrink-0 flex items-center gap-0.5 transition-opacity ${wrapNames ? '' : 'can-hover:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 has-[[aria-expanded=true]]:opacity-100'}`} onClick={(e) => e.stopPropagation()}>
+          <FolderActions folder={folder} onRename={onRename} onLink={onLink} onDelete={onDelete} hasPermission={hasPermission} t={t} />
         </div>
       </div>
       {hasChildren && expanded && (
@@ -712,7 +664,6 @@ function FolderTreeItem({ folder, selectedFolderId, onSelect, onDelete, onLink, 
 interface FileCardProps {
   file: LibraryFileListItem;
   isSelected: boolean;
-  isMobile: boolean;
   onSelect: (id: number) => void;
   onDelete: (id: number) => void;
   onDownload: (id: number) => void;
@@ -732,9 +683,7 @@ interface FileCardProps {
   t: TFunction;
 }
 
-function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, onPrint, onSlice, onRunPipeline, useSlicerApi, onPreview3d, onRename, onGenerateThumbnail, onTagClick, thumbnailVersion, hasPermission, canModify, authEnabled, showModified, t }: FileCardProps) {
-  const [showActions, setShowActions] = useState(false);
-
+function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onPrint, onSlice, onRunPipeline, useSlicerApi, onPreview3d, onRename, onGenerateThumbnail, onTagClick, thumbnailVersion, hasPermission, canModify, authEnabled, showModified, t }: FileCardProps) {
   return (
     <div
       className={`group relative bg-bambu-dark-secondary rounded-lg border transition-all cursor-pointer overflow-hidden ${
@@ -833,24 +782,17 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
         )}
       </div>
 
-      {/* Actions - always visible on mobile, hover on desktop */}
-      <div className={`absolute bottom-2 right-2 transition-opacity ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} onClick={(e) => e.stopPropagation()}>
-        <button
-          onClick={() => setShowActions(!showActions)}
-          className="p-1.5 rounded bg-bambu-dark-secondary/90 hover:bg-bambu-dark-tertiary"
-        >
-          <MoreVertical className="w-4 h-4 text-bambu-gray" />
-        </button>
-        {showActions && (
-          <>
-            <div className="fixed inset-0 z-10" onClick={() => setShowActions(false)} />
-            <div className="absolute right-0 bottom-8 z-20 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl py-1 min-w-[140px]">
+      {/* Touch actions stay visible; desktop actions also reveal on focus. */}
+      <div className="absolute bottom-2 right-2 transition-opacity can-hover:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 has-[[aria-expanded=true]]:opacity-100" onClick={(e) => e.stopPropagation()}>
+        <ActionMenu label={`${t('common.actions')}: ${file.print_name || file.filename}`} className="p-1.5 rounded bg-bambu-dark-secondary/90 hover:bg-bambu-dark-tertiary">
+          {(close) => <>
               {onPrint && isSlicedLibraryFile(file) && (
                 <button
+                  role="menuitem"
                   className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
                     hasPermission('queue:create') ? 'text-bambu-green hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
                   }`}
-                  onClick={() => { if (hasPermission('queue:create')) { onPrint(file); setShowActions(false); } }}
+                  onClick={() => { if (hasPermission('queue:create')) { close(); onPrint(file); } }}
                   disabled={!hasPermission('queue:create')}
                   title={!hasPermission('queue:create') ? t('fileManager.noPermissionAddToQueue') : undefined}
                 >
@@ -860,10 +802,11 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
               )}
               {onSlice && useSlicerApi && isSliceableLibraryFile(file) && (
                 <button
+                  role="menuitem"
                   className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
                     hasPermission('library:upload') ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
                   }`}
-                  onClick={() => { if (hasPermission('library:upload')) { onSlice(file); setShowActions(false); } }}
+                  onClick={() => { if (hasPermission('library:upload')) { close(); onSlice(file); } }}
                   disabled={!hasPermission('library:upload')}
                   title={!hasPermission('library:upload') ? t('fileManager.noPermissionSlice') : undefined}
                 >
@@ -882,10 +825,11 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
               )}
               {onRunPipeline && useSlicerApi && isSliceableLibraryFile(file) && (
                 <button
+                  role="menuitem"
                   className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
                     hasPermission('pipelines:run') ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
                   }`}
-                  onClick={() => { if (hasPermission('pipelines:run')) { onRunPipeline(file); setShowActions(false); } }}
+                  onClick={() => { if (hasPermission('pipelines:run')) { close(); onRunPipeline(file); } }}
                   disabled={!hasPermission('pipelines:run')}
                   title={!hasPermission('pipelines:run') ? t('library.runWithPipeline.noPermission') : undefined}
                 >
@@ -895,10 +839,11 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
               )}
               {onPreview3d && (file.file_type === '3mf' || file.file_type === 'gcode' || file.file_type === 'stl' || file.file_type === 'gcode.3mf') && (
                 <button
+                  role="menuitem"
                   className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
                     hasPermission('library:read') ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
                   }`}
-                  onClick={() => { if (hasPermission('library:read')) { onPreview3d(file); setShowActions(false); } }}
+                  onClick={() => { if (hasPermission('library:read')) { close(); onPreview3d(file); } }}
                   disabled={!hasPermission('library:read')}
                   title={!hasPermission('library:read') ? 'You do not have permission to preview files' : undefined}
                 >
@@ -907,10 +852,11 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
                 </button>
               )}
               <button
+                role="menuitem"
                 className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
                   hasPermission('library:read') ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
                 }`}
-                onClick={() => { if (hasPermission('library:read')) { onDownload(file.id); setShowActions(false); } }}
+                onClick={() => { if (hasPermission('library:read')) { close(); onDownload(file.id); } }}
                 disabled={!hasPermission('library:read')}
                 title={!hasPermission('library:read') ? t('fileManager.noPermissionDownload') : undefined}
               >
@@ -919,10 +865,11 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
               </button>
               {onRename && (
                 <button
+                  role="menuitem"
                   className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
                     canModify('library', 'update', file.created_by_id) ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
                   }`}
-                  onClick={() => { if (canModify('library', 'update', file.created_by_id)) { onRename(file); setShowActions(false); } }}
+                  onClick={() => { if (canModify('library', 'update', file.created_by_id)) { close(); onRename(file); } }}
                   disabled={!canModify('library', 'update', file.created_by_id)}
                   title={!canModify('library', 'update', file.created_by_id) ? t('fileManager.noPermissionRenameFile') : undefined}
                 >
@@ -932,10 +879,11 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
               )}
               {onGenerateThumbnail && file.file_type === 'stl' && (
                 <button
+                  role="menuitem"
                   className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
                     canModify('library', 'update', file.created_by_id) ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
                   }`}
-                  onClick={() => { if (canModify('library', 'update', file.created_by_id)) { onGenerateThumbnail(file); setShowActions(false); } }}
+                  onClick={() => { if (canModify('library', 'update', file.created_by_id)) { close(); onGenerateThumbnail(file); } }}
                   disabled={!canModify('library', 'update', file.created_by_id)}
                   title={!canModify('library', 'update', file.created_by_id) ? t('fileManager.noPermissionGenerateThumbnail') : undefined}
                 >
@@ -944,26 +892,26 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
                 </button>
               )}
               <button
+                role="menuitem"
                 className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
                   canModify('library', 'delete', file.created_by_id) ? 'text-red-700 dark:text-red-400 hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
                 }`}
-                onClick={() => { if (canModify('library', 'delete', file.created_by_id)) { onDelete(file.id); setShowActions(false); } }}
+                onClick={() => { if (canModify('library', 'delete', file.created_by_id)) { close(); onDelete(file.id); } }}
                 disabled={!canModify('library', 'delete', file.created_by_id)}
                 title={!canModify('library', 'delete', file.created_by_id) ? t('fileManager.noPermissionDeleteFile') : undefined}
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 {t('common.delete')}
               </button>
-            </div>
-          </>
-        )}
+          </>}
+        </ActionMenu>
       </div>
 
-      {/* Selection checkbox - always visible on mobile, hover on desktop */}
+      {/* Selection indicator follows the same pointer/focus visibility. */}
       <div className={`absolute top-2 left-2 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
         isSelected
           ? 'bg-bambu-green border-bambu-green'
-          : `border-white/30 bg-black/30 ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`
+          : 'border-white/30 bg-black/30 can-hover:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
       }`}>
         {isSelected && <div className="w-2 h-2 bg-white rounded-sm" />}
       </div>
@@ -1095,9 +1043,6 @@ export function FileManagerPage() {
   const [showModified, setShowModified] = useState<boolean>(
     () => localStorage.getItem('library-show-modified') === 'true'
   );
-
-  // Mobile detection for touch-friendly UI
-  const isMobile = useIsMobile();
 
   // Update selectedFolderId when URL parameter changes (e.g., navigating from Project or Archive page)
   useEffect(() => {
@@ -1803,7 +1748,8 @@ export function FileManagerPage() {
       {/* Main content */}
       <div className="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 min-h-0">
         {/* Mobile folder selector */}
-        <div className="lg:hidden">
+        <div className="lg:hidden flex items-center gap-2">
+          <div className="flex-1 min-w-0">
           <LegacySelect
             value={selectedFolderId !== null ? String(selectedFolderId) : `__top:${topLevelView}`}
             onChange={(e) => {
@@ -1840,6 +1786,12 @@ export function FileManagerPage() {
               ));
             })()}
           </LegacySelect>
+          </div>
+          {selectedFolder && <FolderActions folder={selectedFolder} hasPermission={hasPermission} t={t}
+            onRename={(folder) => setRenameItem({ type: 'folder', id: folder.id, name: folder.name })}
+            onLink={setLinkFolder}
+            onDelete={(id) => setDeleteConfirm({ type: 'folder', id })}
+          />}
         </div>
 
         {/* Folder sidebar - resizable, hidden on mobile */}
@@ -2372,7 +2324,6 @@ export function FileManagerPage() {
                     key={file.id}
                     file={file}
                     isSelected={selectedFiles.includes(file.id)}
-                    isMobile={isMobile}
                     t={t}
                     onSelect={handleFileSelect}
                     onDelete={(id) => setDeleteConfirm({ type: 'file', id })}

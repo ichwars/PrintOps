@@ -11,6 +11,8 @@ import { render } from '../utils';
 import { FileManagerPage } from '../../pages/FileManagerPage';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
+import userEvent from '@testing-library/user-event';
+import { setAuthToken } from '../../api/client';
 
 const baseFile = {
   file_size: 524288,
@@ -95,5 +97,49 @@ describe('FileManagerPage - STEP files and server-side slicing', () => {
 
     const hint = within(rowFor('flange.step')).getByLabelText(/STEP\/STP files cannot be sliced/i);
     expect(hint).toBeInTheDocument();
+  });
+
+  it('preserves the same file-type gates in portalled card menus', async () => {
+    vi.mocked(localStorage.getItem).mockReturnValue(null);
+    const user = userEvent.setup();
+    render(<FileManagerPage />);
+    await user.click(await screen.findByRole('button', { name: 'Actions: bracket.stl' }));
+    expect(screen.getByRole('menuitem', { name: 'Slice', exact: true })).toBeEnabled();
+    expect(screen.getByRole('menuitem', { name: 'Run with pipeline' })).toBeEnabled();
+    expect(screen.queryByRole('menuitem', { name: 'Print', exact: true })).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    for (const filename of ['flange.step', 'housing.stp']) {
+      await user.click(screen.getByRole('button', { name: `Actions: ${filename}` }));
+      expect(screen.queryByRole('menuitem', { name: 'Slice', exact: true })).not.toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Run with pipeline' })).not.toBeInTheDocument();
+      expect(screen.getByTitle(/STEP\/STP files cannot be sliced/i)).toBeInTheDocument();
+      await user.keyboard('{Escape}');
+    }
+  });
+
+  it('retains permission and ownership restrictions in the card menu', async () => {
+    vi.mocked(localStorage.getItem).mockReturnValue(null);
+    setAuthToken('test-only-token');
+    server.use(
+      http.get('*/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })),
+      http.get('/api/v1/auth/me', () => HttpResponse.json({
+        id: 1, username: 'reader', is_admin: false, is_active: true, groups: [],
+        permissions: ['library:read', 'library:update_own'],
+      })),
+      http.get('/api/v1/library/files', () => HttpResponse.json(mockFiles.map(file => ({ ...file, created_by_id: 2 })))),
+    );
+    try {
+      const user = userEvent.setup();
+      render(<FileManagerPage />);
+      await user.click(await screen.findByRole('button', { name: 'Actions: bracket.stl' }));
+      await waitFor(() => expect(screen.getByRole('menuitem', { name: 'Slice', exact: true })).toBeDisabled());
+      for (const name of ['Run with pipeline', 'Rename', 'Generate Thumbnail', 'Delete']) {
+        expect(screen.getByRole('menuitem', { name, exact: true })).toBeDisabled();
+      }
+      expect(screen.getByRole('menuitem', { name: 'Download' })).toBeEnabled();
+      expect(screen.getByRole('menuitem', { name: '3D Preview' })).toBeEnabled();
+    } finally {
+      setAuthToken(null);
+    }
   });
 });

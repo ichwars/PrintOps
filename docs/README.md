@@ -24,6 +24,7 @@ Screenshots gehören nicht in das Repository.
 | Betrieb | [H2C-Nozzle-Mapping-Audit](h2c-nozzle-mapping-dispatch-audit.md) | Software-Sicherheitsgrenze und Hardware-Freigabenachweis für physische H2C-Düsen-IDs |
 | Entwicklung | [README Editorial Guide](readme-editorial-guide.md) | Zielgruppen, Positionierung und Regeln für die zentrale Projekt-README |
 | Browser | [Browser-Kompatibilität](browser-compatibility.md) | Safari-16-Syntaxbaseline, README-Markdown und Grenzen der PDF-Vorschau |
+| Bedienung | [Touch und Tastatur](touch-and-keyboard-controls.md) | Sichtbare Karten-/Zeilenaktionen, Ordnermenüs und Fokusnavigation |
 
 Die allgemeine Projektübersicht, Installation und erste Schritte stehen in der
 [README im Projektstamm](../README.md).
