@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronRight, Search } from 'lucide-react';
 import { TextField } from './ui';
+import { listenForOutsideScroll } from '../utils/outsideScroll';
 
 export interface ContextMenuItem {
   label: string;
@@ -117,11 +119,21 @@ function SubmenuPanel({
 
 export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<number | null>(null);
   const submenuTimeoutRef = useRef<number | null>(null);
   const [position, setPosition] = useState({ x, y, visible: false });
   const [openSubmenuLeft, setOpenSubmenuLeft] = useState(false);
   const [submenuPositions, setSubmenuPositions] = useState<Record<number, 'top' | 'bottom'>>({});
+
+  useEffect(() => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }, []);
+
+  useEffect(() => {
+    // Browsers reject focus while positioning still has visibility:hidden.
+    if (position.visible) menuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true });
+  }, [position.visible]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -132,27 +144,23 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.preventDefault();
+        returnFocusRef.current?.focus({ preventScroll: true });
         onClose();
       }
     };
 
-    const handleScroll = (e: Event) => {
-      // Internal submenu scroll (overflow-y-auto on the submenu panel) must
-      // not dismiss the menu — only close on scroll outside our own subtree.
-      if (menuRef.current && menuRef.current.contains(e.target as Node)) {
-        return;
-      }
-      onClose();
-    };
+    const stopScrollListener = menuRef.current
+      ? listenForOutsideScroll(menuRef.current, returnFocusRef.current, onClose)
+      : undefined;
 
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleEscape);
-    document.addEventListener('scroll', handleScroll, true);
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscape);
-      document.removeEventListener('scroll', handleScroll, true);
+      stopScrollListener?.();
       if (submenuTimeoutRef.current) {
         clearTimeout(submenuTimeoutRef.current);
       }
@@ -229,9 +237,25 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     }, 150);
   };
 
-  return (
+  return createPortal(
     <div
       ref={menuRef}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (event.key === 'Tab') {
+          returnFocusRef.current?.focus({ preventScroll: true });
+          onClose();
+          return;
+        }
+        if (event.target instanceof HTMLInputElement || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+        if (!buttons.length) return;
+        const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+          : (current + (event.key === 'ArrowUp' ? -1 : 1) + buttons.length) % buttons.length;
+        buttons[next].focus();
+      }}
       className="fixed z-50 min-w-[180px] max-w-[280px] bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl py-1"
       style={{
         left: position.x,
@@ -299,6 +323,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
           </div>
         );
       })}
-    </div>
+    </div>,
+    document.body,
   );
 }

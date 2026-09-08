@@ -19,7 +19,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   ChevronRight,
-  MoreVertical,
   Download,
   Upload,
   ExternalLink,
@@ -29,6 +28,7 @@ import {
 import { api } from '../api/client';
 import type { ProjectListItem, ProjectCreate, ProjectUpdate, ProjectImport, Permission } from '../api/client';
 import { Button } from '../components/Button';
+import { ActionMenu } from '../components/ui/ActionMenu';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -541,7 +541,6 @@ function ProjectCard({ project, parentName, onClick, onEdit, onDelete, hasPermis
     : 0;
   const isCompleted = project.status === 'completed';
   const isArchived = project.status === 'archived';
-  const [showActions, setShowActions] = useState(false);
 
   // Status icon and color
   const getStatusConfig = () => {
@@ -705,22 +704,16 @@ function ProjectCard({ project, parentName, onClick, onEdit, onDelete, hasPermis
           </div>
 
           {/* Actions menu */}
-          <div className="relative" onClick={(e) => e.stopPropagation()}>
-            <button
-              className="p-1.5 rounded-lg hover:bg-bambu-dark text-bambu-gray hover:text-white transition-colors opacity-0 group-hover:opacity-100"
-              onClick={() => setShowActions(!showActions)}
-            >
-              <MoreVertical className="w-4 h-4" />
-            </button>
-            {showActions && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowActions(false)} />
-                <div className="absolute right-0 top-8 z-20 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl py-1 min-w-[120px]">
+          <div onClick={(e) => e.stopPropagation()}>
+            <ActionMenu label={`${t('common.actions')}: ${project.name}`}
+              className="p-1.5 rounded-lg hover:bg-bambu-dark text-bambu-gray hover:text-white transition-colors can-hover:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100">
+              {(close) => <>
                   <button
+                    role="menuitem"
                     className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
                       hasPermission('projects:update') ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
                     }`}
-                    onClick={() => { if (hasPermission('projects:update')) { onEdit(); setShowActions(false); } }}
+                    onClick={() => { if (hasPermission('projects:update')) { close(); onEdit(); } }}
                     disabled={!hasPermission('projects:update')}
                     title={!hasPermission('projects:update') ? t('projects.noEditPermission') : undefined}
                   >
@@ -728,19 +721,19 @@ function ProjectCard({ project, parentName, onClick, onEdit, onDelete, hasPermis
                     {t('common.edit')}
                   </button>
                   <button
+                    role="menuitem"
                     className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
                       hasPermission('projects:delete') ? 'text-red-600 dark:text-red-400 hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
                     }`}
-                    onClick={() => { if (hasPermission('projects:delete')) { onDelete(); setShowActions(false); } }}
+                    onClick={() => { if (hasPermission('projects:delete')) { close(); onDelete(); } }}
                     disabled={!hasPermission('projects:delete')}
                     title={!hasPermission('projects:delete') ? t('projects.noDeletePermission') : undefined}
                   >
                     <Trash2 className="w-4 h-4" />
                     {t('common.delete')}
                   </button>
-                </div>
-              </>
-            )}
+              </>}
+            </ActionMenu>
           </div>
         </div>
 

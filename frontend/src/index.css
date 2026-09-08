@@ -26,6 +26,10 @@
 /* Enable class-based dark mode for Tailwind v4 */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Hide secondary actions only for a precise, hover-capable pointer. Touch
+   controls stay visible at every viewport width; focus reveals desktop ones. */
+@custom-variant can-hover (@media (hover: hover) and (pointer: fine));
+
 @theme {
   /* Accent colors - use CSS variables for theming */
   --color-bambu-green: var(--accent);

@@ -333,11 +333,11 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      - name: Install browser for production README smoke test
+      - name: Install browser for production UI smoke tests
         working-directory: frontend
         run: npx playwright install --with-deps chromium
 
-      - name: Verify production README in Chromium
+      - name: Verify production README and touch actions in Chromium
         working-directory: frontend
         run: |
           npm run preview -- --host 127.0.0.1 --port 4184 --strictPort &
@@ -348,6 +348,7 @@ jobs:
             sleep 1
           done
           npm run check:browser-runtime
+          npx playwright test --config playwright.production.config.ts
 
   # ============================================================================
   # Docker Tests (matches test_docker.sh)
