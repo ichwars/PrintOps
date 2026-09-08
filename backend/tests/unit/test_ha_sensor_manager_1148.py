@@ -306,3 +306,43 @@ class TestNotificationEdge:
         await self._apply(manager, sensor, {sensor.entity_id: {"state": "on"}}, notify)
 
         assert notify.on_ha_sensor_alert.await_count == 1
+
+
+class TestLastStatePersistence:
+    """Persisted states fit the column without changing cache semantics (#143)."""
+
+    @pytest.mark.asyncio
+    async def test_unchanged_long_state_does_not_churn_last_changed(self):
+        manager = HASensorManager()
+        unchanged_at = object()
+        sensor = _sensor(
+            last_state="x" * 64,
+            last_changed=unchanged_at,
+            last_checked=None,
+        )
+        db = AsyncMock()
+
+        with patch("backend.app.services.notification_service.notification_service", AsyncMock()):
+            await manager._apply(db, [sensor], {sensor.entity_id: {"state": "x" * 500}})
+
+        assert sensor.last_state == "x" * 64
+        assert sensor.last_changed is unchanged_at
+        assert manager.get_reading(sensor.id).state == "x" * 500
+
+    @pytest.mark.asyncio
+    async def test_refresh_one_limits_only_the_persisted_state(self):
+        manager = HASensorManager()
+        sensor = _sensor(last_changed=None, last_checked=None)
+        db = AsyncMock()
+
+        with (
+            patch.object(manager, "_configure", AsyncMock(return_value=True)),
+            patch(
+                "backend.app.services.ha_sensor_manager.homeassistant_service.fetch_states",
+                AsyncMock(return_value={sensor.entity_id: {"state": "y" * 300}}),
+            ),
+        ):
+            await manager.refresh_one(db, sensor)
+
+        assert sensor.last_state == "y" * 64
+        assert manager.get_reading(sensor.id).state == "y" * 300

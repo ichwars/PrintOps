@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.printer import Printer
-from backend.app.models.printer_ha_sensor import PrinterHASensor
+from backend.app.models.printer_ha_sensor import LAST_STATE_MAX_LENGTH, PrinterHASensor
 from backend.app.services.homeassistant import as_float, homeassistant_service
 from backend.app.utils.local_time import utcnow_naive
 
@@ -45,6 +45,11 @@ class SensorReading:
     value: float | None  # parsed number for numeric sensors
     alerting: bool
     reachable: bool
+
+
+def persistable_state(state: str | None, max_length: int) -> str | None:
+    """Fit a raw HA state into a bounded ``last_state`` column."""
+    return state[:max_length] if state is not None else None
 
 
 @dataclass(frozen=True)
@@ -224,8 +229,9 @@ class HASensorManager:
             self._last_alerting[sensor.id] = reading.alerting
 
         sensor.last_checked = utcnow_naive()
-        if reading.reachable and sensor.last_state != reading.state:
-            sensor.last_state = reading.state
+        persisted = persistable_state(reading.state, LAST_STATE_MAX_LENGTH)
+        if reading.reachable and sensor.last_state != persisted:
+            sensor.last_state = persisted
             sensor.last_changed = sensor.last_checked
         await db.commit()
         await db.refresh(sensor)
@@ -258,8 +264,9 @@ class HASensorManager:
 
             sensor.last_checked = now
             if reading.reachable:
-                if sensor.last_state != reading.state:
-                    sensor.last_state = reading.state
+                persisted = persistable_state(reading.state, LAST_STATE_MAX_LENGTH)
+                if sensor.last_state != persisted:
+                    sensor.last_state = persisted
                     sensor.last_changed = now
 
             # Notify on the edge into alerting only. `was_alerting is None` is

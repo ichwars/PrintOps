@@ -5,6 +5,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.core.database import Base
 
+LAST_STATE_MAX_LENGTH = 64
+
 
 class PrinterHASensor(Base):
     """A read-only Home Assistant entity bound to a printer (#1148, #448).
@@ -62,7 +64,7 @@ class PrinterHASensor(Base):
 
     # Last poll result. Persisted so a restart doesn't blank the card until the
     # first poll lands, and so notifications only fire on a real transition.
-    last_state: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_state: Mapped[str | None] = mapped_column(String(LAST_STATE_MAX_LENGTH), nullable=True)
     last_changed: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_checked: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
