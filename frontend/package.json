@@ -13,6 +13,7 @@
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
     "check:i18n": "node scripts/check-i18n-parity.mjs",
+    "check:browser-runtime": "node scripts/check-browser-runtime.mjs",
     "check:order-master-data-generated": "node scripts/verify-order-master-data-unicode.mjs --generated-only",
     "verify:order-master-data-unicode": "node scripts/verify-order-master-data-unicode.mjs"
   },
@@ -37,6 +38,14 @@
     "i18next-browser-languagedetector": "^8.2.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.555.0",
+    "mdast-util-gfm-footnote": "^2.1.0",
+    "mdast-util-gfm-strikethrough": "^2.0.0",
+    "mdast-util-gfm-table": "^2.0.0",
+    "mdast-util-gfm-task-list-item": "^2.0.0",
+    "micromark-extension-gfm-footnote": "^2.1.0",
+    "micromark-extension-gfm-strikethrough": "^2.1.0",
+    "micromark-extension-gfm-table": "^2.1.1",
+    "micromark-extension-gfm-task-list-item": "^2.1.0",
     "pdfjs-dist": "6.2.108",
     "qrcode.react": "^4.2.0",
     "react": "19.2.8",
@@ -46,7 +55,6 @@
     "react-router": "8.3.0",
     "react-simple-keyboard": "^3.8.164",
     "recharts": "^3.5.1",
-    "remark-gfm": "^4.0.1",
     "three": "^0.181.2"
   },
   "overrides": {
@@ -62,6 +70,7 @@
     }
   },
   "devDependencies": {
+    "@eslint-community/regexpp": "^4.12.2",
     "@eslint/js": "^9.39.1",
     "@playwright/test": "1.61.1",
     "@tailwindcss/postcss": "^4.1.17",
@@ -73,6 +82,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.2.0",
     "@vitest/coverage-v8": "^4.1.8",
+    "acorn": "^8.15.0",
     "autoprefixer": "^10.4.22",
     "baseline-browser-mapping": "^2.9.19",
     "eslint": "^9.39.1",

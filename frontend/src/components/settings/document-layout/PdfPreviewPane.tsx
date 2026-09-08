@@ -7,7 +7,8 @@ import {
   type PDFDocumentProxy,
   type RenderTask,
 } from 'pdfjs-dist';
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+// Process the worker through the same syntax target as the app, not as a raw asset.
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?worker&url';
 import {
   useEffect,
   useMemo,

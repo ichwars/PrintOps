@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import remarkGfmNoAutolink from '../utils/remarkGfmNoAutolink';
 
 import { api } from '../api/client';
 
@@ -13,8 +13,8 @@ interface FolderReadmePanelProps {
 
 /**
  * Side panel that renders a `.md` file from the selected folder (#1268).
- * Hidden when the folder has no markdown file. Disables raw HTML and links
- * stay text-only — same posture as the print-archive note panel.
+ * Hidden when the folder has no markdown file. Raw HTML is not interpreted;
+ * Markdown links use ReactMarkdown's URL filtering and opener protection.
  */
 export function FolderReadmePanel({ folderId }: FolderReadmePanelProps) {
   const { t } = useTranslation();
@@ -56,7 +56,7 @@ export function FolderReadmePanel({ folderId }: FolderReadmePanelProps) {
       {!collapsed && (
         <div className="px-4 py-3 border-t border-bambu-dark-tertiary max-h-96 overflow-y-auto text-sm text-bambu-gray-light leading-relaxed space-y-2">
           <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
+            remarkPlugins={[remarkGfmNoAutolink]}
             components={{
               h1: ({ children }) => <h1 className="text-lg font-semibold text-white mt-2 mb-1">{children}</h1>,
               h2: ({ children }) => <h2 className="text-base font-semibold text-white mt-2 mb-1">{children}</h2>,

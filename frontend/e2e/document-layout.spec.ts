@@ -50,6 +50,13 @@ async function installDocumentLayoutApi(page: Page, evidenceKind: EvidenceKind |
     if (pathname === '/api/v1/auth/status') {
       return respond(route, { auth_enabled: false, requires_setup: false });
     }
+    if (pathname === '/api/v1/auth/encryption-status') {
+      return respond(route, {
+        key_configured: true, key_source: 'generated', decryption_broken: false, migration_error_count: 0,
+        legacy_plaintext_rows: { oidc_providers: 0, user_totp: 0 },
+        encrypted_rows: { oidc_providers: 0, user_totp: 0 },
+      });
+    }
     if (pathname === '/api/v1/business-profiles/options') {
       return respond(route, [{
         id: 2,
@@ -238,7 +245,7 @@ async function installDocumentLayoutApi(page: Page, evidenceKind: EvidenceKind |
 async function openWorkspace(page: Page) {
   await page.goto('/settings?tab=orders-calculation&sub=format-preview');
   await expect(page.locator('#document-layout-workspace')).toBeVisible();
-  await expect(page.locator('#document-layout-workspace').getByRole('heading', { name: /Format & Preview/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Format & Preview/i })).toBeVisible();
   await expect(page.getByRole('img', { name: 'PDF page 1' })).toBeVisible();
 }
 
@@ -291,6 +298,20 @@ test.describe('document layout desktop workflow', () => {
     await page.getByRole('button', { name: /Confirm/i }).click();
     await expect.poll(() => state.detail.summary.status).toBe('active');
   });
+});
+
+test('PDF preview survives native worker rejection using its module fallback', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.Worker = class extends Worker {
+      constructor(...args: ConstructorParameters<typeof Worker>) {
+        super(...args);
+        this.terminate();
+        throw new Error('Native workers blocked by baseline test');
+      }
+    };
+  });
+  await installDocumentLayoutApi(page);
+  await openWorkspace(page);
 });
 
 test.describe('document layout mobile workflow', () => {
