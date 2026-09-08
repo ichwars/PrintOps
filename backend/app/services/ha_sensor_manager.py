@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.printer import Printer
-from backend.app.models.printer_ha_sensor import PrinterHASensor
+from backend.app.models.printer_ha_sensor import LAST_STATE_MAX_LENGTH, PrinterHASensor
 from backend.app.services.homeassistant import as_float, homeassistant_service
 from backend.app.utils.local_time import utcnow_naive
 
@@ -45,6 +45,19 @@ class SensorReading:
     value: float | None  # parsed number for numeric sensors
     alerting: bool
     reachable: bool
+
+
+def persist_sensor_reading(sensor: PrinterHASensor, reading: SensorReading, previous: SensorReading | None) -> None:
+    """Bound storage while preserving observable raw-state transitions."""
+    if not reading.reachable:
+        return
+    persisted = reading.state[:LAST_STATE_MAX_LENGTH] if reading.state is not None else None
+    # After a restart/dropout only the bounded DB value can be compared.
+    # With a valid cached reading, changes beyond the column width count too.
+    raw_changed = previous is not None and previous.reachable and previous.state != reading.state
+    if sensor.last_state != persisted or raw_changed:
+        sensor.last_changed = sensor.last_checked
+    sensor.last_state = persisted
 
 
 @dataclass(frozen=True)
@@ -212,6 +225,7 @@ class HASensorManager:
         entity, and must not fire another user's notification as a side effect
         of this one saving a form.
         """
+        previous = self._readings.get(sensor.id)
         self.forget(sensor.id)
         if not await self._configure(db):
             self._readings[sensor.id] = SensorReading(None, None, False, False)
@@ -224,9 +238,7 @@ class HASensorManager:
             self._last_alerting[sensor.id] = reading.alerting
 
         sensor.last_checked = utcnow_naive()
-        if reading.reachable and sensor.last_state != reading.state:
-            sensor.last_state = reading.state
-            sensor.last_changed = sensor.last_checked
+        persist_sensor_reading(sensor, reading, previous)
         await db.commit()
         await db.refresh(sensor)
 
@@ -254,13 +266,11 @@ class HASensorManager:
             payload = states.get(sensor.entity_id)
             reading = evaluate(sensor, payload)
             was_alerting = self._last_alerting.get(sensor.id)
+            previous = self._readings.get(sensor.id)
             self._readings[sensor.id] = reading
 
             sensor.last_checked = now
-            if reading.reachable:
-                if sensor.last_state != reading.state:
-                    sensor.last_state = reading.state
-                    sensor.last_changed = now
+            persist_sensor_reading(sensor, reading, previous)
 
             # Notify on the edge into alerting only. `was_alerting is None` is
             # a cold cache (first poll after a restart) — a door that was

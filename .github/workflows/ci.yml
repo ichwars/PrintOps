@@ -190,6 +190,9 @@ jobs:
       - name: Run live PostgreSQL migration tests
         run: python -m pytest backend/tests/postgres/test_issue_142_postgres_runtime.py -q
 
+      - name: Run live PostgreSQL sensor persistence tests
+        run: python -m pytest backend/tests/integration/test_issue_143_ha_sensor_persistence.py -q
+
   # ============================================================================
   # Frontend Checks
   # ============================================================================
