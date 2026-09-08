@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronRight, Search } from 'lucide-react';
 import { TextField } from './ui';
+import { listenForOutsideScroll } from '../utils/outsideScroll';
 
 export interface ContextMenuItem {
   label: string;
@@ -149,23 +150,17 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
       }
     };
 
-    const handleScroll = (e: Event) => {
-      // Internal submenu scroll (overflow-y-auto on the submenu panel) must
-      // not dismiss the menu — only close on scroll outside our own subtree.
-      if (menuRef.current && menuRef.current.contains(e.target as Node)) {
-        return;
-      }
-      onClose();
-    };
+    const stopScrollListener = menuRef.current
+      ? listenForOutsideScroll(menuRef.current, returnFocusRef.current, onClose)
+      : undefined;
 
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleEscape);
-    document.addEventListener('scroll', handleScroll, true);
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscape);
-      document.removeEventListener('scroll', handleScroll, true);
+      stopScrollListener?.();
       if (submenuTimeoutRef.current) {
         clearTimeout(submenuTimeoutRef.current);
       }

@@ -81,7 +81,11 @@ describe('ActionMenu', () => {
     await user.click(trigger);
     fireEvent.scroll(screen.getByRole('menu').parentElement!);
     expect(screen.getByRole('menu')).toBeInTheDocument();
+    // A deferred focus-scroll event with unchanged offsets is not new scrolling.
     fireEvent.scroll(document);
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    trigger.parentElement!.scrollTop = 10;
+    fireEvent.scroll(trigger.parentElement!);
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
     await user.click(trigger);
     expect(screen.getByRole('menu')).toBeInTheDocument();

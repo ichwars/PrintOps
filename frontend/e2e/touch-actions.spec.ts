@@ -114,6 +114,10 @@ test.describe('short touch viewport', () => {
     await page.getByRole('button', { name: 'Actions: gear.stl', exact: true }).tap();
     const menu = page.getByRole('menu', { name: 'Actions: gear.stl' });
     const layer = menu.locator('..');
+    // Reproduce a queued notification from scrolling the trigger into view.
+    // No position changed since opening, so this must not dismiss the popup.
+    await page.evaluate(() => document.dispatchEvent(new Event('scroll')));
+    await expect(menu).toBeVisible();
     await expect.poll(() => layer.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
     await page.keyboard.press('End');
     await hitTarget(menu.getByRole('menuitem', { name: 'Delete', exact: true }));

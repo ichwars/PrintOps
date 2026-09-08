@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { MoreVertical } from 'lucide-react';
 import { FloatingLayer } from './FloatingLayer';
+import { listenForOutsideScroll } from '../../utils/outsideScroll';
 
 interface ActionMenuProps {
   label: string;
@@ -29,12 +30,8 @@ export function ActionMenu({ label, className = '', children }: ActionMenuProps)
     const target = initialFocus.current === 'last' ? buttons?.[buttons.length - 1] : buttons?.[0];
     (target ?? menu)?.focus({ preventScroll: true });
 
-    const dismissOnScroll = (event: Event) => {
-      // FloatingLayer (the parent) owns overflow scrolling, not the menu div.
-      if (!menu?.parentElement?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('scroll', dismissOnScroll, true);
-    return () => document.removeEventListener('scroll', dismissOnScroll, true);
+    // FloatingLayer (the parent) owns overflow scrolling, not the menu div.
+    if (menu?.parentElement) return listenForOutsideScroll(menu.parentElement, anchorRef.current, () => setOpen(false));
   }, [open]);
 
   return (
