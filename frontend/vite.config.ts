@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 import fs from 'fs'
 import type { Connect, Plugin } from 'vite'
+import { browserBaseline } from './scripts/browserBaseline'
 
 // Backend port for dev server proxy (default: 8000)
 const backendPort = process.env.BACKEND_PORT || '8000'
@@ -102,11 +103,20 @@ export default defineConfig({
   // fix for subpath reverse proxies (#1195, wontfix) is reverted — that
   // audience uses NPM + Cloudflare Tunnel at a real domain per the
   // documented workaround, which doesn't depend on this setting.
-  plugins: [react(), serveGcodeViewer(), emitLocaleAssetManifest()],
+  plugins: [react(), serveGcodeViewer(), emitLocaleAssetManifest(), browserBaseline()],
   build: {
+    target: ['chrome111', 'edge111', 'firefox114', 'safari16', 'ios16'],
     outDir: '../static',
     emptyOutDir: true,
     chunkSizeWarningLimit: 3000,
+  },
+  worker: {
+    format: 'es',
+    // PDF.js also dynamically imports this module when native workers fail.
+    plugins: () => [{
+      name: 'preserve-worker-module-exports',
+      options: (options) => ({ ...options, preserveEntrySignatures: 'strict' }),
+    }],
   },
   server: {
     host: '0.0.0.0',

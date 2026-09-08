@@ -23,6 +23,7 @@ Screenshots gehören nicht in das Repository.
 | Upstream | [H2C- und Home-Assistant-Funktionen 2026-08-27](upstream-h2c-home-assistant-evaluation-2026-08-27.md) | Gerätebestand, Sensorzustände, Interlock-Fallbacks und Folgeissues |
 | Betrieb | [H2C-Nozzle-Mapping-Audit](h2c-nozzle-mapping-dispatch-audit.md) | Software-Sicherheitsgrenze und Hardware-Freigabenachweis für physische H2C-Düsen-IDs |
 | Entwicklung | [README Editorial Guide](readme-editorial-guide.md) | Zielgruppen, Positionierung und Regeln für die zentrale Projekt-README |
+| Browser | [Browser-Kompatibilität](browser-compatibility.md) | Safari-16-Syntaxbaseline, README-Markdown und Grenzen der PDF-Vorschau |
 
 Die allgemeine Projektübersicht, Installation und erste Schritte stehen in der
 [README im Projektstamm](../README.md).
