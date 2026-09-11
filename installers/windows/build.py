@@ -78,8 +78,8 @@ VCRUNTIME_DLLS = ("vcruntime140_1.dll", "msvcp140.dll")
 # Official, immutable Windows runtimes used by the commercial-document
 # pipeline.  The WeasyPrint standalone binary contains its matching native
 # Pango/GTK stack; Temurin supplies the Java runtime required by veraPDF.
-WEASYPRINT_RUNTIME_URL = "https://github.com/Kozea/WeasyPrint/releases/download/v69.0/weasyprint-windows.zip"
-WEASYPRINT_RUNTIME_SHA256 = "330101ff3ea50ebde4abf805283b6d703d5f3d71c77c983db94357ec4524a3ef"
+WEASYPRINT_RUNTIME_URL = "https://github.com/Kozea/WeasyPrint/releases/download/v70.0/weasyprint-windows-onedir.zip"
+WEASYPRINT_RUNTIME_SHA256 = "ab1151f210b4e6bb7aa7a79e91a67e8ddb760094c107bfda55241b6aaefe7d53"
 TEMURIN_JRE_URL = (
     "https://github.com/adoptium/temurin21-binaries/releases/download/"
     "jdk-21.0.10%2B7/OpenJDK21U-jre_x64_windows_hotspot_21.0.10_7.zip"
@@ -347,7 +347,7 @@ def stage_document_runtimes(python_dir: Path, *, verify_only: bool = False) -> N
 
     weasy_zip = download_verified(
         WEASYPRINT_RUNTIME_URL,
-        DOWNLOADS / "weasyprint-69.0-windows.zip",
+        DOWNLOADS / "weasyprint-70.0-windows-onedir.zip",
         WEASYPRINT_RUNTIME_SHA256,
     )
     jre_zip = download_verified(
@@ -363,6 +363,10 @@ def stage_document_runtimes(python_dir: Path, *, verify_only: bool = False) -> N
     if weasy_target.exists():
         shutil.rmtree(weasy_target)
     unzip(weasy_zip, weasy_target)
+    # v70's onedir distribution includes the native DLLs in _internal.
+    # Preserve our installed CLI path; move the complete runtime, not just EXE.
+    (weasy_target / "onedir" / "weasyprint").rename(weasy_target / "dist")
+    (weasy_target / "onedir").rmdir()
     weasy_exe = weasy_target / "dist" / "weasyprint.exe"
     if not weasy_exe.exists():
         raise RuntimeError(f"official WeasyPrint executable missing at {weasy_exe}")

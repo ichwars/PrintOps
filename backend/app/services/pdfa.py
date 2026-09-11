@@ -20,7 +20,7 @@ from backend.app.services.einvoice.zugferd import (
 
 _ICC_PACKAGE = "backend.app.resources.pdf"
 _ICC_FILENAME = "sRGB.icc"
-_PRODUCER = "PrintOps document renderer / WeasyPrint 69.0 / pikepdf 10.10.0"
+_PRODUCER = "PrintOps document renderer / WeasyPrint 70.0 / pikepdf 10.10.0"
 _BOX_TOLERANCE_PT = 0.1
 _RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
 _PDFA_EXTENSION_NS = "http://www.aiim.org/pdfa/ns/extension/"

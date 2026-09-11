@@ -86,7 +86,9 @@ def test_ten_page_document_and_long_position_render_within_hard_limit(tmp_path):
                 "description": f"Position {number}: {base.description}",
             }
         )
-        for number in range(1, 81)
+        # v70's Pango/layout stack fits 80 positions on nine pages. Ninety
+        # positions retain this test's ten-page workload (not a golden layout).
+        for number in range(1, 91)
     )
     request = _request("compact")
     request = RenderInput(

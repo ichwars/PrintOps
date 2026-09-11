@@ -40,10 +40,13 @@ jobs:
         run: pip install --require-hashes -r requirements-dev.lock.txt
 
       - name: Run ruff check
-        run: ruff check backend/
+        run: ruff check backend/ installers/windows/build.py installers/windows/tests/
 
       - name: Run ruff format check
-        run: ruff format --check backend/
+        run: ruff format --check backend/ installers/windows/build.py installers/windows/tests/
+
+      - name: Test Windows PDF runtime packaging
+        run: python -m pytest installers/windows/tests/ --no-cov -q
 
       - name: Run source size budget
         run: python tools/check_source_size_budget.py
@@ -309,7 +312,7 @@ jobs:
         working-directory: frontend
         # V8 coverage instrumentation makes the largest jsdom integration
         # tests slower on shared runners; keep the normal 10s limit unchanged.
-        run: npm run test:coverage -- --testTimeout=20000 && npm run check:i18n
+        run: npm run test:coverage -- --testTimeout=20000 && npm run check:i18n && npm run check:mocker-security
 
   frontend-build:
     name: Frontend Build
