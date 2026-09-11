@@ -12,7 +12,7 @@ RESOURCE_DIR = REPO_ROOT / "backend" / "app" / "resources" / "pdf"
 
 
 def test_python_pdf_packages_are_exactly_pinned() -> None:
-    assert version("weasyprint") == "69.0"
+    assert version("weasyprint") == "70.0"
     assert version("pikepdf") == "10.10.0"
     assert version("fonttools") == "4.63.0"
 
@@ -36,3 +36,14 @@ def test_srgb_output_intent_matches_manifest_receipt() -> None:
     assert len(content) >= 3_000
     assert hashlib.sha256(content).hexdigest() == manifest["srgb"]["sha256"]
     assert manifest["srgb"]["color_space"] == "RGB"
+
+
+def test_renderer_manifest_and_receipt_track_installed_runtime() -> None:
+    from backend.app.services.document_layout_catalog import RENDERER_VERSION
+
+    manifest = json.loads((RESOURCE_DIR / "runtime-manifest.json").read_text(encoding="utf-8"))
+    for package, pinned in manifest["renderer"].items():
+        assert version(package) == pinned
+    assert f"weasyprint-{version('weasyprint')}+pikepdf-{version('pikepdf')}" == RENDERER_VERSION
+    key = RESOURCE_DIR / manifest["verapdf"]["signing_key"]
+    assert hashlib.sha256(key.read_bytes()).hexdigest() == manifest["verapdf"]["signing_key_sha256"]

@@ -209,7 +209,9 @@ def test_ten_page_document_renders_within_release_budget(tmp_path):
     if not WEASYPRINT.exists():
         pytest.skip("pinned WeasyPrint runtime is not staged")
     sample = load_sample("invoice-de-standard")
-    expanded = sample.model_copy(update={"lines": sample.lines * 14})
+    # Keep a >=10-page workload with v70's denser pagination; do not relax
+    # either the minimum page count or the ten-second release budget.
+    expanded = sample.model_copy(update={"lines": sample.lines * 16})
     renderer = DocumentRenderer(
         engine_cli=WEASYPRINT,
         cache_dir=tmp_path / "cache",

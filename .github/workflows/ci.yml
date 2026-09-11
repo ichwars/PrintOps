@@ -309,7 +309,7 @@ jobs:
         working-directory: frontend
         # V8 coverage instrumentation makes the largest jsdom integration
         # tests slower on shared runners; keep the normal 10s limit unchanged.
-        run: npm run test:coverage -- --testTimeout=20000 && npm run check:i18n
+        run: npm run test:coverage -- --testTimeout=20000 && npm run check:i18n && npm run check:mocker-security
 
   frontend-build:
     name: Frontend Build

@@ -39,7 +39,7 @@ def test_catalog_is_closed_complete_and_versioned():
     assert set(PAGE_FORMATS_MM) == {"A4", "Letter"}
     assert SUPPORTED_LANGUAGES == ("de", "en")
     assert set(SUPPORTED_DOCUMENT_TYPES) == {document_type.value for document_type in DocumentType}
-    assert RENDERER_VERSION == "weasyprint-69.0+pikepdf-10.10.0"
+    assert RENDERER_VERSION == "weasyprint-70.0+pikepdf-10.10.0"
     assert VALIDATOR_VERSION == "verapdf-1.30.2"
     assert LAYOUT_SECTION_KEYS == (
         "page",
