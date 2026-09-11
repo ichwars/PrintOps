@@ -40,10 +40,13 @@ jobs:
         run: pip install --require-hashes -r requirements-dev.lock.txt
 
       - name: Run ruff check
-        run: ruff check backend/
+        run: ruff check backend/ installers/windows/build.py installers/windows/tests/
 
       - name: Run ruff format check
-        run: ruff format --check backend/
+        run: ruff format --check backend/ installers/windows/build.py installers/windows/tests/
+
+      - name: Test Windows PDF runtime packaging
+        run: python -m pytest installers/windows/tests/ --no-cov -q
 
       - name: Run source size budget
         run: python tools/check_source_size_budget.py

@@ -1,4 +1,4 @@
-"""Keep v70's complete onedir runtime at PrintOps' stable installed CLI path."""
+"""Portable installer tests for PrintOps' stable Windows PDF runtime path."""
 
 from __future__ import annotations
 

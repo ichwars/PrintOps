@@ -33,6 +33,8 @@ WeasyPrint; explicit trusted file inputs are not URL-fetcher policy inputs.
   against SHA-256 `ab1151f210b4e6bb7aa7a79e91a67e8ddb760094c107bfda55241b6aaefe7d53`.
   The complete runtime, including `_internal` native libraries, is staged at
   the existing `runtime/weasyprint/dist/weasyprint.exe` path.
+  Portable packaging tests live under `installers/windows/tests/` and run in
+  backend-lint CI; they do not require installer sources in the Docker image.
 - New render receipts, cache fingerprints, and PDF producer metadata identify
   WeasyPrint 70.0. Previously issued artifacts and their immutable 69.0 receipts
   are not rewritten. The append-only schema tests intentionally retain the
