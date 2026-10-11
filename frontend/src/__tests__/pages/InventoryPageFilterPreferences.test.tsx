@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useEffect } from 'react';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
@@ -104,7 +105,8 @@ describe('inventory filter preferences', () => {
   it('preserves unsaved inventory column visibility and order through a query update and language change', async () => {
     let queryClient!: QueryClient;
     function PageWithQueryContext() {
-      queryClient = useQueryClient();
+      const currentClient = useQueryClient();
+      useEffect(() => { queryClient = currentClient; }, [currentClient]);
       return <InventoryPageRouter />;
     }
     const user = userEvent.setup();
