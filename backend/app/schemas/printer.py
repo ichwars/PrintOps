@@ -223,6 +223,22 @@ class HMSErrorResponse(BaseModel):
     full_code: str = ""
 
 
+def hms_error_responses(errors: list | None) -> list[HMSErrorResponse]:
+    """Use the same live fault contract in printer and API-key status views."""
+    return [
+        HMSErrorResponse(
+            code=e.code,
+            attr=e.attr,
+            module=e.module,
+            severity=e.severity,
+            actions=e.actions,
+            job_id=e.job_id,
+            full_code=e.full_code,
+        )
+        for e in (errors or [])
+    ]
+
+
 class AMSTray(BaseModel):
     id: int
     tray_color: str | None = None
