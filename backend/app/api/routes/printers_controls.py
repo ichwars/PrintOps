@@ -101,6 +101,7 @@ async def _send_print_command_with_cloud_fallback(
     success_message: str,
     db: AsyncSession,
     current_user: User | None,
+    manual_heater: str | None = None,
 ) -> dict:
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
     printer = result.scalar_one_or_none()
@@ -116,6 +117,13 @@ async def _send_print_command_with_cloud_fallback(
         return {"success": True, "message": success_message, "control_channel": "local"}
 
     if state and state.connected and state.developer_mode is False:
+        if manual_heater and client:
+            # Cloud delivery can be uncertain. Supersede queue rollback before
+            # its first await, even when the manual target has the same value.
+            revisions = getattr(client, "_heater_command_revisions", None)
+            if not isinstance(revisions, dict):
+                revisions = client._heater_command_revisions = {}
+            revisions[manual_heater] = revisions.get(manual_heater, 0) + 1
         cloud_result = await _publish_cloud_print_command(printer, command, db, current_user)
         return {
             **cloud_result,
@@ -340,6 +348,7 @@ async def set_bed_temperature(
         printer_id,
         command={"print": {"command": "gcode_line", "param": f"M140 S{target}", "sequence_id": "0"}},
         local_send=lambda client: client.set_bed_temperature(target),
+        manual_heater="bed",
         local_failure_message="Failed to set bed temperature",
         success_message=f"Bed temperature set to {target}°C",
         db=db,
@@ -374,6 +383,7 @@ async def set_chamber_temperature(
         printer_id,
         command={"print": {"command": "gcode_line", "param": f"M141 S{target}", "sequence_id": "0"}},
         local_send=lambda client: client.set_chamber_temperature(target),
+        manual_heater="chamber",
         local_failure_message="Failed to set chamber temperature",
         success_message=f"Chamber temperature set to {target}°C",
         db=db,
