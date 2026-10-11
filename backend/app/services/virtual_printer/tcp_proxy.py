@@ -22,6 +22,8 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
+from backend.app.utils.advertised_address import validate_advertised_ip
+
 logger = logging.getLogger(__name__)
 
 
@@ -138,6 +140,7 @@ class TLSProxy:
         on_disconnect: Callable[[str], None] | None = None,
         bind_address: str = "0.0.0.0",  # nosec B104
         rewrite_ip: tuple[str, str] | None = None,
+        advertised_ip: str = "",
     ):
         """Initialize the TLS proxy.
 
@@ -155,6 +158,7 @@ class TLSProxy:
                 the printer's real IP with the proxy's bind IP in printer→client data.
                 This prevents the slicer from discovering the printer's real IP
                 in MQTT payloads (ip_addr, rtsp_url, etc.) and bypassing the proxy.
+            advertised_ip: Optional IPv4 address for FTP passive responses.
         """
         self.name = name
         self.listen_port = listen_port
@@ -165,6 +169,7 @@ class TLSProxy:
         self.on_connect = on_connect
         self.on_disconnect = on_disconnect
         self.bind_address = bind_address
+        self.advertised_ip = validate_advertised_ip(advertised_ip) or ""
 
         # IP rewriting for printer→client direction
         if rewrite_ip:
@@ -1134,14 +1139,20 @@ class FTPTLSProxy(TLSProxy):
 
                 local_port = await self._create_data_proxy(printer_ip, printer_port, session_state)
                 if local_port:
-                    ip_parts = local_ip.split(".")
+                    ip_parts = (self.advertised_ip or local_ip).split(".")
                     lp1 = local_port // 256
                     lp2 = local_port % 256
                     rewritten = (
                         f"227 Entering Passive Mode "
                         f"({ip_parts[0]},{ip_parts[1]},{ip_parts[2]},{ip_parts[3]},{lp1},{lp2})"
                     )
-                    logger.info("FTP PASV rewrite: %s:%s → %s:%s", printer_ip, printer_port, local_ip, local_port)
+                    logger.info(
+                        "FTP PASV rewrite: %s:%s → %s:%s",
+                        printer_ip,
+                        printer_port,
+                        self.advertised_ip or local_ip,
+                        local_port,
+                    )
                     return rewritten.encode("utf-8")
                 else:
                     logger.error("FTP PASV: failed to create data proxy for %s:%s", printer_ip, printer_port)
@@ -1500,6 +1511,7 @@ class SlicerProxyManager:
         on_activity: Callable[[str, str], None] | None = None,
         bind_address: str = "0.0.0.0",  # nosec B104
         bind_identity: dict[str, str] | None = None,
+        advertised_ip: str = "",
     ):
         """Initialize the slicer proxy manager.
 
@@ -1513,6 +1525,7 @@ class SlicerProxyManager:
                 for the bind/detect response. When provided, the proxy responds
                 to detect requests itself instead of forwarding to the printer.
                 This ensures the slicer sees the VP identity, not the real printer.
+            advertised_ip: Optional client-facing IPv4 override for FTPS PASV.
         """
         self.target_host = target_host
         self.cert_path = cert_path
@@ -1520,6 +1533,7 @@ class SlicerProxyManager:
         self.on_activity = on_activity
         self.bind_address = bind_address
         self.bind_identity = bind_identity
+        self.advertised_ip = validate_advertised_ip(advertised_ip) or ""
 
         self._ftp_proxy: TCPProxy | None = None
         self._mqtt_proxy: TLSProxy | None = None
@@ -1590,6 +1604,7 @@ class SlicerProxyManager:
             on_connect=lambda cid: self._log_activity("FTP", f"connected: {cid}"),
             on_disconnect=lambda cid: self._log_activity("FTP", f"disconnected: {cid}"),
             bind_address=self.bind_address,
+            advertised_ip=self.advertised_ip,
         )
 
         # Do not pre-listen on the printer's passive range. The transparent

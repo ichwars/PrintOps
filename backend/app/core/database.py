@@ -13,6 +13,7 @@ from backend.app.core.db_dialect import is_already_applied as _is_already_applie
 from backend.app.core.library_migrations import reclassify_sliced_3mf_library_files
 from backend.app.core.number_sequence_migrations import migrate_number_sequence_monthly_reset_policy
 from backend.app.core.rfid_core_weight_migration import repair_rfid_core_weights
+from backend.app.core.spool_k_profile_migration import migrate_spool_k_profile_contexts
 
 logger = logging.getLogger(__name__)
 
@@ -286,6 +287,7 @@ async def init_db():
         spoolman_k_profile,
         spoolman_slot_assignment,
         stock_reservation,
+        storage_ha_sensor,
         user,
         user_email_pref,
         user_otp_code,
@@ -1049,13 +1051,9 @@ async def run_migrations(conn):
     # Migration: Add wiki_url column to maintenance_types for documentation links
     await _safe_execute(conn, "ALTER TABLE maintenance_types ADD COLUMN wiki_url VARCHAR(500)")
 
-    # Migration: Add tailscale_disabled column to virtual_printers. Opt-in: default TRUE so
-    # the auto-detect + fallback noise only runs for users who explicitly enable it.
-    # Postgres rejects `DEFAULT 1` for BOOLEAN (#1070 round-2 review).
-    if is_sqlite():
-        await _safe_execute(conn, "ALTER TABLE virtual_printers ADD COLUMN tailscale_disabled BOOLEAN DEFAULT 1")
-    else:
-        await _safe_execute(conn, "ALTER TABLE virtual_printers ADD COLUMN tailscale_disabled BOOLEAN DEFAULT true")
+    from backend.app.core.virtual_printer_migrations import migrate_vp_network_config
+
+    await migrate_vp_network_config(conn, _safe_execute, sqlite=is_sqlite())
 
     # Migration: Add ams_mapping column to print_queue for storing filament slot assignments
     await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN ams_mapping TEXT")
@@ -2783,47 +2781,7 @@ async def run_migrations(conn):
     # stale formula which rejects every AMS-HT slot link with a CHECK violation.
     await _migrate_widen_spoolman_slot_ams_id_range(conn)
 
-    # Migration: Create spoolman_k_profile table for K-value calibration profiles linked to Spoolman spools.
-    await _safe_execute(
-        conn,
-        """
-        CREATE TABLE IF NOT EXISTS spoolman_k_profile (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            spoolman_spool_id INTEGER NOT NULL,
-            printer_id INTEGER NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
-            extruder INTEGER NOT NULL DEFAULT 0 CHECK (extruder >= 0 AND extruder <= 1),
-            nozzle_diameter VARCHAR(10) NOT NULL DEFAULT '0.4',
-            nozzle_type VARCHAR(50),
-            k_value REAL NOT NULL,
-            name VARCHAR(100),
-            cali_idx INTEGER,
-            setting_id VARCHAR(50),
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_spoolman_k_profile UNIQUE(spoolman_spool_id, printer_id, extruder, nozzle_diameter)
-        )
-        """
-        if is_sqlite()
-        else """
-        CREATE TABLE IF NOT EXISTS spoolman_k_profile (
-            id SERIAL PRIMARY KEY,
-            spoolman_spool_id INTEGER NOT NULL,
-            printer_id INTEGER NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
-            extruder INTEGER NOT NULL DEFAULT 0 CHECK (extruder >= 0 AND extruder <= 1),
-            nozzle_diameter VARCHAR(10) NOT NULL DEFAULT '0.4',
-            nozzle_type VARCHAR(50),
-            k_value DOUBLE PRECISION NOT NULL,
-            name VARCHAR(100),
-            cali_idx INTEGER,
-            setting_id VARCHAR(50),
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_spoolman_k_profile UNIQUE(spoolman_spool_id, printer_id, extruder, nozzle_diameter)
-        )
-        """,
-    )
-    await _safe_execute(
-        conn,
-        "CREATE INDEX IF NOT EXISTS ix_spoolman_k_profile_spool ON spoolman_k_profile (spoolman_spool_id)",
-    )
+    await migrate_spool_k_profile_contexts(conn)
 
     # Migration: Add provider column to github_backup_config for multi-provider support
     await _safe_execute(conn, "ALTER TABLE github_backup_config ADD COLUMN provider VARCHAR(30) DEFAULT 'github'")
@@ -3644,14 +3602,13 @@ async def _migrate_document_payments(conn) -> None:
     # Migration: Home Assistant sensor alerts (#1148). The printer_ha_sensors
     # table itself is new, so create_all() builds it; only the provider opt-in
     # column needs adding to existing databases.
-    #
     # DEFAULT FALSE, not DEFAULT 0: Postgres will not take an integer default
     # for a boolean column, and _safe_execute swallows the DatatypeMismatchError
-    # — so the older "BOOLEAN DEFAULT 0" migrations above quietly do nothing on
-    # Postgres and only work there because create_all() builds the column on a
-    # fresh install. SQLite has understood FALSE since 3.23, so this spelling
-    # is the one that actually applies on both.
+    # SQLite also supports FALSE, so both database engines accept this migration.
     await _safe_execute(conn, "ALTER TABLE notification_providers ADD COLUMN on_ha_sensor_alert BOOLEAN DEFAULT FALSE")
+    await _safe_execute(
+        conn, "ALTER TABLE notification_providers ADD COLUMN on_storage_sensor_alert BOOLEAN DEFAULT FALSE"
+    )
     await _safe_execute(
         conn,
         "ALTER TABLE printer_ha_sensors ADD COLUMN failure_strategy VARCHAR(16) DEFAULT 'auto'",

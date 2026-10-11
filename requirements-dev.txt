@@ -17,6 +17,9 @@ ruff==0.16.0
 pip-tools==7.6.0
 unicodedata2==15.1.0
 pre-commit>=4.0
+# pre-commit creates environments through virtualenv. 21.7.13 fixes prompt
+# config injection and unsafe activation-script quoting (PYSEC-2026-4011–4014).
+virtualenv>=21.7.13
 
 # Required by pyftpdlib TLS_FTPHandler for mock FTP server tests
 pyOpenSSL>=26.4.0

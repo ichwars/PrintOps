@@ -124,7 +124,7 @@ async function installDocumentLayoutApi(page: Page, evidenceKind: EvidenceKind |
         ready: true,
         findings: [],
         renderer_version: '1.0.0',
-        validator_version: '1.30.2',
+        validator_version: '1.30.3',
       } : {
         ready: false,
         findings: [{
@@ -137,7 +137,7 @@ async function installDocumentLayoutApi(page: Page, evidenceKind: EvidenceKind |
           external_rule_id: null,
         }],
         renderer_version: '1.0.0',
-        validator_version: '1.30.2',
+        validator_version: '1.30.3',
       });
     }
     if (pathname === '/api/v1/document-layouts/17/audit') {

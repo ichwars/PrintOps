@@ -18,11 +18,16 @@ def test_python_pdf_packages_are_exactly_pinned() -> None:
 
 
 def test_verapdf_runtime_manifest_is_pinned_and_signed() -> None:
+    from backend.app.services.document_layout_catalog import VALIDATOR_VERSION
+    from backend.app.services.verapdf import EXPECTED_VERAPDF_VERSION
+
     manifest = json.loads((RESOURCE_DIR / "runtime-manifest.json").read_text(encoding="utf-8"))
     verapdf = manifest["verapdf"]
 
-    assert verapdf["version"] == "1.30.2"
-    assert verapdf["url"] == ("https://software.verapdf.org/rel/1.30/verapdf-greenfield-1.30.2-installer.zip")
+    assert verapdf["version"] == "1.30.3"
+    assert verapdf["version"] == EXPECTED_VERAPDF_VERSION
+    assert f"verapdf-{verapdf['version']}" == VALIDATOR_VERSION
+    assert verapdf["url"] == ("https://software.verapdf.org/rel/1.30/verapdf-greenfield-1.30.3-installer.zip")
     assert verapdf["signature_url"] == f"{verapdf['url']}.asc"
     assert verapdf["signing_fingerprint"] == "13DD102B4DD69354D12DE5A83184863278B17FE7"
     assert len(verapdf["sha256"]) == 64

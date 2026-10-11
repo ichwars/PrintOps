@@ -56,9 +56,34 @@ const createMockPrinter = (overrides: Partial<VirtualPrinterConfig> = {}): Virtu
   queue_force_color_match: false,
   bind_ip: null,
   remote_interface_ip: null,
+  advertised_ip: null,
   position: 0,
   status: { running: false, pending_files: 0 },
   ...overrides,
+});
+
+describe('VirtualPrinterCard - advertised address', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(multiVirtualPrinterApi.update).mockResolvedValue(createMockPrinter());
+  });
+
+  it('saves an explicit host address and clears it to restore automatic discovery', async () => {
+    const user = userEvent.setup();
+    render(<VirtualPrinterCard printer={createMockPrinter()} models={models} />);
+    const input = await screen.findByRole('textbox', { name: 'Advertised IPv4 address' });
+    await user.type(input, '192.168.1.40');
+    await user.click(screen.getByRole('button', { name: 'Save advertised address' }));
+    await waitFor(() => expect(multiVirtualPrinterApi.update).toHaveBeenCalledWith(1, { advertised_ip: '192.168.1.40' }));
+    await user.clear(input);
+    await user.click(screen.getByRole('button', { name: 'Save advertised address' }));
+    await waitFor(() => expect(multiVirtualPrinterApi.update).toHaveBeenCalledWith(1, { advertised_ip: '' }));
+  });
+
+  it('renders a saved override that is absent from local network interfaces', async () => {
+    render(<VirtualPrinterCard printer={createMockPrinter({ advertised_ip: '192.168.1.40' })} models={models} />);
+    expect(await screen.findByRole('textbox', { name: 'Advertised IPv4 address' })).toHaveValue('192.168.1.40');
+  });
 });
 
 describe('VirtualPrinterCard - auto-dispatch toggle', () => {
@@ -451,7 +476,7 @@ describe('VirtualPrinterCard - access code inherits from target', () => {
     expect(screen.getByText('Inherited from target')).toBeInTheDocument();
     // Save button must NOT exist in the readonly path — the field is
     // managed via the target printer's settings, not this card.
-    expect(screen.queryByRole('button', { name: /save/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^save$/i })).not.toBeInTheDocument();
     expect(codeInput.readOnly).toBe(true);
     expect(codeInput.type).toBe('password');
   });
@@ -483,6 +508,6 @@ describe('VirtualPrinterCard - access code inherits from target', () => {
     // Inheritance badge must NOT appear when there's no target.
     expect(screen.queryByText('Inherited from target')).not.toBeInTheDocument();
     // Save button IS present in the editable path (disabled until 8 chars typed).
-    expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeInTheDocument();
   });
 });

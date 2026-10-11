@@ -826,11 +826,17 @@ class PrinterManager:
         mode: int = 1,
         filament: str = "",
         rotate_tray: bool = False,
+        *,
+        qos: int = 1,
     ) -> bool:
         """Send AMS drying command to printer."""
         if printer_id not in self._clients:
             return False
-        return self._clients[printer_id].send_drying_command(ams_id, temp, duration, mode, filament, rotate_tray)
+        if qos == 1:
+            return self._clients[printer_id].send_drying_command(ams_id, temp, duration, mode, filament, rotate_tray)
+        return self._clients[printer_id].send_drying_command(
+            ams_id, temp, duration, mode, filament, rotate_tray, qos=qos
+        )
 
     def request_status_update(self, printer_id: int) -> bool:
         """Request a full status update from the printer.
@@ -1049,14 +1055,7 @@ def printer_state_to_dict(
     vt_tray = []
     raw_data = state.raw_data or {}
 
-    # Build K-profile lookup map: cali_idx -> k_value
-    kprofile_map: dict[int, float] = {}
-    for kp in state.kprofiles or []:
-        if kp.slot_id is not None and kp.k_value:
-            try:
-                kprofile_map[kp.slot_id] = float(kp.k_value)
-            except (ValueError, TypeError):
-                pass  # Skip K-profile entries with unparseable values
+    from backend.app.services.calibration_context import slot_k_value
 
     if "ams" in raw_data and isinstance(raw_data["ams"], list):
         for ams_data in raw_data["ams"]:
@@ -1072,8 +1071,10 @@ def printer_state_to_dict(
                 # Get K value: first try tray's k field, then lookup from K-profiles
                 k_value = tray.get("k")
                 cali_idx = tray.get("cali_idx")
-                if k_value is None and cali_idx is not None and cali_idx in kprofile_map:
-                    k_value = kprofile_map[cali_idx]
+                if k_value is None:
+                    k_value = slot_k_value(
+                        state, model, ams_data.get("id"), tray.get("id"), cali_idx, tray.get("tray_info_idx")
+                    )
 
                 # P1S / A1 Mini physically-empty-slot signal (#1322 follow-up by
                 # @RosdasHH): for a truly empty slot the firmware sends only
@@ -1208,8 +1209,10 @@ def printer_state_to_dict(
             # Get K value for vt_tray
             vt_k_value = vt_data.get("k")
             vt_cali_idx = vt_data.get("cali_idx")
-            if vt_k_value is None and vt_cali_idx is not None and vt_cali_idx in kprofile_map:
-                vt_k_value = kprofile_map[vt_cali_idx]
+            if vt_k_value is None:
+                vt_k_value = slot_k_value(
+                    state, model, 255, vt_data.get("id"), vt_cali_idx, vt_data.get("tray_info_idx")
+                )
 
             tray_id = int(vt_data.get("id", 254))
             vt_tray.append(

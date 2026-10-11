@@ -32,6 +32,7 @@ import type {
   SpoolCatalogEntry,
   SpoolKProfile,
   SpoolKProfileInput,
+  SpoolFilamentPreset,
   SpoolLabelTemplate,
   SpoolUsageRecord,
   SpoolmanBulkCreateResult,
@@ -165,6 +166,22 @@ export const inventoryMaintenanceMethods = {
   getSpoolKProfiles: (spoolId: number) =>
     request<SpoolKProfile[]>(`/inventory/spools/${spoolId}/k-profiles`),
 
+  getSpoolFilamentPresets: (spoolId: number) =>
+    request<SpoolFilamentPreset[]>(`/inventory/spools/${spoolId}/filament-presets`),
+
+  saveSpoolFilamentPresets: (spoolId: number, presets: SpoolFilamentPreset[]) =>
+    request<SpoolFilamentPreset[]>(`/inventory/spools/${spoolId}/filament-presets`, {
+      method: 'PUT', body: JSON.stringify(presets),
+    }),
+
+  getSpoolmanFilamentPresets: (spoolId: number) =>
+    request<SpoolFilamentPreset[]>(`/spoolman/inventory/spools/${spoolId}/filament-presets`),
+
+  saveSpoolmanFilamentPresets: (spoolId: number, presets: SpoolFilamentPreset[]) =>
+    request<SpoolFilamentPreset[]>(`/spoolman/inventory/spools/${spoolId}/filament-presets`, {
+      method: 'PUT', body: JSON.stringify(presets),
+    }),
+
   saveSpoolKProfiles: (spoolId: number, profiles: SpoolKProfileInput[]) =>
     request<SpoolKProfile[]>(`/inventory/spools/${spoolId}/k-profiles`, {
       method: 'PUT',
@@ -186,7 +203,7 @@ export const inventoryMaintenanceMethods = {
   // ── Spool label printing (#809) ──────────────────────────────────────────
   // Both endpoints return application/pdf. Frontend opens the resulting Blob
   // in a new tab so the user can print or save from the browser's PDF viewer.
-  printSpoolLabels: async (data: { spool_ids: number[]; template: SpoolLabelTemplate; monochrome?: boolean }): Promise<Blob> => {
+  printSpoolLabels: async (data: { spool_ids: number[]; template: SpoolLabelTemplate; monochrome?: boolean; start_position?: number }): Promise<Blob> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
     const response = await fetch(`${API_BASE}/inventory/labels`, {
@@ -201,7 +218,7 @@ export const inventoryMaintenanceMethods = {
     return response.blob();
   },
 
-  printSpoolmanSpoolLabels: async (data: { spool_ids: number[]; template: SpoolLabelTemplate; monochrome?: boolean }): Promise<Blob> => {
+  printSpoolmanSpoolLabels: async (data: { spool_ids: number[]; template: SpoolLabelTemplate; monochrome?: boolean; start_position?: number }): Promise<Blob> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
     const response = await fetch(`${API_BASE}/spoolman/labels`, {

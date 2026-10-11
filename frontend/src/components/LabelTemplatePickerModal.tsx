@@ -6,7 +6,7 @@ import { smallPartsApi, type SmallPart } from '../api/smallParts';
 import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
 import { getSwatchStyle } from '../utils/colors';
-import { Checkbox, TextField } from './ui';
+import { Checkbox, NumberField, TextField } from './ui';
 
 /** Subset of InventorySpool the modal needs for checkbox rendering. */
 type SpoolForLabel = Pick<
@@ -84,6 +84,8 @@ const TEMPLATE_OPTIONS: TemplateOption[] = [
     fallbackHint: 'US sheet stock; 30 labels per Letter page.',
   },
 ];
+
+const SHEET_CAPACITY: Partial<Record<SpoolLabelTemplate, number>> = { avery_l7160: 21, avery_5160: 30 };
 
 function openBlobInNewTab(blob: Blob): void {
   const url = window.URL.createObjectURL(blob);
@@ -218,6 +220,7 @@ export function LabelTemplatePickerModal({
   const [materialFilter, setMaterialFilter] = useState<string>('');
   const [sortMode, setSortMode] = useState<SortMode>('id');
   const [monochrome, setMonochrome] = useState(false);
+  const [startPositions, setStartPositions] = useState<Record<string, string>>({});
 
   const availableItems = useMemo(
     () => toLabelItems(resourceType, availableSpools, availableMaterials),
@@ -235,6 +238,7 @@ export function LabelTemplatePickerModal({
       setMaterialFilter('');
       setSortMode('id');
       setMonochrome(false);
+      setStartPositions({});
       setPending(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -314,19 +318,20 @@ export function LabelTemplatePickerModal({
     setSelectedIds(new Set());
   }
 
-  async function handlePick(template: SpoolLabelTemplate) {
+  async function handlePick(template: SpoolLabelTemplate, startPosition = 1) {
     if (noSelection || pending) return;
     // Order matters: the backend (labels.py) prints labels in the same order
     // we send IDs. Use the sorted list so a "by colour" sort flows through to
     // the PDF instead of being clobbered by an ascending-ID re-sort.
     const ids = sortedItems.filter((s) => selectedIds.has(s.id)).map((s) => s.id);
+    const options = { template, monochrome, ...(startPosition !== 1 ? { start_position: startPosition } : {}) };
     setPending(template);
     try {
       const blob = resourceType === 'material'
-        ? await smallPartsApi.printLabels({ small_part_ids: ids, template, monochrome })
+        ? await smallPartsApi.printLabels({ small_part_ids: ids, ...options })
         : spoolmanMode
-          ? await api.printSpoolmanSpoolLabels({ spool_ids: ids, template, monochrome })
-          : await api.printSpoolLabels({ spool_ids: ids, template, monochrome });
+          ? await api.printSpoolmanSpoolLabels({ spool_ids: ids, ...options })
+          : await api.printSpoolLabels({ spool_ids: ids, ...options });
       openBlobInNewTab(blob);
       onClose();
     } catch (err) {
@@ -349,8 +354,8 @@ export function LabelTemplatePickerModal({
 
       <div className="relative w-full max-w-3xl bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col my-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-bambu-dark-tertiary">
-          <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center justify-between p-4 border-b border-bambu-dark-tertiary">
+          <div className="flex flex-wrap min-w-0 items-center gap-x-2 gap-y-1">
             <Printer className="w-5 h-5 text-bambu-green" />
             <h2 className="text-lg font-semibold text-white">
               {resourceType === 'material' ? 'Material-Etiketten drucken' : t('inventory.labels.title', 'Print spool labels')}
@@ -363,13 +368,14 @@ export function LabelTemplatePickerModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1 text-bambu-gray hover:text-white rounded transition-colors"
+            className="p-1 shrink-0 text-bambu-gray hover:text-white rounded transition-colors"
             aria-label={t('common.close', 'Close')}
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
+        <div className="flex-1 min-h-0 overflow-y-auto">
         {/* Search + material chips */}
         <div className="p-4 space-y-2 border-b border-bambu-dark-tertiary">
           <div className="relative">
@@ -474,7 +480,7 @@ export function LabelTemplatePickerModal({
         </div>
 
         {/* Spool list */}
-        <div className="flex-1 overflow-y-auto px-2 pb-2 min-h-0">
+        <div className="max-h-56 overflow-y-auto px-2 pb-2">
           {visibleItems.length === 0 ? (
             <div className="text-center text-sm text-bambu-gray py-6">
               {sortedItems.length === 0
@@ -550,11 +556,26 @@ export function LabelTemplatePickerModal({
             const isPending = pending === opt.value;
             const label = t(`inventory.labels.templates.${opt.i18nKey}.label`, opt.fallbackLabel);
             const hint = t(`inventory.labels.templates.${opt.i18nKey}.hint`, opt.fallbackHint);
+            const maximum = SHEET_CAPACITY[opt.value];
+            const value = startPositions[opt.value] ?? '1';
+            const position = Number(value);
+            const invalid = maximum !== undefined && (!Number.isInteger(position) || position < 1 || position > maximum);
             return (
+              <div key={opt.value} className="space-y-2">
+                {maximum !== undefined && (
+                  <NumberField
+                    label={`${t('inventory.labels.startPosition')} — ${opt.value === 'avery_l7160' ? 'Avery L7160' : 'Avery 5160'}`}
+                    value={value}
+                    onValueChange={(next) => setStartPositions(previous => ({ ...previous, [opt.value]: next }))}
+                    min={1} max={maximum} step={1}
+                    disabled={pending !== null}
+                    helperText={t('inventory.labels.startPositionHint', { max: maximum })}
+                    error={invalid ? t('inventory.labels.startPositionError', { max: maximum }) : undefined}
+                  />
+                )}
               <button
-                key={opt.value}
-                disabled={noSelection || pending !== null}
-                onClick={() => handlePick(opt.value)}
+                disabled={noSelection || pending !== null || invalid}
+                onClick={() => handlePick(opt.value, maximum === undefined ? 1 : position)}
                 title={`${label} — ${hint}`}
                 className="w-full text-left p-2.5 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark hover:border-bambu-green hover:bg-bambu-green/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-bambu-dark-tertiary disabled:hover:bg-bambu-dark transition flex items-center gap-3"
               >
@@ -564,11 +585,13 @@ export function LabelTemplatePickerModal({
                 </div>
                 {isPending && <Loader2 className="w-4 h-4 animate-spin text-bambu-green shrink-0" />}
               </button>
+              </div>
             );
           })}
         </div>
+        </div>
 
-        <div className="flex justify-end gap-2 px-5 py-2 border-t border-bambu-dark-tertiary">
+        <div className="flex shrink-0 justify-end gap-2 px-5 py-2 border-t border-bambu-dark-tertiary">
           <Button variant="secondary" onClick={onClose} disabled={pending !== null}>
             {t('common.cancel', 'Cancel')}
           </Button>

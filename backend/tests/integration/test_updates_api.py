@@ -627,6 +627,52 @@ class TestUpdatesAPI:
         assert "release" in body["message"].lower()
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("runtime_returncode", [0, 1])
+    async def test_perform_update_refreshes_pdf_runtime_and_reports_verification_failure(
+        self, tmp_path, runtime_returncode
+    ):
+        from backend.app.api.routes import updates as updates_module
+
+        app_dir = tmp_path / "app"
+        app_dir.mkdir()
+        signers = self._write_update_signers(tmp_path)
+        calls = []
+
+        async def spawn(*args, **kwargs):
+            calls.append((args, kwargs))
+            proc = MagicMock(returncode=0)
+            output, error = b"", b""
+            if "cat-file" in args:
+                output = b"tag\n"
+            elif "rev-parse" in args:
+                output = b"4" * 40 + b"\n"
+            elif str(app_dir / "scripts/vendor_pdf_runtime.py") in args:
+                proc.returncode = runtime_returncode
+                error = b"signature rejected" if runtime_returncode else b""
+            proc.communicate = AsyncMock(return_value=(output, error))
+            return proc
+
+        with (
+            patch.object(updates_module.settings, "app_dir", app_dir),
+            patch.object(updates_module.settings, "update_trusted_signers_file", signers),
+            patch.object(updates_module.settings, "update_signing_principal", "release@printops"),
+            patch.object(updates_module, "_find_executable", return_value="/usr/bin/git"),
+            patch.object(updates_module.asyncio, "create_subprocess_exec", side_effect=spawn),
+        ):
+            await updates_module._perform_update("v1.0.0")
+
+        runtime_calls = [
+            (args, kwargs) for args, kwargs in calls if str(app_dir / "scripts/vendor_pdf_runtime.py") in args
+        ]
+        assert len(runtime_calls) == 1
+        args, kwargs = runtime_calls[0]
+        assert args[args.index("--destination") + 1] == str(app_dir / "runtime/verapdf")
+        assert kwargs["cwd"] == str(app_dir)
+        assert updates_module._update_status["status"] == ("error" if runtime_returncode else "complete")
+        if runtime_returncode:
+            assert "signature rejected" in updates_module._update_status["error"]
+
+    @pytest.mark.asyncio
     async def test_perform_update_runs_pip_in_app_dir_not_data_dir(self, tmp_path):
         """Native install: `requirements.txt` lives at INSTALL_PATH (the source-
         code dir), NOT at DATA_DIR (where systemd sets DATA_DIR=INSTALL_PATH/data).

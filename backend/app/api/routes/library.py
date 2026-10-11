@@ -21,6 +21,7 @@ from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from backend.app.api.gcode_preview import gcode_preview_response
 from backend.app.api.routes.cloud import resolve_api_key_cloud_owner
 from backend.app.core.auth import (
     RequireCameraStreamTokenIfAuthEnabled,
@@ -4708,6 +4709,7 @@ async def get_thumbnail(
 @router.get("/files/{file_id}/gcode")
 async def get_gcode(
     file_id: int,
+    plate: int | None = None,
     db: AsyncSession = Depends(get_db),
     auth_result: tuple[User | None, bool] = Depends(
         require_ownership_permission(
@@ -4730,23 +4732,9 @@ async def get_gcode(
     # case, so detect by suffix before checking the type column.
     is_gcode_3mf = file.file_type in ("3mf", "gcode.3mf") or file.filename.lower().endswith(".gcode.3mf")
 
-    if is_gcode_3mf:
-        try:
-            with zipfile.ZipFile(str(abs_path), "r") as zf:
-                validate_zip_archive(zf)
-                gcode_files = [n for n in zf.namelist() if n.endswith(".gcode")]
-                if not gcode_files:
-                    raise HTTPException(status_code=404, detail="No gcode found in 3MF file")
-                gcode_content = read_zip_member(zf, gcode_files[0])
-                from fastapi.responses import Response
-
-                return Response(content=gcode_content, media_type="text/plain")
-        except (ArchiveBudgetError, zipfile.BadZipFile):
-            raise HTTPException(status_code=400, detail="Invalid 3MF file")
-    elif file.file_type == "gcode":
-        return FastAPIFileResponse(str(abs_path), media_type="text/plain")
-    else:
+    if not is_gcode_3mf and file.file_type != "gcode":
         raise HTTPException(status_code=400, detail="Unsupported file type")
+    return gcode_preview_response(abs_path, zipped=is_gcode_3mf, plate=plate)
 
 
 # ============ Bulk Operations ============

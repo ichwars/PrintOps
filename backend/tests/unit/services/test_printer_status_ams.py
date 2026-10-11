@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from backend.app.services.printer_status_ams import build_ams_units, build_kprofile_map, build_virtual_trays
+from backend.app.services.printer_status_ams import build_ams_units, build_virtual_trays
 
 
 def test_build_ams_units_applies_kprofile_and_drying_fallback():
@@ -29,9 +29,12 @@ def test_build_ams_units_applies_kprofile_and_drying_fallback():
             }
         ]
     }
-    kprofile_map = build_kprofile_map([SimpleNamespace(slot_id=7, k_value="0.031")])
+    state = SimpleNamespace(
+        nozzles=[SimpleNamespace(nozzle_diameter="0.4", nozzle_type="")],
+        kprofiles=[SimpleNamespace(slot_id=7, k_value="0.031", nozzle_diameter="0.4", extruder_id=0, nozzle_id="")],
+    )
 
-    ams_units, ams_exists = build_ams_units(raw_data, kprofile_map, {})
+    ams_units, ams_exists = build_ams_units(raw_data, state, {}, "P2S")
 
     assert ams_exists is True
     assert len(ams_units) == 1
@@ -59,7 +62,11 @@ def test_build_virtual_trays_applies_kprofile_and_keeps_valid_tags():
         ]
     }
 
-    trays = build_virtual_trays(raw_data, {3: 0.022})
+    state = SimpleNamespace(
+        nozzles=[SimpleNamespace(nozzle_diameter="0.4", nozzle_type="")],
+        kprofiles=[SimpleNamespace(slot_id=3, k_value="0.022", nozzle_diameter="0.4", extruder_id=0, nozzle_id="")],
+    )
+    trays = build_virtual_trays(raw_data, state, "X1C")
 
     assert len(trays) == 1
     assert trays[0].id == 254

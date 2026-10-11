@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import os
 import time
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -26,6 +27,8 @@ WEASYPRINT = (
     ROOT.parent / "installers" / "windows" / "build" / "staging" / "runtime" / "weasyprint" / "dist" / "weasyprint.exe"
 )
 VERAPDF = ROOT.parent / "installers" / "windows" / "build" / "staging" / "runtime" / "verapdf" / "verapdf.bat"
+WEASYPRINT = Path(os.environ.get("WEASYPRINT_CLI") or WEASYPRINT)
+VERAPDF = Path(os.environ.get("VERAPDF_CLI") or VERAPDF)
 
 
 def _renderer(tmp_path: Path) -> DocumentRenderer:

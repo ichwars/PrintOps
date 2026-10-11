@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import io
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pikepdf
 import pytest
@@ -93,6 +95,64 @@ def test_logo_size_and_unsafe_svg_are_rejected():
     with pytest.raises(AssetValidationError) as error:
         preflight_asset("logo", malicious)
     assert error.value.finding == "svg_element"
+
+
+@pytest.mark.parametrize(
+    "parameters",
+    ["1 1 " * 5_000, "1,1 " * 5_000, "1e-3-1e-3 " * 2_000],
+)
+def test_svg_implicit_path_parameters_are_bounded_before_rendering(monkeypatch, parameters):
+    def unexpected_render(**_kwargs):
+        pytest.fail("oversized implicit path parameters reached the renderer")
+
+    monkeypatch.setitem(sys.modules, "cairosvg", SimpleNamespace(svg2png=unexpected_render))
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><path d="m0 0 {parameters}z"/></svg>'
+    ).encode()
+    with pytest.raises(AssetValidationError) as error:
+        preflight_asset("logo", svg)
+    assert error.value.finding == "svg_path_complexity"
+
+
+@pytest.mark.parametrize("tag", ["polyline", "polygon"])
+def test_svg_point_sequences_are_bounded_before_rendering(monkeypatch, tag):
+    def unexpected_render(**_kwargs):
+        pytest.fail("oversized point sequence reached the renderer")
+
+    monkeypatch.setitem(sys.modules, "cairosvg", SimpleNamespace(svg2png=unexpected_render))
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><{tag} points="{"1,1 " * 5_000}"/></svg>'
+    ).encode()
+    with pytest.raises(AssetValidationError) as error:
+        preflight_asset("logo", svg)
+    assert error.value.finding == "svg_path_complexity"
+
+
+@pytest.mark.parametrize(
+    ("tag", "attribute", "coordinates"),
+    [
+        ("path", "d", "M0 0 " + "1 1 " * 4_000 + "Z"),
+        ("path", "d", "M0 0 " + "L1 1 " * 5_000 + "Z"),
+        ("path", "d", "m1e-3-1e-3 c1 1 2 2 3 3 s1 1 2 2 q1 1 2 2 t1 1 a2 2 0 0 1 2 2 h1 v1 z"),
+        ("polyline", "points", "1,1 " * 4_000),
+        ("polygon", "points", "1e-3,-1e-3 2,2 3,1"),
+    ],
+)
+def test_safe_svg_coordinate_forms_are_forwarded_without_reinterpretation(monkeypatch, tag, attribute, coordinates):
+    rendered = []
+
+    def render(**kwargs):
+        rendered.append(kwargs["bytestring"])
+        return _png()
+
+    monkeypatch.setitem(sys.modules, "cairosvg", SimpleNamespace(svg2png=render))
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><{tag} {attribute}="{coordinates}"/></svg>'
+    ).encode()
+    result = preflight_asset("logo", svg)
+    assert result.mime_type == "image/png"
+    assert result.report["width_px"] == 32
+    assert f'{attribute}="{coordinates}"'.encode() in rendered[0]
 
 
 def test_pdf_preflight_accepts_matching_single_page_and_rejects_letter_mismatch():

@@ -36,7 +36,7 @@ from backend.app.services.printer_manager import (
     supports_drying,
     supports_drying_while_printing,
 )
-from backend.app.services.printer_status_ams import build_ams_units, build_kprofile_map, build_virtual_trays
+from backend.app.services.printer_status_ams import build_ams_units, build_virtual_trays
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["printers"])
@@ -117,9 +117,8 @@ async def get_printer_status(
     # last; Bambu doesn't echo them on the per-tick AMS push, so the badge
     # needs the cache to render "<filament> @ <temp>°C".
     drying_targets = printer_manager.get_drying_targets(printer_id) or {}
-    kprofile_map = build_kprofile_map(state.kprofiles)
-    ams_units, ams_exists = build_ams_units(raw_data, kprofile_map, drying_targets)
-    vt_tray = build_virtual_trays(raw_data, kprofile_map)
+    ams_units, ams_exists = build_ams_units(raw_data, state, drying_targets, printer.model)
+    vt_tray = build_virtual_trays(raw_data, state, printer.model)
 
     # Convert nozzle info to response format
     nozzles = [

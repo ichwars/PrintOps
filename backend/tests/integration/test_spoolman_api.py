@@ -1374,11 +1374,15 @@ class TestLinkSpoolMqttConfigure:
 
         printer_kp = MagicMock(
             slot_id=8948,
+            extruder_id=0,
+            nozzle_id="",
             nozzle_diameter="0.4",
             filament_id="P4d64437",
             setting_id="PFUSedbf16b803ff3e",
         )
         printer_state = MagicMock(
+            nozzle_rack=[],
+            kprofile_diameters=set(),
             nozzles=[MagicMock(nozzle_diameter="0.4")],
             ams_extruder_map={"0": 0},
             raw_data={"ams": [{"id": 0, "tray": [{"id": 1, "cali_idx": None}]}]},
@@ -1394,6 +1398,7 @@ class TestLinkSpoolMqttConfigure:
 
         with patch("backend.app.api.routes.spoolman.printer_manager") as mock_pm:
             mock_pm.get_client.return_value = mqtt_mock
+            mock_pm.get_model.return_value = "X1C"
             mock_pm.get_status.return_value = printer_state
             response = await async_client.post(
                 "/api/v1/spoolman/spools/5/link",
@@ -1441,6 +1446,8 @@ class TestLinkSpoolMqttConfigure:
         await db_session.commit()
 
         printer_state = MagicMock(
+            nozzle_rack=[],
+            kprofile_diameters=set(),
             nozzles=[MagicMock(nozzle_diameter="0.4")],
             ams_extruder_map={"0": 0},
             raw_data=None,
@@ -1457,6 +1464,7 @@ class TestLinkSpoolMqttConfigure:
 
         with patch("backend.app.api.routes.spoolman.printer_manager") as mock_pm:
             mock_pm.get_client.return_value = mqtt_mock
+            mock_pm.get_model.return_value = "X1C"
             mock_pm.get_status.return_value = printer_state
             response = await async_client.post(
                 "/api/v1/spoolman/spools/5/link",

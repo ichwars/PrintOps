@@ -12,6 +12,7 @@ from backend.app.core.permissions import Permission
 from backend.app.models.printer import Printer
 from backend.app.models.slot_preset import SlotPresetMapping
 from backend.app.models.user import User
+from backend.app.services.drying_ownership import printer_operation_guard
 from backend.app.services.printer_manager import (
     drying_screen_only,
     supports_drying,
@@ -103,6 +104,7 @@ async def clear_mqtt_logs(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Clear MQTT message logs for a printer."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -124,6 +126,7 @@ async def start_drying(
     rotate_tray: bool = False,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Send AMS drying start command. temp=45-85, duration=hours."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -201,6 +204,7 @@ async def stop_drying(
     ams_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Send AMS drying stop command."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -226,6 +230,7 @@ async def set_print_option(
     sensitivity: str = "medium",
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Set an AI detection / print option on the printer.
 
@@ -290,6 +295,7 @@ async def set_ams_backup(
     enabled: bool,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Toggle AMS Filament Backup (auto-switch to a backup spool when one runs out)."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -356,6 +362,7 @@ async def start_calibration(
     high_temp_heatbed: bool = False,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Start printer calibration with selected options.
 

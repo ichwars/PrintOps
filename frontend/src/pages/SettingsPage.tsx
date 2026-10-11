@@ -8,7 +8,7 @@ import { formatDateOnly } from '../utils/date';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { checkPasswordComplexity } from '../utils/password';
 import { PRESET_CATEGORIES, parsePresetTriple } from '../utils/temperatureFanPresets';
-import { PreheatFilamentTargetsEditor } from '../components/PreheatFilamentTargetsEditor';
+import { PreheatSettingsCard } from '../components/PreheatSettingsCard';
 import type { APIKey, AppSettings, AppSettingsUpdate, PrinterHASensor, SmartPlug, SmartPlugStatus, NotificationProvider, NotificationTemplate, UpdateStatus, UserCreate, UserUpdate, UserResponse, StorageUsageResponse } from '../api/client';
 import { Card, CardContent, CardDensityProvider, CardHeader } from '../components/Card';
 import { SlicerBundlesPanel } from '../components/SlicerBundlesPanel';
@@ -46,6 +46,8 @@ import { OrderSettingsPanels } from '../components/settings/OrderSettingsPanels'
 import { CalculationSettings } from '../components/orders/calculation/CalculationSettings';
 import { SmallPartsSettings } from '../components/settings/SmallPartsSettings';
 import { WarehouseNumberSequenceSettings } from '../components/settings/WarehouseNumberSequenceSettings';
+import { DryingPresetsEditor } from '../components/settings/DryingPresetsEditor';
+import { ScheduledDryingSettings } from '../components/settings/ScheduledDryingSettings';
 import { ExternalCameraUrlField } from '../components/settings/CameraUrlBuilder';
 import {
   DryerManagementCard,
@@ -1094,7 +1096,6 @@ export function SettingsPage() {
   });
 
   const pendingGcodeSnippetsRef = useRef<string | null>(null);
-  const isInitialLoadRef = useRef(true);
   const serverBaselineRef = useRef<AppSettings | null>(null);
 
   // Sync local state when settings load
@@ -1107,10 +1108,6 @@ export function SettingsPage() {
       };
       serverBaselineRef.current = settings;
       setLocalSettings(settingsWithExternalUrl);
-      // Mark initial load complete after a short delay
-      setTimeout(() => {
-        isInitialLoadRef.current = false;
-      }, 100);
     }
   }, [settings, localSettings]);
 
@@ -1204,7 +1201,7 @@ export function SettingsPage() {
       settings.mqtt_password !== localSettings.mqtt_password ||
       settings.mqtt_topic_prefix !== localSettings.mqtt_topic_prefix ||
       settings.mqtt_use_tls !== localSettings.mqtt_use_tls ||
-      settings.external_url !== localSettings.external_url ||
+      (settings.external_url || window.location.origin) !== localSettings.external_url ||
       settings.ha_enabled !== localSettings.ha_enabled ||
       settings.ha_url !== localSettings.ha_url ||
       settings.ha_token !== localSettings.ha_token ||
@@ -1229,6 +1226,8 @@ export function SettingsPage() {
       (settings.stagger_interval_minutes ?? 5) !== (localSettings.stagger_interval_minutes ?? 5) ||
       (settings.require_plate_clear ?? false) !== (localSettings.require_plate_clear ?? false) ||
       (settings.queue_max_concurrent_uploads ?? 4) !== (localSettings.queue_max_concurrent_uploads ?? 4) ||
+      (settings.queue_keep_bed_warm ?? false) !== (localSettings.queue_keep_bed_warm ?? false) ||
+      (settings.queue_keep_warm_max_minutes ?? 10) !== (localSettings.queue_keep_warm_max_minutes ?? 10) ||
       (settings.preheat_enabled ?? false) !== (localSettings.preheat_enabled ?? false) ||
       (settings.preheat_filament_targets ?? '') !== (localSettings.preheat_filament_targets ?? '') ||
       (settings.preheat_max_wait_seconds ?? 900) !== (localSettings.preheat_max_wait_seconds ?? 900) ||
@@ -1311,6 +1310,8 @@ export function SettingsPage() {
         stagger_interval_minutes: localSettings!.stagger_interval_minutes,
         require_plate_clear: localSettings!.require_plate_clear,
         queue_max_concurrent_uploads: localSettings!.queue_max_concurrent_uploads,
+        queue_keep_bed_warm: localSettings!.queue_keep_bed_warm,
+        queue_keep_warm_max_minutes: localSettings!.queue_keep_warm_max_minutes,
         preheat_enabled: localSettings!.preheat_enabled,
         preheat_filament_targets: localSettings!.preheat_filament_targets,
         preheat_max_wait_seconds: localSettings!.preheat_max_wait_seconds,
@@ -1335,7 +1336,6 @@ export function SettingsPage() {
   const settingsAutosave = useAutosaveDraft({
     draft: settingsToSave ?? {},
     enabled:
-      !isInitialLoadRef.current &&
       settingsToSave !== null &&
       hasSettingsChanges &&
       (!authEnabled || hasPermission('settings:update')),
@@ -2576,92 +2576,7 @@ export function SettingsPage() {
             />
           </label>
         </div>
-        {/* Drying Presets Table */}
-        <div className="space-y-2">
-          <p className="text-sm text-white font-medium">{t('settings.dryingPresets')}</p>
-          <p className="text-xs text-bambu-gray">{t('settings.dryingPresetsDescription')}</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-bambu-gray border-b border-bambu-dark-tertiary">
-                  <th className="text-left py-1.5">{t('settings.dryingFilament')}</th>
-                  <th className="text-center py-1.5" colSpan={2}>AMS 2 Pro</th>
-                  <th className="text-center py-1.5" colSpan={2}>AMS-HT</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(() => {
-                  const defaults: Record<string, { n3f: number; n3s: number; n3f_hours: number; n3s_hours: number }> = {
-                    PLA: { n3f: 45, n3s: 45, n3f_hours: 12, n3s_hours: 12 },
-                    PETG: { n3f: 65, n3s: 65, n3f_hours: 12, n3s_hours: 12 },
-                    TPU: { n3f: 65, n3s: 75, n3f_hours: 12, n3s_hours: 18 },
-                    ABS: { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
-                    ASA: { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
-                    PA: { n3f: 65, n3s: 85, n3f_hours: 12, n3s_hours: 12 },
-                    PC: { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
-                    PVA: { n3f: 65, n3s: 85, n3f_hours: 12, n3s_hours: 18 },
-                  };
-                  let presets = { ...defaults };
-                  try {
-                    if (localSettings.drying_presets) {
-                      const parsed = JSON.parse(localSettings.drying_presets);
-                      if (typeof parsed === 'object' && parsed !== null) {
-                        presets = { ...defaults, ...parsed };
-                      }
-                    }
-                  } catch { /* use defaults */ }
-
-                  const updatePreset = (fil: string, key: string, value: number) => {
-                    const updated = { ...presets, [fil]: { ...presets[fil], [key]: value } };
-                    updateSetting('drying_presets', JSON.stringify(updated));
-                  };
-
-                  return Object.entries(presets).map(([fil, preset]) => (
-                    <tr key={fil} className="border-b border-bambu-dark-tertiary/50">
-                      <td className="py-1.5 pr-2 text-white font-medium">{fil}</td>
-                      <td className="py-1 px-1">
-                        <div className="flex items-center justify-end gap-1">
-                          <NumberField min={30} max={65} value={preset.n3f}
-                            onChange={e => updatePreset(fil, 'n3f', Math.max(1, parseInt(e.target.value) || 0))}
-                            className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                          <span className="text-bambu-gray">°C</span>
-                        </div>
-                      </td>
-                      <td className="py-1 px-1">
-                        <div className="flex items-center gap-1">
-                          <NumberField min={1} max={24} value={preset.n3f_hours}
-                            onChange={e => updatePreset(fil, 'n3f_hours', Math.max(1, parseInt(e.target.value) || 0))}
-                            className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                          <span className="text-bambu-gray">h</span>
-                        </div>
-                      </td>
-                      <td className="py-1 px-1">
-                        <div className="flex items-center justify-end gap-1">
-                          <NumberField min={30} max={85} value={preset.n3s}
-                            onChange={e => updatePreset(fil, 'n3s', Math.max(1, parseInt(e.target.value) || 0))}
-                            className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                          <span className="text-bambu-gray">°C</span>
-                        </div>
-                      </td>
-                      <td className="py-1 px-1">
-                        <div className="flex items-center gap-1">
-                          <NumberField min={1} max={24} value={preset.n3s_hours}
-                            onChange={e => updatePreset(fil, 'n3s_hours', Math.max(1, parseInt(e.target.value) || 0))}
-                            className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                          <span className="text-bambu-gray">h</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ));
-                })()}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <DryingPresetsEditor value={localSettings.drying_presets} onChange={(value) => updateSetting('drying_presets', value)} />
         {/* Per-Filament Humidity Thresholds (#1605) */}
         <div className="space-y-2">
           <p className="text-sm text-white font-medium">{t('settings.humidityThresholds')}</p>
@@ -5180,98 +5095,7 @@ export function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Preheat & Heat Soak (#1468) */}
-          <Card id="card-preheat">
-            <CardHeader>
-              <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                <Flame className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                {t('settings.preheatTitle', 'Preheat & Heat Soak')}
-              </h3>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-xs text-bambu-gray">
-                {t('settings.preheatDescription', 'Heat the bed (and chamber, if supported) and hold at temperature before each queued print starts. Helpful for engineering filaments (PA, ABS) on printers without an active chamber heater — the bed warms the chamber by radiation while the soak timer runs. The bed target is read from the print file; chamber behaviour depends on printer model.')}
-              </p>
-              <div className="flex items-center justify-between">
-                <div className="flex-1 mr-4">
-                  <p className="text-sm text-white">
-                    {t('settings.preheatEnabled', 'Enable preheat & soak')}
-                  </p>
-                  <p className="text-xs text-bambu-gray mt-0.5">
-                    {t('settings.preheatEnabledDesc', 'When off, queued prints dispatch immediately.')}
-                  </p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <Switch
-                    checked={localSettings.preheat_enabled ?? false}
-                    onChange={(e) => updateSetting('preheat_enabled', e.target.checked)}
-                  />
-                </label>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <div>
-                  <label className="block text-xs text-bambu-gray mb-1">
-                    {t('settings.preheatMaxWait', 'Max wait (seconds)')}
-                  </label>
-                  <NumberField
-                    min={60}
-                    max={3600}
-                    value={localSettings.preheat_max_wait_seconds ?? 900}
-                    onChange={(e) => updateSetting('preheat_max_wait_seconds', Math.max(60, Math.min(3600, parseInt(e.target.value) || 900)))}
-                    className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green disabled:opacity-50"
-                    disabled={!(localSettings.preheat_enabled ?? false)}
-                  />
-                  <p className="text-xs text-bambu-gray mt-1">
-                    {t('settings.preheatMaxWaitHelp', 'Cap on the chamber warm-up phase before falling through.')}
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-xs text-bambu-gray mb-1">
-                    {t('settings.preheatSoak', 'Soak (seconds)')}
-                  </label>
-                  <NumberField
-                    min={0}
-                    max={1800}
-                    value={localSettings.preheat_soak_seconds ?? 300}
-                    onChange={(e) => updateSetting('preheat_soak_seconds', Math.max(0, Math.min(1800, parseInt(e.target.value) || 0)))}
-                    className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green disabled:opacity-50"
-                    disabled={!(localSettings.preheat_enabled ?? false)}
-                  />
-                  <p className="text-xs text-bambu-gray mt-1">
-                    {t('settings.preheatSoakHelp', 'Hold time after target reached or max-wait elapsed.')}
-                  </p>
-                </div>
-              </div>
-              {/* Per-filament chamber target editor (#1468) */}
-              <div className="pt-2 border-t border-bambu-dark-tertiary/50">
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-sm text-white">
-                    {t('settings.preheatFilamentTargetsLabel', 'Per-filament chamber target (°C)')}
-                  </label>
-                  <Button variant="unstyled"
-                    type="button"
-                    onClick={() => updateSetting('preheat_filament_targets', '')}
-                    title={t('settings.preheatFilamentTargetsReset', 'Reset to defaults')}
-                    className="text-bambu-gray hover:text-white transition-colors p-1 rounded hover:bg-bambu-dark-tertiary"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-                <p className="text-xs text-bambu-gray mb-2">
-                  {t('settings.preheatFilamentTargetsHint', 'PrintOps picks the highest target across the loaded AMS slots; PLA-only prints derive 0 and skip the chamber phase automatically.')}
-                </p>
-                <PreheatFilamentTargetsEditor
-                  value={localSettings.preheat_filament_targets ?? ''}
-                  onChange={(v) => updateSetting('preheat_filament_targets', v)}
-                  disabled={!(localSettings.preheat_enabled ?? false)}
-                />
-              </div>
-              <p className="text-xs text-bambu-gray pt-1 border-t border-bambu-dark-tertiary/50">
-                <span className="font-medium text-bambu-gray/90">{t('settings.preheatHardwareTitle', 'Per-printer behaviour:')}</span>{' '}
-                {t('settings.preheatHardwareDetail', 'H2C/H2D/H2D Pro/H2S/X2D/X1E actively heat the chamber via M141. X1C/P2S read chamber temp but rely on bed-radiation heating. P1S/P1P/A1/A1 Mini have no chamber sensor — only the soak timer applies.')}
-              </p>
-            </CardContent>
-          </Card>
+          <PreheatSettingsCard settings={localSettings} onChange={updateSetting} />
 
           {/* G-code Injection (#422) */}
           <Card id="card-gcode">
@@ -5785,6 +5609,7 @@ export function SettingsPage() {
           {/* Right Column - Automatic drying and humidity thresholds */}
           <div className="space-y-3">
             {queueDryingCard}
+            <ScheduledDryingSettings />
           </div>
 
         </div>

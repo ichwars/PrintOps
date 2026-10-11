@@ -58,6 +58,7 @@ async def _capture_sql(is_sqlite_value: bool) -> list[str]:
         patch("backend.app.core.database._safe_execute", side_effect=fake_safe_execute),
         patch("backend.app.core.database._migrate_update_auto_link_constraint", AsyncMock()),
         patch("backend.app.core.database._migrate_widen_spoolman_slot_ams_id_range", AsyncMock()),
+        patch("backend.app.core.database.migrate_spool_k_profile_contexts", AsyncMock()),
     ):
         await db_module.run_migrations(fake_conn)
 

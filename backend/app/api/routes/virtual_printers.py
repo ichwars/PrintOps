@@ -10,7 +10,7 @@ from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.models.user import User
-from backend.app.schemas.virtual_printer import VPDiagnosticResult
+from backend.app.schemas.virtual_printer import VPAddressConfig, VPDiagnosticResult
 
 # Imported at module scope so tests can patch
 # backend.app.api.routes.virtual_printers.tailscale_service.
@@ -30,7 +30,7 @@ class TailscaleStatusResponse(BaseModel):
     error: str | None
 
 
-class VirtualPrinterCreate(BaseModel):
+class VirtualPrinterCreate(VPAddressConfig):
     name: str = "PrintOps"
     enabled: bool = False
     mode: str = "archive"
@@ -44,7 +44,7 @@ class VirtualPrinterCreate(BaseModel):
     remote_interface_ip: str | None = None
 
 
-class VirtualPrinterUpdate(BaseModel):
+class VirtualPrinterUpdate(VPAddressConfig):
     name: str | None = None
     enabled: bool | None = None
     mode: str | None = None
@@ -112,6 +112,7 @@ async def _vp_to_dict(vp, db: AsyncSession, status: dict | None = None) -> dict:
         "gcode_injection": vp.gcode_injection,
         "bind_ip": vp.bind_ip,
         "remote_interface_ip": vp.remote_interface_ip,
+        "advertised_ip": vp.advertised_ip,
         "tailscale_disabled": vp.tailscale_disabled,
         "position": vp.position,
         "status": status or {"running": False, "pending_files": 0},
@@ -248,6 +249,7 @@ async def create_virtual_printer(
         gcode_injection=body.gcode_injection,
         bind_ip=body.bind_ip,
         remote_interface_ip=body.remote_interface_ip,
+        advertised_ip=body.advertised_ip,
         serial_suffix=new_suffix,
         position=next_pos,
     )
@@ -429,6 +431,8 @@ async def update_virtual_printer(
         vp.bind_ip = body.bind_ip
     if body.remote_interface_ip is not None:
         vp.remote_interface_ip = body.remote_interface_ip
+    if "advertised_ip" in body.model_fields_set:
+        vp.advertised_ip = body.advertised_ip
     if body.tailscale_disabled is not None:
         vp.tailscale_disabled = body.tailscale_disabled
 

@@ -69,6 +69,7 @@ from backend.app.api.routes import (
     spoolbuddy,
     spoolman,
     spoolman_inventory,
+    storage_ha_sensors,
     support,
     system,
     updates,
@@ -269,7 +270,6 @@ log_level = getattr(logging, log_level_str, logging.INFO)
 # backend/app/core/trace.py for the ContextVar that feeds this slot.
 log_format = "%(asctime)s %(levelname)s [%(name)s] [%(trace_id)s] %(message)s"
 
-# Create root logger
 root_logger = logging.getLogger()
 root_logger.setLevel(log_level)
 
@@ -1705,67 +1705,21 @@ async def on_ams_change(printer_id: int, ams_data: list):
                                     and spool.k_profiles
                                 ):
                                     state = printer_manager.get_status(printer_id)
-                                    nozzle_diameter = "0.4"
-                                    if state and state.nozzles:
-                                        nd = state.nozzles[0].nozzle_diameter
-                                        if nd:
-                                            nozzle_diameter = nd
-                                    slot_extruder: int | None = None
-                                    if state and state.ams_extruder_map:
-                                        if ams_id == 255:
-                                            slot_extruder = 1 - tray_id
-                                        else:
-                                            slot_extruder = state.ams_extruder_map.get(str(ams_id))
-                                    # Prefer exact extruder match, fall back to
-                                    # extruder-agnostic kp for the same printer +
-                                    # nozzle. Avoids hard-skipping when the AMS is
-                                    # mapped differently than at calibration time.
-                                    matching_kp = None
-                                    fallback_kp = None
-                                    for kp in spool.k_profiles:
-                                        if (
-                                            kp.printer_id != printer_id
-                                            or kp.nozzle_diameter != nozzle_diameter
-                                            or kp.cali_idx is None
-                                        ):
-                                            continue
-                                        if (
-                                            slot_extruder is not None
-                                            and kp.extruder is not None
-                                            and kp.extruder == slot_extruder
-                                        ):
-                                            matching_kp = kp
-                                            break
-                                        if fallback_kp is None:
-                                            fallback_kp = kp
-                                    chosen_kp = matching_kp or fallback_kp
-                                    if chosen_kp is not None:
-                                        live_cali_idx = tray.get("cali_idx")
-                                        # Only fire MQTT when the printer's live
-                                        # cali_idx differs from the stored value.
-                                        # Avoids spamming the broker on every
-                                        # MQTT push during steady-state operation.
-                                        if live_cali_idx != chosen_kp.cali_idx:
-                                            client = printer_manager.get_client(printer_id)
-                                            if client:
-                                                cali_filament_id = spool.slicer_filament or tray_info_idx or ""
-                                                client.extrusion_cali_sel(
-                                                    ams_id=ams_id,
-                                                    tray_id=tray_id,
-                                                    cali_idx=chosen_kp.cali_idx,
-                                                    filament_id=cali_filament_id,
-                                                    nozzle_diameter=nozzle_diameter,
-                                                )
-                                                logger.info(
-                                                    "Re-applied K-profile cali_idx=%d for spool %d "
-                                                    "on printer %d AMS%d-T%d (live=%s drift detected)",
-                                                    chosen_kp.cali_idx,
-                                                    spool.id,
-                                                    printer_id,
-                                                    ams_id,
-                                                    tray_id,
-                                                    live_cali_idx,
-                                                )
+                                    from backend.app.services.spool_filament_presets import apply_spool_rfid_calibration
+
+                                    client = printer_manager.get_client(printer_id)
+                                    if client:
+                                        await apply_spool_rfid_calibration(
+                                            db,
+                                            client,
+                                            spool,
+                                            state,
+                                            printer_manager.get_model(printer_id),
+                                            printer_id,
+                                            ams_id,
+                                            tray_id,
+                                            tray,
+                                        )
                             except Exception:
                                 logger.exception(
                                     "K-profile re-apply failed for printer %d AMS%d-T%d",
@@ -2008,11 +1962,11 @@ async def on_ams_change(printer_id: int, ams_data: list):
                                 # mode keeps in sync via inventory + spool_tag_matcher).
                                 # Without this the slot card surfaces the previous spool's
                                 # preset name — same bug shape, different inventory mode.
-                                from backend.app.services.slot_preset_writer import (
-                                    upsert_slot_preset_for_spoolman_spool,
+                                from backend.app.services.spool_filament_presets import (
+                                    reconcile_spoolman_rfid_slot,
                                 )
 
-                                await upsert_slot_preset_for_spoolman_spool(
+                                await reconcile_spoolman_rfid_slot(
                                     db=db,
                                     spoolman_spool=result,
                                     tray_info_idx=tray.tray_info_idx or "",
@@ -6596,7 +6550,6 @@ async def trace_id_middleware(request, call_next):
     return response
 
 
-# API routes
 app.include_router(auth.router, prefix=app_settings.api_prefix)
 app.include_router(mfa.router, prefix=app_settings.api_prefix)
 app.include_router(bug_report.router, prefix=app_settings.api_prefix)
@@ -6615,6 +6568,7 @@ app.include_router(orca_cloud.router, prefix=app_settings.api_prefix)
 app.include_router(local_presets.router, prefix=app_settings.api_prefix)
 app.include_router(smart_plugs.router, prefix=app_settings.api_prefix)
 app.include_router(ha_sensors.router, prefix=app_settings.api_prefix)
+app.include_router(storage_ha_sensors.router, prefix=app_settings.api_prefix)
 app.include_router(print_log.router, prefix=app_settings.api_prefix)
 app.include_router(print_queue.router, prefix=app_settings.api_prefix)
 app.include_router(kprofiles.router, prefix=app_settings.api_prefix)

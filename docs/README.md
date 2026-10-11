@@ -11,6 +11,7 @@ Screenshots gehören nicht in das Repository.
 | Authentifizierung | [Azure Entra ID](authentication/entra-id.md) | Einrichtung der OIDC-Anmeldung mit Microsoft Entra ID |
 | Bambu Lab | [Preset Sync API](bambu_lab_preset_sync_api.md) | Referenz der beobachteten Cloud-Endpunkte für Preset-Synchronisation |
 | Betrieb | [Docker-Laufzeitsicherheit](docker-runtime-security.md) | Root-Init, PUID/PGID, Capabilities und Volume-Rechte |
+| Betrieb | [Virtual Printer mit Docker / NAT](virtual-printer-docker-networking.md) | Gemeinsame IPv4-Zieladresse für Discovery und FTPS, Port-Mappings und Beispiele |
 | Migration | [Virtual-Printer-FTP-Port](migration-vp-ftp-port.md) | Umstellung des FTP-Ports und erforderliche Migrationsschritte |
 | Aufträge | [Auftragsverwaltung](order-management.md) | Unternehmensprofile, Kundenstammdaten, Berechtigungen und Nummernkreise |
 | Aufträge und Lager | [Lexware Office und Warenlager](lexware-integration.md) | Lesende Anbindung, geprüfte Stammdatenübernahme, Belege, Finanzen und Warenbestände |
@@ -25,6 +26,7 @@ Screenshots gehören nicht in das Repository.
 | Entwicklung | [README Editorial Guide](readme-editorial-guide.md) | Zielgruppen, Positionierung und Regeln für die zentrale Projekt-README |
 | Browser | [Browser-Kompatibilität](browser-compatibility.md) | Safari-16-Syntaxbaseline, README-Markdown und Grenzen der PDF-Vorschau |
 | Bedienung | [Touch und Tastatur](touch-and-keyboard-controls.md) | Sichtbare Karten-/Zeilenaktionen, Ordnermenüs und Fokusnavigation |
+| Drucker | [Tägliche AMS-Trocknung](scheduled-ams-drying.md) | Fähigkeiten, Zeitzonen, Reservierungen und unbestätigte Starts |
 
 Die allgemeine Projektübersicht, Installation und erste Schritte stehen in der
 [README im Projektstamm](../README.md).

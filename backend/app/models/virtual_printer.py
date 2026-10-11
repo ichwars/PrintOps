@@ -61,6 +61,7 @@ class VirtualPrinter(Base):
     )  # proxy mode
     bind_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)  # dedicated IP (proxy mode)
     remote_interface_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)  # SSDP advertise IP
+    advertised_ip: Mapped[str | None] = mapped_column(String(15), nullable=True)  # external IPv4 for SSDP/PASV
     tailscale_disabled: Mapped[bool] = mapped_column(
         Boolean, server_default="true"
     )  # opt-in: user must explicitly enable; auto-detect only runs then

@@ -101,6 +101,7 @@ def _verify_signature(archive: Path, signature: Path, manifest: dict) -> None:
         raise VendorError("GnuPG is required to verify the veraPDF release signature")
 
     expected = verapdf["signing_fingerprint"].replace(" ", "").upper()
+
     def gpg_path(value: str | Path) -> str:
         resolved = str(Path(value).resolve())
         if os.name == "nt" and "\\Git\\usr\\bin\\" in gpg:
@@ -166,8 +167,22 @@ def _cli_command(cli: Path) -> list[str]:
     return [str(cli), "--version"]
 
 
-def _stage_cli(archive: Path, destination: Path, expected_version: str) -> Path:
+def _install_cli(archive: Path, destination: Path, expected_version: str) -> Path:
     java = shutil.which("java")
+    if sys.platform == "darwin":
+        # Native macOS installs use Homebrew's keg-only OpenJDK. Services do
+        # not inherit the interactive shell PATH used by install.sh.
+        java = next(
+            (
+                str(path)
+                for prefix in ("/opt/homebrew", "/usr/local")
+                if (path := Path(prefix) / "opt/openjdk@17/bin/java").is_file()
+            ),
+            java,
+        )
+        if java:
+            os.environ["JAVA_HOME"] = str(Path(java).resolve().parent.parent)
+            os.environ["PATH"] = f"{Path(java).parent}{os.pathsep}{os.environ.get('PATH', '')}"
     if not java:
         raise VendorError("a Java runtime is required to install veraPDF")
     if destination.exists():
@@ -190,7 +205,7 @@ def _stage_cli(archive: Path, destination: Path, expected_version: str) -> Path:
     for relative in (
         "verapdf-gui",
         "verapdf-gui.bat",
-        "bin/gui-1.30.2.jar",
+        f"bin/gui-{expected_version}.jar",
         "documents",
         "Uninstaller",
         ".installationinformation",
@@ -214,10 +229,36 @@ def _stage_cli(archive: Path, destination: Path, expected_version: str) -> Path:
     return cli
 
 
+def _stage_cli(archive: Path, destination: Path, expected_version: str, backup_dir: Path | None = None) -> Path:
+    """Replace the whole runtime only after the candidate passes all gates."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if backup_dir is not None and backup_dir.exists():
+        raise VendorError(f"runtime backup already exists: {backup_dir}")
+    # Keep both renames on the destination filesystem. Replacing the complete
+    # directory also removes obsolete JARs from the launcher's wildcard path.
+    with tempfile.TemporaryDirectory(prefix=".verapdf-stage-", dir=destination.parent) as working:
+        candidate = Path(working) / "candidate"
+        _install_cli(archive, candidate, expected_version)
+        previous = backup_dir if backup_dir is not None else Path(working) / "previous"
+        had_previous = destination.exists()
+        if had_previous:
+            destination.rename(previous)
+        try:
+            candidate.rename(destination)
+        except OSError:
+            if had_previous:
+                previous.rename(destination)
+            raise
+    return destination / ("verapdf.bat" if os.name == "nt" else "verapdf")
+
+
 def main() -> int:
+    if sys.platform == "darwin":
+        os.environ["PATH"] = f"/opt/homebrew/bin:/usr/local/bin:{os.environ.get('PATH', '')}"
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--destination", type=Path, required=True, help="clean directory that receives the CLI")
     parser.add_argument("--cache-dir", type=Path, default=REPO_ROOT / ".cache" / "pdf-runtime")
+    parser.add_argument("--backup-dir", type=Path, help="retain the previous runtime for updater rollback")
     parser.add_argument("--verify-only", action="store_true", help="verify downloads and signature without installing")
     args = parser.parse_args()
 
@@ -240,7 +281,7 @@ def main() -> int:
         if args.verify_only:
             print(f"verified veraPDF {verapdf['version']} ({archive.name})")
             return 0
-        cli = _stage_cli(archive, args.destination, verapdf["version"])
+        cli = _stage_cli(archive, args.destination, verapdf["version"], args.backup_dir)
         print(f"staged verified veraPDF {verapdf['version']} CLI at {cli}")
         return 0
     except (OSError, subprocess.CalledProcessError, VendorError, zipfile.BadZipFile) as exc:

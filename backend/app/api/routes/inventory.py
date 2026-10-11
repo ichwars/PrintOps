@@ -38,8 +38,6 @@ from backend.app.schemas.spool import (
     SpoolAssignmentResponse,
     SpoolBulkCreate,
     SpoolCreate,
-    SpoolKProfileBase,
-    SpoolKProfileResponse,
     SpoolResponse,
     SpoolUpdate,
     normalize_effect_type,
@@ -72,6 +70,7 @@ from backend.app.services.spool_csv import (
     parse_and_validate,
     serialize,
 )
+from backend.app.services.spool_filament_presets import resolve_spool_preset
 from backend.app.services.spoolman import SpoolmanClient, get_spoolman_client, init_spoolman_client
 from backend.app.utils.filament_ids import (
     GENERIC_FILAMENT_IDS,
@@ -177,6 +176,7 @@ async def apply_spool_to_slot_via_mqtt(
         return False
 
     state = printer_manager.get_status(printer_id)
+    preset = await resolve_spool_preset(db, spool, printer_id)
 
     tray_type = printer_filament_type(spool.material)
     tray_sub_brands = tray_sub_brand(spool.brand, spool.material, spool.subtype)
@@ -184,13 +184,12 @@ async def apply_spool_to_slot_via_mqtt(
 
     _generic_id_values = _GENERIC_ID_VALUES
 
-    # Shared resolution covers cloud and local presets plus defensive preset-id
-    # sanitization. Live state and generic material remain the final fallbacks.
+    # Model overrides precede the legacy preset; NULL explicitly selects generic.
     tray_info_idx, setting_id, sub_brand_override, type_override = await resolve_slicer_filament(
         db=db,
         current_user=current_user,
-        slicer_filament=spool.slicer_filament,
-        slicer_filament_name=spool.slicer_filament_name,
+        slicer_filament=preset.slicer_filament,
+        slicer_filament_name=preset.slicer_filament_name,
         material=spool.material,
     )
     if sub_brand_override:
@@ -200,7 +199,8 @@ async def apply_spool_to_slot_via_mqtt(
 
     if not tray_info_idx:
         if (
-            current_tray_info_idx
+            not preset.configured
+            and current_tray_info_idx
             and current_tray_info_idx not in _generic_id_values
             and not current_tray_info_idx.startswith("PFUS")
             and not current_tray_info_idx.startswith("PFCN")
@@ -222,46 +222,12 @@ async def apply_spool_to_slot_via_mqtt(
     if spool.nozzle_temp_max is not None:
         temp_max = spool.nozzle_temp_max
 
-    nozzle_diameter = "0.4"
-    if state and state.nozzles:
-        nd = state.nozzles[0].nozzle_diameter
-        if nd:
-            nozzle_diameter = nd
+    from backend.app.services.calibration_context import resolve_spool_calibration
 
-    slot_extruder = None
-    if state and state.ams_extruder_map:
-        if ams_id == 255:
-            slot_extruder = 1 - tray_id  # ext-L (tray 0) → extruder 1, ext-R (tray 1) → extruder 0
-        else:
-            slot_extruder = state.ams_extruder_map.get(str(ams_id))
-
-    # Prefer exact extruder match, fall back to extruder-agnostic kp for the
-    # same nozzle. Hard-skipping on mismatch silently drops valid stored
-    # profiles when the AMS-extruder mapping has shifted.
-    exact_kp = None
-    fallback_kp = None
-    for kp in spool.k_profiles:
-        if kp.printer_id != printer_id or kp.nozzle_diameter != nozzle_diameter:
-            continue
-        if slot_extruder is not None and kp.extruder is not None and kp.extruder == slot_extruder:
-            exact_kp = kp
-            break
-        if fallback_kp is None:
-            fallback_kp = kp
-    matching_kp = exact_kp or fallback_kp
-
-    # Resolve the printer-side calibration entry by looking up the cali_idx
-    # in state.kprofiles. The printer keys its calibration table by
-    # (filament_id, cali_idx) — for the cali_idx to stick, the slot's
-    # filament_id must match the kp's. PFUS-prefix cloud user presets are
-    # rejected by the slicer in tray_info_idx; the printer-reported
-    # filament_id is typically a P-prefix local preset which is valid.
-    printer_kp = None
-    if matching_kp and matching_kp.cali_idx is not None and state and getattr(state, "kprofiles", None):
-        for pkp in state.kprofiles:
-            if pkp.slot_id == matching_kp.cali_idx and pkp.nozzle_diameter == nozzle_diameter:
-                printer_kp = pkp
-                break
+    context, matching_kp, printer_kp = resolve_spool_calibration(
+        spool.k_profiles, state, printer_manager.get_model(printer_id), printer_id, ams_id, tray_id
+    )
+    nozzle_diameter = context.diameter if context else ""
 
     effective_tray_info_idx = tray_info_idx
     effective_setting_id = setting_id
@@ -303,7 +269,7 @@ async def apply_spool_to_slot_via_mqtt(
         elif matching_kp.setting_id:
             cali_filament_id = normalize_slicer_filament(matching_kp.setting_id)[0] or matching_kp.setting_id
         else:
-            cali_filament_id = spool.slicer_filament or effective_tray_info_idx
+            cali_filament_id = effective_tray_info_idx
         client.extrusion_cali_sel(
             ams_id=ams_id,
             tray_id=tray_id,
@@ -311,14 +277,9 @@ async def apply_spool_to_slot_via_mqtt(
             filament_id=cali_filament_id,
             nozzle_diameter=nozzle_diameter,
         )
-    else:
-        # No stored K-profile for this spool — always reset the slot to Default
-        # K (cali_idx=-1). The live cali_idx on the slot belongs to whatever
-        # filament was there before, so preserving it would apply the wrong
-        # filament's calibration to the new spool. Default K is the firmware's
-        # documented "no specific profile" value (see BambuClient.extrusion_cali_sel
-        # docstring).
-        cali_filament_id = spool.slicer_filament or effective_tray_info_idx
+    elif context is not None:
+        # Reset the previous spool's calibration when the current context is known.
+        cali_filament_id = effective_tray_info_idx
         client.extrusion_cali_sel(
             ams_id=ams_id,
             tray_id=tray_id,
@@ -1724,51 +1685,6 @@ async def merge_spools(
     }
 
 
-# ── K-Profiles ───────────────────────────────────────────────────────────────
-
-
-@router.get("/spools/{spool_id}/k-profiles", response_model=list[SpoolKProfileResponse])
-async def list_k_profiles(
-    spool_id: int,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
-):
-    """List K-profiles for a spool."""
-    result = await db.execute(select(SpoolKProfile).where(SpoolKProfile.spool_id == spool_id))
-    return list(result.scalars().all())
-
-
-@router.put("/spools/{spool_id}/k-profiles", response_model=list[SpoolKProfileResponse])
-async def replace_k_profiles(
-    spool_id: int,
-    profiles: list[SpoolKProfileBase],
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
-):
-    """Replace all K-profiles for a spool (batch save)."""
-    # Verify spool exists
-    result = await db.execute(select(Spool).where(Spool.id == spool_id))
-    if not result.scalar_one_or_none():
-        raise HTTPException(404, "Spool not found")
-
-    # Delete existing
-    existing = await db.execute(select(SpoolKProfile).where(SpoolKProfile.spool_id == spool_id))
-    for old in existing.scalars().all():
-        await db.delete(old)
-
-    # Create new
-    new_profiles = []
-    for p in profiles:
-        kp = SpoolKProfile(spool_id=spool_id, **p.model_dump())
-        db.add(kp)
-        new_profiles.append(kp)
-
-    await db.commit()
-    for kp in new_profiles:
-        await db.refresh(kp)
-    return new_profiles
-
-
 # ── Spool Assignments ────────────────────────────────────────────────────────
 
 
@@ -2680,3 +2596,11 @@ async def create_spool_from_slot(
     )
     result = await db.execute(select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id == spool.id))
     return result.scalar_one()
+
+
+from backend.app.api.routes.spool_filament_presets import preset_router  # noqa: E402
+
+router.include_router(preset_router(spoolman=False))
+from backend.app.api.routes.spool_k_profiles import router as k_profiles_router  # noqa: E402
+
+router.include_router(k_profiles_router)

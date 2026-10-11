@@ -7,7 +7,7 @@ from types import MappingProxyType
 from backend.app.services.document_catalog import DocumentType
 
 RENDERER_VERSION = "weasyprint-70.0+pikepdf-10.10.0"
-VALIDATOR_VERSION = "verapdf-1.30.2"
+VALIDATOR_VERSION = "verapdf-1.30.3"
 SUPPORTED_LANGUAGES = ("de", "en")
 SUPPORTED_DOCUMENT_TYPES = tuple(document_type.value for document_type in DocumentType)
 LAYOUT_SECTION_KEYS = (

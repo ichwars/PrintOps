@@ -114,9 +114,10 @@ services:
       # Port PrintOps runs on (default: 8000)
       # Usage: PORT=8080 docker compose up -d
       - PORT=${PORT:-8000}
-      # Virtual printer: Set to the Docker host's IP when using bridge mode (ports:).
-      # Required for FTP passive mode to work behind NAT.
-      # Example: VIRTUAL_PRINTER_PASV_ADDRESS=192.168.1.100
+      # Virtual printer bridge/NAT: set each VP's "Advertised IPv4 address"
+      # in Settings to the reachable host IP for matching discovery and FTPS.
+      # Keep its bind interface local. See docs/virtual-printer-docker-networking.md.
+      # Legacy FTPS-only fallback: VIRTUAL_PRINTER_PASV_ADDRESS=192.168.1.100
       #- VIRTUAL_PRINTER_PASV_ADDRESS=
       #
       # HA RTSP passthrough (opt-in, off by default). When enabled, PrintOps

@@ -26,6 +26,7 @@ from backend.app.services.virtual_printer.mqtt_bridge import MQTTBridge
 from backend.app.services.virtual_printer.mqtt_server import SimpleMQTTServer
 from backend.app.services.virtual_printer.ssdp_server import SSDPProxy, VirtualPrinterSSDPServer
 from backend.app.services.virtual_printer.tcp_proxy import SlicerProxyManager, TCPProxy
+from backend.app.utils.advertised_address import validate_advertised_ip
 
 if TYPE_CHECKING:
     from backend.app.services.printer_manager import PrinterManager
@@ -159,6 +160,7 @@ class VirtualPrinterInstance:
         gcode_injection: bool = False,
         bind_ip: str = "",
         remote_interface_ip: str = "",
+        advertised_ip: str = "",
         tailscale_disabled: bool = True,
         base_dir: Path,
         session_factory: Callable | None = None,
@@ -182,6 +184,7 @@ class VirtualPrinterInstance:
         self.gcode_injection = gcode_injection
         self.bind_ip = bind_ip
         self.remote_interface_ip = remote_interface_ip
+        self.advertised_ip = validate_advertised_ip(advertised_ip) or ""
         self.tailscale_disabled = tailscale_disabled
         self._session_factory = session_factory
         self._printer_manager = printer_manager
@@ -271,6 +274,9 @@ class VirtualPrinterInstance:
         if self.bind_ip:
             additional_ips = additional_ips or []
             additional_ips.append(self.bind_ip)
+        if self.advertised_ip:
+            additional_ips = additional_ips or []
+            additional_ips.append(self.advertised_ip)
         self._cert_service.delete_printer_certificate()
         return self._cert_service.generate_certificates(additional_ips=additional_ips)
 
@@ -1020,7 +1026,7 @@ class VirtualPrinterInstance:
         IP in the bind_ip dropdown.
         """
         cert_path, key_path = self.generate_certificates()
-        advertise = self.remote_interface_ip or self.bind_ip or ""
+        advertise = self.advertised_ip or self.remote_interface_ip or self.bind_ip or ""
         return cert_path, key_path, advertise
 
     async def start_server(self) -> None:
@@ -1054,6 +1060,7 @@ class VirtualPrinterInstance:
             vp_name=self.name,
             passive_port_min=passive_port_min,
             passive_port_max=passive_port_max,
+            advertised_ip=self.advertised_ip,
         )
         self._tasks.append(
             asyncio.create_task(
@@ -1145,11 +1152,8 @@ class VirtualPrinterInstance:
             )
         )
 
-        # SSDP server — advertise_addr is the remote_interface_ip (Tailscale
-        # IP, when chosen from the bind_ip dropdown) or the bind_ip. SSDP
-        # Location accepts IPs only; FQDNs go in through bind_ip selection
-        # at the printer-IP level and resolve before reaching the SSDP
-        # advertisement.
+        # SSDP and FTP share the explicit NAT override. Listener addresses
+        # remain local; absent an override, existing selection is preserved.
         self._ssdp = VirtualPrinterSSDPServer(
             name=self.name,
             serial=self.serial,
@@ -1237,6 +1241,7 @@ class VirtualPrinterInstance:
             key_path=key_path,
             on_activity=lambda n, m: logger.info("[VP %s] Proxy %s: %s", self.name, n, m),
             bind_address=self.bind_ip or "0.0.0.0",  # nosec B104
+            advertised_ip=self.advertised_ip,
             bind_identity={
                 "serial": self.target_printer_serial or self.serial,
                 "model": self.model or DEFAULT_VIRTUAL_PRINTER_MODEL,
@@ -1263,6 +1268,7 @@ class VirtualPrinterInstance:
                 self._ssdp_proxy = SSDPProxy(
                     local_interface_ip=local_iface["ip"],
                     remote_interface_ip=self.remote_interface_ip,
+                    advertised_ip=self.advertised_ip,
                     target_printer_ip=self.target_printer_ip,
                     name=self.name,
                 )
@@ -1290,7 +1296,7 @@ class VirtualPrinterInstance:
             name=f"{self.name} (Proxy)",
             serial=proxy_serial,
             model=self.model or DEFAULT_VIRTUAL_PRINTER_MODEL,
-            advertise_ip=self.bind_ip or "",
+            advertise_ip=self.advertised_ip or self.bind_ip or "",
             bind_ip=self.bind_ip or "",
         )
         self._tasks.append(
@@ -1474,6 +1480,7 @@ class VirtualPrinterManager:
                 or instance.access_code != (vp.access_code or "")
                 or instance.bind_ip != (vp.bind_ip or "")
                 or instance.remote_interface_ip != (vp.remote_interface_ip or "")
+                or instance.advertised_ip != (vp.advertised_ip or "")
                 or instance.target_printer_id != vp.target_printer_id
                 or instance.auto_dispatch != vp.auto_dispatch
                 # Queue-mode behaviour toggle — without it the running
@@ -1516,6 +1523,7 @@ class VirtualPrinterManager:
                     auto_dispatch=vp.auto_dispatch,
                     bind_ip=vp.bind_ip or "",
                     remote_interface_ip=vp.remote_interface_ip or "",
+                    advertised_ip=vp.advertised_ip or "",
                     tailscale_disabled=vp.tailscale_disabled,
                     base_dir=self._base_dir,
                     session_factory=self._session_factory,
@@ -1537,6 +1545,7 @@ class VirtualPrinterManager:
                     gcode_injection=vp.gcode_injection,
                     bind_ip=vp.bind_ip or "",
                     remote_interface_ip=vp.remote_interface_ip or "",
+                    advertised_ip=vp.advertised_ip or "",
                     tailscale_disabled=vp.tailscale_disabled,
                     base_dir=self._base_dir,
                     session_factory=self._session_factory,

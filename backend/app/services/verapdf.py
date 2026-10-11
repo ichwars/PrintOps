@@ -1,4 +1,4 @@
-"""Bounded veraPDF 1.30.2 execution and stable report normalization."""
+"""Bounded veraPDF 1.30.3 execution and stable report normalization."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict
 
 from backend.app.schemas.document_layout import LayoutFinding
 
-EXPECTED_VERAPDF_VERSION = "1.30.2"
+EXPECTED_VERAPDF_VERSION = "1.30.3"
 _MAX_REPORT_BYTES = 10 * 1024 * 1024
 _VERSION_PATTERN = re.compile(r"\bveraPDF\s+([0-9]+(?:\.[0-9]+){2})\b", re.IGNORECASE)
 

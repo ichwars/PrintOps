@@ -75,6 +75,7 @@ from backend.app.models.document_layout import (
     LayoutTotalsRules,
     LayoutTypographyRules,
 )
+from backend.app.models.drying_schedule import DryingSchedule, DryingScheduleRun
 from backend.app.models.equipment import Equipment
 from backend.app.models.filament import Filament
 from backend.app.models.filament_sku_settings import FilamentSkuSettings
@@ -110,6 +111,7 @@ from backend.app.models.sponsor_toast_state import SponsorToastState
 from backend.app.models.spool import Spool
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spool_catalog import SpoolCatalogEntry
+from backend.app.models.spool_filament_preset import SpoolFilamentPreset, SpoolmanFilamentPreset
 from backend.app.models.spool_k_profile import SpoolKProfile
 from backend.app.models.spool_refill_event import SpoolRefillEvent
 from backend.app.models.spool_usage_history import SpoolUsageHistory
@@ -120,6 +122,7 @@ from backend.app.models.stock_reservation import (
     StockReservationCommand,
     StockResourceLock,
 )
+from backend.app.models.storage_ha_sensor import StorageHASensor
 from backend.app.models.user import User
 from backend.app.models.user_email_pref import UserEmailPreference
 from backend.app.models.user_otp_code import UserOTPCode
@@ -168,6 +171,8 @@ __all__ = [
     "SlicerPipeline",
     "Spool",
     "SpoolKProfile",
+    "SpoolFilamentPreset",
+    "SpoolmanFilamentPreset",
     "SpoolAssignment",
     "SpoolCatalogEntry",
     "SpoolRefillEvent",
@@ -242,6 +247,8 @@ __all__ = [
     "DocumentPreviewJob",
     "NumberSequence",
     "Equipment",
+    "DryingSchedule",
+    "DryingScheduleRun",
     "SmallPartCategory",
     "SmallPartUnit",
     "SmallPart",

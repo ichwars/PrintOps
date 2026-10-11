@@ -21,6 +21,7 @@ from backend.app.schemas.kprofile import (
     KProfileNoteResponse,
     KProfilesResponse,
 )
+from backend.app.services.drying_ownership import printer_operation_guard
 from backend.app.services.printer_manager import printer_manager
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ async def set_kprofile(
     profile: KProfileCreate,
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.KPROFILES_UPDATE),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Create or update a K-profile on the printer.
 
@@ -195,6 +197,7 @@ async def set_kprofiles_batch(
     profiles: list[KProfileCreate],
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.KPROFILES_UPDATE),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Create multiple K-profiles in a single command (for dual-nozzle).
 
@@ -257,6 +260,7 @@ async def delete_kprofile(
     profile: KProfileDelete,
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.KPROFILES_DELETE),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Delete a K-profile from the printer.
 

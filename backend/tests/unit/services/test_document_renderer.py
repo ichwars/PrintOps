@@ -167,7 +167,7 @@ def test_preview_warns_but_final_blocks_when_validator_is_unavailable(tmp_path):
 def test_final_artifact_is_persisted_only_after_compliant_validation(tmp_path):
     report = PdfaValidationReport(
         compliant=True,
-        validator_version="1.30.2",
+        validator_version="1.30.3",
         findings=[],
         raw_report_sha256="a" * 64,
     )

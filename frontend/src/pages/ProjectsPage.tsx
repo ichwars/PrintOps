@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { NumberField , FileInput, LegacyDatePicker, LegacySelect, TextArea, TextField} from '../components/ui';
+import { Checkbox, NumberField , FileInput, LegacyDatePicker, LegacySelect, TextArea, TextField} from '../components/ui';
 import {
   FolderKanban,
   Loader2,
@@ -34,6 +34,8 @@ import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { eligibleParents } from '../utils/projectTree';
+import { ProjectGroup } from '../components/ProjectGroup';
+import { useProjectGroups } from '../hooks/useProjectGroups';
 
 const PROJECT_COLORS = [
   '#ef4444', // red
@@ -895,7 +897,8 @@ export function ProjectsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
+  const groups = useProjectGroups(user?.id ?? null);
   const [showModal, setShowModal] = useState(false);
   const [editingProject, setEditingProject] = useState<ProjectListItem | undefined>();
   const [statusFilter, setStatusFilter] = useState<string>('active');
@@ -922,6 +925,7 @@ export function ProjectsPage() {
     queryFn: () => api.getProjects(),
   });
   const namesById = new Map((allProjects || []).map((p) => [p.id, p.name]));
+  const childCountsById = new Map((allProjects || []).map((p) => [p.id, p.child_count]));
 
   // A sub-project is drawn inside its parent's group rather than as another
   // card somewhere in the grid — two cards that belong together are not
@@ -987,18 +991,16 @@ export function ProjectsPage() {
     return (
       <div key={project.id} className="col-span-full space-y-4">
         {card}
-        <div
-          className="ml-4 md:ml-8 pl-4 md:pl-6 border-l-2 rounded-l space-y-4"
-          style={{ borderColor: project.color || '#6b7280' }}
+        <ProjectGroup
+          name={project.name}
+          color={project.color}
+          visibleCount={children.length}
+          totalCount={Math.max(children.length, childCountsById.get(project.id) ?? project.child_count ?? 0)}
+          expanded={groups.isExpanded(project.id)}
+          onToggle={() => groups.toggle(project.id)}
         >
-          <p className="text-xs uppercase tracking-wide text-bambu-gray flex items-center gap-1.5">
-            <FolderTree className="w-3.5 h-3.5" />
-            {t('projects.subProjectsOf', { name: project.name })}
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {children.map((child) => renderProjectTree(child, depth + 1, descended))}
-          </div>
-        </div>
+          {children.map((child) => renderProjectTree(child, depth + 1, descended))}
+        </ProjectGroup>
       </div>
     );
   };
@@ -1207,7 +1209,7 @@ export function ProjectsPage() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-1 p-1 bg-bambu-dark rounded-xl w-fit">
+      <div className="flex flex-wrap gap-1 p-1 bg-bambu-dark rounded-xl w-fit">
         {[
           { key: 'active', label: t('projects.statusActive'), icon: Clock },
           { key: 'completed', label: t('projects.statusCompleted'), icon: CheckCircle2 },
@@ -1235,6 +1237,13 @@ export function ProjectsPage() {
           </button>
         ))}
       </div>
+
+      <Checkbox
+        checked={groups.defaultCollapsed}
+        onCheckedChange={groups.setDefaultCollapsed}
+        label={t('projects.collapseDefault')}
+        className="min-h-[44px] w-fit"
+      />
 
       {/* Content */}
       {isLoading ? (

@@ -196,6 +196,9 @@ jobs:
       - name: Run live PostgreSQL sensor persistence tests
         run: python -m pytest backend/tests/integration/test_issue_143_ha_sensor_persistence.py -q
 
+      - name: Run live PostgreSQL calibration context and restore tests
+        run: python -m pytest backend/tests/postgres/test_issue_149_k_profile_contexts.py -q
+
   # ============================================================================
   # Frontend Checks
   # ============================================================================
@@ -367,7 +370,9 @@ jobs:
   docker-backend-tests:
     name: Docker Backend Tests (shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Real WeasyPrint/veraPDF compatibility tests run in this image too.
+    # Allow the slowest shard plus image setup to finish on 2-vCPU runners.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -409,7 +414,8 @@ jobs:
   docker-test:
     name: Docker Build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Include image builds and the full 3,100+ integration/PDF test suite.
+    timeout-minutes: 35
     needs: [backend-tests, frontend-build]
     steps:
       - uses: actions/checkout@v6
