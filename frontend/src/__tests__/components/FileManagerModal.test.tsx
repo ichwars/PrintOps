@@ -452,7 +452,7 @@ describe('FileManagerModal', () => {
       fireEvent.click(downloadButton);
 
       await waitFor(() => {
-        expect(screen.getByRole('alert')).toHaveTextContent(/did not complete in time/i);
+        expect(screen.getByRole('alert', { name: 'Error', exact: true })).toHaveTextContent(/did not complete in time/i);
       });
     });
   });
