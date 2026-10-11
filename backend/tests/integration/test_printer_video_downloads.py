@@ -2,8 +2,10 @@
 
 import asyncio
 from unittest.mock import AsyncMock, patch
+from urllib.parse import unquote
 
 import pytest
+from httpx import AsyncClient
 
 from backend.app.services.bambu_ftp import FileNotOnPrinterError
 
@@ -102,3 +104,55 @@ async def test_video_download_checks_file_permission(async_client, db_session, p
         size.assert_not_awaited()
     else:
         assert response.content == b"video"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("filename", "ascii_fallback"),
+    [
+        ("龙泡泡石墩子_p2s_ok.gcode.3mf", "p2s_ok.gcode.3mf"),
+        ("こんにちは.gcode.3mf", "gcode.3mf"),
+        ("résumé.gcode.3mf", "rsum.gcode.3mf"),
+        ("مرحبا.gcode.3mf", "gcode.3mf"),
+        ("文件.3mf", "3mf"),
+        ("hello.3mf", "hello.3mf"),
+    ],
+)
+async def test_download_printer_file_non_ascii_filename(
+    async_client: AsyncClient,
+    printer_factory,
+    filename: str,
+    ascii_fallback: str,
+    db_session,
+):
+    """Non-ASCII filenames must not crash header encoding (issue #1245)."""
+    printer = await printer_factory()
+    file_bytes = b"fake 3mf content"
+
+    async def chunks(*args, **kwargs):
+        yield file_bytes
+
+    with (
+        patch(
+            "backend.app.api.routes.printer_files.stream_printer_file",
+            chunks,
+        ),
+        patch(
+            "backend.app.api.routes.printer_files.get_file_size_async",
+            new=AsyncMock(return_value=len(file_bytes)),
+        ),
+    ):
+        response = await async_client.get(
+            f"/api/v1/printers/{printer.id}/files/download",
+            params={"path": f"/cache/{filename}"},
+        )
+
+    assert response.status_code == 200
+    assert response.content == file_bytes
+
+    content_disposition = response.headers["content-disposition"]
+    assert f'filename="{ascii_fallback}"' in content_disposition
+    assert "filename*=UTF-8''" in content_disposition
+    encoded_name = content_disposition.split("filename*=UTF-8''", 1)[1]
+    assert unquote(encoded_name) == filename
