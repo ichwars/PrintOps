@@ -36,6 +36,14 @@ const mockCapabilities = {
   filament_colors: ['#00ae42'],
 };
 
+it.each(['stl', 'step', 'stp'])('offers OrcaSlicer for a desktop %s handoff', async (fileType) => {
+  server.use(http.get('/api/v1/settings/', () => HttpResponse.json({
+    use_slicer_api: false, open_in_slicer: 'orcaslicer', preferred_slicer: 'bambu_studio',
+  })));
+  render(<ModelViewerModal libraryFileId={7} title={`part.${fileType}`} fileType={fileType} onClose={() => {}} />);
+  await waitFor(() => expect(screen.getByRole('button', { name: /Open in Slicer/ })).toBeEnabled());
+});
+
 const mockPlatesResponse = {
   is_multi_plate: true,
   plates: [
@@ -506,7 +514,7 @@ describe('ModelViewerModal', () => {
       });
     });
 
-    it('disables Open in Slicer for non-3mf library files', async () => {
+    it('names OrcaSlicer when the configured Bambu handler cannot open an STL', async () => {
       render(
         <ModelViewerModal
           libraryFileId={1}
@@ -517,8 +525,8 @@ describe('ModelViewerModal', () => {
       );
 
       await waitFor(() => {
-        const slicerButton = screen.getByText('Open in Slicer').closest('button');
-        expect(slicerButton).toBeDisabled();
+        const slicerButton = screen.getByRole('button', { name: 'Open in Slicer (OrcaSlicer)' });
+        expect(slicerButton).toBeEnabled();
       });
     });
   });

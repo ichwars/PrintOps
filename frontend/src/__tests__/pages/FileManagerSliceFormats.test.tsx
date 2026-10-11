@@ -78,6 +78,15 @@ describe('FileManagerPage - STEP files and server-side slicing', () => {
     expect(within(rowFor('bracket.stl')).getByTitle('Slice')).toBeInTheDocument();
   });
 
+  it('offers desktop OrcaSlicer handoff for STEP when the sidecar is off', async () => {
+    server.use(http.get('/api/v1/settings/', () => HttpResponse.json({
+      use_slicer_api: false, open_in_slicer: 'orcaslicer', preferred_slicer: 'bambu_studio',
+    })));
+    render(<FileManagerPage />);
+    await waitFor(() => expect(screen.getByText('flange.step')).toBeInTheDocument());
+    expect(within(rowFor('flange.step')).getByTitle('Slice')).toBeEnabled();
+  });
+
   it('offers no slice or pipeline action for STEP/STP', async () => {
     render(<FileManagerPage />);
 

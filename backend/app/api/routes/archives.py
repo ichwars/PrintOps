@@ -2376,12 +2376,12 @@ async def download_archive_for_slicer(
     """Download 3MF file using a slicer download token.
 
     Token-authenticated (no auth headers needed). The token is short-lived
-    and single-use, created by POST /{archive_id}/slicer-token.
+    and reusable within its TTL, created by POST /{archive_id}/slicer-token.
     Filename is at the end of the URL so slicers can detect the file format.
     """
     from backend.app.core.auth import verify_slicer_download_token
 
-    if not await verify_slicer_download_token(token, "archive", archive_id):
+    if not await verify_slicer_download_token(token, "archive", archive_id, single_use=False):
         raise HTTPException(403, "Invalid or expired download token")
 
     service = ArchiveService(db)
@@ -4629,11 +4629,11 @@ async def download_source_3mf_for_slicer_with_token(
     """Download source 3MF using a slicer download token.
 
     Token-authenticated (no auth headers needed). The token is short-lived
-    and single-use, created by POST /{archive_id}/source-slicer-token.
+    and reusable within its TTL, created by POST /{archive_id}/source-slicer-token.
     """
     from backend.app.core.auth import verify_slicer_download_token
 
-    if not await verify_slicer_download_token(token, "source", archive_id):
+    if not await verify_slicer_download_token(token, "source", archive_id, single_use=False):
         raise HTTPException(403, "Invalid or expired download token")
 
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))

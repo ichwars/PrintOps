@@ -587,8 +587,10 @@ async def create_slicer_download_token(resource_type: str, resource_id: int) -> 
     return token
 
 
-async def verify_slicer_download_token(token: str, resource_type: str, resource_id: int) -> bool:
-    """Verify and atomically consume a slicer download token.
+async def verify_slicer_download_token(
+    token: str, resource_type: str, resource_id: int, *, single_use: bool = True
+) -> bool:
+    """Verify a resource-bound download token; consume it by default.
 
     Returns True only if the token is valid, unexpired, and bound to the given resource.
     DELETE...RETURNING ensures the token is single-use even under concurrent requests.
@@ -601,6 +603,18 @@ async def verify_slicer_download_token(token: str, resource_type: str, resource_
     expected_key = f"{resource_type}:{resource_id}"
     now = datetime.now(timezone.utc)
     async with async_session() as db:
+        if not single_use:
+            # Protocol handlers retry and resume downloads. Keep the same
+            # resource binding and five-minute expiry on every redemption.
+            result = await db.execute(
+                select(AuthEphemeralToken.id).where(
+                    AuthEphemeralToken.token == token,
+                    AuthEphemeralToken.token_type == TokenType.SLICER_DOWNLOAD,
+                    AuthEphemeralToken.nonce == expected_key,
+                    AuthEphemeralToken.expires_at > now,
+                )
+            )
+            return result.scalar_one_or_none() is not None
         result = await db.execute(
             delete(AuthEphemeralToken)
             .where(

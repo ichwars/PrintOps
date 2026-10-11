@@ -3677,7 +3677,7 @@ async def _run_slicer_with_fallback(
             primary_bytes,
             request.plate or 1,
             filament_jsons,
-            process_profile_json=presets["process"],
+            process_profile_json=presets.get("process"),
         )
 
     # Arrange slice-all loop (#1493): when the user asks for ``plate=0``
@@ -4886,12 +4886,12 @@ async def download_library_file_for_slicer(
     """Download a library file using a slicer download token.
 
     Token-authenticated (no auth headers needed). The token is short-lived
-    and single-use, created by POST /files/{file_id}/slicer-token.
+    and reusable within its TTL, created by POST /files/{file_id}/slicer-token.
     Filename is at the end of the URL so slicers can detect the file format.
     """
     from backend.app.core.auth import verify_slicer_download_token
 
-    if not await verify_slicer_download_token(token, "library", file_id):
+    if not await verify_slicer_download_token(token, "library", file_id, single_use=False):
         raise HTTPException(status_code=403, detail="Invalid or expired download token")
 
     result = await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))

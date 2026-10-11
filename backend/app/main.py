@@ -6537,6 +6537,18 @@ async def auth_middleware(request, call_next):
     ):
         return await call_next(request)
 
+    # Archive source handoffs validate an endpoint-bound slicer token. Only
+    # this GET shape bypasses header auth; ordinary archive reads still require it.
+    if (
+        request.method == "GET"
+        and len(parts) == 8
+        and parts[:4] == ["", "api", "v1", "archives"]
+        and parts[4].isdigit()
+        and parts[5] == "source-dl"
+        and all(parts[6:])
+    ):
+        return await call_next(request)
+
     # Allow public patterns (read-only display data like thumbnails)
     for pattern in PUBLIC_API_PATTERNS:
         if pattern in path:

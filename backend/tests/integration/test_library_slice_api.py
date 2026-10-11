@@ -807,6 +807,43 @@ class TestCrossClassSliceAllLoop:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_library_single_plate_slices_with_embedded_settings(
+        self, async_client: AsyncClient, db_session, slice_test_setup
+    ):
+        """The file viewer's 'as designed' option needs no process preset."""
+        tmp_path = slice_test_setup["tmp_path"]
+        source_path = tmp_path / "library" / "files" / "as-designed.3mf"
+        source_path.write_bytes(self._make_multi_plate_x1c_source(plate_count=1))
+        source = LibraryFile(
+            filename=source_path.name,
+            file_path=str(source_path.relative_to(tmp_path)),
+            file_type="3mf",
+            file_size=source_path.stat().st_size,
+        )
+        db_session.add(source)
+        await db_session.commit()
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if not _is_slice_post(request):
+                return httpx.Response(404)
+            return httpx.Response(
+                200,
+                content=self._make_single_plate_sliced_output(1),
+                headers={"x-print-time-seconds": "300", "x-filament-used-g": "2.0"},
+            )
+
+        _install_mock_sidecar(handler)
+        response = await async_client.post(
+            f"/api/v1/library/files/{source.id}/slice",
+            json={"use_embedded_settings": True, "plate": 1},
+        )
+        assert response.status_code == 202, response.text
+        final = await _wait_for_job(async_client, response.json()["job_id"])
+        assert final["status"] == "completed", final
+        assert final["result"]["used_embedded_settings"] is True
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_loops_per_plate_when_cross_class_with_plate_zero(
         self, async_client: AsyncClient, db_session, slice_test_setup, printer_factory, archive_factory, monkeypatch
     ):

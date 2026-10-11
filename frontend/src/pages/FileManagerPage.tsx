@@ -81,8 +81,9 @@ import { usePageFileDrop } from '../hooks/usePageFileDrop';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDuration, parseUTCDate, formatDate } from '../utils/date';
 import { formatFileSize } from '../utils/file';
+import { openInSlicer, resolveDesktopSlicer, type SlicerType } from '../utils/slicer';
 import { isUnsliceableCadFilename } from '../utils/sliceFormats';
-import { isSliceableLibraryFile, isSlicedLibraryFile } from '../utils/libraryFiles';
+import { isSliceableLibraryFile, isDesktopSliceableLibraryFile, isSlicedLibraryFile } from '../utils/libraryFiles';
 import { Checkbox, LegacySelect, TextField } from '../components/ui';
 
 type SortField = 'name' | 'date' | 'size' | 'type' | 'prints';
@@ -681,6 +682,7 @@ interface FileCardProps {
   onRunPipeline?: (file: LibraryFileListItem) => void;
   useSlicerApi?: boolean;
   onPreviewDocument?: (file: LibraryFileListItem) => void;
+  desktopSlicer: SlicerType;
   onPreview3d?: (file: LibraryFileListItem) => void;
   onRename?: (file: LibraryFileListItem) => void;
   onGenerateThumbnail?: (file: LibraryFileListItem) => void;
@@ -693,7 +695,7 @@ interface FileCardProps {
   t: TFunction;
 }
 
-function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onDetails, onPrint, onSlice, onRunPipeline, useSlicerApi, onPreviewDocument, onPreview3d, onRename, onGenerateThumbnail, onTagClick, thumbnailVersion, hasPermission, canModify, authEnabled, showModified, t }: FileCardProps) {
+function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onDetails, onPrint, onSlice, onRunPipeline, useSlicerApi, desktopSlicer, onPreviewDocument, onPreview3d, onRename, onGenerateThumbnail, onTagClick, thumbnailVersion, hasPermission, canModify, authEnabled, showModified, t }: FileCardProps) {
   return (
     <div
       className={`group relative bg-bambu-dark-secondary rounded-lg border transition-all cursor-pointer overflow-hidden ${
@@ -810,7 +812,7 @@ function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onDetails,
                   {t('common.print')}
                 </button>
               )}
-              {onSlice && useSlicerApi && isSliceableLibraryFile(file) && (
+              {onSlice && (useSlicerApi ? isSliceableLibraryFile(file) : isDesktopSliceableLibraryFile(file, desktopSlicer)) && (
                 <button
                   role="menuitem"
                   className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
@@ -1425,6 +1427,22 @@ export function FileManagerPage() {
     },
     onError: (error: Error) => showToast(error.message, 'error'),
   });
+
+  const desktopSlicer = resolveDesktopSlicer(settings?.open_in_slicer, settings?.preferred_slicer);
+  const handleSlice = async (file: LibraryFileListItem) => {
+    if (settings?.use_slicer_api) {
+      if (isSliceableLibraryFile(file)) setSliceFile(file);
+      return;
+    }
+    if (!isDesktopSliceableLibraryFile(file, desktopSlicer)) return;
+    try {
+      const { token } = await api.createLibrarySlicerToken(file.id);
+      const path = api.getLibrarySlicerDownloadUrl(file.id, token, file.filename);
+      openInSlicer(`${window.location.origin}${path}`, desktopSlicer);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : String(error), 'error');
+    }
+  };
 
   const renameFileMutation = useMutation({
     mutationFn: ({ id, filename }: { id: number; filename: string }) =>
@@ -2372,10 +2390,11 @@ export function FileManagerPage() {
                     onDownload={handleDownload}
                     onDetails={setDetailsFile}
                     onPrint={setPrintFile}
-                    onSlice={setSliceFile}
+                    onSlice={handleSlice}
                     onRunPipeline={setRunPipelineFile}
                     useSlicerApi={settings?.use_slicer_api ?? false}
                     onPreviewDocument={setDocumentFile}
+                    desktopSlicer={desktopSlicer}
                     onPreview3d={(f) => {
                       // Content-classified sliced files open the same
                       // full-page gcode viewer the archive card uses, so
@@ -2551,9 +2570,9 @@ export function FileManagerPage() {
                           </button>
                         </>
                       )}
-                      {(settings?.use_slicer_api ?? false) && isSliceableLibraryFile(file) && (
+                      {(settings?.use_slicer_api ? isSliceableLibraryFile(file) : isDesktopSliceableLibraryFile(file, desktopSlicer)) && (
                         <button
-                          onClick={() => hasPermission('library:upload') && setSliceFile(file)}
+                          onClick={() => hasPermission('library:upload') && void handleSlice(file)}
                           className={`p-1.5 rounded transition-colors ${
                             hasPermission('library:upload')
                               ? 'hover:bg-bambu-dark text-bambu-gray hover:text-bambu-green'
