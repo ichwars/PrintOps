@@ -960,6 +960,8 @@ class BambuFTPClient:
                 kind = FtpFailureKind.STORAGE
             elif error_code == "550":
                 kind = FtpFailureKind.NOT_FOUND
+            elif isinstance(e, ftplib.error_temp):
+                kind = FtpFailureKind.NETWORK
             else:
                 kind = FtpFailureKind.UNKNOWN
             self.last_failure = FtpFailure(kind, str(e), None if error_code == "unknown" else error_code)

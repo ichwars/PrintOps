@@ -28,6 +28,7 @@ from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.services.archive_plate_metadata import refresh_archive_plate_metadata
 from backend.app.services.automatic_drying_state import start_drying, stop_drying, sync_drying_state
 from backend.app.services.bambu_ftp import (
+    FtpFailureKind,
     FtpFailureReport,
     UploadCancelled,
     cache_3mf_download,
@@ -77,6 +78,17 @@ logger = logging.getLogger(__name__)
 # sub-200 ms files.
 _DISPATCH_PROGRESS_BYTE_STEP = 256 * 1024
 _DISPATCH_PROGRESS_MIN_INTERVAL_SECS = 0.2
+
+_UPLOAD_REQUEUE_KINDS = frozenset(
+    {FtpFailureKind.HANDSHAKE, FtpFailureKind.COOLOFF, FtpFailureKind.TIMEOUT, FtpFailureKind.NETWORK}
+)
+UPLOAD_FAILURE_BACKOFF_SECONDS = 300
+UPLOAD_FAILURE_BACKOFF_MAX_SECONDS = 3600
+
+
+def _upload_backoff_seconds(refusals: int) -> int:
+    # Clamp the exponent before computing it, even during very long outages.
+    return min(UPLOAD_FAILURE_BACKOFF_SECONDS * 2 ** min(max(refusals - 1, 0), 4), UPLOAD_FAILURE_BACKOFF_MAX_SECONDS)
 
 
 def _effective_plate_id(explicit_plate_id: int | None, file_path: Path) -> int:
@@ -349,6 +361,9 @@ class PrintScheduler:
         self._fast_check_interval = 3  # seconds after productive queue passes
         self._power_on_wait_time = 180  # seconds to wait for printer after power on (3 min)
         self._power_on_check_interval = 10  # seconds between connection checks
+        self._upload_backoff: dict[int, float] = {}
+        self._upload_refusals: dict[int, int] = {}
+        self._upload_refusal_notified: set[int] = set()
         # Track which printers are currently auto-drying (printer_id -> start timestamp)
         self._drying_in_progress: dict[int, float] = {}
         # Defensive in-memory dispatch hold (#1157): a printer that just received
@@ -546,6 +561,16 @@ class PrintScheduler:
                 if inflight_printer_id is not None:
                     busy_printers.add(inflight_printer_id)
 
+            now_mono = time.monotonic()
+            upload_held: dict[int, str] = {}
+            for printer_id, retry_at in list(self._upload_backoff.items()):
+                if now_mono >= retry_at:
+                    del self._upload_backoff[printer_id]
+                else:
+                    printer = await self._get_printer(db, printer_id)
+                    label = printer.name if printer else f"Printer {printer_id}"
+                    upload_held[printer_id] = f"{label} is not accepting files — PrintOps will retry automatically"
+
             # Printers held by a Home Assistant sensor interlock (#1148) — an
             # enclosure door left open, say. The fixed-printer branch turns
             # this into a waiting_reason the user can act on; the model-based
@@ -608,6 +633,21 @@ class PrintScheduler:
                     continue
 
                 if item.printer_id:
+                    upload_reason = upload_held.get(item.printer_id)
+                    if upload_reason:
+                        if item.waiting_reason != upload_reason:
+                            item.waiting_reason = upload_reason
+                            await db.commit()
+                        if item.printer_id not in self._upload_refusal_notified:
+                            self._upload_refusal_notified.add(item.printer_id)
+                            await notification_service.on_queue_job_waiting(
+                                job_name=await self._get_job_name(db, item),
+                                target_model=item.target_model,
+                                waiting_reason=upload_reason,
+                                db=db,
+                            )
+                        skip_reasons["upload_backoff"] = skip_reasons.get("upload_backoff", 0) + 1
+                        continue
                     # Held by a sensor interlock (#1148). Checked before the
                     # busy_printers test that would otherwise swallow it
                     # silently — "waiting for a printer" and "waiting for you
@@ -817,7 +857,7 @@ class PrintScheduler:
                             # Sensor-held printers are unavailable to the
                             # matcher but stay out of busy_printers itself
                             # (#1148) — see where `interlocked` is built.
-                            busy_printers | interlocked.keys(),
+                            busy_printers | interlocked.keys() | upload_held.keys(),
                             effective_types,
                             item.target_location,
                             filament_overrides=filament_overrides,
@@ -945,7 +985,7 @@ class PrintScheduler:
                         awaiting,
                     )
 
-            await self._refresh_keep_warm(db, items, dispatch_ids, interlocked, require_plate_clear)
+            await self._refresh_keep_warm(db, items, dispatch_ids, {**interlocked, **upload_held}, require_plate_clear)
             upload_limit = max(1, await self._get_int_setting(db, "queue_max_concurrent_uploads", default=4))
             await db.commit()
 
@@ -2858,6 +2898,30 @@ class PrintScheduler:
 
         return printer, archive, library_file, file_path, filename, cleanup_disk_paths
 
+    async def _requeue_after_upload_refused(self, db, item, printer, error_msg, toast_uid):
+        # Keep the assigned printer: persisted AMS mappings belong to its trays.
+        # The caller refreshed status, so never overwrite a concurrent cancel.
+        refusals = self._upload_refusals.get(printer.id, 0) + 1
+        self._upload_refusals[printer.id] = refusals
+        delay = _upload_backoff_seconds(refusals)
+        self._upload_backoff[printer.id] = time.monotonic() + delay
+        if item.error_message:
+            item.error_message = None
+            await db.commit()
+        logger.warning(
+            "Queue item %s: upload refused (%s); retained, retrying printer %s in %ss",
+            item.id,
+            error_msg,
+            printer.id,
+            delay,
+        )
+        try:
+            await ws_manager.send_queue_item_failed(
+                user_id=toast_uid, queue_item_id=item.id, printer_id=item.printer_id, reason="upload_failed"
+            )
+        except Exception:
+            pass
+
     async def _upload_print_file(self, db, item, printer, file_path, filename, injected_path):
         # Upload to root directory (not /cache/) - the start_print command references
         # files by name only (ftp://{filename}), so they must be in the root
@@ -2955,6 +3019,10 @@ class PrintScheduler:
             if item.status != "pending":
                 return  # A concurrent cancellation/removal also owns the failure outcome.
             error_msg = upload_error or describe_upload_failure(upload_failure.failure)
+            failure = upload_failure.failure
+            if upload_error is None and failure is not None and failure.kind in _UPLOAD_REQUEUE_KINDS:
+                await self._requeue_after_upload_refused(db, item, printer, error_msg, toast_uid)
+                return
             item.status = "failed"
             item.error_message = error_msg
             item.completed_at = datetime.now(timezone.utc)
@@ -2984,6 +3052,9 @@ class PrintScheduler:
             await self._power_off_if_needed(db, item)
             return
 
+        self._upload_backoff.pop(printer.id, None)
+        self._upload_refusals.pop(printer.id, None)
+        self._upload_refusal_notified.discard(printer.id)
         return remote_filename, remote_path, ftp_timeout, toast_uid
 
     async def _inject_dispatch_gcode(self, db, item, printer, file_path, effective_plate_id):
