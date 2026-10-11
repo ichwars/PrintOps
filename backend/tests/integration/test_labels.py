@@ -378,3 +378,39 @@ async def test_material_number_labels_use_existing_shared_sku_without_allocating
         assert "MAT-00444" in text.get_text_range()
     assert list((await db_session.scalars(select(WarehouseNumberSequence))).all()) == before
     assert list((await db_session.scalars(select(FilamentSkuSettings))).all()) == [sku]
+
+
+@pytest.mark.asyncio
+async def test_spoolman_label_uses_actual_spool_size_after_native_weight_mapping(async_client, db_session):
+    from contextlib import closing
+
+    import pypdfium2 as pdfium
+
+    from backend.app.models.settings import Settings
+
+    db_session.add(Settings(key="spoolman_enabled", value="true"))
+    await db_session.commit()
+    remote = {
+        "id": 77,
+        "initial_weight": 250,
+        "remaining_weight": 100,
+        "registered": "2026-10-01T09:00:00Z",
+        "comment": "Sample spool",
+        "filament": {"material": "PLA", "name": "PLA Basic", "weight": 1000, "color_hex": "FF8800"},
+    }
+    client = MagicMock(is_connected=True)
+    client.get_spools = AsyncMock(return_value=[remote])
+    client.update_spool = AsyncMock()
+    with patch("backend.app.api.routes.labels.get_spoolman_client", new_callable=AsyncMock, return_value=client):
+        response = await async_client.post(
+            "/api/v1/spoolman/labels",
+            json={"spool_ids": [77], "template": "ams_holder_75x55", "fields": ["weight", "note", "added"]},
+        )
+    assert response.status_code == 200, response.text
+    with pdfium.PdfDocument(response.content) as document, closing(document[0]) as page, closing(page.get_textpage()) as text:
+        printed = text.get_text_range()
+    assert "250 g" in printed
+    assert "1000 g" not in printed
+    assert "Sample spool" in printed
+    assert "2026-10-01" in printed
+    client.update_spool.assert_not_awaited()
