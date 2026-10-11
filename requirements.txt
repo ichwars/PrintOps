@@ -87,7 +87,7 @@ weasyprint==70.0
 pikepdf==10.10.0
 fonttools==4.63.0
 jinja2==3.1.6
-cairosvg==2.9.0
+cairosvg==2.9.1
 
 # STL Thumbnail Generation
 trimesh>=4.0.0
@@ -120,7 +120,9 @@ psutil>=6.0.0
 tzdata>=2024.1; sys_platform == "win32"
 
 # Authentication
-PyJWT>=2.13.0
+# 2.15.1 rejects malformed tokens through PyJWTError and preserves provider
+# tokens with valid Base64URL padding after the 2.14/2.15 security hardening.
+PyJWT>=2.15.1
 passlib[bcrypt]>=1.7.4
 ldap3>=2.9.0
 pyotp>=2.9.0
@@ -150,11 +152,10 @@ certifi>=2024.2.2
 # version detection and logs a warning at startup.
 curl_cffi>=0.7.0
 
-# Transitive pin: urllib3 2.6.3 has CVE-2026-44431 and CVE-2026-44432;
-# 2.7.0+ is the fixed release. Direct pin here because none of our
-# top-level deps require >=2.7.0 yet, so without this the resolver
-# would silently keep installing the vulnerable 2.6.x line.
-urllib3>=2.7.0
+# 2.8.0 fixes unbounded chunk-size reads, trailing-deflate streaming loops,
+# and confusion between proxy and target TLS settings (PYSEC-2026-4175–4177).
+# Keep the transitive floor explicit for requests/pywebpush.
+urllib3>=2.8.0
 
 # Transitive of fastapi. starlette 1.0.0 has PYSEC-2026-161; 1.1.x has
 # CVE-2026-54282/54283; 1.3.1 is the fixed release. fastapi's range still
@@ -170,6 +171,9 @@ starlette>=1.3.1
 # vulnerable line. Our direct usage in services/external_camera.py
 # (ClientSession, ClientTimeout, ClientError, iter_chunked) is unaffected.
 aiohttp>=3.14.3
+# aiohttp/yarl header and query mappings use multidict. 6.9.1 fixes leaked
+# references during items-view union/subtraction (CVE-2026-104874).
+multidict>=6.9.1
 
 # Plate Detection (optional - enables build plate empty detection)
 opencv-python-headless>=4.8.0

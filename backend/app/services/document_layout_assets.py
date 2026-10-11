@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import os
+import re
 import tempfile
 from dataclasses import dataclass
 from decimal import Decimal
@@ -81,6 +82,10 @@ _REQUIRED_GLYPHS = frozenset(
     ord(char) for char in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,;:!?+-/%()[]{}@#&€ÄÖÜäöüß"
 )
 _DLL_DIRECTORY_HANDLES: list[object] = []
+# CairoSVG repeatedly slices implicit path parameters and polygon/polyline points.
+# Bound each run without changing SVG parsing or rejecting large explicit paths.
+_SVG_PATH_PARAMETERS = re.compile(r"[^AaCcHhLlMmQqSsTtVvZz]+")
+_SVG_COORDINATE_LIMIT = 16_384
 
 
 class AssetError(RuntimeError):
@@ -157,6 +162,15 @@ def _normalize_svg(content: bytes) -> AssetPreflight:
             lowered = value.lower()
             if name not in _SVG_ATTRIBUTES or "url(" in lowered or "javascript:" in lowered:
                 raise AssetValidationError("SVG attribute is not allowed", finding="svg_attribute")
+            if (
+                tag == "path"
+                and name == "d"
+                and any(run.end() - run.start() > _SVG_COORDINATE_LIMIT for run in _SVG_PATH_PARAMETERS.finditer(value))
+            ) or (tag in {"polygon", "polyline"} and name == "points" and len(value) > _SVG_COORDINATE_LIMIT):
+                raise AssetValidationError(
+                    "SVG coordinate sequence is too long; use explicit path commands or a PNG logo",
+                    finding="svg_path_complexity",
+                )
     try:
         if os.name == "nt" and hasattr(os, "add_dll_directory"):
             cli = os.environ.get("WEASYPRINT_CLI")
