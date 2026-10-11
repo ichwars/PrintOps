@@ -2515,7 +2515,7 @@ export default {
     queueKeepWarmMinutes: "最長保溫時間（分鐘）",
     queueKeepWarmMinutesHelp: "達到時間後停止。預設為 10 分鐘，最長為 30 分鐘。",
     preheatFilamentTargetsLabel: '依耗材的腔體目標 (°C)',
-    preheatFilamentTargetsHint: 'PrintOps 在已裝入的 AMS 槽位中挑選最高目標；只有 PLA 的列印推導為 0，並自動跳過腔體階段。',
+    preheatFilamentTargetsHint: '僅使用所選列印板實際消耗且已對應的耗材。純 PLA 工作略過腔體加熱；列印板或對應未知時，略過腔體自動判斷。',
     preheatFilamentTargetsReset: '重設為預設值',
     preheatFilamentTargetsDefaultRow: '其他 / 未對應',
     preheatMaxWait: '最長等待（秒）',

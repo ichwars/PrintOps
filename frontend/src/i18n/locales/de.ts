@@ -2556,7 +2556,7 @@ export default {
     queueKeepWarmMinutes: "Maximale Warmhaltezeit (Minuten)",
     queueKeepWarmMinutesHelp: "Endet nach dieser Zeit. Standard: 10 Minuten; höchstens 30.",
     preheatFilamentTargetsLabel: 'Kammer-Ziel je Filament (°C)',
-    preheatFilamentTargetsHint: 'PrintOps wählt das höchste Ziel über die geladenen AMS-Slots; reine PLA-Drucke ergeben 0 und überspringen die Kammerphase automatisch.',
+    preheatFilamentTargetsHint: 'Berücksichtigt nur zugeordnetes Filament, das die ausgewählte Platte verbraucht. Reine PLA-Drucke überspringen die Kammerheizung; bei unbekannter Platte oder Zuordnung entfallen automatische Kammerentscheidungen.',
     preheatFilamentTargetsReset: 'Auf Standardwerte zurücksetzen',
     preheatFilamentTargetsDefaultRow: 'Sonstige / nicht zugeordnet',
     preheatMaxWait: 'Max. Wartezeit (Sekunden)',

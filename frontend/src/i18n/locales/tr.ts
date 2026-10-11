@@ -2517,7 +2517,7 @@ export default {
     queueKeepWarmMinutes: "En uzun sıcak tutma süresi (dakika)",
     queueKeepWarmMinutesHelp: "Bu sınıra ulaşınca durur. Varsayılan 10 dakika, en fazla 30 dakikadır.",
     preheatFilamentTargetsLabel: 'Filament başına oda hedefi (°C)',
-    preheatFilamentTargetsHint: 'PrintOps yüklü AMS yuvaları arasındaki en yüksek hedefi seçer; yalnız PLA baskıları 0 türeterek oda aşamasını otomatik atlar.',
+    preheatFilamentTargetsHint: 'Yalnızca seçili plakanın tükettiği eşlenmiş filamenti kullanır. Sadece PLA içeren işler hazne ısıtmasını atlar; plaka veya eşleme bilinmiyorsa otomatik hazne kararları atlanır.',
     preheatFilamentTargetsReset: 'Varsayılanlara sıfırla',
     preheatFilamentTargetsDefaultRow: 'Diğer / eşlenmemiş',
     preheatMaxWait: 'Maks. bekleme (saniye)',

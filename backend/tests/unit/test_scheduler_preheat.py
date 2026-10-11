@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from backend.app.services.print_scheduler import PrintScheduler
+from backend.tests.unit.test_preheat_used_slots import sliced_plates
 
 
 @pytest.fixture
@@ -31,12 +32,15 @@ def item():
         id=42,
         preheat_override="inherit",
         preheat_chamber_target_override=None,
+        ams_mapping="[0, 1]",
     )
 
 
 @pytest.fixture
-def archive():
-    return SimpleNamespace(bed_temperature=60)
+def archive(tmp_path):
+    path = tmp_path / "job.3mf"
+    sliced_plates(path, two_plates=False)
+    return SimpleNamespace(bed_temperature=60, file_path=str(path))
 
 
 def _make_printer(model: str, printer_id: int = 7):
@@ -66,7 +70,7 @@ def _make_state(
     decide whether to fire a redundant `set_airduct_mode` call."""
     raw_data: dict = {}
     if trays is not None:
-        raw_data["ams"] = [{"tray": [{"tray_type": t} for t in trays]}]
+        raw_data["ams"] = [{"id": 0, "tray": [{"id": index, "tray_type": t} for index, t in enumerate(trays)]}]
     return SimpleNamespace(
         temperatures={"bed": bed_temp, "chamber": chamber_temp},
         raw_data=raw_data,
@@ -174,12 +178,13 @@ async def test_chamber_target_override_beats_filament_map(scheduler, item, archi
 
 
 @pytest.mark.asyncio
-async def test_filament_map_picks_max_across_loaded_slots(scheduler, item, archive):
+async def test_filament_map_picks_max_across_used_plate_slots(scheduler, item, archive):
     """Mixed PA + PLA load: PA=50 + PLA=0 → chamber target 50 (the max).
     The "lowest common denominator" model is wrong here; PA's requirement
     is the binding constraint."""
     db = MagicMock()
     client = _make_client()
+    sliced_plates(archive.file_path, used_second=20, two_plates=False)
 
     with (
         patch.object(scheduler, "_get_bool_setting", AsyncMock(return_value=True)),

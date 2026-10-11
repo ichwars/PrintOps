@@ -109,7 +109,7 @@ export function PreheatSettingsCard({ settings, onChange }: Props) {
             </Button>
           </div>
           <p className="text-xs text-bambu-gray mb-2">
-            {t('settings.preheatFilamentTargetsHint', 'PrintOps picks the highest target across the loaded AMS slots; PLA-only prints derive 0 and skip the chamber phase automatically.')}
+            {t('settings.preheatFilamentTargetsHint', 'Uses only mapped filament consumed by the selected plate. PLA-only jobs skip chamber heating; unknown plate or mapping skips automatic chamber decisions.')}
           </p>
           <PreheatFilamentTargetsEditor
             value={settings.preheat_filament_targets ?? ''}

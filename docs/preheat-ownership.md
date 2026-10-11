@@ -5,6 +5,14 @@ The existing preheat option remains off by default. The separate
 existing printer commands and model capabilities. P2S and X1C continue to warm the chamber through the bed; only
 models already recognized as having a chamber heater receive chamber commands.
 
+Automatic chamber targets consider only positive filament consumption in the
+actual selected 3MF plate and its explicit AMS/external-spool mapping. Parked
+material and filaments used only on another plate do not increase the target.
+An implicit plate is eligible only when the file proves a single plate; missing
+usage, invalid mappings or unknown loaded material skip automatic chamber and
+airduct decisions while ordinary bed preheat/soak can continue. Explicit chamber
+target overrides remain authoritative.
+
 When an enabled preheat stage changes a bed or chamber target, PrintOps records
 that queue item's ownership in `DATA_DIR/preheat-ownership/<printer-id>.json`
 before sending the existing temperature command. Upload failure, rejected print

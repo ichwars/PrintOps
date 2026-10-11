@@ -2523,7 +2523,7 @@ export default {
     queueKeepWarmMinutes: "Tiempo máximo de mantenimiento (minutos)",
     queueKeepWarmMinutesHelp: "Se detiene al alcanzar este límite. Predeterminado: 10 minutos; máximo: 30.",
     preheatFilamentTargetsLabel: 'Objetivo de cámara por filamento (°C)',
-    preheatFilamentTargetsHint: 'PrintOps elige el objetivo más alto entre los slots AMS cargados; las impresiones solo PLA derivan 0 y omiten la fase de cámara automáticamente.',
+    preheatFilamentTargetsHint: 'Solo usa el filamento asignado y consumido por la placa seleccionada. Los trabajos solo PLA omiten el calentamiento de cámara; una placa o asignación desconocida omite las decisiones automáticas de cámara.',
     preheatFilamentTargetsReset: 'Restablecer valores predeterminados',
     preheatFilamentTargetsDefaultRow: 'Otros / sin asignar',
     preheatMaxWait: 'Espera máx. (segundos)',

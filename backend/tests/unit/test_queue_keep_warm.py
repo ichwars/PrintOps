@@ -221,3 +221,12 @@ def test_disabled_ams_does_not_assume_a_mapped_ams_spool_is_used(compatible):
 def test_invalid_live_temperature_never_authorizes_heat(compatible, temperature):
     compatible.state.temperatures["chamber"] = temperature
     assert candidate(compatible) is None
+
+
+def test_nonfinite_consumption_does_not_prove_an_extra_material_is_unused(compatible):
+    from backend.tests.unit.test_preheat_used_slots import sliced_plates
+
+    sliced_plates(compatible.path / "previous.3mf", two_plates=False)
+    sliced_plates(compatible.path / "next.3mf", used_second="nan", two_plates=False)
+    compatible.previous.ams_mapping = compatible.next.ams_mapping = "[0, 1]"
+    assert candidate(compatible) is None

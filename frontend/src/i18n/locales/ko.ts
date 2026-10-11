@@ -2394,7 +2394,7 @@ export default {
     queueKeepWarmMinutes: "최대 보온 시간(분)",
     queueKeepWarmMinutesHelp: "설정된 시간이 지나면 중지합니다. 기본 10분, 최대 30분입니다.",
     preheatFilamentTargetsLabel: '필라멘트별 챔버 목표 (°C)',
-    preheatFilamentTargetsHint: 'PrintOps는 로드된 AMS 슬롯 중 가장 높은 목표를 선택합니다. PLA만 사용하는 인쇄는 0으로 도출되어 챔버 단계를 자동으로 건너뜁니다.',
+    preheatFilamentTargetsHint: '선택한 플레이트에서 실제 소비하는 매핑된 필라멘트만 사용합니다. PLA 전용 작업은 챔버 가열을 건너뛰며, 플레이트나 매핑을 알 수 없으면 챔버 자동 판단을 건너뜁니다.',
     preheatFilamentTargetsReset: '기본값으로 재설정',
     preheatFilamentTargetsDefaultRow: '기타 / 미매핑',
     preheatMaxWait: '최대 대기 (초)',

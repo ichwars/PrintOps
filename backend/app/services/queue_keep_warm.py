@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from backend.app.core.config import settings
 from backend.app.models.print_queue import PrintQueueItem
 from backend.app.services.drying_ownership import has_drying_reservation, printer_operation
-from backend.app.services.preheat_chamber import derive_chamber_target, normalize_filament_type
+from backend.app.services.preheat_chamber import derive_chamber_target, normalize_filament_type, observed_tray_materials
 from backend.app.services.preheat_ownership import PreheatLease, preheat_ownership
 from backend.app.utils.printer_models import normalize_printer_model
 from backend.app.utils.threemf_tools import (
@@ -27,43 +27,6 @@ _VERIFIED_BED_MODELS = frozenset({"X1C", "P2S"})
 
 def _utc(value: datetime) -> datetime:
     return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
-
-
-def _tray_types(raw_data: object) -> dict[int, str]:
-    if not isinstance(raw_data, dict):
-        return {}
-    entries = raw_data.get("ams", [])
-    if isinstance(entries, dict):
-        entries = entries.get("ams", [])
-    trays = {}
-    if not isinstance(entries, list):
-        return trays
-    for ams in entries:
-        if not isinstance(ams, dict):
-            continue
-        try:
-            ams_id = int(ams.get("id", 0))
-            for tray in ams.get("tray", []):
-                tray_id = int(tray.get("id", 0))
-                global_id = ams_id if ams_id >= 128 else ams_id * 4 + tray_id
-                trays[global_id] = normalize_filament_type(tray.get("tray_type"))
-        except (TypeError, ValueError, AttributeError):
-            return {}
-    external = raw_data.get("vt_tray", [])
-    if isinstance(external, dict):
-        external = [external]
-    if not isinstance(external, list):
-        return {}
-    for tray in external:
-        if not isinstance(tray, dict):
-            return {}
-        try:
-            identity = int(tray.get("id", 254))
-        except (TypeError, ValueError):
-            return {}
-        if identity >= 254:
-            trays[identity] = normalize_filament_type(tray.get("tray_type"))
-    return trays
 
 
 def _plate_signature(item, printer, state, targets) -> tuple | None:
@@ -98,11 +61,13 @@ def _plate_signature(item, printer, state, targets) -> tuple | None:
     if bed is None or not 40 <= bed <= 110 or not bed_type:
         return None
     usage = extract_filament_usage_from_3mf(path, item.plate_id)
-    trays = _tray_types(state.raw_data)
+    trays = observed_tray_materials(state.raw_data)
     used = []
     for filament in usage:
         amount = filament["used_g"]
-        if not math.isfinite(amount) or amount <= 0:
+        if not math.isfinite(amount) or amount < 0:
+            return None
+        if amount == 0:
             continue
         slot = filament["slot_id"]
         if slot < 1 or slot > len(mapping):

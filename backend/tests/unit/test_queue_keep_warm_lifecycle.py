@@ -238,6 +238,29 @@ async def test_adopted_preheat_extends_ownership_without_duplicate_heat_and_roll
 
 
 @pytest.mark.asyncio
+async def test_real_preheat_adoption_retains_used_asa_target_with_unused_pa_mapping(lifecycle, caplog):
+    lifecycle.data.previous.ams_mapping = lifecycle.data.next.ams_mapping = "[0, 1]"
+    await refresh(lifecycle)
+    caplog.set_level("INFO", logger="backend.app.services.preheat_stage")
+    with (
+        patch("backend.app.services.print_scheduler.preheat_ownership", lifecycle.owner),
+        patch("backend.app.services.preheat_stage.preheat_ownership", lifecycle.owner),
+        patch("backend.app.services.print_scheduler.printer_manager", lifecycle.pm),
+        patch("backend.app.services.print_scheduler.get_ftp_retry_settings", AsyncMock(return_value=(False, 0, 0, 1))),
+        patch.object(lifecycle.scheduler, "_get_int_setting", AsyncMock(return_value=0)),
+    ):
+        async with lifecycle.owner.dispatch(lifecycle.data.next, lifecycle.pm) as lease:
+            await lifecycle.scheduler._preheat_and_soak(
+                lifecycle.db, lifecycle.data.next, lifecycle.data.printer, lifecycle.data.next.archive
+            )
+            assert lease.purpose == "dispatch"
+            lifecycle.client.set_bed_temperature.assert_called_once_with(90)
+            assert any("chamber_target=45" in record.message for record in caplog.records)
+            lifecycle.client.set_chamber_temperature.assert_not_called()
+    lifecycle.client.set_bed_temperature.assert_called_with(0)
+
+
+@pytest.mark.asyncio
 async def test_adopted_publish_retains_owner_until_firmware_confirms_print(lifecycle):
     await refresh(lifecycle)
     async with lifecycle.owner.dispatch(lifecycle.data.next, lifecycle.pm) as lease:

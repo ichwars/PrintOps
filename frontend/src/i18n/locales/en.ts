@@ -2575,7 +2575,7 @@ export default {
     queueKeepWarmMinutes: "Maximum warm hold (minutes)",
     queueKeepWarmMinutesHelp: "Stops after this limit. Default is 10 minutes; maximum is 30.",
     preheatFilamentTargetsLabel: 'Per-filament chamber target (°C)',
-    preheatFilamentTargetsHint: 'PrintOps picks the highest target across the loaded AMS slots; PLA-only prints derive 0 and skip the chamber phase automatically.',
+    preheatFilamentTargetsHint: 'Uses only mapped filament consumed by the selected plate. PLA-only jobs skip chamber heating; unknown plate or mapping skips automatic chamber decisions.',
     preheatFilamentTargetsReset: 'Reset to defaults',
     preheatFilamentTargetsDefaultRow: 'Other / unmapped',
     preheatMaxWait: 'Max wait (seconds)',

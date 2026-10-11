@@ -2513,7 +2513,7 @@ export default {
     queueKeepWarmMinutes: "最大保温時間（分）",
     queueKeepWarmMinutesHelp: "この時間で終了します。標準は10分、最大は30分です。",
     preheatFilamentTargetsLabel: 'フィラメント別チャンバー目標 (°C)',
-    preheatFilamentTargetsHint: 'PrintOpsはロード済みのAMSスロット中で最も高い目標値を選びます。PLAのみの印刷は0となり、チャンバー段階は自動でスキップされます。',
+    preheatFilamentTargetsHint: '選択したプレートで実際に消費される割り当て済みフィラメントのみを使います。PLAのみのジョブはチャンバー加熱を省略します。プレートや割り当てが不明な場合はチャンバーの自動判断を省略します。',
     preheatFilamentTargetsReset: 'デフォルトにリセット',
     preheatFilamentTargetsDefaultRow: 'その他 / 未登録',
     preheatMaxWait: '最大待機時間（秒）',
