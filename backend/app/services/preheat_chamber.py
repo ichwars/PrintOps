@@ -3,8 +3,10 @@
 import json
 import math
 from collections.abc import Mapping
+from pathlib import Path
 
 from backend.app.core.config import settings
+from backend.app.utils.safe_path import safe_join_under
 from backend.app.utils.threemf_tools import extract_bed_temperature_from_3mf, extract_filament_usage_from_3mf
 
 _EXTERNAL_TRAY_ID_MIN = 254
@@ -62,7 +64,12 @@ def chamber_target_for_plate(state, targets, item, archive) -> int | None:
     plate_id = getattr(item, "plate_id", None)
     if plate_id is not None and (not isinstance(plate_id, int) or isinstance(plate_id, bool) or plate_id < 1):
         return None
-    path = settings.base_dir / path_raw
+    try:
+        path = Path(path_raw)
+        if not path.is_absolute():
+            path = safe_join_under(settings.base_dir, path_raw, http=False)
+    except (TypeError, ValueError):
+        return None
     if plate_id is None and extract_bed_temperature_from_3mf(path) is None:
         return None  # An implicit plate is safe only when the file proves one plate.
     mapping = getattr(item, "ams_mapping", None)
