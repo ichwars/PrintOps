@@ -1094,7 +1094,6 @@ export function SettingsPage() {
   });
 
   const pendingGcodeSnippetsRef = useRef<string | null>(null);
-  const isInitialLoadRef = useRef(true);
   const serverBaselineRef = useRef<AppSettings | null>(null);
 
   // Sync local state when settings load
@@ -1107,10 +1106,6 @@ export function SettingsPage() {
       };
       serverBaselineRef.current = settings;
       setLocalSettings(settingsWithExternalUrl);
-      // Mark initial load complete after a short delay
-      setTimeout(() => {
-        isInitialLoadRef.current = false;
-      }, 100);
     }
   }, [settings, localSettings]);
 
@@ -1204,7 +1199,7 @@ export function SettingsPage() {
       settings.mqtt_password !== localSettings.mqtt_password ||
       settings.mqtt_topic_prefix !== localSettings.mqtt_topic_prefix ||
       settings.mqtt_use_tls !== localSettings.mqtt_use_tls ||
-      settings.external_url !== localSettings.external_url ||
+      (settings.external_url || window.location.origin) !== localSettings.external_url ||
       settings.ha_enabled !== localSettings.ha_enabled ||
       settings.ha_url !== localSettings.ha_url ||
       settings.ha_token !== localSettings.ha_token ||
@@ -1335,7 +1330,6 @@ export function SettingsPage() {
   const settingsAutosave = useAutosaveDraft({
     draft: settingsToSave ?? {},
     enabled:
-      !isInitialLoadRef.current &&
       settingsToSave !== null &&
       hasSettingsChanges &&
       (!authEnabled || hasPermission('settings:update')),
