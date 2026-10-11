@@ -115,6 +115,17 @@ class FileCreate(BaseModel):
     project_id: int | None = None
 
 
+class CombineItem(BaseModel):
+    file_id: int = Field(..., gt=0, strict=True)
+    copies: int = Field(1, ge=1, le=100, strict=True)
+
+
+class CombineFilesRequest(BaseModel):
+    items: list[CombineItem] = Field(..., min_length=1, max_length=100)
+    filename: str = Field(..., min_length=1, max_length=255)
+    folder_id: int | None = None
+
+
 class FileUpdate(BaseModel):
     """Schema for updating a file."""
 

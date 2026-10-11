@@ -152,6 +152,12 @@ describe('FileManagerPage', () => {
   });
 
   describe('rendering', () => {
+    it('offers a copy-count combine flow for a selected STL', async () => {
+      render(<FileManagerPage />);
+      await userEvent.click(await screen.findByText('bracket.stl'));
+      await userEvent.click(await screen.findByTitle('Combine the selected STLs into one 3MF so they can be sliced on a single plate'));
+      expect(await screen.findByLabelText('Copies of bracket.stl')).toHaveValue(1);
+    });
     it('opens editable file details from the listing', async () => {
       server.use(http.get('/api/v1/library/files/1', () => HttpResponse.json({
         ...mockFiles[0], notes: 'Use textured plate', external_url: 'https://example.org/design', photos: [],

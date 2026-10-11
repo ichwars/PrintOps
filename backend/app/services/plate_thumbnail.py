@@ -484,6 +484,28 @@ def _render_at_size(poly3d, size: int, Poly3DCollection) -> bytes:
     return buf.getvalue()
 
 
+def render_mesh_png(mesh, *, size: int = 256, label: str = "mesh") -> bytes:
+    """Render already bounded mesh geometry with the existing lighting and lock."""
+    import numpy as np
+    import trimesh
+    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
+    from backend.app.services.thumbnail_lighting import thumbnail_faces
+
+    vertices = mesh.vertices
+    bounds_min = vertices.min(axis=0)
+    bounds_max = vertices.max(axis=0)
+    centered = vertices - (bounds_min + bounds_max) / 2
+    extent = (bounds_max - bounds_min).max()
+    if not np.isfinite(extent):
+        raise ValueError(f"Non-finite mesh: {label}")
+    if extent > 0:
+        centered /= extent
+    poly3d = centered[thumbnail_faces(mesh, trimesh)]
+    with _render_lock:
+        return _render_at_size(poly3d, size, Poly3DCollection)
+
+
 def _inject_pngs(
     threemf_bytes: bytes,
     plate_ids: list[int],

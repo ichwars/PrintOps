@@ -164,6 +164,11 @@ export const historyLibraryMethods = {
 
   getLibraryFile: (id: number) => request<LibraryFile>(`/library/files/${id}`),
 
+  combineLibraryFiles: (items: Array<{ file_id: number; copies: number }>, filename: string, folderId: number | null) =>
+    request<LibraryFileUploadResponse>('/library/files/combine', {
+      method: 'POST', body: JSON.stringify({ items, filename, folder_id: folderId }),
+    }),
+
   getLibraryFilePhotoUrl: (id: number, filename: string) =>
     withMediaToken(`${API_BASE}/library/files/${id}/photos/${encodeURIComponent(filename)}`),
 

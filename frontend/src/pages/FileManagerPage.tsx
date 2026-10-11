@@ -44,6 +44,7 @@ import {
   FolderSymlink,
   Tag as TagIcon,
   Info,
+  Combine,
 } from 'lucide-react';
 import { api } from '../api/client';
 import type {
@@ -61,6 +62,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { PrintModal } from '../components/PrintModal';
 import { ModelViewerModal } from '../components/ModelViewerModal';
 import { LibraryFileDetailsModal } from '../components/LibraryFileDetailsModal';
+import { CombineFilesModal } from '../components/CombineFilesModal';
 import { SliceModal } from '../components/SliceModal';
 import { RunWithPipelineModal } from '../components/RunWithPipelineModal';
 import { BulkTagsPickerModal } from '../components/BulkTagsPickerModal';
@@ -971,6 +973,7 @@ export function FileManagerPage() {
   const [thumbnailVersions, setThumbnailVersions] = useState<Record<number, number>>({});
   const [viewerFile, setViewerFile] = useState<LibraryFileListItem | null>(null);
   const [detailsFile, setDetailsFile] = useState<LibraryFileListItem | null>(null);
+  const [showCombineModal, setShowCombineModal] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
     return (localStorage.getItem('library-view-mode') as 'grid' | 'list') || 'grid';
   });
@@ -2248,6 +2251,13 @@ export function FileManagerPage() {
                       <TagIcon className="w-4 h-4 sm:mr-1" />
                       <span className="hidden sm:inline">{t('fileManager.tags.tagAction')}</span>
                     </Button>
+                    {files?.some((file) => selectedFiles.includes(file.id) && file.file_type === 'stl') && (
+                      <Button variant="secondary" size="sm" onClick={() => setShowCombineModal(true)}
+                        disabled={!hasPermission('library:upload')} title={t('fileManager.combine.tooltip')}>
+                        <Combine className="w-4 h-4 sm:mr-1" />
+                        <span className="hidden sm:inline">{t('fileManager.combine.action')}</span>
+                      </Button>
+                    )}
                     <Button
                       variant="danger"
                       size="sm"
@@ -2777,6 +2787,24 @@ export function FileManagerPage() {
           source={{ kind: 'libraryFile', id: runPipelineFile.id, filename: runPipelineFile.filename }}
           onClose={() => setRunPipelineFile(null)}
         />
+      )}
+
+      {showCombineModal && (
+        <CombineFilesModal files={(files ?? []).filter((file) => selectedFiles.includes(file.id) && file.file_type === 'stl')}
+          folderId={selectedFolderId} canSlice={settings?.use_slicer_api ?? false}
+          onClose={() => setShowCombineModal(false)}
+          onCombined={async (result, sliceNext) => {
+            setShowCombineModal(false);
+            setSelectedFiles([]);
+            if (sliceNext) {
+              try {
+                const file = await api.getLibraryFile(result.id);
+                setSliceFile({ ...file, fs_modified_at: null });
+              } catch (error) {
+                showToast(error instanceof Error ? error.message : t('common.error'), 'error');
+              }
+            }
+          }} />
       )}
 
       {detailsFile && (

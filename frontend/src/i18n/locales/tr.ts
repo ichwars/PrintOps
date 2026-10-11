@@ -6254,6 +6254,22 @@ export default {
 
   // Dosya yöneticisi
   fileManager: {
+    combine: {
+      action: '3MF olarak birleştir',
+      tooltip: 'Seçili STL dosyalarını tek bir plakada dilimlemek için tek bir 3MF\'de birleştirin',
+      title: '3MF olarak birleştir',
+      description: 'Aşağıdaki tüm modelleri içeren, tek plakada dilimlenmeye hazır bir 3MF oluşturur. Tablaya yerleştirmek için dilimlerken otomatik yerleştirmeyi açın.',
+      nameLabel: 'Dosya adı',
+      defaultName: '{{name}} + {{count}} tane daha',
+      model: 'Model',
+      copies: 'Kopya',
+      copiesFor: '{{filename}} kopya sayısı',
+      total: 'Plakadaki nesneler: {{count}}',
+      tooMany: 'Plaka başına en fazla {{max}} nesne',
+      sliceNext: 'Bitince dilimleyiciyi aç',
+      submit: 'Birleştir',
+      done: '{{filename}} oluşturuldu ({{count}} nesne)',
+    },
     details: {
       title: 'Dosya ayrıntıları',
       size: 'Boyut',
