@@ -2386,7 +2386,7 @@ async def download_archive_for_slicer(
 
     service = ArchiveService(db)
     archive = await service.get_archive(archive_id)
-    if not archive:
+    if not archive or archive.deleted_at is not None:
         raise HTTPException(404, "Archive not found")
 
     file_path = settings.base_dir / archive.file_path
@@ -4638,7 +4638,7 @@ async def download_source_3mf_for_slicer_with_token(
 
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
     archive = result.scalar_one_or_none()
-    if not archive:
+    if not archive or archive.deleted_at is not None:
         raise HTTPException(404, "Archive not found")
 
     if not archive.source_3mf_path:

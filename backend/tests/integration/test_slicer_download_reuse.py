@@ -77,3 +77,53 @@ async def test_wrong_resource_cannot_redeem_or_consume_protocol_token(async_clie
     assert wrong.status_code == 403
     assert (await async_client.get(f"{download_url}/{token}/model.3mf")).status_code == 200
     assert (await async_client.get(f"{download_url}/{token}/model.3mf")).status_code == 200
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.parametrize("kind", ["archive", "source"])
+async def test_archive_protocol_token_stops_after_soft_delete_with_retained_bytes(
+    async_client, db_session, slicer_resources, tmp_path, monkeypatch, kind
+):
+    from unittest.mock import Mock
+
+    from backend.app.core.config import settings
+    from backend.app.models.archive import PrintArchive
+    from backend.app.services import archive as archive_service
+
+    resources, headers = slicer_resources
+    mint_url, download_url = resources[kind]
+    archive_id = int(mint_url.split("/")[-2])
+    archive = await db_session.get(PrintArchive, archive_id)
+    archive_root = tmp_path / "archive"
+    own_dir = archive_root / "printer" / "job"
+    own_dir.mkdir(parents=True)
+    retained = own_dir / "model.3mf"
+    retained.write_bytes(b"retained private model")
+    archive.file_path = str(retained)
+    archive.source_3mf_path = str(retained)
+    monkeypatch.setattr(settings, "base_dir", tmp_path)
+    monkeypatch.setattr(settings, "archive_dir", archive_root)
+    await db_session.commit()
+    token = (await async_client.post(mint_url, headers=headers)).json()["token"]
+    url = f"{download_url}/{token}/model.3mf"
+    for _ in range(2):
+        downloaded = await async_client.get(url)
+        assert downloaded.status_code == 200
+        assert downloaded.content == retained.read_bytes()
+
+    # The real soft-delete commits deleted_at even if best-effort cleanup
+    # cannot remove the directory. Token reuse must check that logical state.
+    cleanup = Mock()
+    monkeypatch.setattr(archive_service.shutil, "rmtree", cleanup)
+    deleted = await async_client.delete(f"/api/v1/archives/{archive_id}", headers=headers)
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["purged_from_stats"] is False
+    cleanup.assert_called_once_with(own_dir, ignore_errors=True)
+    await db_session.refresh(archive)
+    assert archive.deleted_at is not None
+    assert retained.is_file()
+    response = await async_client.get(url)
+    assert response.status_code == 404
+    assert b"retained private model" not in response.content
+    assert "content-disposition" not in response.headers
