@@ -1,7 +1,7 @@
 """Retain calibration rows while widening the old Spoolman uniqueness scope."""
 
-from sqlalchemy import MetaData, inspect, text
-from sqlalchemy.schema import CreateIndex, CreateTable
+from sqlalchemy import DDL, MetaData, Table, UniqueConstraint, func, inspect, select, text
+from sqlalchemy.schema import CreateIndex, CreateTable, DropConstraint, DropTable
 
 
 async def _unique_constraints(conn, table_name):
@@ -25,14 +25,21 @@ async def _rebuild_sqlite(conn, table):
         .all()
     )
     await conn.execute(CreateTable(staged))
-    columns = ", ".join(conn.dialect.identifier_preparer.quote(c.name) for c in table.columns)
-    await conn.execute(text(f"INSERT INTO {staged.name} ({columns}) SELECT {columns} FROM {table.name}"))
-    original = (await conn.execute(text(f"SELECT count(*) FROM {table.name}"))).scalar_one()
-    copied = (await conn.execute(text(f"SELECT count(*) FROM {staged.name}"))).scalar_one()
+    columns = list(table.columns)
+    await conn.execute(
+        staged.insert().from_select([column.name for column in columns], select(*columns), include_defaults=False)
+    )
+    original = (await conn.execute(select(func.count()).select_from(table))).scalar_one()
+    copied = (await conn.execute(select(func.count()).select_from(staged))).scalar_one()
     if original != copied:
         raise RuntimeError("K-profile context migration copied an unexpected row count")
-    await conn.execute(text(f"DROP TABLE {table.name}"))
-    await conn.execute(text(f"ALTER TABLE {staged.name} RENAME TO {table.name}"))
+    await conn.execute(DropTable(table))
+    await conn.execute(
+        DDL(
+            "ALTER TABLE %(table)s RENAME TO %(original)s",
+            context={"original": conn.dialect.identifier_preparer.quote(table.name)},
+        ).against(staged)
+    )
     for sql in old_indexes:
         await conn.execute(text(sql))
 
@@ -59,11 +66,11 @@ async def migrate_spool_k_profile_contexts(conn):
                 if old and conn.dialect.name == "sqlite":
                     await _rebuild_sqlite(conn, table)
                 elif old:
-                    quote = conn.dialect.identifier_preparer.quote
+                    legacy_table = Table(table.name, MetaData(), schema=table.schema)
                     for constraint in old:
-                        await conn.execute(
-                            text(f"ALTER TABLE {quote(table.name)} DROP CONSTRAINT {quote(constraint['name'])}")
-                        )
+                        legacy_unique = UniqueConstraint(name=constraint["name"])
+                        legacy_table.append_constraint(legacy_unique)
+                        await conn.execute(DropConstraint(legacy_unique))
             for index in table.indexes:
                 await conn.execute(CreateIndex(index, if_not_exists=True))
         await conn.execute(
@@ -77,14 +84,26 @@ def validate_restore_contexts(source):
     Unknown legacy duplicates remain valid backup data. A collision in the new
     reported-flow index must not silently discard rows during cross-DB restore.
     """
-    for table, key in [("spool_k_profile", "spool_id"), ("spoolman_k_profile", "spoolman_spool_id")]:
-        columns = {row[1] for row in source.execute(f"PRAGMA table_info({table})")}
+    checks = (
+        (
+            "spool_id",
+            "PRAGMA table_info(spool_k_profile)",
+            "SELECT 1 FROM spool_k_profile WHERE upper(substr(trim(nozzle_type),1,2)) IN ('HS','HH') "
+            "GROUP BY spool_id,printer_id,extruder,nozzle_diameter,upper(substr(trim(nozzle_type),1,2)) "
+            "HAVING count(*) > 1 LIMIT 1",
+        ),
+        (
+            "spoolman_spool_id",
+            "PRAGMA table_info(spoolman_k_profile)",
+            "SELECT 1 FROM spoolman_k_profile WHERE upper(substr(trim(nozzle_type),1,2)) IN ('HS','HH') "
+            "GROUP BY spoolman_spool_id,printer_id,extruder,nozzle_diameter,upper(substr(trim(nozzle_type),1,2)) "
+            "HAVING count(*) > 1 LIMIT 1",
+        ),
+    )
+    for key, schema_sql, duplicate_sql in checks:
+        columns = {row[1] for row in source.execute(schema_sql)}
         if not {key, "printer_id", "extruder", "nozzle_diameter", "nozzle_type"}.issubset(columns):
             continue
-        prefix = "upper(substr(trim(nozzle_type),1,2))"
-        duplicate = source.execute(
-            f"SELECT 1 FROM {table} WHERE {prefix} IN ('HS','HH') "
-            f"GROUP BY {key},printer_id,extruder,nozzle_diameter,{prefix} HAVING count(*) > 1 LIMIT 1"
-        ).fetchone()
+        duplicate = source.execute(duplicate_sql).fetchone()
         if duplicate:
             raise ValueError("Backup contains ambiguous K-profile reported flow contexts; resolve duplicates first")
