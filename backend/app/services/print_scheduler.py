@@ -3243,6 +3243,14 @@ class PrintScheduler:
         # Start with the stored AMS/nozzle mapping and plate options.
         # nozzle_mapping comes from slicer project_file VP intake (#1780);
         # the MQTT builder applies it only to dual-nozzle models.
+        from backend.app.services import kprofile_drift
+
+        try:
+            await kprofile_drift.reapply_lost_kprofiles(
+                item.printer_id, kprofile_drift.dispatch_trays(ams_mapping, item.use_ams), throttle=False
+            )
+        except Exception:
+            logger.exception("Queue item %s: K-profile recovery before dispatch failed", item.id)
         preheat_ownership.guard_plate_clear(item.printer_id, require_plate_clear, printer_manager)
         started = printer_manager.start_print(
             item.printer_id,

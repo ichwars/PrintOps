@@ -231,6 +231,9 @@ async def configure_ams_slot(
         filament_id=filament_id_for_kprofile,
         nozzle_diameter=nozzle_diameter,
     )
+    from backend.app.services import kprofile_drift
+
+    kprofile_drift.note_slot_configured(printer_id, ams_id, tray_id, cali_idx)
 
     # Method 2: Only send extrusion_cali_set when NO existing profile was selected
     # (cali_idx == -1). When cali_idx >= 0, extrusion_cali_sel already selected the

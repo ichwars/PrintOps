@@ -172,7 +172,14 @@ async def _dispatch_library_item(ctx, *, archive_failure=False, unlink_side_effe
         patch.object(scheduler_module.settings, "base_dir", ctx.base_dir),
         patch("backend.app.services.archive.ArchiveService.archive_print", new=archive_print),
         patch("backend.app.services.print_scheduler.printer_manager.is_connected", MagicMock(return_value=True)),
-        patch("backend.app.services.print_scheduler.printer_manager.get_status", MagicMock(return_value=None)),
+        patch(
+            "backend.app.services.print_scheduler.printer_manager.get_status",
+            MagicMock(return_value=getattr(ctx, "status", None)),
+        ),
+        patch(
+            "backend.app.services.print_scheduler.printer_manager.get_client",
+            MagicMock(return_value=getattr(ctx, "mqtt", None)),
+        ),
         patch("backend.app.services.print_scheduler.printer_manager.start_print", ctx.start_print),
         patch("backend.app.services.print_scheduler.printer_manager.set_awaiting_plate_clear", MagicMock()),
         patch(
@@ -306,7 +313,7 @@ async def test_existing_archive_plate_metadata_commits_before_preheat(queue_fact
 
 
 @pytest.mark.asyncio
-async def test_upload_failure_surfaces_recorded_network_cause(queue_factory):
+async def test_upload_failure_surfaces_recorded_network_cause(queue_factory, caplog):
     from backend.app.services.bambu_ftp import FtpFailure, FtpFailureKind
 
     ctx = await queue_factory(cleanup=False)
@@ -319,9 +326,11 @@ async def test_upload_failure_surfaces_recorded_network_cause(queue_factory):
     await _dispatch_library_item(ctx)
 
     item, library_file, archive = await _queue_snapshot(ctx)
-    assert item.status == "failed"
-    assert "network" in item.error_message
-    assert "Check that its SD card" not in item.error_message
+    assert item.status == "pending"
+    assert item.error_message is None
+    assert "network" in caplog.text
+    assert "retrying printer 1 in 300s" in caplog.text
+    assert "Check that its SD card" not in caplog.text
     assert library_file is not None
     assert archive is not None
 

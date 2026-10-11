@@ -1067,6 +1067,20 @@ async def _maybe_notify_printer_offline(printer_id: int) -> None:
 
 async def on_printer_status_change(printer_id: int, state: PrinterState):
     """Handle printer status changes - broadcast via WebSocket."""
+    # A K-only push bypasses on_ams_change and status broadcast deduplication.
+    # The recovery pass uses current assignment/context evidence, idle only.
+    from backend.app.services import kprofile_drift
+
+    try:
+        if not state.connected:
+            kprofile_drift.forget_printer(printer_id)
+        elif kprofile_drift.needs_check(printer_id, state):
+            spawn_background_task(
+                kprofile_drift.reapply_lost_kprofiles(printer_id),
+                name=f"reapply-kprofiles-{printer_id}",
+            )
+    except Exception:
+        logging.getLogger(__name__).exception("Printer %d K-profile check failed", printer_id)
     # Connected-edge reconciliation (#1542 follow-up). When the printer
     # transitions disconnected → connected — which covers both PrintOps
     # startup (no prior connection) and a mid-session MQTT reconnect — fire
@@ -6141,6 +6155,9 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     slot_unlink_grace.reset()
+    from backend.app.services import kprofile_drift
+
+    kprofile_drift.reset()
     print_scheduler.stop()
     smart_plug_manager.stop_scheduler()
     ha_sensor_manager.stop()

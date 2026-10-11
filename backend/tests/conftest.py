@@ -103,6 +103,16 @@ def reset_slot_unlink_grace():
 
 
 @pytest.fixture(autouse=True)
+def reset_kprofile_drift():
+    """Printer IDs are reused across test databases; retry state must not leak."""
+    from backend.app.services import kprofile_drift
+
+    kprofile_drift.reset()
+    yield
+    kprofile_drift.reset()
+
+
+@pytest.fixture(autouse=True)
 def reset_spoolman_location_sync_cache():
     """Drop the per-URL Spoolman location-sync TTL cache between tests.
 
