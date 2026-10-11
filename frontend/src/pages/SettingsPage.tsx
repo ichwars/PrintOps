@@ -197,6 +197,7 @@ registerSettingsSearch({ labelKey: 'backup.scheduledBackup', labelFallback: 'Sch
 
 
 export function SettingsPage() {
+  const { t: translateInterface } = useTranslation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -3153,7 +3154,7 @@ export function SettingsPage() {
             <Button variant="unstyled"
               onClick={() => setSettingsSearch('')}
               className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-bambu-gray hover:text-white"
-              aria-label="Clear"
+              aria-label={translateInterface("common.clear")}
             >
               <X className="w-3.5 h-3.5" />
             </Button>
@@ -4325,7 +4326,7 @@ export function SettingsPage() {
                 <Button variant="unstyled"
                   onClick={() => setTemplateFilter('')}
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-bambu-gray hover:text-white"
-                  aria-label="Clear filter"
+                  aria-label={translateInterface("orders.runtimeInterface.clearFilter")}
                 >
                   <X className="w-3.5 h-3.5" />
                 </Button>
@@ -5727,9 +5728,9 @@ export function SettingsPage() {
       {/* Confirm Modal: Bulk Plug Action */}
       {showBulkPlugConfirm && (
         <ConfirmModal
-          title={`Turn All Plugs ${showBulkPlugConfirm === 'on' ? 'On' : 'Off'}`}
-          message={`This will turn ${showBulkPlugConfirm === 'on' ? 'ON' : 'OFF'} all ${smartPlugs?.filter(p => p.enabled).length || 0} enabled smart plugs. ${showBulkPlugConfirm === 'off' ? 'Any running printers may be affected!' : ''}`}
-          confirmText={`Turn All ${showBulkPlugConfirm === 'on' ? 'On' : 'Off'}`}
+          title={t(showBulkPlugConfirm === 'on' ? 'settings.turnAllPlugsOn' : 'settings.turnAllPlugsOff')}
+          message={`${translateInterface(showBulkPlugConfirm === 'on' ? 'orders.runtimeInterface.bulkPlugOnMessage' : 'orders.runtimeInterface.bulkPlugOffMessage', { count: smartPlugs?.filter(p => p.enabled).length || 0 })} ${showBulkPlugConfirm === 'off' ? translateInterface('orders.runtimeInterface.anyRunningPrintersMayBeAffected') : ''}`}
+          confirmText={translateInterface(showBulkPlugConfirm === 'on' ? 'orders.runtimeInterface.turnAllOn' : 'orders.runtimeInterface.turnAllOff')}
           variant={showBulkPlugConfirm === 'off' ? 'danger' : 'warning'}
           onConfirm={() => {
             const action = showBulkPlugConfirm;
@@ -5750,7 +5751,7 @@ export function SettingsPage() {
             <CardHeader className="flex flex-row items-center justify-between shrink-0">
               <div>
                 <h2 className="text-lg font-semibold text-white">
-                  Release Notes - v{updateCheck.latest_version}
+                  {translateInterface("orders.runtimeInterface.releaseNotesV")}{updateCheck.latest_version}
                 </h2>
                 {updateCheck.release_name && updateCheck.release_name !== updateCheck.latest_version && (
                   <p className="text-sm text-bambu-gray">{updateCheck.release_name}</p>
@@ -5778,7 +5779,7 @@ export function SettingsPage() {
                 >
                   <Button variant="secondary" className="w-full">
                     <ExternalLink className="w-4 h-4" />
-                    View on GitHub
+                    {translateInterface("nav.viewOnGithub")}
                   </Button>
                 </a>
               )}
@@ -5786,7 +5787,7 @@ export function SettingsPage() {
                 onClick={() => setShowReleaseNotes(false)}
                 className="flex-1"
               >
-                Close
+                {translateInterface("common.close")}
               </Button>
             </div>
           </Card>
@@ -6713,13 +6714,13 @@ export function SettingsPage() {
                   <p className="text-white">{t('settings.userHasCreated')}</p>
                   <ul className="list-disc list-inside text-bambu-gray space-y-1">
                     {deleteUserItemCounts.archives > 0 && (
-                      <li>{deleteUserItemCounts.archives} archive{deleteUserItemCounts.archives !== 1 ? 's' : ''}</li>
+                      <li>{deleteUserItemCounts.archives} {translateInterface("orders.runtimeInterface.archive")}{deleteUserItemCounts.archives !== 1 ? 's' : ''}</li>
                     )}
                     {deleteUserItemCounts.queue_items > 0 && (
-                      <li>{deleteUserItemCounts.queue_items} queue item{deleteUserItemCounts.queue_items !== 1 ? 's' : ''}</li>
+                      <li>{deleteUserItemCounts.queue_items} {translateInterface("orders.runtimeInterface.queueItem")}{deleteUserItemCounts.queue_items !== 1 ? 's' : ''}</li>
                     )}
                     {deleteUserItemCounts.library_files > 0 && (
-                      <li>{deleteUserItemCounts.library_files} library file{deleteUserItemCounts.library_files !== 1 ? 's' : ''}</li>
+                      <li>{deleteUserItemCounts.library_files} {translateInterface("orders.runtimeInterface.libraryFile")}{deleteUserItemCounts.library_files !== 1 ? 's' : ''}</li>
                     )}
                   </ul>
                   <p className="text-bambu-gray text-sm">{t('settings.userItemsQuestion')}</p>
@@ -6888,7 +6889,7 @@ export function SettingsPage() {
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">
-                    Current Password
+                    {translateInterface("changePassword.currentPassword")}
                   </label>
                   <TextField
                     type="password"
@@ -6901,7 +6902,7 @@ export function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">
-                    New Password
+                    {translateInterface("changePassword.newPassword")}
                   </label>
                   <TextField
                     type="password"
@@ -6915,7 +6916,7 @@ export function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">
-                    Confirm New Password
+                    {translateInterface("changePassword.confirmPassword")}
                   </label>
                   <TextField
                     type="password"

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState, useRef, useEffect } from 'react';
 import { X, Download, Film, Play, Pause, SkipBack, SkipForward, Pencil } from 'lucide-react';
 import { Button } from './Button';
@@ -24,6 +25,7 @@ export function TimelapseViewer({
   onClose,
   onEdit,
 }: TimelapseViewerProps) {
+  const { t: translateInterface } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [playbackRate, setPlaybackRate] = useState(1); // Default to 1x
@@ -119,12 +121,12 @@ export function TimelapseViewer({
             {archiveId && (
               <Button variant="secondary" size="sm" onClick={() => setShowEditor(true)}>
                 <Pencil className="w-4 h-4" />
-                Edit
+                {translateInterface("common.edit")}
               </Button>
             )}
             <Button variant="secondary" size="sm" onClick={handleDownload}>
               <Download className="w-4 h-4" />
-              Download
+              {translateInterface("common.download")}
             </Button>
             <button
               onClick={onClose}
@@ -174,7 +176,7 @@ export function TimelapseViewer({
                 <button
                   onClick={skipBackward}
                   className="p-2 hover:bg-bambu-dark-tertiary rounded-lg transition-colors"
-                  title="Skip back 5s"
+                  title={translateInterface("timelapseViewer.skipBack5s")}
                 >
                   <SkipBack className="w-5 h-5 text-bambu-gray" />
                 </button>
@@ -191,7 +193,7 @@ export function TimelapseViewer({
                 <button
                   onClick={skipForward}
                   className="p-2 hover:bg-bambu-dark-tertiary rounded-lg transition-colors"
-                  title="Skip forward 5s"
+                  title={translateInterface("timelapseViewer.skipForward5s")}
                 >
                   <SkipForward className="w-5 h-5 text-bambu-gray" />
                 </button>
@@ -199,7 +201,7 @@ export function TimelapseViewer({
 
               {/* Right: Speed control */}
               <div className="flex items-center gap-2">
-                <span className="text-sm text-bambu-gray">Speed:</span>
+                <span className="text-sm text-bambu-gray">{translateInterface("orders.runtimeInterface.speed2")}</span>
                 <div className="flex gap-1">
                   {SPEED_OPTIONS.map((speed) => (
                     <button

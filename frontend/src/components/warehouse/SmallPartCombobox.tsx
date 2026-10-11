@@ -1,3 +1,4 @@
+import { useSmallPartsText, smallPartsLocale } from './smallPartsCopy';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { smallPartsApi, type SmallPartOption } from '../../api/smallParts';
@@ -15,9 +16,12 @@ export function SmallPartCombobox({
   value,
   onChange,
   disabled = false,
-  locale = 'de-DE',
-  label = 'Material suchen',
+  locale,
+  label,
 }: SmallPartComboboxProps) {
+  const text = useSmallPartsText(locale);
+  const effectiveLocale = locale || smallPartsLocale();
+  const effectiveLabel = label ?? text('searchMaterial');
   const listboxId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState(value ? `${value.sku} · ${value.name}` : '');
@@ -60,14 +64,14 @@ export function SmallPartCombobox({
     <div ref={rootRef} className="relative">
       <TextField
         role="combobox"
-        aria-label={label}
+        aria-label={effectiveLabel}
         aria-expanded={open}
         aria-controls={listboxId}
         aria-autocomplete="list"
         aria-activedescendant={activeIndex >= 0 ? `${listboxId}-${options[activeIndex]?.id}` : undefined}
         value={query}
         disabled={disabled}
-        placeholder="Artikelnummer oder Bezeichnung"
+        placeholder={text('materialSearchPlaceholder')}
         className="text-sm"
         onFocus={() => setOpen(true)}
         onChange={(event) => {
@@ -97,9 +101,9 @@ export function SmallPartCombobox({
           role="listbox"
           className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary p-1 shadow-xl"
         >
-          {loading && <li className="px-3 py-2 text-sm text-bambu-gray">Suche …</li>}
+          {loading && <li className="px-3 py-2 text-sm text-bambu-gray">{text('searching')}</li>}
           {!loading && options.length === 0 && (
-            <li className="px-3 py-2 text-sm text-bambu-gray">Keine passenden Materialien</li>
+            <li className="px-3 py-2 text-sm text-bambu-gray">{text('noMatchingMaterials')}</li>
           )}
           {options.map((option, index) => (
             <li
@@ -114,7 +118,7 @@ export function SmallPartCombobox({
             >
               <div className="font-medium">{option.sku} · {option.name}</div>
               <div className="text-xs opacity-75">
-                {new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(Number(option.available))} verfügbar
+                {new Intl.NumberFormat(effectiveLocale, { maximumFractionDigits: 2 }).format(Number(option.available))} {text('availableSuffix')}
               </div>
             </li>
           ))}

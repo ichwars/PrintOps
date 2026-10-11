@@ -1,7 +1,8 @@
+import i18n from '../../i18n';
 import { useState } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   procurementOffersApi,
@@ -82,6 +83,8 @@ function Harness({ initial }: { initial: ProcurementOfferDraft[] }) {
 
 const currentOffers = () =>
   JSON.parse(screen.getByTestId('offers-value').textContent ?? '[]') as ProcurementOfferDraft[];
+
+beforeEach(async () => { await i18n.changeLanguage('de'); });
 
 describe('ProcurementOffersEditor', () => {
   it('keeps one preferred offer and supports an alternative', async () => {

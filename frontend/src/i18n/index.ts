@@ -11,6 +11,7 @@ const localeLoaders = {
   ja: () => import('./locales/ja'),
   it: () => import('./locales/it'),
   ko: () => import('./locales/ko'),
+  nl: () => import('./locales/nl'),
   'pt-BR': () => import('./locales/pt-BR'),
   'zh-CN': () => import('./locales/zh-CN'),
   'zh-TW': () => import('./locales/zh-TW'),
@@ -18,6 +19,17 @@ const localeLoaders = {
 };
 
 type SupportedLanguage = keyof typeof localeLoaders;
+
+// Components also receive regional Intl locales such as de-DE and nl-NL.
+// The backend loads only registered catalog codes, so normalize before using
+// an explicit react-i18next language override.
+export function resolveSupportedLanguage(locale: string): SupportedLanguage {
+  const requested = locale.toLowerCase();
+  const codes = Object.keys(localeLoaders) as SupportedLanguage[];
+  return codes.find((code) => code.toLowerCase() === requested)
+    ?? codes.find((code) => code.toLowerCase() === requested.split('-')[0])
+    ?? 'en';
+}
 
 const localeBackend: BackendModule = {
   type: 'backend',
@@ -35,7 +47,7 @@ const localeBackend: BackendModule = {
   },
 };
 
-const SUPPORTED_LNGS = ['en', 'de', 'es', 'fr', 'ja', 'it', 'ko', 'pt-BR', 'tr', 'zh-CN', 'zh-TW'];
+const SUPPORTED_LNGS = ['en', 'de', 'es', 'fr', 'ja', 'it', 'ko', 'nl', 'pt-BR', 'tr', 'zh-CN', 'zh-TW'];
 const APPLIANCE_CONSUMED_KEY = 'printops_appliance_locale_consumed';
 
 await i18n
@@ -110,6 +122,7 @@ export const availableLanguages = [
   { code: 'ja', name: 'Japanese', nativeName: '日本語' },
   { code: 'it', name: 'Italian', nativeName: 'Italiano' },
   { code: 'ko', name: 'Korean', nativeName: '한국어' },
+  { code: 'nl', name: 'Dutch', nativeName: 'Nederlands' },
   { code: 'pt-BR', name: 'Portuguese (Brazil)', nativeName: 'Português (Brasil)' },
   { code: 'zh-CN', name: 'Chinese (Simplified)', nativeName: '简体中文' },
   { code: 'zh-TW', name: 'Chinese (Traditional)', nativeName: '繁體中文' },

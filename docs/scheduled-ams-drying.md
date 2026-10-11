@@ -1,5 +1,10 @@
 # Tägliche AMS-Trocknung
 
+Die [Abnahmematrix](hardware-acceptance.md) dokumentiert die erfüllten
+Software-Kriterien von #147 und die zusätzliche, bisher nicht durchgeführte
+Geräteprüfung. Sie enthält die genaue P2S/AMS-2-Pro- und X1C/klassisches-AMS-
+Abgrenzung sowie eine lesende, privat zu anonymisierende Erhebung.
+
 Unter **Einstellungen → Lager und Material → Filament → Geplante AMS-Trocknung**
 kann pro Drucker ein täglicher Plan angelegt werden. Ein Plan enthält die lokale
 Uhrzeit, eine IANA-Zeitzone, AMS-ID, Material, Temperatur, Dauer und optionales

@@ -13,6 +13,7 @@ interface AddExternalLinkModalProps {
 }
 
 export function AddExternalLinkModal({ link, onClose }: AddExternalLinkModalProps) {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const isEditing = !!link;
@@ -174,7 +175,7 @@ export function AddExternalLinkModal({ link, onClose }: AddExternalLinkModalProp
               )}
             </div>
             <h2 className="text-lg font-semibold text-white">
-              {isEditing ? 'Edit Link' : 'Add External Link'}
+              {isEditing ? translateInterface("orders.runtimeInterface.editLink") : translateInterface("orders.runtimeInterface.addExternalLink")}
             </h2>
           </div>
           <button
@@ -195,12 +196,12 @@ export function AddExternalLinkModal({ link, onClose }: AddExternalLinkModalProp
 
           {/* Name */}
           <div>
-            <label className="block text-sm text-bambu-gray mb-1">Name *</label>
+            <label className="block text-sm text-bambu-gray mb-1">{translateInterface("smartPlugs.nameLabel")}</label>
             <TextField
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="My Link"
+              placeholder={translateInterface("externalLinks.placeholders.linkName")}
               maxLength={50}
               className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
             />
@@ -208,7 +209,7 @@ export function AddExternalLinkModal({ link, onClose }: AddExternalLinkModalProp
 
           {/* URL */}
           <div>
-            <label className="block text-sm text-bambu-gray mb-1">URL *</label>
+            <label className="block text-sm text-bambu-gray mb-1">{translateInterface("orders.runtimeInterface.uRL")}</label>
             <TextField
               type="text"
               value={url}
@@ -238,12 +239,12 @@ export function AddExternalLinkModal({ link, onClose }: AddExternalLinkModalProp
 
           {/* Icon Section */}
           <div className="space-y-3">
-            <label className="block text-sm text-bambu-gray">Icon</label>
+            <label className="block text-sm text-bambu-gray">{translateInterface("maintenance.icon")}</label>
 
             {/* Custom Icon Upload */}
             <div className="p-3 rounded-lg bg-bambu-dark border border-bambu-dark-tertiary">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-white">Custom Icon</span>
+                <span className="text-sm text-white">{translateInterface("orders.runtimeInterface.customIcon")}</span>
                 <FileInput
                   ref={fileInputRef}
                   accept="image/png,image/jpeg,image/gif,image/svg+xml,image/webp,image/x-icon"
@@ -252,12 +253,12 @@ export function AddExternalLinkModal({ link, onClose }: AddExternalLinkModalProp
                 />
                 {useCustomIcon && customIconPreview ? (
                   <div className="flex items-center gap-2">
-                    <img src={customIconPreview} alt="Custom icon" className="w-8 h-8 rounded border border-bambu-dark-tertiary" />
+                    <img src={customIconPreview} alt={translateInterface("orders.runtimeInterface.customIcon2")} className="w-8 h-8 rounded border border-bambu-dark-tertiary" />
                     <button
                       type="button"
                       onClick={handleRemoveCustomIcon}
                       className="p-1 text-red-700 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
-                      title="Remove custom icon"
+                      title={translateInterface("externalLinks.removeCustomIcon")}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -270,19 +271,19 @@ export function AddExternalLinkModal({ link, onClose }: AddExternalLinkModalProp
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <Upload className="w-4 h-4" />
-                    Upload
+                    {translateInterface("common.upload")}
                   </Button>
                 )}
               </div>
               <p className="text-xs text-bambu-gray">
-                PNG, JPG, GIF, SVG, WebP, or ICO. Max 1MB.
+                {translateInterface("orders.runtimeInterface.pNGJPGGIFSVGWebPOrICOMax1MB")}
               </p>
             </div>
 
             {/* Preset Icon Picker */}
             {!useCustomIcon && (
               <div>
-                <span className="text-sm text-bambu-gray block mb-2">Or choose a preset icon</span>
+                <span className="text-sm text-bambu-gray block mb-2">{translateInterface("orders.runtimeInterface.orChooseAPresetIcon")}</span>
                 <IconPicker value={icon} onChange={setIcon} />
               </div>
             )}
@@ -296,7 +297,7 @@ export function AddExternalLinkModal({ link, onClose }: AddExternalLinkModalProp
               onClick={onClose}
               className="flex-1"
             >
-              Cancel
+              {translateInterface("common.cancel")}
             </Button>
             <Button
               type="submit"

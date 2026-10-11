@@ -1,3 +1,4 @@
+import { smallPartsText as text, useSmallPartsText, smallPartsLocale } from '../components/warehouse/smallPartsCopy';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -50,17 +51,17 @@ const COLUMN_CONFIG_KEY = 'printops-material-columns';
 const SORT_STATE_KEY = 'printops-material-sort';
 
 const DEFAULT_COLUMNS: ColumnConfig[] = [
-  { id: 'sku', label: 'Artikelnummer', visible: true },
-  { id: 'name', label: 'Bezeichnung', visible: true },
-  { id: 'category', label: 'Kategorie', visible: true },
-  { id: 'location', label: 'Lagerort', visible: true },
-  { id: 'physical', label: 'Physisch', visible: true },
-  { id: 'reserved', label: 'Reserviert', visible: true },
-  { id: 'available', label: 'Verfügbar', visible: true },
-  { id: 'minimum_stock', label: 'Mindestbestand', visible: true },
-  { id: 'unit_cost', label: 'Einzelpreis', visible: true },
-  { id: 'supplier', label: 'Lieferant', visible: true },
-  { id: 'status', label: 'Status', visible: true },
+  { id: 'sku', label: 'sku', visible: true },
+  { id: 'name', label: 'name', visible: true },
+  { id: 'category', label: 'category', visible: true },
+  { id: 'location', label: 'location', visible: true },
+  { id: 'physical', label: 'physical', visible: true },
+  { id: 'reserved', label: 'reserved', visible: true },
+  { id: 'available', label: 'available', visible: true },
+  { id: 'minimum_stock', label: 'minimumStock', visible: true },
+  { id: 'unit_cost', label: 'unitCost', visible: true },
+  { id: 'supplier', label: 'supplier', visible: true },
+  { id: 'status', label: 'status', visible: true },
 ];
 
 const EMPTY_PARTS: SmallPart[] = [];
@@ -114,21 +115,21 @@ function saveSortState(state: SortState) {
 }
 
 function quantity(value: string, part: SmallPart): string {
-  return new Intl.NumberFormat('de-DE', {
+  return new Intl.NumberFormat(smallPartsLocale(), {
     minimumFractionDigits: 0,
     maximumFractionDigits: part.unit.decimal_places,
   }).format(Number(value));
 }
 
 function wholeQuantity(value: string): string {
-  return new Intl.NumberFormat('de-DE', {
+  return new Intl.NumberFormat(smallPartsLocale(), {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(Math.round(Number(value)));
 }
 
 function money(value: string): string {
-  return Number(value).toLocaleString('de-DE', {
+  return Number(value).toLocaleString(smallPartsLocale(), {
     style: 'currency',
     currency: 'EUR',
     minimumFractionDigits: 2,
@@ -137,7 +138,7 @@ function money(value: string): string {
 }
 
 function netPrice(value: string): string {
-  return `${Number(value).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € netto`;
+  return text('netAmount', { amount: Number(value).toLocaleString(smallPartsLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) });
 }
 
 function isNewMaterial(part: SmallPart): boolean {
@@ -145,22 +146,22 @@ function isNewMaterial(part: SmallPart): boolean {
 }
 
 function locationLabel(part: SmallPart): string {
-  return part.location_id ? `Lagerort #${part.location_id}` : 'Kein Lagerort';
+  return part.location_id ? text('locationNumber', { id: part.location_id }) : text('noLocation');
 }
 
 function statusLabels(part: SmallPart): string[] {
   const labels: string[] = [];
-  if (!part.is_active) labels.push('Inaktiv');
-  if (isNewMaterial(part)) labels.push('Neu');
-  if (part.balance.is_low_stock) labels.push('Niedrig');
+  if (!part.is_active) labels.push(text('inactive'));
+  if (isNewMaterial(part)) labels.push(text('new'));
+  if (part.balance.is_low_stock) labels.push(text('low'));
   if (labels.length === 0) labels.push('OK');
   return labels;
 }
 
 function statusClass(label: string): string {
-  if (label === 'Niedrig') return 'bg-amber-500/20 text-amber-200';
-  if (label === 'Inaktiv') return 'bg-bambu-dark-tertiary text-bambu-gray';
-  if (label === 'Neu') return 'bg-sky-500/20 text-sky-200';
+  if (label === text('low')) return 'bg-amber-500/20 text-amber-200';
+  if (label === text('inactive')) return 'bg-bambu-dark-tertiary text-bambu-gray';
+  if (label === text('new')) return 'bg-sky-500/20 text-sky-200';
   return 'bg-bambu-dark-tertiary text-bambu-gray-light';
 }
 
@@ -207,32 +208,32 @@ function MaterialCard({ part, onEdit, onStock }: { part: SmallPart; onEdit: () =
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs text-bambu-green">{part.sku}</span>
-            {!part.is_active && <span className="rounded-full bg-bambu-dark-tertiary px-2 py-0.5 text-xs text-bambu-gray-light">Inaktiv</span>}
-            {isNewMaterial(part) && <span className="rounded-full bg-bambu-dark-tertiary px-2 py-0.5 text-xs text-bambu-gray-light">Neu</span>}
-            {part.balance.is_low_stock && <span className="rounded-full bg-amber-900/70 px-2 py-0.5 text-xs text-amber-200">Meldebestand</span>}
+            {!part.is_active && <span className="rounded-full bg-bambu-dark-tertiary px-2 py-0.5 text-xs text-bambu-gray-light">{text('inactive')}</span>}
+            {isNewMaterial(part) && <span className="rounded-full bg-bambu-dark-tertiary px-2 py-0.5 text-xs text-bambu-gray-light">{text('new')}</span>}
+            {part.balance.is_low_stock && <span className="rounded-full bg-amber-900/70 px-2 py-0.5 text-xs text-amber-200">{text('reorderLevel')}</span>}
           </div>
           <h2 className="mt-1 font-semibold text-white">{part.name}</h2>
-          <p className="mt-1 text-sm text-bambu-gray">{part.category?.name ?? 'Ohne Kategorie'} · {locationLabel(part)}</p>
+          <p className="mt-1 text-sm text-bambu-gray">{part.category?.name ?? text('noCategory')} · {locationLabel(part)}</p>
         </div>
         <div className="flex gap-2">
-          <IconButton label="Material bearbeiten" icon={Pencil} onClick={onEdit} />
+          <IconButton label={text('editMaterial')} icon={Pencil} onClick={onEdit} />
           <Button type="button" size="sm" onClick={onStock}>
-            <PackagePlus className="h-4 w-4" /> Bestand buchen
+            <PackagePlus className="h-4 w-4" />{text('postStock')}
           </Button>
         </div>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
-        <div><p className="text-bambu-gray">Physisch</p><p className="text-white">{quantity(part.balance.physical, part)}</p></div>
-        <div><p className="text-bambu-gray">Reserviert</p><p className="text-white">{quantity(part.balance.reserved, part)}</p></div>
-        <div className="col-span-2 sm:col-span-1"><p className="text-bambu-gray">Verfügbar</p><p className="font-semibold text-bambu-green-light">{quantity(part.balance.available, part)} {part.unit.label} verfügbar</p></div>
-        <div><p className="text-bambu-gray">Mindestbestand</p><p className="text-white">{wholeQuantity(part.minimum_stock)}</p></div>
-        <div><p className="text-bambu-gray">Standardpreis</p><p className="text-white">{money(part.unit_cost)}</p></div>
+        <div><p className="text-bambu-gray">{text('physical')}</p><p className="text-white">{quantity(part.balance.physical, part)}</p></div>
+        <div><p className="text-bambu-gray">{text('reserved')}</p><p className="text-white">{quantity(part.balance.reserved, part)}</p></div>
+        <div className="col-span-2 sm:col-span-1"><p className="text-bambu-gray">{text('available')}</p><p className="font-semibold text-bambu-green-light">{quantity(part.balance.available, part)} {part.unit.label} {text('availableSuffix')}</p></div>
+        <div><p className="text-bambu-gray">{text('minimumStock')}</p><p className="text-white">{wholeQuantity(part.minimum_stock)}</p></div>
+        <div><p className="text-bambu-gray">{text('standardPrice')}</p><p className="text-white">{money(part.unit_cost)}</p></div>
       </div>
       {part.preferred_offer ? (
         <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 border-t border-bambu-dark-tertiary pt-3 text-sm">
           <span className="font-medium text-white">{part.preferred_offer.supplier.name}</span>
           <span className="text-bambu-gray-light">{netPrice(part.preferred_offer.net_price)}</span>
-          <span className="text-bambu-gray-light">{part.preferred_offer.lead_time_days} Tage Lieferzeit</span>
+          <span className="text-bambu-gray-light">{text('daysLeadTime', { count: part.preferred_offer.lead_time_days })}</span>
         </div>
       ) : null}
     </article>
@@ -254,11 +255,11 @@ function MaterialTable({
   onEdit: (part: SmallPart) => void;
   onStock: (part: SmallPart) => void;
 }) {
-  const columnLabel = new Map(DEFAULT_COLUMNS.map((column) => [column.id, column.label]));
+  const columnLabel = new Map(DEFAULT_COLUMNS.map((column) => [column.id, text(column.label)]));
   const cell = (part: SmallPart, column: string) => {
     if (column === 'sku') return <span className="font-mono text-xs text-bambu-green">{part.sku}</span>;
     if (column === 'name') return <span className="font-medium text-white">{part.name}</span>;
-    if (column === 'category') return <span>{part.category?.name ?? 'Ohne Kategorie'}</span>;
+    if (column === 'category') return <span>{part.category?.name ?? text('noCategory')}</span>;
     if (column === 'location') return <span>{locationLabel(part)}</span>;
     if (column === 'physical') return <span className="text-white">{quantity(part.balance.physical, part)}</span>;
     if (column === 'reserved') return <span>{quantity(part.balance.reserved, part)}</span>;
@@ -310,7 +311,7 @@ function MaterialTable({
                 </th>
               );
             })}
-            <th className={tableHeaderActionCellClass}>Aktionen</th>
+            <th className={tableHeaderActionCellClass}>{text('actions')}</th>
           </tr>
         </thead>
         <tbody>
@@ -321,9 +322,9 @@ function MaterialTable({
               ))}
               <td className="px-4 py-3">
                 <div className="flex items-center justify-end gap-1">
-                  <IconButton label="Material bearbeiten" icon={Pencil} onClick={() => onEdit(part)} />
+                  <IconButton label={text('editMaterial')} icon={Pencil} onClick={() => onEdit(part)} />
                   <Button type="button" size="sm" variant="secondary" onClick={() => onStock(part)}>
-                    <PackagePlus className="h-4 w-4" /> Bestand
+                    <PackagePlus className="h-4 w-4" />{text('stock')}
                   </Button>
                 </div>
               </td>
@@ -345,10 +346,10 @@ function MaterialForecast({ items }: { items: SmallPart[] }) {
       <CardContent className="space-y-4">
         <div className="flex items-center gap-2">
           <TrendingUp className="h-5 w-5 text-bambu-green" />
-          <h2 className="text-lg font-semibold text-white">Bestandsprognose</h2>
+          <h2 className="text-lg font-semibold text-white">{text('forecast')}</h2>
         </div>
         {watchlist.length === 0 ? (
-          <p className="py-10 text-center text-bambu-gray">Keine kritischen Materialbestände.</p>
+          <p className="py-10 text-center text-bambu-gray">{text('noCriticalStock')}</p>
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
             {watchlist.map((part) => (
@@ -359,13 +360,13 @@ function MaterialForecast({ items }: { items: SmallPart[] }) {
                     <h3 className="mt-1 font-semibold text-white">{part.name}</h3>
                   </div>
                   <span className={`rounded px-2 py-1 text-xs ${part.balance.is_low_stock ? 'bg-amber-500/20 text-amber-200' : 'bg-bambu-dark-tertiary text-bambu-gray-light'}`}>
-                    {part.balance.is_low_stock ? 'Nachbestellen' : 'Beobachten'}
+                    {part.balance.is_low_stock ? text('reorder') : text('watch')}
                   </span>
                 </div>
                 <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-                  <div><p className="text-bambu-gray">Verfügbar</p><p className="text-white">{quantity(part.balance.available, part)}</p></div>
-                  <div><p className="text-bambu-gray">Meldebestand</p><p className="text-white">{wholeQuantity(part.minimum_stock)}</p></div>
-                  <div><p className="text-bambu-gray">Lieferzeit</p><p className="text-white">{part.preferred_offer?.lead_time_days ?? '-'} Tage</p></div>
+                  <div><p className="text-bambu-gray">{text('available')}</p><p className="text-white">{quantity(part.balance.available, part)}</p></div>
+                  <div><p className="text-bambu-gray">{text('reorderLevel')}</p><p className="text-white">{wholeQuantity(part.minimum_stock)}</p></div>
+                  <div><p className="text-bambu-gray">{text('leadTime')}</p><p className="text-white">{text('days', { count: part.preferred_offer?.lead_time_days ?? '-' })}</p></div>
                 </div>
               </div>
             ))}
@@ -377,6 +378,7 @@ function MaterialForecast({ items }: { items: SmallPart[] }) {
 }
 
 export function SmallPartsPage() {
+  useSmallPartsText();
   const queryClient = useQueryClient();
   const [targetPartId, setTargetPartId] = useState(() => Number(new URLSearchParams(window.location.search).get('part') ?? 0));
   const [query, setQuery] = useState('');
@@ -474,13 +476,13 @@ export function SmallPartsPage() {
     try {
       await smallPartsApi.exportCsv();
     } catch (error) {
-      setActionMessage(error instanceof Error ? error.message : 'CSV-Export fehlgeschlagen.');
+      setActionMessage(error instanceof Error ? error.message : text('csvExportFailed'));
     }
   };
 
   const handleImported = (created: number, updated: number) => {
     setImportModalOpen(false);
-    setActionMessage(`${created} Material angelegt, ${updated} aktualisiert.`);
+    setActionMessage(text('importSummary', { created, updated }));
     refreshMaterials();
   };
 
@@ -489,12 +491,12 @@ export function SmallPartsPage() {
       <header className="flex items-center justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-3 text-2xl font-bold text-white">
-            <Boxes className="h-7 w-7 text-bambu-green" /> Material
+            <Boxes className="h-7 w-7 text-bambu-green" />{text('material')}
           </h1>
-          <p className="mt-1 text-bambu-gray">Zukaufteile, Hardware und Verbrauchsmaterial mit geprüftem Bestand.</p>
+          <p className="mt-1 text-bambu-gray">{text('subtitle')}</p>
         </div>
         <Button type="button" onClick={() => setEditorPart(null)}>
-          <Plus className="h-4 w-4" /> Material hinzufügen
+          <Plus className="h-4 w-4" />{text('addMaterial')}
         </Button>
       </header>
 
@@ -507,28 +509,28 @@ export function SmallPartsPage() {
             setImportModalOpen(true);
           }}
         >
-          <Upload className="h-4 w-4" /> CSV importieren
+          <Upload className="h-4 w-4" />{text('importCsv')}
         </Button>
         <Button
           type="button"
           variant="secondary"
           disabled={allItems.length === 0}
           onClick={handleExportCsv}
-          title={allItems.length === 0 ? 'Keine Materialien zum Exportieren vorhanden.' : undefined}
+          title={allItems.length === 0 ? text('noExportMaterials') : undefined}
         >
-          <Download className="h-4 w-4" /> CSV exportieren
+          <Download className="h-4 w-4" />{text('exportCsv')}
         </Button>
         <Button type="button" variant="secondary" onClick={() => setLocationsModalOpen(true)}>
-          <MapPin className="h-4 w-4" /> Lagerorte
+          <MapPin className="h-4 w-4" />{text('locations')}
         </Button>
         <Button
           type="button"
           variant="secondary"
           disabled={sortedItems.length === 0}
           onClick={() => setLabelPickerOpen(true)}
-          title={sortedItems.length === 0 ? 'Keine Materialien für Etiketten vorhanden.' : undefined}
+          title={sortedItems.length === 0 ? text('noLabelMaterials') : undefined}
         >
-          <Printer className="h-4 w-4" /> Etiketten drucken...
+          <Printer className="h-4 w-4" />{text('printLabels')}
         </Button>
       </div>
       {actionMessage ? (
@@ -539,29 +541,29 @@ export function SmallPartsPage() {
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         <div className="rounded-lg bg-bambu-dark-secondary p-4">
-          <div className="mb-1 flex items-center gap-2"><Package className="h-4 w-4 text-bambu-green" /><span className="text-xs font-medium uppercase text-bambu-gray">Artikel</span></div>
+          <div className="mb-1 flex items-center gap-2"><Package className="h-4 w-4 text-bambu-green" /><span className="text-xs font-medium uppercase text-bambu-gray">{text('article')}</span></div>
           <div className="text-xl font-bold text-white">{allItems.filter((item) => item.is_active).length}</div>
-          <div className="mt-1 text-xs text-bambu-gray">aktive Materialien</div>
+          <div className="mt-1 text-xs text-bambu-gray">{text('activeMaterials')}</div>
         </div>
         <div className="rounded-lg bg-bambu-dark-secondary p-4">
-          <div className="mb-1 flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-300" /><span className="text-xs font-medium uppercase text-bambu-gray">Niedrig</span></div>
+          <div className="mb-1 flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-300" /><span className="text-xs font-medium uppercase text-bambu-gray">{text('low')}</span></div>
           <div className={`text-xl font-bold ${lowStockCount > 0 ? 'text-amber-300' : 'text-white'}`}>{lowStockCount}</div>
-          <div className="mt-1 text-xs text-bambu-gray">unter Meldebestand</div>
+          <div className="mt-1 text-xs text-bambu-gray">{text('belowReorder')}</div>
         </div>
         <div className="rounded-lg bg-bambu-dark-secondary p-4">
-          <div className="mb-1 flex items-center gap-2"><PackageCheck className="h-4 w-4 text-sky-300" /><span className="text-xs font-medium uppercase text-bambu-gray">Reserviert</span></div>
+          <div className="mb-1 flex items-center gap-2"><PackageCheck className="h-4 w-4 text-sky-300" /><span className="text-xs font-medium uppercase text-bambu-gray">{text('reserved')}</span></div>
           <div className="text-xl font-bold text-white">{reservedCount}</div>
-          <div className="mt-1 text-xs text-bambu-gray">mit Reservierung</div>
+          <div className="mt-1 text-xs text-bambu-gray">{text('withReservation')}</div>
         </div>
         <div className="rounded-lg bg-bambu-dark-secondary p-4">
-          <div className="mb-1 flex items-center gap-2"><Boxes className="h-4 w-4 text-bambu-green" /><span className="text-xs font-medium uppercase text-bambu-gray">Verfügbar</span></div>
-          <div className="text-xl font-bold text-white">{availableCount.toLocaleString('de-DE')}</div>
-          <div className="mt-1 text-xs text-bambu-gray">ganze Einheiten</div>
+          <div className="mb-1 flex items-center gap-2"><Boxes className="h-4 w-4 text-bambu-green" /><span className="text-xs font-medium uppercase text-bambu-gray">{text('available')}</span></div>
+          <div className="text-xl font-bold text-white">{availableCount.toLocaleString(smallPartsLocale())}</div>
+          <div className="mt-1 text-xs text-bambu-gray">{text('wholeUnits')}</div>
         </div>
         <div className="rounded-lg bg-bambu-dark-secondary p-4">
-          <div className="mb-1 flex items-center gap-2"><TrendingUp className="h-4 w-4 text-bambu-green" /><span className="text-xs font-medium uppercase text-bambu-gray">Wert</span></div>
-          <div className="text-xl font-bold text-white">{stockValue.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</div>
-          <div className="mt-1 text-xs text-bambu-gray">verfügbarer Bestand</div>
+          <div className="mb-1 flex items-center gap-2"><TrendingUp className="h-4 w-4 text-bambu-green" /><span className="text-xs font-medium uppercase text-bambu-gray">{text('value')}</span></div>
+          <div className="text-xl font-bold text-white">{stockValue.toLocaleString(smallPartsLocale(), { style: 'currency', currency: 'EUR' })}</div>
+          <div className="mt-1 text-xs text-bambu-gray">{text('availableStock')}</div>
         </div>
       </div>
 
@@ -570,14 +572,14 @@ export function SmallPartsPage() {
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-bambu-gray/50" />
           <TextField
             type="search"
-            aria-label="Material durchsuchen"
+            aria-label={text('searchMaterials')}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Artikelnummer, Bezeichnung, Kategorie …"
+            placeholder={text('searchPlaceholder')}
             className="w-full pl-10 pr-8"
           />
           {query ? (
-            <button type="button" onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-bambu-gray hover:text-white" aria-label="Suche löschen">
+            <button type="button" onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-bambu-gray hover:text-white" aria-label={text('clearSearch')}>
               <X className="h-4 w-4" />
             </button>
           ) : null}
@@ -589,21 +591,21 @@ export function SmallPartsPage() {
               type="button"
               onClick={() => setShowColumnModal(true)}
               className="flex items-center gap-1.5 rounded-lg border border-bambu-dark-tertiary px-3 py-1.5 text-sm font-medium text-bambu-gray transition-colors hover:bg-bambu-dark-tertiary"
-              title="Spalten konfigurieren"
+              title={text('configureColumns')}
             >
               <Columns className="h-4 w-4" />
-              <span className="hidden sm:inline">Spalten</span>
+              <span className="hidden sm:inline">{text('columns')}</span>
             </button>
           ) : null}
           <div className="flex overflow-hidden rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-primary">
             <button type="button" onClick={() => setViewMode('table')} className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors ${viewMode === 'table' ? 'bg-bambu-green text-white' : 'text-bambu-gray hover:bg-bambu-dark-tertiary'}`}>
-              <TableProperties className="h-4 w-4" /><span className="hidden sm:inline">Tabelle</span>
+              <TableProperties className="h-4 w-4" /><span className="hidden sm:inline">{text('table')}</span>
             </button>
             <button type="button" onClick={() => setViewMode('cards')} className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors ${viewMode === 'cards' ? 'bg-bambu-green text-white' : 'text-bambu-gray hover:bg-bambu-dark-tertiary'}`}>
-              <LayoutGrid className="h-4 w-4" /><span className="hidden sm:inline">Karten</span>
+              <LayoutGrid className="h-4 w-4" /><span className="hidden sm:inline">{text('cards')}</span>
             </button>
             <button type="button" onClick={() => setViewMode('forecast')} className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors ${viewMode === 'forecast' ? 'bg-bambu-green text-white' : 'text-bambu-gray hover:bg-bambu-dark-tertiary'}`}>
-              <TrendingUp className="h-4 w-4" /><span className="hidden sm:inline">Bestandsprognose</span>
+              <TrendingUp className="h-4 w-4" /><span className="hidden sm:inline">{text('forecast')}</span>
             </button>
           </div>
         </div>
@@ -612,34 +614,34 @@ export function SmallPartsPage() {
       <div className={`flex flex-wrap items-center gap-2 ${viewMode === 'forecast' ? 'hidden' : ''}`}>
         <div className="flex overflow-hidden rounded-lg border border-bambu-dark-tertiary">
           <button type="button" onClick={() => setActiveFilter('active')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${activeFilter === 'active' ? 'bg-bambu-green/20 text-bambu-green' : 'text-bambu-gray hover:bg-bambu-dark-tertiary'}`}>
-            <Package className="h-3.5 w-3.5" /> Aktiv
+            <Package className="h-3.5 w-3.5" />{text('active')}
           </button>
           <button type="button" onClick={() => setActiveFilter('inactive')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${activeFilter === 'inactive' ? 'bg-bambu-green/20 text-bambu-green' : 'text-bambu-gray hover:bg-bambu-dark-tertiary'}`}>
-            <Archive className="h-3.5 w-3.5" /> Inaktiv
+            <Archive className="h-3.5 w-3.5" />{text('inactive')}
           </button>
         </div>
         <div className="h-5 w-px bg-bambu-dark-tertiary" />
         <div className="flex overflow-hidden rounded-lg border border-bambu-dark-tertiary">
-          <button type="button" onClick={() => setMaterialFilter('all')} className={`px-3 py-1.5 text-xs font-medium transition-colors ${materialFilter === 'all' ? 'bg-bambu-green/20 text-bambu-green' : 'text-bambu-gray hover:bg-bambu-dark-tertiary'}`}>Alle</button>
-          <button type="button" onClick={() => setMaterialFilter('new')} className={`px-3 py-1.5 text-xs font-medium transition-colors ${materialFilter === 'new' ? 'bg-bambu-green/20 text-bambu-green' : 'text-bambu-gray hover:bg-bambu-dark-tertiary'}`}>Neu</button>
+          <button type="button" onClick={() => setMaterialFilter('all')} className={`px-3 py-1.5 text-xs font-medium transition-colors ${materialFilter === 'all' ? 'bg-bambu-green/20 text-bambu-green' : 'text-bambu-gray hover:bg-bambu-dark-tertiary'}`}>{text('all')}</button>
+          <button type="button" onClick={() => setMaterialFilter('new')} className={`px-3 py-1.5 text-xs font-medium transition-colors ${materialFilter === 'new' ? 'bg-bambu-green/20 text-bambu-green' : 'text-bambu-gray hover:bg-bambu-dark-tertiary'}`}>{text('new')}</button>
           <button type="button" onClick={() => setMaterialFilter('lowstock')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${materialFilter === 'lowstock' ? 'bg-amber-500/20 text-amber-200' : 'text-bambu-gray hover:bg-bambu-dark-tertiary'}`}>
-            <AlertTriangle className="h-3.5 w-3.5" /> Niedrig Bestand
+            <AlertTriangle className="h-3.5 w-3.5" />{text('lowStock')}
           </button>
         </div>
         {hasActiveFilters ? (
           <>
             <div className="h-5 w-px bg-bambu-dark-tertiary" />
             <button type="button" onClick={resetFilters} className="flex items-center gap-1 text-xs text-bambu-gray transition-colors hover:text-bambu-green">
-              <X className="h-3.5 w-3.5" /> Filter zurücksetzen
+              <X className="h-3.5 w-3.5" />{text('resetFilters')}
             </button>
           </>
         ) : null}
-        <span className="ml-auto text-xs text-bambu-gray">{sortedItems.length} Materialien</span>
+        <span className="ml-auto text-xs text-bambu-gray">{text('materialCount', { count: sortedItems.length })}</span>
       </div>
 
-      {parts.isLoading && <p className="py-10 text-center text-bambu-gray">Material wird geladen …</p>}
-      {parts.isError && <p role="alert" className="rounded-lg bg-red-950/50 p-3 text-red-300">Material konnte nicht geladen werden.</p>}
-      {!parts.isLoading && !parts.isError && viewMode !== 'forecast' && !sortedItems.length && <p className="py-10 text-center text-bambu-gray">Noch kein passendes Material vorhanden.</p>}
+      {parts.isLoading && <p className="py-10 text-center text-bambu-gray">{text('loadingMaterial')}</p>}
+      {parts.isError && <p role="alert" className="rounded-lg bg-red-950/50 p-3 text-red-300">{text('loadMaterialFailed')}</p>}
+      {!parts.isLoading && !parts.isError && viewMode !== 'forecast' && !sortedItems.length && <p className="py-10 text-center text-bambu-gray">{text('noMaterial')}</p>}
       {!parts.isLoading && !parts.isError && viewMode === 'forecast' && <MaterialForecast items={forecastItems} />}
       {!parts.isLoading && !parts.isError && viewMode === 'cards' && sortedItems.length > 0 && (
         <div className="grid gap-3 xl:grid-cols-2">
@@ -679,8 +681,8 @@ export function SmallPartsPage() {
       <ColumnConfigModal
         isOpen={showColumnModal}
         onClose={() => setShowColumnModal(false)}
-        columns={columnConfig}
-        defaultColumns={DEFAULT_COLUMNS}
+        columns={columnConfig.map((column) => ({ ...column, label: text(DEFAULT_COLUMNS.find((item) => item.id === column.id)?.label ?? column.id) }))}
+        defaultColumns={DEFAULT_COLUMNS.map((column) => ({ ...column, label: text(column.label) }))}
         onSave={saveColumns}
       />
       {locationsModalOpen && (

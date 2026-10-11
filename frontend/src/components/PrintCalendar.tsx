@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useMemo, useRef, useState, useEffect } from 'react';
 
 import { localDateKey } from '../utils/date';
@@ -8,6 +9,7 @@ interface PrintCalendarProps {
 }
 
 export function PrintCalendar({ printDates, months = 3 }: PrintCalendarProps) {
+  const { t: translateInterface } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
@@ -176,7 +178,7 @@ export function PrintCalendar({ printDates, months = 3 }: PrintCalendarProps) {
 
           {/* Legend */}
           <div className="flex items-center gap-2 mt-3 text-bambu-gray" style={{ fontSize }}>
-            <span>Less</span>
+            <span>{translateInterface("orders.runtimeInterface.less")}</span>
             <div className="flex" style={{ gap }}>
               <div className="rounded-sm bg-bambu-dark" style={{ width: cellSize, height: cellSize }} />
               <div className="rounded-sm bg-bambu-green/30" style={{ width: cellSize, height: cellSize }} />
@@ -184,7 +186,7 @@ export function PrintCalendar({ printDates, months = 3 }: PrintCalendarProps) {
               <div className="rounded-sm bg-bambu-green/75" style={{ width: cellSize, height: cellSize }} />
               <div className="rounded-sm bg-bambu-green" style={{ width: cellSize, height: cellSize }} />
             </div>
-            <span>More</span>
+            <span>{translateInterface("orders.runtimeInterface.more2")}</span>
           </div>
         </div>
       )}

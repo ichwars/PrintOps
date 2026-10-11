@@ -20,6 +20,7 @@ export function LinkSpoolModal({
   untaggedSpools,
   onLink,
 }: LinkSpoolModalProps) {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const [selectedSpool, setSelectedSpool] = useState<InventorySpool | null>(null);
 
@@ -108,7 +109,7 @@ export function LinkSpoolModal({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <div className="font-medium text-zinc-100 truncate">
-                        {spool.color_name || 'Unknown color'}
+                        {spool.color_name || translateInterface("orders.runtimeInterface.unknownColor")}
                       </div>
                       <span className="text-[10px] font-mono text-zinc-500 shrink-0">#{spool.id}</span>
                     </div>

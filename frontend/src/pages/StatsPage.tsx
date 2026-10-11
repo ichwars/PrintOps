@@ -397,6 +397,7 @@ function TimeAccuracyWidget({
 }
 
 function HourlyHeatmap({ printDates, dateFrom, dateTo }: { printDates: string[]; dateFrom: string; dateTo: string }) {
+  const { t: translateInterface } = useTranslation();
   const { days, hourlyCounts, maxCount } = useMemo(() => {
     const start = new Date(dateFrom + 'T00:00:00');
     const end = new Date(dateTo + 'T00:00:00');
@@ -483,7 +484,7 @@ function HourlyHeatmap({ printDates, dateFrom, dateTo }: { printDates: string[];
 
       {/* Legend */}
       <div className="flex items-center gap-2 mt-3 text-bambu-gray text-xs">
-        <span>Less</span>
+        <span>{translateInterface("orders.runtimeInterface.less")}</span>
         <div className="flex" style={{ gap }}>
           <div className="rounded-sm bg-bambu-dark" style={{ width: cellSize, height: cellSize }} />
           <div className="rounded-sm bg-bambu-green/30" style={{ width: cellSize, height: cellSize }} />
@@ -491,7 +492,7 @@ function HourlyHeatmap({ printDates, dateFrom, dateTo }: { printDates: string[];
           <div className="rounded-sm bg-bambu-green/75" style={{ width: cellSize, height: cellSize }} />
           <div className="rounded-sm bg-bambu-green" style={{ width: cellSize, height: cellSize }} />
         </div>
-        <span>More</span>
+        <span>{translateInterface("orders.runtimeInterface.more2")}</span>
       </div>
     </div>
   );

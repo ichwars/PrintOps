@@ -28,8 +28,10 @@ import type { PrinterCardProps } from './printer-card-types';
 import { usePrinterCardModel } from './usePrinterCardModel';
 import { PrinterCardOverlays } from './PrinterCardOverlays';
 import { AiDetectionBadge } from '../../components/AiDetectionBadge';
+import { useCameraViewPreference, type CameraViewPreference } from '../../hooks/useCameraViewPreference';
 
 export function PrinterCard(props: PrinterCardProps) {
+  const cameraPreference = useCameraViewPreference(props.printer.id);
   const model = usePrinterCardModel(props);
   if (!model) return null;
   const {
@@ -726,7 +728,7 @@ return (
                       setDeleteArchives(true);
                     }}
                   >
-                    Delete
+                    {t('common.delete')}
                   </Button>
                 </div>
               </CardContent>
@@ -904,7 +906,7 @@ return (
                                   </span>
                                 )}
                                 {currentPrintUser && (
-                                  <span className="flex items-center gap-1" title={`Started by ${currentPrintUser}`}>
+                                  <span className="flex items-center gap-1" title={t('orders.runtimeDomain.cameraControls.startedBy', { user: currentPrintUser })}>
                                     <User className="w-3 h-3" />
                                     {currentPrintUser}
                                   </span>
@@ -912,7 +914,7 @@ return (
                               </>
                             ) : lastPrint ? (
                               <p className="truncate" title={lastPrint.print_name || lastPrint.filename}>
-                                Last: {lastPrint.print_name || lastPrint.filename}
+                                {t('orders.runtimeDomain.cameraControls.lastPrint', { name: lastPrint.print_name || lastPrint.filename })}
                                 {lastPrint.completed_at && (
                                   <span className="ml-1 text-bambu-gray/60">
                                     • {formatDateOnly(lastPrint.completed_at, { month: 'short', day: 'numeric' })}
@@ -1052,7 +1054,7 @@ return (
                       {statusControlMenu === 'nozzle-temp' && (
                         isDualNozzle ? (
                           <IndicatorControlPopover
-                            title="Set Nozzle Temperatures"
+                            title={t('orders.runtimeDomain.cameraControls.setNozzles')}
                             widthClass="w-[300px]"
                             popoverWidth={300}
                             popoverHeight={260}
@@ -1061,7 +1063,7 @@ return (
                           >
                             <div className="grid grid-cols-2 gap-2 px-3 py-2.5">
                               <NozzleTemperatureControlBox
-                                label="Left Temp"
+                                label={t('orders.runtimeDomain.cameraControls.leftTemp')}
                                 current={status.temperatures.nozzle}
                                 target={status.temperatures.nozzle_target}
                                 isActive={activeNozzle === 'L'}
@@ -1070,7 +1072,7 @@ return (
                                 options={buildPresetOptions(nozzleTempPresets, 'C')}
                               />
                               <NozzleTemperatureControlBox
-                                label="Right Temp"
+                                label={t('orders.runtimeDomain.cameraControls.rightTemp')}
                                 current={status.temperatures.nozzle_2}
                                 target={status.temperatures.nozzle_2_target}
                                 isActive={activeNozzle === 'R'}
@@ -1082,7 +1084,7 @@ return (
                           </IndicatorControlPopover>
                         ) : (
                           <IndicatorControlPopover
-                            title="Set Nozzle Temperature"
+                            title={t('orders.runtimeDomain.cameraControls.setNozzle')}
                             unit="°C"
                             customMin={0}
                             customMax={320}
@@ -1117,7 +1119,7 @@ return (
                       </p>
                       {statusControlMenu === 'bed-temp' && (
                         <IndicatorControlPopover
-                          title="Set Bed Temperature"
+                          title={t('orders.runtimeDomain.cameraControls.setBed')}
                           unit="°C"
                           customMin={0}
                           customMax={140}
@@ -1160,7 +1162,7 @@ return (
                           </p>
                           {hasChamberHeater && statusControlMenu === 'chamber-temp' && (
                             <IndicatorControlPopover
-                              title="Set Chamber Temperature"
+                              title={t('orders.runtimeDomain.cameraControls.setChamber')}
                               unit="°C"
                               customMin={0}
                               customMax={60}
@@ -1201,14 +1203,14 @@ return (
                           <p className="text-[9px] text-bambu-gray">{t('printers.temperatures.nozzle')}</p>
                           {statusControlMenu === 'nozzle-select' && (
                             <IndicatorControlPopover
-                              title="Set Nozzle Selection"
+                              title={t('orders.runtimeDomain.cameraControls.setNozzleSelection')}
                               widthClass="w-[300px]"
                               popoverWidth={300}
                               popoverHeight={140}
                               isPending={selectExtruderMutation.isPending}
                               options={[
-                                { label: 'Left', value: 1 },
-                                { label: 'Right', value: 0 },
+                                { label: t('common.left'), value: 1 },
+                                { label: t('common.right'), value: 0 },
                               ]}
                               onClose={() => setStatusControlMenu(null)}
                               onSubmit={(extruder) => selectExtruderMutation.mutate(extruder)}
@@ -1240,7 +1242,7 @@ return (
                           </span>
                           {statusControlMenu === `fan-${key}` && (
                             <IndicatorControlPopover
-                              title={`Set ${label} Speed`}
+                              title={t('orders.runtimeDomain.cameraControls.setFanSpeed', { label })}
                               unit="%"
                               customMin={0}
                               customMax={100}
@@ -1414,7 +1416,7 @@ return (
                                         onClick={() => requestXyJog(0, bedJogStep)}
                                         disabled={xyJogMutation.isPending}
                                         className={jogButtonClass}
-                                        aria-label="Move Y forward"
+                                        aria-label={t('orders.runtimeDomain.cameraControls.forwardY')}
                                       >
                                         <ArrowUp className="w-4 h-4" />
                                       </button>
@@ -1423,7 +1425,7 @@ return (
                                         onClick={() => requestXyJog(-bedJogStep, 0)}
                                         disabled={xyJogMutation.isPending}
                                         className={jogButtonClass}
-                                        aria-label="Move X left"
+                                        aria-label={t('orders.runtimeDomain.cameraControls.leftX')}
                                       >
                                         <ArrowLeft className="w-4 h-4" />
                                       </button>
@@ -1442,7 +1444,7 @@ return (
                                         onClick={() => requestXyJog(bedJogStep, 0)}
                                         disabled={xyJogMutation.isPending}
                                         className={jogButtonClass}
-                                        aria-label="Move X right"
+                                        aria-label={t('orders.runtimeDomain.cameraControls.rightX')}
                                       >
                                         <ArrowRight className="w-4 h-4" />
                                       </button>
@@ -1451,7 +1453,7 @@ return (
                                         onClick={() => requestXyJog(0, -bedJogStep)}
                                         disabled={xyJogMutation.isPending}
                                         className={jogButtonClass}
-                                        aria-label="Move Y back"
+                                        aria-label={t('orders.runtimeDomain.cameraControls.backY')}
                                       >
                                         <ArrowDown className="w-4 h-4" />
                                       </button>
@@ -1483,7 +1485,7 @@ return (
                                         onClick={() => requestExtruderJog(-bedJogStep)}
                                         disabled={extruderJogMutation.isPending}
                                         className={jogButtonClass}
-                                        aria-label="Retract filament"
+                                        aria-label={t('orders.runtimeDomain.cameraControls.retract')}
                                       >
                                         <ArrowUp className="w-4 h-4" />
                                       </button>
@@ -1494,7 +1496,7 @@ return (
                                         onClick={() => requestExtruderJog(bedJogStep)}
                                         disabled={extruderJogMutation.isPending}
                                         className={jogButtonClass}
-                                        aria-label="Extrude filament"
+                                        aria-label={t('orders.runtimeDomain.cameraControls.extrude')}
                                       >
                                         <ArrowDown className="w-4 h-4" />
                                       </button>
@@ -2861,7 +2863,7 @@ return (
                         ? 'bg-bambu-green/20 text-bambu-green hover:bg-bambu-green/30'
                         : 'bg-bambu-dark-tertiary text-bambu-gray hover:text-white hover:bg-bambu-dark-tertiary/80'
                   }`}
-                  title={!hasPermission('smart_plugs:control') ? t('printers.permission.noSmartPlugControl') : (plugStatus?.state === 'ON' ? 'Turn off' : 'Turn on')}
+                  title={!hasPermission('smart_plugs:control') ? t('printers.permission.noSmartPlugControl') : (plugStatus?.state === 'ON' ? t('smartPlugs.turnOff') : t('smartPlugs.turnOn'))}
                 >
                   <Zap className="w-4 h-4" />
                 </button>
@@ -2888,7 +2890,7 @@ return (
                           }
                         }}
                         disabled={runScriptMutation.isPending}
-                        title={`${isScript ? 'Run' : 'Toggle'} ${script.ha_entity_id}`}
+                        title={t(`orders.runtimeDomain.cameraControls.${isScript ? 'runEntity' : 'toggleEntity'}`, { entity: script.ha_entity_id })}
                         className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 hover:bg-blue-500/30 rounded transition-colors flex items-center gap-1"
                       >
                         <Play className="w-2.5 h-2.5" />
@@ -2919,8 +2921,16 @@ return (
                       onOpenEmbeddedCamera(printer.id, printer.name);
                     } else {
                       // Use saved window state or defaults
-                      const saved = localStorage.getItem('cameraWindowState');
-                      const state = saved ? JSON.parse(saved) : { width: 640, height: 400 };
+                      const state = { width: 640, height: 400, left: undefined as number | undefined, top: undefined as number | undefined };
+                      try {
+                        const saved = JSON.parse(localStorage.getItem('cameraWindowState') ?? 'null');
+                        if (saved && typeof saved === 'object') {
+                          if (Number.isFinite(saved.width) && saved.width > 0) state.width = saved.width;
+                          if (Number.isFinite(saved.height) && saved.height > 0) state.height = saved.height;
+                          if (Number.isFinite(saved.left)) state.left = saved.left;
+                          if (Number.isFinite(saved.top)) state.top = saved.top;
+                        }
+                      } catch { /* Use the default popup size when storage is unavailable or malformed. */ }
                       const features = [
                         `width=${state.width}`,
                         `height=${state.height}`,
@@ -2930,15 +2940,27 @@ return (
                         // copies sessionStorage (auth token) into the new window.
                         'menubar=no,toolbar=no,location=no,status=no',
                       ].filter(Boolean).join(',');
-                      window.open(`/camera/${printer.id}`, `camera-${printer.id}`, features);
+                      window.open(`/camera/${printer.id}?view=${cameraPreference.mode}`, `camera-${printer.id}`, features);
                     }
                   }}
-                  disabled={!status?.connected || !hasPermission('camera:view')}
+                  disabled={!status?.connected || !hasPermission('camera:view') || !cameraPreference.ready}
                   title={!hasPermission('camera:view') ? t('printers.permission.noCamera') : (cameraViewMode === 'embedded' ? t('printers.openCameraOverlay') : t('printers.openCameraWindow'))}
                   className={footerIconButtonClass}
                 >
                   <Video className="w-4 h-4" />
                 </Button>
+                <select
+                  aria-label={`${t('camera.defaultView')} — ${printer.name}`}
+                  title={t('camera.defaultView')}
+                  value={cameraPreference.preference ?? 'default'}
+                  disabled={!hasPermission('camera:view') || !cameraPreference.ready}
+                  onChange={(event) => cameraPreference.setPreference(event.target.value === 'default' ? null : event.target.value as CameraViewPreference)}
+                  className="max-w-36 h-8 px-2 text-xs bg-bambu-dark-secondary border border-bambu-dark-tertiary text-white rounded-lg focus:outline-none focus:border-bambu-green disabled:opacity-50"
+                >
+                  <option value="default">{t('camera.defaultStream')}</option>
+                  <option value="stream">{t('camera.stream')}</option>
+                  <option value="snapshot">{t('camera.snapshot')}</option>
+                </select>
                 <Button
                   variant="secondary"
                   size="sm"

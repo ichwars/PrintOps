@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { AMSUnit, AMSTray } from '../../api/client';
 import { getFillBarColor } from '../../utils/amsHelpers';
 
@@ -156,6 +157,7 @@ interface SpoolSlotProps {
 }
 
 function SpoolSlot({ tray, slotIndex, isActive, fillOverride, spoolmanFill, onClick }: SpoolSlotProps) {
+  const { t: translateInterface } = useTranslation();
   const isEmpty = isTrayEmpty(tray);
   const emptyKind = getEmptySlotKind(tray);
   const color = trayColorToCSS(tray.tray_color);
@@ -194,7 +196,7 @@ function SpoolSlot({ tray, slotIndex, isActive, fillOverride, spoolmanFill, onCl
       {/* Material type */}
       <span
         className="text-sm text-white/70 truncate max-w-full"
-        title={emptyKind === 'reset' ? 'Spool loaded — slot not configured' : undefined}
+        title={emptyKind === 'reset' ? translateInterface("orders.runtimeInterface.spoolLoadedSlotNotConfigured") : undefined}
       >
         {isEmpty ? (emptyKind === 'reset' ? '?' : 'Empty') : tray.tray_type || 'Unknown'}
       </span>

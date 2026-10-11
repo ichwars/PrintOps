@@ -1,3 +1,4 @@
+import { smallPartsText as text, useSmallPartsText } from './smallPartsCopy';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
@@ -77,6 +78,7 @@ const initialForm = (part: SmallPart | null): SmallPartInput => ({
 });
 
 export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
+  useSmallPartsText();
   const queryClient = useQueryClient();
   const categories = useQuery({ queryKey: ['small-parts', 'categories'], queryFn: smallPartsApi.categories.list });
   const units = useQuery({ queryKey: ['small-parts', 'units'], queryFn: smallPartsApi.units.list });
@@ -140,7 +142,7 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
       ]);
       onClose();
     },
-    onError: (caught) => setError(caught instanceof Error ? caught.message : 'Speichern fehlgeschlagen'),
+    onError: (caught) => setError(caught instanceof Error ? caught.message : text('saveFailed')),
   });
 
   const update = <K extends keyof SmallPartInput>(key: K, value: SmallPartInput[K]) =>
@@ -158,8 +160,8 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
     <Modal
       open
       onClose={onClose}
-      title={part ? 'Material bearbeiten' : 'Material hinzufügen'}
-      closeLabel="Schließen"
+      title={part ? text('editMaterial') : text('addMaterial')}
+      closeLabel={text('close')}
       closeDisabled={mutation.isPending}
       className="max-w-3xl"
     >
@@ -171,39 +173,39 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
           mutation.mutate();
         }}
       >
-        <FormSection id="material-section-article" title="Artikel">
+        <FormSection id="material-section-article" title={text('article')}>
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField
-              label="Artikelnummer"
+              label={text('sku')}
               required={!!part}
               value={form.sku}
               onValueChange={(value) => update('sku', value)}
-              placeholder={part ? undefined : 'Wird aus Nummernkreis vergeben'}
-              helperText={part ? undefined : 'Leer lassen für automatische Vergabe.'}
+              placeholder={part ? undefined : text('numberAssigned')}
+              helperText={part ? undefined : text('numberHint')}
             />
-            <TextField label="Bezeichnung" required value={form.name} onValueChange={(value) => update('name', value)} />
-            <Select label="Kategorie" value={String(form.category_id ?? '')} onValueChange={(value) => update('category_id', value ? Number(value) : null)} options={[{ value: '', label: 'Keine Kategorie' }, ...(categories.data?.filter((item) => item.is_active).map((item) => ({ value: String(item.id), label: item.name })) ?? [])]} />
-            <TextField label="Suchbegriffe" value={form.search_terms ?? ''} onValueChange={(value) => update('search_terms', value)} />
-            {part ? <Checkbox className="sm:self-end sm:pb-2" checked={form.is_active} onCheckedChange={(checked) => update('is_active', checked)} label="Aktiv" /> : null}
+            <TextField label={text('name')} required value={form.name} onValueChange={(value) => update('name', value)} />
+            <Select label={text('category')} value={String(form.category_id ?? '')} onValueChange={(value) => update('category_id', value ? Number(value) : null)} options={[{ value: '', label: text('noCategoryOption') }, ...(categories.data?.filter((item) => item.is_active).map((item) => ({ value: String(item.id), label: item.name })) ?? [])]} />
+            <TextField label={text('searchTerms')} value={form.search_terms ?? ''} onValueChange={(value) => update('search_terms', value)} />
+            {part ? <Checkbox className="sm:self-end sm:pb-2" checked={form.is_active} onCheckedChange={(checked) => update('is_active', checked)} label={text('active')} /> : null}
             <div className="sm:col-span-2">
-              <TextArea label="Beschreibung" value={form.description ?? ''} onValueChange={(value) => update('description', value)} className="min-h-20" />
+              <TextArea label={text('description')} value={form.description ?? ''} onValueChange={(value) => update('description', value)} className="min-h-20" />
             </div>
           </div>
         </FormSection>
 
-        <FormSection id="material-section-stock" title="Bestand">
+        <FormSection id="material-section-stock" title={text('stock')}>
           <div className="grid gap-4 sm:grid-cols-2">
-            {!part ? <NumberField label="Anfangsmenge" min="0" step={quantityStep} value={openingQuantity} onValueChange={(value) => setOpeningQuantity(value)} onBlur={() => setOpeningQuantity(formatQuantity(openingQuantity, quantityDecimals))} /> : null}
-            <NumberField label="Mindestbestand" min="0" step={quantityStep} value={form.minimum_stock} onValueChange={(value) => { setMinimumStockTouched(true); update('minimum_stock', value); }} onBlur={() => update('minimum_stock', formatQuantity(form.minimum_stock, quantityDecimals))} />
-            <Select label="Einheit" required value={form.unit_code} onValueChange={updateUnit} options={[{ value: '', label: 'Einheit auswählen' }, ...(units.data?.filter((item) => item.is_active).map((item) => ({ value: item.code, label: item.label })) ?? [])]} />
-            <Select label="Lagerort" value={String(form.location_id ?? '')} onValueChange={(value) => update('location_id', value ? Number(value) : null)} options={[{ value: '', label: 'Kein Lagerort' }, ...(locations.data?.map((item) => ({ value: String(item.id), label: item.name })) ?? [])]} />
+            {!part ? <NumberField label={text('openingQuantity')} min="0" step={quantityStep} value={openingQuantity} onValueChange={(value) => setOpeningQuantity(value)} onBlur={() => setOpeningQuantity(formatQuantity(openingQuantity, quantityDecimals))} /> : null}
+            <NumberField label={text('minimumStock')} min="0" step={quantityStep} value={form.minimum_stock} onValueChange={(value) => { setMinimumStockTouched(true); update('minimum_stock', value); }} onBlur={() => update('minimum_stock', formatQuantity(form.minimum_stock, quantityDecimals))} />
+            <Select label={text('unit')} required value={form.unit_code} onValueChange={updateUnit} options={[{ value: '', label: text('chooseUnit') }, ...(units.data?.filter((item) => item.is_active).map((item) => ({ value: item.code, label: item.label })) ?? [])]} />
+            <Select label={text('location')} value={String(form.location_id ?? '')} onValueChange={(value) => update('location_id', value ? Number(value) : null)} options={[{ value: '', label: text('noLocation') }, ...(locations.data?.map((item) => ({ value: String(item.id), label: item.name })) ?? [])]} />
           </div>
         </FormSection>
 
-        <FormSection id="material-section-procurement" title="Beschaffung">
+        <FormSection id="material-section-procurement" title={text('procurement')}>
           <div className="grid gap-4 sm:grid-cols-2">
             <NumberField
-              label="Einzelpreis €"
+              label={text('unitPriceEuro')}
               min="0"
               step="0.01"
               value={form.unit_cost}
@@ -213,15 +215,15 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
           </div>
           {part?.supplier_reference ? (
             <TextField
-              label="Bisherige Lieferantenreferenz"
+              label={text('legacySupplierReference')}
               value={part.supplier_reference}
               onValueChange={() => undefined}
               readOnly
-              helperText="Bleibt erhalten, bis sie einer Bezugsquelle zugeordnet wurde."
+              helperText={text('legacySupplierHint')}
             />
           ) : null}
-          {offersQuery.isPending && part ? <p className="text-sm text-bambu-gray">Bezugsquellen werden geladen …</p> : null}
-          {offersQuery.isError ? <p role="alert" className="text-sm text-red-400">Bezugsquellen konnten nicht geladen werden.</p> : null}
+          {offersQuery.isPending && part ? <p className="text-sm text-bambu-gray">{text('loadingOffers')}</p> : null}
+          {offersQuery.isError ? <p role="alert" className="text-sm text-red-400">{text('loadOffersFailed')}</p> : null}
           {!part || offersQuery.isSuccess ? (
             <ProcurementOffersEditor
               suppliers={suppliers.data ?? []}
@@ -232,32 +234,31 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
           ) : null}
           {suppliers.isError ? (
             <div className="flex flex-wrap items-center gap-3">
-              <p role="alert" className="text-sm text-red-400">Lieferanten konnten nicht geladen werden. Material kann weiterhin ohne Änderung der Bezugsquellen gespeichert werden.</p>
+              <p role="alert" className="text-sm text-red-400">{text('loadSuppliersFailed')}</p>
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
                 loading={suppliers.isFetching}
                 onClick={() => suppliers.refetch()}
-              >
-                Lieferanten erneut laden
+              >{text('retrySuppliers')}
               </Button>
             </div>
           ) : null}
         </FormSection>
 
-        <FormSection id="material-section-consumption" title="Verbrauchsgrund">
-          <TextField label="Standard-Verbrauchsgrund" required value={form.default_consumption_reason} onValueChange={(value) => update('default_consumption_reason', value)} />
+        <FormSection id="material-section-consumption" title={text('consumptionReason')}>
+          <TextField label={text('defaultConsumptionReason')} required value={form.default_consumption_reason} onValueChange={(value) => update('default_consumption_reason', value)} />
         </FormSection>
 
-        <FormSection id="material-section-notes" title="Notiz intern">
-          <TextArea label="Interne Notiz" value={form.internal_notes ?? ''} onValueChange={(value) => update('internal_notes', value)} className="min-h-24" />
+        <FormSection id="material-section-notes" title={text('internalNoteSection')}>
+          <TextArea label={text('internalNote')} value={form.internal_notes ?? ''} onValueChange={(value) => update('internal_notes', value)} className="min-h-24" />
         </FormSection>
 
         {error ? <p role="alert" className="rounded-lg bg-red-950/40 px-3 py-2 text-sm text-red-300">{error}</p> : null}
         <div className="sticky bottom-0 flex justify-end gap-3 border-t border-bambu-dark-tertiary bg-bambu-dark-secondary pt-4">
-          <Button type="button" variant="secondary" onClick={onClose} disabled={mutation.isPending}>Abbrechen</Button>
-          <Button type="submit" loading={mutation.isPending}>Material speichern</Button>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={mutation.isPending}>{text('cancel')}</Button>
+          <Button type="submit" loading={mutation.isPending}>{text('saveMaterial')}</Button>
         </div>
       </form>
     </Modal>

@@ -37,6 +37,7 @@ export function NozzleSlotHoverCard({ slot, index, activeStatus, filamentName, c
   filamentName?: string;
   children: React.ReactNode;
 }) {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState<'top' | 'bottom'>('top');
@@ -104,7 +105,7 @@ export function NozzleSlotHoverCard({ slot, index, activeStatus, filamentName, c
           <div className="w-44 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl overflow-hidden backdrop-blur-sm">
             {isEmpty ? (
               <div className="px-3 py-2 text-xs text-bambu-gray text-center whitespace-nowrap">
-                Slot {index + 1} — Empty
+                Slot {index + 1} {translateInterface("orders.runtimeInterface.empty")}
               </div>
             ) : (
               <div className="p-2.5 space-y-1.5">
@@ -595,6 +596,7 @@ export interface HumidityIndicatorProps {
 }
 
 export function HumidityIndicator({ humidity, goodThreshold = 40, fairThreshold = 60, onClick, compact }: HumidityIndicatorProps) {
+  const { t: translateInterface } = useTranslation();
   const humidityValue = typeof humidity === 'string' ? parseInt(humidity, 10) : humidity;
   const good = typeof goodThreshold === 'number' ? goodThreshold : 40;
   const fair = typeof fairThreshold === 'number' ? fairThreshold : 60;
@@ -635,7 +637,7 @@ export function HumidityIndicator({ humidity, goodThreshold = 40, fairThreshold 
       type="button"
       onClick={onClick}
       className={`flex items-center gap-1 ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
-      title={`Humidity: ${humidityValue}% - ${statusText}${onClick ? ' (click for history)' : ''}`}
+      title={`Humidity: ${humidityValue}% - ${statusText}${onClick ? translateInterface("orders.runtimeInterface.clickForHistory") : ''}`}
     >
       <DropComponent className={compact ? "w-2.5 h-3" : "w-3 h-4"} />
       <span className={`font-medium tabular-nums ${compact ? 'text-[10px]' : 'text-xs'}`} style={{ color: textColor }}>{humidityValue}%</span>
@@ -653,6 +655,7 @@ export interface TemperatureIndicatorProps {
 }
 
 export function TemperatureIndicator({ temp, goodThreshold = 28, fairThreshold = 35, onClick, compact }: TemperatureIndicatorProps) {
+  const { t: translateInterface } = useTranslation();
   // Ensure thresholds are numbers
   const good = typeof goodThreshold === 'number' ? goodThreshold : 28;
   const fair = typeof fairThreshold === 'number' ? fairThreshold : 35;
@@ -680,7 +683,7 @@ export function TemperatureIndicator({ temp, goodThreshold = 28, fairThreshold =
       type="button"
       onClick={onClick}
       className={`flex items-center gap-1 ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
-      title={`Temperature: ${temp}°C - ${statusText}${onClick ? ' (click for history)' : ''}`}
+      title={`Temperature: ${temp}°C - ${statusText}${onClick ? translateInterface("orders.runtimeInterface.clickForHistory") : ''}`}
     >
       <ThermoComponent className={compact ? "w-2.5 h-3" : "w-3 h-4"} />
       <span className={`tabular-nums text-right ${compact ? 'text-[10px] w-8' : 'w-12'}`} style={{ color: textColor }}>{temp}°C</span>

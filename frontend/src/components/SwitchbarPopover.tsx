@@ -11,6 +11,7 @@ interface SwitchbarPopoverProps {
 }
 
 function SwitchItem({ plug }: { plug: SmartPlug }) {
+  const { t: translateInterface } = useTranslation();
   const queryClient = useQueryClient();
   const [confirmAction, setConfirmAction] = useState<'on' | 'off' | null>(null);
 
@@ -71,12 +72,12 @@ function SwitchItem({ plug }: { plug: SmartPlug }) {
                     <span className="text-teal-700 dark:text-teal-400">{Math.round(status?.energy?.power ?? 0)}W</span>
                     <span className="text-bambu-gray mx-1">|</span>
                     <Eye className="w-3 h-3 text-bambu-gray" />
-                    <span className="text-bambu-gray">Monitor</span>
+                    <span className="text-bambu-gray">{translateInterface("orders.runtimeInterface.monitor")}</span>
                   </>
                 ) : (
                   <>
                     <WifiOff className="w-3 h-3 text-status-error" />
-                    <span className="text-status-error">Waiting</span>
+                    <span className="text-status-error">{translateInterface("time.waiting")}</span>
                   </>
                 )
               ) : isReachable ? (
@@ -94,7 +95,7 @@ function SwitchItem({ plug }: { plug: SmartPlug }) {
               ) : (
                 <>
                   <WifiOff className="w-3 h-3 text-status-error" />
-                  <span className="text-status-error">Offline</span>
+                  <span className="text-status-error">{translateInterface("inventory.offline")}</span>
                 </>
               )}
             </div>
@@ -112,7 +113,7 @@ function SwitchItem({ plug }: { plug: SmartPlug }) {
                   ? 'bg-bambu-green text-white'
                   : 'bg-bambu-dark text-bambu-gray hover:text-white'
               } disabled:opacity-50 disabled:cursor-not-allowed`}
-              title="Turn On"
+              title={translateInterface("smartPlugs.turnOn")}
             >
               {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
             </button>
@@ -124,7 +125,7 @@ function SwitchItem({ plug }: { plug: SmartPlug }) {
                   ? 'bg-bambu-dark-tertiary text-white'
                   : 'bg-bambu-dark text-bambu-gray hover:text-white'
               } disabled:opacity-50 disabled:cursor-not-allowed`}
-              title="Turn Off"
+              title={translateInterface("smartPlugs.turnOff")}
             >
               {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <PowerOff className="w-4 h-4" />}
             </button>
@@ -147,6 +148,7 @@ function SwitchItem({ plug }: { plug: SmartPlug }) {
 }
 
 export function SwitchbarPopover({ onClose }: SwitchbarPopoverProps) {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   // Fetch all smart plugs
   const { data: plugs, isLoading } = useQuery({
@@ -166,7 +168,7 @@ export function SwitchbarPopover({ onClose }: SwitchbarPopoverProps) {
       <div className="px-4 py-3 border-b border-bambu-dark-tertiary">
         <h3 className="text-sm font-semibold text-white flex items-center gap-2">
           <Plug className="w-4 h-4 text-bambu-green" />
-          Smart Switches
+          {translateInterface("nav.smartSwitches")}
         </h3>
       </div>
 

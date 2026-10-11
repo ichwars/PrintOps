@@ -171,6 +171,7 @@ function ArchiveCard({
   t: TFunction;
   onNavigateToArchive?: (archiveId: number) => void;
 }) {
+  const { t: translateInterface } = useTranslation();
   // Debug: log when card is highlighted
   if (isHighlighted) {
     console.log('ArchiveCard isHighlighted=true for archive:', archive.id);
@@ -1461,7 +1462,7 @@ function ArchiveCard({
                 }}
                 className="w-full"
               >
-                Cancel
+                {translateInterface("common.cancel")}
               </Button>
             </div>
           </div>
@@ -2586,6 +2587,7 @@ function isArchiveEnergyFocus(value: string | null): value is ArchiveEnergyFocus
 }
 
 export function ArchivesPage() {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -3249,15 +3251,15 @@ export function ArchivesPage() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl px-4 py-3 flex items-center gap-4">
           <Button variant="secondary" size="sm" onClick={clearSelection}>
             <X className="w-4 h-4" />
-            Close
+            {translateInterface("common.close")}
           </Button>
           <div className="w-px h-6 bg-bambu-dark-tertiary" />
           <span className="text-white font-medium">
-            {selectedIds.size} selected
+            {selectedIds.size} {translateInterface("orders.runtimeDomain.lexwareSettings.selected")}
           </span>
           <div className="w-px h-6 bg-bambu-dark-tertiary" />
           <Button variant="secondary" size="sm" onClick={selectAll}>
-            Select All
+            {translateInterface("common.selectAll")}
           </Button>
           <div className="w-px h-6 bg-bambu-dark-tertiary" />
           <Button
@@ -3268,7 +3270,7 @@ export function ArchivesPage() {
             title={!hasAnyPermission('archives:update_own', 'archives:update_all') ? t('archives.permission.noUpdateArchives') : undefined}
           >
             <Tag className="w-4 h-4" />
-            Tags
+            {translateInterface("tags.title")}
           </Button>
           <Button
             variant="secondary"
@@ -3278,7 +3280,7 @@ export function ArchivesPage() {
             title={!hasAnyPermission('archives:update_own', 'archives:update_all') ? t('archives.permission.noUpdateArchives') : undefined}
           >
             <FolderKanban className="w-4 h-4" />
-            Project
+            {translateInterface("fileManager.project")}
           </Button>
           <Button
             variant="secondary"
@@ -3298,7 +3300,7 @@ export function ArchivesPage() {
             }}
           >
             <Star className="w-4 h-4" />
-            Favorite
+            {translateInterface("archives.favorite")}
           </Button>
           <Button
             size="sm"
@@ -3308,7 +3310,7 @@ export function ArchivesPage() {
             title={!hasAnyPermission('archives:delete_own', 'archives:delete_all') ? t('archives.permission.noDelete') : undefined}
           >
             <Trash2 className="w-4 h-4" />
-            Delete
+            {translateInterface("common.delete")}
           </Button>
         </div>
       )}
@@ -3350,14 +3352,14 @@ export function ArchivesPage() {
             <div>
               <h1 className="text-2xl font-bold text-white flex items-center gap-3">
                 <ArchiveIcon className="w-7 h-7 text-bambu-green" />
-                Archives
+                {translateInterface("nav.archives")}
               </h1>
               <p className="text-bambu-gray mt-1">
-                {filteredArchives?.length || 0} of {archives?.length || 0} prints
+                {filteredArchives?.length || 0} of {archives?.length || 0} {translateInterface("common.prints")}
               </p>
             </div>
             <LegacySelect
-              aria-label="Archive collection"
+              aria-label={translateInterface("orders.runtimeInterface.archiveCollection")}
               className="mt-0.5 px-3 py-1.5 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray-light text-sm focus:border-bambu-green focus:outline-none"
               value={collection}
               onChange={(e) => setCollection(e.target.value as Collection)}
@@ -3383,7 +3385,7 @@ export function ArchivesPage() {
               ) : (
                 <FileSpreadsheet className="w-4 h-4" />
               )}
-              Export
+              {translateInterface("common.export")}
             </Button>
             {showExportMenu && (
               <div className="absolute right-0 top-full mt-1 w-48 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl z-20">
@@ -3414,7 +3416,7 @@ export function ArchivesPage() {
                   }}
                 >
                   <FileText className="w-4 h-4" />
-                  Export as CSV
+                  {translateInterface("stats.exportAsCsv")}
                 </button>
                 <button
                   className="w-full px-4 py-2 text-left text-white hover:bg-bambu-dark-tertiary transition-colors flex items-center gap-2 rounded-b-lg"
@@ -3443,7 +3445,7 @@ export function ArchivesPage() {
                   }}
                 >
                   <FileSpreadsheet className="w-4 h-4" />
-                  Export as Excel
+                  {translateInterface("stats.exportAsExcel")}
                 </button>
               </div>
             )}
@@ -3455,13 +3457,13 @@ export function ArchivesPage() {
               onClick={() => setShowCompareModal(true)}
             >
               <GitCompare className="w-4 h-4" />
-              Compare ({selectedIds.size})
+              {translateInterface("orders.runtimeInterface.compare")}{selectedIds.size})
             </Button>
           )}
           {!selectionMode && (
             <Button variant="secondary" onClick={() => setIsSelectionMode(true)}>
               <CheckSquare className="w-4 h-4" />
-              Select
+              {translateInterface("kProfiles.select")}
             </Button>
           )}
           <Button
@@ -3470,7 +3472,7 @@ export function ArchivesPage() {
             title={!hasPermission('archives:create') ? t('archives.permission.noCreate') : undefined}
           >
             <Upload className="w-4 h-4" />
-            Upload 3MF
+            {translateInterface("orders.runtimeInterface.upload3MF")}
           </Button>
           {hasPermission('archives:purge') && (
             <Button
@@ -3545,7 +3547,7 @@ export function ArchivesPage() {
                   setFilterPrinter(e.target.value ? Number(e.target.value) : null)
                 }
               >
-                <option value="">All Printers</option>
+                <option value="">{translateInterface("settings.allPrinters")}</option>
                 {printers?.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -3562,7 +3564,7 @@ export function ArchivesPage() {
                   setFilterMaterial(e.target.value || null)
                 }
               >
-                <option value="">All Materials</option>
+                <option value="">{translateInterface("inventory.allMaterials")}</option>
                 {uniqueMaterials.map((m) => (
                   <option key={m} value={m}>
                     {m}
@@ -3577,9 +3579,9 @@ export function ArchivesPage() {
                 value={filterFileType}
                 onChange={(e) => setFilterFileType(e.target.value as 'all' | 'gcode' | 'source')}
               >
-                <option value="all">All Files</option>
-                <option value="gcode">Sliced (GCODE)</option>
-                <option value="source">Source Only</option>
+                <option value="all">{translateInterface("fileManager.allFiles")}</option>
+                <option value="gcode">{translateInterface("orders.runtimeInterface.slicedGCODE")}</option>
+                <option value="source">{translateInterface("orders.runtimeInterface.sourceOnly")}</option>
               </LegacySelect>
             </div>
             {archiveEnergyFocus && (
@@ -3587,10 +3589,10 @@ export function ArchivesPage() {
                 type="button"
                 onClick={() => updateArchiveUrlParams({ energy: null })}
                 className="flex items-center gap-2 rounded-lg border border-bambu-green/30 bg-bambu-green/10 px-3 py-2 text-sm text-bambu-green transition-colors hover:bg-bambu-green/20"
-                title="Energie-Fokus entfernen"
+                title={translateInterface("orders.runtimeInterface.energieFokusEntfernen")}
               >
                 <Zap className="h-4 w-4" />
-                Energie: {archiveEnergyFocus === 'measured' ? 'mit Messwerten' : 'ohne Energiebasis'}
+                {translateInterface("orders.runtimeInterface.energie")} {archiveEnergyFocus === 'measured' ? translateInterface("orders.runtimeInterface.mitMesswerten") : translateInterface("orders.runtimeInterface.ohneEnergiebasis")}
                 <X className="h-4 w-4" />
               </button>
             )}
@@ -3604,7 +3606,7 @@ export function ArchivesPage() {
               title={filterFavorites ? t('archives.showAll') : t('archives.showFavoritesOnly')}
             >
               <Star className={`w-4 h-4 ${filterFavorites ? 'fill-yellow-400' : ''}`} />
-              <span className="text-sm hidden md:inline">Favorites</span>
+              <span className="text-sm hidden md:inline">{translateInterface("orders.runtimeInterface.favorites")}</span>
             </button>
             <button
               onClick={() => setHideFailed(!hideFailed)}
@@ -3616,7 +3618,7 @@ export function ArchivesPage() {
               title={hideFailed ? t('archives.showFailedPrints') : t('archives.hideFailedPrints')}
             >
               <AlertCircle className={`w-4 h-4 ${hideFailed ? '' : ''}`} />
-              <span className="text-sm hidden md:inline">Hide Failed</span>
+              <span className="text-sm hidden md:inline">{translateInterface("orders.runtimeInterface.hideFailed")}</span>
             </button>
             <button
               onClick={() => setHideDuplicates(!hideDuplicates)}
@@ -3638,7 +3640,7 @@ export function ArchivesPage() {
                   value={filterTag || ''}
                   onChange={(e) => setFilterTag(e.target.value || null)}
                 >
-                  <option value="">All Tags</option>
+                  <option value="">{translateInterface("orders.runtimeInterface.allTags")}</option>
                   {uniqueTags.map((t) => (
                     <option key={t} value={t}>
                       {t}
@@ -3678,14 +3680,14 @@ export function ArchivesPage() {
                 className="text-bambu-gray hover:text-white"
               >
                 <X className="w-4 h-4" />
-                Reset
+                {translateInterface("common.reset")}
               </Button>
             )}
           </div>
           {/* Color Filter */}
           {uniqueColors.length > 0 && (
             <div className="flex items-center gap-3 mt-4 pt-4 border-t border-bambu-dark-tertiary">
-              <span className="text-xs text-bambu-gray">Colors:</span>
+              <span className="text-xs text-bambu-gray">{translateInterface("orders.runtimeInterface.colors")}</span>
               {filterColors.size > 1 && (
                 <button
                   onClick={() => setColorFilterMode(m => m === 'or' ? 'and' : 'or')}
@@ -3694,7 +3696,7 @@ export function ArchivesPage() {
                       ? 'bg-bambu-green text-white'
                       : 'bg-bambu-dark-tertiary text-bambu-gray hover:text-white'
                   }`}
-                  title={colorFilterMode === 'or' ? 'Match ANY selected color' : 'Match ALL selected colors'}
+                  title={colorFilterMode === 'or' ? translateInterface("orders.runtimeInterface.matchANYSelectedColor") : translateInterface("orders.runtimeInterface.matchALLSelectedColors")}
                 >
                   {colorFilterMode.toUpperCase()}
                 </button>
@@ -3720,7 +3722,7 @@ export function ArchivesPage() {
                   className="text-xs text-bambu-gray hover:text-white flex items-center gap-1"
                 >
                   <X className="w-3 h-3" />
-                  Clear
+                  {translateInterface("common.clear")}
                 </button>
               )}
             </div>
@@ -3741,7 +3743,7 @@ export function ArchivesPage() {
               {search ? t('archives.noArchivesSearch') : t('archives.noArchivesYet')}
             </p>
             <p className="text-sm text-bambu-gray mt-2">
-              Archives are created automatically when prints complete
+              {translateInterface("orders.runtimeInterface.archivesAreCreatedAutomaticallyWhenPrintsComplete")}
             </p>
           </CardContent>
         </Card>
@@ -3797,11 +3799,11 @@ export function ArchivesPage() {
               {/* List Header */}
               <div className="grid grid-cols-12 gap-4 px-4 py-3 text-xs text-bambu-gray font-medium">
                 <div className="col-span-1"></div>
-                <div className="col-span-4">Name</div>
-                <div className="col-span-2">Printer</div>
-                <div className="col-span-2">Date</div>
-                <div className="col-span-1">Size</div>
-                <div className="col-span-2 text-right">Actions</div>
+                <div className="col-span-4">{translateInterface("common.name")}</div>
+                <div className="col-span-2">{translateInterface("common.printer")}</div>
+                <div className="col-span-2">{translateInterface("common.date")}</div>
+                <div className="col-span-1">{translateInterface("fileManager.size")}</div>
+                <div className="col-span-2 text-right">{translateInterface("common.actions")}</div>
               </div>
               {/* List Items */}
               {paginatedArchives?.map((archive) => (

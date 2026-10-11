@@ -1,11 +1,14 @@
+import i18n from '../../i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SmallPartsSettings } from '../../components/settings/SmallPartsSettings';
 import { server } from '../mocks/server';
+
+beforeEach(async () => { await i18n.changeLanguage('de'); });
 
 describe('SmallPartsSettings', () => {
   it('manages catalogs and exposes calculation defaults', async () => {

@@ -28,6 +28,7 @@ interface AssignSpoolModalProps {
 }
 
 export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, trayInfo, spoolmanEnabled }: AssignSpoolModalProps) {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -459,8 +460,8 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
                     spool and the toggle is the right escape hatch. */}
                 {spools && (
                   <p className="text-[10px] mt-2 opacity-60">
-                    {spools.length} fetched · {spools.filter(s => s.archived_at).length} archived ·{' '}
-                    {spools.filter(s => assignedSpoolIds.has(s.id)).length} assigned to other slots
+                    {spools.length} {translateInterface("orders.runtimeInterface.fetched")} {spools.filter(s => s.archived_at).length} {translateInterface("orders.runtimeInterface.archived")}{' '}
+                    {spools.filter(s => assignedSpoolIds.has(s.id)).length} {translateInterface("orders.runtimeInterface.assignedToOtherSlots")}
                   </p>
                 )}
               </div>
@@ -469,7 +470,7 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
                 <p>{t('inventory.noSpoolsMatch')}</p>
                 {availableSpools && (
                   <p className="text-[10px] mt-2 opacity-60">
-                    {availableSpools.length} unassigned spools — {(availableSpools.length) - (filteredSpools?.length ?? 0)} filtered by tray match. Try "Show all spools".
+                    {availableSpools.length} {translateInterface("orders.runtimeInterface.unassignedSpools")} {(availableSpools.length) - (filteredSpools?.length ?? 0)} {translateInterface("orders.runtimeInterface.filteredByTrayMatchTryShowAllSpools")}
                   </p>
                 )}
               </div>

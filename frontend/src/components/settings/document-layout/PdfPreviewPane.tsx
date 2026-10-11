@@ -436,7 +436,7 @@ export function PdfPreviewPane({
 
         <span
           role="status"
-          aria-label="PDF/A status"
+          aria-label={t('orders.runtimeDomain.documentLayoutExtras.pdfaStatus')}
           className={`rounded-full px-2 py-1 text-xs ${
             pdfaLabel(preview?.report) === 'Valid'
               ? 'bg-green-500/15 text-green-300'
@@ -445,7 +445,7 @@ export function PdfPreviewPane({
                 : 'bg-bambu-dark-tertiary text-bambu-gray'
           }`}
         >
-          PDF/A: {pdfaLabel(preview?.report)}
+          PDF/A: {t(`orders.runtimeDomain.documentLayoutExtras.${pdfaLabel(preview?.report).toLowerCase()}`)}
         </span>
 
         <Button

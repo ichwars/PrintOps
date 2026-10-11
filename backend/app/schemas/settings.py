@@ -71,8 +71,8 @@ class AppSettings(BaseModel):
     include_beta_updates: bool = Field(default=False, description="Include beta/prerelease versions in update checks")
 
     # Language
-    language: str = Field(default="en", description="UI language (en, de, fr, ja, it, pt-BR)")
-    notification_language: str = Field(default="en", description="Language for push notifications (en, de)")
+    language: str = Field(default="en", description="UI language (see the frontend locale catalog)")
+    notification_language: str = Field(default="en", description="Language for push notifications (en, de, nl)")
 
     # Bed cooled notification threshold
     bed_cooled_threshold: float = Field(

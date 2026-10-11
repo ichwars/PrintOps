@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { LegacySelect, TextArea, TextField } from './ui';
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Play, Copy, Loader2, ExternalLink, AlertCircle, CheckCircle } from 'lucide-react';
@@ -143,6 +144,7 @@ interface EndpointItemProps {
 }
 
 function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps) {
+  const { t: translateInterface } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [params, setParams] = useState<Record<string, string>>({});
   const [bodyText, setBodyText] = useState('');
@@ -335,7 +337,7 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
           {/* Path Parameters */}
           {pathParams.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-sm font-medium text-white">Path Parameters</h4>
+              <h4 className="text-sm font-medium text-white">{translateInterface("orders.runtimeInterface.pathParameters")}</h4>
               <div className="space-y-2">
                 {pathParams.map(param => (
                   <div key={param.name} className="flex items-center gap-2">
@@ -359,7 +361,7 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
           {/* Query Parameters */}
           {queryParamsSpec.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-sm font-medium text-white">Query Parameters</h4>
+              <h4 className="text-sm font-medium text-white">{translateInterface("orders.runtimeInterface.queryParameters")}</h4>
               <div className="space-y-2">
                 {queryParamsSpec.map(param => (
                   <div key={param.name} className="flex items-center gap-2">
@@ -373,7 +375,7 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
                         onChange={(e) => setParams(p => ({ ...p, [param.name]: e.target.value }))}
                         className="flex-1 px-2 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
                       >
-                        <option value="">-- Select --</option>
+                        <option value="">{translateInterface("orders.runtimeInterface.select")}</option>
                         {param.schema.enum.map(opt => (
                           <option key={opt} value={opt}>{opt}</option>
                         ))}
@@ -396,13 +398,13 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
           {/* Request Body */}
           {hasBody && (
             <div className="space-y-2">
-              <h4 className="text-sm font-medium text-white">Request Body</h4>
+              <h4 className="text-sm font-medium text-white">{translateInterface("orders.runtimeInterface.requestBody")}</h4>
               <TextArea
                 value={bodyText}
                 onChange={(e) => setBodyText(e.target.value)}
                 rows={8}
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm font-mono focus:border-bambu-green focus:outline-none resize-y"
-                placeholder="JSON request body..."
+                placeholder={translateInterface("apiBrowser.placeholders.requestBody")}
               />
             </div>
           )}
@@ -415,12 +417,12 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
               ) : (
                 <Play className="w-4 h-4" />
               )}
-              Execute
+              {translateInterface("orders.runtimeInterface.execute")}
             </Button>
             {missingParams.length > 0 && (
               <span className="text-xs text-yellow-700 dark:text-yellow-400 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" />
-                Fill in: {missingParams.join(', ')}
+                {translateInterface("orders.runtimeInterface.fillIn")} {missingParams.join(', ')}
               </span>
             )}
           </div>
@@ -430,7 +432,7 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-medium text-white flex items-center gap-2">
-                  Response
+                  {translateInterface("orders.runtimeInterface.response")}
                   <span className={`px-2 py-0.5 text-xs rounded ${
                     response.status >= 200 && response.status < 300
                       ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400'
@@ -468,6 +470,7 @@ interface APIBrowserProps {
 }
 
 export function APIBrowser({ apiKey = '' }: APIBrowserProps) {
+  const { t: translateInterface } = useTranslation();
   const [schema, setSchema] = useState<OpenAPISchema | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -504,7 +507,7 @@ export function APIBrowser({ apiKey = '' }: APIBrowserProps) {
         <CardContent className="py-8">
           <div className="text-center text-red-700 dark:text-red-400">
             <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p>Failed to load API schema</p>
+            <p>{translateInterface("orders.runtimeInterface.failedToLoadAPISchema")}</p>
             <p className="text-sm text-bambu-gray mt-1">{error}</p>
           </div>
         </CardContent>
@@ -578,16 +581,16 @@ export function APIBrowser({ apiKey = '' }: APIBrowserProps) {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search endpoints..."
+            placeholder={translateInterface("apiBrowser.placeholders.searchEndpoints")}
             className="w-full max-w-md px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
           />
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary" size="sm" onClick={expandAll}>
-            Expand All
+            {translateInterface("orders.runtimeInterface.expandAll")}
           </Button>
           <Button variant="secondary" size="sm" onClick={collapseAll}>
-            Collapse All
+            {translateInterface("orders.runtimeInterface.collapseAll")}
           </Button>
           <a
             href="/docs"
@@ -603,7 +606,7 @@ export function APIBrowser({ apiKey = '' }: APIBrowserProps) {
 
       {/* Endpoint count */}
       <p className="text-sm text-bambu-gray">
-        {filteredTags.reduce((acc, t) => acc + t.endpoints.length, 0)} endpoints in {filteredTags.length} categories
+        {filteredTags.reduce((acc, t) => acc + t.endpoints.length, 0)} {translateInterface("orders.runtimeInterface.endpointsIn")} {filteredTags.length} {translateInterface("orders.runtimeInterface.categories")}
       </p>
 
       {/* Endpoints by Tag */}

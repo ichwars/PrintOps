@@ -1,3 +1,5 @@
+import { resolveSupportedLanguage } from '../../../i18n';
+import { useTranslation } from 'react-i18next';
 import { Image as ImageIcon } from 'lucide-react';
 
 import type { CalculationProjectPlate } from '../../../api/calculations';
@@ -15,7 +17,8 @@ interface ProjectPlateGridProps {
 }
 
 export function ProjectPlateGrid({ plates, selectedIds, focusedId, locale, onSelectionChange, onFocusChange }: ProjectPlateGridProps) {
-  const de = locale.startsWith('de');
+  const language = resolveSupportedLanguage(locale);
+  const { t } = useTranslation(undefined, { lng: language });
   const toggle = (id: number) => {
     const next = new Set(selectedIds);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -26,10 +29,10 @@ export function ProjectPlateGrid({ plates, selectedIds, focusedId, locale, onSel
       {plates.map((plate) => (
         <article key={plate.id} className={`overflow-hidden rounded-lg border ${focusedId === plate.id ? 'border-bambu-green' : selectedIds.has(plate.id) ? 'border-bambu-green/50' : 'border-bambu-dark-tertiary'} bg-bambu-dark`}>
           <div className="flex items-center justify-between px-3 py-2">
-            <Checkbox ariaLabel={de ? `${plate.name} auswählen` : `Select ${plate.name}`} checked={selectedIds.has(plate.id)} onCheckedChange={() => toggle(plate.id)} label={plate.name} className="text-sm font-medium text-white" />
-            <span className="text-xs text-bambu-gray">{plate.object_count} {de ? 'Teile' : 'parts'}</span>
+            <Checkbox ariaLabel={t('orders.runtimeCalculation.select', { lng: language, name: plate.name })} checked={selectedIds.has(plate.id)} onCheckedChange={() => toggle(plate.id)} label={plate.name} className="text-sm font-medium text-white" />
+            <span className="text-xs text-bambu-gray">{plate.object_count} {t('projects.parts', { lng: language })}</span>
           </div>
-          <button type="button" aria-label={de ? `Details von ${plate.name} öffnen` : `Open details for ${plate.name}`} onClick={() => onFocusChange(plate.id)} className="block w-full text-left">
+          <button type="button" aria-label={t('orders.runtimeCalculation.openDetailsFor', { lng: language, name: plate.name })} onClick={() => onFocusChange(plate.id)} className="block w-full text-left">
             <div className="flex aspect-[4/3] items-center justify-center bg-bambu-dark-secondary">
               {plate.thumbnail_url ? <img src={withStreamToken(plate.thumbnail_url)} alt="" className="h-full w-full object-contain" /> : <ImageIcon className="h-10 w-10 text-bambu-gray" />}
             </div>

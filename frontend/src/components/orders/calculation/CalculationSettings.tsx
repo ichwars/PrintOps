@@ -1,3 +1,5 @@
+import { resolveSupportedLanguage } from '../../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { BadgeEuro, Calculator, Clock3, Coins, Loader2, Package, TriangleAlert, type LucideIcon } from 'lucide-react';
@@ -27,7 +29,8 @@ function parseDefaults(value: string): Defaults {
 }
 
 export function CalculationSettings({ settings, onChange, locale }: { settings: Settings; onChange: (key: SettingKey, value: string | number) => void; locale: string }) {
-  const de = locale.startsWith('de');
+  const language = resolveSupportedLanguage(locale);
+  const { t } = useTranslation(undefined, { lng: language });
   const defaults = useMemo(() => parseDefaults(settings.calculation_defaults), [settings.calculation_defaults]);
   const [preview, setPreview] = useState<CalculationPreview | null>(null);
   const [previewError, setPreviewError] = useState(false);
@@ -68,28 +71,28 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
   }, [defaults, selectedDryer, selectedPrinter, settings.default_filament_cost, settings.energy_cost_per_kwh]);
 
   const groups: Array<{ title: string; description: string; icon: LucideIcon; column: 'cost' | 'commercial'; fields: Array<[string, string, number]> }> = [
-    { title: de ? 'Kostenbasis' : 'Cost basis', icon: Coins, column: 'cost', description: de ? 'Standardgeräte aus der zentralen Geräteverwaltung.' : 'Default devices from central device management.', fields: [['dryingHours', de ? 'Standard-Trocknungszeit h' : 'Default drying time h', .05]]},
-    { title: de ? 'Arbeitszeiten' : 'Labor times', icon: Clock3, column: 'cost', description: de ? 'Stundensatz und Standardzeiten je Tätigkeit.' : 'Hourly rate and defaults per activity.', fields: [
-      ['laborRate', de ? 'Arbeitsstundensatz' : 'Hourly rate', .01], ['requestHours', de ? 'Anfragevorbereitung h' : 'Request preparation h', .05],
-      ['cadHours', 'CAD/Reparatur h', .05], ['slicingHours', 'Slicing h', .05], ['setupHours', de ? 'Rüstzeit h/Lauf' : 'Setup h/run', .05],
-      ['postProcessingHours', de ? 'Nachbearbeitung h/Stück' : 'Post-processing h/unit', .05], ['qaHours', de ? 'Qualitätssicherung h' : 'Quality assurance h', .05], ['packingHours', de ? 'Verpackungszeit h' : 'Packing time h', .05],
+    { title: t('orders.runtimeCalculation.costBasis', { lng: language }), icon: Coins, column: 'cost', description: t('orders.runtimeCalculation.defaultDevicesFromCentralDeviceManagement', { lng: language }), fields: [['dryingHours', t('orders.runtimeCalculation.defaultDryingTimeH', { lng: language }), .05]]},
+    { title: t('orders.runtimeCalculation.laborTimes', { lng: language }), icon: Clock3, column: 'cost', description: t('orders.runtimeCalculation.hourlyRateAndDefaultsPerActivity', { lng: language }), fields: [
+      ['laborRate', t('orders.runtimeCalculation.hourlyRate', { lng: language }), .01], ['requestHours', t('orders.runtimeCalculation.requestPreparationH', { lng: language }), .05],
+      ['cadHours', t('orders.runtimeCalculation.cadRepairHours', { lng: language }), .05], ['slicingHours', t('orders.runtimeCalculation.slicingHours', { lng: language }), .05], ['setupHours', t('orders.runtimeCalculation.setupHRun', { lng: language }), .05],
+      ['postProcessingHours', t('orders.runtimeCalculation.postProcessingHUnit', { lng: language }), .05], ['qaHours', t('orders.runtimeCalculation.qualityAssuranceH', { lng: language }), .05], ['packingHours', t('orders.runtimeCalculation.packingTimeH', { lng: language }), .05],
     ]},
-    { title: de ? 'Risiko und Ausschuss' : 'Risk and scrap', icon: TriangleAlert, column: 'commercial', description: de ? 'Explizite Zusatzläufe und Risikoreserve.' : 'Explicit extra runs and risk reserve.', fields: [
-      ['scrapRuns', de ? 'Ausschussläufe' : 'Scrap runs', 1], ['scrapPercent', de ? 'Ausschuss %' : 'Scrap %', .1],
-      ['riskPercent', de ? 'Risikoreserve %' : 'Risk reserve %', .1], ['materialMarkupPercent', de ? 'Materialaufschlag %' : 'Material markup %', .1],
+    { title: t('orders.runtimeCalculation.riskAndScrap', { lng: language }), icon: TriangleAlert, column: 'commercial', description: t('orders.runtimeCalculation.explicitExtraRunsAndRiskReserve', { lng: language }), fields: [
+      ['scrapRuns', t('orders.runtimeCalculation.scrapRuns', { lng: language }), 1], ['scrapPercent', t('orders.runtimeCalculation.scrap', { lng: language }), .1],
+      ['riskPercent', t('orders.runtimeCalculation.riskReserve', { lng: language }), .1], ['materialMarkupPercent', t('orders.runtimeCalculation.materialMarkup', { lng: language }), .1],
     ]},
-    { title: de ? 'Preisbildung' : 'Price derivation', icon: BadgeEuro, column: 'commercial', description: de ? 'Marge, Aufschlag oder fester Zielpreis.' : 'Margin, markup, or explicit target.', fields: [
-      ['priceRate', de ? 'Marge/Aufschlag %' : 'Margin/markup %', .1], ['explicitPrice', de ? 'Fester Zielpreis' : 'Explicit price', .01],
-      ['discountPercent', de ? 'Standardrabatt %' : 'Default discount %', .1], ['taxPercent', de ? 'Steuer %' : 'Tax %', .1],
-      ['minimumPrice', de ? 'Mindestpreis' : 'Minimum price', .01], ['minimumProfit', de ? 'Mindestgewinn' : 'Minimum profit', .01],
+    { title: t('orders.runtimeCalculation.priceDerivation', { lng: language }), icon: BadgeEuro, column: 'commercial', description: t('orders.runtimeCalculation.marginMarkupOrExplicitTarget', { lng: language }), fields: [
+      ['priceRate', t('orders.runtimeCalculation.marginMarkup', { lng: language }), .1], ['explicitPrice', t('orders.runtimeCalculation.explicitPrice', { lng: language }), .01],
+      ['discountPercent', t('orders.runtimeCalculation.defaultDiscount', { lng: language }), .1], ['taxPercent', t('orders.runtimeCalculation.taxCalculationSettings', { lng: language }), .1],
+      ['minimumPrice', t('orders.runtimeCalculation.minimumPrice', { lng: language }), .01], ['minimumProfit', t('orders.runtimeCalculation.minimumProfit', { lng: language }), .01],
     ]},
-    { title: de ? 'Nebenkosten' : 'Ancillary costs', icon: Package, column: 'cost', description: de ? 'Offen ausgewiesene Zusatzkosten.' : 'Explicit ancillary amounts.', fields: [
-      ['consumables', de ? 'Verbrauchsmaterial' : 'Consumables', .01], ['packaging', de ? 'Verpackung' : 'Packaging', .01],
-      ['additionalCosts', de ? 'Weitere Kosten' : 'Additional costs', .01], ['shipping', de ? 'Versand' : 'Shipping', .01],
+    { title: t('orders.runtimeCalculation.ancillaryCosts', { lng: language }), icon: Package, column: 'cost', description: t('orders.runtimeCalculation.explicitAncillaryAmounts', { lng: language }), fields: [
+      ['consumables', t('orders.runtimeCalculation.consumables', { lng: language }), .01], ['packaging', t('orders.runtimeCalculation.packaging', { lng: language }), .01],
+      ['additionalCosts', t('orders.runtimeCalculation.additionalCosts', { lng: language }), .01], ['shipping', t('orders.runtimeCalculation.shippingCost', { lng: language }), .01],
     ]},
-    { title: de ? 'Beispielrechnung' : 'Example calculation', icon: Calculator, column: 'commercial', description: de ? 'Eingaben für die Live-Prüfung der Standards.' : 'Inputs for the live defaults check.', fields: [
-      ['exampleParts', de ? 'Gutteile' : 'Good parts', 1], ['examplePartsPerRun', de ? 'Teile/Lauf' : 'Parts/run', 1],
-      ['exampleMaterialGrams', de ? 'Material g/Lauf' : 'Material g/run', 1], ['examplePrintHours', de ? 'Druckzeit h/Lauf' : 'Print time h/run', .05],
+    { title: t('orders.runtimeCalculation.exampleCalculation', { lng: language }), icon: Calculator, column: 'commercial', description: t('orders.runtimeCalculation.inputsForTheLiveDefaultsCheck', { lng: language }), fields: [
+      ['exampleParts', t('orders.runtimeCalculation.goodParts', { lng: language }), 1], ['examplePartsPerRun', t('orders.runtimeCalculation.partsRun', { lng: language }), 1],
+      ['exampleMaterialGrams', t('orders.runtimeCalculation.materialGRun', { lng: language }), 1], ['examplePrintHours', t('orders.runtimeCalculation.printTimeHRun', { lng: language }), .05],
     ]},
   ];
 
@@ -98,42 +101,42 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
     const Icon = group.icon;
     return <section key={group.title} className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-5">
       <div className="flex items-start gap-3"><div className="rounded-lg bg-bambu-orange/10 p-2 text-bambu-orange"><Icon className="h-5 w-5" /></div><div><h3 className="font-semibold text-white">{group.title}</h3><p className="mt-1 text-xs text-bambu-gray">{group.description}</p></div></div>
-      {group.title === (de ? 'Kostenbasis' : 'Cost basis') && <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <Select<number> label={de ? 'Standarddrucker' : 'Default printer'} value={Number(defaults.defaultPrinterId)} onValueChange={(value) => update('defaultPrinterId', value)} options={[{ value: 0, label: de ? 'Kein Standarddrucker' : 'No default printer' }, ...printers.filter(item => item.is_active).map(item => ({ value: item.id, label: item.name }))]} />
-        <Select<number> label={de ? 'Standardtrockner' : 'Default dryer'} value={Number(defaults.defaultDryerId)} onValueChange={(value) => update('defaultDryerId', value)} options={[{ value: 0, label: de ? 'Kein Standardtrockner' : 'No default dryer' }, ...dryers.map(item => ({ value: item.id, label: item.name }))]} />
-        {selectedPrinter && <div className="rounded-lg bg-bambu-dark p-3 text-sm"><span className="block text-xs text-bambu-gray">{de ? 'Drucker: Restwert / Stundensatz' : 'Printer: residual / hourly'}</span><strong className="text-white">{money(selectedPrinter.residual_value ?? '0')} / {money(selectedPrinter.hourly_rate ?? '0')}/h</strong></div>}
-        {selectedDryer && <div className="rounded-lg bg-bambu-dark p-3 text-sm"><span className="block text-xs text-bambu-gray">{de ? 'Trockner: Restwert / Stundensatz' : 'Dryer: residual / hourly'}</span><strong className="text-white">{money(selectedDryer.residual_value)} / {money(selectedDryer.hourly_rate)}/h</strong></div>}
+      {group.title === (t('orders.runtimeCalculation.costBasis', { lng: language })) && <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <Select<number> label={t('orders.runtimeCalculation.defaultPrinter', { lng: language })} value={Number(defaults.defaultPrinterId)} onValueChange={(value) => update('defaultPrinterId', value)} options={[{ value: 0, label: t('orders.runtimeCalculation.noDefaultPrinter', { lng: language }) }, ...printers.filter(item => item.is_active).map(item => ({ value: item.id, label: item.name }))]} />
+        <Select<number> label={t('orders.runtimeCalculation.defaultDryer', { lng: language })} value={Number(defaults.defaultDryerId)} onValueChange={(value) => update('defaultDryerId', value)} options={[{ value: 0, label: t('orders.runtimeCalculation.noDefaultDryer', { lng: language }) }, ...dryers.map(item => ({ value: item.id, label: item.name }))]} />
+        {selectedPrinter && <div className="rounded-lg bg-bambu-dark p-3 text-sm"><span className="block text-xs text-bambu-gray">{t('orders.runtimeCalculation.printerResidualHourly', { lng: language })}</span><strong className="text-white">{money(selectedPrinter.residual_value ?? '0')} / {money(selectedPrinter.hourly_rate ?? '0')}/h</strong></div>}
+        {selectedDryer && <div className="rounded-lg bg-bambu-dark p-3 text-sm"><span className="block text-xs text-bambu-gray">{t('orders.runtimeCalculation.dryerResidualHourly', { lng: language })}</span><strong className="text-white">{money(selectedDryer.residual_value)} / {money(selectedDryer.hourly_rate)}/h</strong></div>}
       </div>}
-      {group.title === (de ? 'Preisbildung' : 'Price derivation') && <Select label={de ? 'Verfahren' : 'Method'} value={String(defaults.priceMethod)} onValueChange={(value) => update('priceMethod', value)} className="mt-4" options={[
-        { value: 'target_margin', label: de ? 'Zielmarge' : 'Target margin' },
-        { value: 'markup', label: de ? 'Aufschlag' : 'Markup' },
-        { value: 'explicit_price', label: de ? 'Fester Zielpreis' : 'Explicit price' },
+      {group.title === (t('orders.runtimeCalculation.priceDerivation', { lng: language })) && <Select label={t('orders.runtimeCalculation.method', { lng: language })} value={String(defaults.priceMethod)} onValueChange={(value) => update('priceMethod', value)} className="mt-4" options={[
+        { value: 'target_margin', label: t('orders.runtimeCalculation.targetMargin', { lng: language }) },
+        { value: 'markup', label: t('orders.runtimeCalculation.markup', { lng: language }) },
+        { value: 'explicit_price', label: t('orders.runtimeCalculation.explicitPrice', { lng: language }) },
       ]} />}
-      {group.title === (de ? 'Preisbildung' : 'Price derivation') && <Select label={de ? 'Preisrundung' : 'Price rounding'} value={String(defaults.roundingMode)} onValueChange={(value) => update('roundingMode', value)} className="mt-3" options={[
-        { value: 'none', label: de ? 'Keine' : 'None' }, { value: '0.05', label: '0,05' }, { value: '0.10', label: '0,10' }, { value: '0.50', label: '0,50' }, { value: '1.00', label: '1,00' }, { value: 'x.90', label: 'x,90' }, { value: 'x.99', label: 'x,99' },
+      {group.title === (t('orders.runtimeCalculation.priceDerivation', { lng: language })) && <Select label={t('orders.runtimeCalculation.priceRounding', { lng: language })} value={String(defaults.roundingMode)} onValueChange={(value) => update('roundingMode', value)} className="mt-3" options={[
+        { value: 'none', label: t('common.none', { lng: language }) }, { value: '0.05', label: '0,05' }, { value: '0.10', label: '0,10' }, { value: '0.50', label: '0,50' }, { value: '1.00', label: '1,00' }, { value: 'x.90', label: 'x,90' }, { value: 'x.99', label: 'x,99' },
       ]} />}
       <div className="mt-4 grid gap-3 sm:grid-cols-2">{group.fields.map(([key, label, step]) => <NumberField key={key} label={label} min="0" step={step} value={Number(defaults[key] ?? 0)} onValueChange={(value) => update(key, Number(value))} />)}</div>
-      {group.title === (de ? 'Beispielrechnung' : 'Example calculation') && <div className="mt-4">
-        {loading && <div className="flex items-center gap-2 text-sm text-bambu-gray"><Loader2 className="h-4 w-4 animate-spin" />{de ? 'Berechnung läuft…' : 'Calculating…'}</div>}
-        {previewError && <div role="alert" className="text-sm text-red-300">{de ? 'Beispiel konnte nicht berechnet werden.' : 'Example could not be calculated.'}</div>}
+      {group.title === (t('orders.runtimeCalculation.exampleCalculation', { lng: language })) && <div className="mt-4">
+        {loading && <div className="flex items-center gap-2 text-sm text-bambu-gray"><Loader2 className="h-4 w-4 animate-spin" />{t('orders.runtimeCalculation.calculating', { lng: language })}</div>}
+        {previewError && <div role="alert" className="text-sm text-red-300">{t('orders.runtimeCalculation.exampleCouldNotBeCalculated', { lng: language })}</div>}
         {preview && <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">{[
-          [de ? 'Material' : 'Material', preview.material_cost], [de ? 'Maschine' : 'Machine', preview.machine_cost], [de ? 'Energie' : 'Energy', preview.energy_cost],
-          [de ? 'Arbeit' : 'Labor', preview.labor_cost], [de ? 'Risiko' : 'Risk', preview.risk_cost], [de ? 'Herstellkosten' : 'Production cost', preview.production_cost],
-          [de ? 'Deckungsbeitrag' : 'Contribution', preview.contribution], [de ? 'Netto' : 'Net', preview.net_price], [de ? 'Steuer' : 'Tax', preview.tax],
-          [de ? 'Brutto' : 'Gross', preview.gross_price], [de ? 'Stückpreis' : 'Unit price', preview.unit_price], [de ? 'Läufe' : 'Runs', String(preview.total_runs)],
-        ].map(([label, value]) => <div key={label} className="rounded-lg bg-bambu-dark p-3"><span className="block text-xs text-bambu-gray">{label}</span><strong className="text-white">{label === (de ? 'Läufe' : 'Runs') ? value : money(value)}</strong></div>)}</div>}
+          [t('printops.nav.parts', { lng: language }), preview.material_cost], [t('orders.runtimeCalculation.machine', { lng: language }), preview.machine_cost], [t('settings.energyCostBadge', { lng: language }), preview.energy_cost],
+          [t('orders.runtimeCalculation.labor', { lng: language }), preview.labor_cost], [t('orders.runtimeCalculation.risk', { lng: language }), preview.risk_cost], [t('orders.runtimeCalculation.productionCost', { lng: language }), preview.production_cost],
+          [t('orders.runtimeCalculation.contribution', { lng: language }), preview.contribution], [t('inventory.net', { lng: language }), preview.net_price], [t('orders.runtimeCalculation.tax', { lng: language }), preview.tax],
+          [t('orders.runtimeCalculation.gross', { lng: language }), preview.gross_price], [t('orders.runtimeCalculation.unitPrice', { lng: language }), preview.unit_price], [t('orders.runtimeCalculation.runs', { lng: language }), String(preview.total_runs)],
+        ].map(([label, value]) => <div key={label} className="rounded-lg bg-bambu-dark p-3"><span className="block text-xs text-bambu-gray">{label}</span><strong className="text-white">{label === (t('orders.runtimeCalculation.runs', { lng: language })) ? value : money(value)}</strong></div>)}</div>}
       </div>}
     </section>;
   };
   return <div id="card-cost" className="space-y-5">
-    <h2 className="sr-only">{de ? 'Kostenverfolgung' : 'Cost Tracking'}</h2>
+    <h2 className="sr-only">{t('settings.costTracking', { lng: language })}</h2>
     <div className="grid gap-3 md:grid-cols-4">
-      <Select label={de ? 'Währung' : 'Currency'} value={settings.currency} onValueChange={(value) => onChange('currency', value)} options={SUPPORTED_CURRENCIES.map(currency => ({ value: currency.code, label: currency.label }))} />
-      <NumberField label={de ? 'Filamentpreis/kg' : 'Filament price/kg'} min="0" step="0.01" value={settings.default_filament_cost} onValueChange={(value) => onChange('default_filament_cost', Number(value))} />
-      <NumberField label={de ? 'Strompreis/kWh' : 'Electricity/kWh'} min="0" step="0.001" value={settings.energy_cost_per_kwh} onValueChange={(value) => onChange('energy_cost_per_kwh', Number(value))} />
-      <Select label={de ? 'Energieanzeige' : 'Energy display'} value={settings.energy_tracking_mode} onValueChange={(value) => onChange('energy_tracking_mode', value)} options={[{ value: 'total', label: de ? 'Gesamtverbrauch' : 'Total consumption' }, { value: 'print', label: de ? 'Nur Druckenergie' : 'Print energy only' }]} />
+      <Select label={t('orders.businessProfile.currency', { lng: language })} value={settings.currency} onValueChange={(value) => onChange('currency', value)} options={SUPPORTED_CURRENCIES.map(currency => ({ value: currency.code, label: currency.label }))} />
+      <NumberField label={t('orders.runtimeCalculation.filamentPriceKg', { lng: language })} min="0" step="0.01" value={settings.default_filament_cost} onValueChange={(value) => onChange('default_filament_cost', Number(value))} />
+      <NumberField label={t('orders.runtimeCalculation.electricityKWh', { lng: language })} min="0" step="0.001" value={settings.energy_cost_per_kwh} onValueChange={(value) => onChange('energy_cost_per_kwh', Number(value))} />
+      <Select label={t('orders.runtimeCalculation.energyDisplay', { lng: language })} value={settings.energy_tracking_mode} onValueChange={(value) => onChange('energy_tracking_mode', value)} options={[{ value: 'total', label: t('orders.runtimeCalculation.totalConsumption', { lng: language }) }, { value: 'print', label: t('orders.runtimeCalculation.printEnergyOnly', { lng: language }) }]} />
     </div>
     <div className="grid items-start gap-5 lg:grid-cols-2"><div className="space-y-5">{groups.filter(group => group.column === 'cost').map(renderGroup)}</div><div className="space-y-5">{groups.filter(group => group.column === 'commercial').map(renderGroup)}</div></div>
-    <div className="flex items-center gap-2 rounded-lg border border-bambu-green/30 bg-bambu-green/5 p-3 text-xs text-bambu-gray"><Calculator className="h-4 w-4 text-bambu-green" />{de ? 'Vorschau und spätere Freigabe verwenden denselben Decimal-Kostenkern.' : 'Preview and approval use the same Decimal cost engine.'}</div>
+    <div className="flex items-center gap-2 rounded-lg border border-bambu-green/30 bg-bambu-green/5 p-3 text-xs text-bambu-gray"><Calculator className="h-4 w-4 text-bambu-green" />{t('orders.runtimeCalculation.previewAndApprovalUseTheSameDecimalCostEngine', { lng: language })}</div>
   </div>;
 }

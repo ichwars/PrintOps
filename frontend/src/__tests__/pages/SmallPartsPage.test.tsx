@@ -1,8 +1,9 @@
+import i18n from '../../i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SmallPartsPage } from '../../pages/SmallPartsPage';
 import { cryptoRandomUuid } from '../../utils/random';
@@ -63,6 +64,8 @@ function renderPage() {
     </QueryClientProvider>,
   );
 }
+
+beforeEach(async () => { await i18n.changeLanguage('de'); });
 
 describe('SmallPartsPage', () => {
   afterEach(() => {
@@ -262,4 +265,21 @@ describe('SmallPartsPage', () => {
       idempotency_key: 'receipt-7-00000000-0000-4000-8000-000000000001',
     })));
   });
+});
+
+it('renders Dutch material columns after a saved German configuration and updates them when language changes', async () => {
+  await i18n.changeLanguage('nl');
+  vi.mocked(localStorage.getItem).mockImplementation((key) => key === 'printops-material-columns'
+    ? JSON.stringify([{ id: 'sku', label: 'Artikelnummer', visible: true }, { id: 'name', label: 'Bezeichnung', visible: true }]) : null);
+  server.use(http.get('/api/v1/small-parts', () => HttpResponse.json({ items: [part], total: 1, limit: 50, offset: 0 })));
+  const user = userEvent.setup();
+  renderPage();
+  expect(await screen.findByRole('columnheader', { name: 'Naam' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Materiaal' })).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Materiaal bewerken' }));
+  expect(await screen.findByRole('dialog', { name: 'Materiaal bewerken' })).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Sluiten' }));
+  await act(async () => { await i18n.changeLanguage('en'); });
+  expect(screen.getByRole('columnheader', { name: 'Name' })).toBeInTheDocument();
+  vi.mocked(localStorage.getItem).mockReset();
 });

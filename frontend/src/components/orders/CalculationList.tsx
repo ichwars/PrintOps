@@ -1,3 +1,5 @@
+import { resolveSupportedLanguage } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useMemo, useState } from 'react';
 import { Archive, ArrowDown, ArrowUp, ArrowUpDown, Copy, GitBranch, Pencil, Printer, Trash2 } from 'lucide-react';
 import type { CalculationDetail } from '../../api/calculations';
@@ -17,8 +19,6 @@ interface Props {
   busyId?: number | null;
 }
 
-const STATUS_DE: Record<string, string> = { draft: 'Entwurf', approved: 'Freigegeben', superseded: 'Ersetzt', archived: 'Archiviert' };
-const STATUS_EN: Record<string, string> = { draft: 'Draft', approved: 'Approved', superseded: 'Superseded', archived: 'Archived' };
 type SortKey = 'id' | 'customer' | 'variant' | 'revision' | 'status' | 'cost' | 'price' | 'learning' | 'updated';
 type SortDirection = 'asc' | 'desc';
 type ColumnAlign = 'left' | 'center' | 'right';
@@ -58,13 +58,14 @@ function compareItems(a: CalculationDetail, b: CalculationDetail, key: SortKey):
 }
 
 function LearningCell({ item, locale }: { item: CalculationDetail; locale: string }) {
-  const de = locale.startsWith('de');
+  const language = resolveSupportedLanguage(locale);
+  const { t } = useTranslation(undefined, { lng: language });
   const factor = item.learning_factor;
   if (!factor || factor.status === 'pending' || factor.sample_count === 0) {
     return (
       <div className="text-xs text-bambu-gray">
-        <span className="block font-medium text-bambu-gray-light">{de ? 'Wartet' : 'Waiting'}</span>
-        <span>{de ? 'keine Produktion' : 'no production'}</span>
+        <span className="block font-medium text-bambu-gray-light">{t('orders.runtimeCalculation.waiting', { lng: language })}</span>
+        <span>{t('orders.runtimeCalculation.noProduction', { lng: language })}</span>
       </div>
     );
   }
@@ -78,14 +79,15 @@ function LearningCell({ item, locale }: { item: CalculationDetail; locale: strin
   return (
     <div className="text-xs">
       <span className={`inline-flex rounded-full px-2 py-1 font-medium ${tone}`}>{percent}</span>
-      <span className="mt-1 block text-bambu-gray">{de ? `${factor.sample_count} Lauf/Läufe` : `${factor.sample_count} run(s)`}</span>
+      <span className="mt-1 block text-bambu-gray">{t('orders.runtimeCalculation.runS', { lng: language, count: factor.sample_count })}</span>
     </div>
   );
 }
 
 export function CalculationList({ items, locale, onOpen, onDuplicate, onCreateOffer, onRevise, onArchive, onDelete, busyId }: Props) {
-  const de = locale.startsWith('de');
-  const status = de ? STATUS_DE : STATUS_EN;
+  const language = resolveSupportedLanguage(locale);
+  const { t } = useTranslation(undefined, { lng: language });
+  const status: Record<string, string> = { draft: t('orders.runtimeCalculation.statusDraft', { lng: language }), approved: t('orders.runtimeCalculation.statusApproved', { lng: language }), superseded: t('orders.runtimeCalculation.statusSuperseded', { lng: language }), archived: t('orders.runtimeCalculation.statusArchived', { lng: language }) };
   const date = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' });
   const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'updated', direction: 'desc' });
   const sortedItems = useMemo(() => [...items].sort((left, right) => {
@@ -112,16 +114,16 @@ export function CalculationList({ items, locale, onOpen, onDuplicate, onCreateOf
       <table className="w-full min-w-[1120px] text-sm">
         <thead className={tableHeaderClass}>
           <tr className={tableHeaderRowClass}>
-            {header(de ? 'Kalkulation' : 'Calculation', 'id')}
-            {header(de ? 'Kunde / Profil' : 'Customer / profile', 'customer')}
-            {header(de ? 'Variante' : 'Variant', 'variant', 'center')}
-            {header(de ? 'Rev.' : 'Rev.', 'revision', 'center')}
-            {header(de ? 'Status' : 'Status', 'status', 'center')}
-            {header(de ? 'Selbstk.' : 'Cost', 'cost', 'center')}
-            {header(de ? 'VK-Preis' : 'Price', 'price', 'center')}
-            {header(de ? 'Lernf.' : 'Learning', 'learning', 'center')}
-            {header(de ? 'Aktual.' : 'Updated', 'updated', 'center')}
-            <th className={`${tableHeaderActionCellClass} sticky right-0 z-10 bg-bambu-dark-tertiary/95`}>{de ? 'Aktionen' : 'Actions'}</th>
+            {header(t('printops.nav.calculation', { lng: language }), 'id')}
+            {header(t('orders.runtimeCalculation.customerProfile', { lng: language }), 'customer')}
+            {header(t('orders.runtimeCalculation.variant', { lng: language }), 'variant', 'center')}
+            {header(t('orders.runtimeCalculation.rev', { lng: language }), 'revision', 'center')}
+            {header(t('common.status', { lng: language }), 'status', 'center')}
+            {header(t('orders.runtimeCalculation.cost', { lng: language }), 'cost', 'center')}
+            {header(t('orders.runtimeCalculation.price', { lng: language }), 'price', 'center')}
+            {header(t('orders.runtimeCalculation.learning', { lng: language }), 'learning', 'center')}
+            {header(t('orders.runtimeCalculation.updated', { lng: language }), 'updated', 'center')}
+            <th className={`${tableHeaderActionCellClass} sticky right-0 z-10 bg-bambu-dark-tertiary/95`}>{t('common.actions', { lng: language })}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-bambu-dark-tertiary">
@@ -135,7 +137,7 @@ export function CalculationList({ items, locale, onOpen, onDuplicate, onCreateOf
             return (
               <tr key={item.id} className="group bg-bambu-dark-secondary hover:bg-bambu-dark-tertiary/40">
                 <td className="px-4 py-3"><div className="font-medium text-white">K-{String(item.id).padStart(6, '0')}</div><div className="text-xs text-bambu-gray">{item.title}</div></td>
-                <td className="px-4 py-3"><div className="text-white">{item.customer_display_name ?? (de ? 'Ohne Kundenzuordnung' : 'No customer assigned')}</div><div className="text-xs text-bambu-gray">{item.business_profile_name ?? `#${item.business_profile_id}`}</div></td>
+                <td className="px-4 py-3"><div className="text-white">{item.customer_display_name ?? (t('orders.runtimeCalculation.noCustomerAssigned', { lng: language }))}</div><div className="text-xs text-bambu-gray">{item.business_profile_name ?? `#${item.business_profile_id}`}</div></td>
                 <td className={`${centeredCellClass} text-white`}>{preferred?.name ?? '—'}</td>
                 <td className={`${centeredCellClass} text-bambu-gray`}>{item.current_revision ? `R${item.current_revision}` : '—'}</td>
                 <td className={centeredCellClass}><span className="inline-flex items-center gap-1 rounded-full bg-bambu-dark px-2 py-1 text-xs text-bambu-green">{item.status === 'archived' && <Archive className="h-3 w-3" />}{status[item.status]}</span></td>
@@ -144,12 +146,12 @@ export function CalculationList({ items, locale, onOpen, onDuplicate, onCreateOf
                 <td className={`${centeredCellClass} text-bambu-gray`}>{date.format(new Date(item.updated_at))}</td>
                 <td className="sticky right-0 bg-bambu-dark-secondary px-4 py-3 shadow-[-14px_0_18px_-18px_rgba(0,0,0,0.85)]">
                   <div className="flex min-w-[224px] justify-end gap-1">
-                    <IconButton size="sm" label={de ? 'Kalkulation bearbeiten' : 'Edit calculation'} title={de ? 'Bearbeiten' : 'Edit'} icon={Pencil} disabled={busy} onClick={() => onOpen(item)} className={actionIconClass} />
-                    <IconButton size="sm" label={de ? 'Kalkulation duplizieren' : 'Duplicate calculation'} title={de ? 'Duplizieren' : 'Duplicate'} icon={Copy} disabled={busy} onClick={() => onDuplicate(item)} className={actionIconClass} />
-                    <IconButton size="sm" label={de ? 'Angebotsentwurf erstellen' : 'Create offer draft'} title={de ? 'Angebot' : 'Offer'} icon={Printer} disabled={busy || !canCreateOffer} onClick={() => onCreateOffer(item)} className={actionIconClass} />
-                    <IconButton size="sm" label={de ? 'Neue Version erstellen' : 'Create new revision'} title={de ? 'Neue Version' : 'New revision'} icon={GitBranch} disabled={busy || !canRevise} onClick={() => onRevise(item)} className={actionIconClass} />
-                    <IconButton size="sm" label={de ? 'Kalkulation archivieren' : 'Archive calculation'} title={de ? 'Archivieren' : 'Archive'} icon={Archive} disabled={busy || !canArchive} onClick={() => onArchive(item)} className={actionIconClass} />
-                    <IconButton size="sm" label={de ? 'Kalkulation löschen' : 'Delete calculation'} title={de ? 'Löschen' : 'Delete'} icon={Trash2} disabled={busy || !canDelete} onClick={() => onDelete(item)} className="!rounded-none !border-0 hover:!bg-transparent hover:!text-red-300 focus:!ring-0" />
+                    <IconButton size="sm" label={t('orders.runtimeCalculation.editCalculation', { lng: language })} title={t('common.edit', { lng: language })} icon={Pencil} disabled={busy} onClick={() => onOpen(item)} className={actionIconClass} />
+                    <IconButton size="sm" label={t('orders.runtimeCalculation.duplicateCalculation', { lng: language })} title={t('common.duplicate', { lng: language })} icon={Copy} disabled={busy} onClick={() => onDuplicate(item)} className={actionIconClass} />
+                    <IconButton size="sm" label={t('orders.runtimeCalculation.createOfferDraft', { lng: language })} title={t('orders.runtimeCalculation.offer', { lng: language })} icon={Printer} disabled={busy || !canCreateOffer} onClick={() => onCreateOffer(item)} className={actionIconClass} />
+                    <IconButton size="sm" label={t('orders.runtimeCalculation.createNewRevision', { lng: language })} title={t('orders.runtimeCalculation.newRevision', { lng: language })} icon={GitBranch} disabled={busy || !canRevise} onClick={() => onRevise(item)} className={actionIconClass} />
+                    <IconButton size="sm" label={t('orders.runtimeCalculation.archiveCalculation', { lng: language })} title={t('inventory.bulk.archive', { lng: language })} icon={Archive} disabled={busy || !canArchive} onClick={() => onArchive(item)} className={actionIconClass} />
+                    <IconButton size="sm" label={t('orders.runtimeCalculation.deleteCalculation', { lng: language })} title={t('common.delete', { lng: language })} icon={Trash2} disabled={busy || !canDelete} onClick={() => onDelete(item)} className="!rounded-none !border-0 hover:!bg-transparent hover:!text-red-300 focus:!ring-0" />
                   </div>
                 </td>
               </tr>

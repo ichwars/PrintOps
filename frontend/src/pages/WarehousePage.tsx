@@ -6,102 +6,9 @@ import { api } from '../api/client';
 import { Card, CardContent, CardHeader } from '../components/Card';
 import { tableHeaderCellClass, tableHeaderClass, tableHeaderRowClass } from '../components/ui/tableStyles';
 
-type WarehouseSectionId = 'overview' | 'parts' | 'stock';
+type WarehousePageCopy = { "title": string; "subtitle": string; "openFilament": string; "open": string; "planned": string; "dataModelNext": string; "empty": string; "foundation": string; "metrics": { "activeSpools": string; "lowStock": string; "remaining": string; }; "areas": { "filament": { "title": string; "body": string; }; "parts": { "title": string; "body": string; }; "stock": { "title": string; "body": string; }; }; "page": { "overview": { "title": string; "subtitle": string; "columns": string[]; }; "parts": { "title": string; "subtitle": string; "columns": string[]; }; "stock": { "title": string; "subtitle": string; "columns": string[]; }; }; };
 
-const COPY = {
-  en: {
-    title: 'Warehouse',
-    subtitle: 'Inventory overview for filament, materials, and stock position.',
-    openFilament: 'Open filament',
-    open: 'Open',
-    planned: 'Planned',
-    dataModelNext: 'Data model follows in the next step',
-    empty: 'No records yet',
-    foundation: 'Foundation',
-    metrics: {
-      activeSpools: 'Active spools',
-      lowStock: 'Low stock',
-      remaining: 'Remaining filament',
-    },
-    areas: {
-      filament: {
-        title: 'Filament stock',
-        body: 'Uses the existing PrintOps inventory as the first warehouse area.',
-      },
-      parts: {
-        title: 'Material',
-        body: 'Reserved for purchased parts, packaging, hardware, and consumables.',
-      },
-      stock: {
-        title: 'Stock position',
-        body: 'Reserved for stock movement, reorder needs, and dispatchable items.',
-      },
-    },
-    page: {
-      overview: {
-        title: 'Warehouse overview',
-        subtitle: 'Live filament status plus the next warehouse areas.',
-        columns: ['Area', 'Status', 'Next step'],
-      },
-      parts: {
-        title: 'Material',
-        subtitle: 'Hardware, packaging, magnets, inserts, and consumables.',
-        columns: ['Item', 'Location', 'Status'],
-      },
-      stock: {
-        title: 'Stock position',
-        subtitle: 'Inbound, reserved, available, and reorder-relevant stock.',
-        columns: ['Article', 'Available', 'Reorder point'],
-      },
-    },
-  },
-  de: {
-    title: 'Lager',
-    subtitle: 'Bestandsübersicht für Filament, Materialien und Warenlager.',
-    openFilament: 'Filament öffnen',
-    open: 'Öffnen',
-    planned: 'Geplant',
-    dataModelNext: 'Datenmodell folgt im nächsten Schritt',
-    empty: 'Noch keine Datensätze',
-    foundation: 'Basis',
-    metrics: {
-      activeSpools: 'Aktive Spulen',
-      lowStock: 'Niedriger Bestand',
-      remaining: 'Restfilament',
-    },
-    areas: {
-      filament: {
-        title: 'Filamentbestand',
-        body: 'Nutzt das vorhandene PrintOps-Inventar als ersten Lagerbereich.',
-      },
-      parts: {
-        title: 'Material',
-        body: 'Vorgesehen für Zukaufteile, Verpackung, Hardware und Verbrauchsmaterial.',
-      },
-      stock: {
-        title: 'Warenlager',
-        body: 'Vorgesehen für Warenbewegungen, Nachbestellbedarf und verfügbare Ware.',
-      },
-    },
-    page: {
-      overview: {
-        title: 'Lagerübersicht',
-        subtitle: 'Live-Filamentstatus plus die nächsten Lagerbereiche.',
-        columns: ['Bereich', 'Status', 'Nächster Schritt'],
-      },
-      parts: {
-        title: 'Material',
-        subtitle: 'Hardware, Verpackung, Magnete, Einsätze und Verbrauchsmaterial.',
-        columns: ['Artikel', 'Lagerort', 'Status'],
-      },
-      stock: {
-        title: 'Warenlager',
-        subtitle: 'Zulauf, reserviert, verfügbar und nachbestellrelevante Bestände.',
-        columns: ['Artikel', 'Verfügbar', 'Meldebestand'],
-      },
-    },
-  },
-} as const;
+type WarehouseSectionId = 'overview' | 'parts' | 'stock';
 
 function getSection(pathname: string): WarehouseSectionId {
   if (pathname.endsWith('/parts')) return 'parts';
@@ -110,10 +17,10 @@ function getSection(pathname: string): WarehouseSectionId {
 }
 
 export function WarehousePage() {
-  const { i18n } = useTranslation();
+  const { t } = useTranslation();
   const location = useLocation();
   const activeSection = getSection(location.pathname);
-  const copy = i18n.resolvedLanguage?.startsWith('de') ? COPY.de : COPY.en;
+  const copy = t('orders.runtimeDomain.warehousePage', { returnObjects: true }) as unknown as WarehousePageCopy;
   const columns = copy.page[activeSection].columns;
 
   const { data: spools = [] } = useQuery({

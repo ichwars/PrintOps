@@ -94,6 +94,7 @@ const extractFilamentName = (profileName: string) => {
 };
 
 function KProfileCard({ profile, onEdit, onCopy, selectionMode, isSelected, onToggleSelect, note }: KProfileCardProps) {
+  const { t: translateInterface } = useTranslation();
   const flowType = getFlowTypeLabel(profile.nozzle_id);
   const diameter = profile.nozzle_diameter;
 
@@ -131,7 +132,7 @@ function KProfileCard({ profile, onEdit, onCopy, selectionMode, isSelected, onTo
             {profile.name || 'Unnamed'}
           </span>
           {note && (
-            <span title="Has note">
+            <span title={translateInterface("kProfilesView.hasNote")}>
               <StickyNote className="w-3 h-3 text-yellow-500" />
             </span>
           )}
@@ -141,7 +142,7 @@ function KProfileCard({ profile, onEdit, onCopy, selectionMode, isSelected, onTo
         </div>
         {note && (
           <div className="text-xs mt-0.5 truncate text-yellow-500/70" title={note}>
-            Note: {note.length > 50 ? note.substring(0, 50) + '...' : note}
+            {translateInterface("orders.runtimeInterface.note")} {note.length > 50 ? note.substring(0, 50) + '...' : note}
           </div>
         )}
       </button>
@@ -152,7 +153,7 @@ function KProfileCard({ profile, onEdit, onCopy, selectionMode, isSelected, onTo
             onCopy();
           }}
           className="text-bambu-gray hover:text-white transition-colors p-1"
-          title="Copy profile"
+          title={translateInterface("kProfilesView.copyProfile")}
         >
           <Copy className="w-4 h-4" />
         </button>

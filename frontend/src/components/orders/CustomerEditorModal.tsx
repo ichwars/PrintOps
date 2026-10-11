@@ -237,18 +237,18 @@ function apiErrors(error: unknown, t: Translate, language: string): { fields: Fi
     duplicate_business_key: 'orderUi.duplicateRecord',
     not_found: 'orderUiNotFound',
   } as Record<string, string>)[error.code] : undefined;
-  if (error.status !== 422) return { fields: {}, message: knownKey ? t(knownKey) : language.startsWith('de') && error.status === 409 ? t('orderMessages.errors.conflict') : error.message, conflict: error.status === 409 };
+  if (error.status !== 422) return { fields: {}, message: knownKey ? t(knownKey) : (language.startsWith('de') || language.startsWith('nl')) && error.status === 409 ? t('orderMessages.errors.conflict') : error.message, conflict: error.status === 409 };
   const fields: FieldErrors = {};
   const global: string[] = [];
   for (const issue of error.validationErrors ?? []) {
     const parts = issue.loc[0] === 'body' ? issue.loc.slice(1) : issue.loc;
     const path = parts.join('.');
     const fieldPath = /^tags\.\d+$/.test(path) ? 'tags' : path;
-    const message = language.startsWith('de') ? t('orderMessages.validation.invalidField') : issue.msg;
+    const message = (language.startsWith('de') || language.startsWith('nl')) ? t('orderMessages.validation.invalidField') : issue.msg;
     if (fieldPath && isKnownFieldPath(path)) fields[fieldPath] = message;
     else global.push(message);
   }
-  return { fields, message: global.join('; ') || (!error.validationErrors?.length ? language.startsWith('de') ? t('orderMessages.validation.failed') : error.message : null), conflict: false };
+  return { fields, message: global.join('; ') || (!error.validationErrors?.length ? (language.startsWith('de') || language.startsWith('nl')) ? t('orderMessages.validation.failed') : error.message : null), conflict: false };
 }
 
 export function CustomerEditorModal({ customer, profiles, selectedProfileId, isSubmitting, onClose, onSubmit, onReloadCurrent, onReloadAccepted, loadError = null, onRetryLoad }: Props) {

@@ -15,101 +15,13 @@ import {
 } from '../api/documentManagement';
 import { formatMoney } from '../utils/calculationFormatting';
 
+type OrderPageCopy = { "empty": string; "foundation": string; "page": { "overview": { "title": string; "subtitle": string; "columns": string[]; }; "calculation": { "title": string; "subtitle": string; "columns": string[]; }; "offers": { "title": string; "subtitle": string; "columns": string[]; }; "invoices": { "title": string; "subtitle": string; "columns": string[]; }; }; };
+
 type OrderSectionId = 'overview' | 'calculation' | 'offers' | 'invoices';
 type InvoiceSortMode = 'priority' | 'due' | 'amount' | 'created';
 type InvoiceFilterMode = 'all' | 'open' | 'overdue' | 'paid';
 
-const COPY = {
-  en: {
-    empty: 'No records yet',
-    foundation: 'Foundation',
-    page: {
-      overview: {
-        title: 'Order overview',
-        subtitle: 'Pipeline, deadlines, reservations, and open commercial work.',
-        columns: ['Area', 'Status', 'Next step'],
-      },
-      calculation: {
-        title: 'Calculation',
-        subtitle: 'Material, machine time, margin, and project-based pricing.',
-        columns: ['Project', 'Cost basis', 'Result'],
-      },
-      offers: {
-        title: 'Offers',
-        subtitle: 'Draft, sent, accepted, and rejected offers.',
-        columns: ['Offer', 'Customer', 'Status'],
-      },
-      invoices: {
-        title: 'Invoices',
-        subtitle: 'Invoices, due dates, payment status, and invoice history.',
-        columns: ['Invoice', 'Customer', 'Due date'],
-      },
-    },
-  },
-  de: {
-    empty: 'Noch keine Datensätze',
-    foundation: 'Basis',
-    page: {
-      overview: {
-        title: 'Auftragsübersicht',
-        subtitle: 'Pipeline, Termine, Reservierungen und offene kaufmännische Arbeit.',
-        columns: ['Bereich', 'Status', 'Nächster Schritt'],
-      },
-      calculation: {
-        title: 'Kalkulation',
-        subtitle: 'Material, Maschinenzeit, Marge und projektbezogene Preise.',
-        columns: ['Projekt', 'Kostenbasis', 'Ergebnis'],
-      },
-      offers: {
-        title: 'Angebote',
-        subtitle: 'Entwürfe, versendete, angenommene und abgelehnte Angebote.',
-        columns: ['Angebot', 'Kunde', 'Status'],
-      },
-      invoices: {
-        title: 'Rechnungen',
-        subtitle: 'Rechnungen, Fälligkeiten, Zahlungsstatus und Verlauf.',
-        columns: ['Rechnung', 'Kunde', 'Fälligkeit'],
-      },
-    },
-  },
-} as const;
-
 const invoiceTypes = new Set(['advance_invoice', 'progress_invoice', 'final_invoice', 'invoice']);
-const methodLabels: Record<PaymentMethod, string> = {
-  bank_transfer: 'Überweisung',
-  cash: 'Bar',
-  card: 'Karte',
-  paypal: 'PayPal',
-  other: 'Sonstiges',
-};
-
-const paymentStatusLabels: Record<string, string> = {
-  not_applicable: 'Nicht relevant',
-  unpaid: 'Offen',
-  partially_paid: 'Teilbezahlt',
-  paid: 'Bezahlt',
-  overpaid: 'Überzahlt',
-  written_off: 'Ausgebucht',
-};
-
-const invoiceSortOptions: Array<{ value: InvoiceSortMode; label: string }> = [
-  { value: 'priority', label: 'Handlungsbedarf' },
-  { value: 'due', label: 'Fälligkeit' },
-  { value: 'amount', label: 'Betrag' },
-  { value: 'created', label: 'Neueste' },
-];
-
-const invoiceFilterOptions: Array<{ value: InvoiceFilterMode; label: string }> = [
-  { value: 'all', label: 'Alle' },
-  { value: 'open', label: 'Offen' },
-  { value: 'overdue', label: 'Überfällig' },
-  { value: 'paid', label: 'Bezahlt' },
-];
-
-function documentNumber(document: CommercialDocument) {
-  return document.number ?? `Dokument #${document.id}`;
-}
-
 function amountValue(value: string | number | null | undefined) {
   const parsed = Number(String(value ?? '0').replace(',', '.'));
   return Number.isFinite(parsed) ? parsed : 0;
@@ -182,14 +94,20 @@ function getSection(pathname: string): OrderSectionId {
 }
 
 export function OrdersPage() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { hasPermission } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const activeSection = getSection(location.pathname);
-  const copy = i18n.resolvedLanguage?.startsWith('de') ? COPY.de : COPY.en;
+  const copy = t('orders.runtimeDomain.orderPage', { returnObjects: true }) as unknown as OrderPageCopy;
   const locale = i18n.language || 'de-DE';
+  const invoiceText = (key: string, options?: Record<string, unknown>) => t(`orders.runtimeDomain.nativeInvoices.${key}`, options);
+  const methodLabels = t('orders.runtimeDomain.paymentMethods', { returnObjects: true }) as unknown as Record<PaymentMethod, string>;
+  const paymentStatusLabels = t('orders.runtimeDomain.paymentStatuses', { returnObjects: true }) as unknown as Record<string, string>;
+  const invoiceSortOptions: Array<{ value: InvoiceSortMode; label: string }> = (['priority', 'due', 'amount', 'created'] as const).map((value) => ({ value, label: t(`orders.runtimeDomain.invoiceSort.${value}`) }));
+  const invoiceFilterOptions: Array<{ value: InvoiceFilterMode; label: string }> = (['all', 'open', 'overdue', 'paid'] as const).map((value) => ({ value, label: t(`orders.runtimeDomain.invoiceFilter.${value}`) }));
+  const documentNumber = (document: CommercialDocument) => document.number ?? invoiceText('documentNumber', { id: document.id });
   const columns = copy.page[activeSection].columns;
   const canManagePayments = hasPermission('payments:manage');
   const [paymentTarget, setPaymentTarget] = useState<CommercialDocument | null>(null);
@@ -418,11 +336,11 @@ export function OrdersPage() {
             {activeSection === 'invoices' ? (
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <span className="rounded border border-bambu-dark-tertiary bg-bambu-dark px-2.5 py-1.5 text-xs font-medium text-bambu-gray">
-                  {invoiceSummary.openCount} offen · {formatMoney(invoiceSummary.openAmount, locale, invoiceSummary.currency)}
+                  {invoiceText('openCount', { count: invoiceSummary.openCount })} · {formatMoney(invoiceSummary.openAmount, locale, invoiceSummary.currency)}
                 </span>
                 {invoiceSummary.overdueCount > 0 ? (
                   <span className="rounded border border-red-500/40 bg-red-500/10 px-2.5 py-1.5 text-xs font-medium text-red-300">
-                    {invoiceSummary.overdueCount} überfällig
+                    {invoiceText('overdueCount', { count: invoiceSummary.overdueCount })}
                   </span>
                 ) : null}
                 <div className="flex overflow-hidden rounded border border-bambu-dark-tertiary">
@@ -485,19 +403,19 @@ export function OrdersPage() {
                           <div className="font-medium text-white">{documentNumber(document)}</div>
                           <div className="mt-1 text-xs text-bambu-gray">{formatMoney(document.total_amount, locale, document.currency)}</div>
                           {isPaymentTarget ? (
-                            <div className="mt-2 text-xs font-medium text-bambu-green">Aus Business Dashboard geöffnet</div>
+                            <div className="mt-2 text-xs font-medium text-bambu-green">{invoiceText('fromDashboard')}</div>
                           ) : null}
                         </td>
                         <td className="px-4 py-3 text-bambu-gray">
-                          {document.customer_id ? `#${document.customer_id}` : 'Ohne Kunde'}
+                          {document.customer_id ? `#${document.customer_id}` : invoiceText('noCustomer')}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="text-bambu-gray">{document.due_date ?? 'ohne Fälligkeit'}</div>
+                          <div className="text-bambu-gray">{document.due_date ?? invoiceText('noDueDate')}</div>
                           <div className={`mt-1 text-xs font-medium ${statusClass(document.payment_status)}`}>
                             {paymentStatusLabels[document.payment_status] ?? document.payment_status}
-                            {' · offen '}
+                            {invoiceText('openSeparator')}
                             {formatMoney(document.open_amount, locale, document.currency)}
-                            {' · bezahlt '}
+                            {invoiceText('paidSeparator')}
                             {formatMoney(paid, locale, document.currency)}
                           </div>
                           <button
@@ -505,10 +423,10 @@ export function OrdersPage() {
                             className="mt-3 inline-flex items-center gap-2 rounded bg-bambu-green px-3 py-2 text-xs font-semibold text-bambu-dark transition-colors hover:bg-bambu-green/90 disabled:cursor-not-allowed disabled:opacity-50"
                             disabled={!canManagePayments || document.open_amount === '0.00' || document.payment_status === 'paid'}
                             onClick={() => openPaymentDialog(document)}
-                            title={!canManagePayments ? 'Keine Berechtigung zum Erfassen von Zahlungen' : undefined}
+                            title={!canManagePayments ? invoiceText('paymentPermission') : undefined}
                           >
                             <Check className="h-3.5 w-3.5" />
-                            Zahlung bestätigen
+                            {invoiceText('confirmPayment')}
                           </button>
                         </td>
                       </tr>
@@ -518,9 +436,9 @@ export function OrdersPage() {
                   <tr>
                     <td colSpan={columns.length} className="px-4 py-10 text-center text-bambu-gray">
                       {documentsQuery.isLoading && activeSection === 'invoices'
-                        ? 'Rechnungen werden geladen ...'
+                        ? invoiceText('loading')
                         : activeSection === 'invoices' && allInvoiceDocuments.length > 0
-                          ? 'Keine Rechnungen im gewählten Filter.'
+                          ? invoiceText('emptyFilter')
                           : copy.empty}
                     </td>
                   </tr>
@@ -536,16 +454,16 @@ export function OrdersPage() {
           <div className="w-full max-w-lg rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary p-5 shadow-xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-white">Zahlungseingang bestätigen</h2>
+                <h2 className="text-lg font-semibold text-white">{invoiceText('paymentHeading')}</h2>
                 <p className="mt-1 text-sm text-bambu-gray">
-                  {documentNumber(paymentTarget)} · offen {formatMoney(paymentTarget.open_amount, locale, paymentTarget.currency)}
+                  {documentNumber(paymentTarget)}{invoiceText('openSeparator')}{formatMoney(paymentTarget.open_amount, locale, paymentTarget.currency)}
                 </p>
               </div>
               <button
                 type="button"
                 className="rounded p-2 text-bambu-gray transition-colors hover:text-white"
                 onClick={closePaymentDialog}
-                aria-label="Dialog schließen"
+                aria-label={invoiceText('closeDialog')}
               >
                 <X className="h-5 w-5" />
               </button>
@@ -553,18 +471,18 @@ export function OrdersPage() {
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <TextField
-                label="Betrag"
+                label={invoiceText('amount')}
                 value={paymentDraft.amount}
                 inputMode="decimal"
                 onValueChange={(value) => setPaymentDraft((current) => ({ ...current, amount: value }))}
               />
               <LegacyDatePicker
-                label="Zahlungsdatum"
+                label={invoiceText('paidAt')}
                 value={paymentDraft.paid_at}
                 onValueChange={(value) => setPaymentDraft((current) => ({ ...current, paid_at: value }))}
               />
               <Select
-                label="Zahlungsart"
+                label={invoiceText('method')}
                 value={paymentDraft.method}
                 onValueChange={(value) => setPaymentDraft((current) => ({ ...current, method: value as PaymentMethod }))}
                 options={Object.entries(methodLabels).map(([value, label]) => ({
@@ -573,13 +491,13 @@ export function OrdersPage() {
                 }))}
               />
               <TextField
-                label="Referenz"
+                label={invoiceText('reference')}
                 value={paymentDraft.reference ?? ''}
                 onValueChange={(value) => setPaymentDraft((current) => ({ ...current, reference: value }))}
               />
               <div className="sm:col-span-2">
                 <TextArea
-                  label="Notiz"
+                  label={invoiceText('note')}
                   value={paymentDraft.note ?? ''}
                   onValueChange={(value) => setPaymentDraft((current) => ({ ...current, note: value }))}
                 />
@@ -587,7 +505,7 @@ export function OrdersPage() {
             </div>
 
             {recordPayment.isError ? (
-              <p className="mt-4 text-sm text-red-300">Zahlung konnte nicht gespeichert werden.</p>
+              <p className="mt-4 text-sm text-red-300">{invoiceText('paymentFailed')}</p>
             ) : null}
 
             <div className="mt-5 flex justify-end gap-3">
@@ -596,7 +514,7 @@ export function OrdersPage() {
                 className="rounded border border-bambu-dark-tertiary px-4 py-2 text-sm font-medium text-bambu-gray transition-colors hover:text-white"
                 onClick={closePaymentDialog}
               >
-                Abbrechen
+                {invoiceText('cancel')}
               </button>
               <button
                 type="button"
@@ -605,7 +523,7 @@ export function OrdersPage() {
                 onClick={submitPayment}
               >
                 <Check className="h-4 w-4" />
-                Speichern
+                {invoiceText('save')}
               </button>
             </div>
           </div>

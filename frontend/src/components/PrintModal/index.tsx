@@ -55,6 +55,7 @@ export function PrintModal({
   cleanupLibraryAfterDispatch,
   variantFiles,
 }: PrintModalProps) {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -1189,7 +1190,7 @@ export function PrintModal({
           <form onSubmit={handleSubmit} className="p-4 space-y-4">
             {/* Archive name */}
             <p className="text-sm text-bambu-gray">
-              <span className="block text-bambu-gray mb-1">Print Job</span>
+              <span className="block text-bambu-gray mb-1">{translateInterface("orders.runtimeInterface.printJob")}</span>
               <span className="text-white font-medium truncate block">{archiveName}</span>
             </p>
 
@@ -1316,7 +1317,7 @@ export function PrintModal({
                   <div className="p-3 mb-2 bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-300 dark:border-yellow-500/30 rounded-lg flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
                     <span className="text-sm text-yellow-700 dark:text-yellow-400">
-                      File was sliced for {slicedForModel}, but printing on {selectedPrinter.model}
+                      {translateInterface("orders.runtimeInterface.fileWasSlicedFor")} {slicedForModel}{translateInterface("orders.runtimeInterface.butPrintingOn")} {selectedPrinter.model}
                     </span>
                   </div>
                 );
@@ -1329,7 +1330,7 @@ export function PrintModal({
               <div className="flex items-start gap-2 p-3 mb-2 bg-orange-50 dark:bg-orange-500/10 border border-orange-300 dark:border-orange-500/30 rounded-lg text-sm">
                 <AlertCircle className="w-4 h-4 text-orange-600 dark:text-orange-400 mt-0.5 flex-shrink-0" />
                 <p className="text-orange-700 dark:text-orange-400">
-                  Archive data unavailable. The source file may have been deleted. Filament mapping is disabled.
+                  {translateInterface("orders.runtimeInterface.archiveDataUnavailableTheSourceFileMayHaveBeenDeletedFilamentMappingIs")}
                 </p>
               </div>
             )}
@@ -1401,14 +1402,14 @@ export function PrintModal({
             {/* Error message */}
             {updateQueueMutation.isError && (
               <div className="mb-4 p-3 bg-red-100 dark:bg-red-500/20 border border-red-500/50 rounded-lg text-sm text-red-700 dark:text-red-400">
-                {(updateQueueMutation.error as Error)?.message || 'Failed to complete operation'}
+                {(updateQueueMutation.error as Error)?.message || translateInterface("orders.runtimeInterface.failedToCompleteOperation")}
               </div>
             )}
 
             {/* Actions */}
             <div className="flex gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={onClose} className="flex-1" disabled={isSubmitting}>
-                Cancel
+                {translateInterface("common.cancel")}
               </Button>
               <Button
                 type="submit"

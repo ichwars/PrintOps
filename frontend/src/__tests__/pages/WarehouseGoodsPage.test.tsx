@@ -235,3 +235,18 @@ describe('Warehouse goods', () => {
     expect(screen.queryByRole('button', { name: 'Post movement' })).not.toBeInTheDocument();
   });
 });
+
+it('renders Dutch warehouse booking labels and posts the unchanged ledger quantity', async () => {
+  await i18n.changeLanguage('nl');
+  const posted = vi.spyOn(warehouseArticlesApi, 'addLedger').mockResolvedValue({ id: 8 } as never);
+  const user = userEvent.setup();
+  mount(<WarehouseStockPanel article={item} canBook />);
+  await user.click(await screen.findByRole('combobox', { name: 'Locatie' }));
+  await user.click(await screen.findByRole('option', { name: 'Rack A' }));
+  await user.type(screen.getByLabelText(/Hoeveelheid/), '2');
+  await user.type(screen.getByLabelText(/Reden/), 'Ontvangen levering');
+  await user.click(screen.getByRole('button', { name: 'Mutatie boeken' }));
+  await waitFor(() => expect(posted).toHaveBeenCalledWith(1, expect.objectContaining({
+    quantity: '2', reason: 'Ontvangen levering', entry_kind: 'receipt', location_id: 1,
+  })));
+});

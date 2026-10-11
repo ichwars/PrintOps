@@ -66,10 +66,38 @@ DE = {
     }
 }
 
+# Dutch translations
+NL = {
+    "notification": {
+        "print_started": "Afdruk gestart",
+        "print_completed": "Afdruk voltooid",
+        "print_failed": "Afdruk mislukt",
+        "print_stopped": "Afdruk gestopt",
+        "print_ended": "Afdruk beëindigd",
+        "print_progress": "Afdruk voor {progress}% voltooid",
+        "estimated": "Geschat",
+        "time": "Tijd",
+        "filament": "Filament",
+        "reason": "Reden",
+        "unknown": "Onbekend",
+        "printer_offline": "Printer offline",
+        "printer_disconnected": "{printer} is losgekoppeld",
+        "printer_error": "Printerfout: {error_type}",
+        "filament_low": "Weinig filament",
+        "slot_at_percent": "{printer}: sleuf {slot} op {percent}%",
+        "maintenance_due": "Onderhoud nodig",
+        "overdue": "ACHTERSTALLIG",
+        "soon": "Binnenkort",
+        "test_title": "PrintOps-test",
+        "test_message": "Dit is een testmelding van PrintOps. Als u dit ziet, werken de meldingen correct!",
+    }
+}
+
 # All available translations
 TRANSLATIONS = {
     "en": EN,
     "de": DE,
+    "nl": NL,
 }
 
 
@@ -78,7 +106,7 @@ def get_translation(lang: str, key: str, **kwargs: Any) -> str:
     Get a translation string by key with optional interpolation.
 
     Args:
-        lang: Language code (e.g., 'en', 'de')
+        lang: Language code (e.g., 'en', 'de', 'nl')
         key: Dot-separated key path (e.g., 'notification.print_started')
         **kwargs: Values to interpolate into the string
 

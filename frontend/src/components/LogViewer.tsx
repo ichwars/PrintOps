@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -35,6 +36,7 @@ const levelIcons: Record<LogLevel, typeof Info> = {
 };
 
 export function LogViewer() {
+  const { t: translateInterface } = useTranslation();
   const queryClient = useQueryClient();
   const [autoScroll, setAutoScroll] = useState(true);
   const [expandedLogs, setExpandedLogs] = useState<Set<number>>(new Set());
@@ -127,11 +129,11 @@ export function LogViewer() {
             <Bug className="w-5 h-5" />
           </div>
           <div className="text-left">
-            <p className="font-medium text-white">Application Logs</p>
+            <p className="font-medium text-white">{translateInterface("orders.runtimeInterface.applicationLogs")}</p>
             <p className="text-sm text-bambu-gray">
               {isStreaming
                 ? `Live streaming - ${data?.filtered_count ?? 0} entries`
-                : 'View and filter application logs'}
+                : translateInterface("orders.runtimeInterface.viewAndFilterApplicationLogs")}
             </p>
           </div>
         </div>
@@ -139,7 +141,7 @@ export function LogViewer() {
           {isStreaming && (
             <span className="flex items-center gap-1.5 px-2 py-1 bg-bambu-green/20 rounded text-bambu-green text-xs">
               <span className="w-1.5 h-1.5 bg-bambu-green rounded-full animate-pulse" />
-              Live
+              {translateInterface("camera.live")}
             </span>
           )}
           {isExpanded ? (
@@ -166,7 +168,7 @@ export function LogViewer() {
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-500/30 rounded transition-colors"
                 >
                   <Square className="w-4 h-4" />
-                  Stop
+                  {translateInterface("printers.stop")}
                 </button>
               ) : (
                 <button
@@ -178,7 +180,7 @@ export function LogViewer() {
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-bambu-green/20 text-bambu-green hover:bg-bambu-green/30 rounded transition-colors"
                 >
                   <Play className="w-4 h-4" />
-                  Start
+                  {translateInterface("notifications.start")}
                 </button>
               )}
 
@@ -189,7 +191,7 @@ export function LogViewer() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-bambu-dark-tertiary text-bambu-gray hover:text-white hover:bg-bambu-dark-secondary rounded transition-colors disabled:opacity-50"
               >
                 <Trash2 className="w-4 h-4" />
-                Clear
+                {translateInterface("common.clear")}
               </button>
 
               {/* Refresh button */}
@@ -209,7 +211,7 @@ export function LogViewer() {
                   checked={autoScroll}
                   onChange={(e) => setAutoScroll(e.target.checked)}
                 />
-                Auto-scroll
+                {translateInterface("orders.runtimeInterface.autoScroll")}
               </label>
 
               {/* Entry count */}
@@ -225,7 +227,7 @@ export function LogViewer() {
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
                 <TextField
                   type="text"
-                  placeholder="Search message or logger name..."
+                  placeholder={translateInterface("logViewer.searchPlaceholder")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-8 pr-8 py-1.5 text-sm bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
@@ -250,7 +252,7 @@ export function LogViewer() {
                       : 'text-bambu-gray hover:text-white'
                   }`}
                 >
-                  All
+                  {translateInterface("common.all")}
                 </button>
                 {LOG_LEVELS.map((level, idx) => (
                   <button
@@ -278,8 +280,8 @@ export function LogViewer() {
           >
             {entries.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-[300px] text-bambu-gray">
-                <p className="mb-2">No log entries found</p>
-                <p className="text-sm">Log file may be empty or cleared</p>
+                <p className="mb-2">{translateInterface("logViewer.noLogEntries")}</p>
+                <p className="text-sm">{translateInterface("orders.runtimeInterface.logFileMayBeEmptyOrCleared")}</p>
               </div>
             ) : (
               <div className="divide-y divide-bambu-dark-tertiary/30">
@@ -338,10 +340,10 @@ export function LogViewer() {
             {isStreaming ? (
               <span className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                Auto-refreshing every 2 seconds
+                {translateInterface("orders.runtimeInterface.autoRefreshingEvery2Seconds")}
               </span>
             ) : (
-              <span>Click Start to enable live log streaming</span>
+              <span>{translateInterface("orders.runtimeInterface.clickStartToEnableLiveLogStreaming")}</span>
             )}
           </div>
         </div>

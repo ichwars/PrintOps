@@ -1,5 +1,10 @@
 # Spool printer profiles
 
+The [acceptance matrix](hardware-acceptance.md) maps the implemented software
+criteria to #149 and provides existing read-only API queries for later P2S/X1C
+telemetry collection. The required real-device validation cannot currently be
+performed; #149 remains open, including unconfirmed H2 hotend/rack contexts.
+
 The spool editor's **Printer profiles** tab supports one filament preset override
 per printer model, in both local inventory and Spoolman mode. Model keys come
 from PrintOps's existing printer-model registry; long model names and documented

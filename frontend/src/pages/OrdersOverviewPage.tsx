@@ -12,9 +12,9 @@ import {
 } from '../components/ui/tableStyles';
 
 export function OrdersOverviewPage() {
-  const { i18n } = useTranslation();
-  const de = i18n.resolvedLanguage?.startsWith('de') ?? false;
-  const locale = de ? 'de-DE' : 'en-US';
+  const { t, i18n } = useTranslation();
+  const text = (key: string) => t(`orders.runtimeDomain.orderOverview.${key}`);
+  const locale = i18n.resolvedLanguage || i18n.language || 'en-US';
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,10 +29,10 @@ export function OrdersOverviewPage() {
       <div>
         <h1 className="flex items-center gap-3 text-2xl font-bold text-white">
           <ClipboardList className="h-7 w-7 text-bambu-green" />
-          {de ? 'Aufträge' : 'Orders'}
+          {text('title')}
         </h1>
         <p className="mt-1 text-bambu-gray">
-          {de ? 'Angenommene Angebote, Projekte und reserviertes Material.' : 'Accepted offers, projects, and reserved stock.'}
+          {text('subtitle')}
         </p>
       </div>
       {error && <div className="rounded-lg border border-red-500/40 p-3 text-red-300">{error}</div>}
@@ -40,7 +40,7 @@ export function OrdersOverviewPage() {
         <table className="w-full text-sm">
           <thead className={tableHeaderClass}>
             <tr className={tableHeaderRowClass}>
-              {[de ? 'Auftrag' : 'Order', 'Status', de ? 'Projekt' : 'Project', de ? 'Reservierungen' : 'Reservations', de ? 'Erstellt' : 'Created'].map((item) => (
+              {['order', 'status', 'project', 'reservations', 'created'].map(text).map((item) => (
                 <th key={item} className={tableHeaderCellClass}>{item}</th>
               ))}
               <th className={tableHeaderActionCellClass} />
@@ -50,13 +50,13 @@ export function OrdersOverviewPage() {
             {orders.length === 0 ? (
               <tr>
                 <td colSpan={6} className="p-10 text-center text-bambu-gray">
-                  {de ? 'Noch keine Aufträge.' : 'No orders yet.'}
+                  {text('empty')}
                 </td>
               </tr>
             ) : orders.map((order) => (
               <tr key={order.id} className="bg-bambu-dark-secondary">
                 <td className="px-4 py-3 font-medium text-white">{order.number}</td>
-                <td className="px-4 py-3 text-bambu-gray">{order.status}</td>
+                <td className="px-4 py-3 text-bambu-gray">{t(`orders.runtimeDomain.orderStatus.${order.status}`, { defaultValue: order.status })}</td>
                 <td className="px-4 py-3">
                   <Link to={`/projects/${order.project_id}`} className="text-bambu-green">#{order.project_id}</Link>
                 </td>
@@ -66,7 +66,7 @@ export function OrdersOverviewPage() {
                 <td className="px-4 py-3 text-bambu-gray">{new Date(order.created_at).toLocaleString(locale)}</td>
                 <td className="px-4 py-3 text-right">
                   <Link to={`/orders/${order.id}`} className="rounded bg-bambu-green/10 px-3 py-2 text-bambu-green">
-                    {de ? 'Öffnen' : 'Open'}
+                    {text('open')}
                   </Link>
                 </td>
               </tr>

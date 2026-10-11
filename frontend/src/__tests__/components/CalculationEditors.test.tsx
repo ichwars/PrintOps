@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type { CalculationCreate, CalculationPreview } from '../../api/calculations';
 import { CommercialOverridesEditor } from '../../components/orders/calculation/CommercialOverridesEditor';
 import { CostBreakdown } from '../../components/orders/calculation/CostBreakdown';
@@ -8,6 +8,7 @@ import { MaterialsEditor } from '../../components/orders/calculation/MaterialsEd
 import { PriceDecision } from '../../components/orders/calculation/PriceDecision';
 import { RequestEditor } from '../../components/orders/calculation/RequestEditor';
 import { selectComboboxOption } from '../utils';
+import i18n from '../../i18n';
 
 const draft = {
   business_profile_id: 1,
@@ -34,6 +35,34 @@ const preview = {
 } satisfies CalculationPreview;
 
 describe('calculation editors', () => {
+  beforeAll(async () => {
+    await i18n.loadLanguages('nl');
+  });
+
+  it('renders Dutch shipping costs and backend basis plurals without changing amounts', () => {
+    const costs = {
+      ...preview,
+      breakdown: [
+        { code: 'shipping', label: 'Shipping', basis: 'flat amount', amount: '11' },
+        { code: 'scrap', label: 'Scrap', basis: '1 runs', amount: '1' },
+        { code: 'risk', label: 'Risk', basis: '2 runs', amount: '2' },
+      ],
+    } satisfies CalculationPreview;
+    const { rerender } = render(<CostBreakdown preview={costs} locale="nl-NL" currency="EUR" />);
+    expect(screen.getByText('Verzendkosten')).toBeInTheDocument();
+    expect(screen.queryByText('Verzendadres')).not.toBeInTheDocument();
+    expect(screen.getByText('vast bedrag')).toBeInTheDocument();
+    expect(screen.getByText('1 uitvoering')).toBeInTheDocument();
+    expect(screen.getByText('2 uitvoeringen')).toBeInTheDocument();
+    expect(screen.getByText(/11,00/)).toBeInTheDocument();
+
+    rerender(<CostBreakdown preview={costs} locale="en-US" currency="EUR" />);
+    expect(screen.getByText('Shipping')).toBeInTheDocument();
+    expect(screen.getByText('flat amount')).toBeInTheDocument();
+    rerender(<CostBreakdown preview={costs} locale="de-DE" currency="EUR" />);
+    expect(screen.getByText('Versand')).toBeInTheDocument();
+    expect(screen.getByText('flat amount')).toBeInTheDocument();
+  });
   it('updates request metadata through all select and text controls', () => {
     const onChange = vi.fn();
     const { rerender } = render(<RequestEditor draft={draft} profiles={[{ id: 1, name: 'Main', legal_name: 'Main GmbH', country_code: 'DE', default_currency: 'EUR', is_active: true, is_default: true, version: 1 }]} customers={[{ id: 2, display_name: 'Customer', account_number: 'C-2' } as never]} projects={[{ id: 3, name: 'Project' } as never]} locale="de-DE" onChange={onChange} />);
