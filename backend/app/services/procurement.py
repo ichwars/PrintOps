@@ -138,18 +138,15 @@ async def resolve_resource(
         FilamentSkuSettings.brand == resource.brand,
         FilamentSkuSettings.color_name == resource.color_name,
     )
-    settings = await session.scalar(statement)
-    if settings is None:
-        if not create_filament:
-            return None
-        settings = FilamentSkuSettings(
-            material=resource.material,
-            subtype=resource.subtype,
-            brand=resource.brand,
-            color_name=resource.color_name,
-        )
-        session.add(settings)
-        await session.flush()
+    settings = await session.scalar(
+        statement.order_by(FilamentSkuSettings.material_number.is_(None), FilamentSkuSettings.id).limit(1)
+    )
+    if settings is None and not create_filament:
+        return None
+    if create_filament:
+        from backend.app.services.filament_sku_identity import ensure_sku
+
+        settings = await ensure_sku(session, resource)
     return ResolvedResource(
         resource_key=f"filament:{settings.id}",
         small_part_id=None,

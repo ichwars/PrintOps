@@ -48,6 +48,7 @@ from backend.app.models.spoolman_k_profile import SpoolmanKProfile
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.models.user import User
 from backend.app.schemas.spoolman import SpoolmanFilamentPatch, SpoolmanSlotAssignmentEnriched
+from backend.app.services.filament_sku_identity import enrich_material_numbers, ensure_sku
 from backend.app.services.location_service import (
     enrich_spool_dicts_with_location_id,
     maybe_sync_spoolman_locations,
@@ -489,6 +490,7 @@ async def list_spools(
             m["k_profiles"] = kp_by_spool.get(m["id"], [])
 
     await enrich_spool_dicts_with_location_id(db, mapped)
+    await enrich_material_numbers(db, mapped)
     return mapped
 
 
@@ -511,6 +513,7 @@ async def get_spool(
     kp_result = await db.execute(select(SpoolmanKProfile).where(SpoolmanKProfile.spoolman_spool_id == spool_id))
     mapped["k_profiles"] = [_k_profile_to_dict(kp) for kp in kp_result.scalars().all()]
     await enrich_spool_dicts_with_location_id(db, [mapped])
+    await enrich_material_numbers(db, [mapped])
     return mapped
 
 
@@ -607,6 +610,9 @@ async def create_spool(
                 )
 
     result = _map_spoolman_spool(spool)
+    await ensure_sku(db, result)
+    await db.commit()
+    await enrich_material_numbers(db, [result])
     await ws_manager.broadcast({"type": "inventory_changed"})
     if price_warnings:
         return JSONResponse(status_code=207, content={**result, "warnings": price_warnings})
@@ -677,6 +683,10 @@ async def bulk_create_spools(
     if not created:
         raise HTTPException(status_code=500, detail="Failed to create any spools in Spoolman")
 
+    for mapped in created:
+        await ensure_sku(db, mapped)
+    await db.commit()
+    await enrich_material_numbers(db, created)
     await ws_manager.broadcast({"type": "inventory_changed"})
 
     if len(created) < payload.quantity:
@@ -893,8 +903,12 @@ async def update_spool(
         async with _translate_spoolman_errors():
             updated = await client.merge_spool_extra(spool_id, new_extra)
 
+    result = _map_spoolman_spool(updated)
+    await ensure_sku(db, result)
+    await db.commit()
+    await enrich_material_numbers(db, [result])
     await ws_manager.broadcast({"type": "inventory_changed"})
-    return _map_spoolman_spool(updated)
+    return result
 
 
 @router.delete("/spools/{spool_id}")

@@ -557,7 +557,11 @@ export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
                     canWrite={canWrite}
                     canReadProcurement={canReadProcurement}
                     canWriteProcurement={canWriteProcurement}
-                    onSaved={() => queryClient.invalidateQueries({ queryKey: ['sku-settings'] })}
+                    onSaved={() => {
+                      queryClient.invalidateQueries({ queryKey: ['sku-settings'] });
+                      queryClient.invalidateQueries({ queryKey: ['inventory-spools'] });
+                      queryClient.invalidateQueries({ queryKey: ['spoolman-inventory-spools'] });
+                    }}
                     onCart={() => setCartModal(f)}
                     showToast={showToast}
                   />
@@ -876,6 +880,8 @@ function ForecastRow({
   const [leadInput, setLeadInput] = useState(String(f.settings?.lead_time_days ?? 0));
   const [marginInput, setMarginInput] = useState(String(f.settings?.safety_margin_value ?? 14));
   const [marginUnit, setMarginUnit] = useState<'days' | 'g'>(f.settings?.safety_margin_unit ?? 'days');
+  const [materialNumberInput, setMaterialNumberInput] = useState(f.settings?.material_number ?? '');
+  useEffect(() => setMaterialNumberInput(f.settings?.material_number ?? ''), [f.settings?.material_number]);
 
   // Sync inputs when remote settings change and the field is not actively being edited.
   useEffect(() => {
@@ -1053,6 +1059,24 @@ function ForecastRow({
         <tr className="bg-bambu-dark-tertiary/10">
           <td colSpan={9} className="px-6 py-4">
             <div className="space-y-3">
+              <label className="flex items-center gap-2 text-sm text-bambu-gray">
+                {t('inventory.materialNumber')}
+                <input value={materialNumberInput} disabled={!canWrite || upsertMutation.isPending}
+                  maxLength={120} className="rounded bg-bambu-dark px-2 py-1 font-mono text-white"
+                  onChange={(e) => setMaterialNumberInput(e.target.value)}
+                  onBlur={() => {
+                    const value = materialNumberInput.trim();
+                    if (value && value !== f.settings?.material_number) {
+                      upsertMutation.mutate({
+                        material: f.group.material, subtype: f.group.subtype, brand: f.group.brand,
+                        color_name: f.group.colorName, default_supplier_id: f.settings?.default_supplier_id ?? null,
+                        material_number: value, lead_time_days: f.settings?.lead_time_days ?? 0,
+                        safety_margin_value: f.settings?.safety_margin_value ?? 14,
+                        safety_margin_unit: f.settings?.safety_margin_unit ?? 'days', alerts_snoozed: snoozed,
+                      });
+                    }
+                  }} />
+              </label>
 
               {/* Single compact row: read-only stats + editable settings */}
               <div className={`grid gap-2 ${canWrite ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2'}`}>

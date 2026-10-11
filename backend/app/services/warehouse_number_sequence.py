@@ -24,6 +24,67 @@ _DEFAULT_SEQUENCES = {
 }
 
 
+async def lock_material_numbers(session: AsyncSession) -> None:
+    """Take the shared material writer before manual edits or nullable SKU lookup."""
+    if session.get_bind().dialect.name == "sqlite":
+        from sqlalchemy.dialects.sqlite import insert
+
+        await session.execute(
+            insert(WarehouseNumberSequence)
+            .values(key="material", **_DEFAULT_SEQUENCES["material"], version=1)
+            .on_conflict_do_nothing(index_elements=["key"])
+        )
+    sequence = await _get_or_create_default_sequence(session, "material")
+    await session.execute(
+        update(WarehouseNumberSequence)
+        .where(WarehouseNumberSequence.id == sequence.id)
+        .values(version=WarehouseNumberSequence.version + 1)
+        .execution_options(synchronize_session=False)
+    )
+    await session.refresh(sequence)
+
+
+async def material_number_in_use(
+    session: AsyncSession, number: str, *, exclude_sku_id: int | None = None, exclude_small_part_id: int | None = None
+) -> bool:
+    from backend.app.models.filament_sku_settings import FilamentSkuSettings
+    from backend.app.models.small_part import SmallPart
+    from backend.app.models.warehouse_article import WarehouseArticle
+
+    statements = [
+        select(FilamentSkuSettings.id).where(FilamentSkuSettings.material_number == number),
+        select(SmallPart.id).where(SmallPart.sku == number),
+        select(WarehouseArticle.id).where(WarehouseArticle.sku == number),
+    ]
+    if exclude_sku_id is not None:
+        statements[0] = statements[0].where(FilamentSkuSettings.id != exclude_sku_id)
+    if exclude_small_part_id is not None:
+        statements[1] = statements[1].where(SmallPart.id != exclude_small_part_id)
+        statements[2] = statements[2].where(
+            (WarehouseArticle.small_part_id.is_(None)) | (WarehouseArticle.small_part_id != exclude_small_part_id)
+        )
+    for statement in statements:
+        if await session.scalar(statement.limit(1)) is not None:
+            return True
+    return False
+
+
+async def assert_material_number_available(
+    session: AsyncSession,
+    number: str,
+    *,
+    exclude_sku_id: int | None = None,
+    exclude_small_part_id: int | None = None,
+    lock: bool = True,
+) -> None:
+    if lock:
+        await lock_material_numbers(session)
+    if await material_number_in_use(
+        session, number, exclude_sku_id=exclude_sku_id, exclude_small_part_id=exclude_small_part_id
+    ):
+        raise ValueError(f"Material number {number!r} is already in use")
+
+
 async def list_number_sequences(session: AsyncSession) -> list[WarehouseNumberSequence]:
     result = await session.execute(select(WarehouseNumberSequence).order_by(WarehouseNumberSequence.key))
     return list(result.scalars().all())
@@ -105,10 +166,13 @@ async def reserve_number(
     key: str,
     effective_date: date | None = None,
 ) -> str:
+    if key == "material":
+        await lock_material_numbers(session)
     sequence = await _get_or_create_default_sequence(session, key)
     effective = effective_date or date.today()
 
-    for attempt in range(_MAX_RESERVATION_ATTEMPTS):
+    attempt = 0
+    while attempt < _MAX_RESERVATION_ATTEMPTS:
         period = _period_for_date(effective, reset_policy=sequence.reset_policy)
         if sequence.reset_policy == "yearly":
             if sequence.current_period != period:
@@ -133,14 +197,19 @@ async def reserve_number(
         )
         update_result = await session.execute(statement)
         if update_result.scalar_one_or_none() is not None:
-            return format_number(
+            number = format_number(
                 pattern=sequence.pattern,
                 prefix=sequence.prefix,
                 value=reserved_value,
                 effective_date=effective,
             )
+            if key != "material" or not await material_number_in_use(session, number):
+                return number
+            await session.refresh(sequence)
+            continue
 
         session.expire(sequence)
+        attempt += 1
         if attempt < _MAX_RESERVATION_ATTEMPTS - 1:
             await session.refresh(sequence)
 

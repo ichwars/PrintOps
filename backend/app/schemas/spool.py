@@ -199,6 +199,7 @@ class SpoolKProfileResponse(SpoolKProfileBase):
 
 
 class SpoolResponse(SpoolBase):
+    material_number: str | None = None
     id: int
     # rgba is intentionally unconstrained on the response side: the write paths
     # (SpoolCreate, SpoolUpdate) enforce the 8-char hex pattern, but legacy rows

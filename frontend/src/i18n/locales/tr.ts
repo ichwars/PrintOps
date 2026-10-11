@@ -7165,6 +7165,7 @@ useEmbeddedHint: 'Yukarıdaki profiller yerine tasarımcının ayarlarıyla (duv
     storageLocationNone: 'Konum ayarlanmamış',
     lowStockThresholdOverride: 'Düşük stok eşiği (bu makara)',
     lowStockThresholdOverrideHelp: 'Global eşiği kullanmak için boş bırakın (%{{global}}).',
+    materialNumber: 'Malzeme numarası',
     clearRfid: 'RFID Etiketini Temizle',
     rfidCleared: 'RFID etiketi temizlendi',
     archive: 'Arşivle',

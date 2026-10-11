@@ -7188,6 +7188,7 @@ useEmbedded: 'Usar los ajustes integrados del archivo',
     lowStockThresholdOverride: 'Umbral de existencias bajas (esta bobina)',
     lowStockThresholdOverrideHelp: 'Déjelo en blanco para usar el umbral global ({{global}}%).',
     // RFID button rename
+    materialNumber: 'Número de material',
     clearRfid: 'Borrar etiqueta RFID',
     rfidCleared: 'Etiqueta RFID borrada',
     archive: 'Archivar',

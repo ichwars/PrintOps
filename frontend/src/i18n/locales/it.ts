@@ -7165,6 +7165,7 @@ useEmbeddedHint: 'Esegue lo slicing come impostato dal designer (pareti, riempim
     storageLocationNone: 'Nessuna posizione impostata',
     lowStockThresholdOverride: 'Soglia scorte basse (questa bobina)',
     lowStockThresholdOverrideHelp: 'Lascia vuoto per usare la soglia globale ({{global}}%).',
+    materialNumber: 'Numero materiale',
     clearRfid: 'Cancella tag RFID',
     rfidCleared: 'Tag RFID cancellato',
     archive: 'Archivia',

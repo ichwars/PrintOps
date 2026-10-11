@@ -7166,6 +7166,7 @@ useEmbeddedHint: 'Découpe comme le concepteur l\'a configuré (parois, rempliss
     storageLocationNone: 'Aucun emplacement défini',
     lowStockThresholdOverride: 'Seuil bas (cette bobine)',
     lowStockThresholdOverrideHelp: 'Laisser vide pour utiliser le seuil global ({{global}} %).',
+    materialNumber: 'Numéro de matériau',
     clearRfid: 'Effacer le tag RFID',
     rfidCleared: 'Tag RFID effacé',
     archive: 'Archiver',

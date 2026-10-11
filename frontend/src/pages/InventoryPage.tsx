@@ -68,7 +68,7 @@ function spoolGroupKey(s: InventorySpool): string {
   // Include extra_colors + effect_type so the "Group similar" toggle does
   // not collapse two spools that share the base colour but differ on
   // gradient stops or visual effect (#1154).
-  return `${s.material}|${s.subtype || ''}|${s.brand || ''}|${s.color_name || ''}|${s.rgba || ''}|${s.extra_colors || ''}|${s.effect_type || ''}|${s.label_weight}`;
+  return `${s.material_number || ''}|${s.material}|${s.subtype || ''}|${s.brand || ''}|${s.color_name || ''}|${s.rgba || ''}|${s.extra_colors || ''}|${s.effect_type || ''}|${s.label_weight}`;
 }
 
 // Column definitions for the inventory table
@@ -81,6 +81,7 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'last_used_time', label: 'Last Used', visible: false },
   { id: 'rgba', label: 'Color', visible: true },
   { id: 'material', label: 'Material', visible: true },
+  { id: 'material_number', label: 'Material number', visible: true },
   { id: 'subtype', label: 'Subtype', visible: true },
   { id: 'color_name', label: 'Color Name', visible: false },
   { id: 'brand', label: 'Brand', visible: true },
@@ -179,6 +180,7 @@ const columnHeaders: Record<string, (t: TFn) => string> = {
   last_used_time: (t) => t('orders.runtimeInterface.inventoryColumns.lastUsed'),
   rgba: (t) => t('inventory.color'),
   material: (t) => t('inventory.material'),
+  material_number: (t) => t('inventory.materialNumber'),
   subtype: (t) => t('inventory.subtype'),
   color_name: (t) => t('inventory.colorName'),
   brand: (t) => t('inventory.brand'),
@@ -231,6 +233,9 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
   ),
   material: ({ spool }) => (
     <span className="text-sm text-white">{spool.material}</span>
+  ),
+  material_number: ({ spool }) => (
+    <span className="text-sm font-mono text-bambu-gray">{spool.material_number || '-'}</span>
   ),
   subtype: ({ spool }) => (
     <span className="text-sm text-bambu-gray">{spool.subtype || '-'}</span>
@@ -1407,7 +1412,9 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
               <span className="text-xs text-bambu-gray font-medium uppercase tracking-wide">{t('inventory.totalInventory')}</span>
             </div>
             <div className="text-xl font-bold text-white">{formatWeight(stats.totalWeight, true)}</div>
-            <div className="text-xs text-bambu-gray mt-1">{stats.totalSpools} {stats.totalSpools !== 1 ? t('inventory.spools') : t('inventory.spool')}</div>
+            <div className="text-xs text-bambu-gray mt-1">{stats.totalSpools} {stats.totalSpools !== 1 ? t('inventory.spools') : t('inventory.spool')}
+              {' · '}{new Set(spools?.filter(s => !s.archived_at && s.material_number).map(s => s.material_number)).size} {t('inventory.materialNumber')}
+            </div>
           </div>
 
           {/* Inventory Value */}
@@ -1871,6 +1878,10 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
         <div className="sticky top-2 z-10 mb-4 flex items-center gap-2 px-3 py-2 bg-bambu-green/10 border border-bambu-green/30 rounded-lg backdrop-blur-sm">
           <span className="text-sm text-bambu-green font-medium">
             {t('inventory.bulk.selectionCount', { count: selectedIds.size })}
+            <span className="ml-3 text-xs text-bambu-gray">
+              {t('inventory.materialNumber')}: {new Set(spools?.filter(s => selectedIds.has(s.id) && s.material_number).map(s => s.material_number)).size}
+              {' · '}{Math.round(spools?.filter(s => selectedIds.has(s.id)).reduce((sum, s) => sum + Math.max(0, s.label_weight - s.weight_used), 0) ?? 0)}g
+            </span>
           </span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <Button size="sm" variant="secondary" onClick={() => setBulkEditOpen(true)}>
@@ -1966,6 +1977,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                             <div>
                               <h3 className="font-semibold text-white">{rep.material}{rep.subtype ? ` ${rep.subtype}` : ''}</h3>
                               <p className="text-sm text-bambu-gray">{rep.brand || '-'}</p>
+                              {rep.material_number && <p className="text-xs font-mono text-bambu-gray">{rep.material_number}</p>}
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -2523,6 +2535,7 @@ function SpoolCard({
               {spool.material}{spool.subtype ? ` ${spool.subtype}` : ''}
             </h3>
             <p className="text-sm text-bambu-gray">{spool.brand || '-'}</p>
+            {spool.material_number && <p className="text-xs font-mono text-bambu-gray">{spool.material_number}</p>}
           </div>
           <div className="flex items-center gap-1">
             {onPrintLabel && (

@@ -7215,6 +7215,7 @@ useEmbedded: 'Datei-eigene Einstellungen verwenden',
     lowStockThresholdOverride: 'Niedrigbestandsschwelle (diese Spule)',
     lowStockThresholdOverrideHelp: 'Leer lassen, um den globalen Schwellenwert ({{global}}%) zu verwenden.',
     // RFID button rename (was "Tag löschen")
+    materialNumber: 'Materialnummer',
     clearRfid: 'RFID-Tag löschen',
     rfidCleared: 'RFID-Tag gelöscht',
     archive: 'Archivieren',

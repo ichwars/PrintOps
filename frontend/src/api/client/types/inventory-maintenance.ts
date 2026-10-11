@@ -69,6 +69,7 @@ export type SpoolLabelTemplate =
 export interface InventorySpool {
   id: number;
   material: string;
+  material_number?: string | null;
   subtype: string | null;
   color_name: string | null;
   // True when color_name was synthesised from subtype because Spoolman has no
@@ -225,6 +226,7 @@ export interface SpoolAssignment {
 export interface FilamentSkuSettings {
   id: number;
   material: string;
+  material_number?: string | null;
   subtype: string | null;
   brand: string | null;
   color_name: string | null;

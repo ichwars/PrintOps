@@ -703,6 +703,8 @@ async def import_small_parts_csv(
                 data: SmallPartCreate = current_operation["model"]
                 payload = data.model_dump(exclude={"opening_quantity"})
                 generate_sku = not payload.get("sku")
+                if not generate_sku:
+                    await warehouse_number_sequence_service.assert_material_number_available(db, payload["sku"])
                 attempts = _MAX_GENERATED_SKU_ATTEMPTS if generate_sku else 1
                 part: SmallPart | None = None
                 for _ in range(attempts):
@@ -775,6 +777,11 @@ async def create_small_part(
 ) -> SmallPartRead:
     payload = data.model_dump(exclude={"opening_quantity"})
     generate_sku = not payload.get("sku")
+    if not generate_sku:
+        try:
+            await warehouse_number_sequence_service.assert_material_number_available(db, payload["sku"])
+        except ValueError as exc:
+            raise _conflict(str(exc)) from exc
     attempts = _MAX_GENERATED_SKU_ATTEMPTS if generate_sku else 1
     last_integrity_error: IntegrityError | None = None
 

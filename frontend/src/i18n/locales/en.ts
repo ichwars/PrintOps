@@ -7255,6 +7255,7 @@ export default {
     lowStockThresholdOverrideHelp: 'Leave blank to use the global threshold ({{global}}%).',
     // RFID button rename (was "Delete Tag" — confusing because it sounds like a
     // taxonomy delete; this clears the RFID tag/UUID off the spool record)
+    materialNumber: 'Material number',
     clearRfid: 'Clear RFID Tag',
     rfidCleared: 'RFID tag cleared',
     archive: 'Archive',

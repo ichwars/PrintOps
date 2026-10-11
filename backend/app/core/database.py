@@ -309,6 +309,11 @@ async def init_db():
     # avoid SQLite "database is locked" contention on the WAL writer.
     await _migrate_encrypt_legacy_secrets()
     await _migrate_default_document_layouts()
+    from backend.app.services.filament_sku_identity import backfill_material_numbers
+
+    async with async_session() as session:
+        await backfill_material_numbers(session)
+        await session.commit()
 
     # Seed default notification templates
     await seed_notification_templates()
@@ -2945,6 +2950,17 @@ async def run_migrations(conn):
                 )
                 await conn.execute(text("DROP TABLE filament_sku_settings"))
                 await conn.execute(text("ALTER TABLE filament_sku_settings_uqfix RENAME TO filament_sku_settings"))
+        await _safe_execute(conn, "ALTER TABLE filament_sku_settings ADD COLUMN material_number VARCHAR(120)")
+        await conn.execute(
+            text("CREATE UNIQUE INDEX IF NOT EXISTS uq_filament_material_number "
+                 "ON filament_sku_settings(material_number)")
+        )
+        await conn.execute(
+            text("CREATE UNIQUE INDEX IF NOT EXISTS uq_numbered_filament_group "
+                 "ON filament_sku_settings(trim(material), trim(COALESCE(subtype, '')), "
+                 "trim(COALESCE(brand, '')), trim(COALESCE(color_name, ''))) "
+                 "WHERE material_number IS NOT NULL")
+        )
         await _safe_execute(
             conn,
             """CREATE TABLE IF NOT EXISTS filament_shopping_list (
