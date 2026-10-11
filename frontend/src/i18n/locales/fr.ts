@@ -4918,6 +4918,7 @@ useEmbeddedHint: 'Découpe comme le concepteur l\'a configuré (parois, rempliss
     used: 'Occasion',
     new: 'Neuf',
     clearFilters: 'Effacer filtres',
+    sortByColor: "Trier par couleur réelle",
     table: 'Tableau',
     cards: 'Cartes',
     net: 'Réseau',
