@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from backend.app.services import preheat_chamber
 from backend.app.services.preheat_chamber import chamber_target_for_plate
 from backend.app.services.print_scheduler import PrintScheduler
 
@@ -79,6 +80,20 @@ async def preheat(ctx):
 async def test_unused_but_mapped_pa_cannot_increase_real_asa_plate_target(stage):
     client = await preheat(stage)
     client.set_chamber_temperature.assert_called_once_with(45)
+
+
+def test_relative_archive_path_stays_under_configured_storage(stage, monkeypatch):
+    monkeypatch.setattr(preheat_chamber.settings, "base_dir", stage.path.parent)
+    archive = SimpleNamespace(file_path=stage.path.name)
+    assert chamber_target_for_plate(stage.state, {"ASA": 45, "PA": 50}, stage.item, archive) == 45
+
+
+def test_relative_traversal_never_reads_an_outside_archive(stage, tmp_path, monkeypatch):
+    root = tmp_path / "storage"
+    root.mkdir()
+    monkeypatch.setattr(preheat_chamber.settings, "base_dir", root)
+    archive = SimpleNamespace(file_path="../plates.3mf")
+    assert chamber_target_for_plate(stage.state, {"ASA": 45, "PA": 50}, stage.item, archive) is None
 
 
 @pytest.mark.asyncio
