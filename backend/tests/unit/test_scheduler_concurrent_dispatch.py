@@ -25,7 +25,10 @@ UPLOAD_SECONDS = 0.05
 
 @pytest.fixture
 async def farm(tmp_path):
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+    # Independent dispatch sessions need separate transactions, as in production.
+    # In-memory SQLite's StaticPool shares one connection, so a sibling session's
+    # rollback can erase another dispatch's uncommitted status update.
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'farm.sqlite'}", echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     session_maker = async_sessionmaker(engine, expire_on_commit=False)
@@ -260,3 +263,23 @@ async def test_one_failing_upload_does_not_cancel_siblings(farm):
     statuses = await _statuses(ctx)
     assert statuses[1] == "failed"
     assert [status for idx, status in enumerate(statuses) if idx != 1] == ["printing"] * 3
+
+
+@pytest.mark.asyncio
+async def test_sibling_session_rollback_does_not_erase_dispatch_status(farm):
+    ctx = await farm(1)
+
+    async with ctx.session_maker() as dispatch_db:
+        item = await dispatch_db.get(PrintQueueItem, 1)
+        item.status = "printing"
+        await dispatch_db.flush()
+
+        # Another upload can finish a read-only session while this dispatch's
+        # status update is awaiting commit. Its rollback must be independent.
+        async with ctx.session_maker() as sibling_db:
+            await sibling_db.execute(select(PrintQueueItem.id))
+            await sibling_db.rollback()
+
+        await dispatch_db.commit()
+
+    assert await _statuses(ctx) == ["printing"]
