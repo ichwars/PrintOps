@@ -100,7 +100,7 @@ async def test_invalid_batch_target_rejects_before_creating_jobs(
     "reason", ["missing", "unsliced", "missing_disk", "invalid_filename", "directory", "unreadable", "traversal"]
 )
 async def test_selection_with_no_printable_jobs_returns_file_errors(
-    async_client: AsyncClient, db_session, library_file_factory, reason, tmp_path
+    async_client: AsyncClient, db_session, library_file_factory, reason, tmp_path, monkeypatch
 ):
     overrides = {
         "missing": {},
@@ -114,9 +114,19 @@ async def test_selection_with_no_printable_jobs_returns_file_errors(
     file = await library_file_factory(**overrides[reason])
     file_id = 9999 if reason == "missing" else file.id
     if reason == "unreadable":
+        import os
         from pathlib import Path
 
-        Path(file.file_path).chmod(0)
+        original_access = os.access
+        denied_path = Path(file.file_path)
+
+        def access(path, mode, **kwargs):
+            # Root bypasses chmod(0); model the same OS denial for every test user.
+            if Path(path) == denied_path and mode == os.R_OK:
+                return False
+            return original_access(path, mode, **kwargs)
+
+        monkeypatch.setattr(os, "access", access)
 
     response = await async_client.post(ENDPOINT, json={"file_ids": [file_id]})
 
