@@ -376,6 +376,7 @@ class PrintScheduler:
         await clear_stale_dispatch_claims(async_session)
 
     async def _dispatch_with_claim(self, db: AsyncSession, item: PrintQueueItem) -> bool:
+        item_id = item.id
         if not await self._claim_for_dispatch(db, item.id):
             logger.info("Queue item %s is no longer claimable for dispatch", item.id)
             return False
@@ -384,7 +385,7 @@ class PrintScheduler:
             await self._start_print(db, item)
             return True
         finally:
-            await self._clear_dispatch_claim(item.id)
+            await self._clear_dispatch_claim(item_id)
 
     async def _claim_for_dispatch(self, db: AsyncSession, item_id: int) -> bool:
         result = await db.execute(
@@ -3055,7 +3056,7 @@ class PrintScheduler:
         if preheat_ownership.blocks_power_off(item.printer_id):
             logger.info("Queue item %s deferred: printer has unresolved preheat ownership", item.id)
             return
-        async with preheat_ownership.dispatch(item, printer_manager):
+        async with preheat_ownership.dispatch(item, printer_manager, db):
             await self._start_print_owned(db, item)
 
     async def _start_print_owned(self, db: AsyncSession, item: PrintQueueItem):
@@ -3173,8 +3174,6 @@ class PrintScheduler:
                     ),
                 )
 
-        # Clear the awaiting-plate-clear flag now that we're starting a new print
-        printer_manager.set_awaiting_plate_clear(item.printer_id, False)
         logger.info("Queue item %s: Status set to 'printing', sending print command...", item.id)
 
         # Capture state before dispatch so the watchdog can detect whether the
@@ -3215,6 +3214,7 @@ class PrintScheduler:
         )
 
         if started:
+            printer_manager.set_awaiting_plate_clear(item.printer_id, False)
             if lease := current_preheat_lease():
                 if lease.expires_at:
                     lease.dispatched()
