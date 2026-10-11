@@ -67,7 +67,12 @@ def mock_spoolman_client():
     mock_client.set_spool_archived = AsyncMock(
         side_effect=lambda spool_id, archived: {**SAMPLE_SPOOLMAN_SPOOL, "archived": archived}
     )
-    mock_client.reset_spool_usage = AsyncMock(return_value={**SAMPLE_SPOOLMAN_SPOOL, "used_weight": 0})
+    mock_client.reset_spool_consumed_counter = AsyncMock(
+        return_value={
+            **SAMPLE_SPOOLMAN_SPOOL,
+            "extra": {**SAMPLE_SPOOLMAN_SPOOL["extra"], "bambu_weight_used_baseline": '"250.0"'},
+        }
+    )
     mock_client.update_spool_full = AsyncMock(return_value=SAMPLE_SPOOLMAN_SPOOL)
     mock_client.merge_spool_extra = AsyncMock(return_value=SAMPLE_SPOOLMAN_SPOOL)
     mock_client.find_or_create_filament = AsyncMock(return_value=7)
@@ -621,12 +626,12 @@ class TestSpoolmanInventoryCRUD:
 
         assert response.status_code == 200
         body = response.json()
-        # Sample spool: label=1000, remaining=750, used_weight=0 after Spoolman reset.
+        # Sample spool: native label=1000, remaining=750, used_weight=250 survive the reset.
         assert body["weight_used"] == 250.0, "synthetic weight_used = label - remaining"
         assert body["weight_used_baseline"] == 250.0, "baseline absorbs the reset"
         assert body["weight_used"] - body["weight_used_baseline"] == 0, "displayed consumed = 0"
         assert body["label_weight"] - body["weight_used"] == 750, "remaining unchanged"
-        mock_spoolman_client.reset_spool_usage.assert_called_once_with(42)
+        mock_spoolman_client.reset_spool_consumed_counter.assert_called_once_with(42)
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -644,7 +649,7 @@ class TestSpoolmanInventoryCRUD:
 
         assert response.status_code == 200
         assert response.json() == {"reset": 3}
-        assert mock_spoolman_client.reset_spool_usage.call_count == 3
+        assert mock_spoolman_client.reset_spool_consumed_counter.call_count == 3
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -661,7 +666,7 @@ class TestSpoolmanInventoryCRUD:
         )
 
         assert response.status_code == 400
-        mock_spoolman_client.reset_spool_usage.assert_not_called()
+        mock_spoolman_client.reset_spool_consumed_counter.assert_not_called()
 
     @pytest.mark.asyncio
     @pytest.mark.integration

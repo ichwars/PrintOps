@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import math
 import weakref
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 BAMBU_RFID_TAG_LENGTH = 32
 BAMBU_TAG_EXTRA_FIELDS = ("tag", "bambu_tray_uuid", "bambu_tag_uid")
+BAMBU_WEIGHT_USED_BASELINE_KEY = "bambu_weight_used_baseline"
 
 
 @dataclass
@@ -687,19 +689,23 @@ class SpoolmanClient:
         return response.json()
 
     async def reset_spool_usage(self, spool_id: int) -> dict:
-        """Reset a spool's used_weight to 0 in Spoolman.
+        """Compatibility entry point for the consumed-counter reset."""
+        return await self.reset_spool_consumed_counter(spool_id)
 
-        Used by the per-spool / bulk "Reset usage to 0" actions on the
-        Inventory page so the Total Consumed stat can be cleared without
-        touching the rest of the spool's data.
-        """
-        response = await self._request_spool(
-            "PATCH",
-            spool_id,
-            json_body={"used_weight": 0},
-            operation="reset-usage",
-        )
-        return response.json()
+    async def reset_spool_consumed_counter(self, spool_id: int) -> dict:
+        """Record a display baseline without changing Spoolman's native stock fields."""
+        async with self.extra_lock(spool_id):
+            current = await self.get_spool(spool_id)
+            try:
+                baseline = float(current.get("used_weight") or 0)
+            except (TypeError, ValueError):
+                baseline = 0.0
+            if not math.isfinite(baseline) or baseline < 0:
+                baseline = 0.0
+            if not await self.ensure_extra_field(BAMBU_WEIGHT_USED_BASELINE_KEY):
+                raise SpoolmanClientError("Cannot register the consumed-counter baseline field", status_code=502)
+            extra = {**(current.get("extra") or {}), BAMBU_WEIGHT_USED_BASELINE_KEY: json.dumps(str(baseline))}
+            return await self.update_spool_full(spool_id=spool_id, extra=extra)
 
     async def update_spool_full(
         self,
