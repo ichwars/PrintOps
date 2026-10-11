@@ -85,6 +85,7 @@ export interface InventorySpool {
   brand: string | null;
   label_weight: number;
   core_weight: number;
+  core_weight_is_inherited?: boolean;
   core_weight_catalog_id: number | null;
   weight_used: number;
   // Anchor for the resettable "Total Consumed" display (#1390). The

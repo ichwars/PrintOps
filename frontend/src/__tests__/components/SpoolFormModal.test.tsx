@@ -147,6 +147,16 @@ describe('SpoolFormModal weightTouched', () => {
       { tag_uid: null, tray_uuid: null, tag_type: null, data_origin: null }));
   });
 
+  it('edits a native Spoolman tare without stamping untouched inherited tare', async () => {
+    render(<SpoolFormModal isOpen onClose={vi.fn()} mode="edit" currencySymbol="$" spoolmanMode
+      spool={{ ...existingSpool, core_weight: 180 }} />);
+    const tare = await screen.findByDisplayValue('180');
+    fireEvent.change(tare, { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Save$/i }));
+    await waitFor(() => expect(api.updateSpoolmanInventorySpool).toHaveBeenCalledWith(1,
+      expect.objectContaining({ core_weight: 0 })));
+  });
+
   it('shows supplier assignment controls when adding a local spool', async () => {
     vi.mocked(suppliersApi.list).mockResolvedValue({
       items: [{

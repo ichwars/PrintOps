@@ -10,6 +10,10 @@ from datetime import datetime, timezone
 from typing import Literal
 
 import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.app.services.color_catalog_lookup import CatalogColor, best_product_line_match, resolve_bambu_color
+from backend.app.services.spoolman_weights import spoolman_net_weight
 
 logger = logging.getLogger(__name__)
 
@@ -425,6 +429,8 @@ class SpoolmanClient:
         lot_nr: str | None = None,
         comment: str | None = None,
         extra: dict | None = None,
+        spool_weight: float | None = None,
+        initial_weight: float | None = None,
     ) -> dict:
         """Create a new spool in Spoolman."""
         data: dict = {"filament_id": filament_id}
@@ -438,6 +444,10 @@ class SpoolmanClient:
             data["comment"] = comment
         if extra:
             data["extra"] = extra
+        if spool_weight is not None:
+            data["spool_weight"] = spool_weight
+        if initial_weight is not None:
+            data["initial_weight"] = initial_weight
 
         logger.debug("Creating spool in Spoolman: %s", data)
         try:
@@ -723,6 +733,7 @@ class SpoolmanClient:
         used_weight: float | None = None,
         spool_weight: float | None = None,
         clear_spool_weight: bool = False,
+        initial_weight: float | None = None,
     ) -> dict:
         """Update a spool with full field support; unlike update_spool, does not auto-set last_used."""
         data: dict = {}
@@ -746,6 +757,8 @@ class SpoolmanClient:
             data["spool_weight"] = None
         elif spool_weight is not None:
             data["spool_weight"] = spool_weight
+        if initial_weight is not None:
+            data["initial_weight"] = initial_weight
 
         response = await self._request_spool("PATCH", spool_id, json_body=data, operation="update")
         return response.json()
@@ -1124,6 +1137,7 @@ class SpoolmanClient:
         inventory_remaining: float | None = None,
         spoolman_spool_id_hint: int | None = None,
         auto_add_unknown_rfid: bool = True,
+        db: AsyncSession | None = None,
     ) -> dict | None:
         """Sync one AMS tray to Spoolman; creates the spool on first sight, updates weight otherwise."""
         logger.debug(
@@ -1165,6 +1179,9 @@ class SpoolmanClient:
             existing = await self.find_spool_by_tag(spool_tag, cached_spools=cached_spools)
             if existing:
                 logger.info("Updating existing spool %s for tag %s...", existing["id"], spool_tag[:16])
+                own_weight = spoolman_net_weight(existing)
+                if 0 <= tray.remain <= 100 and own_weight is not None and own_weight > 0:
+                    remaining = self.calculate_remaining_weight(tray.remain, own_weight)
                 return await self.update_spool(
                     spool_id=existing["id"],
                     remaining_weight=None if disable_weight_sync else remaining,
@@ -1183,8 +1200,11 @@ class SpoolmanClient:
                 return None
 
             logger.info("Creating new spool in Spoolman for %s (tag: %s...)", tray.tray_sub_brands, spool_tag[:16])
+            catalog_color = None
             if self.is_bambu_lab_spool(tray.tray_uuid, tray.tag_uid, tray.tray_info_idx):
-                filament = await self._find_or_create_filament(tray)
+                if db is not None:
+                    catalog_color = await resolve_bambu_color(db, tray.tray_color, tray.tray_sub_brands)
+                filament = await self._find_or_create_filament(tray, catalog_color)
                 filament_id = filament["id"] if filament else None
             else:
                 # Non-BL spool with custom RFID: use generic vendor lookup
@@ -1205,11 +1225,16 @@ class SpoolmanClient:
                 logger.error("Failed to find or create filament for %s", tray.tray_sub_brands)
                 return None
 
+            extra = bambu_tag_extra_values(tray_uuid=tray.tray_uuid, tag_uid=tray.tag_uid)
+            if catalog_color:
+                await self.ensure_extra_field("bambu_color_name")
+                extra["bambu_color_name"] = json.dumps(catalog_color.name)
             return await self.create_spool(
                 filament_id=filament_id,
                 remaining_weight=remaining,
                 comment="Created by PrintOps",
-                extra=bambu_tag_extra_values(tray_uuid=tray.tray_uuid, tag_uid=tray.tag_uid),
+                extra=extra,
+                initial_weight=tray.tray_weight if tray.tray_weight > 0 else None,
             )
 
         # No-RFID fallback: use the spool ID resolved from the local slot-assignment table.
@@ -1226,6 +1251,9 @@ class SpoolmanClient:
                     "Updating spool %s by slot-assignment hint (no RFID tag available)",
                     existing["id"],
                 )
+                own_weight = spoolman_net_weight(existing)
+                if 0 <= tray.remain <= 100 and own_weight is not None and own_weight > 0:
+                    remaining = self.calculate_remaining_weight(tray.remain, own_weight)
                 return await self.update_spool(
                     spool_id=existing["id"],
                     remaining_weight=None if disable_weight_sync else remaining,
@@ -1239,7 +1267,7 @@ class SpoolmanClient:
         )
         return None
 
-    async def _find_or_create_filament(self, tray: AMSTray) -> dict | None:
+    async def _find_or_create_filament(self, tray: AMSTray, catalog_color: CatalogColor | None = None) -> dict | None:
         """Return a Bambu Lab filament matching the tray's material/color, creating it if absent."""
         bambu_vendor_id = await self.ensure_bambu_vendor()
         color_hex = tray.tray_color[:6]  # Strip alpha channel
@@ -1248,6 +1276,7 @@ class SpoolmanClient:
 
         # Search internal filaments - only match Bambu Lab vendor
         filaments = await self.get_filaments()
+        same_colour = []
         for filament in filaments:
             fil_vendor_id = filament.get("vendor_id") or filament.get("vendor", {}).get("id")
             if fil_vendor_id != bambu_vendor_id:
@@ -1255,14 +1284,17 @@ class SpoolmanClient:
             fil_material = filament.get("material") or ""
             fil_color = filament.get("color_hex") or ""
             if fil_material.upper() == material_upper and fil_color.upper() == color_upper:
-                return filament
+                same_colour.append(filament)
+        color_name = catalog_color.name if catalog_color else None
+        existing = best_product_line_match(same_colour, color_name, tray.tray_sub_brands, tray.tray_type)
+        if existing is not None:
+            return existing
 
         # Search external filaments (SpoolmanDB) — restrict to Bambu Lab only.
         # The /api/v1/external/filament endpoint returns the full multi-vendor catalog
         # with no server-side filter, so without a manufacturer check the first PLA/black
         # hit is typically 3DJAKE or 3DXTECH, not Bambu Lab.
         external = await self.get_external_filaments()
-        sub_brand = (tray.tray_sub_brands or "").strip().lower()
         bambu_candidates = []
         for filament in external:
             manufacturer = (filament.get("manufacturer") or "").strip().lower()
@@ -1274,14 +1306,8 @@ class SpoolmanClient:
             if fil_material.upper() == material_upper and fil_color.upper() == color_upper:
                 bambu_candidates.append(filament)
 
-        if bambu_candidates:
-            # Prefer the entry whose `name` matches the AMS `tray_sub_brands`
-            # (e.g. "PLA Basic", "Support for PLA/PETG Black") so the more specific
-            # variant wins over a generic "Black" entry when both are present.
-            chosen = next(
-                (f for f in bambu_candidates if (f.get("name") or "").strip().lower() == sub_brand),
-                bambu_candidates[0],
-            )
+        chosen = best_product_line_match(bambu_candidates, color_name, tray.tray_sub_brands, tray.tray_type)
+        if chosen is not None:
             return await self._create_filament_from_external(chosen, tray)
 
         # Not found in either source - create a new Bambu Lab filament from scratch.
@@ -1297,7 +1323,7 @@ class SpoolmanClient:
         """Create an internal Spoolman filament from an external library entry."""
         vendor_id = await self.ensure_bambu_vendor()
         return await self.create_filament(
-            name=external.get("name", tray.tray_sub_brands),
+            name=tray.tray_sub_brands or external.get("name") or tray.tray_type,
             vendor_id=vendor_id,
             material=external.get("material", tray.tray_type),
             color_hex=external.get("color_hex", tray.tray_color[:6]),

@@ -29,12 +29,10 @@ describe('AdditionalSection', () => {
     expect(screen.queryByText('inventory.spoolWeightManagedBySpoolman')).toBeNull();
   });
 
-  it('hides SpoolWeightPicker and shows info notice when spoolmanMode is true', () => {
+  it('allows overriding the tare on an individual Spoolman spool', () => {
     render(<AdditionalSection {...baseProps} spoolmanMode={true} />);
-    // Info notice must appear
-    expect(screen.getByText('inventory.spoolWeightManagedBySpoolman')).toBeTruthy();
-    // SpoolWeightPicker must NOT be rendered
-    expect(screen.queryByText('inventory.coreWeight')).toBeNull();
+    expect(screen.getByText('inventory.coreWeight')).toBeTruthy();
+    expect(screen.queryByText('inventory.spoolWeightManagedBySpoolman')).toBeNull();
   });
 
   it('defaults to spoolmanMode=false when prop is omitted', () => {

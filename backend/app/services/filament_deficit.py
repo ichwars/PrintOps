@@ -139,8 +139,9 @@ async def _spoolman_remaining_grams(spoolman_spool_id: int) -> float | None:
         return float(remaining)
 
     used = spool.get("used_weight")
-    filament = spool.get("filament") or {}
-    total = filament.get("weight")
+    from backend.app.services.spoolman_weights import spoolman_net_weight
+
+    total = spoolman_net_weight(spool)
     if isinstance(used, (int, float)) and isinstance(total, (int, float)) and total > 0:
         return max(0.0, float(total) - float(used))
 
@@ -385,7 +386,9 @@ async def build_slot_materials(db: AsyncSession, printer_id: int) -> list[SlotMa
             remaining = spool.get("remaining_weight")
             if not isinstance(remaining, (int, float)) or remaining < 0:
                 used = spool.get("used_weight")
-                total = (spool.get("filament") or {}).get("weight")
+                from backend.app.services.spoolman_weights import spoolman_net_weight
+
+                total = spoolman_net_weight(spool)
                 if not isinstance(used, (int, float)) or not isinstance(total, (int, float)) or total <= 0:
                     continue
                 remaining = max(0.0, float(total) - float(used))
@@ -557,7 +560,9 @@ async def compute_deficit_for_queue_item(
                     remaining = float(rw)
                 else:
                     used = spool_dict.get("used_weight")
-                    total = (spool_dict.get("filament") or {}).get("weight")
+                    from backend.app.services.spoolman_weights import spoolman_net_weight
+
+                    total = spoolman_net_weight(spool_dict)
                     if isinstance(used, (int, float)) and isinstance(total, (int, float)) and total > 0:
                         remaining = max(0.0, float(total) - float(used))
         else:

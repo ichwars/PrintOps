@@ -1371,8 +1371,10 @@ async def _report_remain_delta_for_slots(
         except Exception as exc:  # noqa: BLE001
             logger.debug("[SPOOLMAN] AMS%d-T%d: get_spool(%s) failed: %s", ams_id, tray_id, spool_id, exc)
             continue
+        from backend.app.services.spoolman_weights import spoolman_net_weight
+
+        ref_weight = spoolman_net_weight(spool)
         filament = spool.get("filament") or {}
-        ref_weight = filament.get("weight")
         if not ref_weight or ref_weight <= 0:
             logger.debug(
                 "[SPOOLMAN] AMS%d-T%d: spool %s has no filament.weight, skipping remain-delta",

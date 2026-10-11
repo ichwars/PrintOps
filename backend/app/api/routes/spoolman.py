@@ -32,6 +32,7 @@ from backend.app.services.spoolman import (
     init_spoolman_client,
 )
 from backend.app.services.spoolman_slot_cleanup import expire_empty_slots
+from backend.app.services.spoolman_weights import spoolman_net_weight
 from backend.app.services.usage_tracker import _active_sessions
 from backend.app.utils.filament_ids import filament_id_to_setting_id, normalize_slicer_filament
 from backend.app.utils.filament_types import (
@@ -316,6 +317,7 @@ async def sync_printer_ams(
                 sync_result = await client.sync_ams_tray(
                     tray,
                     printer.name,
+                    db=db,
                     # Per-print tracking owns weight updates (#1119); manual sync
                     # only refreshes spool metadata + slot assignments here.
                     disable_weight_sync=True,
@@ -517,6 +519,7 @@ async def sync_all_printers(
                     sync_result = await client.sync_ams_tray(
                         tray,
                         printer.name,
+                        db=db,
                         # Per-print tracking owns weight updates (#1119); manual
                         # sync-all only refreshes spool metadata + slot assignments.
                         disable_weight_sync=True,
@@ -744,11 +747,10 @@ async def get_linked_spools(
             # Remove quotes if present (JSON encoded string)
             clean_tag = tag.strip('"').upper()
             if clean_tag:
-                filament = spool.get("filament") or {}
                 linked[clean_tag] = {
                     "id": spool["id"],
                     "remaining_weight": spool.get("remaining_weight"),
-                    "filament_weight": filament.get("weight"),
+                    "filament_weight": spoolman_net_weight(spool),
                 }
 
     return {"linked": linked}
@@ -1174,6 +1176,7 @@ async def create_spool_from_slot(
     sync_result = await client.sync_ams_tray(
         tray,
         printer.name,
+        db=db,
         disable_weight_sync=True,
         auto_add_unknown_rfid=True,
     )

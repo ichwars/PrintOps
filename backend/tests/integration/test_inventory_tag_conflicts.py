@@ -60,7 +60,7 @@ async def remote_spoolman(monkeypatch):
     patches = []
 
     def transport(request):
-        if request.method == "PATCH":
+        if request.method in {"PATCH", "POST"}:
             body = json.loads(request.content)
             patches.append(body)
             state.update({k: v for k, v in body.items() if k != "extra"})

@@ -70,6 +70,7 @@ from backend.app.services.spoolman import (
 )
 from backend.app.services.spoolman_costs import spoolman_full_price_from_cost_per_kg
 from backend.app.services.spoolman_tracking import get_fallback_spool_tag_for_slot
+from backend.app.services.spoolman_weights import spoolman_price_weight, spoolman_tare
 from backend.app.services.tag_conflict import tag_conflict
 from backend.app.utils.filament_ids import (
     filament_id_to_setting_id,
@@ -570,6 +571,8 @@ async def create_spool(
                 remaining_weight=remaining,
                 comment=data.note or None,
                 location=storage_location or None,
+                initial_weight=data.label_weight,
+                spool_weight=data.core_weight if "core_weight" in data.model_fields_set else None,
             )
     except HTTPException as exc:
         if exc.status_code == 404 and data.spoolman_filament_id is not None:
@@ -662,6 +665,8 @@ async def bulk_create_spools(
                 remaining_weight=remaining,
                 comment=data.note or None,
                 location=storage_location or None,
+                initial_weight=data.label_weight,
+                spool_weight=data.core_weight if "core_weight" in data.model_fields_set else None,
             )
         except (SpoolmanUnavailableError, SpoolmanClientError, SpoolmanNotFoundError) as exc:
             logger.warning("Bulk spool creation: one spool failed: %s", exc)
@@ -742,7 +747,7 @@ async def update_spool(
         color_name = cur_filament.get("color_name") or None
     cur_color = (cur_filament.get("color_hex") or "808080").upper().removeprefix("#")
     rgba = data.rgba if data.rgba is not None else (cur_color + "FF")
-    label_weight = data.label_weight if data.label_weight is not None else int(cur_filament.get("weight") or 1000)
+    label_weight = data.label_weight if data.label_weight is not None else spoolman_price_weight(current)
     # Default weight_used from the synthetic mapping (label - remaining) so an
     # edit that doesn't touch the weight field preserves Spoolman's real
     # remaining_weight after a "Reset usage to 0" — the previous code read
@@ -784,14 +789,12 @@ async def update_spool(
     desired_name = f"{material} {subtype}".strip() if subtype else material
     cur_color_norm = (cur_filament.get("color_hex") or "").upper()[:6]
     cur_vendor_name = (cur_vendor.get("name") or "").strip()
-    cur_weight_int = int(cur_filament.get("weight") or 0)
     metadata_unchanged = (
         cur_filament_id
         and (cur_filament.get("name") or "").strip() == desired_name
         and (cur_filament.get("material") or "").upper() == material.upper()
         and cur_color_norm == color_hex.upper()
         and cur_vendor_name.lower() == ((brand or "").strip().lower())
-        and cur_weight_int == int(label_weight)
     )
 
     if metadata_unchanged:
@@ -809,7 +812,6 @@ async def update_spool(
                 "name": desired_name,
                 "material": material,
                 "color_hex": color_hex,
-                "weight": float(label_weight),
             }
             if brand:
                 vendor_id = await client.find_or_create_vendor(brand)
@@ -833,7 +835,11 @@ async def update_spool(
     if not filament_id:
         raise HTTPException(status_code=500, detail="Failed to find or create filament in Spoolman")
 
-    remaining = max(0.0, label_weight - weight_used)
+    remaining = (
+        max(0.0, label_weight - weight_used)
+        if data.weight_used is not None or cur_remaining_raw is None
+        else _safe_float(cur_remaining_raw, 0.0)
+    )
 
     # Tag removal: clear only the "tag" key so other custom Spoolman extra fields
     # set outside PrintOps are preserved.
@@ -876,6 +882,8 @@ async def update_spool(
                 extra=extra,
                 location=storage_location or None,
                 clear_location=storage_location_changed and not storage_location,
+                initial_weight=data.label_weight,
+                spool_weight=data.core_weight,
             )
 
     # Persist BambuStudio slicer preset AND color_name under spool.extra.
@@ -1199,17 +1207,13 @@ async def sync_spool_weight(
     async with _translate_spoolman_errors():
         current = await client.get_spool(spool_id)
 
-    cur_filament = current.get("filament") or {}
-    spool_tare = current.get("spool_weight")
-    raw_tare = spool_tare if spool_tare is not None else cur_filament.get("spool_weight")
-    core_weight = _safe_float(raw_tare, 250.0)
+    core_weight, _ = spoolman_tare(current)
     remaining = max(0.0, data.weight_grams - core_weight)
 
     async with _translate_spoolman_errors():
         updated = await client.update_spool_full(spool_id=spool_id, remaining_weight=remaining)
 
-    upd_filament = updated.get("filament") or {}
-    label_weight = _safe_int(upd_filament.get("weight"), 1000)
+    label_weight = spoolman_price_weight(updated)
     weight_used = max(0.0, label_weight - remaining)
     await ws_manager.broadcast({"type": "inventory_changed"})
     return {"status": "ok", "weight_used": weight_used}
@@ -1397,7 +1401,7 @@ async def sync_spoolman_ams_weights(
             skipped += 1
             continue
 
-        label_weight = _safe_int((spool_dict.get("filament") or {}).get("weight"), 1000)
+        label_weight = spoolman_price_weight(spool_dict)
         if label_weight <= 0:
             logger.debug("Spoolman AMS sync: spool %d has no label_weight, skipping", assignment.spoolman_spool_id)
             skipped += 1
@@ -1927,6 +1931,8 @@ async def patch_spoolman_filament(
         if affected_spools:
             if body.keep_existing_spools:
                 old_weight = _safe_optional_float(current.get("spool_weight"))
+                if old_weight is None:
+                    old_weight = _safe_optional_float((current.get("vendor") or {}).get("empty_spool_weight"))
                 if old_weight is not None:
                     spools_to_fix = [s for s in affected_spools if s.get("spool_weight") is None]
                     if spools_to_fix:
