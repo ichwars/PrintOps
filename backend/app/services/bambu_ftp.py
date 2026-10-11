@@ -16,6 +16,8 @@ from io import BytesIO
 from pathlib import Path
 from typing import TypeVar
 
+FTPProtocolError = ftplib.Error
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
