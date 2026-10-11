@@ -11,6 +11,7 @@ import backend.app.models  # noqa: F401 - populate Base.metadata
 import backend.app.services.print_scheduler as scheduler_module
 from backend.app.core.database import Base
 from backend.app.models.archive import PrintArchive
+from backend.app.models.drying_schedule import DryingSchedule, DryingScheduleRun
 from backend.app.models.library import LibraryFile, LibraryFolder
 from backend.app.models.print_batch import PrintBatch
 from backend.app.models.print_queue import PrintQueueItem
@@ -35,6 +36,8 @@ async def claim_ctx():
                 LibraryFile.__table__,
                 PrintBatch.__table__,
                 PrintQueueItem.__table__,
+                DryingSchedule.__table__,
+                DryingScheduleRun.__table__,
             ],
         )
     sessionmaker = async_sessionmaker(engine, expire_on_commit=False)

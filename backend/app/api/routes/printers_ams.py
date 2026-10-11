@@ -17,6 +17,7 @@ from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.schemas.printer import (
     AmsLabelBody,
 )
+from backend.app.services.drying_ownership import printer_operation_guard
 from backend.app.services.inventory_mode import spoolman_owns_assignments
 from backend.app.utils.filament_ids import GENERIC_FILAMENT_IDS, filament_id_to_setting_id
 from backend.app.utils.filament_types import generic_filament_id, is_material_name, printer_filament_type
@@ -65,6 +66,7 @@ async def configure_ams_slot(
     k_value: float = Query(0.0),
     db: AsyncSession = Depends(get_db),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Configure an AMS slot with a specific filament setting and K profile.
 
@@ -99,13 +101,11 @@ async def configure_ams_slot(
     requested_tray_type = tray_type
     tray_type = printer_filament_type(requested_tray_type)
 
-    # Get MQTT client for this printer
     client = printer_manager.get_client(printer_id)
     if not client:
         raise HTTPException(status_code=400, detail="Printer not connected")
 
     # Resolve tray_info_idx for the MQTT command.
-    # Priority:
     #   1. Use the provided tray_info_idx if set (including cloud-synced
     #      custom presets like PFUS* / P*).
     #   2. Reuse the slot's existing tray_info_idx if it's a specific
@@ -408,6 +408,7 @@ async def reset_ams_slot(
     tray_id: int,
     db: AsyncSession = Depends(get_db),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Reset an AMS slot to empty/unconfigured state.
 
@@ -565,6 +566,7 @@ async def refresh_ams_slot(
     slot_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_AMS_RFID),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Re-read RFID for an AMS slot (triggers filament info refresh)."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -811,6 +813,7 @@ async def ams_load(
     tray_id: int = Query(..., description="Tray ID: 0-15 for AMS slots (ams_id*4+slot_id), 254 for external spool"),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Load filament from a specific AMS slot or external spool.
 
@@ -849,6 +852,7 @@ async def ams_unload(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Unload the currently loaded filament."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))

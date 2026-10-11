@@ -16,6 +16,15 @@ import pytest
 from backend.app.services.print_scheduler import PrintScheduler
 
 
+@pytest.fixture(autouse=True)
+def no_scheduled_drying_ownership():
+    db = AsyncMock()
+    db.scalar.return_value = None
+    with patch("backend.app.services.print_scheduler.async_session") as session:
+        session.return_value.__aenter__.return_value = db
+        yield
+
+
 class TestConservativeDryingParams:
     """Test _get_conservative_drying_params — picks safest temp/duration for mixed filaments."""
 
@@ -108,6 +117,7 @@ class TestDryingPresets:
     async def test_default_presets_when_no_setting(self, scheduler):
         """Returns built-in defaults when no DB setting exists."""
         db = AsyncMock()
+        db.scalar.return_value = None
         result_mock = MagicMock()
         result_mock.scalar_one_or_none.return_value = None
         db.execute = AsyncMock(return_value=result_mock)
@@ -119,6 +129,7 @@ class TestDryingPresets:
     async def test_user_presets_from_db(self, scheduler):
         """Returns user-configured presets when saved in DB."""
         db = AsyncMock()
+        db.scalar.return_value = None
         setting = MagicMock()
         setting.value = '{"PLA": {"n3f": 50, "n3s": 50, "n3f_hours": 6, "n3s_hours": 6}}'
         result_mock = MagicMock()
@@ -132,6 +143,7 @@ class TestDryingPresets:
     async def test_invalid_json_falls_back(self, scheduler):
         """Invalid JSON in DB falls back to defaults."""
         db = AsyncMock()
+        db.scalar.return_value = None
         setting = MagicMock()
         setting.value = "not valid json{{"
         result_mock = MagicMock()
@@ -145,6 +157,7 @@ class TestDryingPresets:
     async def test_empty_string_falls_back(self, scheduler):
         """Empty string in DB falls back to defaults."""
         db = AsyncMock()
+        db.scalar.return_value = None
         setting = MagicMock()
         setting.value = ""
         result_mock = MagicMock()
@@ -280,6 +293,7 @@ class TestMinimumDryingTime:
         # Mock _is_printer_idle and DB
         scheduler._is_printer_idle = MagicMock(return_value=True)
         db = AsyncMock()
+        db.scalar.return_value = None
 
         # Mock settings: enabled, threshold=21
         settings_returns = {
@@ -335,6 +349,7 @@ class TestMinimumDryingTime:
 
         scheduler._is_printer_idle = MagicMock(return_value=True)
         db = AsyncMock()
+        db.scalar.return_value = None
 
         settings_returns = {
             "queue_drying_enabled": self._make_setting("true"),
@@ -423,6 +438,7 @@ class TestAutoStopOnFeatureDisabled:
         mock_pm.get_status.side_effect = get_status
 
         db = AsyncMock()
+        db.scalar.return_value = None
         # queue_drying_enabled = false
         setting = MagicMock()
         setting.value = "false"
@@ -483,6 +499,7 @@ class TestAutoStopOnNoScheduledItems:
         mock_pm.get_status.return_value = state
 
         db = AsyncMock()
+        db.scalar.return_value = None
         settings_returns = {
             "queue_drying_enabled": self._make_setting("true"),
             "ambient_drying_enabled": self._make_setting("false"),
@@ -512,6 +529,7 @@ class TestAutoStopOnNoScheduledItems:
         mock_pm.get_status.return_value = state
 
         db = AsyncMock()
+        db.scalar.return_value = None
         settings_returns = {
             "queue_drying_enabled": self._make_setting("true"),
             "ambient_drying_enabled": self._make_setting("false"),
@@ -628,6 +646,7 @@ class TestAmbientDrying(_DryingTestBase):
 
         scheduler._is_printer_idle = MagicMock(return_value=True)
         db = AsyncMock()
+        db.scalar.return_value = None
 
         settings_returns = {
             "queue_drying_enabled": self._make_setting("false"),
@@ -669,6 +688,7 @@ class TestAmbientDrying(_DryingTestBase):
 
         scheduler._is_printer_idle = MagicMock(return_value=True)
         db = AsyncMock()
+        db.scalar.return_value = None
 
         settings_returns = {
             "queue_drying_enabled": self._make_setting("false"),
@@ -694,6 +714,7 @@ class TestAmbientDrying(_DryingTestBase):
         mock_pm.get_status.return_value = state
 
         db = AsyncMock()
+        db.scalar.return_value = None
         settings_returns = {
             "queue_drying_enabled": self._make_setting("false"),
             "ambient_drying_enabled": self._make_setting("false"),
@@ -732,6 +753,7 @@ class TestAmbientDrying(_DryingTestBase):
 
         scheduler._is_printer_idle = MagicMock(return_value=True)
         db = AsyncMock()
+        db.scalar.return_value = None
 
         settings_returns = {
             "queue_drying_enabled": self._make_setting("false"),
@@ -774,6 +796,7 @@ class TestAmbientDrying(_DryingTestBase):
 
         scheduler._is_printer_idle = MagicMock(return_value=True)
         db = AsyncMock()
+        db.scalar.return_value = None
 
         settings_returns = {
             "queue_drying_enabled": self._make_setting("true"),
@@ -825,6 +848,7 @@ class TestBlockForDryingBugFix(_DryingTestBase):
 
         scheduler._is_printer_idle = MagicMock(return_value=True)
         db = AsyncMock()
+        db.scalar.return_value = None
 
         settings_returns = {
             "queue_drying_enabled": self._make_setting("true"),
@@ -874,6 +898,7 @@ class TestBlockForDryingBugFix(_DryingTestBase):
 
         scheduler._is_printer_idle = MagicMock(return_value=True)
         db = AsyncMock()
+        db.scalar.return_value = None
 
         settings_returns = {
             "queue_drying_enabled": self._make_setting("true"),
@@ -986,6 +1011,7 @@ class TestGetHumidityThresholds:
     @pytest.mark.asyncio
     async def test_missing_setting_returns_empty(self, scheduler):
         db = AsyncMock()
+        db.scalar.return_value = None
         db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
         result = await scheduler._get_humidity_thresholds(db)
         assert result == {}
@@ -993,6 +1019,7 @@ class TestGetHumidityThresholds:
     @pytest.mark.asyncio
     async def test_empty_value_returns_empty(self, scheduler):
         db = AsyncMock()
+        db.scalar.return_value = None
         setting = MagicMock(value="")
         db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=setting)))
         result = await scheduler._get_humidity_thresholds(db)
@@ -1001,6 +1028,7 @@ class TestGetHumidityThresholds:
     @pytest.mark.asyncio
     async def test_invalid_json_returns_empty(self, scheduler):
         db = AsyncMock()
+        db.scalar.return_value = None
         setting = MagicMock(value="not json{")
         db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=setting)))
         result = await scheduler._get_humidity_thresholds(db)
@@ -1010,6 +1038,7 @@ class TestGetHumidityThresholds:
     async def test_valid_json_normalizes_keys(self, scheduler):
         """Filament-type keys uppercase; 'default' preserved."""
         db = AsyncMock()
+        db.scalar.return_value = None
         setting = MagicMock(value='{"default": 60, "pla": 50, "ASA": 30, "garbage": "x"}')
         db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=setting)))
         result = await scheduler._get_humidity_thresholds(db)
@@ -1062,6 +1091,7 @@ class TestMidPrintDrying(_DryingTestBase):
 
         scheduler._is_printer_idle = MagicMock(return_value=False)
         db = AsyncMock()
+        db.scalar.return_value = None
         settings_returns = {
             "queue_drying_enabled": self._make_setting("true"),
             "ambient_drying_enabled": self._make_setting("false"),
@@ -1104,6 +1134,7 @@ class TestMidPrintDrying(_DryingTestBase):
 
         scheduler._is_printer_idle = MagicMock(return_value=False)
         db = AsyncMock()
+        db.scalar.return_value = None
         settings_returns = {
             "queue_drying_enabled": self._make_setting("true"),
             "ambient_drying_enabled": self._make_setting("false"),
@@ -1130,6 +1161,7 @@ class TestMidPrintDrying(_DryingTestBase):
 
         scheduler._is_printer_idle = MagicMock(return_value=False)
         db = AsyncMock()
+        db.scalar.return_value = None
         settings_returns = {
             "queue_drying_enabled": self._make_setting("true"),
             "ambient_drying_enabled": self._make_setting("false"),
@@ -1155,6 +1187,7 @@ class TestMidPrintDrying(_DryingTestBase):
 
         scheduler._is_printer_idle = MagicMock(return_value=False)
         db = AsyncMock()
+        db.scalar.return_value = None
         settings_returns = {
             "queue_drying_enabled": self._make_setting("true"),
             "ambient_drying_enabled": self._make_setting("false"),
@@ -1179,6 +1212,7 @@ class TestMidPrintDrying(_DryingTestBase):
 
         scheduler._is_printer_idle = MagicMock(return_value=False)
         db = AsyncMock()
+        db.scalar.return_value = None
         settings_returns = {
             "queue_drying_enabled": self._make_setting("true"),
             "ambient_drying_enabled": self._make_setting("false"),

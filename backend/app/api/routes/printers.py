@@ -30,6 +30,7 @@ from backend.app.services.bambu_ftp import (
     download_file_try_paths_async,
     get_cached_3mf,
 )
+from backend.app.services.drying_ownership import printer_operation_guard
 from backend.app.services.printer_filaments import collect_available_filaments
 from backend.app.services.printer_manager import (
     printer_manager,
@@ -238,6 +239,7 @@ async def update_printer(
     printer_data: PrinterUpdate,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_UPDATE),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Update a printer."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -288,6 +290,7 @@ async def delete_printer(
     delete_archives: bool = True,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_DELETE),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Delete a printer.
 
@@ -636,6 +639,7 @@ async def get_printer_cover(
 
 # Split routers keep the public /printers URL surface while limiting this
 # compatibility facade to core CRUD and cover-cache behavior.
+from backend.app.api.routes.drying_schedules import router as drying_schedules_router  # noqa: E402
 from backend.app.api.routes.printers_ams import (  # noqa: E402
     _apply_pa_after_refresh,
     router as ams_router,
@@ -662,3 +666,4 @@ router.include_router(status_router)
 router.include_router(operations_router)
 router.include_router(ams_router)
 router.include_router(controls_router)
+router.include_router(drying_schedules_router)

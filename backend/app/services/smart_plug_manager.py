@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.tasks import spawn_background_task
+from backend.app.services.drying_ownership import has_drying_reservation, printer_operation
 from backend.app.services.homeassistant import homeassistant_service
 from backend.app.services.printer_manager import printer_manager
 from backend.app.services.rest_smart_plug import rest_smart_plug_service
@@ -30,6 +31,24 @@ class SmartPlugManager:
         self._scheduler_task: asyncio.Task | None = None
         self._snapshot_task: asyncio.Task | None = None
         self._last_schedule_check: dict[int, str] = {}  # plug_id -> "HH:MM" last executed
+
+    async def _turn_off_if_safe(self, service, plug, printer_id, controls_printer_power=True, db=None):
+        if not printer_id or not controls_printer_power:
+            return await service.turn_off(plug)
+        if db is None:
+            from backend.app.core.database import async_session
+
+            async with async_session() as session:
+                result = await self._turn_off_if_safe(service, plug, printer_id, controls_printer_power, session)
+                await session.commit()
+                return result
+        async with printer_operation(db, printer_id):
+            if await has_drying_reservation(db, printer_id):
+                logger.info("Deferring power-off: scheduled drying reserves printer %s", printer_id)
+                return False
+            result = await service.turn_off(plug)
+            await db.commit()
+            return result
 
     async def get_service_for_plug(self, plug: "SmartPlug", db: AsyncSession | None = None):
         """Get the appropriate service for the plug type.
@@ -199,7 +218,9 @@ class SmartPlugManager:
                     last_check = self._last_schedule_check.get(plug.id)
                     if last_check != f"off:{current_time}":
                         logger.info("Schedule: Turning off plug '%s' at %s", plug.name, current_time)
-                        success = await service.turn_off(plug)
+                        success = await self._turn_off_if_safe(
+                            service, plug, plug.printer_id, plug.controls_printer_power, db
+                        )
                         if success:
                             plug.last_state = "OFF"
                             plug.last_checked = utcnow_naive()
@@ -461,7 +482,7 @@ class SmartPlugManager:
 
             plug_info = PlugInfo()
             service = await self.get_service_for_plug(plug_info)
-            success = await service.turn_off(plug_info)
+            success = await self._turn_off_if_safe(service, plug_info, printer_id, controls_printer_power)
             logger.info("Turned off plug %s after time delay", plug_id)
 
             # Mark auto_off_executed in database and update printer status
@@ -587,7 +608,7 @@ class SmartPlugManager:
 
                         plug_info = PlugInfo()
                         service = await self.get_service_for_plug(plug_info)
-                        success = await service.turn_off(plug_info)
+                        success = await self._turn_off_if_safe(service, plug_info, printer_id, controls_printer_power)
                         logger.info(
                             f"Turned off plug {plug_id} after nozzle temp dropped to "
                             f"{max_nozzle_temp}°C (threshold: {temp_threshold}°C)"
@@ -734,7 +755,9 @@ class SmartPlugManager:
                         logger.info("Time-based auto-off was pending, turning off plug '%s' now", plug.name)
 
                         service = await self.get_service_for_plug(plug, db)
-                        success = await service.turn_off(plug)
+                        success = await self._turn_off_if_safe(
+                            service, plug, plug.printer_id, plug.controls_printer_power, db
+                        )
                         if success:
                             await self._mark_auto_off_executed(plug.id)
                             if plug.controls_printer_power:

@@ -19,6 +19,7 @@ from backend.app.schemas.printer import (
     HmsActionBody,
 )
 from backend.app.services.bambu_cloud import BambuCloudAuthError, BambuCloudError
+from backend.app.services.drying_ownership import printer_operation_guard
 from backend.app.services.printer_manager import (
     resolve_plate_id,
     supports_chamber_heater,
@@ -133,6 +134,7 @@ async def debug_simulate_print_complete(
     printer_id: int,
     db: AsyncSession = Depends(get_db),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """DEBUG: Simulate print completion to test freeze behavior.
 
@@ -182,6 +184,7 @@ async def stop_print(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Stop/cancel the current print job."""
     result = await _send_print_command_with_cloud_fallback(
@@ -213,6 +216,7 @@ async def clear_plate(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CLEAR_PLATE),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Acknowledge that the build plate has been cleared after a finished/failed print.
 
@@ -250,6 +254,7 @@ async def pause_print(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Pause the current print job."""
     return await _send_print_command_with_cloud_fallback(
@@ -269,6 +274,7 @@ async def resume_print(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Resume a paused print job."""
     return await _send_print_command_with_cloud_fallback(
@@ -289,6 +295,7 @@ async def set_print_speed(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Set the print speed mode."""
     if mode not in (1, 2, 3, 4):
@@ -314,6 +321,7 @@ async def set_nozzle_temperature(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Set a nozzle target temperature."""
     return await _send_print_command_with_cloud_fallback(
@@ -334,6 +342,7 @@ async def set_bed_temperature(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Set the bed target temperature."""
     return await _send_print_command_with_cloud_fallback(
@@ -354,6 +363,7 @@ async def set_chamber_temperature(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Set the chamber target temperature.
 
@@ -389,6 +399,7 @@ async def set_fan_speed(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Set a fan speed by percentage."""
     fan_ids = {"part": 1, "aux": 2, "chamber": 3}
@@ -415,6 +426,7 @@ async def select_extruder(
     extruder: int = Query(..., ge=0, le=1, description="Extruder index (0=right, 1=left)"),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Select the active extruder/nozzle on dual-nozzle printers."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -439,6 +451,7 @@ async def set_airduct_mode(
     mode: str = Query(..., description="Airduct mode: 'cooling' or 'heating'"),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Set the airduct mode (cooling/heating) on supported printers (P2S/H2*)."""
     if mode not in ("cooling", "heating"):
@@ -467,6 +480,7 @@ async def set_chamber_light(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Turn the chamber light on or off."""
     mode = "on" if on else "off"
@@ -511,6 +525,7 @@ async def bed_jog(
     force: bool = Query(False, description="If true, bypass soft endstops via M211 (for use when Z is not homed)"),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Adjust the nozzle-bed gap by a relative distance.
 
@@ -564,6 +579,7 @@ async def xy_jog(
     y: float = Query(0, description="Signed relative Y movement in mm"),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Move the toolhead by a relative X/Y distance."""
     if (x == 0 and y == 0) or abs(x) > 200 or abs(y) > 200:
@@ -598,6 +614,7 @@ async def extruder_jog(
     ),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Extrude or retract filament by a relative distance.
 
@@ -632,6 +649,7 @@ async def home_axes(
     ),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Run the printer's full auto-home sequence via bare `G28`.
 
@@ -672,6 +690,7 @@ async def clear_hms_errors(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Clear HMS/print errors on the printer."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -811,6 +830,7 @@ async def skip_objects(
     object_ids: list[int],
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Skip specific objects during the current print.
 
@@ -894,6 +914,7 @@ async def execute_hms_action(
     body: HmsActionBody,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """Execute an HMS action on the printer."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
