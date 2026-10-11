@@ -27,6 +27,7 @@ from backend.app.services.drying_telemetry import (
     observe_version_info,
 )
 from backend.app.services.hms_actions import HMSAction, get_actions_for_error_code
+from backend.app.services.hms_errors import alert_level_from_print_error, describe_fault
 from backend.app.services.mqtt_print_provenance import (
     REQUEST_TOPIC_PROBE_FAILURES,
     REQUEST_TOPIC_PROBE_LIMIT,
@@ -238,7 +239,7 @@ class HMSError:
     code: str
     attr: int  # Attribute value for constructing wiki URL
     module: int
-    severity: int  # 1=fatal, 2=serious, 3=common, 4=info
+    severity: int  # 1=error (stopped), 2=warning (paused), 3=notice, 0=invalid
     message: str = ""
     # User-facing remediation actions from the bundled HMS catalog (e.g. "RESUME_PRINTING",
     # "CHECK_ASSISTANT"). Defaults to an empty list rather than None so the field always
@@ -256,6 +257,7 @@ class HMSError:
     # used to send caused the firmware to silently reject HMS commands on H2C
     # (#1830) and on `hms[]`-sourced faults generally.
     full_code: str = ""
+    description: str | None = None  # Manufacturer text, resolved once using the serial prefix.
 
 
 # HMS short codes the firmware emits during normal user-cancel sequences.
@@ -2928,7 +2930,7 @@ class BambuMQTTClient:
                 for hms in hms_list:
                     if isinstance(hms, dict):
                         # HMS format: {"attr": attribute_code, "code": error_code}
-                        # attr contains module/severity info, code contains error number
+                        # attr identifies module/part; code contains alert level and error number
                         # Both are needed to construct the wiki URL
                         attr = hms.get("attr", 0)
                         code = hms.get("code", 0)
@@ -2936,15 +2938,10 @@ class BambuMQTTClient:
                             attr = int(attr.replace("0x", ""), 16) if attr else 0
                         if isinstance(code, str):
                             code = int(code.replace("0x", ""), 16) if code else 0
-                        # Severity is in attr byte 1 (bits 8-15)
-                        severity = (attr >> 8) & 0xF
+                        # Bambu alert level is in code bits 16-23; attr identifies the part.
+                        severity = (code >> 16) & 0xFF
                         # Module is in attr byte 3 (bits 24-31)
                         module = (attr >> 24) & 0xFF
-                        # Skip non-error status codes — all real HMS errors
-                        # have code >= 0x4000. Lower values are status/phase
-                        # indicators that some firmware sends during normal printing.
-                        if code < 0x4000:
-                            continue
                         # Skip user-action echoes — the printer firmware emits these
                         # as part of normal user-cancel sequences. They're not faults
                         # and shouldn't count toward "X problem" badges or surface as
@@ -2967,7 +2964,8 @@ class BambuMQTTClient:
                                 code=f"0x{code:x}" if code else "0x0",
                                 attr=attr,
                                 module=module,
-                                severity=severity if severity > 0 else 2,
+                                severity=severity,
+                                description=describe_fault(full_code, self.serial_number[:3]),
                                 actions=actions,
                                 job_id=self.state.subtask_id,
                                 full_code=full_code,
@@ -3039,7 +3037,8 @@ class BambuMQTTClient:
                                     code=f"0x{error:x}",
                                     attr=print_error,  # Store full value for display
                                     module=module >> 8,  # High byte of module (e.g., 0x05)
-                                    severity=3,  # Warning level for print_error
+                                    severity=alert_level_from_print_error(error),
+                                    description=describe_fault(f"{print_error:08X}", self.serial_number[:3]),
                                     actions=actions,
                                     job_id=job_id,
                                     # print_error is already 32-bit — `f"{print_error:08X}"`
@@ -3565,7 +3564,10 @@ class BambuMQTTClient:
             # Include HMS errors for failure reason detection
             hms_errors_data = (
                 [
-                    {"code": e.code, "attr": e.attr, "module": e.module, "severity": e.severity}
+                    {
+                        "code": e.code, "attr": e.attr, "module": e.module, "severity": e.severity,
+                        "description": e.description, "full_code": e.full_code, "actions": e.actions, "job_id": e.job_id,
+                    }
                     for e in self.state.hms_errors
                 ]
                 if self.state.hms_errors

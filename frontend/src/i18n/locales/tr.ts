@@ -5444,6 +5444,12 @@ export default {
 
   // HMS Hataları modali
   hmsErrors: {
+    severityError: "Hata",
+    severityWarning: "Uyarı",
+    severityNotice: "Bildirim",
+    severityUnknown: "Bilinmeyen seviye",
+    uncountedSummary: "Ayrıca bildirildi, sayılmadı ({{n}})",
+    uncountedHint: "İşlem gerektirmeyen bildirimler ve Bambu'nun metin yayınlamadığı kodlar. Yazıcı kartında sorun olarak sayılmazlar ve bildirim göndermezler.",
     title: 'Hatalar - {{name}}',
     noErrors: 'Hata yok',
     viewOnWiki: 'Bambu Lab Wiki\'de görüntüle',

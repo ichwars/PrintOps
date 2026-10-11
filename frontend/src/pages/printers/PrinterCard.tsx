@@ -5,7 +5,7 @@ import { Link, Unlink, Signal, Clock, MoreVertical, Trash2, RefreshCw, RotateCw,
 import { formatDateOnly, formatETA, formatDuration } from '../../utils/date';
 import { Card, CardContent } from '../../components/Card';
 import { Button } from '../../components/Button';
-import { filterKnownHMSErrors } from '../../components/HMSErrorModal';
+import { filterKnownHMSErrors, isSevereHMSError } from '../../components/HMSErrorModal';
 import { PrinterQueueWidget } from '../../components/PrinterQueueWidget';
 import { PrinterHASensorRow } from '../../components/PrinterHASensorRow';
 import type { HeaterSensorKind } from '../../api/client';
@@ -358,7 +358,7 @@ return (
                     {/* Connection indicator dot for compact mode */}
                     {viewMode === 'compact' && (() => {
                       const hmsErrors = status?.connected && status.hms_errors ? filterKnownHMSErrors(status.hms_errors) : [];
-                      const hasSevere = hmsErrors.some(e => e.severity <= 2);
+                      const hasSevere = hmsErrors.some(isSevereHMSError);
                       const hasWarning = hmsErrors.length > 0;
                       const pipColor = !status?.connected
                         ? 'bg-status-error'
@@ -540,7 +540,7 @@ return (
                     onClick={() => setShowHMSModal(true)}
                     className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity ${
                       knownErrors.length > 0
-                        ? knownErrors.some(e => e.severity <= 2)
+                        ? knownErrors.some(isSevereHMSError)
                           ? 'bg-status-error/20 text-status-error'
                           : 'bg-status-warning/20 text-status-warning'
                         : 'bg-status-ok/20 text-status-ok'

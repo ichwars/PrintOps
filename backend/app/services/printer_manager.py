@@ -1261,6 +1261,7 @@ def printer_state_to_dict(
                 "attr": e.attr,
                 "module": e.module,
                 "severity": e.severity,
+                "description": e.description,
                 "actions": e.actions,
                 "job_id": e.job_id,
                 "full_code": e.full_code,

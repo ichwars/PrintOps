@@ -5290,6 +5290,12 @@ export default {
     loadFailed: '데이터 로드 실패'
   },
   hmsErrors: {
+    severityError: "오류",
+    severityWarning: "경고",
+    severityNotice: "알림",
+    severityUnknown: "알 수 없는 수준",
+    uncountedSummary: "보고됨, 집계 제외 ({{n}})",
+    uncountedHint: "조치가 필요 없는 알림과 Bambu가 설명을 공개하지 않은 코드입니다. 프린터 카드에서 문제로 집계되지 않으며 알림도 보내지 않습니다.",
     title: '오류 - {{name}}',
     noErrors: '오류 없음',
     viewOnWiki: 'Bambu Lab 위키에서 보기',

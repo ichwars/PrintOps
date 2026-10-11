@@ -5450,6 +5450,12 @@ export default {
 
   // HMS Errors modal
   hmsErrors: {
+    severityError: "Fallo",
+    severityWarning: "Advertencia",
+    severityNotice: "Aviso",
+    severityUnknown: "Nivel desconocido",
+    uncountedSummary: "También notificados, sin contar ({{n}})",
+    uncountedHint: "Avisos que no requieren tu intervención y códigos para los que Bambu no publica texto. No cuentan como problemas en la tarjeta de la impresora ni envían notificaciones.",
     title: 'Errores - {{name}}',
     noErrors: 'No hay errores',
     viewOnWiki: 'Ver en la wiki de Bambu Lab',

@@ -5509,6 +5509,12 @@ export default {
 
   // HMS Errors modal
   hmsErrors: {
+    severityError: "Fout",
+    severityWarning: "Waarschuwing",
+    severityNotice: "Melding",
+    severityUnknown: "Onbekend niveau",
+    uncountedSummary: "Ook gemeld, niet meegeteld ({{n}})",
+    uncountedHint: "Meldingen die geen actie vragen, en codes waarvoor Bambu geen tekst publiceert. Ze tellen op de printerkaart niet als probleem en sturen geen melding.",
     title: "Fouten - {{name}}",
     noErrors: "Geen fouten",
     viewOnWiki: "Bekijken op Bambu Lab Wiki",

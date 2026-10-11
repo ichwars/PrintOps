@@ -5441,6 +5441,12 @@ export default {
 
   // HMS Errors modal
   hmsErrors: {
+    severityError: "エラー",
+    severityWarning: "警告",
+    severityNotice: "通知",
+    severityUnknown: "不明なレベル",
+    uncountedSummary: "報告済み・カウント対象外（{{n}}）",
+    uncountedHint: "対応不要のお知らせと、Bambu が説明文を公開していないコードです。プリンターカードでは問題として数えられず、通知も送信されません。",
     title: 'エラー - {{name}}',
     noErrors: 'エラーなし',
     viewOnWiki: 'Bambu Lab Wikiで表示',

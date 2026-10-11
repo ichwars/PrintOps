@@ -5429,6 +5429,12 @@ export default {
 
   // HMS Errors modal
   hmsErrors: {
+    severityError: "错误",
+    severityWarning: "警告",
+    severityNotice: "通知",
+    severityUnknown: "未知级别",
+    uncountedSummary: "另有未计入的代码（{{n}}）",
+    uncountedHint: "无需处理的通知，以及 Bambu 未公布说明文字的代码。它们不会在打印机卡片上计为问题，也不会发送通知。",
     title: '错误 - {{name}}',
     noErrors: '无错误',
     viewOnWiki: '在拓竹 Wiki 上查看',

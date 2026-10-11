@@ -886,17 +886,20 @@ const ERROR_DESCRIPTIONS: Record<string, string> = {
   '18FF_C00A': 'Please observe the nozzle of the right extruder. If the filament has been extruded, select \'Continue\'; if not, please push the filament forward slightly and then select \'Retry\'.',
 };
 
+export function isSevereHMSError(error: HMSError): boolean {
+  return error.severity === 1 || error.severity === 2;
+}
+
 function getSeverityInfo(severity: number): { label: string; color: string; bgColor: string; Icon: typeof AlertTriangle } {
   switch (severity) {
     case 1:
-      return { label: 'Fatal', color: 'text-red-500', bgColor: 'bg-red-500/20', Icon: AlertTriangle };
+      return { label: 'hmsErrors.severityError', color: 'text-red-700 dark:text-red-400', bgColor: 'bg-red-100 dark:bg-red-500/15', Icon: AlertTriangle };
     case 2:
-      return { label: 'Serious', color: 'text-red-700 dark:text-red-400', bgColor: 'bg-red-100 dark:bg-red-500/15', Icon: AlertTriangle };
+      return { label: 'hmsErrors.severityWarning', color: 'text-orange-700 dark:text-orange-400', bgColor: 'bg-orange-100 dark:bg-orange-500/20', Icon: AlertTriangle };
     case 3:
-      return { label: 'Warning', color: 'text-orange-700 dark:text-orange-400', bgColor: 'bg-orange-100 dark:bg-orange-500/20', Icon: AlertCircle };
-    case 4:
+      return { label: 'hmsErrors.severityNotice', color: 'text-blue-700 dark:text-blue-400', bgColor: 'bg-blue-100 dark:bg-blue-500/20', Icon: Info };
     default:
-      return { label: 'Info', color: 'text-blue-700 dark:text-blue-400', bgColor: 'bg-blue-100 dark:bg-blue-500/20', Icon: Info };
+      return { label: 'hmsErrors.severityUnknown', color: 'text-bambu-gray', bgColor: 'bg-bambu-dark-tertiary', Icon: AlertCircle };
   }
 }
 
@@ -908,21 +911,34 @@ function getShortCode(attr: number, code: number): string {
   return `${module.toString(16).padStart(4, '0').toUpperCase()}_${codeNum.toString(16).padStart(4, '0').toUpperCase()}`;
 }
 
-// Helper to filter HMS errors the UI should surface (exported for use in badge counts).
-// Keeps an error if EITHER:
-//   - it's in the bundled ERROR_DESCRIPTIONS catalog (known, has a description), OR
-//   - it carries firmware actions (uncataloged but user-actionable — e.g. H2C 0500_809C
-//     with IGNORE_RESUME/PROBLEM_SOLVED_RESUME — must surface so the button can render).
-// Drops uncataloged errors WITHOUT actions: those are transient junk like the post-cancel
-// 0C00_001B echo that re-introduces the FAILED-after-cancel "1 problem forever"
-// regression — see PrintersPageBucketing.test.ts.
+function getDisplayCode(error: HMSError): string {
+  if (/^[0-9a-f]{16}$/i.test(error.full_code ?? '')) return error.full_code!.toUpperCase().match(/.{4}/g)!.join('-');
+  return getShortCode(error.attr, parseInt(error.code.replace('0x', ''), 16) || 0).replace('_', '-');
+}
+
+function getDescription(error: HMSError): string | null {
+  // Only pre-upgrade cached responses lack the field. A current backend's null
+  // must never be replaced by a neighbouring legacy short-code description.
+  if (error.description !== undefined) return error.description;
+  if (error.full_code?.length === 16) return null;
+  return ERROR_DESCRIPTIONS[getShortCode(error.attr, parseInt(error.code.replace('0x', ''), 16) || 0)] ?? null;
+}
+
+function faultCounts(error: HMSError): boolean {
+  if (![1, 2, 3].includes(error.severity)) return false;
+  if ((error.actions?.length ?? 0) > 0) return true;
+  const notice = error.full_code?.length === 16 && error.severity === 3;
+  return !!getDescription(error) && !notice;
+}
+
+// Kept as an exported compatibility name; counting uses actual alert levels
+// and manufacturer text, with separate handling for actionable notices.
 export function filterKnownHMSErrors(errors: HMSError[]): HMSError[] {
-  return errors.filter((error) => {
-    const codeNum = parseInt(error.code.replace('0x', ''), 16) || 0;
-    const shortCode = getShortCode(error.attr, codeNum);
-    if (ERROR_DESCRIPTIONS[shortCode] !== undefined) return true;
-    return (error.actions?.length ?? 0) > 0;
-  });
+  return errors.filter(faultCounts);
+}
+
+export function filterUncountedHMSErrors(errors: HMSError[]): HMSError[] {
+  return errors.filter((error) => !faultCounts(error));
 }
 
 function getHMSHomeUrl(): string {
@@ -948,6 +964,7 @@ export function HMSErrorModal({ printerName, errors, onClose, printerId, hasPerm
   // Surface cataloged errors and uncataloged-but-actionable errors. Mirrors
   // filterKnownHMSErrors so the modal and the badge counts agree.
   const knownErrors = filterKnownHMSErrors(errors);
+  const uncountedErrors = filterUncountedHMSErrors(errors);
 
   // Close on Escape key
   useEffect(() => {
@@ -1015,7 +1032,7 @@ export function HMSErrorModal({ printerName, errors, onClose, printerId, hasPerm
                 const { label, color, bgColor, Icon } = getSeverityInfo(error.severity);
                 const codeNum = parseInt(error.code.replace('0x', ''), 16) || 0;
                 const shortCode = getShortCode(error.attr, codeNum);
-                let description = ERROR_DESCRIPTIONS[shortCode] ?? t('hmsErrors.unknownCode');
+                let description = getDescription(error) ?? t('hmsErrors.unknownCode');
                 if (runoutGuidance && AMS_RUNOUT_SHORT_CODES.has(shortCode)) {
                   if (runoutGuidance.expectedSlotLabel && runoutGuidance.ranOutSlotLabel) {
                     description = t('hmsErrors.runoutExpectedSlot', {
@@ -1031,7 +1048,7 @@ export function HMSErrorModal({ printerName, errors, onClose, printerId, hasPerm
                   }
                 }
                 const hmsHomeUrl = getHMSHomeUrl();
-                const displayCode = shortCode.replace('_', '-');
+                const displayCode = getDisplayCode(error);
 
                 return (
                   <div
@@ -1044,7 +1061,7 @@ export function HMSErrorModal({ printerName, errors, onClose, printerId, hasPerm
                         <div className="flex items-center gap-2 mb-1">
                           <span className={`font-mono text-sm ${color}`}>[{displayCode}]</span>
                           <span className={`text-xs px-2 py-0.5 rounded-full ${bgColor} ${color}`}>
-                            {label}
+                            {t(label)}
                           </span>
                         </div>
                         <p className="text-sm text-bambu-gray mb-2">{description}</p>
@@ -1103,6 +1120,23 @@ export function HMSErrorModal({ printerName, errors, onClose, printerId, hasPerm
                 );
               })}
             </div>
+          )}
+          {uncountedErrors.length > 0 && (
+            <details className="mt-4 text-bambu-gray">
+              <summary className="cursor-pointer text-sm">{t('hmsErrors.uncountedSummary', { n: uncountedErrors.length })}</summary>
+              <p className="mt-2 text-xs">{t('hmsErrors.uncountedHint')}</p>
+              <ul className="mt-2 space-y-2">
+                {uncountedErrors.map((error, index) => (
+                  <li key={`${error.full_code || error.code}-${index}`} className="text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono">[{getDisplayCode(error)}]</span>
+                      <span>{t(getSeverityInfo(error.severity).label)}</span>
+                    </div>
+                    <p className="mt-0.5">{getDescription(error) ?? t('hmsErrors.unknownCode')}</p>
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
         </div>
 

@@ -978,15 +978,14 @@ def _maybe_start_layer_timelapse(printer, printer_id: int, archive_id: int) -> b
 def _format_hms_error_summary(hms_errors: list[dict]) -> str | None:
     """Build a human-readable failure reason from MQTT hms_errors for PrintQueueItem.error_message.
 
-    Each entry has keys: code ('0x4038'), attr (32-bit int), module, severity.
-    The short code used for the hms_errors.py lookup table is 'MMMM_EEEE' — module
-    from attr bits 16-31, error from the numeric part of code. Falls back to the raw
-    short code when no description is on file. Returns None for an empty list so
-    callers can leave error_message unset.
+    Current payloads carry the resolved manufacturer description and full code.
+    Historical payloads without those fields keep their print_error short-code
+    lookup. A 64-bit HMS code never borrows text from the 32-bit keyspace.
+    Unknown faults retain their code; an empty list returns None.
     """
     if not hms_errors:
         return None
-    from backend.app.services.hms_errors import get_error_description
+    from backend.app.services.hms_errors import describe_fault, get_error_description
 
     parts: list[str] = []
     for err in hms_errors:
@@ -997,8 +996,17 @@ def _format_hms_error_summary(hms_errors: list[dict]) -> str | None:
             short_code = f"{module_num:04X}_{error_num:04X}"
         except (TypeError, ValueError):
             continue
-        description = get_error_description(short_code)
-        parts.append(f"[{short_code}] {description}" if description else f"[{short_code}]")
+        full_code = err.get("full_code") or ""
+        if "description" in err:
+            description = err["description"]
+        elif full_code:
+            description = describe_fault(full_code)
+        else:
+            description = get_error_description(short_code)
+        display_code = (
+            "-".join(full_code[index:index + 4] for index in range(0, 16, 4)) if len(full_code) == 16 else short_code
+        )
+        parts.append(f"[{display_code}] {description}" if description else f"[{display_code}]")
     return "; ".join(parts) if parts else None
 
 
@@ -1108,6 +1116,17 @@ def _progress_milestone_to_notify(printer_id: int, state: PrinterState) -> int |
         _last_progress_milestone[printer_id] = current_milestone
         return current_milestone
     return None
+
+
+def _hms_notify_key(error) -> str:
+    """Different faults on the same module/part must notify independently."""
+    return (getattr(error, "full_code", "") or f"{error.attr:08X}:{error.code}").upper()
+
+
+def _hms_errors_to_notify(errors: list, new_error_codes: set[str]) -> list:
+    from backend.app.services.hms_errors import fault_counts
+
+    return [error for error in errors if _hms_notify_key(error) in new_error_codes and fault_counts(error)]
 
 
 async def on_printer_status_change(printer_id: int, state: PrinterState):
@@ -1248,13 +1267,21 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
         if state.raw_data
         else ()
     )
+    # Fault-only pushes must reach both WebSocket and notification consumers.
+    hms_key = tuple(
+        (
+            getattr(error, "full_code", ""), error.code, error.severity, getattr(error, "description", None),
+            tuple(getattr(error, "actions", None) or []), getattr(error, "job_id", None),
+        )
+        for error in (getattr(state, "hms_errors", None) or [])
+    )
     status_key = (
         f"{state.connected}:{state.state}:{state.progress}:{state.layer_num}:"
         f"{nozzle_temp}:{bed_temp}:{nozzle_2_temp}:{chamber_temp}:"
         f"{state.stg_cur}:{bed_target}:{nozzle_target}:"
         f"{state.cooling_fan_speed}:{state.big_fan1_speed}:{state.big_fan2_speed}:"
         f"{state.chamber_light}:{state.active_extruder}:{state.tray_now}:{vt_tray_key}:"
-        f"{ams_dry_key}:{ams_tray_key}:{state.door_open}:{state.ams_filament_backup}"
+        f"{ams_dry_key}:{ams_tray_key}:{state.door_open}:{state.ams_filament_backup}:{hms_key}"
     )
 
     # MQTT relay - publish status (before dedup check - always publish to MQTT)
@@ -1318,8 +1345,8 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
     # Check for new HMS errors and send notifications
     current_hms_errors = getattr(state, "hms_errors", []) or []
     if current_hms_errors:
-        # Build set of current error codes (using attr for uniqueness)
-        current_error_codes = {f"{e.attr:08x}" for e in current_hms_errors}
+        # Identify faults by their full firmware key, including the error on a part.
+        current_error_codes = {_hms_notify_key(e) for e in current_hms_errors}
         previously_notified = _notified_hms_errors.get(printer_id, set())
 
         # Find new errors that haven't been notified yet
@@ -1329,11 +1356,9 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
         _notified_hms_errors[printer_id] = current_error_codes
         _hms_last_seen[printer_id] = time.time()
 
-        if new_error_codes:
-            # Get the actual new errors for the notification
-            # Filter to severity >= 2 (skip informational/status messages like H2D sends)
-            new_errors = [e for e in current_hms_errors if f"{e.attr:08x}" in new_error_codes and e.severity >= 2]
-
+        # Count real manufacturer faults and actionable notices, including level 1.
+        new_errors = _hms_errors_to_notify(current_hms_errors, new_error_codes)
+        if new_errors:
             try:
                 async with async_session() as db:
                     from backend.app.models.printer import Printer
@@ -1352,8 +1377,6 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
                         0x12: "Chamber",
                     }
 
-                    from backend.app.services.hms_errors import get_error_description
-
                     # Capture camera snapshot once for all error notifications
                     error_image_data = await _capture_snapshot_for_notification(
                         printer_id, printer, logging.getLogger(__name__)
@@ -1368,9 +1391,8 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
                         error_code_masked = error_code_int & 0xFFFF
                         short_code = f"{(error.attr >> 16) & 0xFFFF:04X}_{error_code_masked:04X}"
 
-                        # Only notify for errors with known descriptions — printers
-                        # send many undocumented/phantom codes that aren't real errors.
-                        description = get_error_description(short_code)
+                        # The parser resolves the full manufacturer identifier once.
+                        description = error.description
                         if not description or short_code in _HMS_NOTIFICATION_SUPPRESS:
                             continue
 
@@ -1396,6 +1418,10 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
                                 "attr": e.attr,
                                 "module": e.module,
                                 "severity": e.severity,
+                                "description": e.description,
+                                "full_code": e.full_code,
+                                "actions": e.actions,
+                                "job_id": e.job_id,
                             }
                             for e in new_errors
                         ]
