@@ -179,3 +179,205 @@ class TestInjectPlateThumbnails:
         # Same object identity — second pass hits the no-op fast path
         # because every plate now has its plate_N.png.
         assert twice is once
+
+
+# Production-layout regressions: each part is stored once and instantiated via
+# the production extension, rather than repeating its source triangles.
+_NS = (
+    'xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" '
+    'xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06"'
+)
+_IDENTITY = "1 0 0 0 1 0 0 0 1 0 0 0"
+
+
+def _production_3mf(count=25, *, mesh=None, extra_parts="", depth=0, transform=None):
+    import trimesh
+
+    mesh = mesh if mesh is not None else trimesh.creation.box(extents=(10, 10, 10))
+    vertices = "".join(f'<vertex x="{x}" y="{y}" z="{z}"/>' for x, y, z in mesh.vertices)
+    faces = "".join(f'<triangle v1="{a}" v2="{b}" v3="{c}"/>' for a, b, c in mesh.faces)
+    part = f'<object id="1"><mesh><vertices>{vertices}</vertices><triangles>{faces}</triangles></mesh></object>'
+    objects = []
+    items = []
+    for i in range(count):
+        objects.append(
+            f'<object id="{100 + i}"><components>'
+            '<component p:path="/3D/Objects/parts.model" objectid="1"/>'
+            "</components></object>"
+        )
+        matrix = transform or f"1 0 0 0 1 0 0 0 1 {20 * (i % 5)} {20 * (i // 5)} 0"
+        items.append(f'<item objectid="{100 + i}" transform="{matrix}"/>')
+    if depth:
+        objects = [
+            f'<object id="{100 + i}"><components><component objectid="{101 + i}"/></components></object>'
+            for i in range(depth)
+        ] + [objects[0].replace('id="100"', f'id="{100 + depth}"', 1)]
+        items = ['<item objectid="100"/>']
+    blob = io.BytesIO()
+    with zipfile.ZipFile(blob, "w") as archive:
+        archive.writestr("3D/Objects/parts.model", f"<model {_NS}><resources>{part}{extra_parts}</resources></model>")
+        archive.writestr(
+            "3D/3dmodel.model",
+            f"<model {_NS}><resources>{''.join(objects)}</resources><build>{''.join(items)}</build></model>",
+        )
+        archive.writestr("Metadata/plate_1.gcode", "; dummy\n")
+    return blob.getvalue()
+
+
+def _capture_triangles(monkeypatch):
+    import backend.app.services.plate_thumbnail as service
+
+    captured = []
+
+    def capture(poly3d, *_args):
+        captured.append(poly3d.copy())
+        return _PIXEL_PNG
+
+    monkeypatch.setattr(service, "_render_at_size", capture)
+    return service, captured
+
+
+class TestBoundedProductionGeometry:
+    def test_instances_render_linear_face_count_and_only_the_named_part(self, monkeypatch):
+        import numpy as np
+
+        service, captured = _capture_triangles(monkeypatch)
+        extra = '<object id="2"><mesh><vertices><vertex x="0" y="0" z="1000"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/></vertices><triangles><triangle v1="0" v2="1" v3="2"/></triangles></mesh></object>'
+        blob = _production_3mf(extra_parts=extra)
+        assert service.inject_plate_thumbnails_if_missing(blob) is not blob
+        assert len(captured[0]) == 300  # 25 boxes, 12 triangles each.
+        assert np.ptp(captured[0][:, :, 2]) == pytest.approx(1 / 9)
+
+    def test_mirrored_transform_keeps_outward_normals(self, monkeypatch):
+        import numpy as np
+
+        service, captured = _capture_triangles(monkeypatch)
+        blob = _production_3mf(1, transform="-1 0 0 0 1 0 0 0 1 0 0 0")
+        assert service.inject_plate_thumbnails_if_missing(blob) is not blob
+        triangles = captured[0]
+        normals = np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0])
+        assert (np.einsum("ij,ij->i", normals, triangles.mean(axis=1)) > 0).all()
+
+    def test_placement_limit_skips_render_without_rewriting_file(self, monkeypatch):
+        service, captured = _capture_triangles(monkeypatch)
+        monkeypatch.setattr(service, "_MAX_PLACEMENTS", 3, raising=False)
+        blob = _production_3mf(4)
+        assert service.inject_plate_thumbnails_if_missing(blob) is blob
+        assert captured == []
+
+    def test_face_ceiling_skips_render_without_rewriting_file(self, monkeypatch):
+        service, captured = _capture_triangles(monkeypatch)
+        monkeypatch.setattr(service, "_MAX_PLACED_FACES", 100, raising=False)
+        blob = _production_3mf()
+        assert service.inject_plate_thumbnails_if_missing(blob) is blob
+        assert captured == []
+
+    def test_component_depth_limit_skips_render_without_rewriting_file(self, monkeypatch):
+        service, captured = _capture_triangles(monkeypatch)
+        monkeypatch.setattr(service, "_MAX_COMPONENT_DEPTH", 2, raising=False)
+        blob = _production_3mf(1, depth=3)
+        assert service.inject_plate_thumbnails_if_missing(blob) is blob
+        assert captured == []
+
+    def test_decimation_failure_is_checked_against_the_face_ceiling(self, monkeypatch):
+        import trimesh
+
+        service, captured = _capture_triangles(monkeypatch)
+        monkeypatch.setattr(service, "_RENDER_FACE_BUDGET", 400, raising=False)
+        monkeypatch.setattr(service, "_MIN_FACES_PER_MESH", 10, raising=False)
+        monkeypatch.setattr(service, "_MAX_PLACED_FACES", 500, raising=False)
+
+        def fail(*args, **kwargs):
+            raise RuntimeError("optional decimator unavailable")
+
+        monkeypatch.setattr(trimesh.Trimesh, "simplify_quadric_decimation", fail)
+        blob = _production_3mf(2, mesh=trimesh.creation.icosphere(subdivisions=2))
+        assert service.inject_plate_thumbnails_if_missing(blob) is blob
+        assert captured == []
+
+    def test_decimation_is_applied_before_instance_expansion(self, monkeypatch):
+        import trimesh
+
+        service, captured = _capture_triangles(monkeypatch)
+        monkeypatch.setattr(service, "_RENDER_FACE_BUDGET", 2000, raising=False)
+        monkeypatch.setattr(service, "_MIN_FACES_PER_MESH", 20, raising=False)
+        blob = _production_3mf(10, mesh=trimesh.creation.icosphere(subdivisions=3))
+        assert service.inject_plate_thumbnails_if_missing(blob) is not blob
+        assert len(captured[0]) <= 2100
+
+    def test_archive_budget_is_enforced_before_reading_geometry(self, monkeypatch):
+        from dataclasses import replace
+        from functools import partial
+
+        from backend.app.utils.archive_budget import DEFAULT_ARCHIVE_BUDGET, validate_zip_archive
+
+        service, captured = _capture_triangles(monkeypatch)
+        monkeypatch.setattr(
+            service,
+            "validate_zip_archive",
+            partial(validate_zip_archive, budget=replace(DEFAULT_ARCHIVE_BUDGET, max_members=1)),
+            raising=False,
+        )
+        blob = _production_3mf(1)
+        assert service.inject_plate_thumbnails_if_missing(blob) is blob
+        assert captured == []
+
+    def test_concurrent_injections_serialize_geometry_and_render_memory(self, monkeypatch):
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+        from time import sleep
+
+        import backend.app.services.plate_thumbnail as service
+
+        active = 0
+        maximum = 0
+        lock = threading.Lock()
+
+        def render(_blob):
+            nonlocal active, maximum
+            with lock:
+                active += 1
+                maximum = max(maximum, active)
+            sleep(0.03)
+            with lock:
+                active -= 1
+            return _PIXEL_PNG, _PIXEL_PNG
+
+        monkeypatch.setattr(service, "_render_model_thumbnails", render)
+        blob = _production_3mf(1)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            outputs = list(pool.map(service.inject_plate_thumbnails_if_missing, [blob, blob]))
+        assert all("Metadata/plate_1.png" in _names_in_zip(output) for output in outputs)
+        assert maximum == 1
+
+
+def test_injection_preserves_an_existing_small_thumbnail_without_duplicate_members(monkeypatch):
+    service, _ = _capture_triangles(monkeypatch)
+    source = _production_3mf(1)
+    fixture = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(source)) as src, zipfile.ZipFile(fixture, "w") as dst:
+        for item in src.infolist():
+            dst.writestr(item, src.read(item))
+        dst.writestr("Metadata/plate_1_small.png", b"original small preview")
+    result = service.inject_plate_thumbnails_if_missing(fixture.getvalue())
+    with zipfile.ZipFile(io.BytesIO(result)) as archive:
+        assert archive.namelist().count("Metadata/plate_1_small.png") == 1
+        assert archive.read("Metadata/plate_1_small.png") == b"original small preview"
+        assert archive.read("Metadata/plate_1.png") == _PIXEL_PNG
+
+
+def test_shared_part_file_consumes_source_xml_budget_once(monkeypatch):
+    from dataclasses import replace
+
+    from backend.app.utils.archive_budget import DEFAULT_ARCHIVE_BUDGET
+
+    service, captured = _capture_triangles(monkeypatch)
+    # Root nodes: 1 model + 1 resources + 3*25 wrappers + 1 build + 25 items
+    # = 103; part nodes: 1 model + 1 resources + 1 object + 1 mesh + 1 vertices
+    # + 8 vertex + 1 triangles + 12 triangle = 26. Budget is 129 nodes total.
+    monkeypatch.setattr(service, "DEFAULT_ARCHIVE_BUDGET", replace(DEFAULT_ARCHIVE_BUDGET, max_xml_nodes=129))
+    fixture = _production_3mf()
+    assert service.inject_plate_thumbnails_if_missing(fixture) is not fixture
+    assert len(captured[0]) == 300
+    monkeypatch.setattr(service, "DEFAULT_ARCHIVE_BUDGET", replace(DEFAULT_ARCHIVE_BUDGET, max_xml_nodes=128))
+    assert service.inject_plate_thumbnails_if_missing(fixture) is fixture
