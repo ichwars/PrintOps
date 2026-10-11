@@ -367,7 +367,9 @@ jobs:
   docker-backend-tests:
     name: Docker Backend Tests (shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Real WeasyPrint/veraPDF compatibility tests run in this image too.
+    # Allow the slowest shard plus image setup to finish on 2-vCPU runners.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
