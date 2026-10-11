@@ -233,7 +233,7 @@ export const smallPartsApi = {
   importCsvPreview: (file: File) => uploadSmallPartsCsv<SmallPartCsvImportPreview>(file, true),
   importCsv: (file: File) => uploadSmallPartsCsv<SmallPartCsvImportResult>(file, false),
   exportCsv: downloadSmallPartsCsv,
-  printLabels: async (data: { small_part_ids: number[]; template: string; monochrome?: boolean }): Promise<Blob> => {
+  printLabels: async (data: { small_part_ids: number[]; template: string; monochrome?: boolean; start_position?: number }): Promise<Blob> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const token = getAuthToken();
     if (token) headers.Authorization = `Bearer ${token}`;

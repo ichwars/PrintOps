@@ -158,9 +158,14 @@ def _draw_swatch(c: rl_canvas.Canvas, x: float, y: float, w: float, h: float, da
     extras = [_color_from_hex(h) for h in (data.extra_colors or []) if h]
     colors = [primary, *extras]
 
+    # A transparent stripe must not leave zero fill opacity on the following
+    # QR image (or any later drawing on this sheet).
+    c.saveState()
+
     if not colors:
         c.setFillColor(HexColor(0x808080))
         c.rect(x, y, w, h, stroke=0, fill=1)
+        c.restoreState()
         return
 
     stripe_w = w / len(colors)
@@ -172,6 +177,7 @@ def _draw_swatch(c: rl_canvas.Canvas, x: float, y: float, w: float, h: float, da
     c.setStrokeColor(black)
     c.setLineWidth(0.3)
     c.rect(x, y, w, h, stroke=1, fill=0)
+    c.restoreState()
 
 
 def _roomy_qr_size(inner_w: float, inner_h: float) -> float:
@@ -442,7 +448,22 @@ def _render_single_label_pdf(template: TemplateName, data_list: list[LabelData],
     return buf.getvalue()
 
 
-def _render_sheet_pdf(template: TemplateName, data_list: list[LabelData], monochrome: bool = False) -> bytes:
+def validate_start_position(template: TemplateName, start_position: int) -> None:
+    """Positions are one-based, left-to-right, and apply to the first sheet only."""
+    if template in _SHEET_TEMPLATES:
+        cols, rows = _SHEET_TEMPLATES[template][3:5]
+        maximum = cols * rows
+    elif template in _SINGLE_LABEL_SIZES_MM:
+        maximum = 1
+    else:
+        raise ValueError(f"Unknown label template: {template!r}")
+    if type(start_position) is not int or not 1 <= start_position <= maximum:
+        raise ValueError(f"start_position must be an integer from 1 to {maximum} for {template}")
+
+
+def _render_sheet_pdf(
+    template: TemplateName, data_list: list[LabelData], monochrome: bool = False, start_position: int = 1
+) -> bytes:
     page_size, w_mm, h_mm, cols, rows, top_mm, left_mm, col_gap_mm, row_gap_mm = _SHEET_TEMPLATES[template]
     page_w, page_h = page_size
 
@@ -458,21 +479,24 @@ def _render_sheet_pdf(template: TemplateName, data_list: list[LabelData], monoch
     c.setTitle(f"PrintOps spool labels ({template})")
 
     per_page = cols * rows
-    for page_start in range(0, len(data_list), per_page):
-        chunk = data_list[page_start : page_start + per_page]
-        for idx, data in enumerate(chunk):
-            row = idx // cols
-            col = idx % cols
-            x = left_margin + col * (label_w + col_gap)
-            y = page_h - top_margin - (row + 1) * label_h - row * row_gap
-            _draw_label(c, x, y, label_w, label_h, data, monochrome)
+    for index, data in enumerate(data_list):
+        slot = (index + start_position - 1) % per_page
+        row, col = divmod(slot, cols)
+        x = left_margin + col * (label_w + col_gap)
+        y = page_h - top_margin - (row + 1) * label_h - row * row_gap
+        _draw_label(c, x, y, label_w, label_h, data, monochrome)
+        if slot == per_page - 1:
+            c.showPage()
+    if data_list and slot != per_page - 1:
         c.showPage()
 
     c.save()
     return buf.getvalue()
 
 
-def render_labels(template: TemplateName, data_list: list[LabelData], *, monochrome: bool = False) -> bytes:
+def render_labels(
+    template: TemplateName, data_list: list[LabelData], *, monochrome: bool = False, start_position: int = 1
+) -> bytes:
     """Render ``data_list`` to a PDF using the named template. Returns bytes.
 
     Empty ``data_list`` still produces a valid (empty) PDF — callers should
@@ -481,11 +505,15 @@ def render_labels(template: TemplateName, data_list: list[LabelData], *, monochr
     ``monochrome`` drops the colour swatch (which prints as a useless grey block
     on black-and-white thermal printers) and reclaims the space for text; the
     hex-code line still carries the colour. See #1870.
+
+    ``start_position`` skips already used labels on the first Avery sheet.
+    Later sheets start at position 1. Single-label formats accept only 1.
     """
+    validate_start_position(template, start_position)
     if template in _SINGLE_LABEL_SIZES_MM:
         return _render_single_label_pdf(template, data_list, monochrome)
     if template in _SHEET_TEMPLATES:
-        return _render_sheet_pdf(template, data_list, monochrome)
+        return _render_sheet_pdf(template, data_list, monochrome, start_position)
     raise ValueError(f"Unknown label template: {template!r}")
 
 

@@ -4726,6 +4726,9 @@ export default {
     spoolmanMixedContentFixOpenNewTab: 'As a workaround, open Spoolman in a new browser tab over HTTP — mixed-content rules only apply to embedded frames, so a standalone tab still works.',
     spoolmanOpenInNewTab: 'Open Spoolman in a new tab',
     labels: {
+      startPosition: "Start position",
+      startPositionHint: "First sheet: 1–{{max}}, left to right, then down. Later sheets start at 1.",
+      startPositionError: "Enter a whole number from 1 to {{max}}.",
       title: 'Print spool labels',
       selectedCount: '{{count}} selected',
       pickSpools: 'Pick which spools to print labels for:',

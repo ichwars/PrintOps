@@ -4642,6 +4642,9 @@ useEmbeddedHint: 'Esegue lo slicing come impostato dal designer (pareti, riempim
     spoolmanMixedContentFixOpenNewTab: 'Come alternativa, apri Spoolman in una nuova scheda via HTTP — le regole sul contenuto misto si applicano solo ai frame incorporati, una scheda autonoma funziona.',
     spoolmanOpenInNewTab: 'Apri Spoolman in una nuova scheda',
     labels: {
+      startPosition: "Posizione iniziale",
+      startPositionHint: "Primo foglio: 1–{{max}}, da sinistra a destra, poi in basso. I successivi iniziano da 1.",
+      startPositionError: "Inserisci un numero intero da 1 a {{max}}.",
       title: 'Stampa etichette bobine',
       selectedCount: '{{count}} selezionato',
       pickSpools: 'Scegli per quali bobine stampare le etichette:',

@@ -50,6 +50,31 @@ beforeEach(() => {
 });
 
 describe('LabelTemplatePickerModal', () => {
+  it.each(['local', 'spoolman', 'material'] as const)('sends the chosen sheet position for %s labels', async (source) => {
+    const print = source === 'material' ? smallPartsApi.printLabels : source === 'spoolman' ? api.printSpoolmanSpoolLabels : api.printSpoolLabels;
+    vi.mocked(print).mockResolvedValue(PDF_BLOB);
+    render(<LabelTemplatePickerModal isOpen onClose={vi.fn()} availableSpools={SPOOLS}
+      availableMaterials={MATERIALS} initialSelectedIds={source === 'material' ? [7] : [1]}
+      resourceType={source === 'material' ? 'material' : 'spool'} spoolmanMode={source === 'spoolman'} />);
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Start position.*L7160/i }), { target: { value: '21' } });
+    fireEvent.click(screen.getByRole('button', { name: /Avery L7160/i }));
+    await waitFor(() => expect(print).toHaveBeenCalledWith(expect.objectContaining({ template: 'avery_l7160', start_position: 21 })));
+  });
+
+  it('rejects blank, fractional and out-of-range positions without disabling single-label printing', () => {
+    render(<LabelTemplatePickerModal isOpen onClose={vi.fn()} availableSpools={SPOOLS} initialSelectedIds={[1]} />);
+    const field = screen.getByRole('spinbutton', { name: /Start position.*L7160/i });
+    for (const value of ['', '0', '22', '1.5']) {
+      fireEvent.change(field, { target: { value } });
+      expect(field).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByRole('button', { name: /Avery L7160/i })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /Box label.*62/i })).toBeEnabled();
+    }
+    fireEvent.change(field, { target: { value: '21' } });
+    expect(screen.getByRole('button', { name: /Avery L7160/i })).toBeEnabled();
+    expect(screen.getByRole('spinbutton', { name: /Start position.*5160/i })).toHaveValue(1);
+  });
+
   it('does not render when closed', () => {
     render(
       <LabelTemplatePickerModal
@@ -264,7 +289,7 @@ describe('LabelTemplatePickerModal', () => {
       />,
     );
 
-    fireEvent.click(screen.getByText(/Avery L7160/i));
+    fireEvent.click(screen.getByRole('button', { name: /Avery L7160/i }));
 
     await waitFor(() => {
       expect(api.printSpoolLabels).toHaveBeenCalled();
@@ -324,8 +349,8 @@ describe('LabelTemplatePickerModal', () => {
     expect(screen.getByText(/AMS holder — large \(75 × 55 mm\)/i)).toBeInTheDocument();
     expect(screen.getByText(/Box label \(40 × 30 mm\)/i)).toBeInTheDocument();
     expect(screen.getByText(/Box label \(62 × 29 mm\)/i)).toBeInTheDocument();
-    expect(screen.getByText(/Avery L7160/i)).toBeInTheDocument();
-    expect(screen.getByText(/Avery 5160/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Avery L7160/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Avery 5160/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Cancel/i })).toBeInTheDocument();
 
     // Templates section must be a responsive grid (single column on mobile,
@@ -334,7 +359,7 @@ describe('LabelTemplatePickerModal', () => {
     const templatesSection = container.querySelector('div.grid.sm\\:grid-cols-2');
     expect(templatesSection).not.toBeNull();
     expect(templatesSection!.className).toContain('grid-cols-1');
-    expect(templatesSection!.querySelectorAll('button').length).toBe(6);
+    expect(templatesSection!.querySelectorAll('button[title]').length).toBe(6);
 
     // Spool list still uses min-h-0 so it can yield further on very tight viewports.
     const spoolListScroller = container.querySelector('div.flex-1.overflow-y-auto');
