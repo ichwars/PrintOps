@@ -526,7 +526,8 @@ async def test_small_part_csv_import_update_requires_update_permission(async_cli
 
 
 @pytest.mark.asyncio
-async def test_small_part_labels_route_preserves_request_order(async_client):
+@pytest.mark.parametrize("template,start_position", [("box_62x29", 1), ("avery_l7160", 21)])
+async def test_small_part_labels_route_preserves_request_order(async_client, template, start_position):
     await async_client.post(
         "/api/v1/small-parts/settings/units",
         json={"code": "C62", "label": "Stück", "decimal_places": 0},
@@ -549,17 +550,23 @@ async def test_small_part_labels_route_preserves_request_order(async_client):
         captured["ids"] = [data.spool_id for data in data_list]
         captured["names"] = [data.name for data in data_list]
         captured["urls"] = [data.deeplink_url for data in data_list]
+        captured["position"] = kwargs["start_position"]
         return original(template, data_list, **kwargs)
 
     with patch.object(labels_module, "render_labels", side_effect=_capture):
         response = await async_client.post(
             "/api/v1/small-parts/labels",
-            json={"small_part_ids": [second.json()["id"], first.json()["id"]], "template": "box_62x29"},
+            json={
+                "small_part_ids": [second.json()["id"], first.json()["id"]],
+                "template": template,
+                "start_position": start_position,
+            },
         )
 
     assert response.status_code == 200, response.text
     assert response.headers["content-type"] == "application/pdf"
     assert response.content.startswith(b"%PDF")
+    assert captured["position"] == start_position
     assert captured["ids"] == [second.json()["id"], first.json()["id"]]
     assert captured["names"] == ["Label zwei", "Label eins"]
     assert captured["urls"][0].endswith(f"/warehouse/parts?part={second.json()['id']}")

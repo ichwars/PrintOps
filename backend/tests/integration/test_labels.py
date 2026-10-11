@@ -113,7 +113,8 @@ class TestLocalInventoryLabels:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_preserves_request_order(self, async_client: AsyncClient, spool_factory):
+    @pytest.mark.parametrize("start_position", [1, 21])
+    async def test_preserves_request_order(self, async_client: AsyncClient, spool_factory, start_position):
         """Caller's `spool_ids` order should match the on-screen list — important
         for Avery sheet layouts where users curate the layout via filtering."""
         s1 = await spool_factory()
@@ -131,15 +132,17 @@ class TestLocalInventoryLabels:
 
         def _capture(template, data_list, **kwargs):
             captured["ids"] = [d.spool_id for d in data_list]
+            captured["position"] = kwargs["start_position"]
             return original(template, data_list, **kwargs)
 
         with patch.object(labels_module, "render_labels", side_effect=_capture):
             resp = await async_client.post(
                 "/api/v1/inventory/labels",
-                json={"spool_ids": [s3.id, s1.id, s2.id], "template": "avery_l7160"},
+                json={"spool_ids": [s3.id, s1.id, s2.id], "template": "avery_l7160", "start_position": start_position},
             )
         assert resp.status_code == 200
         assert captured["ids"] == [s3.id, s1.id, s2.id]
+        assert captured["position"] == start_position
 
 
 # ── /spoolman/labels (Spoolman-backed) ───────────────────────────────────────
@@ -174,7 +177,10 @@ class TestSpoolmanLabels:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_renders_pdf_from_spoolman_data(self, async_client: AsyncClient, db_session: AsyncSession):
+    @pytest.mark.parametrize("start_position", [1, 21])
+    async def test_renders_pdf_from_spoolman_data(
+        self, async_client: AsyncClient, db_session: AsyncSession, start_position
+    ):
         from backend.app.models.settings import Settings
 
         db_session.add(Settings(key="spoolman_enabled", value="true"))
@@ -194,18 +200,21 @@ class TestSpoolmanLabels:
         mock_client.is_connected = True
         mock_client.get_spools = AsyncMock(return_value=[spoolman_spool])
 
-        with patch(
-            "backend.app.api.routes.labels.get_spoolman_client",
-            AsyncMock(return_value=mock_client),
+        from backend.app.api.routes.labels import render_labels
+
+        with (
+            patch("backend.app.api.routes.labels.get_spoolman_client", AsyncMock(return_value=mock_client)),
+            patch("backend.app.api.routes.labels.render_labels", wraps=render_labels) as render,
         ):
             resp = await async_client.post(
                 "/api/v1/spoolman/labels",
-                json={"spool_ids": [42], "template": "avery_l7160"},
+                json={"spool_ids": [42], "template": "avery_l7160", "start_position": start_position},
             )
 
         assert resp.status_code == 200
         assert resp.headers["content-type"] == "application/pdf"
         assert resp.content.startswith(b"%PDF")
+        assert render.call_args.kwargs["start_position"] == start_position
 
     @pytest.mark.asyncio
     @pytest.mark.integration

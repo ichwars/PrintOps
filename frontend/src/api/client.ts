@@ -16,6 +16,8 @@ export { warehouseArticlesApi } from './client/warehouse-articles';
 export { lexwareApi } from './client/lexware';
 export { lexwareDocumentsApi } from './client/lexware-documents';
 
+export type { StorageHASensor, StorageHASensorCreate, StorageHASensorReading } from './client/storage-ha-sensors';
+import { storageHASensorsMethods } from './client/storage-ha-sensors';
 import { authUsersMethods } from './client/auth-users';
 import { printersFilesMethods } from './client/printers-files';
 import { archivesPrintLogMethods } from './client/archives-print-log';
@@ -27,6 +29,7 @@ import { historyLibraryMethods } from './client/history-library';
 import { backupsSlicerMethods } from './client/backups-slicer';
 
 export const api = {
+  ...storageHASensorsMethods,
   ...authUsersMethods,
   ...printersFilesMethods,
   ...archivesPrintLogMethods,

@@ -26,6 +26,12 @@ class NotificationTemplate(Base):
 # Default templates for seeding
 DEFAULT_TEMPLATES = [
     {
+        "event_type": "storage_sensor_alert",
+        "name": "Storage Sensor Alert",
+        "title_template": "Storage Sensor Alert",
+        "body_template": "{location}: {sensor} — {state}",
+    },
+    {
         "event_type": "print_start",
         "name": "Print Started",
         "title_template": "Print Started",

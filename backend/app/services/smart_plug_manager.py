@@ -9,7 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.tasks import spawn_background_task
+from backend.app.services.drying_ownership import has_drying_reservation, printer_operation
+from backend.app.services.drying_telemetry import invalidate_drying_availability
 from backend.app.services.homeassistant import homeassistant_service
+from backend.app.services.preheat_ownership import preheat_ownership
 from backend.app.services.printer_manager import printer_manager
 from backend.app.services.rest_smart_plug import rest_smart_plug_service
 from backend.app.services.tasmota import tasmota_service
@@ -30,6 +33,47 @@ class SmartPlugManager:
         self._scheduler_task: asyncio.Task | None = None
         self._snapshot_task: asyncio.Task | None = None
         self._last_schedule_check: dict[int, str] = {}  # plug_id -> "HH:MM" last executed
+
+    @staticmethod
+    def _power_off_blocked(printer_id: int | None) -> bool:
+        return bool(
+            printer_id is not None
+            and (preheat_ownership.blocks_power_off(printer_id) or printer_manager.is_print_active(printer_id))
+        )
+
+    async def _turn_off_if_safe(
+        self, service, plug, printer_id: int | None, controls_printer_power=True, db=None
+    ) -> bool:
+        if self._power_off_blocked(printer_id) or printer_id in preheat_ownership.power_off_in_progress:
+            return False
+        if not printer_id or not controls_printer_power:
+            with preheat_ownership.power_off_window(printer_id):
+                return await service.turn_off(plug)
+        if db is None:
+            from backend.app.core.database import async_session
+
+            async with async_session() as session:
+                result = await self._turn_off_if_safe(service, plug, printer_id, controls_printer_power, session)
+                await session.commit()
+                return result
+        async with printer_operation(db, printer_id):
+            if (
+                await has_drying_reservation(db, printer_id)
+                or self._power_off_blocked(printer_id)
+                or printer_id in preheat_ownership.power_off_in_progress
+            ):
+                logger.info("Deferring power-off: drying or heater ownership reserves printer %s", printer_id)
+                return False
+            # Exclude heater acquisition while the hardware service awaits its reply.
+            with preheat_ownership.power_off_window(printer_id):
+                try:
+                    result = await service.turn_off(plug)
+                finally:
+                    state = printer_manager.get_status(printer_id)
+                    if getattr(state, "drying_telemetry", None) is not None:
+                        invalidate_drying_availability(state)
+                await db.commit()
+            return result
 
     async def get_service_for_plug(self, plug: "SmartPlug", db: AsyncSession | None = None):
         """Get the appropriate service for the plug type.
@@ -195,11 +239,13 @@ class SmartPlugManager:
                             self._last_schedule_check[plug.id] = f"on:{current_time}"
 
                 # Check if we should turn off
-                if plug.schedule_off_time == current_time:
+                if plug.schedule_off_time == current_time and not self._power_off_blocked(plug.printer_id):
                     last_check = self._last_schedule_check.get(plug.id)
                     if last_check != f"off:{current_time}":
                         logger.info("Schedule: Turning off plug '%s' at %s", plug.name, current_time)
-                        success = await service.turn_off(plug)
+                        success = await self._turn_off_if_safe(
+                            service, plug, plug.printer_id, plug.controls_printer_power, db
+                        )
                         if success:
                             plug.last_state = "OFF"
                             plug.last_checked = utcnow_naive()
@@ -434,9 +480,9 @@ class SmartPlugManager:
             # re-started (or reprinted) in the meantime, the printer is active
             # again — skip the off and clear the pending flag rather than
             # killing the print mid-way.
-            if printer_manager.is_print_active(printer_id):
+            if self._power_off_blocked(printer_id):
                 logger.info(
-                    "Skipping auto-off for plug %s: printer %s is printing again (state=%s)",
+                    "Skipping auto-off for plug %s: printer %s is printing or has preheat ownership (state=%s)",
                     plug_id,
                     printer_id,
                     getattr(printer_manager.get_status(printer_id), "state", "unknown"),
@@ -461,7 +507,10 @@ class SmartPlugManager:
 
             plug_info = PlugInfo()
             service = await self.get_service_for_plug(plug_info)
-            success = await service.turn_off(plug_info)
+            if self._power_off_blocked(printer_id):
+                await self._mark_auto_off_pending(plug_id, False)
+                return
+            success = await self._turn_off_if_safe(service, plug_info, printer_id, controls_printer_power)
             logger.info("Turned off plug %s after time delay", plug_id)
 
             # Mark auto_off_executed in database and update printer status
@@ -559,9 +608,11 @@ class SmartPlugManager:
                         # touchscreen reprint during the PREPARE/heating phase).
                         # Guard the turn-off so we never cut power on a loaded
                         # print; keep polling until it's genuinely idle again.
-                        if printer_manager.is_print_active(printer_id):
+                        if preheat_ownership.blocks_power_off(printer_id) or printer_manager.is_print_active(
+                            printer_id
+                        ):
                             logger.info(
-                                "Deferring temp-based auto-off for plug %s: printer %s is printing again (state=%s)",
+                                "Deferring temp-based auto-off for plug %s: printer %s is printing or has preheat ownership (state=%s)",
                                 plug_id,
                                 printer_id,
                                 getattr(printer_manager.get_status(printer_id), "state", "unknown"),
@@ -587,7 +638,11 @@ class SmartPlugManager:
 
                         plug_info = PlugInfo()
                         service = await self.get_service_for_plug(plug_info)
-                        success = await service.turn_off(plug_info)
+                        if self._power_off_blocked(printer_id):
+                            await asyncio.sleep(check_interval)
+                            elapsed += check_interval
+                            continue
+                        success = await self._turn_off_if_safe(service, plug_info, printer_id, controls_printer_power)
                         logger.info(
                             f"Turned off plug {plug_id} after nozzle temp dropped to "
                             f"{max_nozzle_temp}°C (threshold: {temp_threshold}°C)"
@@ -714,9 +769,11 @@ class SmartPlugManager:
                     # printer started a new print during the downtime, the stale
                     # pending off must be dropped, not executed — same guard the
                     # live off-executors use.
-                    if printer_manager.is_print_active(plug.printer_id):
+                    if preheat_ownership.blocks_power_off(plug.printer_id) or printer_manager.is_print_active(
+                        plug.printer_id
+                    ):
                         logger.info(
-                            "Not resuming auto-off for plug '%s': printer %s is printing (state=%s); clearing pending",
+                            "Not resuming auto-off for plug '%s': printer %s is printing or has preheat ownership (state=%s); clearing pending",
                             plug.name,
                             plug.printer_id,
                             getattr(printer_manager.get_status(plug.printer_id), "state", "unknown"),
@@ -734,7 +791,14 @@ class SmartPlugManager:
                         logger.info("Time-based auto-off was pending, turning off plug '%s' now", plug.name)
 
                         service = await self.get_service_for_plug(plug, db)
-                        success = await service.turn_off(plug)
+                        if self._power_off_blocked(plug.printer_id):
+                            plug.auto_off_pending = False
+                            plug.auto_off_pending_since = None
+                            await db.commit()
+                            continue
+                        success = await self._turn_off_if_safe(
+                            service, plug, plug.printer_id, plug.controls_printer_power, db
+                        )
                         if success:
                             await self._mark_auto_off_executed(plug.id)
                             if plug.controls_printer_power:

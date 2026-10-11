@@ -43,6 +43,7 @@ RUN apt-get update \
     libstdc++6 \
     openssh-client \
     ca-certificates \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # go2rtc: embedded camera restreaming sidecar (see

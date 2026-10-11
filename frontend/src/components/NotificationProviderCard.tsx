@@ -141,6 +141,7 @@ export function NotificationProviderCard({ provider, onEdit }: NotificationProvi
             {provider.on_ai_failure_detection && (
               <span className="px-2 py-0.5 bg-fuchsia-100 dark:bg-fuchsia-500/20 text-fuchsia-700 dark:text-fuchsia-300 text-xs rounded">{t('notifications.aiFailureDetection')}</span>
             )}
+            {provider.on_storage_sensor_alert && (<span className="px-2 py-0.5 text-xs text-amber-500">{t('storageSensors.notifications')}</span>)}
             {provider.on_ha_sensor_alert && (
               <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 text-xs rounded">{t('notifications.haSensorAlert')}</span>
             )}
@@ -392,6 +393,10 @@ export function NotificationProviderCard({ provider, onEdit }: NotificationProvi
                     checked={provider.on_ha_sensor_alert ?? false}
                     onChange={(checked) => updateMutation.mutate({ on_ha_sensor_alert: checked })}
                   />
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-white">{t('storageSensors.notifications')}</p>
+                  <Toggle ariaLabel={t('storageSensors.notifications')} checked={provider.on_storage_sensor_alert ?? false} onChange={(checked) => updateMutation.mutate({ on_storage_sensor_alert: checked })} />
                 </div>
 
                 <div className="flex items-center justify-between">

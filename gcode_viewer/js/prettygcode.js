@@ -1638,8 +1638,15 @@ $(function () {
             const width = canvas.clientWidth;
             const height = canvas.clientHeight;
 
+            if (width <= 0 || height <= 0) return false;
+            const pixelRatio = window.devicePixelRatio || 1;
+            if (renderer.getPixelRatio() !== pixelRatio) renderer.setPixelRatio(pixelRatio);
+            const drawingWidth = Math.floor(width * pixelRatio);
+            const drawingHeight = Math.floor(height * pixelRatio);
+
             // adjust displayBuffer size to match
-            if (canvas.width !== width || canvas.height !== height) {
+            if (canvas.width !== drawingWidth || canvas.height !== drawingHeight ||
+                gcodeWid !== width || gcodeHei !== height) {
                 // you must pass false here or three.js sadly fights the browser
                 renderer.setSize(width, height, false);
                 camera.aspect = width / height;

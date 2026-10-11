@@ -545,6 +545,45 @@ describe('ProjectsPage', () => {
       expect(screen.getAllByText('Beta')).toHaveLength(1);
     });
 
+    it('collapses nested groups by keyboard without changing the parent summary', async () => {
+      server.use(http.get('/api/v1/projects/', () => HttpResponse.json([
+        listItem({ id: 1, name: 'Airframe', child_count: 1, completed_count: 12 }),
+        listItem({ id: 2, name: 'Wing', parent_id: 1, child_count: 1 }),
+        listItem({ id: 3, name: 'Spar', parent_id: 2 }),
+      ])));
+      const user = userEvent.setup();
+      render(<ProjectsPage />);
+      const wingToggle = await screen.findByRole('button', { name: 'Collapse sub-projects of Wing' });
+      wingToggle.focus();
+      await user.keyboard(' ');
+      expect(wingToggle).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.queryByText('Spar')).not.toBeInTheDocument();
+      expect(screen.getByText('Wing')).toBeInTheDocument();
+      const rootToggle = screen.getByRole('button', { name: 'Collapse sub-projects of Airframe' });
+      await user.click(rootToggle);
+      expect(screen.queryByText('Wing')).not.toBeInTheDocument();
+      expect(screen.getByText('Airframe')).toBeInTheDocument();
+      expect(screen.getAllByText('12 parts')[0]).toBeVisible();
+      await user.click(rootToggle);
+      expect(screen.getByText('Wing')).toBeInTheDocument();
+      expect(screen.queryByText('Spar')).not.toBeInTheDocument();
+    });
+
+    it('shows matching and total child counts when a status filter hides a child', async () => {
+      const all = [
+        listItem({ id: 1, name: 'Airframe', child_count: 2 }),
+        listItem({ id: 2, name: 'Wing', parent_id: 1 }),
+        listItem({ id: 3, name: 'Tail', parent_id: 1, status: 'completed' }),
+      ];
+      server.use(http.get('/api/v1/projects/', ({ request }) => {
+        const status = new URL(request.url).searchParams.get('status');
+        return HttpResponse.json(status ? all.filter(p => p.status === status) : all);
+      }));
+      render(<ProjectsPage />);
+      expect(await screen.findByText('1 matching / 2 total')).toBeInTheDocument();
+      expect(screen.queryByText('Tail')).not.toBeInTheDocument();
+    });
+
     it('nests a grandchild under its own parent, not under the top of the tree', async () => {
       server.use(
         http.get('/api/v1/projects/', () =>

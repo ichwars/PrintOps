@@ -1,8 +1,17 @@
 """Schemas for virtual printer diagnostics."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from backend.app.schemas.printer import DiagnosticCheck
+from backend.app.utils.advertised_address import validate_advertised_ip
+
+
+class VPAddressConfig(BaseModel):
+    """Per-printer NAT address; blank/null restores automatic advertisement."""
+
+    advertised_ip: str | None = None
+
+    _validate_advertised_ip = field_validator("advertised_ip")(validate_advertised_ip)
 
 
 class VPDiagnosticResult(BaseModel):

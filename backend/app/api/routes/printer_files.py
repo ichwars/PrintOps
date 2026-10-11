@@ -13,7 +13,7 @@ import time
 import zipfile
 
 import defusedxml.ElementTree as ET
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response
 from sqlalchemy import select
 
@@ -25,12 +25,13 @@ from backend.app.models.printer import Printer
 from backend.app.models.user import User
 from backend.app.services.bambu_ftp import (
     DeleteResult,
+    DownloadDeadlineExceeded,
     FileNotOnPrinterError,
     FtpsCooldownActive,
-    _download_deadline,
     delete_file_async,
     download_file_bytes_async,
     get_file_size_async,
+    get_ftp_retry_settings,
     get_storage_info_async,
     list_files_async,
 )
@@ -38,7 +39,9 @@ from backend.app.services.print_scheduler import (
     _DISPATCH_PROGRESS_BYTE_STEP,
     _DISPATCH_PROGRESS_MIN_INTERVAL_SECS,
 )
+from backend.app.services.printer_file_stream import stream_printer_file, validate_printer_file_path
 from backend.app.utils.http import build_content_disposition
+from backend.app.utils.printer_file_response import PrinterFileStreamingResponse, first_download_chunk
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/printers", tags=["printers"])
@@ -122,51 +125,52 @@ async def list_printer_files(
 @router.get("/{printer_id}/files/download")
 async def download_printer_file(
     printer_id: int,
+    request: Request,
     path: str,
-    download_id: str | None = Query(None),
+    download_id: str | None = Query(None, max_length=128),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_FILES),
 ):
-    """Download a file from the printer.
-
-    Large files (printer logs can run several hundred MB) over a slow Wi-Fi
-    link routinely exceed a fixed short timeout — the deadline scales with
-    the file's actual size instead. When ``download_id`` is supplied (the
-    file-manager UI), live byte-level progress is relayed over the WS
-    connection so the UI can show percent/speed/ETA instead of nothing.
-    """
-    printer = await _load_printer_or_404(printer_id)
-
+    """Stream printer files with bounded buffering and coordinated FTPS retries."""
     try:
+        validate_printer_file_path(path)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    printer = await _load_printer_or_404(printer_id)
+    stream = None
+    try:
+        retry_enabled, retry_count, retry_delay, socket_timeout = await get_ftp_retry_settings()
         total_bytes = await get_file_size_async(
-            printer.ip_address, printer.access_code, path, printer_model=printer.model
-        )
-        deadline = _download_deadline(total_bytes or 0)
-        progress_callback = (
-            _DownloadProgressBridge(current_user.id if current_user else None, download_id) if download_id else None
-        )
-        data = await download_file_bytes_async(
             printer.ip_address,
             printer.access_code,
             path,
             printer_model=printer.model,
-            timeout=deadline,
-            socket_timeout=deadline,
+            socket_timeout=socket_timeout,
+        )
+        progress_callback = (
+            _DownloadProgressBridge(current_user.id if current_user else None, download_id) if download_id else None
+        )
+        stream = stream_printer_file(
+            printer.ip_address,
+            printer.access_code,
+            path,
+            printer_model=printer.model,
+            total_bytes=total_bytes,
+            socket_timeout=socket_timeout,
+            max_retries=retry_count if retry_enabled else 0,
+            retry_delay=retry_delay,
             progress_callback=progress_callback,
-            total_bytes=total_bytes or 0,
-            raise_on_not_found=True,
         )
-    except FtpsCooldownActive as e:
-        raise HTTPException(503, str(e)) from e
-    except FileNotOnPrinterError as e:
-        raise HTTPException(404, f"File not found: {path}") from e
-
-    if data is None:
-        size_hint = f" ({total_bytes} bytes)" if total_bytes else ""
-        raise HTTPException(
-            504,
-            f"Download of '{path}'{size_hint} did not complete within {deadline:.0f}s. "
-            f"Check the printer's Wi-Fi signal or try again.",
-        )
+        first = await first_download_chunk(request, stream)
+    except FtpsCooldownActive as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except FileNotOnPrinterError as exc:
+        raise HTTPException(404, f"File not found: {path}") from exc
+    except (OSError, DownloadDeadlineExceeded) as exc:
+        raise HTTPException(504, "Printer file download failed. Check the printer connection and try again.") from exc
+    except BaseException:
+        if stream is not None:
+            await stream.aclose()
+        raise
 
     filename = path.split("/")[-1]
     ext = filename.lower().split(".")[-1] if "." in filename else ""
@@ -181,11 +185,14 @@ async def download_printer_file(
         "json": "application/json",
         "txt": "text/plain",
     }
-    return Response(
-        content=data,
-        media_type=content_types.get(ext, "application/octet-stream"),
-        headers={"Content-Disposition": build_content_disposition(filename)},
-    )
+    headers = {"Content-Disposition": build_content_disposition(filename)}
+    if total_bytes is not None and total_bytes >= 0:
+        headers["Content-Length"] = str(total_bytes)
+    media_type = content_types.get(ext, "application/octet-stream")
+    if first is None:
+        await stream.aclose()
+        return Response(content=b"", media_type=media_type, headers=headers)
+    return PrinterFileStreamingResponse(stream, first, media_type=media_type, headers=headers)
 
 
 @router.get("/{printer_id}/files/gcode")

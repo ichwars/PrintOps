@@ -21,6 +21,7 @@ export interface NotificationProvider {
   on_filament_low: boolean;
   on_maintenance_due: boolean;
   on_ha_sensor_alert: boolean;
+  on_storage_sensor_alert: boolean;
   // AMS environmental alarms (regular AMS)
   on_ams_humidity_high: boolean;
   on_ams_temperature_high: boolean;
@@ -81,6 +82,7 @@ export interface NotificationProviderCreate {
   on_filament_low?: boolean;
   on_maintenance_due?: boolean;
   on_ha_sensor_alert?: boolean;
+  on_storage_sensor_alert?: boolean;
   // AMS environmental alarms (regular AMS)
   on_ams_humidity_high?: boolean;
   on_ams_temperature_high?: boolean;
@@ -134,6 +136,7 @@ export interface NotificationProviderUpdate {
   on_filament_low?: boolean;
   on_maintenance_due?: boolean;
   on_ha_sensor_alert?: boolean;
+  on_storage_sensor_alert?: boolean;
   // AMS environmental alarms (regular AMS)
   on_ams_humidity_high?: boolean;
   on_ams_temperature_high?: boolean;

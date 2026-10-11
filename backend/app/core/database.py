@@ -287,6 +287,7 @@ async def init_db():
         spoolman_k_profile,
         spoolman_slot_assignment,
         stock_reservation,
+        storage_ha_sensor,
         user,
         user_email_pref,
         user_otp_code,
@@ -1050,13 +1051,9 @@ async def run_migrations(conn):
     # Migration: Add wiki_url column to maintenance_types for documentation links
     await _safe_execute(conn, "ALTER TABLE maintenance_types ADD COLUMN wiki_url VARCHAR(500)")
 
-    # Migration: Add tailscale_disabled column to virtual_printers. Opt-in: default TRUE so
-    # the auto-detect + fallback noise only runs for users who explicitly enable it.
-    # Postgres rejects `DEFAULT 1` for BOOLEAN (#1070 round-2 review).
-    if is_sqlite():
-        await _safe_execute(conn, "ALTER TABLE virtual_printers ADD COLUMN tailscale_disabled BOOLEAN DEFAULT 1")
-    else:
-        await _safe_execute(conn, "ALTER TABLE virtual_printers ADD COLUMN tailscale_disabled BOOLEAN DEFAULT true")
+    from backend.app.core.virtual_printer_migrations import migrate_vp_network_config
+
+    await migrate_vp_network_config(conn, _safe_execute, sqlite=is_sqlite())
 
     # Migration: Add ams_mapping column to print_queue for storing filament slot assignments
     await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN ams_mapping TEXT")
@@ -3605,14 +3602,13 @@ async def _migrate_document_payments(conn) -> None:
     # Migration: Home Assistant sensor alerts (#1148). The printer_ha_sensors
     # table itself is new, so create_all() builds it; only the provider opt-in
     # column needs adding to existing databases.
-    #
     # DEFAULT FALSE, not DEFAULT 0: Postgres will not take an integer default
     # for a boolean column, and _safe_execute swallows the DatatypeMismatchError
-    # — so the older "BOOLEAN DEFAULT 0" migrations above quietly do nothing on
-    # Postgres and only work there because create_all() builds the column on a
-    # fresh install. SQLite has understood FALSE since 3.23, so this spelling
-    # is the one that actually applies on both.
+    # SQLite also supports FALSE, so both database engines accept this migration.
     await _safe_execute(conn, "ALTER TABLE notification_providers ADD COLUMN on_ha_sensor_alert BOOLEAN DEFAULT FALSE")
+    await _safe_execute(
+        conn, "ALTER TABLE notification_providers ADD COLUMN on_storage_sensor_alert BOOLEAN DEFAULT FALSE"
+    )
     await _safe_execute(
         conn,
         "ALTER TABLE printer_ha_sensors ADD COLUMN failure_strategy VARCHAR(16) DEFAULT 'auto'",

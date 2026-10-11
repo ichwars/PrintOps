@@ -53,6 +53,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
   const [localTargetPrinterId, setLocalTargetPrinterId] = useState<number | null>(printer.target_printer_id);
   const [localBindIp, setLocalBindIp] = useState(printer.bind_ip || '');
   const [localRemoteInterfaceIp, setLocalRemoteInterfaceIp] = useState(printer.remote_interface_ip || '');
+  const [localAdvertisedIp, setLocalAdvertisedIp] = useState(printer.advertised_ip || '');
   const [localModel, setLocalModel] = useState(printer.model || '');
   const [localAutoDispatch, setLocalAutoDispatch] = useState(printer.auto_dispatch ?? true);
   const [localQueueForceColorMatch, setLocalQueueForceColorMatch] = useState(printer.queue_force_color_match ?? false);
@@ -99,6 +100,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
       setLocalTargetPrinterId(printer.target_printer_id);
       setLocalBindIp(printer.bind_ip || '');
       setLocalRemoteInterfaceIp(printer.remote_interface_ip || '');
+      setLocalAdvertisedIp(printer.advertised_ip || '');
       setLocalModel(printer.model || '');
       setLocalAutoDispatch(printer.auto_dispatch ?? true);
       setLocalQueueForceColorMatch(printer.queue_force_color_match ?? false);
@@ -134,6 +136,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
       setLocalTargetPrinterId(printer.target_printer_id);
       setLocalBindIp(printer.bind_ip || '');
       setLocalTailscaleDisabled(printer.tailscale_disabled ?? true);
+      setLocalAdvertisedIp(printer.advertised_ip || '');
       setPendingAction(null);
     },
   });
@@ -657,6 +660,32 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                 </LegacySelect>
               </div>
               <p className="text-xs text-bambu-gray mt-1">{t('virtualPrinter.bindIp.hint')}</p>
+            </div>
+
+            <div className="pt-2 border-t border-bambu-dark-tertiary">
+              <TextField
+                id={`vp-${printer.id}-advertised-ip`}
+                label={t('virtualPrinter.advertisedAddress.title')}
+                helperText={t('virtualPrinter.advertisedAddress.hint')}
+                value={localAdvertisedIp}
+                onValueChange={setLocalAdvertisedIp}
+                placeholder={t('virtualPrinter.advertisedAddress.placeholder')}
+                disabled={pendingAction === 'advertisedIp'}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <Button
+                variant="secondary"
+                className="mt-2"
+                disabled={pendingAction === 'advertisedIp'}
+                aria-label={t('virtualPrinter.advertisedAddress.save')}
+                onClick={() => {
+                  setPendingAction('advertisedIp');
+                  updateMutation.mutate({ advertised_ip: localAdvertisedIp.trim() });
+                }}
+              >
+                {pendingAction === 'advertisedIp' ? <Loader2 className="w-4 h-4 animate-spin" /> : t('common.save')}
+              </Button>
             </div>
 
             {/* Remote Interface - always visible for configuration */}

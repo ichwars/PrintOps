@@ -18,6 +18,8 @@ import zipfile
 from collections.abc import Callable
 from pathlib import Path
 
+from backend.app.utils.advertised_address import validate_advertised_ip
+
 logger = logging.getLogger(__name__)
 
 # Default FTP port for Bambu printers (implicit FTPS).
@@ -73,7 +75,7 @@ class FTPSession:
         self.ssl_context = ssl_context
         self.on_file_received = on_file_received
         self.passive_port_range = passive_port_range
-        self.pasv_address = pasv_address
+        self.pasv_address = validate_advertised_ip(pasv_address) or ""
         self.bind_address = bind_address
         self.vp_name = vp_name
         self._log_prefix = f"[{vp_name}] " if vp_name else ""
@@ -676,6 +678,7 @@ class VirtualPrinterFTPServer:
         vp_name: str = "",
         passive_port_min: int = PASSIVE_PORT_BASE,
         passive_port_max: int = PASSIVE_PORT_BASE + PASSIVE_SLICE_SIZE - 1,
+        advertised_ip: str = "",
     ):
         """Initialize the FTPS server.
 
@@ -693,6 +696,8 @@ class VirtualPrinterFTPServer:
                 shared 0.0.0.0 binds without paying for a 1001-port pool (#1646).
             passive_port_max: High end of the slice (inclusive). Defaults
                 produce a 10-port window starting at PASSIVE_PORT_BASE.
+            advertised_ip: Client-facing IPv4 override; takes precedence over
+                the legacy global VIRTUAL_PRINTER_PASV_ADDRESS environment value.
         """
         self.upload_dir = upload_dir
         self.access_code = access_code
@@ -715,7 +720,9 @@ class VirtualPrinterFTPServer:
         self._ssl_context: ssl.SSLContext | None = None
         self._active_sessions: list[asyncio.Task] = []
         # Override PASV response IP for Docker bridge mode / NAT environments
-        self._pasv_address = os.environ.get("VIRTUAL_PRINTER_PASV_ADDRESS", "")
+        self._pasv_address = (
+            validate_advertised_ip(advertised_ip or os.environ.get("VIRTUAL_PRINTER_PASV_ADDRESS", "")) or ""
+        )
 
     async def start(self) -> None:
         """Start the implicit FTPS server."""

@@ -75,6 +75,7 @@ from backend.app.models.document_layout import (
     LayoutTotalsRules,
     LayoutTypographyRules,
 )
+from backend.app.models.drying_schedule import DryingSchedule, DryingScheduleRun
 from backend.app.models.equipment import Equipment
 from backend.app.models.filament import Filament
 from backend.app.models.filament_sku_settings import FilamentSkuSettings
@@ -121,6 +122,7 @@ from backend.app.models.stock_reservation import (
     StockReservationCommand,
     StockResourceLock,
 )
+from backend.app.models.storage_ha_sensor import StorageHASensor
 from backend.app.models.user import User
 from backend.app.models.user_email_pref import UserEmailPreference
 from backend.app.models.user_otp_code import UserOTPCode
@@ -245,6 +247,8 @@ __all__ = [
     "DocumentPreviewJob",
     "NumberSequence",
     "Equipment",
+    "DryingSchedule",
+    "DryingScheduleRun",
     "SmallPartCategory",
     "SmallPartUnit",
     "SmallPart",

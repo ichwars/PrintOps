@@ -2284,6 +2284,7 @@ class TestVirtualPrinterManager:
             "serial_suffix": "391800001",
             "bind_ip": "",
             "remote_interface_ip": "",
+            "advertised_ip": None,
             "target_printer_id": None,
             "auto_dispatch": True,
             "tailscale_disabled": True,  # Opt-in default (#1070 UX fix)
@@ -2293,8 +2294,7 @@ class TestVirtualPrinterManager:
         }
         defaults.update(overrides)
         vp = MagicMock()
-        for k, v in defaults.items():
-            setattr(vp, k, v)
+        vp.configure_mock(**defaults)
         return vp
 
     def _setup_sync_mocks(self, manager, enabled_vps, tmp_path):

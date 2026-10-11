@@ -2,6 +2,8 @@ import { AlertCircle, CheckCircle, ChevronDown, ChevronUp, Info, Loader2, X, XCi
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatFileSize } from '../utils/file';
+import { IconButton } from '../components/ui';
+import { toastDuration } from '../utils/toastDuration';
 
 type ToastType = 'success' | 'error' | 'warning' | 'info' | 'loading';
 
@@ -131,6 +133,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [viewportSuppressed, setViewportSuppressed] = useState(false);
   const [isDispatchCollapsed, setIsDispatchCollapsed] = useState(false);
   const timeoutRefs = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const interactions = useRef(new Map<string, { hovered: boolean; focused: boolean }>());
   // Tracks whether the provider is still mounted. A toast can be triggered by
   // an async callback that resolves AFTER React has unmounted us (common in
   // tests: `cleanup()` runs while a login promise is still in flight, then
@@ -151,19 +154,36 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const showToast = useCallback((message: string, type: ToastType = 'success') => {
-    if (!isMountedRef.current) return;
-    const id = Math.random().toString(36).substr(2, 9);
-    setToasts((prev) => [...prev, { id, message, type }]);
-
-    // Auto-dismiss after 3 seconds
+  const scheduleDismiss = useCallback((id: string, delay: number) => {
+    const pending = timeoutRefs.current.get(id);
+    if (pending) clearTimeout(pending);
     const timeout = setTimeout(() => {
       if (!isMountedRef.current) return;
       setToasts((prev) => prev.filter((t) => t.id !== id));
       timeoutRefs.current.delete(id);
-    }, 3000);
+      interactions.current.delete(id);
+    }, delay);
     timeoutRefs.current.set(id, timeout);
   }, []);
+
+  const showToast = useCallback((message: string, type: ToastType = 'success') => {
+    if (!isMountedRef.current) return;
+    const id = Math.random().toString(36).substr(2, 9);
+    setToasts((prev) => [...prev, { id, message, type }]);
+    scheduleDismiss(id, toastDuration(message, type));
+  }, [scheduleDismiss]);
+
+  const setInteraction = (toast: Toast, kind: 'hovered' | 'focused', active: boolean) => {
+    if (toast.persistent || toast.dispatchData) return;
+    const state = interactions.current.get(toast.id) ?? { hovered: false, focused: false };
+    state[kind] = active;
+    interactions.current.set(toast.id, state);
+    if (state.hovered || state.focused) {
+      const timeout = timeoutRefs.current.get(toast.id);
+      if (timeout) clearTimeout(timeout);
+      timeoutRefs.current.delete(toast.id);
+    } else scheduleDismiss(toast.id, toastDuration(toast.message, toast.type));
+  };
 
   const showPersistentToast = useCallback(
     (id: string, message: string, type: ToastType = 'info', options?: { action?: ToastAction }) => {
@@ -191,6 +211,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       timeoutRefs.current.delete(id);
     }
     setToasts((prev) => prev.filter((t) => t.id !== id));
+    interactions.current.delete(id);
   }, []);
 
   // Dispatch-toast ingestion. The four event types from the backend
@@ -329,6 +350,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((toast) => (
           <div
             key={toast.id}
+            role={toast.type === 'error' || toast.type === 'warning' ? 'alert' : 'status'}
+            aria-atomic="true"
+            onMouseEnter={() => setInteraction(toast, 'hovered', true)}
+            onMouseLeave={() => setInteraction(toast, 'hovered', false)}
+            onFocus={() => setInteraction(toast, 'focused', true)}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setInteraction(toast, 'focused', false);
+            }}
             className={`rounded-lg border shadow-lg backdrop-blur-sm animate-slide-in ${bgColors[toast.type]} ${
               toast.dispatchData ? 'w-[420px] p-3' : 'flex items-center gap-3 px-4 py-3'
             }`}
@@ -455,7 +484,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             ) : (
               <>
                 {icons[toast.type]}
-                <span className="text-white text-sm">{toast.message}</span>
+                <span className="text-white text-sm min-w-0 break-words whitespace-pre-wrap">{toast.message}</span>
                 {toast.action && (
                   <a
                     href={toast.action.href}
@@ -470,12 +499,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                     {toast.action.label}
                   </a>
                 )}
-                <button
+                <IconButton
                   onClick={() => dismissToast(toast.id)}
-                  className="ml-2 text-bambu-gray hover:text-white transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                  label={t('common.dismiss')}
+                  icon={X}
+                  size="sm"
+                  className="ml-2"
+                />
               </>
             )}
           </div>

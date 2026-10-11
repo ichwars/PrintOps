@@ -8,6 +8,13 @@ import os
 import uuid
 from pathlib import Path
 
+from backend.app.services.thumbnail_lighting import (
+    VIEW_AZIMUTH,
+    VIEW_ELEVATION,
+    thumbnail_faces,
+    thumbnail_shading,
+)
+
 logger = logging.getLogger(__name__)
 
 # Matplotlib's font_manager emits one INFO line per font on first import
@@ -130,6 +137,8 @@ def generate_stl_thumbnail(
             except Exception as e:
                 logger.warning("Mesh simplification failed, using original: %s", e)
 
+        faces = thumbnail_faces(mesh, trimesh)
+
         # Get mesh bounds and center it
         vertices = mesh.vertices
         bounds_min = vertices.min(axis=0)
@@ -153,8 +162,7 @@ def generate_stl_thumbnail(
         ax.set_facecolor(BACKGROUND_COLOR)
 
         # Create polygon collection from mesh faces
-        faces = mesh.faces
-        poly3d = [[vertices_scaled[vertex] for vertex in face] for face in faces]
+        poly3d = vertices_scaled[faces]
 
         collection = Poly3DCollection(
             poly3d,
@@ -162,6 +170,7 @@ def generate_stl_thumbnail(
             edgecolors=BAMBU_GREEN,
             linewidths=0.1,
             alpha=0.9,
+            **thumbnail_shading(poly3d),
         )
         ax.add_collection3d(collection)
 
@@ -171,7 +180,7 @@ def generate_stl_thumbnail(
         ax.set_zlim(-0.6, 0.6)
 
         # Set view angle (isometric-ish)
-        ax.view_init(elev=25, azim=45)
+        ax.view_init(elev=VIEW_ELEVATION, azim=VIEW_AZIMUTH)
 
         # Remove axes and grid
         ax.set_axis_off()
