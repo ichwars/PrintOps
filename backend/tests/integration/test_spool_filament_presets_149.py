@@ -28,7 +28,7 @@ async def test_mixed_models_and_explicit_generic_override(async_client, db_sessi
     url = f"/api/v1/inventory/spools/{legacy_spool.id}/filament-presets"
     rows = [
         {"printer_model": "Bambu Lab P2S", "slicer_filament": "GFA02", "slicer_filament_name": "P2S PLA"},
-        {"printer_model": "C11", "slicer_filament": None, "slicer_filament_name": None},
+        {"printer_model": "BL-P001", "slicer_filament": None, "slicer_filament_name": None},
     ]
     response = await async_client.put(url, json=rows)
     assert response.status_code == 200

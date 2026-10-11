@@ -32,10 +32,13 @@ PRINTER_MODEL_MAP = {
 # These are the codes Bambu Studio uses internally
 PRINTER_MODEL_ID_MAP = {
     # X1 series
-    "C11": "X1C",
-    "C12": "X1",
+    "BL-P001": "X1C",
+    "BL-P002": "X1",
+    "BL-P003": "X1E",
     "C13": "X1E",
     # P1 series
+    "C11": "P1P",
+    "C12": "P1S",
     "P1P": "P1P",
     "P1S": "P1S",
     # P2 series
@@ -75,8 +78,8 @@ CARBON_ROD_MODELS = frozenset(
         "P1P",
         "P1S",
         # Internal codes
-        "C11",  # X1C
-        "C12",  # X1
+        "C11",  # P1P
+        "C12",  # P1S
         "C13",  # X1E
     ]
 )
@@ -155,10 +158,11 @@ ETHERNET_MODELS = frozenset(
         "H2C",
         "H2S",
         # Internal codes
-        "C11",  # X1C
+        "BLP001",  # X1C
         "C13",  # X1E
         "N6",  # X2D
-        "P1S",  # P1S
+        "C12",  # P1S
+        "N7",  # P2S
         "O1D",  # H2D
         "O1E",  # H2D Pro
         "O2D",  # H2D Pro (alternate)
@@ -280,7 +284,7 @@ def has_ethernet(model: str | None) -> bool:
     """Return True if the printer model has an ethernet port."""
     if not model:
         return False
-    normalized = model.strip().upper().replace(" ", "").replace("-", "")
+    normalized = (normalize_printer_model_id(model.strip().upper()) or model).upper().replace(" ", "").replace("-", "")
     return normalized in ETHERNET_MODELS
 
 
@@ -295,7 +299,7 @@ def has_external_storage(model: str | None) -> bool:
     """
     if not model:
         return True
-    normalized = model.strip().upper().replace(" ", "").replace("-", "")
+    normalized = (normalize_printer_model_id(model.strip().upper()) or model).upper().replace(" ", "").replace("-", "")
     return normalized not in NO_EXTERNAL_STORAGE_MODELS
 
 
@@ -303,7 +307,7 @@ def is_dual_nozzle_model(model: str | None) -> bool:
     """Return True if the printer model has two nozzles (H2D family / X2D)."""
     if not model:
         return False
-    normalized = model.strip().upper().replace(" ", "").replace("-", "")
+    normalized = (normalize_printer_model_id(model.strip().upper()) or model).upper().replace(" ", "").replace("-", "")
     return normalized in DUAL_NOZZLE_MODELS
 
 
@@ -311,7 +315,7 @@ def supports_nozzle_flow_type(model: str | None) -> bool:
     """Return whether the model offers Standard and High Flow nozzles."""
     if not model:
         return True
-    normalized = model.strip().upper().replace(" ", "").replace("-", "")
+    normalized = (normalize_printer_model_id(model.strip().upper()) or model).upper().replace(" ", "").replace("-", "")
     return normalized not in SINGLE_NOZZLE_FLOW_MODELS
 
 
@@ -328,7 +332,8 @@ def is_gcode_compatible(sliced_for_model: str | None, target_model: str | None) 
         return True
 
     def _norm(model: str) -> str:
-        resolved = PRINTER_MODEL_ID_MAP.get(model.strip(), model)
+        resolved = normalize_printer_model(model) or model
+        resolved = normalize_printer_model_id(resolved) or resolved
         return resolved.strip().upper().replace(" ", "").replace("-", "")
 
     sliced = _norm(sliced_for_model)
@@ -349,7 +354,7 @@ def get_rod_type(model: str | None) -> str | None:
     """
     if not model:
         return None
-    normalized = model.strip().upper().replace(" ", "").replace("-", "")
+    normalized = (normalize_printer_model_id(model.strip().upper()) or model).upper().replace(" ", "").replace("-", "")
     if normalized in CARBON_ROD_MODELS:
         return "carbon"
     if normalized in STEEL_ROD_MODELS:
@@ -366,14 +371,15 @@ def normalize_printer_model_id(model_id: str | None) -> str | None:
         model_id: The printer_model_id from slice_info.config (e.g., "C11", "O1D")
 
     Returns:
-        Normalized short name (e.g., "X1C", "H2D") or the original ID if unknown.
+        Normalized short name (e.g., "P1P", "H2D") or the original ID if unknown.
     """
     if not model_id:
         return None
 
-    # Check known mappings
-    if model_id in PRINTER_MODEL_ID_MAP:
-        return PRINTER_MODEL_ID_MAP[model_id]
+    # Codes are shared by 3MF metadata and SSDP discovery.
+    resolved = PRINTER_MODEL_ID_MAP.get(model_id.strip().upper())
+    if resolved:
+        return resolved
 
     # Return original if unknown (might already be a short name)
     return model_id

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Layers, Settings2, Package, Unlink, Link2, X } from 'lucide-react';
 import type { SpoolBuddyOutletContext } from '../../components/spoolbuddy/SpoolBuddyLayout';
 import { api } from '../../api/client';
+import { mapModelCode } from '../printers/printer-status';
 import type { PrinterStatus, AMSTray, SpoolAssignment } from '../../api/client';
 import { getGlobalTrayId, getFillBarColor, getSpoolmanFillLevel, getFallbackSpoolTag, formatSlotLabel, isBambuLabSpool } from '../../utils/amsHelpers';
 import { getSwatchStyle } from '../../utils/colors';
@@ -21,20 +22,6 @@ function getAmsName(amsId: number): string {
   return `AMS ${amsId}`;
 }
 
-function mapModelCode(ssdpModel: string | null): string {
-  if (!ssdpModel) return '';
-  const modelMap: Record<string, string> = {
-    'O1D': 'H2D', 'O1E': 'H2D Pro', 'O2D': 'H2D Pro', 'O1C': 'H2C', 'O1C2': 'H2C', 'O1S': 'H2S',
-    'BL-P001': 'X1C', 'BL-P002': 'X1', 'BL-P003': 'X1E',
-    'N6': 'X2D',
-    'N9': 'A2L',
-    'C11': 'P1S', 'C12': 'P1P', 'C13': 'P2S',
-    'N2S': 'A1', 'N1': 'A1 Mini',
-    'X1C': 'X1C', 'X1': 'X1', 'X1E': 'X1E', 'X2D': 'X2D', 'P1S': 'P1S', 'P1P': 'P1P', 'P2S': 'P2S',
-    'A1': 'A1', 'A1 Mini': 'A1 Mini', 'A2L': 'A2L', 'H2D': 'H2D', 'H2D Pro': 'H2D Pro', 'H2C': 'H2C', 'H2S': 'H2S',
-  };
-  return modelMap[ssdpModel] || ssdpModel;
-}
 
 function isTrayEmpty(tray: AMSTray): boolean {
   return !tray.tray_type || tray.tray_type === '';
