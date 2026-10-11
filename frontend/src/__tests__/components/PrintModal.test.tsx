@@ -1422,6 +1422,40 @@ describe('PrintModal', () => {
       });
     });
 
+    it('keeps ASAP jobs for different printers in selected global order', async () => {
+      const capturedBodies: Record<string, unknown>[] = [];
+      server.use(
+        http.post('/api/v1/queue/', async ({ request }) => {
+          capturedBodies.push(await request.json() as Record<string, unknown>);
+          return HttpResponse.json({ id: 1, status: 'pending' });
+        })
+      );
+      const user = userEvent.setup();
+
+      render(
+        <PrintModal
+          mode="create"
+          archiveId={1}
+          archiveName="Benchy"
+          initialSelectedPrinterIds={[1, 2]}
+          onClose={mockOnClose}
+          onSuccess={mockOnSuccess}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /^print$/i })).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole('button', { name: /^print$/i }));
+
+      await waitFor(() => {
+        expect(capturedBodies).toHaveLength(2);
+        expect(capturedBodies.map(body => body.insert_position)).toEqual([1, 2]);
+        expect(capturedBodies.map(body => body.printer_id)).toEqual([1, 2]);
+      });
+    });
+
     it('adds Queue prints to the back unless manual start is required', async () => {
       let capturedBody: Record<string, unknown> | null = null;
       server.use(

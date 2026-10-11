@@ -339,6 +339,16 @@ def _mapping_is_all_unresolved(mapping: list | None) -> bool:
     return all(slot is None or (isinstance(slot, int) and slot < 0) for slot in mapping)
 
 
+def _could_take_printer(item: PrintQueueItem, printer_id: int, printer_model: str | None) -> bool:
+    if item.printer_id is not None:
+        return item.printer_id == printer_id
+    if not printer_model:
+        return False
+    wanted = (normalize_printer_model(printer_model) or printer_model).lower()
+    models = [v.target_model for v in item.variants] if item.variants else [item.target_model]
+    return any(model and (normalize_printer_model(model) or model).lower() == wanted for model in models)
+
+
 class PrintScheduler:
     """Background scheduler that processes the print queue."""
 
@@ -447,10 +457,9 @@ class PrintScheduler:
         # Check if shortest-job-first scheduling is enabled
         sjf_enabled = await self._get_bool_setting(db, "queue_shortest_first")
 
-        # Get all pending items, ordered by printer and position (or SJF order)
+        # Get all pending items in global position or shortest-job-first order
         if sjf_enabled:
-            # SJF: group by printer (and target_model for model-based jobs),
-            # then items already jumped get top priority (starvation guard),
+            # SJF: items already jumped get top priority (starvation guard),
             # then sort by print_time ascending. Items with no print time go last.
             result = await db.execute(
                 select(PrintQueueItem)
@@ -462,11 +471,10 @@ class PrintScheduler:
                 .where(PrintQueueItem.status == "pending")
                 .where(PrintQueueItem.dispatching_at.is_(None))
                 .order_by(
-                    PrintQueueItem.printer_id,
-                    PrintQueueItem.target_model,
                     PrintQueueItem.been_jumped.desc(),
                     PrintQueueItem.print_time_seconds.asc().nullslast(),
                     PrintQueueItem.position,
+                    PrintQueueItem.id,
                 )
             )
         else:
@@ -479,7 +487,7 @@ class PrintScheduler:
                 )
                 .where(PrintQueueItem.status == "pending")
                 .where(PrintQueueItem.dispatching_at.is_(None))
-                .order_by(PrintQueueItem.printer_id, PrintQueueItem.position)
+                .order_by(PrintQueueItem.position, PrintQueueItem.id)
             )
         items = list(result.scalars().all())
 
@@ -772,11 +780,13 @@ class PrintScheduler:
 
                     # SJF starvation guard: mark items that were jumped
                     if sjf_enabled and item.print_time_seconds is not None:
+                        printer = await self._get_printer(db, item.printer_id)
                         for other in items:
                             if (
                                 other.id != item.id
+                                and other.id not in dispatch_ids
                                 and other.status == "pending"
-                                and other.printer_id == item.printer_id
+                                and _could_take_printer(other, item.printer_id, printer.model if printer else None)
                                 and not other.been_jumped
                                 and other.position < item.position
                                 and (
@@ -953,10 +963,9 @@ class PrintScheduler:
                             for other in items:
                                 if (
                                     other.id != item.id
+                                    and other.id not in dispatch_ids
                                     and other.status == "pending"
-                                    and other.printer_id is None
-                                    and other.target_model
-                                    and other.target_model.upper() == item.target_model.upper()
+                                    and _could_take_printer(other, printer_id, printer.model if printer else None)
                                     and not other.been_jumped
                                     and other.position < item.position
                                     and (

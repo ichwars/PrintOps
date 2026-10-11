@@ -57,6 +57,7 @@ from backend.app.services.print_batch import (
     load_progress,
     refresh_batch_status,
 )
+from backend.app.services.queue_position import lock_queue_positions
 from backend.app.utils.printer_models import is_gcode_compatible
 from backend.app.utils.threemf_tools import (
     extract_bed_type_from_3mf,
@@ -498,7 +499,7 @@ async def list_queue(
             # Cross-model candidates (#671) and their files, for the card label.
             selectinload(PrintQueueItem.variants).selectinload(PrintQueueVariant.library_file),
         )
-        .order_by(PrintQueueItem.printer_id.nulls_first(), PrintQueueItem.position)
+        .order_by(PrintQueueItem.position, PrintQueueItem.id)
     )
     if user is not None and not can_read_all:
         query = query.where(PrintQueueItem.created_by_id == user.id)
@@ -870,42 +871,9 @@ async def add_to_queue(
         await db.flush()  # Get batch.id before creating items
         batch_id = batch.id
 
-    # Get queue scope for this printer (or for unassigned/model-based items).
-    if data.printer_id is not None:
-        queue_scope = (
-            PrintQueueItem.printer_id == data.printer_id,
-            PrintQueueItem.status == "pending",
-        )
-    else:
-        # For unassigned/model-based items, scope across all unassigned.
-        queue_scope = (
-            PrintQueueItem.printer_id.is_(None),
-            PrintQueueItem.status == "pending",
-        )
-
-    # Serialize concurrent queue inserts to the same scope (#1625-followup).
-    # The race: two concurrent ASAP inserts both compute MAX(position) before
-    # either commits; in an empty scope, both INSERT at position 1 (duplicate).
-    # In a non-empty scope, Postgres's row-level locks on the UPDATE shift
-    # serialize naturally, but the empty-scope path has no rows to lock.
-    # A transaction-scoped advisory lock keyed on the printer_id closes that
-    # window; the lock is released automatically at commit/rollback. Different
-    # printers don't contend. SQLite serializes writes implicitly so this is a
-    # no-op there.
-    #
-    # Dialect is checked against the actual session binding, NOT the
-    # `is_sqlite()` helper, because the test fixture overrides `get_db` with a
-    # SQLite engine while `settings.database_url` still points at Postgres
-    # (the helper reads settings). Inspecting the connection directly is the
-    # right shape for any code that mutates SQL based on the live dialect.
-    from sqlalchemy import text
-
-    bind = db.get_bind()
-    if bind.dialect.name == "postgresql":
-        scope_key = data.printer_id if data.printer_id is not None else 0
-        # 1625 namespaces the lock so it can't collide with other advisory
-        # locks elsewhere in the codebase.
-        await db.execute(text("SELECT pg_advisory_xact_lock(1625, :k)"), {"k": scope_key})
+    # The UI reorders one list, so every producer shares its sequence.
+    queue_scope = (PrintQueueItem.status == "pending",)
+    await lock_queue_positions(db)
 
     insert_position = max(1, data.insert_position or 1)
     if data.insert_at_top or data.insert_position is not None:
@@ -1843,6 +1811,7 @@ async def reorder_queue(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_UPDATE_ALL),
 ):
     """Bulk update positions for queue items."""
+    await lock_queue_positions(db)
     for reorder_item in data.items:
         result = await db.execute(select(PrintQueueItem).where(PrintQueueItem.id == reorder_item.id))
         item = result.scalar_one_or_none()

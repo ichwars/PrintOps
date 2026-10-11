@@ -324,6 +324,9 @@ class TestVirtualPrinterInstance:
         from backend.app.services.virtual_printer.manager import VirtualPrinterInstance
 
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.commit = AsyncMock()
         mock_session_factory = MagicMock()
         mock_session_ctx = AsyncMock()
@@ -401,6 +404,9 @@ class TestVirtualPrinterInstance:
         from backend.app.services.virtual_printer.manager import VirtualPrinterInstance
 
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         added_items = []
 
         def capture_add(item):
@@ -461,6 +467,9 @@ class TestVirtualPrinterInstance:
         from backend.app.services.virtual_printer.manager import VirtualPrinterInstance
 
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.add = MagicMock()
         mock_db.commit = AsyncMock()
         mock_session_factory = MagicMock()
@@ -521,6 +530,9 @@ class TestVirtualPrinterInstance:
         from backend.app.services.virtual_printer.manager import VirtualPrinterInstance
 
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         added_items = []
 
         def capture_add(item):
@@ -579,6 +591,9 @@ class TestVirtualPrinterInstance:
         from backend.app.services.virtual_printer.manager import VirtualPrinterInstance
 
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         added_items = []
         mock_db.add = MagicMock(side_effect=added_items.append)
         mock_db.commit = AsyncMock()
@@ -631,6 +646,9 @@ class TestVirtualPrinterInstance:
         from backend.app.services.virtual_printer.manager import VirtualPrinterInstance
 
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         added_items = []
         mock_db.add = MagicMock(side_effect=added_items.append)
         mock_db.commit = AsyncMock()
@@ -689,6 +707,9 @@ class TestVirtualPrinterInstance:
 
         added_items = []
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.add = MagicMock(side_effect=added_items.append)
         mock_db.commit = AsyncMock()
         mock_session_factory = MagicMock()
@@ -762,6 +783,9 @@ class TestVirtualPrinterInstance:
 
         added_items = []
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.add = MagicMock(side_effect=added_items.append)
         mock_db.commit = AsyncMock()
         mock_session_factory = MagicMock()
@@ -826,6 +850,9 @@ class TestVirtualPrinterInstance:
 
         added_items = []
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.add = MagicMock(side_effect=added_items.append)
         mock_db.commit = AsyncMock()
         mock_session_factory = MagicMock()
@@ -913,6 +940,9 @@ class TestVirtualPrinterInstance:
 
         added_items = []
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.add = MagicMock(side_effect=added_items.append)
         mock_db.commit = AsyncMock()
         mock_session_factory = MagicMock()
@@ -977,6 +1007,9 @@ class TestVirtualPrinterInstance:
 
         added_items = []
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.add = MagicMock(side_effect=added_items.append)
         mock_db.commit = AsyncMock()
         mock_session_factory = MagicMock()
@@ -1047,6 +1080,9 @@ class TestVirtualPrinterInstance:
 
         added_items = []
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.add = MagicMock(side_effect=added_items.append)
         mock_db.commit = AsyncMock()
         mock_session_factory = MagicMock()
@@ -1116,6 +1152,9 @@ class TestVirtualPrinterInstance:
 
         added_items = []
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.add = MagicMock(side_effect=added_items.append)
         mock_db.commit = AsyncMock()
         mock_session_factory = MagicMock()
@@ -1180,6 +1219,9 @@ class TestVirtualPrinterInstance:
 
         added_items = []
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.add = MagicMock(side_effect=added_items.append)
         mock_db.commit = AsyncMock()
         mock_session_factory = MagicMock()
@@ -1251,6 +1293,9 @@ class TestVirtualPrinterInstance:
         from backend.app.services.virtual_printer.manager import VirtualPrinterInstance
 
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_session_factory = MagicMock()
         mock_session_ctx = AsyncMock()
         mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_db)
@@ -1313,6 +1358,9 @@ class TestVirtualPrinterInstance:
         from backend.app.services.virtual_printer.manager import VirtualPrinterInstance
 
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_session_factory = MagicMock()
         mock_session_ctx = AsyncMock()
         mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_db)
@@ -1357,6 +1405,9 @@ class TestVirtualPrinterInstance:
         from backend.app.services.virtual_printer.manager import VirtualPrinterInstance
 
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         # Commit raises — emulating a DB connectivity error.
         mock_db.add = MagicMock()
         mock_db.commit = AsyncMock(side_effect=RuntimeError("db unreachable"))
@@ -1392,6 +1443,9 @@ class TestVirtualPrinterInstance:
         from backend.app.services.virtual_printer.manager import VirtualPrinterInstance
 
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.add = MagicMock()
         mock_db.commit = AsyncMock()
         mock_db.execute = AsyncMock(side_effect=RuntimeError("queue insert blew up"))
@@ -1443,6 +1497,11 @@ class TestVirtualPrinterInstance:
         added_items: list = []
 
         class _RecordingDb:
+            def get_bind(self):
+                bind = MagicMock()
+                bind.dialect.name = "sqlite"
+                return bind
+
             def __init__(self):
                 self.add = lambda item: added_items.append(item)
                 self.commit = AsyncMock()
@@ -1523,6 +1582,11 @@ class TestVirtualPrinterInstance:
         added_items: list = []
 
         class _RecordingDb:
+            def get_bind(self):
+                bind = MagicMock()
+                bind.dialect.name = "sqlite"
+                return bind
+
             def __init__(self):
                 # Capture inserted items as they're added; assign a fake .id
                 # on flush so the manager's logger doesn't see None.
@@ -1657,6 +1721,9 @@ class TestVirtualPrinterInstance:
 
         added_items = []
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.add = MagicMock(side_effect=added_items.append)
         mock_db.commit = AsyncMock()
         mock_session_factory = MagicMock()
@@ -1727,6 +1794,9 @@ class TestVirtualPrinterInstance:
 
         added_items = []
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.add = MagicMock(side_effect=added_items.append)
         mock_db.commit = AsyncMock()
         mock_session_factory = MagicMock()
@@ -1790,11 +1860,14 @@ class TestVirtualPrinterInstance:
 
         added_items = []
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.add = MagicMock(side_effect=added_items.append)
         mock_db.flush = AsyncMock()
         mock_db.commit = AsyncMock()
         mock_db.execute = AsyncMock()
-        mock_db.execute.return_value.scalar.return_value = None
+        mock_db.execute.return_value.scalar = MagicMock(return_value=None)
         mock_session_factory = MagicMock()
         mock_session_ctx = AsyncMock()
         mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_db)
@@ -1863,6 +1936,9 @@ class TestVirtualPrinterInstance:
 
         added_items: list = []
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.add = MagicMock(
             side_effect=lambda item: (added_items.append(item), setattr(item, "id", 100 + len(added_items)))[0]
         )
@@ -1974,6 +2050,9 @@ class TestVirtualPrinterInstance:
 
         added_items: list = []
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.add = MagicMock(
             side_effect=lambda item: (added_items.append(item), setattr(item, "id", 300 + len(added_items)))[0]
         )
@@ -2073,6 +2152,9 @@ class TestVirtualPrinterInstance:
         from backend.app.services.virtual_printer.manager import VirtualPrinterInstance
 
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         # The eligible-pending SELECT returns nothing — item is no longer pending.
         empty_result = MagicMock()
         empty_result.all = MagicMock(return_value=[])
@@ -2303,6 +2385,9 @@ class TestVirtualPrinterManager:
         mock_result.scalars.return_value.all.return_value = enabled_vps
 
         mock_db = AsyncMock()
+        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+        mock_db.get_bind.return_value.dialect.name = "sqlite"
+        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
         mock_db.execute = AsyncMock(return_value=mock_result)
         mock_db.__aenter__ = AsyncMock(return_value=mock_db)
         mock_db.__aexit__ = AsyncMock(return_value=False)

@@ -851,19 +851,12 @@ export function PrintModal({
       }
     }
 
-    const asapInsertionCounts = new Map<string, number>();
-
-    const applyAsapInsertion = (
-      queueData: PrintQueueItemCreate,
-      printerId: number | null,
-      itemCount = 1,
-    ) => {
+    let asapInserted = 0;
+    const applyAsapInsertion = (queueData: PrintQueueItemCreate, itemCount = 1) => {
       if (scheduleOptions.scheduleType !== 'asap') return;
-      const scopeKey = printerId !== null ? `printer:${printerId}` : 'unassigned';
-      const insertPosition = (asapInsertionCounts.get(scopeKey) ?? 0) + 1;
       queueData.insert_at_top = true;
-      queueData.insert_position = insertPosition;
-      asapInsertionCounts.set(scopeKey, insertPosition + itemCount - 1);
+      queueData.insert_position = asapInserted + 1;
+      asapInserted += itemCount;
     };
 
     // Common queue data for create and edit modes
@@ -927,7 +920,7 @@ export function PrintModal({
             const queueData = getQueueData(null, plateId);
             const plateQuantity = quantityForPlate(plateId);
             if (plateQuantity > 1) queueData.quantity = plateQuantity;
-            applyAsapInsertion(queueData, null, plateQuantity);
+            applyAsapInsertion(queueData, plateQuantity);
             await addToQueueMutation.mutateAsync(queueData);
           }
           results.success++;
@@ -983,7 +976,7 @@ export function PrintModal({
               const queueData = getQueueData(printerId, plateId);
               const plateQuantity = quantityForPlate(plateId);
               if (plateQuantity > 1) queueData.quantity = plateQuantity;
-              applyAsapInsertion(queueData, printerId, plateQuantity);
+              applyAsapInsertion(queueData, plateQuantity);
               // Apply stagger offset for groups after the first
               if (useStagger) {
                 const groupIndex = Math.floor(i / scheduleOptions.staggerGroupSize);

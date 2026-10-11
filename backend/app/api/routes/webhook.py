@@ -12,6 +12,7 @@ from backend.app.models.archive import PrintArchive
 from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.printer import Printer
 from backend.app.services.printer_manager import printer_manager
+from backend.app.services.queue_position import next_queue_position
 
 logger = logging.getLogger(__name__)
 
@@ -83,18 +84,7 @@ async def webhook_add_to_queue(
     if not printer:
         raise HTTPException(status_code=404, detail="Printer not found")
 
-    # Get next position
-    result = await db.execute(
-        select(PrintQueueItem.position)
-        .where(
-            PrintQueueItem.printer_id == data.printer_id,
-            PrintQueueItem.status == "pending",
-        )
-        .order_by(PrintQueueItem.position.desc())
-        .limit(1)
-    )
-    max_position = result.scalar()
-    next_position = (max_position or 0) + 1
+    next_position = await next_queue_position(db)
 
     # Parse scheduled time if provided
     scheduled_time = None

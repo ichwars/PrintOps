@@ -243,18 +243,9 @@ class PrintQueueReorder(BaseModel):
         """Reject reorder requests with duplicate positions in the payload
         (#1625-followup).
 
-        The /reorder route is the drag-drop renumber path on the queue UI;
-        a well-behaved client sends a contiguous renumbering of a single
-        printer's pending queue. A buggy client that sends two items at
-        the same position would leave the queue in an inconsistent state
-        (scheduler's ORDER BY (printer_id, position) ties get broken by
-        physical row order). Fail closed at the schema boundary so the
-        bug is caught before any DB mutation.
-
-        Uniqueness is enforced WITHIN THE PAYLOAD only — cross-printer
-        reorders that intentionally share positions across different
-        printer queues are a non-goal of the drag-drop UI, so this is the
-        right scope.
+        The /reorder route renumbers pending items in global queue order.
+        Duplicate positions make dispatch order ambiguous, so reject them
+        before mutation. Partial payloads remain supported.
         """
         positions = [it.position for it in self.items]
         if len(positions) != len(set(positions)):

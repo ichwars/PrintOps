@@ -19,6 +19,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { compareQueueOrder } from '../utils/queueOrder';
 import { queueItemDisplayName } from '../utils/queueItemName';
 import { clearQueueHistory } from '../utils/queueHistory';
 import {
@@ -1690,24 +1691,8 @@ export function QueuePage() {
       return time > sixMonthsFromNow ? 0 : time;
     };
 
-    // When SJF is enabled, override sort to match scheduler order
     if (settings?.queue_shortest_first) {
-      return [...items].sort((a, b) => {
-        // Group by printer first (nulls = model-based, grouped by target_model)
-        const aPrinter = a.printer_id ?? -(a.target_model?.charCodeAt(0) ?? 0);
-        const bPrinter = b.printer_id ?? -(b.target_model?.charCodeAt(0) ?? 0);
-        if (aPrinter !== bPrinter) return aPrinter - bPrinter;
-        // Within same printer/model: jumped items first (starvation guard)
-        const aJumped = a.been_jumped ? 1 : 0;
-        const bJumped = b.been_jumped ? 1 : 0;
-        if (aJumped !== bJumped) return bJumped - aJumped;
-        // Shortest print time next (nulls last)
-        const aTime = a.print_time_seconds ?? Infinity;
-        const bTime = b.print_time_seconds ?? Infinity;
-        if (aTime !== bTime) return aTime - bTime;
-        // Position as tiebreaker
-        return a.position - b.position;
-      });
+      return [...items].sort((a, b) => compareQueueOrder(a, b, true));
     }
 
     return [...items].sort((a, b) => {
@@ -1722,7 +1707,7 @@ export function QueuePage() {
         // Sort by scheduled start time (when print will begin)
         cmp = getScheduledTime(a) - getScheduledTime(b);
       } else {
-        cmp = a.position - b.position;
+        cmp = compareQueueOrder(a, b);
       }
       return pendingSortAsc ? cmp : -cmp;
     });
@@ -1803,17 +1788,8 @@ export function QueuePage() {
       if (!item.scheduled_time) return false;
       return (parseUTCDate(item.scheduled_time)?.getTime() ?? 0) > Date.now();
     };
-    const schedulerOrder = (a: PrintQueueItem, b: PrintQueueItem): number => {
-      if (settings?.queue_shortest_first) {
-        const aJumped = a.been_jumped ? 1 : 0;
-        const bJumped = b.been_jumped ? 1 : 0;
-        if (aJumped !== bJumped) return bJumped - aJumped;
-        const aTime = a.print_time_seconds ?? Infinity;
-        const bTime = b.print_time_seconds ?? Infinity;
-        if (aTime !== bTime) return aTime - bTime;
-      }
-      return a.position - b.position;
-    };
+    const schedulerOrder = (a: PrintQueueItem, b: PrintQueueItem): number =>
+      compareQueueOrder(a, b, Boolean(settings?.queue_shortest_first));
     const contenders = new Map<number, PrintQueueItem[]>();
     queue
       .filter(item =>

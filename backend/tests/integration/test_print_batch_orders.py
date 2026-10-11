@@ -546,10 +546,10 @@ class TestBatchOrderDispatch:
             # from under the rest of the order.
             assert clone.cleanup_library_after_dispatch is False
 
-    async def test_clones_land_in_their_own_printer_queue(
+    async def test_clones_preserve_assignment_and_append_to_global_queue(
         self, async_client, printer_factory, archive_factory, db_session
     ):
-        """Positions are per-printer sequences — a global MAX would scramble them."""
+        """Batch clones retain their printer and append after all pending jobs."""
         printer_a = await printer_factory()
         printer_b = await printer_factory()
         archive = await archive_factory()
@@ -558,8 +558,7 @@ class TestBatchOrderDispatch:
             archive.id,
             [{"plate_id": 1, "quantity_target": 3}, {"plate_id": 2, "quantity_target": 2}],
         )
-        # Pad printer B's queue so a global MAX would push plate 1's clones
-        # past the end of printer A's much shorter queue.
+        # Pending jobs on printer B must stay ahead of newly appended clones.
         for _ in range(5):
             await async_client.post("/api/v1/queue/", json={"printer_id": printer_b.id, "archive_id": archive.id})
         await _queue_item(async_client, printer_a.id, archive.id, order["id"], plate_id=1)
@@ -586,7 +585,18 @@ class TestBatchOrderDispatch:
             )
             positions = sorted(r.position for r in rows)
             assert len(positions) == len(set(positions)), f"duplicate positions on printer {printer.id}"
-            assert positions == list(range(1, len(rows) + 1)), f"gap in printer {printer.id} queue"
+            assert len(rows) == (3 if printer.id == printer_a.id else 7)
+        all_rows = (
+            (
+                await db_session.execute(
+                    select(PrintQueueItem).where(PrintQueueItem.status == "pending").order_by(PrintQueueItem.position)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert [row.position for row in all_rows] == list(range(1, 11))
+        assert all(row.printer_id == printer_b.id for row in all_rows[:5])
 
     async def test_clone_differs_from_its_source_only_in_lifecycle_state(
         self, async_client, printer_factory, archive_factory, db_session

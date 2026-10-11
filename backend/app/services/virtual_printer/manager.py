@@ -813,20 +813,9 @@ class VirtualPrinterInstance:
                     # duplicate position=1 rows on every VP upload and made
                     # queue execution order non-deterministic for any non-
                     # empty queue.
-                    from sqlalchemy import func, select as _sql_select
+                    from backend.app.services.queue_position import next_queue_position
 
-                    queue_scope = _sql_select(func.max(PrintQueueItem.position)).where(
-                        PrintQueueItem.status == "pending"
-                    )
-                    if self.target_printer_id is not None:
-                        queue_scope = queue_scope.where(PrintQueueItem.printer_id == self.target_printer_id)
-                    else:
-                        queue_scope = queue_scope.where(PrintQueueItem.printer_id.is_(None))
-                    try:
-                        max_pos_raw = (await db.execute(queue_scope)).scalar()
-                        max_pos = int(max_pos_raw) if max_pos_raw is not None else 0
-                    except (TypeError, ValueError):
-                        max_pos = 0
+                    max_pos = await next_queue_position(db) - 1
 
                     # Parse per-plate filament requirements (#1188). Each plate
                     # has its own filament set in `slice_info.config`, so the
