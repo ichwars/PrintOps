@@ -27,6 +27,13 @@ import logging
 import re
 import zipfile
 
+from backend.app.services.thumbnail_lighting import (
+    VIEW_AZIMUTH,
+    VIEW_ELEVATION,
+    thumbnail_faces,
+    thumbnail_shading,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -157,6 +164,7 @@ def _render_model_thumbnails(threemf_bytes: bytes) -> tuple[bytes | None, bytes 
         except Exception as exc:
             logger.debug("plate_thumbnail: mesh simplification failed, using original: %s", exc)
 
+    faces = thumbnail_faces(mesh, trimesh)
     vertices = mesh.vertices
     bounds_min = vertices.min(axis=0)
     bounds_max = vertices.max(axis=0)
@@ -164,8 +172,7 @@ def _render_model_thumbnails(threemf_bytes: bytes) -> tuple[bytes | None, bytes 
     max_extent = (bounds_max - bounds_min).max()
     scaled = centered / max_extent if max_extent > 0 else centered
 
-    faces = mesh.faces
-    poly3d = [[scaled[v] for v in face] for face in faces]
+    poly3d = scaled[faces]
 
     large = _render_at_size(poly3d, _PLATE_PNG_SIZE, plt, Poly3DCollection)
     small = _render_at_size(poly3d, _PLATE_PNG_SMALL_SIZE, plt, Poly3DCollection)
@@ -185,12 +192,13 @@ def _render_at_size(poly3d, size: int, plt, Poly3DCollection) -> bytes:
             edgecolors=_BAMBU_GREEN,
             linewidths=0.1,
             alpha=0.9,
+            **thumbnail_shading(poly3d),
         )
     )
     ax.set_xlim(-0.6, 0.6)
     ax.set_ylim(-0.6, 0.6)
     ax.set_zlim(-0.6, 0.6)
-    ax.view_init(elev=25, azim=45)
+    ax.view_init(elev=VIEW_ELEVATION, azim=VIEW_AZIMUTH)
     ax.set_axis_off()
     ax.grid(False)
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
