@@ -52,6 +52,38 @@ async def test_owned_bed_and_chamber_stop_and_durable_record_clears(owned):
 
 
 @pytest.mark.asyncio
+async def test_status_read_started_before_publish_cannot_treat_stale_pending_as_reversion(owned):
+    queried, resume, returned, confirmed = (asyncio.Event() for _ in range(4))
+    reads = 0
+
+    async def read_status(lease):
+        nonlocal reads
+        reads += 1
+        if reads == 1:
+            queried.set()
+            await resume.wait()
+            returned.set()
+            return "pending"
+        await confirmed.wait()
+        return "printing"
+
+    owned.owner.item_status.side_effect = read_status
+    owned.lease.command(owned.client, "bed", 60)
+    await asyncio.wait_for(queried.wait(), 1)
+    # CAS/publish completes while the old pending read is still in flight.
+    owned.lease.dispatched()
+    resume.set()
+    await asyncio.wait_for(returned.wait(), 1)
+    assert owned.owner.blocks_power_off(7)
+    owned.client.set_bed_temperature.assert_called_once_with(60)
+    owned.state.state = "RUNNING"
+    confirmed.set()
+    await asyncio.wait_for(owned.lease.monitor, 1)
+    assert not owned.owner.blocks_power_off(7)
+    owned.client.set_bed_temperature.assert_called_once_with(60)
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("target", [60, 75])
 async def test_manual_command_even_same_target_supersedes_owned_bed(owned, target):
     owned.lease.command(owned.client, "bed", 60)

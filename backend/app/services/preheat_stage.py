@@ -126,7 +126,7 @@ async def preheat_and_soak(
 
     lease = current_preheat_lease()
     if lease:
-        if preheat_ownership.blocks_power_off(printer.id):
+        if preheat_ownership.blocks_power_off(printer.id) and preheat_ownership.leases.get(printer.id) is not lease:
             raise RuntimeError("Printer has unresolved preheat ownership")
         enabled, retries, delay, _ = await ftp_settings()
         upload_path = settings.base_dir / archive.file_path if archive else None

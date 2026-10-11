@@ -14,7 +14,7 @@ from backend.app.models.archive import PrintArchive
 from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.printer import Printer
 from backend.app.services.heater_commands import set_heater_temperature
-from backend.app.services.preheat_ownership import PreheatOwnership
+from backend.app.services.preheat_ownership import PreheatLease, PreheatOwnership
 from backend.app.services.print_scheduler import PrintScheduler
 
 _owners = []
@@ -118,6 +118,7 @@ async def dispatch(
     soak=0,
     poll_seconds=3,
     persistence_failure=False,
+    keep_warm=False,
 ):
     scheduler = PrintScheduler()
     state = SimpleNamespace(
@@ -146,6 +147,11 @@ async def dispatch(
         owner.save = MagicMock(side_effect=OSError("ownership disk unavailable"))
     _owners.append(owner)
     ctx.owner, ctx.state, ctx.client, ctx.pm = owner, state, client, pm
+    if keep_warm:
+        state.state = "FINISH"
+        lease = PreheatLease(owner, ctx.printer_id, ctx.queue_item_id, pm, purpose="keep_warm")
+        lease.activate(600)
+        assert lease.command(client, "bed", 60)
     upload = AsyncMock(return_value=upload_result, side_effect=upload_effect)
     patches = [
         patch("backend.app.services.print_scheduler.preheat_ownership", owner),
@@ -184,9 +190,10 @@ async def dispatch(
 
 
 @pytest.mark.asyncio
-async def test_failed_upload_rolls_back_bed_even_without_auto_off(queue_factory):
+@pytest.mark.parametrize("keep_warm", [False, True])
+async def test_failed_upload_rolls_back_bed_even_without_auto_off(queue_factory, keep_warm):
     ctx = await queue_factory()
-    _, client, pm, _ = await dispatch(ctx)
+    _, client, pm, _ = await dispatch(ctx, keep_warm=keep_warm)
     assert [call.args for call in client.set_bed_temperature.call_args_list] == [(60,), (0,)]
     pm.start_print.assert_not_called()
 
@@ -206,7 +213,8 @@ async def test_upload_exception_or_task_cancel_rolls_back_owned_heat(queue_facto
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("upload_result", [True, False])
-async def test_cancel_during_upload_preserves_cancellation_and_rolls_back(queue_factory, upload_result):
+@pytest.mark.parametrize("keep_warm", [False, True])
+async def test_cancel_during_upload_preserves_cancellation_and_rolls_back(queue_factory, upload_result, keep_warm):
     ctx = await queue_factory()
 
     async def cancel(*args, **kwargs):
@@ -216,7 +224,8 @@ async def test_cancel_during_upload_preserves_cancellation_and_rolls_back(queue_
             await db.commit()
         return upload_result
 
-    await dispatch(ctx, upload_effect=cancel)
+    # Exercise the post-upload CAS independently from watchdog task cancellation.
+    await dispatch(ctx, upload_effect=cancel, keep_warm=keep_warm, poll_seconds=60)
     async with ctx.session_maker() as db:
         assert (await db.get(PrintQueueItem, ctx.queue_item_id)).status == "cancelled"
     ctx.pm.start_print.assert_not_called()
@@ -241,6 +250,33 @@ async def test_cancel_during_soak_stops_before_any_upload(queue_factory):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("keep_warm", [False, True])
+async def test_watchdog_cancel_during_blocked_upload_stops_owned_heat(queue_factory, keep_warm):
+    ctx = await queue_factory()
+    uploading = asyncio.Event()
+    never_finish = asyncio.Event()
+
+    async def blocked_upload(*args, **kwargs):
+        uploading.set()
+        await never_finish.wait()
+        return True
+
+    task = asyncio.create_task(dispatch(ctx, upload_effect=blocked_upload, poll_seconds=0.001, keep_warm=keep_warm))
+    await asyncio.wait_for(uploading.wait(), 1)
+    async with ctx.session_maker() as db:
+        item = await db.get(PrintQueueItem, ctx.queue_item_id)
+        item.status = "cancelled"
+        await db.commit()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, 1)
+    async with ctx.session_maker() as db:
+        assert (await db.get(PrintQueueItem, ctx.queue_item_id)).status == "cancelled"
+    ctx.pm.start_print.assert_not_called()
+    ctx.client.set_bed_temperature.assert_called_with(0)
+    assert not ctx.owner.blocks_power_off(ctx.printer_id)
+
+
+@pytest.mark.asyncio
 async def test_dispatch_deadline_cancels_soak_and_fails_pending_item(queue_factory):
     ctx = await queue_factory()
     task = asyncio.create_task(dispatch(ctx, soak=300, poll_seconds=0.001))
@@ -259,9 +295,10 @@ async def test_dispatch_deadline_cancels_soak_and_fails_pending_item(queue_facto
 
 
 @pytest.mark.asyncio
-async def test_successful_upload_only_transfers_on_confirmed_print_start(queue_factory):
+@pytest.mark.parametrize("keep_warm", [False, True])
+async def test_successful_upload_only_transfers_on_confirmed_print_start(queue_factory, keep_warm):
     ctx = await queue_factory()
-    await dispatch(ctx, upload_result=True, poll_seconds=0.001)
+    await dispatch(ctx, upload_result=True, poll_seconds=0.001, keep_warm=keep_warm)
     ctx.pm.start_print.assert_called_once()
     assert ctx.owner.blocks_power_off(ctx.printer_id)
     ctx.client.set_bed_temperature.assert_called_once_with(60)
@@ -277,6 +314,20 @@ async def test_print_command_failure_rolls_back(queue_factory):
     await dispatch(ctx, upload_result=True, start_result=False)
     ctx.client.set_bed_temperature.assert_called_with(0)
     assert not ctx.owner.blocks_power_off(ctx.printer_id)
+
+
+@pytest.mark.asyncio
+async def test_skipped_preheat_releases_adopted_hold_before_upload(queue_factory):
+    ctx = await queue_factory()
+
+    async def upload_after_release(*args, **kwargs):
+        assert ctx.state.temperatures["bed_target"] == 0
+        assert not ctx.owner.blocks_power_off(ctx.printer_id)
+        return True
+
+    await dispatch(ctx, upload_effect=upload_after_release, preheat="off", keep_warm=True)
+    ctx.pm.start_print.assert_called_once()
+    assert [call.args for call in ctx.client.set_bed_temperature.call_args_list] == [(60,), (0,)]
 
 
 @pytest.mark.asyncio

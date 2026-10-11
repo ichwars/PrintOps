@@ -88,7 +88,7 @@ FILE_ALLOWLIST = {
     "backend/app/main.py": 6823,
     "backend/app/services/bambu_mqtt.py": 5920,
     "backend/app/services/notification_service.py": 2184,
-    "backend/app/services/print_scheduler.py": 3622,
+    "backend/app/services/print_scheduler.py": 3600,
     "backend/tests/integration/test_mfa_api.py": 5132,
     "backend/tests/integration/test_printers_api.py": 4100,
     "backend/tests/unit/services/test_bambu_mqtt.py": 6746,
@@ -108,7 +108,7 @@ FILE_ALLOWLIST = {
     "frontend/src/pages/printers/PrinterCard.tsx": 2980,
     "frontend/src/pages/ProfilesPage.tsx": 2985,
     "frontend/src/pages/QueuePage.tsx": 2963,
-    "frontend/src/pages/SettingsPage.tsx": 7163,
+    "frontend/src/pages/SettingsPage.tsx": 7076,
     "install/install.sh": 1031,
     "spoolbuddy/install/install.sh": 1654,
 }
@@ -135,7 +135,7 @@ FUNCTION_ALLOWLIST = {
     "backend/app/services/bambu_mqtt.py::_handle_ams_data": 552,
     "backend/app/services/bambu_mqtt.py::_update_state": 1277,
     "backend/app/services/printer_manager.py::printer_state_to_dict": 335,
-    "backend/app/services/print_scheduler.py::check_queue": 515,
+    "backend/app/services/print_scheduler.py::check_queue": 476,
     "backend/app/services/usage_tracker.py::_track_from_3mf": 508,
 }
 

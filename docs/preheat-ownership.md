@@ -1,8 +1,8 @@
 # Queue preheat ownership and rollback
 
-The existing preheat option remains off by default. This safety fix does not
-introduce keep-warm between jobs, new printer commands or additional model
-capabilities. P2S and X1C continue to warm the chamber through the bed; only
+The existing preheat option remains off by default. The separate
+[opt-in bed keep-warm option](queue-keep-warm.md) also defaults off. Both reuse
+existing printer commands and model capabilities. P2S and X1C continue to warm the chamber through the bed; only
 models already recognized as having a chamber heater receive chamber commands.
 
 When an enabled preheat stage changes a bed or chamber target, PrintOps records
@@ -51,4 +51,4 @@ printer/queue IDs, targets and a deadline, with no access codes.
 Tests use mock MQTT clients and SmartPlug services, including independent SQLite
 connections for cancellation races. Hardware validation on P2S/X1C remains
 separate; H2C behavior has capability tests and has not been exercised on a real
-H2C. The opt-in keep-warm feature associated with issue #148 remains pending.
+H2C. Keep-warm is limited to the proven P2S/X1C bed path documented separately.

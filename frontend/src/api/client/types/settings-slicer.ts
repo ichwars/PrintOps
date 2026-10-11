@@ -132,6 +132,8 @@ export interface AppSettings {
   // flip the decision per print. Chamber target derives from the loaded AMS
   // filament types via preheat_filament_targets (JSON map of type → °C, max
   // across loaded slots); the per-item override field bypasses derivation.
+  queue_keep_bed_warm?: boolean;
+  queue_keep_warm_max_minutes?: number;
   preheat_enabled: boolean;
   preheat_filament_targets: string;
   preheat_max_wait_seconds: number;
