@@ -913,51 +913,18 @@ async def link_spool(
                 # was a non-existent attribute — the hasattr check silently
                 # returned None, defeating every state-based lookup below).
                 state = printer_manager.get_status(p_id)
-                nozzle_diameter = "0.4"
-                if state and state.nozzles:
-                    nd = state.nozzles[0].nozzle_diameter
-                    if nd:
-                        nozzle_diameter = nd
-
                 kp_result = await db.execute(
                     select(SpoolmanKProfile).where(
                         SpoolmanKProfile.spoolman_spool_id == spool_id,
                         SpoolmanKProfile.printer_id == p_id,
                     )
                 )
-                kp_rows = kp_result.scalars().all()
-                slot_extruder = None
-                if state and state.ams_extruder_map:
-                    if a_id == 255:
-                        slot_extruder = 1 - t_id
-                    else:
-                        slot_extruder = state.ams_extruder_map.get(str(a_id))
+                from backend.app.services.calibration_context import resolve_spool_calibration
 
-                # Prefer exact extruder match, fall back to extruder-agnostic kp
-                # for the same nozzle. Hard-skip on extruder mismatch silently
-                # dropped valid stored profiles when the AMS-extruder map
-                # shifted since calibration.
-                exact_kp = None
-                fallback_kp = None
-                for kp in kp_rows:
-                    if kp.nozzle_diameter != nozzle_diameter or kp.cali_idx is None:
-                        continue
-                    if slot_extruder is not None and kp.extruder is not None and kp.extruder == slot_extruder:
-                        exact_kp = kp
-                        break
-                    if fallback_kp is None:
-                        fallback_kp = kp
-                matching_kp = exact_kp or fallback_kp
-
-                # Resolve printer-side calibration entry by cali_idx — the
-                # printer keys its calibration table by filament_id, not by
-                # setting_id. Stored kp.setting_id alone isn't enough.
-                printer_kp = None
-                if matching_kp and state and state.kprofiles:
-                    for pkp in state.kprofiles:
-                        if pkp.slot_id == matching_kp.cali_idx and pkp.nozzle_diameter == nozzle_diameter:
-                            printer_kp = pkp
-                            break
+                context, matching_kp, printer_kp = resolve_spool_calibration(
+                    kp_result.scalars().all(), state, printer_manager.get_model(p_id), p_id, a_id, t_id
+                )
+                nozzle_diameter = context.diameter if context else ""
 
                 # Realign slot's filament context to the kp's calibration
                 # context so ams_filament_setting and extrusion_cali_sel
@@ -1022,24 +989,14 @@ async def link_spool(
                         a_id,
                         t_id,
                     )
-                else:
-                    from backend.app.api.routes.inventory import _find_tray_in_ams_data  # noqa: PLC0415
-
-                    live_tray = None
-                    if state and state.raw_data:
-                        ams_raw = state.raw_data.get("ams", [])
-                        if isinstance(ams_raw, dict):
-                            ams_raw = ams_raw.get("ams", [])
-                        live_tray = _find_tray_in_ams_data(ams_raw, a_id, t_id)
-                    live_cali_idx = (live_tray or {}).get("cali_idx")
-                    if live_cali_idx is not None and live_cali_idx >= 0:
-                        mqtt_client.extrusion_cali_sel(
-                            ams_id=a_id,
-                            tray_id=t_id,
-                            cali_idx=live_cali_idx,
-                            filament_id=effective_tray_info_idx,
-                            nozzle_diameter=nozzle_diameter,
-                        )
+                elif context is not None:
+                    mqtt_client.extrusion_cali_sel(
+                        ams_id=a_id,
+                        tray_id=t_id,
+                        cali_idx=-1,
+                        filament_id=effective_tray_info_idx,
+                        nozzle_diameter=nozzle_diameter,
+                    )
 
                 logger.info(
                     "Auto-configured AMS slot ams=%d tray=%d after linking Spoolman spool %d on printer %d",

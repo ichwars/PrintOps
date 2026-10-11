@@ -50,6 +50,7 @@ async def test_printer(db_session):
 
     printer = Printer(
         name="MQTT Printer",
+        model="P2S",
         serial_number="MQTTTEST001",
         ip_address="192.168.1.200",
         access_code="12345678",
@@ -165,6 +166,8 @@ class TestAssignSlotMqtt:
         await db_session.commit()
 
         printer_state = MagicMock()
+        printer_state.nozzle_rack = []
+        printer_state.kprofile_diameters = set()
         printer_state.nozzles = [MagicMock(nozzle_diameter="0.4")]
         printer_state.ams_extruder_map = {"0": 0}
 
@@ -227,6 +230,8 @@ class TestAssignSlotMqtt:
         await db_session.commit()
 
         printer_state = MagicMock()
+        printer_state.nozzle_rack = []
+        printer_state.kprofile_diameters = set()
         printer_state.nozzles = [MagicMock(nozzle_diameter="0.4")]
         printer_state.ams_extruder_map = {"0": 0}
 
@@ -286,6 +291,8 @@ class TestAssignSlotMqtt:
         await db_session.commit()
 
         printer_state = MagicMock()
+        printer_state.nozzle_rack = []
+        printer_state.kprofile_diameters = set()
         printer_state.nozzles = [MagicMock(nozzle_diameter="0.4")]
         printer_state.ams_extruder_map = {"0": 0}
 
@@ -335,7 +342,7 @@ class TestExternalSlotExtruderInversion:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_external_slot_tray0_maps_to_extruder1(
+    async def test_dual_external_left_slot_with_unknown_context_is_gated(
         self, async_client: AsyncClient, slot_settings, test_printer, mock_spoolman_client, db_session
     ):
         """tray_id=0 on ams_id=255 → extruder=1 (ext-L)."""
@@ -355,6 +362,8 @@ class TestExternalSlotExtruderInversion:
         await db_session.commit()
 
         printer_state = MagicMock()
+        printer_state.nozzle_rack = []
+        printer_state.kprofile_diameters = set()
         printer_state.nozzles = [MagicMock(nozzle_diameter="0.4"), MagicMock(nozzle_diameter="0.4")]
         printer_state.ams_extruder_map = {"0": 0}  # present so external inversion logic triggers
 
@@ -390,15 +399,12 @@ class TestExternalSlotExtruderInversion:
             )
 
         assert resp.status_code == 200
-        # extrusion_cali_sel should be called with the K-profile for extruder=1 (cali_idx=1)
-        # The extruder itself is not passed as an argument — it's used internally to filter profiles
-        mqtt_mock.extrusion_cali_sel.assert_called_once()
-        call_kwargs = mqtt_mock.extrusion_cali_sel.call_args[1]
-        assert call_kwargs["cali_idx"] == 1
+        # Unknown physical hotend mapping cannot select a stored calibration.
+        mqtt_mock.extrusion_cali_sel.assert_not_called()
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_external_slot_tray1_maps_to_extruder0(
+    async def test_dual_external_right_slot_with_unknown_context_is_gated(
         self, async_client: AsyncClient, slot_settings, test_printer, mock_spoolman_client, db_session
     ):
         """tray_id=1 on ams_id=255 → extruder=0 (ext-R)."""
@@ -417,6 +423,8 @@ class TestExternalSlotExtruderInversion:
         await db_session.commit()
 
         printer_state = MagicMock()
+        printer_state.nozzle_rack = []
+        printer_state.kprofile_diameters = set()
         printer_state.nozzles = [MagicMock(nozzle_diameter="0.4"), MagicMock(nozzle_diameter="0.4")]
         printer_state.ams_extruder_map = {"0": 0}
 
@@ -452,19 +460,12 @@ class TestExternalSlotExtruderInversion:
             )
 
         assert resp.status_code == 200
-        # extrusion_cali_sel should be called with the K-profile for extruder=0 (cali_idx=2)
-        mqtt_mock.extrusion_cali_sel.assert_called_once()
-        call_kwargs = mqtt_mock.extrusion_cali_sel.call_args[1]
-        assert call_kwargs["cali_idx"] == 2
-
-
-# ---------------------------------------------------------------------------
-# P9-TEST-BE: Live cali_idx fallback when no K-profile is stored (Bug #10)
-# ---------------------------------------------------------------------------
+        # Unknown physical hotend mapping cannot select a stored calibration.
+        mqtt_mock.extrusion_cali_sel.assert_not_called()
 
 
 class TestAssignSpoolmanSlotLiveCaliIdx:
-    """When no SpoolmanKProfile exists, live tray cali_idx is used as fallback."""
+    """An uncalibrated assigned spool uses firmware Default K."""
 
     def _make_printer_state(self, ams_id: int, tray_id: int, cali_idx: int | None):
         """Build a minimal printer_state mock with one AMS tray."""
@@ -474,6 +475,8 @@ class TestAssignSpoolmanSlotLiveCaliIdx:
         }
         ams_mock = {"id": ams_id, "tray": [tray_mock]}
         state = MagicMock()
+        state.nozzle_rack = []
+        state.kprofile_diameters = set()
         state.nozzles = [MagicMock(nozzle_diameter="0.4")]
         state.ams_extruder_map = {str(ams_id): 0}
         state.raw_data = {"ams": [ams_mock]}
@@ -712,6 +715,8 @@ class TestAssignSpoolmanSlotKProfileRealignment:
         await db_session.commit()
 
         printer_state = MagicMock()
+        printer_state.nozzle_rack = []
+        printer_state.kprofile_diameters = set()
         printer_state.nozzles = [MagicMock(nozzle_diameter="0.4")]
         printer_state.ams_extruder_map = {"0": 0}
         printer_state.raw_data = None
@@ -719,6 +724,8 @@ class TestAssignSpoolmanSlotKProfileRealignment:
         # is actually registered under. P-prefix is a printer-local preset
         # (different from PFUS-prefix cloud user presets).
         printer_kp = MagicMock()
+        printer_kp.extruder_id = 0
+        printer_kp.nozzle_id = ""
         printer_kp.slot_id = 8948
         printer_kp.nozzle_diameter = "0.4"
         printer_kp.filament_id = "P4d64437"
@@ -780,11 +787,15 @@ class TestAssignSpoolmanSlotKProfileRealignment:
         await db_session.commit()
 
         printer_state = MagicMock()
+        printer_state.nozzle_rack = []
+        printer_state.kprofile_diameters = set()
         printer_state.nozzles = [MagicMock(nozzle_diameter="0.4")]
         printer_state.ams_extruder_map = {"0": 0}
         printer_state.raw_data = None
         # Printer-side kp filament_id is PFUS-prefix → realignment must skip
         printer_kp = MagicMock()
+        printer_kp.extruder_id = 0
+        printer_kp.nozzle_id = ""
         printer_kp.slot_id = 42
         printer_kp.nozzle_diameter = "0.4"
         printer_kp.filament_id = "PFUSedbf16b803ff3e"
@@ -819,13 +830,10 @@ class TestAssignSpoolmanSlotKProfileRealignment:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_extruder_relax_falls_back_to_any_extruder_kp(
+    async def test_wrong_extruder_profile_resets_to_default(
         self, async_client: AsyncClient, slot_settings, test_printer, mock_spoolman_client, db_session
     ):
-        """Hard-skip on extruder mismatch silently dropped valid stored profiles
-        when the AMS-extruder map shifted. The cascade now prefers exact
-        extruder match but falls back to any kp on the same printer + nozzle.
-        """
+        """A stored profile for another hotend cannot calibrate this nozzle."""
         from backend.app.models.spoolman_k_profile import SpoolmanKProfile
 
         # kp is for extruder=1, but slot will be on extruder=0 (mismatch)
@@ -842,6 +850,8 @@ class TestAssignSpoolmanSlotKProfileRealignment:
         await db_session.commit()
 
         printer_state = MagicMock()
+        printer_state.nozzle_rack = []
+        printer_state.kprofile_diameters = set()
         printer_state.nozzles = [MagicMock(nozzle_diameter="0.4")]
         printer_state.ams_extruder_map = {"0": 0}
         printer_state.raw_data = None
@@ -867,9 +877,9 @@ class TestAssignSpoolmanSlotKProfileRealignment:
             )
 
         assert response.status_code == 200
-        # extruder mismatch was hard-skipped pre-fix; now used as fallback
+        # Default K prevents applying the other hotend's calibration.
         cs_kwargs = mqtt_mock.extrusion_cali_sel.call_args[1]
-        assert cs_kwargs["cali_idx"] == 42
+        assert cs_kwargs["cali_idx"] == -1
 
 
 # ---- #1713: slicer_filament resolved into tray_info_idx + setting_id --------

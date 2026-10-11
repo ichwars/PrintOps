@@ -1256,8 +1256,8 @@ def _make_state_with_tray(ams_id: int, tray_id: int, cali_idx):
 
 
 @pytest.mark.asyncio
-async def test_auto_assign_no_kprofile_uses_live_cali_idx(db_session, printer_factory):
-    """When no K-profile exists, live tray cali_idx is preserved via extrusion_cali_sel."""
+async def test_auto_assign_unknown_nozzle_does_not_reapply_live_index(db_session, printer_factory):
+    """An unknown installed nozzle cannot authorize an old live index."""
     from unittest.mock import MagicMock
 
     printer = await printer_factory()
@@ -1276,11 +1276,7 @@ async def test_auto_assign_no_kprofile_uses_live_cali_idx(db_session, printer_fa
     await auto_assign_spool(printer.id, 0, 1, spool, mock_pm, db_session)
     await db_session.commit()
 
-    mqtt_mock.extrusion_cali_sel.assert_called_once()
-    call_kwargs = mqtt_mock.extrusion_cali_sel.call_args[1]
-    assert call_kwargs["cali_idx"] == 42
-    assert call_kwargs["ams_id"] == 0
-    assert call_kwargs["tray_id"] == 1
+    mqtt_mock.extrusion_cali_sel.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -1343,6 +1339,8 @@ async def test_auto_assign_kprofile_takes_priority_over_live_cali_idx(db_session
     kp_mock.nozzle_diameter = "0.4"
     kp_mock.cali_idx = 7
     kp_mock.extruder = None
+    kp_mock.nozzle_type = None
+    kp_mock.setting_id = None
 
     # Use a fully-mocked spool so SA relationship instrumentation is bypassed.
     # auto_assign_spool only reads attributes — it never persists via the spool.
@@ -1356,7 +1354,15 @@ async def test_auto_assign_kprofile_takes_priority_over_live_cali_idx(db_session
     mqtt_mock = MagicMock()
     # Live tray has cali_idx=99 — stored profile (7) must win
     state = _make_state_with_tray(ams_id=0, tray_id=0, cali_idx=99)
+    from backend.app.services.bambu_mqtt import NozzleInfo
+
+    state.nozzles = [NozzleInfo(nozzle_diameter="0.4")]
+    state.nozzle_rack = []
+    state.ams_extruder_map = {}
+    state.kprofiles = []
+    state.kprofile_diameters = set()
     mock_pm = MagicMock()
+    mock_pm.get_model.return_value = "X1C"
     mock_pm.get_status.return_value = state
     mock_pm.get_client.return_value = mqtt_mock
 

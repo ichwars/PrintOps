@@ -1614,51 +1614,12 @@ async def assign_spoolman_slot(
             # K-profile cascade silently skipped state.kprofiles, defaulted
             # nozzle_diameter to 0.4, and left slot_extruder unset.
             state = printer_manager.get_status(body.printer_id)
-            nozzle_diameter = "0.4"
-            if state and state.nozzles:
-                nd = state.nozzles[0].nozzle_diameter
-                if nd:
-                    nozzle_diameter = nd
+            from backend.app.services.calibration_context import resolve_spool_calibration
 
-            slot_extruder = None
-            if state and state.ams_extruder_map:
-                if body.ams_id == 255:
-                    # External slots: ext-L (tray 0) → extruder 1, ext-R (tray 1) → extruder 0
-                    # tray_id 0→1, 1→0
-                    slot_extruder = 1 - body.tray_id
-                else:
-                    slot_extruder = state.ams_extruder_map.get(str(body.ams_id))
-
-            # Prefer exact extruder match, fall back to extruder-agnostic kp
-            # for the same nozzle. Hard-skipping on mismatch silently dropped
-            # valid stored profiles when the AMS-extruder mapping had shifted.
-            exact_kp = None
-            fallback_kp = None
-            for kp in kp_rows:
-                if kp.nozzle_diameter != nozzle_diameter or kp.cali_idx is None:
-                    continue
-                if slot_extruder is not None and kp.extruder is not None and kp.extruder == slot_extruder:
-                    exact_kp = kp
-                    break
-                if fallback_kp is None:
-                    fallback_kp = kp
-            matching_kp = exact_kp or fallback_kp
-
-            # Resolve the printer-side calibration entry by cali_idx so we
-            # know the authoritative filament_id (the printer indexes its
-            # calibration table by filament_id, not setting_id).
-            printer_kp = None
-            if matching_kp and state and state.kprofiles:
-                for pkp in state.kprofiles:
-                    if pkp.slot_id == matching_kp.cali_idx and pkp.nozzle_diameter == nozzle_diameter:
-                        printer_kp = pkp
-                        break
-                if printer_kp is None:
-                    logger.warning(
-                        "Spoolman assign: cali_idx=%d not present in printer's "
-                        "calibration table — stored kp may be stale.",
-                        matching_kp.cali_idx,
-                    )
+            context, matching_kp, printer_kp = resolve_spool_calibration(
+                kp_rows, state, printer.model, body.printer_id, body.ams_id, body.tray_id
+            )
+            nozzle_diameter = context.diameter if context else ""
 
             # Realign the slot's filament context (tray_info_idx + setting_id)
             # to the kp's calibration context. Without this, ams_filament_setting
@@ -1727,7 +1688,7 @@ async def assign_spoolman_slot(
                     body.ams_id,
                     body.tray_id,
                 )
-            else:
+            elif context is not None:
                 # No stored K-profile for this spool — always reset the slot to
                 # Default K (cali_idx=-1). The live cali_idx belongs to whatever
                 # filament was there before, so preserving it would apply the

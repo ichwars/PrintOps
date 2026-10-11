@@ -17,7 +17,7 @@ import paho.mqtt.client as mqtt
 from backend.app.services.bambu_kprofiles import (
     KProfile,
     await_cali_ack as wait_for_cali_ack,
-    parse_kprofile_entries,
+    handle_kprofile_response,
     publish_cali_write,
 )
 from backend.app.services.hms_actions import HMSAction, get_actions_for_error_code
@@ -314,6 +314,7 @@ class PrinterState:
     gcode_file: str | None = None
     subtask_id: str | None = None
     hms_errors: list = field(default_factory=list)  # List of HMSError
+    kprofile_diameters: set[str] = field(default_factory=set)
     kprofiles: list = field(default_factory=list)  # List of KProfile
     sdcard: bool = False  # SD card inserted
     store_to_sdcard: bool = False  # Store sent files on SD card (home_flag bit 11)
@@ -862,6 +863,10 @@ class BambuMQTTClient:
 
     def _on_connect(self, client, userdata, flags, rc, properties=None):
         if rc == 0:
+            self.state.kprofiles = []
+            self.state.kprofile_diameters.clear()
+            self.state.nozzles = [NozzleInfo() for _ in self.state.nozzles]
+            self.state.nozzle_rack = []
             self.state.connected = True
             self._stale_reconnecting = False  # Clear stale-reconnect flag on successful connect
             # Reset per-connection warning state so warnings fire once per (re)connection
@@ -4386,62 +4391,7 @@ class BambuMQTTClient:
         return True
 
     def _handle_kprofile_response(self, data: dict):
-        response_nozzle = data.get("nozzle_diameter")
-        response_seq_id = str(data.get("sequence_id", ""))
-        filaments = data.get("filaments", [])
-        pending = dict(self._pending_kprofile_requests)
-        request = pending.get(response_seq_id)
-
-        if request is None and pending:
-            # Older firmware may omit sequence_id; match its pending nozzle.
-            request = next(
-                (r for r in pending.values() if r["nozzle"] == response_nozzle and r["profiles"] is None),
-                None,
-            )
-
-        if pending:
-            logger.info(
-                "[%s] K-profile response: nozzle=%s, seq_id=%s, %d profiles, matched=%s",
-                self.serial_number,
-                response_nozzle,
-                response_seq_id or "?",
-                len(filaments),
-                request is not None,
-            )
-
-        if request is None and pending:
-            logger.debug(
-                "[%s] Ignoring unmatched K-profile response: nozzle=%s, seq_id=%s",
-                self.serial_number,
-                response_nozzle,
-                response_seq_id or "?",
-            )
-            return
-
-        if request is not None and response_nozzle is not None and str(response_nozzle) != request["nozzle"]:
-            logger.debug(
-                "[%s] Ignoring K-profile response with mismatched nozzle: expected=%s, got=%s",
-                self.serial_number,
-                request["nozzle"],
-                response_nozzle,
-            )
-            return
-
-        nozzle = response_nozzle or (request["nozzle"] if request is not None else None)
-        profiles = parse_kprofile_entries(filaments, nozzle, log_errors=request is not None)
-        self.state.kprofiles = profiles
-
-        if request is None:
-            return
-
-        logger.info("[%s] Got %s K-profiles for nozzle=%s", self.serial_number, len(profiles), response_nozzle)
-        request["profiles"] = profiles
-
-        event = request["event"]
-        if self._loop and self._loop.is_running():
-            self._loop.call_soon_threadsafe(event.set)
-        else:
-            event.set()
+        handle_kprofile_response(self, data)
 
     async def get_kprofiles(
         self, nozzle_diameter: str = "0.4", timeout: float = 5.0, max_retries: int = 3

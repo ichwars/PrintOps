@@ -6456,23 +6456,19 @@ class TestKProfileNozzleDiameterFromEnvelope:
         profiles = await self._fetch(mqtt_client, "0.6", self._response(nozzle="0.6", seq="7"))
         assert [p.nozzle_diameter for p in profiles] == ["0.6"]
 
-    def test_entry_value_still_wins(self, mqtt_client):
-        # Dual-nozzle firmware does put the field on each entry; that stays
-        # authoritative, since a batch can legitimately span nozzles.
+    def test_conflicting_entry_diameter_does_not_poison_cache(self, mqtt_client):
         entries = [{"cali_idx": 1, "filament_id": "GFA00", "name": "PLA", "nozzle_diameter": "0.4"}]
         mqtt_client._process_message(self._response(nozzle="0.8", entries=entries))
-        assert mqtt_client.state.kprofiles[0].nozzle_diameter == "0.4"
+        assert mqtt_client.state.kprofiles == []
 
     def test_empty_entry_value_falls_back_to_envelope(self, mqtt_client):
         entries = [{"cali_idx": 1, "filament_id": "GFA00", "name": "PLA", "nozzle_diameter": ""}]
         mqtt_client._process_message(self._response(nozzle="0.8", entries=entries))
         assert mqtt_client.state.kprofiles[0].nozzle_diameter == "0.8"
 
-    def test_no_envelope_value_falls_back_to_default(self, mqtt_client):
-        # Neither source available: keep the old default rather than let
-        # str(None) write the literal string "None" into the profile.
+    def test_missing_diameter_does_not_invent_legacy_context(self, mqtt_client):
         mqtt_client._process_message(self._response(nozzle=None))
-        assert mqtt_client.state.kprofiles[0].nozzle_diameter == "0.4"
+        assert mqtt_client.state.kprofiles == []
 
     @staticmethod
     async def _fetch(client, nozzle, response):

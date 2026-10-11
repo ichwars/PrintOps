@@ -22,23 +22,13 @@ def _int_or_none(value: Any) -> int | None:
         return None
 
 
-def build_kprofile_map(kprofiles: list[Any] | None) -> dict[int, float]:
-    """Map calibration profile slot ids to K values for AMS tray display."""
-    kprofile_map: dict[int, float] = {}
-    for kp in kprofiles or []:
-        if kp.slot_id is not None and kp.k_value:
-            try:
-                kprofile_map[kp.slot_id] = float(kp.k_value)
-            except (ValueError, TypeError):
-                pass
-    return kprofile_map
+def _tray_k_value(tray_data, state, model, ams_id):
+    from backend.app.services.calibration_context import slot_k_value
 
-
-def _tray_k_value(tray_data: dict[str, Any], kprofile_map: dict[int, float]) -> tuple[Any, Any]:
     k_value = tray_data.get("k")
     cali_idx = tray_data.get("cali_idx")
-    if k_value is None and cali_idx is not None and cali_idx in kprofile_map:
-        k_value = kprofile_map[cali_idx]
+    if k_value is None:
+        k_value = slot_k_value(state, model, ams_id, tray_data.get("id"), cali_idx, tray_data.get("tray_info_idx"))
     return k_value, cali_idx
 
 
@@ -84,8 +74,9 @@ def _drying_target(
 
 def build_ams_units(
     raw_data: dict[str, Any],
-    kprofile_map: dict[int, float],
+    state,
     drying_targets: dict[int, dict[str, Any]],
+    model: str | None = None,
 ) -> tuple[list[AMSUnit], bool]:
     """Build AMS response models from raw MQTT AMS payloads."""
     ams_units: list[AMSUnit] = []
@@ -98,7 +89,7 @@ def build_ams_units(
 
         trays: list[AMSTray] = []
         for tray_data in ams_data.get("tray", []):
-            k_value, cali_idx = _tray_k_value(tray_data, kprofile_map)
+            k_value, cali_idx = _tray_k_value(tray_data, state, model, ams_data.get("id"))
             tray_payload = {**tray_data, "k": k_value, "cali_idx": cali_idx}
             trays.append(_ams_tray(tray_payload))
 
@@ -128,14 +119,14 @@ def build_ams_units(
     return ams_units, True
 
 
-def build_virtual_trays(raw_data: dict[str, Any], kprofile_map: dict[int, float]) -> list[AMSTray]:
+def build_virtual_trays(raw_data: dict[str, Any], state, model: str | None = None) -> list[AMSTray]:
     """Build virtual tray response models from raw MQTT payloads."""
     vt_tray: list[AMSTray] = []
     if "vt_tray" not in raw_data:
         return vt_tray
 
     for vt_data in raw_data["vt_tray"]:
-        vt_k_value, vt_cali_idx = _tray_k_value(vt_data, kprofile_map)
+        vt_k_value, vt_cali_idx = _tray_k_value(vt_data, state, model, 255)
         tray_id = int(vt_data.get("id", 254))
         vt_tray.append(
             AMSTray(
