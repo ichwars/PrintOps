@@ -7474,4 +7474,20 @@ useEmbeddedHint: 'Découpe comme le concepteur l\'a configuré (parois, rempliss
     noWriteAccess: 'Vous n\'avez pas la permission de modifier les paramètres de prévision.',
   },
   suppliers: { navTitle: 'Fournisseurs', title: 'Fournisseurs', subtitle: 'Gérez les contacts et les conditions d’achat.', createTitle: 'Ajouter un fournisseur', editTitle: 'Modifier le fournisseur', searchLabel: 'Rechercher des fournisseurs', searchPlaceholder: 'Entreprise, contact, e-mail, numéro client …', activeFilter: 'Statut', loading: 'Chargement des fournisseurs …', empty: 'Aucun fournisseur correspondant.', noContact: 'Aucune coordonnée', leadTime: '{{count}} jours de délai de livraison standard', sections: { masterData: 'Données de base', contactAddress: 'Contact et adresse', procurement: 'Approvisionnement', internalNotes: 'Note interne' }, fields: { name: 'Entreprise', customerNumber: 'Numéro client', active: 'Fournisseur actif', contactName: 'Personne de contact', email: 'Adresse e-mail', phone: 'Téléphone', website: 'Site web', addressLine1: 'Ligne d’adresse 1', addressLine2: 'Ligne d’adresse 2', postalCode: 'Code postal', city: 'Ville', countryCode: 'Code pays', paymentTerms: 'Conditions de paiement', defaultLeadTime: 'Délai de livraison standard', internalNotes: 'Notes internes' }, filters: { active: 'Actifs', inactive: 'Inactifs', all: 'Tous les fournisseurs' }, actions: { create: 'Ajouter un fournisseur', save: 'Enregistrer le fournisseur', edit: 'Modifier {{name}}', delete: 'Supprimer le fournisseur' }, validation: { nameRequired: 'Le nom de l’entreprise est obligatoire.' }, errors: { load: 'Impossible de charger les fournisseurs.', save: 'Impossible d’enregistrer le fournisseur.', delete: 'Impossible de supprimer le fournisseur.', noReadPermission: 'Vous n’avez pas l’autorisation d’afficher les fournisseurs.' } },
+  storageSensors: {
+    environment: "Environnement",
+    manage: "Capteurs",
+    title: "Capteurs : {{location}}",
+    hint: "Surveillez la température et l’humidité de cet emplacement.",
+    fresh: "Récent",
+    stale: "Périmé",
+    unavailable: "Indisponible",
+    pending: "En attente de mesure",
+    lastRead: "Dernière mesure : {{time}}",
+    loadFailed: "Impossible de charger les mesures.",
+    entitiesFailed: "Home Assistant est désactivé, indisponible ou non configuré.",
+    notifyHint: "Les alertes nécessitent des notifications de stockage sur un fournisseur sans filtre d’imprimante.",
+    notifications: "Alertes des capteurs de stockage",
+  },
+
 };

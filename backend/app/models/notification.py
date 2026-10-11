@@ -83,6 +83,7 @@ class NotificationProvider(Base):
     on_ams_ht_temperature_high = Column(Boolean, default=False)  # AMS-HT temperature above threshold
 
     # Event triggers - Home Assistant sensors bound to a printer (#1148)
+    on_storage_sensor_alert = Column(Boolean, default=False)
     on_ha_sensor_alert = Column(Boolean, default=False)  # Bound HA sensor entered its alert state
 
     # Event triggers - Build plate detection

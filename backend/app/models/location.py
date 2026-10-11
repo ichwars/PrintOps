@@ -9,6 +9,7 @@ from backend.app.core.database import Base
 if TYPE_CHECKING:
     from backend.app.models.small_part import SmallPart
     from backend.app.models.spool import Spool
+    from backend.app.models.storage_ha_sensor import StorageHASensor
 
 
 class Location(Base):
@@ -25,5 +26,6 @@ class Location(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
+    ha_sensors: Mapped[list["StorageHASensor"]] = relationship(cascade="all, delete-orphan")
     spools: Mapped[list["Spool"]] = relationship(back_populates="location")
     small_parts: Mapped[list["SmallPart"]] = relationship(back_populates="location")

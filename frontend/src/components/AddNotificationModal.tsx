@@ -45,6 +45,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
   const [onStockReorderAlert, setOnStockReorderAlert] = useState(provider?.on_stock_reorder_alert ?? false);
   const [onStockBreakAlert, setOnStockBreakAlert] = useState(provider?.on_stock_break_alert ?? false);
   const [onBedCooled, setOnBedCooled] = useState(provider?.on_bed_cooled ?? false);
+  const [onStorageSensorAlert, setOnStorageSensorAlert] = useState(provider?.on_storage_sensor_alert ?? false);
   const [onHaSensorAlert, setOnHaSensorAlert] = useState(provider?.on_ha_sensor_alert ?? false);
   const [onFirstLayerComplete, setOnFirstLayerComplete] = useState(provider?.on_first_layer_complete ?? false);
 
@@ -184,6 +185,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
       on_stock_break_alert: onStockBreakAlert,
       on_bed_cooled: onBedCooled,
       on_ha_sensor_alert: onHaSensorAlert,
+      on_storage_sensor_alert: onStorageSensorAlert,
       on_first_layer_complete: onFirstLayerComplete,
     };
 
@@ -630,6 +632,10 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
               <p className="text-xs text-bambu-gray uppercase tracking-wide mb-2">{t('notifications.inventoryAlerts')}</p>
               <div className="grid grid-cols-1 gap-2">
                 <div className="flex items-center justify-between">
+                  <span className="text-sm text-white">{t('storageSensors.notifications')}</span>
+                  <Toggle ariaLabel={t('storageSensors.notifications')} checked={onStorageSensorAlert} onChange={setOnStorageSensorAlert} />
+                </div>
+                <div className="flex items-center justify-between">
                   <div>
                     <span className="text-sm text-white">{t('notifications.stockReorderAlert')}</span>
                     <span className="text-xs text-bambu-gray ml-1">{t('notifications.stockReorderAlertDescription')}</span>
@@ -658,6 +664,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
               if (onFirstLayerComplete) enabledEvents.push({ key: 'on_first_layer_complete', label: t('notifications.firstLayerCompleteLabel') });
               if (onPrinterOffline) enabledEvents.push({ key: 'on_printer_offline', label: t('notifications.offline') });
               if (onPrinterError) enabledEvents.push({ key: 'on_printer_error', label: t('notifications.error') });
+              if (onStorageSensorAlert) enabledEvents.push({ key: 'on_storage_sensor_alert', label: t('storageSensors.notifications') });
               if (onHaSensorAlert) enabledEvents.push({ key: 'on_ha_sensor_alert', label: t('notifications.haSensorAlert') });
               if (onAiFailureDetection) enabledEvents.push({ key: 'on_ai_failure_detection', label: t('notifications.aiFailureDetection') });
               if (onFilamentLow) enabledEvents.push({ key: 'on_filament_low', label: t('notifications.lowFilament') });

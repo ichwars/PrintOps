@@ -8,6 +8,7 @@ import { ConfirmModal } from './ConfirmModal';
 import { useToast } from '../contexts/ToastContext';
 import { inventoryLocationsQueryKey, invalidateInventoryLocations } from '../utils/inventoryQueries';
 import { TextField } from './ui';
+import { StorageLocationSensors } from './StorageLocationSensors';
 
 interface LocationsModalProps {
   open: boolean;
@@ -171,6 +172,7 @@ export function LocationsModal({ open, onClose, onPickLocation }: LocationsModal
                 <tr className="border-b border-bambu-dark-tertiary text-left text-bambu-gray">
                   <th className="px-4 py-3 font-medium">{t('locations.name')}</th>
                   <th className="px-4 py-3 font-medium text-right">{t('locations.spools')}</th>
+                  <th className="px-4 py-3 font-medium">{t('storageSensors.environment')}</th>
                   <th className="px-4 py-3 font-medium text-right w-32">{t('common.actions')}</th>
                 </tr>
               </thead>
@@ -188,6 +190,7 @@ export function LocationsModal({ open, onClose, onPickLocation }: LocationsModal
                   >
                     <td className="px-4 py-3 text-white font-medium">{loc.name}</td>
                     <td className="px-4 py-3 text-right text-bambu-gray">{loc.spool_count}</td>
+                    <td className="px-4 py-3"><StorageLocationSensors locationId={loc.id} locationName={loc.name} /></td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <button
