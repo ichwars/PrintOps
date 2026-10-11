@@ -2,7 +2,6 @@
 
 import asyncio
 import concurrent.futures
-import ftplib
 import socket
 import threading
 from collections.abc import AsyncIterator, Callable
@@ -14,6 +13,7 @@ from backend.app.services.bambu_ftp import (
     DownloadCancelled,
     DownloadDeadlineExceeded,
     FileNotOnPrinterError,
+    FTPProtocolError,
     FtpsCooldownActive,
     _download_deadline,
     _serialized_download,
@@ -140,7 +140,7 @@ async def stream_printer_file(
                 stop_worker()
                 try:
                     await asyncio.shield(worker)
-                except (DownloadCancelled, OSError, ftplib.Error):
+                except (DownloadCancelled, OSError, FTPProtocolError):
                     pass
                 raise
 
