@@ -10,6 +10,7 @@ from backend.app.models.archive import PrintArchive
 from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.printer import Printer
 from backend.app.services.bambu_ftp import _upload_deadline
+from backend.app.services.preheat_chamber import chamber_target_for_plate
 from backend.app.services.preheat_ownership import current_preheat_lease, preheat_ownership
 from backend.app.services.printer_manager import supports_airduct, supports_chamber_heater, supports_chamber_temp
 from backend.app.utils.threemf_tools import extract_bed_temperature_from_3mf
@@ -74,6 +75,7 @@ async def preheat_and_soak(
     #   2. Otherwise derive from the filament trays this plate maps via the
     #      per-filament target map. A parked ASA spool cannot affect PLA.
     explicit_target = getattr(item, "preheat_chamber_target_override", None)
+    chamber_known = True
     if explicit_target is not None and explicit_target > 0:
         chamber_target = int(explicit_target)
         chamber_source = "item-override"
@@ -82,8 +84,10 @@ async def preheat_and_soak(
         chamber_source = "item-override-zero"
     else:
         targets = await self._get_preheat_filament_targets(db)
-        chamber_target = self._derive_chamber_target(printer, targets, item)
-        chamber_source = "filament-map"
+        chamber_target = chamber_target_for_plate(printer_manager.get_status(printer.id), targets, item, archive)
+        chamber_known = chamber_target is not None
+        chamber_source = "used-plate-filaments" if chamber_known else "unknown-filament-context"
+        chamber_target = chamber_target or 0
 
     plate_id = getattr(item, "plate_id", None)
     if archive and plate_id is not None:
@@ -161,7 +165,7 @@ async def preheat_and_soak(
     # heating mode and overheat PLA). The current-state read keeps the
     # command idempotent — no MQTT chatter when the flap is already where
     # we want it.
-    if supports_airduct(model):
+    if chamber_known and supports_airduct(model):
         desired_airduct = "heating" if chamber_target > 0 else "cooling"
         desired_id = 1 if desired_airduct == "heating" else 0
         current_state = printer_manager.get_status(printer.id)

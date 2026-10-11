@@ -105,8 +105,8 @@ def test_multi_material_job_uses_maximum_of_only_mapped_trays(scheduler):
 
 
 @pytest.mark.parametrize("mapping", [None, "", "[-1, -1]", "[null]", "[]", "not-json", '{"tray": 1}'])
-def test_unknown_mapping_conservatively_scans_loaded_ams(scheduler, mapping):
-    assert _derive(scheduler, _state(ams=_mixed_ams()), _item(mapping)) == 45
+def test_unknown_mapping_does_not_guess_from_loaded_ams(scheduler, mapping):
+    assert _derive(scheduler, _state(ams=_mixed_ams()), _item(mapping)) == 0
 
 
 def test_regular_and_ams_ht_global_ids_match_dispatch_mapping(scheduler):
