@@ -145,18 +145,18 @@ async def test_cross_model_slice_is_rejected_for_explicit_target(
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-@pytest.mark.parametrize("target", [{}, {"target_model": "C11"}, {"target_model": "Bambu Lab X1 Carbon"}])
+@pytest.mark.parametrize("target,expected_model", [({}, "X1C"), ({"target_model": "C11"}, "P1P"), ({"target_model": "Bambu Lab X1 Carbon"}, "X1C")])
 async def test_active_model_is_inferred_or_normalized_with_filament_requirements(
-    async_client: AsyncClient, db_session, printer_factory, library_file_factory, target
+    async_client: AsyncClient, db_session, printer_factory, library_file_factory, target, expected_model
 ):
-    await printer_factory()
-    file = await library_file_factory()
+    await printer_factory(model=expected_model)
+    file = await library_file_factory(file_metadata={"sliced_for_model": expected_model})
 
     response = await async_client.post(ENDPOINT, json={"file_ids": [file.id], **target})
 
     assert response.status_code == 200, response.text
     item = (await db_session.execute(select(PrintQueueItem))).scalar_one()
-    assert item.target_model == "X1C"
+    assert item.target_model == expected_model
     assert item.printer_id is None
     assert json.loads(item.required_filament_types) == ["PLA"]
     assert response.json()["added"][0]["queue_item_id"] == item.id
