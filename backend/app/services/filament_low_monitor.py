@@ -35,7 +35,7 @@ def _threshold(raw, fallback=20):
 class FilamentLowMonitor:
     def __init__(self):
         self._next_check = 0.0
-        self._notified: set[tuple[str, int, int, int, int]] = set()
+        self._notified: dict[tuple[str, int, int, int, int], dict[int, dict[str, bool]]] = {}
 
     async def tick(self, db):
         now = monotonic()
@@ -79,19 +79,28 @@ class FilamentLowMonitor:
                 if percent >= _threshold(value("low_stock_threshold_pct"), threshold):
                     continue
                 active.add(key)
-                if key in self._notified:
+                eligible = {provider.id for provider in providers if provider.printer_id in (None, printer.id)}
+                old = self._notified.get(key, {})
+                current = {pid: old.get(pid, {"delivered": False, "digest": False}) for pid in eligible}
+                self._notified[key] = current
+                targets = {pid for pid, state in current.items() if not state["delivered"]}
+                if not targets:
                     continue
                 slot = _slot_label_from_global_tray(_global_tray_from_assignment(assignment.ams_id, assignment.tray_id))
-                await notification_service.on_filament_low(
+                outcomes = await notification_service.on_filament_low(
                     printer_id=printer.id,
                     printer_name=printer.name,
                     slot=slot,
                     remaining_percent=int(percent),
                     db=db,
                     color=value("color_name"),
+                    provider_ids=targets,
+                    skip_digest_provider_ids={pid for pid in targets if current[pid]["digest"]},
                 )
-                self._notified.add(key)
-            self._notified.intersection_update(active)
+                for pid, delivery in (outcomes or {}).items():
+                    current[pid]["delivered"] = delivery.status == "delivered"
+                    current[pid]["digest"] |= delivery.digest_queued
+            self._notified = {key: state for key, state in self._notified.items() if key in active}
         except Exception:
             logger.warning("Low-filament notification check failed", exc_info=True)
 

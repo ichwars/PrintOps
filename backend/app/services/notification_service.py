@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.notification import NotificationDigestQueue, NotificationLog, NotificationProvider
 from backend.app.models.notification_template import NotificationTemplate
+from backend.app.services.notification_delivery import NotificationDelivery
 
 logger = logging.getLogger(__name__)
 
@@ -1014,7 +1015,8 @@ class NotificationService:
         force_immediate: bool = False,
         image_data: bytes | None = None,
         variables: dict | None = None,
-    ):
+        skip_digest_provider_ids: set[int] | None = None,
+    ) -> dict[int, NotificationDelivery]:
         """Send notification to multiple providers and log the results.
 
         All notifications are always sent immediately. If digest mode is enabled,
@@ -1037,6 +1039,7 @@ class NotificationService:
                 for provider in providers:
                     await db.refresh(provider)
                 logger.warning("Could not publish notification image; sending available text/attachments")
+        outcomes: dict[int, NotificationDelivery] = {}
         for provider in providers:
             provider_title, provider_message, provider_variables = self._provider_photo_payload(provider, title, message, variables)
             try:
@@ -1045,9 +1048,18 @@ class NotificationService:
                     provider, provider_title, provider_message, db, image_data=image_data, event_type=event_type, variables=provider_variables
                 )
 
+                status = (
+                    "skipped" if success and error == "Skipped - quiet hours" else "delivered" if success else "failed"
+                )
+                outcomes[provider.id] = NotificationDelivery(status)
+
                 # Also queue for digest if enabled (digest is a summary, not a queue)
-                if provider.daily_digest_enabled and provider.daily_digest_time:
-                    await self._queue_for_digest(
+                if (
+                    provider.daily_digest_enabled
+                    and provider.daily_digest_time
+                    and provider.id not in (skip_digest_provider_ids or set())
+                ):
+                    digest_queued = await self._queue_for_digest(
                         provider=provider,
                         event_type=event_type,
                         title=provider_title,
@@ -1056,6 +1068,7 @@ class NotificationService:
                         printer_id=printer_id,
                         printer_name=printer_name,
                     )
+                    outcomes[provider.id] = NotificationDelivery(status, digest_queued is True)
                 await self._update_provider_status(db, provider.id, success, error if not success else None)
                 await self._log_notification(
                     db=db,
@@ -1073,6 +1086,7 @@ class NotificationService:
                 else:
                     logger.warning("Failed to send notification via %s: %s", provider.name, error)
             except Exception as e:
+                outcomes.setdefault(provider.id, NotificationDelivery("failed"))
                 logger.exception("Error sending notification via %s", provider.name)
                 await self._update_provider_status(db, provider.id, False, str(e))
                 await self._log_notification(
@@ -1086,6 +1100,7 @@ class NotificationService:
                     printer_id=printer_id,
                     printer_name=printer_name,
                 )
+        return outcomes
 
     async def on_print_start(
         self,
@@ -1496,11 +1511,15 @@ class NotificationService:
         remaining_percent: int,
         db: AsyncSession,
         color: str | None = None,
-    ):
+        provider_ids: set[int] | None = None,
+        skip_digest_provider_ids: set[int] | None = None,
+    ) -> dict[int, NotificationDelivery]:
         """Handle low filament event."""
         providers = await self._get_providers_for_event(db, "on_filament_low", printer_id)
+        if provider_ids is not None:
+            providers = [provider for provider in providers if provider.id in provider_ids]
         if not providers:
-            return
+            return {}
 
         variables = {
             "printer": printer_name,
@@ -1510,8 +1529,9 @@ class NotificationService:
         }
 
         title, message = await self._build_message_from_template(db, "filament_low", variables)
-        await self._send_to_providers(
-            providers, title, message, db, "filament_low", printer_id, printer_name, variables=variables
+        return await self._send_to_providers(
+            providers, title, message, db, "filament_low", printer_id, printer_name,
+            variables=variables, skip_digest_provider_ids=skip_digest_provider_ids
         )
 
     async def on_maintenance_due(
@@ -2078,13 +2098,17 @@ class NotificationService:
         days_left: int,
         db: AsyncSession,
         skip_break_subscribers: bool = False,
-    ):
+        provider_ids: set[int] | None = None,
+        skip_digest_provider_ids: set[int] | None = None,
+    ) -> dict[int, NotificationDelivery]:
         """Fire when an inventory SKU reaches its reorder point."""
         providers = await self._get_providers_for_event(db, "on_stock_reorder_alert", None)
         if skip_break_subscribers:
             providers = [provider for provider in providers if not provider.on_stock_break_alert]
+        if provider_ids is not None:
+            providers = [provider for provider in providers if provider.id in provider_ids]
         if not providers:
-            return
+            return {}
 
         variables = {
             "material": material,
@@ -2095,7 +2119,10 @@ class NotificationService:
         }
 
         title, message = await self._build_message_from_template(db, "stock_reorder_alert", variables)
-        await self._send_to_providers(providers, title, message, db, "stock_reorder_alert", variables=variables)
+        return await self._send_to_providers(
+            providers, title, message, db, "stock_reorder_alert",
+            variables=variables, skip_digest_provider_ids=skip_digest_provider_ids
+        )
 
     async def on_stock_break_alert(
         self,
@@ -2106,11 +2133,15 @@ class NotificationService:
         days_left: int,
         lead_time_days: int,
         db: AsyncSession,
-    ):
+        provider_ids: set[int] | None = None,
+        skip_digest_provider_ids: set[int] | None = None,
+    ) -> dict[int, NotificationDelivery]:
         """Fire when a stock break is detected (stock runs out before lead time)."""
         providers = await self._get_providers_for_event(db, "on_stock_break_alert", None)
+        if provider_ids is not None:
+            providers = [provider for provider in providers if provider.id in provider_ids]
         if not providers:
-            return
+            return {}
 
         variables = {
             "material": material,
@@ -2122,7 +2153,10 @@ class NotificationService:
         }
 
         title, message = await self._build_message_from_template(db, "stock_break_alert", variables)
-        await self._send_to_providers(providers, title, message, db, "stock_break_alert", variables=variables)
+        return await self._send_to_providers(
+            providers, title, message, db, "stock_break_alert",
+            variables=variables, skip_digest_provider_ids=skip_digest_provider_ids
+        )
 
     async def _queue_for_digest(
         self,
@@ -2133,7 +2167,7 @@ class NotificationService:
         db: AsyncSession,
         printer_id: int | None = None,
         printer_name: str | None = None,
-    ):
+    ) -> bool:
         """Queue a notification for later delivery in the daily digest."""
         try:
             queue_entry = NotificationDigestQueue(
@@ -2147,8 +2181,10 @@ class NotificationService:
             db.add(queue_entry)
             await db.commit()
             logger.info("Queued notification for digest: %s for provider %s", event_type, provider.name)
+            return True
         except Exception as e:
             logger.warning("Failed to queue notification for digest: %s", e)
+            return False
 
     async def send_digest(self, provider_id: int):
         """Send all queued notifications as a single digest for a provider."""

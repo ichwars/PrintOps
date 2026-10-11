@@ -64,6 +64,7 @@ from backend.app.services.smart_plug_selection import (
     pick_power_plug as select_power_plug,
     plugs_for_printer,
 )
+from backend.app.services.spoolman_sku_reconciliation import SpoolmanSkuReconciler
 from backend.app.services.stock_alert_monitor import StockAlertMonitor
 from backend.app.utils.filename import derive_remote_filename
 from backend.app.utils.printer_models import is_gcode_compatible, normalize_printer_model
@@ -402,6 +403,7 @@ class PrintScheduler:
         self._inflight: dict[int, tuple[asyncio.Task, int | None]] = {}
         self._stranded_print_recovery = StrandedPrintRecovery()
         self._keep_warm = QueueKeepWarm()
+        self._external_skus = SpoolmanSkuReconciler()
         self._stock_alerts = StockAlertMonitor()
         self._filament_low = FilamentLowMonitor()
         self._inventory_alert_task: asyncio.Task | None = None
@@ -450,6 +452,7 @@ class PrintScheduler:
 
     async def _check_inventory_alerts(self, session_factory) -> None:
         async with session_factory() as db:
+            await self._external_skus.tick(db)
             await self._stock_alerts.tick(db)
             await self._filament_low.tick(db)
 

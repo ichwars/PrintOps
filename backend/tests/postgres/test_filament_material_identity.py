@@ -13,7 +13,9 @@ from backend.app.core.database import Base, run_migrations
 from backend.app.models.filament_sku_settings import FilamentSkuSettings
 from backend.app.models.procurement import ProcurementOffer, Supplier
 from backend.app.models.small_part import SmallPart, SmallPartUnit
+from backend.app.schemas.warehouse_article import WarehouseArticleCreate
 from backend.app.services.filament_sku_identity import backfill_material_numbers, ensure_sku
+from backend.app.services.warehouse_articles import WarehouseError, create_article
 from backend.app.services.warehouse_number_sequence import reserve_number
 
 URL = os.environ.get("PRINTOPS_POSTGRES_TEST_URL")
@@ -78,9 +80,54 @@ async def test_upgrade_twice_preserves_legacy_references_and_serializes_shared_a
                 await db.commit()
                 return number
 
-        values = await asyncio.gather(filament(), small_part(), filament())
+        async def article():
+            async with sessions() as db:
+                number = await reserve_number(db, key="material")
+                row = await create_article(
+                    db, WarehouseArticleCreate(sku=number, name="Printed widget", kind="finished", unit_code="C62")
+                )
+                await db.commit()
+                return row.sku
+
+        values = await asyncio.gather(filament(), small_part(), filament(), article())
         assert values[0] == values[2]
-        assert set(values) == {"MAT-00002", "MAT-00003"}
+        assert set(values) == {"MAT-00002", "MAT-00003", "MAT-00004"}
+
+        allocated = asyncio.Event()
+        article_entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def held_filament():
+            async with sessions() as db:
+                row = await ensure_sku(db, {"material": "ABS"})
+                allocated.set()
+                await release.wait()
+                await db.commit()
+                return row.material_number
+
+        async def explicit_article():
+            await allocated.wait()
+            async with sessions() as db:
+                article_entered.set()
+                try:
+                    await create_article(
+                        db, WarehouseArticleCreate(sku="MAT-00005", name="Collision", kind="finished", unit_code="C62")
+                    )
+                    await db.commit()
+                    return "accepted"
+                except WarehouseError as exc:
+                    await db.rollback()
+                    return exc.code
+
+        filament_task = asyncio.create_task(held_filament())
+        article_task = asyncio.create_task(explicit_article())
+        try:
+            await asyncio.wait_for(article_entered.wait(), timeout=2)
+            release.set()
+            assert await asyncio.gather(filament_task, article_task) == ["MAT-00005", "material_number_conflict"]
+        finally:
+            release.set()
+            await asyncio.gather(filament_task, article_task, return_exceptions=True)
     finally:
         await engine.dispose()
         async with admin.begin() as conn:

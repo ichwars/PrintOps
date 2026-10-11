@@ -45,7 +45,12 @@ async def lock_material_numbers(session: AsyncSession) -> None:
 
 
 async def material_number_in_use(
-    session: AsyncSession, number: str, *, exclude_sku_id: int | None = None, exclude_small_part_id: int | None = None
+    session: AsyncSession,
+    number: str,
+    *,
+    exclude_sku_id: int | None = None,
+    exclude_small_part_id: int | None = None,
+    exclude_article_id: int | None = None,
 ) -> bool:
     from backend.app.models.filament_sku_settings import FilamentSkuSettings
     from backend.app.models.small_part import SmallPart
@@ -63,6 +68,8 @@ async def material_number_in_use(
         statements[2] = statements[2].where(
             (WarehouseArticle.small_part_id.is_(None)) | (WarehouseArticle.small_part_id != exclude_small_part_id)
         )
+    if exclude_article_id is not None:
+        statements[2] = statements[2].where(WarehouseArticle.id != exclude_article_id)
     for statement in statements:
         if await session.scalar(statement.limit(1)) is not None:
             return True
@@ -75,12 +82,17 @@ async def assert_material_number_available(
     *,
     exclude_sku_id: int | None = None,
     exclude_small_part_id: int | None = None,
+    exclude_article_id: int | None = None,
     lock: bool = True,
 ) -> None:
     if lock:
         await lock_material_numbers(session)
     if await material_number_in_use(
-        session, number, exclude_sku_id=exclude_sku_id, exclude_small_part_id=exclude_small_part_id
+        session,
+        number,
+        exclude_sku_id=exclude_sku_id,
+        exclude_small_part_id=exclude_small_part_id,
+        exclude_article_id=exclude_article_id,
     ):
         raise ValueError(f"Material number {number!r} is already in use")
 

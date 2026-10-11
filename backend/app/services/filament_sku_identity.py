@@ -43,18 +43,28 @@ async def enrich_material_numbers(db: AsyncSession, spools: Iterable[object]) ->
             spool.material_number = mapping[spool.id]
 
 
+def sku_predicates(key: tuple[str, str, str, str]) -> tuple:
+    """The normalized identity predicate used by every read and writer."""
+    return tuple(
+        func.trim(func.coalesce(getattr(FilamentSkuSettings, field), "")) == value
+        for field, value in zip(("material", "subtype", "brand", "color_name"), key, strict=True)
+    )
+
+
+async def lookup_sku(db: AsyncSession, spool: object) -> FilamentSkuSettings | None:
+    """Read the numbered/oldest canonical identity without allocating."""
+    return await db.scalar(
+        select(FilamentSkuSettings)
+        .where(*sku_predicates(sku_key(spool)))
+        .order_by(FilamentSkuSettings.material_number.is_(None), FilamentSkuSettings.id)
+        .limit(1)
+    )
+
+
 async def sku_alias_ids(db: AsyncSession, sku: object) -> list[int]:
-    key = sku_key(sku)
     return list(
         await db.scalars(
-            select(FilamentSkuSettings.id)
-            .where(
-                *(
-                    func.trim(func.coalesce(getattr(FilamentSkuSettings, field), "")) == value
-                    for field, value in zip(("material", "subtype", "brand", "color_name"), key, strict=True)
-                )
-            )
-            .order_by(FilamentSkuSettings.id)
+            select(FilamentSkuSettings.id).where(*sku_predicates(sku_key(sku))).order_by(FilamentSkuSettings.id)
         )
     )
 
@@ -65,21 +75,23 @@ async def ensure_sku(db: AsyncSession, spool: object, *, material_number: str | 
     if not key[0]:
         raise ValueError("Material is required for a filament SKU")
     await numbers.lock_material_numbers(db)
-    statement = (
-        select(FilamentSkuSettings)
-        .where(
-            *(
-                func.trim(func.coalesce(getattr(FilamentSkuSettings, field), "")) == value
-                for field, value in zip(("material", "subtype", "brand", "color_name"), key, strict=True)
-            )
-        )
-        .order_by(FilamentSkuSettings.material_number.is_(None), FilamentSkuSettings.id)
-        .limit(1)
-    )
-    row = await db.scalar(statement)
+    row = await lookup_sku(db, spool)
     if row is None:
+        fallback = (
+            await lookup_sku(db, dict(zip(("material", "subtype", "brand", "color_name"), (*key[:3], ""), strict=True)))
+            if key[3]
+            else None
+        )
+        inherited = (
+            {
+                field: getattr(fallback, field)
+                for field in ("lead_time_days", "safety_margin_value", "safety_margin_unit", "alerts_snoozed")
+            }
+            if fallback is not None
+            else {}
+        )
         row = FilamentSkuSettings(
-            material=key[0], subtype=key[1] or None, brand=key[2] or None, color_name=key[3] or None
+            material=key[0], subtype=key[1] or None, brand=key[2] or None, color_name=key[3] or None, **inherited
         )
         db.add(row)
         await db.flush()

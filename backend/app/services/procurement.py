@@ -132,15 +132,9 @@ async def resolve_resource(
             small_part=small_part,
         )
 
-    statement = select(FilamentSkuSettings).where(
-        FilamentSkuSettings.material == resource.material,
-        FilamentSkuSettings.subtype == resource.subtype,
-        FilamentSkuSettings.brand == resource.brand,
-        FilamentSkuSettings.color_name == resource.color_name,
-    )
-    settings = await session.scalar(
-        statement.order_by(FilamentSkuSettings.material_number.is_(None), FilamentSkuSettings.id).limit(1)
-    )
+    from backend.app.services.filament_sku_identity import lookup_sku
+
+    settings = await lookup_sku(session, resource)
     if settings is None and not create_filament:
         return None
     if create_filament:

@@ -18,7 +18,7 @@ from backend.tests.integration.test_stock_alert_producer import seed_stock
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("blocked_stage", ["forecast", "provider"])
+@pytest.mark.parametrize("blocked_stage", ["forecast", "provider", "reconcile"])
 async def test_blocked_alert_transport_leaves_dispatch_fast_and_shutdown_drains_task(
     tmp_path, test_engine, monkeypatch, blocked_stage
 ):
@@ -50,7 +50,10 @@ async def test_blocked_alert_transport_leaves_dispatch_fast_and_shutdown_drains_
         async def get_client():
             return spoolman
 
-        monkeypatch.setattr("backend.app.services.stock_alert_monitor.get_spoolman_client", get_client)
+        if blocked_stage == "reconcile":
+            monkeypatch.setattr("backend.app.services.spoolman.get_spoolman_client", get_client)
+        else:
+            monkeypatch.setattr("backend.app.services.stock_alert_monitor.get_spoolman_client", get_client)
     scheduler = PrintScheduler()
     first_pass = None
     dispatched = []
@@ -59,7 +62,7 @@ async def test_blocked_alert_transport_leaves_dispatch_fast_and_shutdown_drains_
             await conn.run_sync(Base.metadata.create_all)
         async with sessions() as db:
             await seed_stock(db)
-            if blocked_stage == "forecast":
+            if blocked_stage in {"forecast", "reconcile"}:
                 db.add(Settings(key="spoolman_enabled", value="true"))
             printer = Printer(name="Ready", serial_number="READY", ip_address="192.0.2.1", access_code="test")
             db.add(printer)

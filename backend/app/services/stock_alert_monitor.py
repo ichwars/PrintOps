@@ -45,18 +45,17 @@ class StockAlertMonitor:
             return
         self._next_check = now + 3600
         try:
-            wanted = {
-                kind: bool(
-                    await db.scalar(
-                        select(NotificationProvider.id)
-                        .where(NotificationProvider.enabled.is_(True), getattr(NotificationProvider, event).is_(True))
-                        .limit(1)
+            providers = list(
+                await db.scalars(
+                    select(NotificationProvider).where(
+                        NotificationProvider.enabled.is_(True),
+                        NotificationProvider.on_stock_reorder_alert.is_(True)
+                        | NotificationProvider.on_stock_break_alert.is_(True),
                     )
                 )
-                for kind, event in (("reorder", "on_stock_reorder_alert"), ("break", "on_stock_break_alert"))
-            }
+            )
             await self._load(db)
-            if not any(wanted.values()):
+            if not providers:
                 self._state.clear()
                 await self._save(db)
                 return
@@ -71,13 +70,16 @@ class StockAlertMonitor:
                 if result.snoozed or kind is None:
                     continue
                 active.add(identity)
-                previous = self._state.get(identity, {})
                 events = {"reorder", "break"} if kind == "break" else {"reorder"}
-                told = set(previous.get("events", [])) & events
-                to_send = {event for event in events if wanted[event]} - told
-                self._state[identity] = {"kind": kind, "events": sorted(told | to_send)}
-                if not to_send:
-                    continue
+                previous = self._state.get(identity, {}).get("providers", {})
+                current = {}
+                for provider in providers:
+                    old = previous.get(str(provider.id), {})
+                    current[str(provider.id)] = {
+                        "events": sorted(set(old.get("events", [])) & events),
+                        "digests": sorted(set(old.get("digests", [])) & events),
+                    }
+                self._state[identity] = {"kind": kind, "providers": current}
                 material = " ".join(
                     part
                     for part in (
@@ -95,13 +97,42 @@ class StockAlertMonitor:
                     "days_left": result.days_remaining,
                     "db": db,
                 }
-                if "break" in to_send:
-                    await notification_service.on_stock_break_alert(
-                        **args, lead_time_days=result.effective_lead_time_days
-                    )
-                if "reorder" in to_send:
-                    await notification_service.on_stock_reorder_alert(**args, skip_break_subscribers=kind == "break")
-            self._state = {key: kind for key, kind in self._state.items() if key in active}
+                for event in ("break", "reorder"):
+                    if event not in events:
+                        continue
+                    targets = {
+                        provider.id
+                        for provider in providers
+                        if getattr(provider, "on_stock_" + ("break_alert" if event == "break" else "reorder_alert"))
+                        and not (event == "reorder" and kind == "break" and provider.on_stock_break_alert)
+                        and event not in current[str(provider.id)]["events"]
+                    }
+                    if not targets:
+                        continue
+                    digest_ids = {pid for pid in targets if event in current[str(pid)]["digests"]}
+                    delivery_args = {**args, "provider_ids": targets, "skip_digest_provider_ids": digest_ids}
+                    if event == "break":
+                        outcomes = await notification_service.on_stock_break_alert(
+                            **delivery_args, lead_time_days=result.effective_lead_time_days
+                        )
+                    else:
+                        outcomes = await notification_service.on_stock_reorder_alert(
+                            **delivery_args, skip_break_subscribers=kind == "break"
+                        )
+                    outcomes = outcomes or {}
+                    for pid in targets:
+                        delivery = outcomes.get(pid)
+                        state = current[str(pid)]
+                        if delivery and delivery.digest_queued:
+                            state["digests"] = sorted(set(state["digests"]) | {event})
+                        if delivery and delivery.status == "delivered":
+                            # A delivered break already informs this provider of the reorder condition.
+                            state["events"] = sorted(
+                                set(state["events"]) | ({"break", "reorder"} if event == "break" else {event})
+                            )
+                        else:
+                            self._next_check = min(self._next_check, now + 60)
+            self._state = {key: state for key, state in self._state.items() if key in active}
             await self._save(db)
         except Exception:
             logger.warning("Stock forecast notification check failed", exc_info=True)
@@ -116,12 +147,20 @@ class StockAlertMonitor:
             if isinstance(state, dict):
                 for key, value in state.items():
                     if isinstance(value, dict) and value.get("kind") in ("reorder", "break"):
-                        events = value.get("events", [])
-                        if isinstance(events, list):
-                            self._state[key] = {
-                                "kind": value["kind"],
-                                "events": [event for event in events if event in ("reorder", "break")],
-                            }
+                        providers = value.get("providers", {})
+                        if isinstance(providers, dict):
+                            clean = {}
+                            for provider_id, state in providers.items():
+                                if isinstance(state, dict) and str(provider_id).isdigit():
+                                    clean[str(provider_id)] = {
+                                        field: [
+                                            event for event in state.get(field, []) if event in ("reorder", "break")
+                                        ]
+                                        for field in ("events", "digests")
+                                        if isinstance(state.get(field, []), list)
+                                    }
+                            # Legacy global events did not prove successful per-provider delivery.
+                            self._state[key] = {"kind": value["kind"], "providers": clean}
         except (TypeError, ValueError):
             self._state = {}
         self._persisted = json.dumps(self._state, sort_keys=True)
@@ -140,18 +179,35 @@ class StockAlertMonitor:
 
     async def _forecasts(self, db, external):
         settings = {}
-        for key, row in (await canonical_sku_settings(db)).items():
+        canonical = await canonical_sku_settings(db)
+        for key, row in canonical.items():
             aliases = await sku_alias_ids(db, row)
-            offers = await db.scalars(
-                select(ProcurementOffer.lead_time_days)
-                .join(Supplier)
-                .where(
-                    ProcurementOffer.filament_sku_settings_id.in_(aliases),
-                    ProcurementOffer.is_active.is_(True),
-                    ProcurementOffer.is_preferred.is_(True),
-                    Supplier.is_active.is_(True),
+            offers = list(
+                await db.scalars(
+                    select(ProcurementOffer.lead_time_days)
+                    .join(Supplier)
+                    .where(
+                        ProcurementOffer.filament_sku_settings_id.in_(aliases),
+                        ProcurementOffer.is_active.is_(True),
+                        ProcurementOffer.is_preferred.is_(True),
+                        Supplier.is_active.is_(True),
+                    )
                 )
             )
+            if not offers and key[3] and (fallback := canonical.get((*key[:3], ""))) is not None:
+                fallback_aliases = await sku_alias_ids(db, fallback)
+                offers = list(
+                    await db.scalars(
+                        select(ProcurementOffer.lead_time_days)
+                        .join(Supplier)
+                        .where(
+                            ProcurementOffer.filament_sku_settings_id.in_(fallback_aliases),
+                            ProcurementOffer.is_active.is_(True),
+                            ProcurementOffer.is_preferred.is_(True),
+                            Supplier.is_active.is_(True),
+                        )
+                    )
+                )
             settings[key] = forecast.SkuSettings(
                 lead_time_days=max([row.lead_time_days or 0, *offers]),
                 safety_margin_value=row.safety_margin_value,
