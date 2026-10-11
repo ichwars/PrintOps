@@ -231,3 +231,105 @@ async def test_delete_draft_keeps_database_result_when_storage_cleanup_fails(
     assert await db_session.get(Calculation, calculation_id) is None
     assert storage_dir.exists()
     assert "Failed to remove calculation storage directory" in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("preferred", ["bambu_studio", "orcaslicer"])
+async def test_calculation_slice_sanitizes_sidecar_bytes_and_retains_source_identity(
+    preferred, async_client, db_session, tmp_path, monkeypatch
+):
+    import hashlib
+    import json
+    from email import policy
+    from email.parser import BytesParser
+
+    import httpx
+
+    from backend.app.models.settings import Settings
+    from backend.app.services import slicer_api
+    from backend.tests.integration.test_media_tokens import _admin_token, _make_user
+
+    monkeypatch.setattr(app_settings, "base_dir", tmp_path)
+    profile = BusinessProfile(
+        name="MakerWorld", legal_name="MakerWorld GmbH", country_code="DE", default_currency="EUR"
+    )
+    calculation = Calculation(business_profile=profile, title="Embedded profiles", currency="EUR")
+    db_session.add_all([calculation, Settings(key="preferred_slicer", value=preferred)])
+    await db_session.commit()
+    settings_payload = {
+        "wall_filament": "0",
+        "sparse_infill_filament": 0,
+        "solid_infill_filament": "0",
+        "support_filament": "0",
+        "support_interface_filament": 0,
+        "layer_height": "0.2",
+        "z_offset": "-1",
+    }
+    output = BytesIO()
+    with ZipFile(BytesIO(_project_file())) as source, ZipFile(output, "w", ZIP_DEFLATED) as archive:
+        for item in source.infolist():
+            archive.writestr(item, source.read(item))
+        archive.writestr("Metadata/project_settings.config", json.dumps(settings_payload))
+    original = output.getvalue()
+    observed = []
+
+    def sidecar(request):
+        assert request.method == "POST"
+        assert request.url.path == "/slice"
+        headers = f"Content-Type: {request.headers['content-type']}\r\nMIME-Version: 1.0\r\n\r\n".encode()
+        message = BytesParser(policy=policy.default).parsebytes(headers + request.content)
+        part = next(
+            part for part in message.iter_parts() if part.get_param("name", header="content-disposition") == "file"
+        )
+        with ZipFile(BytesIO(part.get_payload(decode=True))) as archive:
+            observed.append(json.loads(archive.read("Metadata/project_settings.config")))
+            assert archive.read("Metadata/model_settings.config") == (
+                b'<config><metadata key="plater_id" value="1"/><metadata key="plater_id" value="2"/></config>'
+            )
+        return httpx.Response(
+            200, content=b"; sliced G-code", headers={"X-Print-Time-Seconds": "7200", "X-Filament-Used-G": "12.5"}
+        )
+
+    admin = await _admin_token(async_client, "calc_sanitize")
+    updater, _ = await _make_user(
+        async_client, admin, username="calc_sanitize_updater", permissions=["calculations:update"]
+    )
+    reader, _ = await _make_user(
+        async_client, admin, username="calc_sanitize_reader", permissions=["calculations:read"]
+    )
+    update_headers = {"Authorization": f"Bearer {updater}"}
+    uploaded = await async_client.post(
+        f"/api/v1/calculations/{calculation.id}/project-files",
+        headers=update_headers,
+        files={"file": ("makerworld.3mf", original, "model/3mf")},
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    file_id = uploaded.json()["id"]
+    selected = [plate["id"] for plate in uploaded.json()["plates"]]
+    url = f"/api/v1/calculations/project-files/{file_id}/slice"
+    async with httpx.AsyncClient(transport=httpx.MockTransport(sidecar)) as client:
+        monkeypatch.setattr(slicer_api, "_shared_http_client", client)
+        denied = await async_client.post(
+            url, json={"plate_ids": selected}, headers={"Authorization": f"Bearer {reader}"}
+        )
+        assert denied.status_code == 403
+        assert observed == []
+        response = await async_client.post(url, json={"plate_ids": selected}, headers=update_headers)
+    assert response.status_code == 200, response.text
+    assert len(observed) == 2
+    assert (
+        observed
+        == [
+            {
+                "support_filament": "0",
+                "support_interface_filament": 0,
+                "layer_height": "0.2",
+                "z_offset": "-1",
+            }
+        ]
+        * 2
+    )
+    assert [Decimal(item["print_hours"]) for item in response.json()] == [Decimal("2")] * 2
+    stored = await db_session.get(CalculationProjectFile, file_id)
+    assert uploaded.json()["sha256"] == stored.sha256 == hashlib.sha256(original).hexdigest()
+    assert (tmp_path / stored.stored_path).read_bytes() == original
