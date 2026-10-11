@@ -315,7 +315,7 @@ class NotificationService:
         # to the ntfy server's default so existing setups stay unchanged.
         event_priorities = config.get("event_priorities") or {}
         if event_type and isinstance(event_priorities, dict):
-            raw = event_priorities.get(event_type)
+            raw = event_priorities.get(event_type, event_priorities.get(f"on_{event_type}"))
             try:
                 priority = int(raw) if raw is not None else None
             except (TypeError, ValueError):
