@@ -407,6 +407,7 @@ export const legacySearchTabByAnchor: Record<string, string> = {
   'card-gcode': 'queue',
   'card-slicer': 'queue',
   'card-drying': 'warehouse-material',
+  'scheduled-drying': 'warehouse-material',
   'card-warehouse-number-sequences': 'warehouse-material',
   'card-preheat': 'queue',
   'card-pipelines': 'queue',

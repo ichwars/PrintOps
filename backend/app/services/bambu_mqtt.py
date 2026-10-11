@@ -20,6 +20,12 @@ from backend.app.services.bambu_kprofiles import (
     handle_kprofile_response,
     publish_cali_write,
 )
+from backend.app.services.drying_telemetry import (
+    DryingTelemetry,
+    observe_ams_drying,
+    observe_printer_state,
+    observe_version_info,
+)
 from backend.app.services.hms_actions import HMSAction, get_actions_for_error_code
 from backend.app.services.mqtt_print_provenance import (
     REQUEST_TOPIC_PROBE_FAILURES,
@@ -301,6 +307,7 @@ class PrintOptions:
 
 @dataclass
 class PrinterState:
+    drying_telemetry: DryingTelemetry = field(default_factory=DryingTelemetry)
     connected: bool = False
     state: str = "unknown"
     current_print: str | None = None
@@ -867,6 +874,7 @@ class BambuMQTTClient:
             self.state.kprofile_diameters.clear()
             self.state.nozzles = [NozzleInfo() for _ in self.state.nozzles]
             self.state.nozzle_rack = []
+            self.state.drying_telemetry = DryingTelemetry()
             self.state.connected = True
             self._stale_reconnecting = False  # Clear stale-reconnect flag on successful connect
             # Reset per-connection warning state so warnings fire once per (re)connection
@@ -990,6 +998,7 @@ class BambuMQTTClient:
         self._request_topic_sub_time = 0.0
 
         self.state.connected = False
+        self.state.drying_telemetry = DryingTelemetry()
         if self.on_state_change:
             self.on_state_change(self.state)
 
@@ -1345,6 +1354,7 @@ class BambuMQTTClient:
             ]
         }
         """
+        observe_version_info(self.state, data)
         modules = data.get("module", [])
         if not isinstance(modules, list):
             return
@@ -2029,6 +2039,7 @@ class BambuMQTTClient:
             logger.warning("[%s] Unexpected AMS data format: %s", self.serial_number, type(ams_data))
             return
 
+        explicit_drying_units = [unit.copy() for unit in ams_list if isinstance(unit, dict)]
         # Merge AMS data instead of replacing, to handle partial updates
         # During prints, the printer may only send updates for active AMS units
         # We need deep merging at the tray level to preserve fields like tray_sub_brands
@@ -2232,43 +2243,7 @@ class BambuMQTTClient:
         # Persist updated drying fields back to raw_data
         self.state.raw_data["ams"] = merged_ams
 
-        # Detect AMS drying-complete falling edge per-unit (#1349). When an
-        # AMS's `dry_time` transitions from >0 to 0 the cycle just finished
-        # — fire the callback so smart-plug auto-off-after-drying can run,
-        # and drop our cached target-cycle params so the badge stops claiming
-        # an active cycle. Works identically for queue-triggered, ambient,
-        # and manual drying because we observe the firmware-reported state.
-        for ams_unit in merged_ams:
-            try:
-                ams_id = int(ams_unit.get("id", -1))
-            except (TypeError, ValueError):
-                continue
-            if ams_id < 0:
-                continue
-            # Only evaluate the edge when this update carries an explicit
-            # dry_time. An absent / unparseable value is NOT zero — treating
-            # it as 0 lets a tray-only partial fake a drying-complete edge
-            # (#1462). Skip without touching the remembered value so the
-            # next update that DOES carry dry_time sees the true previous.
-            raw_dry_time = ams_unit.get("dry_time")
-            if raw_dry_time is None:
-                continue
-            try:
-                current = int(raw_dry_time)
-            except (TypeError, ValueError):
-                continue
-            previous = self._previous_dry_times.get(ams_id, 0)
-            self._previous_dry_times[ams_id] = current
-            if previous > 0 and current == 0:
-                logger.info(
-                    "[%s] AMS %d drying complete (dry_time %d → 0)",
-                    self.serial_number,
-                    ams_id,
-                    previous,
-                )
-                self._drying_targets.pop(ams_id, None)
-                if self.on_drying_complete:
-                    self.on_drying_complete(ams_id)
+        observe_ams_drying(self, explicit_drying_units, merged_ams)
 
         # Create a hash of relevant AMS data to detect changes. Hash the merged
         # state so tray_exist_bits-only clears still fire the AMS-change callback.
@@ -2295,7 +2270,7 @@ class BambuMQTTClient:
         """Update printer state from message data."""
         _previous_state = self.state.state
 
-        # Update state fields
+        observe_printer_state(self.state, data)
         if "gcode_state" in data:
             self.state.state = data["gcode_state"]
         if "gcode_file" in data:
@@ -4336,7 +4311,15 @@ class BambuMQTTClient:
             return False
 
     def send_drying_command(
-        self, ams_id: int, temp: int, duration: int, mode: int = 1, filament: str = "", rotate_tray: bool = False
+        self,
+        ams_id: int,
+        temp: int,
+        duration: int,
+        mode: int = 1,
+        filament: str = "",
+        rotate_tray: bool = False,
+        *,
+        qos: int = 1,
     ):
         """Send AMS drying start/stop command.
 
@@ -4373,7 +4356,9 @@ class BambuMQTTClient:
         # Paired with the ams_filament_drying response-payload INFO log so
         # both halves of the conversation land in the bundle by default.
         wire_json = json.dumps(command)
-        self._client.publish(self.topic_publish, wire_json, qos=1)
+        published = self._client.publish(self.topic_publish, wire_json, qos=qos)
+        if qos == 0 and published.rc != mqtt.MQTT_ERR_SUCCESS:
+            return False
         logger.info(
             "[%s] Sent ams_filament_drying: %s",
             self.serial_number,

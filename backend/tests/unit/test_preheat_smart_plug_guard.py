@@ -22,6 +22,11 @@ def plug_guard(tmp_path, monkeypatch):
     pm = MagicMock()
     pm.is_print_active.return_value = False
     pm.get_status.return_value = SimpleNamespace(state="IDLE", temperatures={"nozzle": 20})
+    db = AsyncMock()
+    db.scalar.return_value = None
+    factory = MagicMock()
+    factory.return_value.__aenter__.return_value = db
+    monkeypatch.setattr("backend.app.core.database.async_session", factory)
     monkeypatch.setattr("backend.app.services.smart_plug_manager.preheat_ownership", owner)
     monkeypatch.setattr("backend.app.services.smart_plug_manager.printer_manager", pm)
     return SimpleNamespace(owner=owner, manager=manager, service=service, pm=pm)
@@ -98,6 +103,7 @@ async def test_restart_pending_off_checks_ownership(plug_guard, guarded):
         controls_printer_power=True,
     )
     db = AsyncMock()
+    db.scalar.return_value = None
     db.execute.return_value = MagicMock()
     db.execute.return_value.scalars.return_value.all.return_value = [plug]
     with patch("backend.app.core.database.async_session") as factory:
@@ -126,6 +132,7 @@ async def test_restart_rechecks_ownership_after_service_configuration(plug_guard
         controls_printer_power=True,
     )
     db = AsyncMock()
+    db.scalar.return_value = None
     db.execute.return_value = MagicMock()
     db.execute.return_value.scalars.return_value.all.return_value = [plug]
     with patch("backend.app.core.database.async_session") as factory:
@@ -146,6 +153,7 @@ async def test_scheduled_off_does_not_cut_power_during_preheat(plug_guard):
         controls_printer_power=True,
     )
     db = AsyncMock()
+    db.scalar.return_value = None
     db.execute.return_value = MagicMock()
     db.execute.return_value.scalars.return_value.all.return_value = [plug]
     with patch("backend.app.core.database.async_session") as factory:

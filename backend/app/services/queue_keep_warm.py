@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.app.core.config import settings
 from backend.app.models.print_queue import PrintQueueItem
+from backend.app.services.drying_ownership import has_drying_reservation, printer_operation
 from backend.app.services.preheat_chamber import derive_chamber_target, normalize_filament_type
 from backend.app.services.preheat_ownership import PreheatLease, preheat_ownership
 from backend.app.utils.printer_models import normalize_printer_model
@@ -288,20 +289,26 @@ class QueueKeepWarm:
                 continue
             if lease:
                 continue  # No repeated commands or deadline reseeding.
-            if self.owner.blocks_power_off(pid) or self.drying_reserved(scheduler, manager, pid):
-                continue
-            client = manager.get_client(pid)
-            if client is None:
-                continue
-            lease = PreheatLease(self.owner, pid, head.id, manager, purpose="keep_warm")
-            try:
-                lease.activate(minutes * 60)
-                if not lease.command(client, "bed", target):
-                    self.owner.rollback(lease)
+            async with printer_operation(db, pid):
+                if (
+                    await has_drying_reservation(db, pid)
+                    or self.owner.blocks_power_off(pid)
+                    or self.drying_reserved(scheduler, manager, pid)
+                ):
                     continue
-            except Exception as exc:
-                logger.warning("Keep-warm skipped on printer %s: %s", pid, exc)
-                if self.owner.leases.get(pid) is lease:
-                    self.owner.rollback(lease)
-                continue
-            self.entries[pid] = lease
+                client = manager.get_client(pid)
+                if client is None:
+                    continue
+                lease = PreheatLease(self.owner, pid, head.id, manager, purpose="keep_warm")
+                try:
+                    lease.activate(minutes * 60)
+                    if not lease.command(client, "bed", target):
+                        self.owner.rollback(lease)
+                        continue
+                except Exception as exc:
+                    logger.warning("Keep-warm skipped on printer %s: %s", pid, exc)
+                    if self.owner.leases.get(pid) is lease:
+                        self.owner.rollback(lease)
+                    continue
+                self.entries[pid] = lease
+                await db.commit()

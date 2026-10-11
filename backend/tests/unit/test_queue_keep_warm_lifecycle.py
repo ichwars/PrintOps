@@ -39,6 +39,7 @@ async def lifecycle(compatible):
     scheduler._get_preheat_filament_targets = AsyncMock(return_value={"ASA": 45, "PA": 50})
     scheduler._get_printer = AsyncMock(return_value=compatible.printer)
     db = AsyncMock()
+    db.scalar.return_value = None
     db.execute.return_value = MagicMock()
     db.execute.return_value.scalar_one_or_none.return_value = compatible.previous
     context = SimpleNamespace(

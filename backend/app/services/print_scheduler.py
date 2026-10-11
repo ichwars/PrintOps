@@ -25,6 +25,7 @@ from backend.app.models.smart_plug import SmartPlug
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.services.archive_plate_metadata import refresh_archive_plate_metadata
+from backend.app.services.automatic_drying_state import start_drying, stop_drying, sync_drying_state
 from backend.app.services.bambu_ftp import (
     FtpFailureReport,
     UploadCancelled,
@@ -35,6 +36,7 @@ from backend.app.services.bambu_ftp import (
     upload_file_async,
     with_ftp_retry,
 )
+from backend.app.services.drying_ownership import claim_queue_item, reserved_printers
 from backend.app.services.filament_deficit import compute_deficit_for_queue_item
 from backend.app.services.ha_sensor_manager import ha_sensor_manager
 from backend.app.services.library_queue_references import (
@@ -53,6 +55,7 @@ from backend.app.services.printer_manager import (
     supports_drying_while_printing,
 )
 from backend.app.services.queue_keep_warm import QueueKeepWarm
+from backend.app.services.scheduled_drying import scheduled_drying
 from backend.app.services.smart_plug_manager import smart_plug_manager
 from backend.app.services.smart_plug_selection import (
     pick_power_plug as select_power_plug,
@@ -363,6 +366,7 @@ class PrintScheduler:
             dispatched = False
             try:
                 await self._stranded_print_recovery.tick()
+                await scheduled_drying.tick()
                 dispatched = await self.check_queue()
             except Exception as e:
                 logger.error("Scheduler error: %s", e)
@@ -391,15 +395,7 @@ class PrintScheduler:
             await self._clear_dispatch_claim(item.id)
 
     async def _claim_for_dispatch(self, db: AsyncSession, item_id: int) -> bool:
-        result = await db.execute(
-            update(PrintQueueItem)
-            .where(PrintQueueItem.id == item_id)
-            .where(PrintQueueItem.status == "pending")
-            .where(PrintQueueItem.dispatching_at.is_(None))
-            .values(dispatching_at=datetime.now(timezone.utc))
-        )
-        await db.commit()
-        return result.rowcount > 0
+        return await claim_queue_item(db, item_id)
 
     async def _clear_dispatch_claim(self, item_id: int) -> None:
         try:
@@ -510,6 +506,7 @@ class PrintScheduler:
             )
             busy_printers: set[int] = {pid for (pid,) in busy_result.all() if pid is not None}
 
+            busy_printers.update(await reserved_printers(db))
             # Defense-in-depth (#1157): augment busy_printers with any printer
             # still in its post-dispatch hold window. Empirically, the DB seed
             # above can miss in-flight items in a multi-plate batch — same-file
@@ -551,7 +548,6 @@ class PrintScheduler:
                 logger.warning("Home Assistant interlock check failed: %s", e)
                 interlocked = {}
 
-            # Log skip reasons once per queue check (not per item)
             skip_reasons: dict[str, int] = {}
             dispatch_ids: list[int] = []
             dispatch_libs: set[int] = set()
@@ -2256,9 +2252,12 @@ class PrintScheduler:
         block_for_drying = await self._get_bool_setting(db, "queue_drying_block")
 
         # Get all active printers
+        scheduled_owners = await reserved_printers(db)
         all_printers = await db.execute(select(Printer).where(Printer.is_active.is_(True)))
         for printer in all_printers.scalars():
             pid = printer.id
+            if pid in scheduled_owners:
+                continue
 
             # Resolve model+firmware up front — needed to decide whether this printer
             # qualifies for mid-print drying (busy printer on capable hardware).
@@ -2416,51 +2415,15 @@ class PrintScheduler:
                     duration_hours,
                     " (mid-print)" if mid_print else "",
                 )
-                success = printer_manager.send_drying_command(
-                    pid, ams_id, temp, duration_hours, mode=1, filament=filament_type
-                )
+                success = await start_drying(db, printer_manager, pid, ams_id, temp, duration_hours, filament_type)
                 if success:
                     self._drying_in_progress[pid] = time.monotonic()
 
     def _sync_drying_state(self):
-        """Sync in-memory drying state with actual printer status.
-
-        Handles backend restart — if a printer is drying but we don't know about it,
-        update our state. If we think it's drying but it's not, clear it.
-        """
-        to_remove = []
-        for pid in self._drying_in_progress:
-            state = printer_manager.get_status(pid)
-            if not state:
-                to_remove.append(pid)
-                continue
-            # Check if any AMS unit is still drying
-            ams_list = state.raw_data.get("ams", [])
-            any_drying = any(int(a.get("dry_time") or 0) > 0 for a in ams_list)
-            if not any_drying:
-                to_remove.append(pid)
-        for pid in to_remove:
-            self._drying_in_progress.pop(pid, None)
+        sync_drying_state(self._drying_in_progress, printer_manager)
 
     async def _stop_drying(self, printer_id: int):
-        """Stop all active drying on a printer (print takes priority)."""
-        state = printer_manager.get_status(printer_id)
-        if not state:
-            self._drying_in_progress.pop(printer_id, None)
-            return
-
-        ams_list = state.raw_data.get("ams", [])
-        for ams_data in ams_list:
-            dry_time = int(ams_data.get("dry_time") or 0)
-            if dry_time > 0:
-                ams_id = int(ams_data.get("id", 0))
-                logger.info(
-                    "Auto-drying: stopping drying on printer %d AMS %d — print takes priority",
-                    printer_id,
-                    ams_id,
-                )
-                printer_manager.send_drying_command(printer_id, ams_id, 0, 0, mode=0)
-        self._drying_in_progress.pop(printer_id, None)
+        await stop_drying(self._drying_in_progress, printer_id, printer_manager, async_session)
 
     DEFAULT_PREHEAT_FILAMENT_TARGETS = DEFAULT_PREHEAT_FILAMENT_TARGETS
 

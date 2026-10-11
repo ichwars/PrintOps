@@ -826,11 +826,17 @@ class PrinterManager:
         mode: int = 1,
         filament: str = "",
         rotate_tray: bool = False,
+        *,
+        qos: int = 1,
     ) -> bool:
         """Send AMS drying command to printer."""
         if printer_id not in self._clients:
             return False
-        return self._clients[printer_id].send_drying_command(ams_id, temp, duration, mode, filament, rotate_tray)
+        if qos == 1:
+            return self._clients[printer_id].send_drying_command(ams_id, temp, duration, mode, filament, rotate_tray)
+        return self._clients[printer_id].send_drying_command(
+            ams_id, temp, duration, mode, filament, rotate_tray, qos=qos
+        )
 
     def request_status_update(self, printer_id: int) -> bool:
         """Request a full status update from the printer.

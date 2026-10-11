@@ -75,6 +75,7 @@ from backend.app.models.document_layout import (
     LayoutTotalsRules,
     LayoutTypographyRules,
 )
+from backend.app.models.drying_schedule import DryingSchedule, DryingScheduleRun
 from backend.app.models.equipment import Equipment
 from backend.app.models.filament import Filament
 from backend.app.models.filament_sku_settings import FilamentSkuSettings
@@ -246,6 +247,8 @@ __all__ = [
     "DocumentPreviewJob",
     "NumberSequence",
     "Equipment",
+    "DryingSchedule",
+    "DryingScheduleRun",
     "SmallPartCategory",
     "SmallPartUnit",
     "SmallPart",

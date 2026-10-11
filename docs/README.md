@@ -26,6 +26,7 @@ Screenshots gehören nicht in das Repository.
 | Entwicklung | [README Editorial Guide](readme-editorial-guide.md) | Zielgruppen, Positionierung und Regeln für die zentrale Projekt-README |
 | Browser | [Browser-Kompatibilität](browser-compatibility.md) | Safari-16-Syntaxbaseline, README-Markdown und Grenzen der PDF-Vorschau |
 | Bedienung | [Touch und Tastatur](touch-and-keyboard-controls.md) | Sichtbare Karten-/Zeilenaktionen, Ordnermenüs und Fokusnavigation |
+| Drucker | [Tägliche AMS-Trocknung](scheduled-ams-drying.md) | Fähigkeiten, Zeitzonen, Reservierungen und unbestätigte Starts |
 
 Die allgemeine Projektübersicht, Installation und erste Schritte stehen in der
 [README im Projektstamm](../README.md).

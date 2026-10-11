@@ -17,6 +17,7 @@ from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.models.printer import Printer
 from backend.app.models.user import User
+from backend.app.services.drying_ownership import printer_operation_guard
 from backend.app.services.firmware_check import get_firmware_service
 from backend.app.services.firmware_update import (
     FirmwareUploadStatus,
@@ -255,6 +256,7 @@ async def start_firmware_upload(
     version: str | None = None,
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.FIRMWARE_UPDATE),
+    _drying_guard=Depends(printer_operation_guard),
 ):
     """
     Start uploading firmware to a printer's SD card.

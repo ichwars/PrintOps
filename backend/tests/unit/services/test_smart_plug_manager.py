@@ -518,6 +518,7 @@ class TestAutoOffPersistent:
 
         with patch("backend.app.core.database.async_session") as mock_session_ctx:
             mock_db = AsyncMock()
+            mock_db.scalar.return_value = None
             mock_result = MagicMock()
             mock_result.scalar_one_or_none.return_value = mock_plug
             mock_db.execute = AsyncMock(return_value=mock_result)
@@ -546,6 +547,7 @@ class TestAutoOffPersistent:
 
         with patch("backend.app.core.database.async_session") as mock_session_ctx:
             mock_db = AsyncMock()
+            mock_db.scalar.return_value = None
             mock_result = MagicMock()
             mock_result.scalar_one_or_none.return_value = mock_plug
             mock_db.execute = AsyncMock(return_value=mock_result)
@@ -670,6 +672,7 @@ class TestScheduleLoop:
 
             # Set up async session mock
             mock_db = AsyncMock()
+            mock_db.scalar.return_value = None
             mock_result = MagicMock()
             mock_result.scalars.return_value.all.return_value = [mock_plug]
             mock_db.execute = AsyncMock(return_value=mock_result)
@@ -711,6 +714,7 @@ class TestScheduleLoop:
 
             # Set up async session mock
             mock_db = AsyncMock()
+            mock_db.scalar.return_value = None
             mock_result = MagicMock()
             mock_result.scalars.return_value.all.return_value = [mock_plug]
             mock_db.execute = AsyncMock(return_value=mock_result)
@@ -746,6 +750,7 @@ class TestScheduleLoop:
 
             # Set up async session mock - returns no plugs (filtered by schedule_enabled)
             mock_db = AsyncMock()
+            mock_db.scalar.return_value = None
             mock_result = MagicMock()
             mock_result.scalars.return_value.all.return_value = []
             mock_db.execute = AsyncMock(return_value=mock_result)
@@ -788,6 +793,7 @@ class TestPendingAutoOffPersistence:
             patch.object(manager, "_schedule_temp_based_off") as mock_schedule,
         ):
             mock_db = AsyncMock()
+            mock_db.scalar.return_value = None
             mock_result = MagicMock()
             mock_result.scalars.return_value.all.return_value = [mock_plug]
             mock_db.execute = AsyncMock(return_value=mock_result)
@@ -820,6 +826,7 @@ class TestPendingAutoOffPersistence:
             patch("backend.app.services.smart_plug_manager.printer_manager") as mock_pm,
         ):
             mock_db = AsyncMock()
+            mock_db.scalar.return_value = None
             mock_result = MagicMock()
             mock_result.scalars.return_value.all.return_value = [mock_plug]
             mock_db.execute = AsyncMock(return_value=mock_result)
@@ -854,6 +861,7 @@ class TestPendingAutoOffPersistence:
             patch.object(manager, "_schedule_temp_based_off") as mock_temp,
         ):
             mock_db = AsyncMock()
+            mock_db.scalar.return_value = None
             mock_result = MagicMock()
             mock_result.scalars.return_value.all.return_value = [mock_plug]
             mock_db.execute = AsyncMock(return_value=mock_result)
@@ -878,6 +886,14 @@ class TestActivePrintGuard:
     queue-override scheduler that honours per-plug settings, and the
     on_print_start cancellation gap.
     """
+
+    @pytest.fixture(autouse=True)
+    def empty_drying_reservations(self):
+        db = AsyncMock()
+        db.scalar.return_value = None
+        with patch("backend.app.core.database.async_session") as session:
+            session.return_value.__aenter__.return_value = db
+            yield
 
     @pytest.fixture
     def manager(self):
