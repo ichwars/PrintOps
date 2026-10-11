@@ -19,6 +19,7 @@ Screenshots gehören nicht in das Repository.
 | NFC und Filament | [Mobiler NFC-Ablauf für Fremdspulen](mobile-nfc-spool-workflow.md) | Produktvorschlag für Scan-Link, Smartphone-Tag und AMS-Zuweisung |
 | Netzwerk | [Proxy-Modus](images/proxy-mode-diagram.png) | Architekturdiagramm des Proxy-Modus |
 | Sicherheit | [Alert-Triage 2026-07-23](security-alert-triage-2026-07-23.md) | Befund und Disposition der bereinigten GitHub-Sicherheitswarnungen |
+| Upstream | [Gesamtabgleich 2026-10-11](upstream-comparison-2026-10-11.md) | Aktuelle Funktions- und Korrekturmatrix mit fünf Kategorien, Prioritäten und vollständiger Commit-Liste |
 | Upstream | [Queue- und Projektfunktionen 2026-08-27](upstream-queue-project-evaluation-2026-08-27.md) | Bewertung, Abgrenzung und Folgeissues für optionale Bambuddy-Funktionen |
 | Upstream | [Slicer-Funktionen 2026-08-27](upstream-slicer-evaluation-2026-08-27.md) | Nutzen-, Plattform- und Wartungsbewertung optionaler Bambuddy-Slicer-Funktionen |
 | Upstream | [H2C- und Home-Assistant-Funktionen 2026-08-27](upstream-h2c-home-assistant-evaluation-2026-08-27.md) | Gerätebestand, Sensorzustände, Interlock-Fallbacks und Folgeissues |
