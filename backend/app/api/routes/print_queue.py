@@ -792,14 +792,14 @@ async def add_to_queue(
     # Extract filament types for model-based assignment (used by scheduler for validation)
     required_filament_types = None
     file_path = None
-    if target_model_norm:
-        # Get file path from archive or library file
-        if archive:
-            file_path = settings.base_dir / archive.file_path
-        elif library_file:
-            lib_path = Path(library_file.file_path)
-            file_path = lib_path if lib_path.is_absolute() else settings.base_dir / library_file.file_path
+    # Both concrete-printer and model jobs need the source for plate filtering.
+    if archive:
+        file_path = settings.base_dir / archive.file_path
+    elif library_file:
+        lib_path = Path(library_file.file_path)
+        file_path = lib_path if lib_path.is_absolute() else settings.base_dir / library_file.file_path
 
+    if target_model_norm:
         if file_path and file_path.exists():
             filament_types = _extract_filament_types_from_3mf(file_path, data.plate_id)
             if filament_types:
@@ -808,7 +808,7 @@ async def add_to_queue(
 
     # If filament overrides are provided, update required_filament_types to match override types
     filament_overrides_json = None
-    if data.filament_overrides and target_model_norm:
+    if data.filament_overrides:
         plate_overrides = overrides_for_plate(data.filament_overrides, file_path, data.plate_id)
         if plate_overrides:
             filament_overrides_json = json.dumps(plate_overrides)
