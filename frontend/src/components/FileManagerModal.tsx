@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
@@ -294,6 +294,8 @@ function getFileIcon(filename: string, isDirectory: boolean) {
   }
 }
 
+const isVideoFile = (path: string) => /\.(mp4|avi)$/i.test(path);
+
 type SortOption = 'name-asc' | 'name-desc' | 'size-asc' | 'size-desc' | 'date-asc' | 'date-desc';
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
@@ -314,10 +316,15 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
   const [searchQuery, setSearchQuery] = useState('');
   const [filesToDelete, setFilesToDelete] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<SortOption>('name-asc');
+  const selectionAnchor = useRef<string | null>(null);
+  const activeDownload = useRef<(() => void) | null>(null);
+  const managerOpen = useRef(true);
+  const downloadCancelled = useRef(false);
+  const [downloadErrors, setDownloadErrors] = useState<string[]>([]);
   const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number } | null>(null);
   // Single large-file download progress (percent/speed/ETA) — separate from
-  // downloadProgress above, which tracks file-count for the multi-file ZIP
-  // path. Fed by WS 'file_download_progress' events, correlated by downloadId.
+  // downloadProgress above, which tracks file-count for ZIP and sequential video downloads.
+  // Fed by WS 'file_download_progress' events, correlated by downloadId.
   const [singleFileDownload, setSingleFileDownload] = useState<{
     downloadId: string;
     fileName: string;
@@ -356,6 +363,15 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [singleFileDownload?.downloadId]);
 
+  useEffect(() => {
+    managerOpen.current = true;
+    return () => {
+      managerOpen.current = false;
+      downloadCancelled.current = true;
+      activeDownload.current?.();
+    };
+  }, []);
+
   // Close on Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -371,7 +387,7 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
   // together while this modal sat open (#1480). A printer's file list only
   // changes on upload / delete (the mutations below invalidate the query)
   // or when a print finishes; the manual Refresh button covers the rest.
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['printerFiles', printerId, currentPath],
     queryFn: () => api.getPrinterFiles(printerId, currentPath),
   });
@@ -401,29 +417,75 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
   });
 
   const navigateToFolder = (path: string) => {
+    if (singleFileDownload || downloadProgress) return;
+    selectionAnchor.current = null;
     setCurrentPath(path);
     setSelectedFiles(new Set());
   };
 
   const navigateUp = () => {
+    if (singleFileDownload || downloadProgress) return;
     if (currentPath === '/') return;
     const parts = currentPath.split('/').filter(Boolean);
     parts.pop();
+    selectionAnchor.current = null;
     setCurrentPath(parts.length ? '/' + parts.join('/') : '/');
     setSelectedFiles(new Set());
   };
 
+  const visibleFiles = useMemo(() => [...(data?.files || [])]
+    .filter((file) =>
+      !searchQuery || file.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      // Directories always first
+      if (a.is_directory && !b.is_directory) return -1;
+      if (!a.is_directory && b.is_directory) return 1;
+
+      // Apply selected sort within same type
+      switch (sortBy) {
+        case 'name-asc':
+          return a.name.localeCompare(b.name);
+        case 'name-desc':
+          return b.name.localeCompare(a.name);
+        case 'size-asc':
+          return a.size - b.size;
+        case 'size-desc':
+          return b.size - a.size;
+        case 'date-asc': {
+          const aTime = a.mtime ? parseUTCDate(a.mtime)?.getTime() ?? 0 : 0;
+          const bTime = b.mtime ? parseUTCDate(b.mtime)?.getTime() ?? 0 : 0;
+          return aTime - bTime;
+        }
+        case 'date-desc': {
+          const aTime = a.mtime ? parseUTCDate(a.mtime)?.getTime() ?? 0 : 0;
+          const bTime = b.mtime ? parseUTCDate(b.mtime)?.getTime() ?? 0 : 0;
+          return bTime - aTime;
+        }
+        default:
+          return a.name.localeCompare(b.name);
+      }
+    }), [data?.files, searchQuery, sortBy]);
+
   const toggleFileSelection = (path: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (singleFileDownload || downloadProgress) return;
+    const paths = visibleFiles.filter(file => !file.is_directory).map(file => file.path);
+    const anchor = selectionAnchor.current;
     setSelectedFiles(prev => {
       const next = new Set(prev);
-      if (next.has(path)) {
+      if (e.shiftKey && anchor && paths.includes(anchor)) {
+        const start = paths.indexOf(anchor);
+        const end = paths.indexOf(path);
+        paths.slice(Math.min(start, end), Math.max(start, end) + 1).forEach(item => next.add(item));
+      } else if (next.has(path)) {
         next.delete(path);
       } else {
         next.add(path);
       }
       return next;
     });
+    if (!e.shiftKey) selectionAnchor.current = path;
   };
 
   const selectAllFiles = () => {
@@ -431,43 +493,64 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
     const filePaths = data.files
       .filter(f => !f.is_directory && (!searchQuery || f.name.toLowerCase().includes(searchQuery.toLowerCase())))
       .map(f => f.path);
+    if (singleFileDownload || downloadProgress) return;
+    selectionAnchor.current = null;
     setSelectedFiles(new Set(filePaths));
   };
 
   const deselectAllFiles = () => {
+    if (singleFileDownload || downloadProgress) return;
+    selectionAnchor.current = null;
     setSelectedFiles(new Set());
   };
 
-  const handleDownload = async () => {
-    if (selectedFiles.size === 0) return;
+  const cancelDownload = () => {
+    downloadCancelled.current = true;
+    activeDownload.current?.();
+  };
 
-    const paths = Array.from(selectedFiles);
+  const handleDownload = async (directory?: FileSystemDirectoryHandle) => {
+    if (!managerOpen.current || selectedFiles.size === 0) return;
+    const paths = visibleFiles.filter(file => selectedFiles.has(file.path)).map(file => file.path);
+    // Include selected files hidden by the current filter without changing the visible range order.
+    selectedFiles.forEach(path => { if (!paths.includes(path)) paths.push(path); });
+    downloadCancelled.current = false;
+    setDownloadErrors([]);
 
-    if (paths.length === 1) {
-      // Single file - direct download with auth. Large files (printer logs
-      // can run several hundred MB) can take minutes over a slow Wi-Fi
-      // link, so this tracks live progress via WS 'file_download_progress'
-      // (see the effect above) instead of leaving the UI blank until done.
-      const fileName = paths[0].split('/').pop() || paths[0];
-      const { downloadId, promise } = api.downloadPrinterFile(printerId, paths[0]);
-      setSingleFileDownload({ downloadId, fileName, bytesTransferred: 0, totalBytes: 0, samples: [] });
-      setSelectedFiles(new Set());
-      promise
-        .then(() => {
+    if (paths.length === 1 || paths.some(isVideoFile)) {
+      const remaining = new Set(paths);
+      if (paths.length > 1) setDownloadProgress({ current: 0, total: paths.length });
+      for (let index = 0; index < paths.length && !downloadCancelled.current; index++) {
+        const path = paths[index];
+        const fileName = path.split('/').pop() || path;
+        try {
+          const writable = directory ? await (await directory.getFileHandle(fileName, { create: true })).createWritable() : undefined;
+          if (downloadCancelled.current) {
+            if (writable) await writable.abort();
+            break;
+          }
+          const { downloadId, promise, cancel } = api.downloadPrinterFile(printerId, path, writable);
+          activeDownload.current = cancel;
+          setSingleFileDownload({ downloadId, fileName, bytesTransferred: 0, totalBytes: 0, samples: [] });
+          await promise;
+          remaining.delete(path);
           showToast(t('printerFiles.toast.downloadComplete', { fileName }));
-        })
-        .catch((err) => {
-          showToast(
-            t('printerFiles.toast.downloadFailed', {
-              fileName,
-              error: err instanceof Error ? err.message : String(err),
-            }),
-            'error'
-          );
-        })
-        .finally(() => {
-          setSingleFileDownload(null);
-        });
+        } catch (error) {
+          if (!downloadCancelled.current) {
+            const message = t('printerFiles.toast.downloadFailed', {
+              fileName, error: error instanceof Error ? error.message : String(error),
+            });
+            setDownloadErrors(prev => [...prev, message]);
+            showToast(message, 'error');
+          }
+        } finally {
+          activeDownload.current = null;
+          setDownloadProgress(paths.length > 1 ? { current: index + 1, total: paths.length } : null);
+        }
+      }
+      setSelectedFiles(remaining);
+      setSingleFileDownload(null);
+      setDownloadProgress(null);
       return;
     }
 
@@ -497,6 +580,22 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
     setFilesToDelete(Array.from(selectedFiles));
   };
 
+  const pickDirectory = (window as Window & {
+    showDirectoryPicker?: (options: { mode: 'readwrite' }) => Promise<FileSystemDirectoryHandle>;
+  }).showDirectoryPicker;
+
+  const saveVideosToFolder = async () => {
+    if (!pickDirectory) return;
+    try {
+      const directory = await pickDirectory.call(window, { mode: 'readwrite' });
+      await handleDownload(directory);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        showToast(error instanceof Error ? error.message : String(error), 'error');
+      }
+    }
+  };
+
   const singleFileDownloadSpeed = singleFileDownload
     ? computeSpeedAndEta(singleFileDownload.samples, singleFileDownload.totalBytes)
     : null;
@@ -507,6 +606,7 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
     { path: '/cache', label: 'Cache' },
     { path: '/model', label: 'Models' },
     { path: '/timelapse', label: 'Timelapse' },
+    { path: '/ipcam', label: t('printerFiles.videos') },
   ];
 
   return (
@@ -554,7 +654,7 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
           </div>
 
         {/* Quick Navigation */}
-        <div className="flex items-center gap-2 p-3 border-b border-bambu-dark-tertiary bg-bambu-dark/50 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-2 p-3 border-b border-bambu-dark-tertiary bg-bambu-dark/50 flex-shrink-0">
           {quickDirs.map((dir) => (
             <button
               key={dir.path}
@@ -578,7 +678,7 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
               type="text"
               placeholder={t('printerFiles.filterPlaceholder')}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { selectionAnchor.current = null; setSearchQuery(e.target.value); }}
               className="w-40 pl-8 pr-3 py-1.5 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:border-bambu-green focus:outline-none"
             />
           </div>
@@ -586,7 +686,7 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
             <ArrowUpDown className="w-4 h-4 text-bambu-gray" />
             <LegacySelect
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              onChange={(e) => { selectionAnchor.current = null; setSortBy(e.target.value as SortOption); }}
               className="appearance-none bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm py-1.5 pl-2 pr-6 focus:border-bambu-green focus:outline-none cursor-pointer"
               title="Sort files"
               aria-label="Sort files"
@@ -612,7 +712,7 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
         <div className="flex items-center gap-2 px-4 py-2 bg-bambu-dark text-sm flex-shrink-0">
             <button
               onClick={navigateUp}
-              disabled={currentPath === '/'}
+              disabled={currentPath === '/' || singleFileDownload !== null || downloadProgress !== null}
               className="p-1 rounded hover:bg-bambu-dark-tertiary disabled:opacity-50 disabled:cursor-not-allowed"
               title="Go to parent folder"
               aria-label="Go to parent folder"
@@ -628,6 +728,8 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 text-bambu-green animate-spin" />
               </div>
+            ) : isError ? (
+              <div role="alert" className="text-center py-12 text-red-400">{t('printerFiles.failedToLoad')}</div>
             ) : !data?.files?.length ? (
               <div className="text-center py-12 text-bambu-gray">
                 No files in this directory
@@ -635,40 +737,7 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
             ) : (
               <div className="space-y-1">
                 {/* Filter and sort: directories first, then files with selected sort */}
-                {[...data.files]
-                  .filter((file) =>
-                    !searchQuery || file.name.toLowerCase().includes(searchQuery.toLowerCase())
-                  )
-                  .sort((a, b) => {
-                    // Directories always first
-                    if (a.is_directory && !b.is_directory) return -1;
-                    if (!a.is_directory && b.is_directory) return 1;
-
-                    // Apply selected sort within same type
-                    switch (sortBy) {
-                      case 'name-asc':
-                        return a.name.localeCompare(b.name);
-                      case 'name-desc':
-                        return b.name.localeCompare(a.name);
-                      case 'size-asc':
-                        return a.size - b.size;
-                      case 'size-desc':
-                        return b.size - a.size;
-                      case 'date-asc': {
-                        const aTime = a.mtime ? parseUTCDate(a.mtime)?.getTime() ?? 0 : 0;
-                        const bTime = b.mtime ? parseUTCDate(b.mtime)?.getTime() ?? 0 : 0;
-                        return aTime - bTime;
-                      }
-                      case 'date-desc': {
-                        const aTime = a.mtime ? parseUTCDate(a.mtime)?.getTime() ?? 0 : 0;
-                        const bTime = b.mtime ? parseUTCDate(b.mtime)?.getTime() ?? 0 : 0;
-                        return bTime - aTime;
-                      }
-                      default:
-                        return a.name.localeCompare(b.name);
-                    }
-                  })
-                  .map((file) => {
+                {visibleFiles                  .map((file) => {
                     const FileIcon = getFileIcon(file.name, file.is_directory);
                     const isSelected = selectedFiles.has(file.path);
 
@@ -689,6 +758,9 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
                         {/* Checkbox for files only */}
                         {!file.is_directory ? (
                           <button
+                            role="checkbox"
+                            aria-checked={isSelected}
+                            aria-label={file.name}
                             onClick={(e) => toggleFileSelection(file.path, e)}
                             className="flex-shrink-0 text-bambu-gray hover:text-white"
                           >
@@ -734,9 +806,15 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
             )}
           </div>
 
+        <p className="px-4 py-1 text-xs text-bambu-gray">{t('printerFiles.rangeSelectionHint')}</p>
+        {downloadErrors.length > 0 && (
+          <div role="alert" className="px-4 py-2 text-sm text-red-400 max-h-24 overflow-y-auto">
+            {downloadErrors.map((error, index) => <p key={index}>{error}</p>)}
+          </div>
+        )}
         {/* Action bar */}
         <div className="border-t border-bambu-dark-tertiary bg-bambu-dark/50 flex-shrink-0">
-        <div className="flex items-center justify-between p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4">
           <div className="flex items-center gap-4">
             <div className="text-sm text-bambu-gray">
               {selectedFiles.size > 0
@@ -769,11 +847,11 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
               </div>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="secondary"
               disabled={selectedFiles.size === 0 || downloadProgress !== null || singleFileDownload !== null}
-              onClick={handleDownload}
+              onClick={() => handleDownload()}
             >
               {downloadProgress ? (
                 <>
@@ -794,9 +872,16 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
                 </>
               )}
             </Button>
+            {singleFileDownload && (
+              <Button variant="secondary" onClick={cancelDownload}>{t('common.cancel')}</Button>
+            )}
+            {pickDirectory && Array.from(selectedFiles).some(isVideoFile) && (
+              <Button variant="secondary" disabled={singleFileDownload !== null || downloadProgress !== null}
+                onClick={saveVideosToFolder}>{t('printerFiles.saveToFolder')}</Button>
+            )}
             <Button
               variant="secondary"
-              disabled={selectedFiles.size === 0 || deleteMutation.isPending}
+              disabled={selectedFiles.size === 0 || deleteMutation.isPending || singleFileDownload !== null || downloadProgress !== null}
               onClick={handleDelete}
               className="text-red-700 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
             >

@@ -3093,6 +3093,9 @@ export default {
     all: '전체'
   },
   printerFiles: {
+    videos: '동영상',
+    rangeSelectionHint: '파일을 클릭한 다음 Shift 키를 누른 채 다른 파일을 클릭하여 범위를 선택하세요.',
+    saveToFolder: '폴더에 동영상 저장',
     title: '파일 관리자',
     storageUsed: '사용됨:',
     storageFree: '여유:',

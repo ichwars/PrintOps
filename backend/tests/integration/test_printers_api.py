@@ -340,11 +340,11 @@ class TestPrintersAPI:
         """Non-ASCII filenames must not crash header encoding (issue #1245)."""
         printer = await printer_factory()
         file_bytes = b"fake 3mf content"
-
+        async def chunks(*args, **kwargs):
+            yield file_bytes
         with (
             patch(
-                "backend.app.api.routes.printer_files.download_file_bytes_async",
-                new=AsyncMock(return_value=file_bytes),
+                "backend.app.api.routes.printer_files.stream_printer_file", chunks,
             ),
             patch(
                 "backend.app.api.routes.printer_files.get_file_size_async",

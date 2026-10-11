@@ -3236,6 +3236,9 @@ export default {
 
   // Printer File Manager modal (printer internal storage)
   printerFiles: {
+    videos: '视频',
+    rangeSelectionHint: '单击一个文件，再按住 Shift 单击另一个文件以选择连续范围。',
+    saveToFolder: '将视频保存到文件夹',
     title: '文件管理器',
     storageUsed: '已用：',
     storageFree: '剩余：',

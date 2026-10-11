@@ -324,34 +324,47 @@ export const printersFilesMethods = {
   // that id — before the first one could possibly arrive. The backend
   // relays live byte progress over the same WebSocket connection used for
   // print-queue upload progress.
-  downloadPrinterFile: (printerId: number, path: string): { downloadId: string; promise: Promise<void> } => {
+  downloadPrinterFile: (
+    printerId: number, path: string, writable?: WritableStream<Uint8Array>,
+  ): { downloadId: string; promise: Promise<void>; cancel: () => void } => {
     const downloadId = crypto.randomUUID();
+    const controller = new AbortController();
     const promise = (async () => {
-      const headers: Record<string, string> = {};
-      if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
+      try {
+        const headers: Record<string, string> = {};
+        if (authToken) {
+          headers['Authorization'] = `Bearer ${authToken}`;
+        }
+        const response = await fetch(
+          `${API_BASE}/printers/${printerId}/files/download?path=${encodeURIComponent(path)}&download_id=${downloadId}`,
+          { headers, signal: controller.signal }
+        );
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.detail || `HTTP ${response.status}`);
+        }
+        if (writable) {
+          if (response.body) await response.body.pipeTo(writable, { signal: controller.signal });
+          else await writable.close();
+          return;
+        }
+        const disposition = response.headers.get('Content-Disposition');
+        const filename = parseContentDispositionFilename(disposition) || path.split('/').pop() || 'download';
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        if (writable) await writable.abort().catch(() => {});
+        throw error;
       }
-      const response = await fetch(
-        `${API_BASE}/printers/${printerId}/files/download?path=${encodeURIComponent(path)}&download_id=${downloadId}`,
-        { headers }
-      );
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.detail || `HTTP ${response.status}`);
-      }
-      const disposition = response.headers.get('Content-Disposition');
-      const filename = parseContentDispositionFilename(disposition) || path.split('/').pop() || 'download';
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
     })();
-    return { downloadId, promise };
+    return { downloadId, promise, cancel: () => controller.abort() };
   },
 
   downloadPrinterFilesAsZip: async (printerId: number, paths: string[]): Promise<Blob> => {

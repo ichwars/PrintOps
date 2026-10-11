@@ -3248,6 +3248,9 @@ export default {
 
   // Printer File Manager modal (printer internal storage)
   printerFiles: {
+    videos: '動画',
+    rangeSelectionHint: 'ファイルをクリックし、Shift キーを押しながら別のファイルをクリックして範囲を選択します。',
+    saveToFolder: '動画をフォルダーに保存',
     title: 'ファイル管理',
     storageUsed: '使用中:',
     storageFree: '空き:',

@@ -3257,6 +3257,9 @@ export default {
 
   // Printer File Manager modal (printer internal storage)
   printerFiles: {
+    videos: 'Vídeos',
+    rangeSelectionHint: 'Haz clic en un archivo y luego en otro con Mayús para seleccionar un intervalo.',
+    saveToFolder: 'Guardar vídeos en carpeta',
     title: 'Gestor de archivos',
     storageUsed: 'Usado:',
     storageFree: 'Libre:',
