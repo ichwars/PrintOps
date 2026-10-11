@@ -251,22 +251,23 @@ def mm_to_grams(
     return volume_cm3 * density_g_cm3
 
 
+def _plate_number_of(name: str) -> int | None:
+    filename = name.rsplit("/", 1)[-1]
+    if not filename.startswith("plate_") or not filename.endswith(".gcode"):
+        return None
+    try:
+        return int(filename[len("plate_") : -len(".gcode")])
+    except ValueError:
+        return None
+
+
 def _layer_gcode_member(names: list[str], plate_id: int | None) -> str | None:
     """Choose one G-code member without confusing zip order for plate order."""
     gcode_names = [name for name in names if name.endswith(".gcode")]
     if not gcode_names:
         return None
 
-    def _plate_number(name: str) -> int | None:
-        filename = name.rsplit("/", 1)[-1]
-        if not filename.startswith("plate_") or not filename.endswith(".gcode"):
-            return None
-        try:
-            return int(filename[len("plate_") : -len(".gcode")])
-        except ValueError:
-            return None
-
-    numbered = [(number, name) for name in gcode_names if (number := _plate_number(name)) is not None]
+    numbered = [(number, name) for name in gcode_names if (number := _plate_number_of(name)) is not None]
     if plate_id is not None:
         for number, name in numbered:
             if number == plate_id:
@@ -279,6 +280,18 @@ def _layer_gcode_member(names: list[str], plate_id: int | None) -> str | None:
     if numbered:
         return min(numbered)[1]
     return gcode_names[0]
+
+
+def default_plate_number(names: list[str]) -> int | None:
+    """Resolve the default G-code's original plate number, using numeric order.
+
+    Separately exported plates keep their original ``plate_N.gcode`` member
+    name. Return ``None`` for unsliced files or unnumbered/non-positive members
+    so dispatch can retain its plate-1 fallback.
+    """
+    selected = _layer_gcode_member(names, None)
+    number = _plate_number_of(selected) if selected is not None else None
+    return number if number is not None and number > 0 else None
 
 
 def names_carry_gcode(names: list[str]) -> bool:

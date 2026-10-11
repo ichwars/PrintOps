@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import time
+import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -63,6 +64,7 @@ from backend.app.services.smart_plug_selection import (
 )
 from backend.app.utils.filename import derive_remote_filename
 from backend.app.utils.printer_models import is_gcode_compatible, normalize_printer_model
+from backend.app.utils.threemf_tools import default_plate_number
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +77,26 @@ logger = logging.getLogger(__name__)
 # sub-200 ms files.
 _DISPATCH_PROGRESS_BYTE_STEP = 256 * 1024
 _DISPATCH_PROGRESS_MIN_INTERVAL_SECS = 0.2
+
+
+def _effective_plate_id(explicit_plate_id: int | None, file_path: Path) -> int:
+    """Resolve one plate for injection, usage registration and dispatch.
+
+    A positive explicit selection wins even if absent from the archive;
+    redirecting it would print an unrequested model. Unset/non-positive IDs
+    use the archive's default G-code number because a lone exported plate can
+    retain e.g. ``plate_2.gcode``. Unreadable or unnumbered files retain the
+    existing plate-1 fallback.
+    """
+    if explicit_plate_id is not None and explicit_plate_id > 0:
+        return explicit_plate_id
+    try:
+        with zipfile.ZipFile(file_path) as zf:
+            resolved = default_plate_number(zf.namelist())
+    except (OSError, zipfile.BadZipFile) as exc:
+        logger.warning("Dispatch plate: cannot read %s (%s); falling back to plate 1", file_path, exc)
+        return 1
+    return resolved if resolved is not None else 1
 
 
 class _UploadProgressBridge:
@@ -2964,7 +2986,7 @@ class PrintScheduler:
 
         return remote_filename, remote_path, ftp_timeout, toast_uid
 
-    async def _inject_dispatch_gcode(self, db, item, printer, file_path):
+    async def _inject_dispatch_gcode(self, db, item, printer, file_path, effective_plate_id):
         # G-code injection for auto-print systems (#422)
         injected_path = None
         if item.gcode_injection:
@@ -2979,7 +3001,7 @@ class PrintScheduler:
                         from backend.app.utils.threemf_tools import inject_gcode_into_3mf
 
                         injected_path = inject_gcode_into_3mf(
-                            file_path, item.plate_id or 1, start_gc or None, end_gc or None
+                            file_path, effective_plate_id, start_gc or None, end_gc or None
                         )
                         if injected_path:
                             file_path = injected_path
@@ -3019,7 +3041,10 @@ class PrintScheduler:
         await self._preheat_and_soak(db, item, printer, archive)
         preheat_ownership.release_skipped_preheat()
 
-        file_path, injected_path = await self._inject_dispatch_gcode(db, item, printer, file_path)
+        # Resolve against the original file before injection/upload replaces or
+        # removes the temporary path. All dispatch consumers share this ID.
+        effective_plate_id = _effective_plate_id(item.plate_id, file_path)
+        file_path, injected_path = await self._inject_dispatch_gcode(db, item, printer, file_path, effective_plate_id)
         uploaded = await self._upload_print_file(db, item, printer, file_path, filename, injected_path)
         if uploaded is None:
             return
@@ -3044,7 +3069,7 @@ class PrintScheduler:
                 archive.id,
                 ams_mapping=ams_mapping,
                 created_by_id=item.created_by_id,
-                plate_id=item.plate_id,
+                plate_id=effective_plate_id,
             )
 
         # Propagate the queue item's owner into printer_manager so the
@@ -3142,7 +3167,7 @@ class PrintScheduler:
         started = printer_manager.start_print(
             item.printer_id,
             remote_filename,
-            plate_id=item.plate_id or 1,
+            plate_id=effective_plate_id,
             ams_mapping=ams_mapping,
             bed_levelling=item.bed_levelling,
             flow_cali=item.flow_cali,
