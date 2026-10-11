@@ -406,3 +406,14 @@ def normalize_printer_model(raw_model: str | None) -> str | None:
     # Strip "Bambu Lab " prefix for unknown models
     stripped = raw_model.replace("Bambu Lab ", "").strip()
     return stripped or None
+
+
+LEGACY_RFID_REFRESH_MODELS = frozenset(["X1", "X1C", "X1E", "P1P", "P1S", "A1", "A1MINI"])
+
+
+def uses_legacy_rfid_refresh(model: str | None) -> bool:
+    """Only known old-protocol models support the M620 R RFID fallback."""
+    if not model:
+        return False
+    short = normalize_printer_model_id(model) or model
+    return short.strip().upper().replace(" ", "") in LEGACY_RFID_REFRESH_MODELS

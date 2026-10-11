@@ -581,7 +581,7 @@ async def refresh_ams_slot(
     if not client:
         raise HTTPException(400, "Printer not connected")
 
-    success, message = client.ams_refresh_tray(ams_id, slot_id)
+    success, message = await client.ams_refresh_tray(ams_id, slot_id)
     if not success:
         raise HTTPException(400, message)
 
