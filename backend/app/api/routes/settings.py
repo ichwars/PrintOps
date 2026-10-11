@@ -717,17 +717,20 @@ async def _import_sqlite_to_postgres(sqlite_path: Path, postgres_url: str):
     """
     import sqlite3
 
-    from sqlalchemy import text
+    from sqlalchemy import MetaData, text
 
     from backend.app.core.database import Base, _create_engine
+    from backend.app.core.spool_k_profile_migration import validate_restore_contexts
 
     # Create a temporary engine for the import (current engine was disposed)
     pg_engine = _create_engine()
+    src = None
 
     try:
         # Open SQLite file directly (sync — it's a local file read)
         src = sqlite3.connect(str(sqlite_path))
         src.row_factory = sqlite3.Row
+        validate_restore_contexts(src)
 
         # Get list of tables from SQLite (skip internal/FTS tables)
         cursor = src.execute(
@@ -737,7 +740,9 @@ async def _import_sqlite_to_postgres(sqlite_path: Path, postgres_url: str):
         src_tables = {row["name"] for row in cursor.fetchall()}
 
         # Get Postgres tables from our ORM models
-        metadata = Base.metadata
+        metadata = MetaData(naming_convention=Base.metadata.naming_convention)
+        for table in Base.metadata.tables.values():
+            table.to_metadata(metadata)
         pg_tables = set(metadata.tables.keys())
 
         # Only import tables that exist in both source and destination
@@ -908,6 +913,8 @@ async def _import_sqlite_to_postgres(sqlite_path: Path, postgres_url: str):
             )
 
     finally:
+        if src is not None:
+            src.close()
         await pg_engine.dispose()
 
 

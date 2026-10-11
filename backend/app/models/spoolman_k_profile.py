@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.core.database import Base
+from backend.app.models.k_profile_context import attach_context_index
 
 
 class SpoolmanKProfile(Base):
@@ -11,10 +12,7 @@ class SpoolmanKProfile(Base):
 
     __tablename__ = "spoolman_k_profile"
 
-    __table_args__ = (
-        UniqueConstraint("spoolman_spool_id", "printer_id", "extruder", "nozzle_diameter"),
-        CheckConstraint("extruder >= 0 AND extruder <= 1", name="ck_extruder_range"),
-    )
+    __table_args__ = (CheckConstraint("extruder >= 0 AND extruder <= 1", name="ck_extruder_range"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     spoolman_spool_id: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -30,5 +28,7 @@ class SpoolmanKProfile(Base):
 
     printer: Mapped["Printer"] = relationship()
 
+
+attach_context_index(SpoolmanKProfile.__table__, "spoolman_spool_id")
 
 from backend.app.models.printer import Printer  # noqa: E402, F401

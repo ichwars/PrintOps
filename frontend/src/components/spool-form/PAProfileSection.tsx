@@ -26,7 +26,7 @@ export function PAProfileSection({
 
   const toggleProfileSelected = (printerId: string, cal: CalibrationProfile) => {
     const key = calibrationKey(printerId, cal);
-    const printerNozzleKey = `${printerId}:${cal.extruder_id ?? 0}:${Number(cal.nozzle_diameter)}`;
+    const printerNozzleKey = `${printerId}:${cal.extruder_id ?? 0}:${Number(cal.nozzle_diameter)}:${calibrationFlow(cal.nozzle_id)}`;
 
     setSelectedProfiles((prev) => {
       const next = new Set(prev);
@@ -36,7 +36,7 @@ export function PAProfileSection({
         // Remove existing profile for same printer/nozzle
         for (const existingKey of Array.from(next)) {
           const parts = existingKey.split(':');
-          const existingPrinterNozzle = `${parts[0]}:${parts[2]}:${parts[3]}`;
+          const existingPrinterNozzle = `${parts[0]}:${parts[2]}:${parts[3]}:${parts[4] ?? ''}`;
           if (existingPrinterNozzle === printerNozzleKey) {
             next.delete(existingKey);
           }
@@ -58,17 +58,17 @@ export function PAProfileSection({
         isMatchingCalibration(cal, formData),
       );
 
-      // Keep the existing one-selection-per-diameter storage contract.
+      // Store one selection per explicitly reported diameter/extruder/flow context.
       const byExtruder = new Map<string, CalibrationProfile[]>();
       for (const cal of matchingCals) {
-        const extKey = `${cal.extruder_id ?? 0}:${Number(cal.nozzle_diameter)}`;
+        const extKey = `${cal.extruder_id ?? 0}:${Number(cal.nozzle_diameter)}:${calibrationFlow(cal.nozzle_id)}`;
         if (!byExtruder.has(extKey)) byExtruder.set(extKey, []);
         byExtruder.get(extKey)!.push(cal);
       }
 
-      // Mixed flow groups require an explicit choice; do not guess a hotend.
+      // Each flow group is independent; unknown flow remains its own context.
       for (const cals of byExtruder.values()) {
-        if (cals.length > 0 && new Set(cals.map(c => calibrationFlow(c.nozzle_id))).size === 1) {
+        if (cals.length > 0) {
           const sorted = [...cals].sort((a, b) => b.k_value - a.k_value);
           const best = sorted[0];
           newSelection.add(calibrationKey(printer.id, best));

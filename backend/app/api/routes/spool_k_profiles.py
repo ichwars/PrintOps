@@ -13,6 +13,19 @@ from backend.app.models.spool_k_profile import SpoolKProfile
 from backend.app.models.spoolman_k_profile import SpoolmanKProfile
 from backend.app.models.user import User
 from backend.app.schemas.spool import SpoolKProfileBase, SpoolKProfileResponse
+from backend.app.utils.calibration_values import diameter, flow_type
+
+
+def validate_contexts(profiles):
+    for profile in profiles:
+        size = diameter(profile.nozzle_diameter)
+        if size is None or profile.extruder not in (0, 1):
+            raise HTTPException(422, "An explicit diameter and supported extruder are required")
+        profile.nozzle_diameter = size
+    keys = {(p.printer_id, p.extruder, p.nozzle_diameter, flow_type(p.nozzle_type)) for p in profiles}
+    if len(keys) != len(profiles):
+        raise HTTPException(422, "Only one K-profile per printer, extruder, diameter and reported flow is allowed")
+
 
 router = APIRouter()
 
@@ -38,15 +51,13 @@ async def replace_k_profiles(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Replace all K-profiles for a spool (batch save)."""
+    validate_contexts(profiles)
     # Verify spool exists
     result = await db.execute(select(Spool).where(Spool.id == spool_id))
     if not result.scalar_one_or_none():
         raise HTTPException(404, "Spool not found")
 
-    # Delete existing
-    existing = await db.execute(select(SpoolKProfile).where(SpoolKProfile.spool_id == spool_id))
-    for old in existing.scalars().all():
-        await db.delete(old)
+    await db.execute(delete(SpoolKProfile).where(SpoolKProfile.spool_id == spool_id))
 
     # Create new
     new_profiles = []
@@ -90,6 +101,7 @@ async def save_spoolman_k_profiles(
     """Replace all K-value calibration profiles for a Spoolman spool."""
     from backend.app.api.routes.spoolman_inventory import _get_client, _k_profile_to_dict, _translate_spoolman_errors
 
+    validate_contexts(profiles)
     client = await _get_client(db)
     async with _translate_spoolman_errors():
         await client.get_spool(spool_id)

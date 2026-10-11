@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.core.database import Base
+from backend.app.models.k_profile_context import attach_context_index
 
 
 class SpoolKProfile(Base):
@@ -26,6 +27,8 @@ class SpoolKProfile(Base):
     spool: Mapped["Spool"] = relationship(back_populates="k_profiles")
     printer: Mapped["Printer"] = relationship()
 
+
+attach_context_index(SpoolKProfile.__table__, "spool_id")
 
 from backend.app.models.printer import Printer  # noqa: E402, F401
 from backend.app.models.spool import Spool  # noqa: E402, F401
