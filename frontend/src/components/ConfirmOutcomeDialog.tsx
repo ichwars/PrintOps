@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { api, type Archive } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { Modal, NumberField } from './ui';
+import { Checkbox, Modal, NumberField, TextField } from './ui';
 import { Button } from './Button';
 import { PrintModal } from './PrintModal';
 
@@ -107,8 +107,8 @@ function OutcomeForm({ archive, historical, onClose }: { archive: Archive; histo
           <Button variant="secondary" onClick={() => { setGood(String(total)); setReject('0'); }}>{t('productionQuality.allGood')}</Button>
           <Button variant="secondary" onClick={() => { setGood('0'); setReject(String(total)); }}>{t('productionQuality.allReject')}</Button>
         </div>}
-        <label className="block text-sm">{t('productionQuality.reason')}<input aria-label={t('productionQuality.reason')} value={reason} maxLength={100} onChange={(event) => setReason(event.target.value)} disabled={!canConfirm || mutation.isPending} className="mt-1 w-full rounded border border-bambu-dark-tertiary bg-bambu-dark p-2" /></label>
-        {rejectCount > 0 && canReproduce && <label className="flex gap-2 text-sm"><input type="checkbox" checked={reproduce} onChange={(event) => setReproduce(event.target.checked)} disabled={mutation.isPending} />{t('productionQuality.reproduce')}</label>}
+        <TextField label={t('productionQuality.reason')} aria-label={t('productionQuality.reason')} value={reason} maxLength={100} onValueChange={setReason} disabled={!canConfirm || mutation.isPending} />
+        {rejectCount > 0 && canReproduce && <Checkbox label={t('productionQuality.reproduce')} checked={reproduce} onCheckedChange={setReproduce} disabled={mutation.isPending} />}
         {archive.outcome_batch_id && <p className="text-xs text-bambu-gray">{t('productionQuality.runReplacement')}</p>}
         {replacementFailed && <p role="alert" className="text-sm text-red-300">{t('productionQuality.replacementFailed')}</p>}
         <div className="flex justify-end gap-2">

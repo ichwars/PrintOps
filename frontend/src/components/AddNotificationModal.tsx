@@ -5,7 +5,7 @@ import { X, Save, Loader2, Send, CheckCircle, XCircle } from 'lucide-react';
 import { api } from '../api/client';
 import type { NotificationProvider, NotificationProviderCreate, NotificationProviderUpdate, ProviderType } from '../api/client';
 import { Button } from './Button';
-import { LegacySelect, NumberField, TextField , TimeField} from './ui';
+import { Checkbox, LegacySelect, NumberField, TextField , TimeField} from './ui';
 import { Toggle } from './Toggle';
 
 interface AddNotificationModalProps {
@@ -520,10 +520,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
             )}
           </div>
 
-          <label className="flex items-center justify-between text-sm text-white">
-            {t('productionQuality.title')}
-            <input type="checkbox" checked={onPrintConfirmRequest} onChange={(event) => setOnPrintConfirmRequest(event.target.checked)} />
-          </label>
+          <Checkbox label={t('productionQuality.title')} checked={onPrintConfirmRequest} onCheckedChange={setOnPrintConfirmRequest} />
 
           {/* Daily Digest */}
           <div className="space-y-2">
