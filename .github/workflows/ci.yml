@@ -411,7 +411,8 @@ jobs:
   docker-test:
     name: Docker Build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Include image builds and the full 3,100+ integration/PDF test suite.
+    timeout-minutes: 35
     needs: [backend-tests, frontend-build]
     steps:
       - uses: actions/checkout@v6
