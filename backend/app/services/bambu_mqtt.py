@@ -49,6 +49,22 @@ _AMS_MODULE_PREFIXES = ("ams/", "n3f/", "n3s/")
 _ACTIVE_PRINT_STATES = frozenset({"PREPARE", "SLICING", "RUNNING", "PAUSE"})
 
 
+def resolve_external_spools_in_mapping(ams_mapping: object, ams_mapping2: object, is_dual_nozzle: bool) -> object:
+    """Resolve external -1 wire entries while preserving genuinely unmapped slots."""
+    if not isinstance(ams_mapping, list) or not isinstance(ams_mapping2, list):
+        return ams_mapping
+    if len(ams_mapping) != len(ams_mapping2):
+        return ams_mapping
+    resolved = list(ams_mapping)
+    for i, (flat, detail) in enumerate(zip(ams_mapping, ams_mapping2, strict=True)):
+        if flat != -1 or not isinstance(detail, dict):
+            continue
+        ams_id = detail.get("ams_id")
+        if ams_id in (254, 255) and detail.get("slot_id") == 0:
+            resolved[i] = ams_id if is_dual_nozzle else 254
+    return resolved
+
+
 def parse_ams_filament_backup_from_cfg(cfg_raw: object) -> bool | None:
     """Extract AMS Filament Backup state from a Bambu push_status ``print.cfg`` value.
 
@@ -633,6 +649,7 @@ class BambuMQTTClient:
         # Captured ams_mapping from print commands on the request topic
         # Intercepts slicer/PrintOps print commands to get the slot-to-tray mapping
         self._captured_ams_mapping: list[int] | None = None
+        self._captured_mapping_has_details = False
 
         # A2L reports its AMS Lite as physical unit id 16, while its tray bits
         # use the id-6 base. Normalize at ingest and remember that tray_now is
@@ -1057,6 +1074,13 @@ class BambuMQTTClient:
         except json.JSONDecodeError:
             pass  # Ignore non-JSON MQTT messages (e.g. binary or malformed payloads)
 
+    def _usage_ams_mapping(self) -> list[int] | None:
+        """No-evidence legacy captures may fall back; explicit unfed slots may not."""
+        mapping = self._captured_ams_mapping
+        if mapping and not self._captured_mapping_has_details and all(slot == -1 for slot in mapping):
+            return None
+        return mapping
+
     def _handle_request_message(self, data: dict) -> None:
         """Intercept print commands on the request topic to capture ams_mapping."""
         print_data = data.get("print", {})
@@ -1065,7 +1089,24 @@ class BambuMQTTClient:
         command = print_data.get("command", "")
         if command == "project_file":
             if "ams_mapping" in print_data:
-                self._captured_ams_mapping = print_data["ams_mapping"]
+                from backend.app.utils.printer_models import is_dual_nozzle_model
+
+                self._captured_ams_mapping = resolve_external_spools_in_mapping(
+                    print_data["ams_mapping"],
+                    print_data.get("ams_mapping2"),
+                    self._is_dual_nozzle or is_dual_nozzle_model(self.model),
+                )
+                details = print_data.get("ams_mapping2")
+                mapping = print_data["ams_mapping"]
+                self._captured_mapping_has_details = (
+                    isinstance(mapping, list)
+                    and isinstance(details, list)
+                    and len(mapping) == len(details)
+                    and any(
+                        isinstance(d, dict) and isinstance(d.get("ams_id"), int) and isinstance(d.get("slot_id"), int)
+                        for d in details
+                    )
+                )
                 logger.info(
                     "[%s] Captured ams_mapping from print command: %s",
                     self.serial_number,
@@ -1959,7 +2000,7 @@ class BambuMQTTClient:
                     # started without a captured mapping (printer-screen start,
                     # or before PrintOps connected) fall through unchanged.
                     captured = self._captured_ams_mapping
-                    if captured and all(s == -1 for s in captured):
+                    if captured and all(s in (-1, 254, 255) for s in captured):
                         if self.state.tray_now != 254:
                             logger.debug(
                                 f"[{self.serial_number}] tray_now external-spool override (#1822): "
@@ -3407,7 +3448,7 @@ class BambuMQTTClient:
                     "subtask_name": self.state.subtask_name,
                     "remaining_time": self.state.remaining_time * 60 if self.state.remaining_time > 0 else None,
                     "raw_data": data,
-                    "ams_mapping": self._captured_ams_mapping,
+                    "ams_mapping": self._usage_ams_mapping(),
                     "subtask_id": self.state.subtask_id,
                 }
             )
@@ -3427,7 +3468,7 @@ class BambuMQTTClient:
                     "subtask_name": self.state.subtask_name,
                     "remaining_time": self.state.remaining_time * 60 if self.state.remaining_time > 0 else None,
                     "raw_data": data,
-                    "ams_mapping": self._captured_ams_mapping,
+                    "ams_mapping": self._usage_ams_mapping(),
                 }
             )
 
@@ -3528,7 +3569,7 @@ class BambuMQTTClient:
                     "raw_data": data,
                     "timelapse_was_active": timelapse_was_active,
                     "hms_errors": hms_errors_data,
-                    "ams_mapping": self._captured_ams_mapping,
+                    "ams_mapping": self._usage_ams_mapping(),
                     "subtask_id": self.state.subtask_id,
                     # Last valid progress/layer before firmware reset (for partial usage tracking)
                     "last_progress": self._last_valid_progress,
@@ -3536,6 +3577,7 @@ class BambuMQTTClient:
                 }
             )
             self._captured_ams_mapping = None
+            self._captured_mapping_has_details = False
 
         self._previous_gcode_state = self.state.state
         if current_file:

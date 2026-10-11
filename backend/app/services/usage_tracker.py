@@ -1654,10 +1654,13 @@ async def _track_from_3mf(
         else:
             # Explicit mapping (print command, MQTT, queue, color match)
             global_tray_id = None
-            if slot_to_tray and slot_id <= len(slot_to_tray):
+            if slot_to_tray and 0 < slot_id <= len(slot_to_tray):
                 mapped = slot_to_tray[slot_id - 1]
                 if isinstance(mapped, int) and mapped >= 0:
                     global_tray_id = mapped
+                elif mapped == -1:
+                    # Explicitly unfed slots must never reach the positional fallback.
+                    continue
             # Position-based default: sort available tray IDs so external spools (254/255)
             # naturally follow standard AMS trays, matching slicer slot numbering.
             #
