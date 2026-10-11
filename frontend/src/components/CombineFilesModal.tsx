@@ -5,6 +5,7 @@ import { Combine, Loader2, X } from 'lucide-react';
 
 import { api, type LibraryFileListItem, type LibraryFileUploadResponse } from '../api/client';
 import { Button } from './Button';
+import { Checkbox, NumberField, TextField } from './ui';
 import { useToast } from '../contexts/ToastContext';
 
 // Mirrors MAX_COMBINE_INSTANCES in backend/app/services/mesh_combine.py.
@@ -108,13 +109,13 @@ export function CombineFilesModal({ files, folderId, canSlice, onClose, onCombin
             {t('fileManager.combine.nameLabel')}
           </label>
           <div className="flex items-center gap-1">
-            <input
+            <TextField
               id="combine-name"
               type="text"
               value={name ?? defaultName}
               onChange={(e) => setName(e.target.value)}
               maxLength={200}
-              className="flex-1 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded text-sm text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green"
+              className="flex-1 min-w-0 text-sm"
             />
             <span className="text-sm text-bambu-gray">.3mf</span>
           </div>
@@ -131,8 +132,7 @@ export function CombineFilesModal({ files, folderId, canSlice, onClose, onCombin
                 <span className="text-sm text-white truncate flex-1" title={f.filename}>
                   {f.filename}
                 </span>
-                <input
-                  type="number"
+                <NumberField
                   min={1}
                   max={MAX_OBJECTS}
                   value={copies[f.id] || ''}
@@ -141,7 +141,8 @@ export function CombineFilesModal({ files, folderId, canSlice, onClose, onCombin
                     setCopies((prev) => ({ ...prev, [f.id]: Number.isNaN(n) ? 0 : n }));
                   }}
                   aria-label={t('fileManager.combine.copiesFor', { filename: f.filename })}
-                  className="w-20 px-2 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-sm text-white text-right focus:outline-none focus:border-bambu-green"
+                  containerClassName="w-24 shrink-0"
+                  className="text-sm text-right"
                 />
               </li>
             ))}
@@ -155,15 +156,11 @@ export function CombineFilesModal({ files, folderId, canSlice, onClose, onCombin
               : t('fileManager.combine.total', { count: totalObjects })}
           </div>
           {canSlice && (
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={sliceNext}
-                onChange={(e) => setSliceNext(e.target.checked)}
-                className="accent-bambu-green"
-              />
-              <span className="text-white">{t('fileManager.combine.sliceNext')}</span>
-            </label>
+            <Checkbox
+              checked={sliceNext}
+              onCheckedChange={setSliceNext}
+              label={t('fileManager.combine.sliceNext')}
+            />
           )}
         </div>
 

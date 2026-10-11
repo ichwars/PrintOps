@@ -5,6 +5,7 @@ import { X, Save, Link, Camera, Trash2, Loader2, Plus, ExternalLink, StickyNote 
 import { api } from '../api/client';
 import type { LibraryFileListItem } from '../api/client';
 import { Button } from './Button';
+import { FileInput, TextArea, TextField } from './ui';
 import { PhotoGalleryModal } from './PhotoGalleryModal';
 import { useToast } from '../contexts/ToastContext';
 import { formatDate, formatDuration } from '../utils/date';
@@ -203,34 +204,36 @@ export function LibraryFileDetailsModal({ file, canEdit, onClose }: LibraryFileD
 
           {/* Notes */}
           <div>
-            <label className="block text-sm text-bambu-gray mb-1">
+            <label htmlFor="library-file-notes" className="block text-sm text-bambu-gray mb-1">
               <StickyNote className="w-4 h-4 inline mr-1" />
               {t('fileManager.details.notes')}
             </label>
-            <textarea
+            <TextArea
+              id="library-file-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               disabled={!canEdit}
-              className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none resize-none disabled:opacity-60"
+              className="resize-none"
               placeholder={t('fileManager.details.notesPlaceholder')}
             />
           </div>
 
           {/* External link */}
           <div>
-            <label className="block text-sm text-bambu-gray mb-1">
+            <label htmlFor="library-file-external-url" className="block text-sm text-bambu-gray mb-1">
               <Link className="w-4 h-4 inline mr-1" />
               {t('fileManager.details.externalLink')}
             </label>
             <div className="flex items-center gap-2">
-              <input
+              <TextField
+                id="library-file-external-url"
                 type="url"
                 maxLength={500}
                 value={externalUrl}
                 onChange={(e) => setExternalUrl(e.target.value)}
                 disabled={!canEdit}
-                className="flex-1 min-w-0 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none disabled:opacity-60"
+                className="flex-1 min-w-0"
                 placeholder={t('fileManager.details.externalLinkPlaceholder')}
               />
               {trimmedUrl && (
@@ -286,9 +289,8 @@ export function LibraryFileDetailsModal({ file, canEdit, onClose }: LibraryFileD
                   className="w-20 h-20 flex items-center justify-center border-2 border-dashed border-bambu-dark-tertiary rounded-lg cursor-pointer hover:border-bambu-green transition-colors"
                   title={t('fileManager.details.addPhoto')}
                 >
-                  <input
+                  <FileInput
                     ref={photoInputRef}
-                    type="file"
                     accept="image/jpeg,image/png,image/webp"
                     onChange={handlePhotoUpload}
                     className="hidden"
