@@ -687,9 +687,8 @@ class TestLibraryAddToQueueAPI:
 
         data = {"file_ids": [9999]}
         response = await async_client.post("/api/v1/library/files/add-to-queue", json=data)
-        assert response.status_code == 200
-        result = response.json()
-        assert len(result["added"]) == 0
+        assert response.status_code == 400
+        result = response.json()["detail"]
         assert len(result["errors"]) == 1
         assert result["errors"][0]["file_id"] == 9999
 
@@ -708,9 +707,8 @@ class TestLibraryAddToQueueAPI:
 
         data = {"file_ids": [lib_file.id]}
         response = await async_client.post("/api/v1/library/files/add-to-queue", json=data)
-        assert response.status_code == 200
-        result = response.json()
-        assert len(result["added"]) == 0
+        assert response.status_code == 400
+        result = response.json()["detail"]
         assert len(result["errors"]) == 1
         assert "sliced" in result["errors"][0]["error"].lower()
 

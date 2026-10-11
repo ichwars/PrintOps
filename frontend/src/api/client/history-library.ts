@@ -1,6 +1,7 @@
 import type { SliceJobProgress, SystemHealthResult } from './types';
 import type {
   AMSHistoryResponse,
+  AddToQueueRequest,
   AddToQueueResponse,
   BatchThumbnailResponse,
   ExternalFolderCreate,
@@ -322,10 +323,10 @@ export const historyLibraryMethods = {
       body: JSON.stringify(options),
     }),
 
-  addLibraryFilesToQueue: (fileIds: number[]) =>
+  addLibraryFilesToQueue: (fileIds: number[], target?: Omit<AddToQueueRequest, 'file_ids'>) =>
     request<AddToQueueResponse>('/library/files/add-to-queue', {
       method: 'POST',
-      body: JSON.stringify({ file_ids: fileIds }),
+      body: JSON.stringify({ file_ids: fileIds, ...target }),
     }),
 
   createVariantGroup: (

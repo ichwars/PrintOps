@@ -325,6 +325,8 @@ class AddToQueueRequest(BaseModel):
     """Schema for adding library files to the print queue."""
 
     file_ids: list[int] = Field(..., min_length=1)
+    printer_id: int | None = None
+    target_model: str | None = None
 
 
 class AddToQueueResult(BaseModel):

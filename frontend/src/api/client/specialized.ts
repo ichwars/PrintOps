@@ -421,6 +421,12 @@ export interface BatchThumbnailResponse {
 }
 
 // Library Queue types
+export interface AddToQueueRequest {
+  file_ids: number[];
+  printer_id?: number | null;
+  target_model?: string | null;
+}
+
 export interface AddToQueueResult {
   file_id: number;
   filename: string;

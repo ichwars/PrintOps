@@ -24,10 +24,13 @@ from sqlalchemy.orm import selectinload
 
 from backend.app.api.gcode_preview import gcode_preview_response
 from backend.app.api.routes.cloud import resolve_api_key_cloud_owner
+from backend.app.api.routes.library_variants import normalize_model_name, resolve_variant_model
+from backend.app.api.routes.print_queue import add_to_queue
 from backend.app.core.auth import (
     require_media_token_ownership,
     require_ownership_permission,
     require_permission_if_auth_enabled,
+    user_can_access_printer,
 )
 from backend.app.core.config import settings as app_settings
 from backend.app.core.database import async_session, get_db
@@ -35,7 +38,7 @@ from backend.app.core.permissions import Permission
 from backend.app.core.tasks import spawn_background_task
 from backend.app.models.archive import PrintArchive
 from backend.app.models.library import LibraryFile, LibraryFileTag, LibraryFolder
-from backend.app.models.print_queue import PrintQueueItem
+from backend.app.models.printer import Printer
 from backend.app.models.project import Project
 from backend.app.models.settings import Settings
 from backend.app.models.user import User
@@ -66,6 +69,7 @@ from backend.app.schemas.library import (
     ZipExtractResponse,
     ZipExtractResult,
 )
+from backend.app.schemas.print_queue import PrintQueueItemCreate
 from backend.app.schemas.slicer import SliceRequest, SliceResponse
 from backend.app.services.archive import ThreeMFParser
 from backend.app.services.library_queue_references import (
@@ -2603,33 +2607,51 @@ async def add_files_to_queue(
         require_ownership_permission(Permission.LIBRARY_READ_ALL, Permission.LIBRARY_READ_OWN)
     ),
 ):
-    """Add library files to the print queue.
+    """Queue printable library files, preserving partial-selection success.
 
-    Only files carrying printable G-code can be added to the queue.
-    The archive will be created automatically when the print starts.
+    Explicit targets apply to the batch. With no target, infer each file's
+    model when an accessible active printer exists; otherwise keep the legacy
+    unassigned item so the user can choose its printer later. A selection with
+    no valid files returns 400 with per-file reasons; partial success stays 200.
     """
     added: list[AddToQueueResult] = []
     errors: list[AddToQueueError] = []
-
     user, can_read_all = auth_result
-    # Get all requested files
-    result = await db.execute(LibraryFile.active().where(LibraryFile.id.in_(request.file_ids)))
-    files = {f.id: f for f in result.scalars().all()}
 
-    # Get max position for queue ordering
-    pos_result = await db.execute(select(func.coalesce(func.max(PrintQueueItem.position), 0)))
-    max_position = pos_result.scalar() or 0
+    target_model = normalize_model_name(request.target_model)
+    if request.printer_id is not None and request.target_model is not None:
+        raise HTTPException(400, "Cannot specify both printer_id and target_model")
+    if request.target_model is not None and not target_model:
+        raise HTTPException(400, "A target model must not be empty")
+    if request.printer_id is not None:
+        printer = (await db.execute(select(Printer).where(Printer.id == request.printer_id))).scalar_one_or_none()
+        if printer is None:
+            raise HTTPException(400, "Printer not found")
+        if not user_can_access_printer(queue_authority, printer.id):
+            raise HTTPException(404, "Printer not found")
+
+    active_models: set[str] = set()
+    if request.printer_id is None:
+        active_printers = (await db.execute(select(Printer).where(Printer.is_active.is_(True)))).scalars().all()
+        active_models = {
+            model
+            for printer in active_printers
+            if user_can_access_printer(queue_authority, printer.id)
+            if (model := normalize_model_name(printer.model))
+        }
+        if target_model and target_model not in active_models:
+            raise HTTPException(400, f"No active printers for model: {target_model}")
+
+    result = await db.execute(LibraryFile.active().where(LibraryFile.id.in_(request.file_ids)))
+    files = {file.id: file for file in result.scalars().all()}
 
     for file_id in request.file_ids:
-        lib_file = files.get(file_id)
-
         try:
-            lib_file = _ensure_library_file_visible(lib_file, user, can_read_all)
+            lib_file = _ensure_library_file_visible(files.get(file_id), user, can_read_all)
         except HTTPException:
             errors.append(AddToQueueError(file_id=file_id, filename="(not found)", error="File not found"))
             continue
 
-        # Validate file is sliced
         if not is_sliced_file(lib_file.filename, lib_file.file_type):
             errors.append(
                 AddToQueueError(
@@ -2641,41 +2663,46 @@ async def add_files_to_queue(
             continue
 
         try:
-            # Verify file exists on disk
-            file_path = Path(app_settings.base_dir) / lib_file.file_path
+            # Use the library's existing relative-path guard, including legacy
+            # absolute paths for external folders. Directories are not files.
+            file_path = to_absolute_path(lib_file.file_path)
+            if file_path is None or not file_path.is_file():
+                raise HTTPException(400, "File not found on disk")
+            if not os.access(file_path, os.R_OK):
+                raise HTTPException(400, "File is not readable on disk")
 
-            if not file_path.exists():
-                errors.append(
-                    AddToQueueError(file_id=file_id, filename=lib_file.filename, error="File not found on disk")
-                )
-                continue
+            item_target_model = target_model
+            if request.printer_id is None and item_target_model is None:
+                inferred = resolve_variant_model(lib_file)
+                item_target_model = inferred if inferred in active_models else None
 
-            # Create queue item referencing library file (archive created at print start)
-            max_position += 1
-            queue_item = PrintQueueItem(
-                printer_id=None,  # Unassigned
-                library_file_id=file_id,
-                position=max_position,
-                status="pending",
-                created_by_id=user.id if user else None,
+            # The normal queue API owns filename/model checks, filament
+            # requirements, attribution and queue ordering for every insert.
+            queue_item = await add_to_queue(
+                PrintQueueItemCreate(
+                    printer_id=request.printer_id,
+                    target_model=item_target_model,
+                    library_file_id=file_id,
+                    project_id=lib_file.project_id,
+                ),
+                db=db,
+                current_user=queue_authority,
             )
-            db.add(queue_item)
-
-            await db.flush()  # Get queue_item.id
-
-            added.append(
-                AddToQueueResult(
-                    file_id=file_id,
-                    filename=lib_file.filename,
-                    queue_item_id=queue_item.id,
-                )
-            )
-
-        except Exception as e:
+            added.append(AddToQueueResult(file_id=file_id, filename=lib_file.filename, queue_item_id=queue_item.id))
+        except HTTPException as exc:
+            errors.append(AddToQueueError(file_id=file_id, filename=lib_file.filename, error=str(exc.detail)))
+        except Exception as exc:
             logger.exception("Error adding file %s to queue", file_id)
-            errors.append(AddToQueueError(file_id=file_id, filename=lib_file.filename, error=str(e)))
+            errors.append(AddToQueueError(file_id=file_id, filename=lib_file.filename, error=str(exc)))
 
-    await db.commit()
+    if not added:
+        raise HTTPException(
+            400,
+            detail={
+                "message": "No files could be added to the queue.",
+                "errors": [error.model_dump() for error in errors],
+            },
+        )
 
     return AddToQueueResponse(added=added, errors=errors)
 
