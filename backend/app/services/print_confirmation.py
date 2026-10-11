@@ -277,19 +277,49 @@ async def dispatch_outcome_confirmation(
     db: AsyncSession, archive_id: int, printer_id: int, printer_name: str,
     *, run_id: int | None = None, notify_user: bool = True,
 ) -> bool:
-    """Issue strict current-run provider actions; callers can send the UI hint early."""
+    """Prompt this run once; only the matching current run receives public actions."""
     from backend.app.api.routes.settings import get_setting
     from backend.app.services.notification_service import notification_service
 
     async with outcome_lock(db, archive_id, run_id):
         # Provider awaits may leave this session holding the previous mirror.
         archive = await db.get(PrintArchive, archive_id, populate_existing=True)
-        if archive is None:
+        if archive is None or archive.deleted_at is not None:
             return False
-        token = await issue_confirmation_token(db, archive, run_id=run_id)
-        if token is None:
+        current = await latest_run(db, archive_id)
+        run = await db.get(PrintLogEntry, run_id, populate_existing=True) if run_id is not None else current
+        if (
+            run is None or run.archive_id != archive_id or run.printer_id != printer_id
+            or run.status != "completed" or not run.confirm_requested or run.good_quantity is not None
+            or run.confirm_prompted_at is not None
+        ):
             return False
-        run = await latest_run(db, archive_id)
+        is_current = current is not None and current.id == run.id and run_matches_archive(run, archive)
+        token = None
+        if is_current:
+            token = await issue_confirmation_token(db, archive, run_id=run.id)
+            if token is None:
+                return False  # Keep already-sent current-run buttons valid.
+        elif run_id is None:
+            return False  # Historical requests require the concrete completed run.
+        # Claim external prompting atomically, independently of token issuance.
+        # Historical prompts never manufacture or reuse a public capability.
+        live_archive = select(PrintArchive.id).where(
+            PrintArchive.id == archive_id, PrintArchive.deleted_at.is_(None),
+        )
+        if is_current:
+            live_archive = live_archive.where(PrintArchive.status == "completed")
+            if run.started_at is not None:
+                live_archive = live_archive.where(PrintArchive.started_at == run.started_at)
+        claimed = await db.execute(update(PrintLogEntry).where(
+            PrintLogEntry.id == run.id, PrintLogEntry.archive_id == archive_id,
+            PrintLogEntry.printer_id == printer_id, PrintLogEntry.status == "completed",
+            PrintLogEntry.confirm_requested.is_(True), PrintLogEntry.good_quantity.is_(None),
+            PrintLogEntry.confirm_prompted_at.is_(None), live_archive.exists(),
+        ).values(confirm_prompted_at=datetime.now(timezone.utc).replace(tzinfo=None)))
+        if claimed.rowcount != 1:
+            await db.rollback()
+            return False
         payload = {"archive_id": archive_id, "run_id": run.id,
                    "print_name": run.print_name or archive.print_name or archive.filename}
         await db.commit()
@@ -297,7 +327,7 @@ async def dispatch_outcome_confirmation(
         await send_outcome_confirmation_hint(db, archive_id, payload["run_id"], printer_id)
     base = (await get_setting(db, "external_url") or "").rstrip("/")
     urls = {}
-    if base.startswith(("https://", "http://")):
+    if token is not None and base.startswith(("https://", "http://")):
         urls = {verdict: f"{base}/api/v1/archives/outcome-link/{token}/{verdict}" for verdict in ("good", "reject")}
     await notification_service.on_print_confirm_request(
         printer_id,

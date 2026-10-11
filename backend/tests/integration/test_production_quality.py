@@ -538,7 +538,7 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
     from backend.app.core.websocket import ws_manager
     from backend.app.models.commerce import CustomerOrder
     from backend.app.models.group import Group
-    from backend.app.models.notification import NotificationProvider
+    from backend.app.models.notification import NotificationLog, NotificationProvider
     from backend.app.models.printer import Printer
     from backend.app.models.settings import Settings
     from backend.app.models.small_part import SmallPartLedgerEntry
@@ -710,6 +710,19 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
                 assert not any(json.loads(call.args[0]).get("type") == "print_confirm_request"
                                for call in other.send_text.call_args_list)
             assert not any("Actions" in request.headers for request in provider_requests), "no stale external capability"
+            app_url = f"https://printops.example/archives?confirm={archive.id}&confirm_run={completed_run.id}"
+            quality_requests = [request for request in provider_requests if app_url.encode() in request.content]
+            assert len(quality_requests) == 1, "historical run must still reach its configured external quality provider"
+            assert b"outcome-link" not in quality_requests[0].content
+            prompt_log = await db_session.scalar(select(NotificationLog).where(
+                NotificationLog.event_type == "print_confirm_request"))
+            assert prompt_log is not None and prompt_log.success is True
+            from backend.app.services.print_confirmation import dispatch_outcome_confirmation
+
+            assert await dispatch_outcome_confirmation(
+                db_session, archive.id, printer.id, printer.name, run_id=completed_run.id, notify_user=False,
+            ) is False, "historical completion callbacks must deduplicate external prompts"
+            assert sum(app_url.encode() in request.content for request in provider_requests) == 1
             if old_token:
                 assert (await async_client.post(f"/api/v1/archives/outcome-link/{old_token}/good")).status_code == 404
 
@@ -756,7 +769,7 @@ async def test_delayed_prompt_cannot_issue_actions_for_a_later_completed_run(qua
     await db_session.commit()
     assert await dispatch_outcome_confirmation(
         db_session, archive.id, archive.printer_id, "Printer", run_id=previous.id, notify_user=False,
-    ) is False
+    ) is True
     await db_session.refresh(later)
     assert later.confirm_token_hash is None, "old callbacks must not mint a capability for a later copy"
 
@@ -799,3 +812,127 @@ async def test_historical_quality_hint_keeps_owner_and_printer_guards(
     if hints:
         assert hints[0]["data"]["run_id"] == run.id
         assert run.confirm_token_hash is None, "a historical hint must never issue a public capability"
+
+
+async def test_historical_external_prompt_is_claimed_once_across_concurrent_sessions(
+    quality_run, db_session, test_engine, monkeypatch
+):
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    import httpx
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from backend.app.models.notification import NotificationLog, NotificationProvider
+    from backend.app.models.settings import Settings
+    from backend.app.services.notification_service import notification_service
+    from backend.app.services.print_confirmation import dispatch_outcome_confirmation
+
+    archive, _, _, run = quality_run
+    archive.status = "printing"
+    db_session.add_all([Settings(key="external_url", value="https://printops.example"),
+                       NotificationProvider(name="Quality", provider_type="ntfy",
+                           config='{"server":"https://ntfy.sh","topic":"quality"}', on_print_confirm_request=True)])
+    await db_session.commit()
+    entered, release = asyncio.Event(), asyncio.Event()
+    requests = []
+
+    async def transport(request):
+        requests.append(request)
+        entered.set()
+        await release.wait()
+        return httpx.Response(200, json={"id": "quality"})
+
+    sessions = async_sessionmaker(test_engine, expire_on_commit=False)
+
+    async def dispatch():
+        async with sessions() as db:
+            return await dispatch_outcome_confirmation(
+                db, archive.id, archive.printer_id, "Printer", run_id=run.id, notify_user=False,
+            )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+        monkeypatch.setattr(notification_service, "_get_client", AsyncMock(return_value=client))
+        first = asyncio.create_task(dispatch())
+        try:
+            await asyncio.wait_for(entered.wait(), timeout=3)
+            assert await dispatch() is False, "claim must survive another session while provider I/O is blocked"
+            release.set()
+            assert await asyncio.wait_for(first, timeout=3) is True
+            assert await dispatch() is False
+        finally:
+            release.set()
+            if not first.done():
+                first.cancel()
+            await asyncio.gather(first, return_exceptions=True)
+    assert len(requests) == 1
+    assert "Actions" not in requests[0].headers
+    assert f"https://printops.example/archives?confirm={archive.id}&confirm_run={run.id}".encode() in requests[0].content
+    await db_session.refresh(run)
+    assert run.confirm_prompted_at is not None
+    assert run.confirm_token_hash is None and run.confirm_token_expires_at is None and run.confirm_token_used_at is None
+    assert await db_session.scalar(select(func.count(NotificationLog.id)).where(
+        NotificationLog.event_type == "print_confirm_request", NotificationLog.success.is_(True))) == 1
+
+
+@pytest.mark.parametrize("blocked", ["unknown", "wrong-archive", "wrong-printer", "run-printer", "deleted", "answered", "failed", "opt-out", "active-token"])
+async def test_external_historical_fallback_rejects_invalid_runs_and_preserves_active_buttons(
+    quality_run, db_session, monkeypatch, blocked
+):
+    from datetime import datetime
+    from unittest.mock import AsyncMock
+
+    import httpx
+
+    from backend.app.models.notification import NotificationProvider
+    from backend.app.services.notification_service import notification_service
+    from backend.app.services.print_confirmation import (
+        dispatch_outcome_confirmation,
+        issue_confirmation_token,
+        token_digest,
+    )
+
+    archive, _, _, run = quality_run
+    run_id, printer_id = run.id, archive.printer_id
+    existing_token = None
+    if blocked == "active-token":
+        existing_token = await issue_confirmation_token(db_session, archive)
+    else:
+        archive.status = "printing"
+    if blocked == "unknown":
+        run_id += 100
+    elif blocked == "wrong-archive":
+        unrelated = PrintArchive(filename="unrelated.3mf", file_path="unrelated.3mf", file_size=1, status="completed")
+        db_session.add(unrelated)
+        await db_session.flush()
+        run.archive_id = unrelated.id
+    elif blocked == "wrong-printer":
+        printer_id += 100
+    elif blocked == "run-printer":
+        run.printer_id += 100
+    elif blocked == "deleted":
+        archive.deleted_at = datetime.now()
+    elif blocked == "answered":
+        run.good_quantity, run.reject_quantity, run.user_verdict = 4, 0, "good"
+    elif blocked == "failed":
+        run.status = "failed"
+    elif blocked == "opt-out":
+        run.confirm_requested = False
+    db_session.add(NotificationProvider(name="Quality", provider_type="ntfy",
+        config='{"server":"https://ntfy.sh","topic":"quality"}', on_print_confirm_request=True))
+    await db_session.commit()
+    requests = []
+
+    def transport(request):
+        requests.append(request)
+        return httpx.Response(200, json={"id": "quality"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+        monkeypatch.setattr(notification_service, "_get_client", AsyncMock(return_value=client))
+        assert await dispatch_outcome_confirmation(
+            db_session, archive.id, printer_id, "Printer", run_id=run_id, notify_user=False,
+        ) is False
+    assert requests == []
+    await db_session.refresh(run)
+    assert run.confirm_prompted_at is None
+    assert run.confirm_token_hash == (token_digest(existing_token) if existing_token else None)

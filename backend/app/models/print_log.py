@@ -50,6 +50,8 @@ class PrintLogEntry(Base):
     confirm_token_hash: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
     confirm_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime)
     confirm_token_used_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Independent external-prompt claim; UI hints and public tokens are separate.
+    confirm_prompted_at: Mapped[datetime | None] = mapped_column(DateTime)
     print_name: Mapped[str | None] = mapped_column(String(255))
     printer_name: Mapped[str | None] = mapped_column(String(255))
     printer_id: Mapped[int | None] = mapped_column(Integer)

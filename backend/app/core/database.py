@@ -3672,6 +3672,7 @@ async def _migrate_production_quality(conn) -> None:
         ("confirm_token_hash", "VARCHAR(64)"),
         ("confirm_token_expires_at", timestamp),
         ("confirm_token_used_at", timestamp),
+        ("confirm_prompted_at", timestamp),
     ):
         await _safe_execute(conn, f"ALTER TABLE print_log_entries ADD COLUMN {column} {declaration}")
     await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN confirm_outcome BOOLEAN DEFAULT FALSE")
