@@ -1705,20 +1705,20 @@ async def on_ams_change(printer_id: int, ams_data: list):
                                     and spool.k_profiles
                                 ):
                                     state = printer_manager.get_status(printer_id)
-                                    from backend.app.services.calibration_context import apply_rfid_calibration
+                                    from backend.app.services.spool_filament_presets import apply_spool_rfid_calibration
 
                                     client = printer_manager.get_client(printer_id)
                                     if client:
-                                        apply_rfid_calibration(
+                                        await apply_spool_rfid_calibration(
+                                            db,
                                             client,
-                                            spool.k_profiles,
+                                            spool,
                                             state,
                                             printer_manager.get_model(printer_id),
                                             printer_id,
                                             ams_id,
                                             tray_id,
-                                            spool.slicer_filament or tray_info_idx or "",
-                                            tray.get("cali_idx"),
+                                            tray,
                                         )
                             except Exception:
                                 logger.exception(
@@ -1962,11 +1962,11 @@ async def on_ams_change(printer_id: int, ams_data: list):
                                 # mode keeps in sync via inventory + spool_tag_matcher).
                                 # Without this the slot card surfaces the previous spool's
                                 # preset name — same bug shape, different inventory mode.
-                                from backend.app.services.slot_preset_writer import (
-                                    upsert_slot_preset_for_spoolman_spool,
+                                from backend.app.services.spool_filament_presets import (
+                                    reconcile_spoolman_rfid_slot,
                                 )
 
-                                await upsert_slot_preset_for_spoolman_spool(
+                                await reconcile_spoolman_rfid_slot(
                                     db=db,
                                     spoolman_spool=result,
                                     tray_info_idx=tray.tray_info_idx or "",

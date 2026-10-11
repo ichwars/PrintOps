@@ -78,12 +78,11 @@ COMMENT_CHECK_PREFIXES = (
 
 FILE_ALLOWLIST = {
     "backend/app/api/routes/archives.py": 4774,
-    "backend/app/api/routes/inventory.py": 2648,
+    "backend/app/api/routes/inventory.py": 2606,
     "backend/app/api/routes/library.py": 5006,
     "backend/app/api/routes/print_queue.py": 2136,
     "backend/app/api/routes/projects.py": 2136,
     "backend/app/api/routes/mfa.py": 2262,
-    "backend/app/api/routes/spoolman_inventory.py": 2021,
     "backend/app/core/database.py": 4218,
     "backend/app/main.py": 6777,
     "backend/app/services/bambu_mqtt.py": 5878,

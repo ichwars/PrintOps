@@ -32,6 +32,7 @@ import type {
   SpoolCatalogEntry,
   SpoolKProfile,
   SpoolKProfileInput,
+  SpoolFilamentPreset,
   SpoolLabelTemplate,
   SpoolUsageRecord,
   SpoolmanBulkCreateResult,
@@ -164,6 +165,22 @@ export const inventoryMaintenanceMethods = {
 
   getSpoolKProfiles: (spoolId: number) =>
     request<SpoolKProfile[]>(`/inventory/spools/${spoolId}/k-profiles`),
+
+  getSpoolFilamentPresets: (spoolId: number) =>
+    request<SpoolFilamentPreset[]>(`/inventory/spools/${spoolId}/filament-presets`),
+
+  saveSpoolFilamentPresets: (spoolId: number, presets: SpoolFilamentPreset[]) =>
+    request<SpoolFilamentPreset[]>(`/inventory/spools/${spoolId}/filament-presets`, {
+      method: 'PUT', body: JSON.stringify(presets),
+    }),
+
+  getSpoolmanFilamentPresets: (spoolId: number) =>
+    request<SpoolFilamentPreset[]>(`/spoolman/inventory/spools/${spoolId}/filament-presets`),
+
+  saveSpoolmanFilamentPresets: (spoolId: number, presets: SpoolFilamentPreset[]) =>
+    request<SpoolFilamentPreset[]>(`/spoolman/inventory/spools/${spoolId}/filament-presets`, {
+      method: 'PUT', body: JSON.stringify(presets),
+    }),
 
   saveSpoolKProfiles: (spoolId: number, profiles: SpoolKProfileInput[]) =>
     request<SpoolKProfile[]>(`/inventory/spools/${spoolId}/k-profiles`, {

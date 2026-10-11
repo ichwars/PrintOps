@@ -19,7 +19,6 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import delete, select, text
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -48,7 +47,6 @@ from backend.app.models.spool_refill_event import SpoolRefillEvent
 from backend.app.models.spoolman_k_profile import SpoolmanKProfile
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.models.user import User
-from backend.app.schemas.spool import SpoolKProfileBase
 from backend.app.schemas.spoolman import SpoolmanFilamentPatch, SpoolmanSlotAssignmentEnriched
 from backend.app.services.location_service import (
     enrich_spool_dicts_with_location_id,
@@ -57,6 +55,7 @@ from backend.app.services.location_service import (
 )
 from backend.app.services.printer_manager import printer_manager
 from backend.app.services.slicer_filament_resolver import resolve_slicer_filament
+from backend.app.services.spool_filament_presets import resolve_spool_preset
 from backend.app.services.spoolman import (
     BAMBU_TAG_EXTRA_FIELDS,
     SpoolmanClient,
@@ -1569,19 +1568,12 @@ async def assign_spoolman_slot(
             if len(tray_color) == 6:
                 tray_color = tray_color + "FF"
 
-            # #1713: resolve the spool's stored slicer_filament reference
-            # (cloud preset, local preset, GF-prefix builtin, or numeric
-            # LocalPreset id) to the printer-side tray_info_idx + setting_id.
-            # Previously the Spoolman path dropped slicer_filament on the
-            # floor and only the generic-material fallback fired; the user-
-            # configured profile never reached the printer. Shared with the
-            # internal-mode route via the same helper so the two flows can't
-            # drift again.
+            preset = await resolve_spool_preset(db, mapped, body.printer_id, spoolman=True)
             tray_info_idx, setting_id, sub_brand_override, type_override = await resolve_slicer_filament(
                 db=db,
                 current_user=current_user,
-                slicer_filament=mapped.get("slicer_filament"),
-                slicer_filament_name=mapped.get("slicer_filament_name"),
+                slicer_filament=preset.slicer_filament,
+                slicer_filament_name=preset.slicer_filament_name,
                 material=material,
             )
             if sub_brand_override:
@@ -1595,12 +1587,6 @@ async def assign_spoolman_slot(
             if not tray_info_idx:
                 tray_info_idx = generic_filament_id(material, tray_type)
 
-            # Ensure setting_id is always derivable from tray_info_idx. The
-            # local-preset path can leave it empty when the LP's setting JSON
-            # has no filament_id and falls through to the generic material id;
-            # without this fallback the slicer gets a half-configured slot
-            # (filament id without setting id) and the slot detail modal
-            # renders empty fields. Same pattern as the internal-mode tail.
             if tray_info_idx and not setting_id:
                 setting_id = filament_id_to_setting_id(tray_info_idx)
 
@@ -1608,11 +1594,7 @@ async def assign_spoolman_slot(
             temp_min = mapped.get("nozzle_temp_min") or temp_defaults[0]
             temp_max = temp_defaults[1]
 
-            # Pull printer state from printer_manager. The previous
-            # `mqtt_client.printer_state` access via hasattr always returned
-            # None (the attribute is `state`, not `printer_state`), so the
-            # K-profile cascade silently skipped state.kprofiles, defaulted
-            # nozzle_diameter to 0.4, and left slot_extruder unset.
+            # Calibration resolution uses the live scoped cache.
             state = printer_manager.get_status(body.printer_id)
             from backend.app.services.calibration_context import resolve_spool_calibration
 
@@ -1705,6 +1687,18 @@ async def assign_spoolman_slot(
                     body.spoolman_spool_id,
                 )
 
+            from backend.app.services.slot_preset_writer import upsert_slot_preset_for_spoolman_spool
+
+            await upsert_slot_preset_for_spoolman_spool(
+                db=db,
+                spoolman_spool=spool,
+                printer_id=body.printer_id,
+                ams_id=body.ams_id,
+                tray_id=body.tray_id,
+                tray_info_idx=effective_tray_info_idx,
+                tray_sub_brands=tray_sub_brands,
+                tray_type=tray_type,
+            )
             logger.info(
                 "Auto-configured AMS slot ams=%d tray=%d for Spoolman spool %d on printer %d",
                 body.ams_id,
@@ -1964,58 +1958,10 @@ async def patch_spoolman_filament(
     return normalized
 
 
-@router.get("/spools/{spool_id}/k-profiles")
-async def get_spoolman_k_profiles(
-    spool_id: int = Path(..., gt=0),
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
-) -> list[dict]:
-    """Return all local K-value calibration profiles for a Spoolman spool."""
-    await _get_client(db)
-    result = await db.execute(select(SpoolmanKProfile).where(SpoolmanKProfile.spoolman_spool_id == spool_id))
-    profiles = result.scalars().all()
-    return [_k_profile_to_dict(p) for p in profiles]
+from backend.app.api.routes.spool_filament_presets import preset_router  # noqa: E402
 
+router.include_router(preset_router(spoolman=True))
 
-@router.put("/spools/{spool_id}/k-profiles")
-async def save_spoolman_k_profiles(
-    spool_id: int = Path(..., gt=0),
-    profiles: list[SpoolKProfileBase] = Body(...),
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
-) -> list[dict]:
-    """Replace all K-value calibration profiles for a Spoolman spool."""
-    client = await _get_client(db)
-    async with _translate_spoolman_errors():
-        await client.get_spool(spool_id)
+from backend.app.api.routes.spool_k_profiles import spoolman_router as k_profiles_router  # noqa: E402
 
-    saved: list[SpoolmanKProfile] = []
-    try:
-        await db.execute(delete(SpoolmanKProfile).where(SpoolmanKProfile.spoolman_spool_id == spool_id))
-        for profile in profiles:
-            obj = SpoolmanKProfile(
-                spoolman_spool_id=spool_id,
-                printer_id=profile.printer_id,
-                extruder=profile.extruder,
-                nozzle_diameter=profile.nozzle_diameter,
-                nozzle_type=profile.nozzle_type,
-                k_value=profile.k_value,
-                name=profile.name,
-                cali_idx=profile.cali_idx,
-                setting_id=profile.setting_id,
-            )
-            db.add(obj)
-            saved.append(obj)
-        await db.commit()
-    except IntegrityError as exc:
-        await db.rollback()
-        raise HTTPException(422, "Duplicate or invalid K-profile (check printer_id and nozzle uniqueness)") from exc
-    except Exception as exc:
-        await db.rollback()
-        logger.error("K-profile save for spool %d failed: %s", spool_id, exc)
-        raise HTTPException(500, "Failed to save K-profiles") from exc
-
-    for obj in saved:
-        await db.refresh(obj)
-
-    return [_k_profile_to_dict(p) for p in saved]
+router.include_router(k_profiles_router)

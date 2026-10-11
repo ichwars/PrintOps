@@ -26,8 +26,14 @@ vi.mock('../../api/client', () => ({
     getLocalPresets: vi.fn().mockResolvedValue({ filament: [] }),
     getBuiltinFilaments: vi.fn().mockResolvedValue([]),
     getPrinters: vi.fn().mockResolvedValue([]),
+    getSlicerPrinterModels: vi.fn().mockResolvedValue({ 'Bambu Lab P2S': 'P2S', 'Bambu Lab X1 Carbon': 'X1C' }),
+    getSpoolFilamentPresets: vi.fn().mockResolvedValue([]),
+    saveSpoolFilamentPresets: vi.fn().mockResolvedValue([]),
+    getSpoolmanFilamentPresets: vi.fn().mockResolvedValue([]),
+    saveSpoolmanFilamentPresets: vi.fn().mockResolvedValue([]),
     getSpoolUsageHistory: vi.fn().mockResolvedValue([]),
     createSpool: vi.fn().mockResolvedValue({ id: 99 }),
+    bulkCreateSpools: vi.fn().mockResolvedValue([{ id: 99 }, { id: 100 }]),
     createSpoolmanInventorySpool: vi.fn().mockResolvedValue({ id: 88 }),
     updateSpool: vi.fn().mockResolvedValue({ id: 1 }),
     saveSpoolKProfiles: vi.fn().mockResolvedValue([]),
@@ -748,7 +754,7 @@ describe('SpoolFormModal Spoolman K-profile support', () => {
     });
 
     // PA Profile tab should be visible in Spoolman mode
-    expect(screen.getByText('PA Profile')).toBeInTheDocument();
+    expect(screen.getByText('Printer profiles')).toBeInTheDocument();
   });
 
   it('calls saveSpoolmanKProfiles (not saveSpoolKProfiles) on update in Spoolman mode', async () => {
@@ -1284,5 +1290,178 @@ describe('SpoolFormModal header spool ID (#1385)', () => {
       expect(screen.getByRole('heading', { name: 'Copy Spool' })).toBeInTheDocument();
     });
     expect(screen.queryByText(/^#\d+$/)).not.toBeInTheDocument();
+  });
+});
+
+
+describe('SpoolFormModal model preset maps', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.getSpoolFilamentPresets).mockResolvedValue([
+      { printer_model: 'P2S', slicer_filament: 'GFA02', slicer_filament_name: 'P2S PLA' },
+      { printer_model: 'X1C', slicer_filament: null, slicer_filament_name: null },
+    ]);
+  });
+
+  it('copies the saved model map to the new spool while preserving the global preset', async () => {
+    render(<SpoolFormModal isOpen onClose={vi.fn()} mode="copy" spool={existingSpool} currencySymbol="$" />);
+    const copy = screen.getByRole('button', { name: 'Copy Spool' });
+    await waitFor(() => expect(copy).not.toBeDisabled());
+    fireEvent.click(copy);
+    await waitFor(() => expect(api.saveSpoolFilamentPresets).toHaveBeenCalledWith(99, [
+      { printer_model: 'P2S', slicer_filament: 'GFA02', slicer_filament_name: 'P2S PLA' },
+      { printer_model: 'X1C', slicer_filament: null, slicer_filament_name: null },
+    ]));
+    expect(api.createSpool).toHaveBeenCalledWith(expect.objectContaining({ slicer_filament: 'GFL99' }));
+  });
+
+  it('does not replace the saved model map during an unrelated edit', async () => {
+    render(<SpoolFormModal isOpen onClose={vi.fn()} mode="edit" spool={existingSpool} currencySymbol="$" />);
+    await waitFor(() => expect(api.getSpoolFilamentPresets).toHaveBeenCalledWith(1));
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+    await waitFor(() => expect(api.updateSpool).toHaveBeenCalled());
+    expect(api.saveSpoolFilamentPresets).not.toHaveBeenCalled();
+  });
+});
+
+
+it('saves a selected calibration within its diameter even when cali_idx is reused', async () => {
+  vi.clearAllMocks();
+  const spool = { ...existingSpool, k_profiles: [{
+    id: 1, spool_id: 1, printer_id: 2, extruder: 0, nozzle_diameter: '0.6', nozzle_type: null,
+    cali_idx: 1, setting_id: 'P06', name: 'PLA 0.6', k_value: 0.03, created_at: '2026-10-11',
+  }] };
+  const printer = { id: 2, name: 'P2S', model: 'P2S', connected: true };
+  const calibrations = ['0.4', '0.6'].map(size => ({
+    cali_idx: 1, extruder_id: 0, nozzle_diameter: size, name: `PLA ${size}`,
+    filament_id: 'GFL99', setting_id: `P${size}`, k_value: size === '0.6' ? 0.03 : 0.01, n_coef: 0,
+  }));
+  render(<SpoolFormModal isOpen onClose={vi.fn()} mode="edit" spool={spool} currencySymbol="$"
+    printersWithCalibrations={[{ printer, calibrations }] as Parameters<typeof SpoolFormModal>[0]['printersWithCalibrations']} />);
+  fireEvent.click(screen.getByRole('button', { name: /save/i }));
+  await waitFor(() => expect(api.saveSpoolKProfiles).toHaveBeenCalledWith(1, [expect.objectContaining({
+    nozzle_diameter: '0.6', k_value: 0.03, setting_id: 'P0.6',
+  })]));
+});
+
+
+it('saves a model override on every spool created in bulk', async () => {
+  vi.clearAllMocks();
+  render(<SpoolFormModal isOpen onClose={vi.fn()} mode="create" currencySymbol="$" />);
+  fireEvent.click(screen.getByRole('button', { name: 'Printer profiles' }));
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Add printer model' })).not.toBeDisabled());
+  fireEvent.click(screen.getByRole('combobox', { name: 'Add printer model' }));
+  fireEvent.click(screen.getByRole('option', { name: 'P2S' }));
+  fireEvent.click(screen.getByRole('combobox', { name: 'P2S' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Generic material preset' }));
+  const toggle = screen.getAllByRole('button').find(btn => btn.getAttribute('type') === 'button' &&
+    btn.className.includes('rounded-full') && btn.closest('div')?.textContent?.includes('Quick Add'))!;
+  fireEvent.click(toggle);
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Quantity' }), { target: { value: '2' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add Spool' }));
+  await waitFor(() => expect(api.bulkCreateSpools).toHaveBeenCalled());
+  for (const id of [99, 100]) await waitFor(() => expect(api.saveSpoolFilamentPresets).toHaveBeenCalledWith(id, [
+    { printer_model: 'P2S', slicer_filament: null, slicer_filament_name: null },
+  ]));
+});
+
+it('blocks copying an unavailable model map and allows a successful retry', async () => {
+  vi.clearAllMocks();
+  vi.mocked(api.getSpoolFilamentPresets).mockRejectedValueOnce(new Error('Unavailable'));
+  render(<SpoolFormModal isOpen onClose={vi.fn()} mode="copy" spool={existingSpool} currencySymbol="$" />);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not load model presets');
+  const copy = screen.getByRole('button', { name: 'Copy Spool' });
+  expect(copy).toBeDisabled();
+  fireEvent.click(copy);
+  expect(api.createSpool).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  await waitFor(() => expect(copy).not.toBeDisabled());
+});
+
+
+describe('SpoolFormModal retains saved targets after a model preset failure', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.getSpoolFilamentPresets).mockResolvedValue([]);
+    vi.mocked(api.saveSpoolFilamentPresets).mockResolvedValue([]);
+    vi.mocked(api.saveSpoolmanFilamentPresets).mockResolvedValue([]);
+  });
+
+  async function chooseGeneric() {
+    fireEvent.click(screen.getByRole('button', { name: 'Printer profiles' }));
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Add printer model' })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('combobox', { name: 'Add printer model' }));
+    fireEvent.click(screen.getByRole('option', { name: 'P2S' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'P2S' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Generic material preset' }));
+  }
+
+  it.each(['create', 'copy', 'edit'] as const)('retries %s profiles without rewriting or duplicating the spool', async mode => {
+    const onClose = vi.fn();
+    const onSpoolsCreated = vi.fn();
+    vi.mocked(api.saveSpoolFilamentPresets).mockRejectedValueOnce(new Error('Offline'));
+    render(<SpoolFormModal isOpen onClose={onClose} onSpoolsCreated={onSpoolsCreated}
+      mode={mode} spool={mode === 'create' ? undefined : existingSpool} currencySymbol="$" />);
+    await chooseGeneric();
+    const action = mode === 'create' ? 'Add Spool' : mode === 'copy' ? 'Copy Spool' : 'Save';
+    fireEvent.click(screen.getByRole('button', { name: action }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Retry saving');
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onSpoolsCreated).not.toHaveBeenCalled();
+    expect(mockShowToast).not.toHaveBeenCalledWith(expect.anything(), 'success');
+    expect(screen.getByRole('combobox', { name: 'P2S' })).toHaveTextContent('Generic material preset');
+    fireEvent.click(screen.getByRole('combobox', { name: 'P2S' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Use general preset' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    const targetId = mode === 'edit' ? 1 : 99;
+    expect(api.saveSpoolFilamentPresets).toHaveBeenLastCalledWith(targetId, []);
+    expect(mode === 'edit' ? api.updateSpool : api.createSpool).toHaveBeenCalledTimes(1);
+    if (mode !== 'edit') expect(onSpoolsCreated).toHaveBeenCalledWith([expect.objectContaining({ id: 99 })]);
+  });
+
+  it('retains every bulk-created target when one model map fails', async () => {
+    const onClose = vi.fn();
+    const onSpoolsCreated = vi.fn();
+    vi.mocked(api.saveSpoolFilamentPresets).mockRejectedValueOnce(new Error('Offline'));
+    render(<SpoolFormModal isOpen onClose={onClose} onSpoolsCreated={onSpoolsCreated} mode="create" currencySymbol="$" />);
+    await chooseGeneric();
+    const toggle = screen.getAllByRole('button').find(btn => btn.getAttribute('type') === 'button' &&
+      btn.className.includes('rounded-full') && btn.closest('div')?.textContent?.includes('Quick Add'))!;
+    fireEvent.click(toggle);
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Quantity' }), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add Spool' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Retry saving');
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onSpoolsCreated).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Printer profiles' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'P2S' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Use general preset' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(api.bulkCreateSpools).toHaveBeenCalledTimes(1);
+    expect(api.createSpool).not.toHaveBeenCalled();
+    expect(api.saveSpoolFilamentPresets).toHaveBeenCalledTimes(4);
+    for (const id of [99, 100]) expect(api.saveSpoolFilamentPresets).toHaveBeenCalledWith(id, []);
+    expect(onSpoolsCreated).toHaveBeenCalledWith([{ id: 99 }, { id: 100 }]);
+  });
+
+  it('also retains a created Spoolman target while its local map is unavailable', async () => {
+    const onClose = vi.fn();
+    vi.mocked(api.saveSpoolmanFilamentPresets).mockRejectedValueOnce(new Error('Offline'));
+    render(<SpoolFormModal isOpen onClose={onClose} mode="create" spoolmanMode currencySymbol="$" />);
+    await chooseGeneric();
+    fireEvent.click(screen.getByRole('button', { name: 'Add Spool' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Retry saving');
+    expect(onClose).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(api.createSpoolmanInventorySpool).toHaveBeenCalledTimes(1);
+    expect(api.saveSpoolmanFilamentPresets).toHaveBeenLastCalledWith(88, [
+      { printer_model: 'P2S', slicer_filament: null, slicer_filament_name: null },
+    ]);
   });
 });

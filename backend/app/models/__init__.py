@@ -110,6 +110,7 @@ from backend.app.models.sponsor_toast_state import SponsorToastState
 from backend.app.models.spool import Spool
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spool_catalog import SpoolCatalogEntry
+from backend.app.models.spool_filament_preset import SpoolFilamentPreset, SpoolmanFilamentPreset
 from backend.app.models.spool_k_profile import SpoolKProfile
 from backend.app.models.spool_refill_event import SpoolRefillEvent
 from backend.app.models.spool_usage_history import SpoolUsageHistory
@@ -168,6 +169,8 @@ __all__ = [
     "SlicerPipeline",
     "Spool",
     "SpoolKProfile",
+    "SpoolFilamentPreset",
+    "SpoolmanFilamentPreset",
     "SpoolAssignment",
     "SpoolCatalogEntry",
     "SpoolRefillEvent",
