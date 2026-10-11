@@ -1,5 +1,7 @@
 # PrintOps / bambuddy: Upstream-Abgleich vom 11. Oktober 2026
 
+> Historische Bestandsaufnahme. Die anschließende Umsetzung der wichtigen und fehlenden Punkte steht im [Umsetzungsbericht](upstream-implementation-2026-10-11.md) und in der [Umsetzungsmatrix](upstream-implementation-2026-10-11.csv).
+
 Die **1.332 Upstream-Commits sind bestätigt**, aber sie entsprechen nicht 1.332 fehlenden Funktionen. PrintOps hat zahlreiche Änderungen eigenständig übernommen. Der heutige PrintOps-`main` enthält außerdem **89 Commits mehr als diese lokale Arbeitskopie**. Deshalb bezieht sich die fachliche Einstufung auf den aktuellen GitHub-Stand; die lokale Verfügbarkeit steht ausdrücklich daneben.
 
 ## Verglichene, unveränderliche Stände
