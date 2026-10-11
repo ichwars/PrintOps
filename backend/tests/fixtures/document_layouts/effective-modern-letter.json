@@ -2,7 +2,7 @@
   "schema_version": 1,
   "template_version": "1.0.0",
   "renderer_version": "weasyprint-70.0+pikepdf-10.10.0",
-  "validator_version": "verapdf-1.30.2",
+  "validator_version": "verapdf-1.30.3",
   "page": {
     "template_key": "modern",
     "page_format": "Letter",

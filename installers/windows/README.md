@@ -12,7 +12,7 @@ service. No Python or Node installation required on the target machine.
 - **Service:** registered via NSSM, runs as `LocalSystem`, autostart on boot
 - **Service command:** `python.exe -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --loop asyncio` (`--loop asyncio` avoids a uvloop TLS bug that can truncate VP FTP uploads, #1896)
 - **Bundled binaries:** Python 3.13 embeddable, NSSM, ffmpeg, WeasyPrint
-  69.0 with its Pango/GTK runtime, Temurin JRE 21.0.10+7 and veraPDF 1.30.2
+  69.0 with its Pango/GTK runtime, Temurin JRE 21.0.10+7 and veraPDF 1.30.3
 
 Browser is the UI. Start Menu shortcut opens `http://localhost:8000`.
 
@@ -59,7 +59,7 @@ enter `build/staging/runtime/`:
   `a6ac6789e51a2c245f41430c42e72b39ec706a449812fc5e4cbfc55ceed1e5ae`.
   Temurin is distributed under GPLv2 with the Classpath Exception and retains
   the upstream legal files inside the staged JRE.
-- veraPDF Greenfield `1.30.2` from `software.verapdf.org`. The archive and
+- veraPDF Greenfield `1.30.3` from `software.verapdf.org`. The archive and
   detached signature hashes are recorded in
   `backend/app/resources/pdf/runtime-manifest.json`; the build additionally
   verifies signing fingerprint
@@ -97,7 +97,7 @@ build\staging\runtime\java\bin\java.exe -version
 build\staging\runtime\verapdf\verapdf.bat --version
 ```
 
-The expected versions are respectively `69.0`, `21.0.10` and `1.30.2`; no
+The expected versions are respectively `69.0`, `21.0.10` and `1.30.3`; no
 command may attempt a network connection.
 
 Output: `installers\windows\build\output\printops-windows-setup.exe`

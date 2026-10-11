@@ -124,7 +124,7 @@ FUNCTION_ALLOWLIST = {
     "backend/app/api/routes/settings.py::restore_backup": 304,
     "backend/app/api/routes/spoolman.py::link_spool": 297,
     "backend/app/api/routes/support.py::_collect_support_info": 452,
-    "backend/app/api/routes/updates.py::_perform_update": 303,
+    "backend/app/api/routes/updates.py::_perform_update": 296,
     "backend/app/core/database.py::run_migrations": 2801,
     "backend/app/core/database.py::seed_default_groups": 347,
     "backend/app/main.py::lifespan": 401,

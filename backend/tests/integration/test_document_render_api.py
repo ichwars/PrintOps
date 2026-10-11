@@ -108,7 +108,7 @@ async def test_external_render_is_snapshot_only_idempotent_and_downloadable(
                 validation_status="valid",
                 validation_report=PdfaValidationReport(
                     compliant=True,
-                    validator_version="1.30.2",
+                    validator_version="1.30.3",
                     ruleset="PDF/A-3U",
                     findings=[],
                     raw_report_sha256="a" * 64,

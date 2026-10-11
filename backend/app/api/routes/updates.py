@@ -8,6 +8,7 @@ import shutil
 import stat
 import sys
 import time
+from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends
@@ -662,6 +663,49 @@ async def _discover_target_release(db: AsyncSession) -> str | None:
     return None
 
 
+async def _finish_native_update(app_dir: Path) -> None:
+    """Verify the managed PDF runtime before reporting an update as complete."""
+    global _update_status
+
+    _update_status = {
+        "status": "installing",
+        "progress": 90,
+        "message": "Updating verified PDF validator...",
+        "error": None,
+    }
+    # Runtime pins change with the verified release. Refresh the managed
+    # runtime as part of the update; never download at application startup.
+    process = await asyncio.create_subprocess_exec(
+        sys.executable,
+        str(app_dir / "scripts" / "vendor_pdf_runtime.py"),
+        "--destination",
+        str(app_dir / "runtime" / "verapdf"),
+        "--cache-dir",
+        str(app_dir / ".cache" / "pdf-runtime"),
+        cwd=str(app_dir),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await process.communicate()
+    if process.returncode != 0:
+        _update_status = {
+            "status": "error",
+            "progress": 90,
+            "message": "Failed to update PDF validator",
+            "error": stderr.decode(errors="replace") if stderr else "PDF runtime verification failed",
+        }
+        return
+
+    _update_status = {
+        "status": "complete",
+        "progress": 100,
+        "message": "Update complete! Please restart the application.",
+        "error": None,
+    }
+
+    logger.info("Update completed successfully")
+
+
 async def _perform_update(target_ref: str):
     """Install one cryptographically verified, annotated release tag."""
     global _update_status
@@ -940,14 +984,7 @@ async def _perform_update(target_ref: str):
         else:
             logger.info("npm not found or frontend dir missing - using pre-built static files")
 
-        _update_status = {
-            "status": "complete",
-            "progress": 100,
-            "message": "Update complete! Please restart the application.",
-            "error": None,
-        }
-
-        logger.info("Update completed successfully")
+        await _finish_native_update(app_dir)
 
     except ValueError as e:
         logger.error("Update security validation failed: %s", e)

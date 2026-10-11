@@ -34,7 +34,7 @@ def _report(*, compliant: bool) -> str:
     return json.dumps(
         {
             "report": {
-                "buildInformation": {"releaseDetails": [{"id": "core", "version": "1.30.2"}]},
+                "buildInformation": {"releaseDetails": [{"id": "core", "version": "1.30.3"}]},
                 "jobs": [
                     {
                         "validationResult": [
@@ -51,7 +51,7 @@ def _report(*, compliant: bool) -> str:
     )
 
 
-def _executor(report: str, *, version: str = "veraPDF 1.30.2"):
+def _executor(report: str, *, version: str = "veraPDF 1.30.3"):
     def run(command, **_kwargs):
         if "--version" in command:
             return subprocess.CompletedProcess(command, 0, version, "")
@@ -69,7 +69,7 @@ def test_valid_report_is_normalized_and_raw_report_is_immutable(tmp_path):
     result = runner.validate(b"%PDF-1.7\n%%EOF", correlation_id="valid-report")
     assert result.compliant is True
     assert result.profile == "PDF/A-3U"
-    assert result.validator_version == "1.30.2"
+    assert result.validator_version == "1.30.3"
     assert result.ruleset == "ISO 19005-3:2012 / PDF/A-3u"
     assert result.findings == []
     stored = list((tmp_path / "reports").rglob("*.json"))

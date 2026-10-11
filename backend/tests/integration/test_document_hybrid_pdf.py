@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import os
 from datetime import datetime, timezone
 from decimal import Decimal
 from hashlib import sha256
@@ -40,6 +41,8 @@ WEASYPRINT = (
     ROOT.parent / "installers" / "windows" / "build" / "staging" / "runtime" / "weasyprint" / "dist" / "weasyprint.exe"
 )
 VERAPDF = ROOT.parent / "installers" / "windows" / "build" / "staging" / "runtime" / "verapdf" / "verapdf.bat"
+WEASYPRINT = Path(os.environ.get("WEASYPRINT_CLI") or WEASYPRINT)
+VERAPDF = Path(os.environ.get("VERAPDF_CLI") or VERAPDF)
 
 
 async def _document(db_session, name: str) -> CommercialDocument:

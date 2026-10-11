@@ -69,6 +69,12 @@ Name: "german"; MessagesFile: "compiler:Languages\German.isl"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 Name: "firewallrule"; Description: "Add Windows Firewall rule for PrintOps (port {#DefaultPort})"; GroupDescription: "Network:"
 
+[InstallDelete]
+; Remove obsolete CLI JARs before copying the verified runtime. The launcher
+; uses bin\*, so overlaying a new release would retain vulnerable old classes.
+; PrepareToInstall stops the service before this section runs.
+Type: filesandordirs; Name: "{app}\runtime\verapdf"
+
 [Files]
 ; Embedded Python (entire tree)
 Source: "build\staging\python\*"; DestDir: "{app}\python"; Flags: recursesubdirs ignoreversion

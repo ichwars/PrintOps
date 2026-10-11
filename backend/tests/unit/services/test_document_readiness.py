@@ -103,13 +103,13 @@ def test_runtime_readiness_reports_versions_without_sensitive_paths(tmp_path):
 
     status = probe_document_runtime(
         renderer_cli=renderer,
-        validator=SimpleNamespace(version=lambda: "1.30.2"),
+        validator=SimpleNamespace(version=lambda: "1.30.3"),
         process_runner=execute,
     )
     assert status.ready is True
     assert status.renderer.version == "69.0"
     assert status.pango.version == "15701"
-    assert status.validator.version == "1.30.2"
+    assert status.validator.version == "1.30.3"
     assert status.icc_profile_valid is True
     assert str(tmp_path) not in status.model_dump_json()
 
@@ -130,7 +130,7 @@ def test_runtime_readiness_discovers_weasyprint_on_path(tmp_path, monkeypatch):
     monkeypatch.setattr("backend.app.services.document_readiness.shutil.which", lambda _name: str(renderer))
 
     status = probe_document_runtime(
-        validator=SimpleNamespace(version=lambda: "1.30.2"),
+        validator=SimpleNamespace(version=lambda: "1.30.3"),
         process_runner=lambda command, **_kwargs: subprocess.CompletedProcess(
             command,
             0,

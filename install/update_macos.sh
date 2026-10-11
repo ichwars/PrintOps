@@ -16,6 +16,8 @@ FORCE="${FORCE:-0}"
 
 SERVICE_STOPPED=0
 CODE_UPDATED=0
+RUNTIME_UPDATED=0
+RUNTIME_BACKUP=""
 old_commit=""
 
 log() {
@@ -65,6 +67,14 @@ on_error() {
       warn "Update failed after code change, attempting rollback to $old_commit"
       git reset --hard "$old_commit" || warn "Rollback reset failed"
     fi
+
+    if [ "$RUNTIME_UPDATED" -eq 1 ]; then
+      rm -rf "$INSTALL_DIR/runtime/verapdf"
+      if [ -d "$RUNTIME_BACKUP/verapdf" ]; then
+        mv "$RUNTIME_BACKUP/verapdf" "$INSTALL_DIR/runtime/verapdf" || warn "Runtime rollback failed"
+      fi
+    fi
+    [ -z "$RUNTIME_BACKUP" ] || rm -rf "$RUNTIME_BACKUP"
 
     warn "Update failed, attempting to restart service: $SERVICE_NAME"
     launchctl load "$PLIST_PATH" || true
@@ -211,9 +221,19 @@ else
   warn "Skipping frontend build (frontend/package.json not found)."
 fi
 
+log "Updating verified PDF validator"
+mkdir -p "$INSTALL_DIR/runtime"
+RUNTIME_BACKUP="$(mktemp -d "$INSTALL_DIR/runtime/.verapdf-backup.XXXXXX")"
+"$(dirname "$VENV_PIP")/python" "$INSTALL_DIR/scripts/vendor_pdf_runtime.py" \
+  --destination "$INSTALL_DIR/runtime/verapdf" \
+  --cache-dir "$INSTALL_DIR/.cache/pdf-runtime" \
+  --backup-dir "$RUNTIME_BACKUP/verapdf"
+RUNTIME_UPDATED=1
+
 log "Starting service: $SERVICE_NAME"
 launchctl load "$PLIST_PATH"
 SERVICE_STOPPED=0
+rm -rf "$RUNTIME_BACKUP"
 launchctl list | grep "$SERVICE_NAME" || true
 
 new_commit="$(git rev-parse --short HEAD || true)"
