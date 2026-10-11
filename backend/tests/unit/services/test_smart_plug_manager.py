@@ -721,6 +721,7 @@ class TestScheduleLoop:
 
             mock_tasmota.turn_off = AsyncMock(return_value=True)
             mock_pm.mark_printer_offline = MagicMock()
+            mock_pm.is_print_active.return_value = False
 
             await manager._check_schedules()
 
