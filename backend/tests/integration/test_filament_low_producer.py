@@ -160,7 +160,7 @@ async def test_printer_scope_and_disabled_subscription_do_not_silence_new_matchi
     provider.enabled = True
     await db_session.commit()
     await run_alert_pass(scheduler)
-    assert len(deliveries) == 2
+    assert len(deliveries) == 1  # A disabled subscription does not prove recovery.
 
 
 @pytest.mark.asyncio

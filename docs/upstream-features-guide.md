@@ -19,6 +19,16 @@ Nachproduktion zählen weiterhin Druckläufe. Eine Qualitätsbestätigung führt
 keine automatische Lager-, Auftragslieferungs- oder Versandbuchung aus.
 Diese Schritte bleiben im bestehenden Auftrags- und Lagerablauf.
 
+## Gefilterte Warteschlange umsortieren
+
+Ziehe einen sichtbaren Auftrag an seine gewünschte Stelle oder verwende die
+Sortieraktion auf dem Mobilgerät. Bei einem Standort-, Besitzer- oder
+Druckerfilter werden die sichtbaren Aufträge in ihren bisherigen Plätzen der
+gesamten Warteschlange neu geordnet. Ausgeblendete Aufträge behalten ihren
+Platz. Bereits zum Druckstart übernommene Aufträge lassen sich dabei nicht
+mehr verschieben. Druckerrechte und die eigenen Batch-Zuordnungen bleiben
+wirksam.
+
 ## Materialnummern und Bestandswarnungen
 
 In der Filamentübersicht lassen sich Spulen nach Materialidentität gruppieren.
@@ -40,6 +50,12 @@ Ereignisse bei deinem Benachrichtigungsanbieter. Ruhezeiten und Digest bleiben
 wirksam. Bei einer fehlgeschlagenen Zustellung wiederholt PrintOps nur die noch
 offenen Anbieter. Anbieter mit bereits erfolgreicher Zustellung erhalten
 dieselbe Warnung nicht erneut.
+
+Low-Filament-Warnungen behalten erfolgreiche Zustellungen und bereits
+angelegte Digest-Einträge auch nach einem Neustart. Eine vorübergehend
+deaktivierte Benachrichtigung oder ein ausgefilterter Drucker löscht diese
+Historie nicht. Sobald PrintOps eine Erholung des Füllstands oder einen
+Spulenwechsel beobachtet, kann eine neue Low-Filament-Warnung entstehen.
 
 Beim ersten Lauf nach dem Upgrade kann eine ältere Bestandswarnung einmalig
 erneut erscheinen: Alte globale Warnungseinträge enthalten keinen Nachweis

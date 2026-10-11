@@ -15,6 +15,10 @@ from backend.app.services.spoolman import SpoolmanClient
 @pytest.fixture
 async def slot_context(async_client, printer_factory, db_session, monkeypatch):
     from backend.app import main
+    from backend.app.services import usage_tracker
+
+    # This fresh database must not inherit a session for a reused printer ID.
+    monkeypatch.setattr(usage_tracker, "_active_sessions", {})
 
     printer = await printer_factory(model="X1C")
     spool = Spool(material="PLA", rgba="FF0000FF", label_weight=1000)

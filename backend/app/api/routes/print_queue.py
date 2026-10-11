@@ -17,11 +17,13 @@ from backend.app.core.auth import (
     RequirePermissionIfAuthEnabled,
     allowed_printer_ids_for_user,
     require_ownership_permission,
+    resolve_optional_api_key,
     user_can_access_printer,
 )
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
+from backend.app.models.api_key import APIKey
 from backend.app.models.archive import PrintArchive
 from backend.app.models.library import LibraryFile
 from backend.app.models.print_batch import PrintBatch, PrintBatchPlate
@@ -57,7 +59,7 @@ from backend.app.services.print_batch import (
     load_progress,
     refresh_batch_status,
 )
-from backend.app.services.queue_position import lock_queue_positions
+from backend.app.services.queue_position import lock_queue_positions, reorder_queue_positions
 from backend.app.utils.printer_models import is_gcode_compatible
 from backend.app.utils.threemf_tools import (
     extract_bed_type_from_3mf,
@@ -1823,14 +1825,10 @@ async def reorder_queue(
     data: PrintQueueReorder,
     db: AsyncSession = Depends(get_db),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_UPDATE_ALL),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
-    """Bulk update positions for queue items."""
-    await lock_queue_positions(db)
-    for reorder_item in data.items:
-        result = await db.execute(select(PrintQueueItem).where(PrintQueueItem.id == reorder_item.id))
-        item = result.scalar_one_or_none()
-        if item and item.status == "pending" and user_can_access_printer(current_user, item.printer_id):
-            item.position = reorder_item.position
+    """Merge a visible subset's order into its existing global queue slots."""
+    await reorder_queue_positions(db, data.items, current_user, api_key)
 
     await db.commit()
     logger.info("Reordered %s queue items", len(data.items))

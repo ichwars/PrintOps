@@ -12,6 +12,7 @@ from backend.app.models.printer import Printer
 from backend.app.models.spool import Spool
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
+from backend.app.services.filament_low_state import FilamentLowState, provider_identity, spool_identity
 from backend.app.services.inventory_mode import spoolman_owns_assignments
 from backend.app.services.notification_service import notification_service
 from backend.app.services.spool_assignment_notifications import (
@@ -35,7 +36,7 @@ def _threshold(raw, fallback=20):
 class FilamentLowMonitor:
     def __init__(self):
         self._next_check = 0.0
-        self._notified: dict[tuple[str, int, int, int, int], dict[int, dict[str, bool]]] = {}
+        self._state = FilamentLowState()
 
     async def tick(self, db):
         now = monotonic()
@@ -51,39 +52,41 @@ class FilamentLowMonitor:
                 )
             )
             if not providers:
-                self._notified.clear()
                 return
+            await self._state.load(db)
             threshold = _threshold(await setting_value(db, "low_stock_threshold", "20"))
             external = await spoolman_owns_assignments(db)
             slots = await self._slots(db, external, providers)
             if slots is None:
                 return  # Outage preserves dedup; it is not a successful empty snapshot.
+            monitored = select(Printer.id).where(Printer.is_active.is_(True))
+            if not any(provider.printer_id is None for provider in providers):
+                monitored = monitored.where(Printer.id.in_({provider.printer_id for provider in providers}))
+            observed_printers = set(await db.scalars(monitored))
+            mode = "spoolman" if external else "internal"
             active = set()
             for assignment, printer, spool in slots:
 
                 def value(field, default=None, spool=spool):
                     return spool.get(field, default) if isinstance(spool, dict) else getattr(spool, field, default)
 
+                key = (mode, printer.id, assignment.ams_id, assignment.tray_id, value("id"))
                 label_weight = value("label_weight") or 0
                 if not math.isfinite(label_weight) or label_weight <= 0:
+                    active.add(key)  # Unusable weight is not evidence of recovery.
                     continue
                 remaining = max(0, label_weight - (value("weight_used") or 0))
                 percent = min(100, remaining / label_weight * 100)
-                key = (
-                    "spoolman" if external else "internal",
-                    printer.id,
-                    assignment.ams_id,
-                    assignment.tray_id,
-                    value("id"),
-                )
                 if percent >= _threshold(value("low_stock_threshold_pct"), threshold):
                     continue
                 active.add(key)
-                eligible = {provider.id for provider in providers if provider.printer_id in (None, printer.id)}
-                old = self._notified.get(key, {})
-                current = {pid: old.get(pid, {"delivered": False, "digest": False}) for pid in eligible}
-                self._notified[key] = current
-                targets = {pid for pid, state in current.items() if not state["delivered"]}
+                eligible = {
+                    provider.id: provider_identity(provider)
+                    for provider in providers
+                    if provider.printer_id in (None, printer.id)
+                }
+                current = self._state.providers_for(key, eligible, spool_identity(spool))
+                targets = {pid for pid in eligible if not current[pid]["delivered"]}
                 if not targets:
                     continue
                 slot = _slot_label_from_global_tray(_global_tray_from_assignment(assignment.ams_id, assignment.tray_id))
@@ -97,10 +100,13 @@ class FilamentLowMonitor:
                     provider_ids=targets,
                     skip_digest_provider_ids={pid for pid in targets if current[pid]["digest"]},
                 )
-                for pid, delivery in (outcomes or {}).items():
-                    current[pid]["delivered"] = delivery.status == "delivered"
-                    current[pid]["digest"] |= delivery.digest_queued
-            self._notified = {key: state for key, state in self._notified.items() if key in active}
+                for pid in targets:
+                    delivery = (outcomes or {}).get(pid)
+                    if delivery:
+                        current[pid]["delivered"] = delivery.status == "delivered"
+                        current[pid]["digest"] |= delivery.digest_queued
+            self._state.reconcile(mode, observed_printers, active)
+            await self._state.save(db)
         except Exception:
             logger.warning("Low-filament notification check failed", exc_info=True)
 

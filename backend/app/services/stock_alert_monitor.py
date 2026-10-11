@@ -75,7 +75,11 @@ class StockAlertMonitor:
                 current = {}
                 for provider in providers:
                     old = previous.get(str(provider.id), {})
+                    created_at = provider.created_at.isoformat() if provider.created_at else None
+                    if old.get("created_at") != created_at:
+                        old = {}  # A newly created provider can reuse a deleted SQLite row's ID.
                     current[str(provider.id)] = {
+                        "created_at": created_at,
                         "events": sorted(set(old.get("events", [])) & events),
                         "digests": sorted(set(old.get("digests", [])) & events),
                     }
@@ -159,6 +163,8 @@ class StockAlertMonitor:
                                         for field in ("events", "digests")
                                         if isinstance(state.get(field, []), list)
                                     }
+                                    if isinstance(state.get("created_at"), str):
+                                        clean[str(provider_id)]["created_at"] = state["created_at"]
                             # Legacy global events did not prove successful per-provider delivery.
                             self._state[key] = {"kind": value["kind"], "providers": clean}
         except (TypeError, ValueError):

@@ -54,6 +54,10 @@ class NotificationProviderBase(BaseModel):
     on_filament_low: bool = Field(default=False, description="Notify when filament is running low")
     on_maintenance_due: bool = Field(default=False, description="Notify when maintenance is due")
 
+    # Event triggers - inventory stock alerts
+    on_stock_reorder_alert: bool = Field(default=False, description="Notify when stock reaches the reorder point")
+    on_stock_break_alert: bool = Field(default=False, description="Notify when stock will run out before replenishment")
+
     # Event triggers - AMS environmental alarms (regular AMS)
     on_ams_humidity_high: bool = Field(default=False, description="Notify when AMS humidity exceeds threshold")
     on_ams_temperature_high: bool = Field(default=False, description="Notify when AMS temperature exceeds threshold")
@@ -147,6 +151,8 @@ class NotificationProviderUpdate(BaseModel):
     on_ai_failure_detection: bool | None = None
     on_filament_low: bool | None = None
     on_maintenance_due: bool | None = None
+    on_stock_reorder_alert: bool | None = None
+    on_stock_break_alert: bool | None = None
 
     # Event triggers - AMS environmental alarms (regular AMS)
     on_ams_humidity_high: bool | None = None
