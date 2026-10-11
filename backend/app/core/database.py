@@ -3031,6 +3031,19 @@ async def run_migrations(conn):
             conn,
             "ALTER TABLE filament_sku_settings ADD COLUMN IF NOT EXISTS default_supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL",
         )
+        await _safe_execute(
+            conn, "ALTER TABLE filament_sku_settings ADD COLUMN IF NOT EXISTS material_number VARCHAR(120)"
+        )
+        await conn.execute(
+            text("CREATE UNIQUE INDEX IF NOT EXISTS uq_filament_material_number "
+                 "ON filament_sku_settings(material_number)")
+        )
+        await conn.execute(
+            text("CREATE UNIQUE INDEX IF NOT EXISTS uq_numbered_filament_group "
+                 "ON filament_sku_settings(trim(material), trim(COALESCE(subtype, '')), "
+                 "trim(COALESCE(brand, '')), trim(COALESCE(color_name, ''))) "
+                 "WHERE material_number IS NOT NULL")
+        )
         # Widen UNIQUE (material, subtype, brand) → (material, subtype, brand, color_name).
         # The original constraint was declared with name="uq_filament_sku" in the
         # model, so we drop/re-add by that name. Gated on a pg_constraint lookup so

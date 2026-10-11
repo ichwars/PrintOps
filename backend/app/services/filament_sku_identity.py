@@ -43,6 +43,22 @@ async def enrich_material_numbers(db: AsyncSession, spools: Iterable[object]) ->
             spool.material_number = mapping[spool.id]
 
 
+async def sku_alias_ids(db: AsyncSession, sku: object) -> list[int]:
+    key = sku_key(sku)
+    return list(
+        await db.scalars(
+            select(FilamentSkuSettings.id)
+            .where(
+                *(
+                    func.trim(func.coalesce(getattr(FilamentSkuSettings, field), "")) == value
+                    for field, value in zip(("material", "subtype", "brand", "color_name"), key, strict=True)
+                )
+            )
+            .order_by(FilamentSkuSettings.id)
+        )
+    )
+
+
 async def ensure_sku(db: AsyncSession, spool: object, *, material_number: str | None = None) -> FilamentSkuSettings:
     """Serialise group creation and allocation with the existing warehouse writer."""
     key = sku_key(spool)

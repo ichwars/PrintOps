@@ -145,3 +145,40 @@ async def test_backfill_preserves_procurement_references_and_label_lookup_never_
     assert offer.resource_key == f"filament:{rows[1].id}"
     await backfill_material_numbers(db_session)
     assert rows[0].material_number == "MAT-00001"
+
+
+@pytest.mark.asyncio
+async def test_backfill_keeps_legacy_alias_offers_visible_and_editable(async_client, db_session):
+    from backend.app.models.procurement import ProcurementOffer, Supplier
+    from backend.app.services.filament_sku_identity import backfill_material_numbers
+
+    rows = [FilamentSkuSettings(material="PLA"), FilamentSkuSettings(material="PLA")]
+    supplier = Supplier(name="Own", name_key="own")
+    db_session.add_all([*rows, supplier])
+    await db_session.flush()
+    offer = ProcurementOffer(
+        supplier_id=supplier.id,
+        filament_sku_settings_id=rows[1].id,
+        resource_key=f"filament:{rows[1].id}",
+        lead_time_days=17,
+        is_preferred=True,
+    )
+    db_session.add(offer)
+    await db_session.commit()
+    await backfill_material_numbers(db_session)
+    await db_session.commit()
+    response = await async_client.get("/api/v1/procurement-offers", params={"kind": "filament", "material": "PLA"})
+    assert response.status_code == 200, response.text
+    assert [(row["id"], row["lead_time_days"]) for row in response.json()] == [(offer.id, 17)]
+    updated = await async_client.put(
+        "/api/v1/procurement-offers/resource",
+        json={
+            "resource": {"kind": "filament", "material": "PLA"},
+            "offers": [{"id": offer.id, "supplier_id": supplier.id, "lead_time_days": 19, "is_preferred": True}],
+        },
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()[0]["lead_time_days"] == 19
+    await db_session.refresh(offer)
+    assert offer.filament_sku_settings_id == rows[1].id
+    assert offer.resource_key == f"filament:{rows[1].id}"
