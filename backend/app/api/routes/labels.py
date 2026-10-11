@@ -18,7 +18,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -30,7 +30,7 @@ from backend.app.core.permissions import Permission
 from backend.app.models.small_part import SmallPart
 from backend.app.models.spool import Spool
 from backend.app.models.user import User
-from backend.app.services.label_renderer import LabelData, TemplateName, render_labels
+from backend.app.services.label_renderer import LabelData, TemplateName, render_labels, validate_start_position
 from backend.app.services.spoolman import get_spoolman_client
 from backend.app.utils.http import build_content_disposition
 
@@ -52,8 +52,7 @@ _VALID_TEMPLATES: tuple[TemplateName, ...] = (
 MAX_LABELS_PER_REQUEST = 500
 
 
-class LabelRequest(BaseModel):
-    spool_ids: list[int] = Field(..., min_length=1, max_length=MAX_LABELS_PER_REQUEST)
+class LabelRenderOptions(BaseModel):
     template: Literal[
         "ams_holder_74x33",
         "ams_holder_75x55",
@@ -65,19 +64,20 @@ class LabelRequest(BaseModel):
     # Black-and-white thermal printers: drop the colour swatch (prints as a
     # muddy grey block) and widen the text column instead (#1870).
     monochrome: bool = False
+    start_position: int = Field(default=1, ge=1, le=30, strict=True)
+
+    @model_validator(mode="after")
+    def valid_sheet_position(self):
+        validate_start_position(self.template, self.start_position)
+        return self
 
 
-class SmallPartLabelRequest(BaseModel):
+class LabelRequest(LabelRenderOptions):
+    spool_ids: list[int] = Field(..., min_length=1, max_length=MAX_LABELS_PER_REQUEST)
+
+
+class SmallPartLabelRequest(LabelRenderOptions):
     small_part_ids: list[int] = Field(..., min_length=1, max_length=MAX_LABELS_PER_REQUEST)
-    template: Literal[
-        "ams_holder_74x33",
-        "ams_holder_75x55",
-        "box_40x30",
-        "box_62x29",
-        "avery_5160",
-        "avery_l7160",
-    ]
-    monochrome: bool = False
 
 
 def _split_extra_colors(raw: str | None) -> list[str] | None:
@@ -204,7 +204,7 @@ async def render_local_inventory_labels(
     deeplink_base = await _resolve_deeplink_base(request, db)
     data_list = [_spool_to_label_data(s, deeplink_base) for s in ordered]
 
-    pdf = render_labels(body.template, data_list, monochrome=body.monochrome)
+    pdf = render_labels(body.template, data_list, monochrome=body.monochrome, start_position=body.start_position)
     filename = f"printops-labels-{body.template}.pdf"
     return _stream_pdf(pdf, filename)
 
@@ -237,7 +237,7 @@ async def render_small_part_labels(
     deeplink_base = await _resolve_deeplink_base(request, db)
     data_list = [_small_part_to_label_data(part, deeplink_base) for part in ordered]
 
-    pdf = render_labels(body.template, data_list, monochrome=body.monochrome)
+    pdf = render_labels(body.template, data_list, monochrome=body.monochrome, start_position=body.start_position)
     filename = f"printops-material-labels-{body.template}.pdf"
     return _stream_pdf(pdf, filename)
 
@@ -281,6 +281,6 @@ async def render_spoolman_labels(
     deeplink_base = await _resolve_deeplink_base(request, db)
     data_list = [_spoolman_dict_to_label_data(by_id[sid], deeplink_base) for sid in body.spool_ids]
 
-    pdf = render_labels(body.template, data_list, monochrome=body.monochrome)
+    pdf = render_labels(body.template, data_list, monochrome=body.monochrome, start_position=body.start_position)
     filename = f"printops-labels-spoolman-{body.template}.pdf"
     return _stream_pdf(pdf, filename)

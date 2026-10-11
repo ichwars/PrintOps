@@ -4647,6 +4647,9 @@ useEmbeddedHint: 'Yukarıdaki profiller yerine tasarımcının ayarlarıyla (duv
     spoolmanMixedContentFixOpenNewTab: 'Geçici bir çözüm olarak, Spoolman\'i HTTP üzerinden yeni bir tarayıcı sekmesinde açın — karışık içerik kuralları yalnızca gömülü çerçevelere uygulanır, bu nedenle bağımsız bir sekme yine çalışır.',
     spoolmanOpenInNewTab: 'Spoolman\'i yeni sekmede aç',
     labels: {
+      startPosition: "Başlangıç konumu",
+      startPositionHint: "İlk sayfa: 1–{{max}}, soldan sağa, sonra aşağı. Sonraki sayfalar 1’den başlar.",
+      startPositionError: "1 ile {{max}} arasında bir tam sayı girin.",
       title: 'Makara etiketleri yazdır',
       selectedCount: '{{count}} seçildi',
       pickSpools: 'Hangi makaralar için etiket yazdırılacağını seçin:',

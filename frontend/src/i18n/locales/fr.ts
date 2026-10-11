@@ -4647,6 +4647,9 @@ useEmbeddedHint: 'Découpe comme le concepteur l\'a configuré (parois, rempliss
     spoolmanMixedContentFixOpenNewTab: 'Alternative : ouvrez Spoolman dans un nouvel onglet en HTTP — les règles de contenu mixte ne s\'appliquent qu\'aux cadres intégrés, un onglet autonome fonctionne.',
     spoolmanOpenInNewTab: 'Ouvrir Spoolman dans un nouvel onglet',
     labels: {
+      startPosition: "Position de départ",
+      startPositionHint: "Première feuille : 1–{{max}}, de gauche à droite, puis vers le bas. Les suivantes commencent à 1.",
+      startPositionError: "Saisissez un nombre entier de 1 à {{max}}.",
       title: 'Imprimer étiquettes de bobines',
       selectedCount: '{{count}} sélectionné',
       pickSpools: 'Choisissez les bobines pour lesquelles imprimer des étiquettes :',
