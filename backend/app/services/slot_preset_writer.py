@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.slot_preset import SlotPresetMapping
 from backend.app.models.spool import Spool
+from backend.app.services.spool_filament_presets import resolve_spool_preset
 from backend.app.utils.filament_ids import filament_id_to_setting_id
 
 logger = logging.getLogger(__name__)
@@ -98,9 +99,10 @@ async def upsert_slot_preset_for_spool(
     cloud-form ids (GFS… / GFA… via ``filament_id_to_setting_id`` on the
     tray's ``tray_info_idx``) → standard setting_id form.
     """
-    preset_name = spool.slicer_filament_name or tray_sub_brands or tray_type
+    selected = await resolve_spool_preset(db, spool, printer_id)
+    preset_name = selected.slicer_filament_name or tray_sub_brands or tray_type
     preset_source = "cloud"
-    sf = spool.slicer_filament or ""
+    sf = selected.slicer_filament or ""
     if sf:
         base_sf_mapping = sf.split("_")[0] if "_" in sf else sf
         try:
@@ -144,8 +146,20 @@ async def upsert_slot_preset_for_spoolman_spool(
     ``SpoolmanClient.sync_ams_tray`` — ``spool["filament"]["name"]`` etc.
     """
     filament = spoolman_spool.get("filament") or {}
-    preset_name = filament.get("name") or filament.get("material") or tray_sub_brands or tray_type
-    preset_id = filament_id_to_setting_id(tray_info_idx) if tray_info_idx else ""
+    from backend.app.api.routes._spoolman_helpers import _map_spoolman_spool
+
+    selected = await resolve_spool_preset(db, _map_spoolman_spool(spoolman_spool), printer_id, spoolman=True)
+    preset_name = selected.slicer_filament_name or (
+        tray_sub_brands or tray_type
+        if selected.configured
+        else filament.get("name") or filament.get("material") or tray_sub_brands or tray_type
+    )
+    sf = selected.slicer_filament or ""
+    preset_source = "cloud"
+    if sf.isdecimal():
+        preset_id, preset_source = f"local_{sf}", "local"
+    else:
+        preset_id = filament_id_to_setting_id(tray_info_idx) if tray_info_idx else ""
 
     await upsert_slot_preset(
         db=db,
@@ -154,5 +168,5 @@ async def upsert_slot_preset_for_spoolman_spool(
         tray_id=tray_id,
         preset_id=preset_id,
         preset_name=preset_name or "",
-        preset_source="cloud",
+        preset_source=preset_source,
     )

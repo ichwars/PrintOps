@@ -29,7 +29,7 @@ from backend.app.services.spoolman import (
     get_spoolman_client,
     init_spoolman_client,
 )
-from backend.app.utils.filament_ids import normalize_slicer_filament
+from backend.app.utils.filament_ids import filament_id_to_setting_id, normalize_slicer_filament
 from backend.app.utils.filament_types import (
     generic_filament_id,
     nozzle_temp_range,
@@ -903,8 +903,21 @@ async def link_spool(
                 if len(tray_color) == 6:
                     tray_color = tray_color + "FF"
 
-                tray_info_idx = generic_filament_id(material, tray_type)
-                setting_id = ""
+                from backend.app.services.slicer_filament_resolver import resolve_slicer_filament
+                from backend.app.services.spool_filament_presets import resolve_spool_preset
+
+                preset = await resolve_spool_preset(db, mapped, p_id, spoolman=True)
+                tray_info_idx, setting_id, label, material_override = await resolve_slicer_filament(
+                    db=db,
+                    current_user=current_user,
+                    slicer_filament=preset.slicer_filament,
+                    slicer_filament_name=preset.slicer_filament_name,
+                    material=material,
+                )
+                tray_sub_brands = label or tray_sub_brands
+                tray_type = printer_filament_type(material_override or material)
+                tray_info_idx = tray_info_idx or generic_filament_id(material, tray_type)
+                setting_id = setting_id or filament_id_to_setting_id(tray_info_idx)
                 temp_defaults = nozzle_temp_range(material, tray_type)
                 temp_min = mapped.get("nozzle_temp_min") or temp_defaults[0]
                 temp_max = temp_defaults[1]
@@ -926,12 +939,7 @@ async def link_spool(
                 )
                 nozzle_diameter = context.diameter if context else ""
 
-                # Realign slot's filament context to the kp's calibration
-                # context so ams_filament_setting and extrusion_cali_sel
-                # reference the same preset; otherwise the printer drops the
-                # cali_idx to default. PFUS-prefix cloud-user presets are
-                # rejected by the slicer in tray_info_idx — skip realignment
-                # in that case.
+                # A compatible calibration supplies its own preset context.
                 effective_tray_info_idx = tray_info_idx
                 effective_setting_id = setting_id
                 if printer_kp and printer_kp.filament_id:
@@ -998,6 +1006,18 @@ async def link_spool(
                         nozzle_diameter=nozzle_diameter,
                     )
 
+                from backend.app.services.slot_preset_writer import upsert_slot_preset_for_spoolman_spool
+
+                await upsert_slot_preset_for_spoolman_spool(
+                    db=db,
+                    spoolman_spool=spool_data,
+                    printer_id=p_id,
+                    ams_id=a_id,
+                    tray_id=t_id,
+                    tray_info_idx=effective_tray_info_idx,
+                    tray_sub_brands=tray_sub_brands,
+                    tray_type=tray_type,
+                )
                 logger.info(
                     "Auto-configured AMS slot ams=%d tray=%d after linking Spoolman spool %d on printer %d",
                     a_id,

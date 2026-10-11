@@ -416,6 +416,7 @@ export function FilamentSection({
           <NumberField
             className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
             value={quantity}
+            aria-label={t('inventory.quantity')}
             min={1}
             max={100}
             onChange={(e) => {

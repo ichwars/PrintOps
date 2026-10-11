@@ -22,6 +22,9 @@ import { ColorSection } from './spool-form/ColorSection';
 import { AdditionalSection } from './spool-form/AdditionalSection';
 import { SpoolmanFilamentPicker } from './spool-form/SpoolmanFilamentPicker';
 import { PAProfileSection } from './spool-form/PAProfileSection';
+import { ModelPresetSection } from './spool-form/ModelPresetSection';
+import { useModelPresets } from './spool-form/useModelPresets';
+import { calibrationInput, storedCalibrationKey } from './spool-form/calibrationSelection';
 import { SpoolUsageHistory } from './SpoolUsageHistory';
 import { ProcurementOffersEditor } from './warehouse/ProcurementOffersEditor';
 import {
@@ -100,6 +103,24 @@ export function SpoolFormModal({
   const isEditing = mode === 'edit';
   const isCopying = mode === 'copy';
 
+  // Retain successful creation results until the separate profile saves finish.
+  const createdTargets = useRef<InventorySpool[]>([]);
+  const createdBulkResult = useRef<SpoolmanBulkCreateResult | null>(null);
+  const createdInBulk = useRef(false);
+  const updatedTarget = useRef<InventorySpool | null>(null);
+  const [hasUpdatedTarget, setHasUpdatedTarget] = useState(false);
+  const [hasCreatedTargets, setHasCreatedTargets] = useState(false);
+  const [modelPresetsSaveFailed, setModelPresetsSaveFailed] = useState(false);
+  useEffect(() => {
+    createdTargets.current = [];
+    createdBulkResult.current = null;
+    createdInBulk.current = false;
+    updatedTarget.current = null;
+    setHasUpdatedTarget(false);
+    setHasCreatedTargets(false);
+    setModelPresetsSaveFailed(false);
+  }, [isOpen, spool?.id, mode, spoolmanMode]);
+
   // Form state
   const [formData, setFormData] = useState<SpoolFormData>(defaultFormData);
   const [errors, setErrors] = useState<Partial<Record<keyof SpoolFormData, string>>>({});
@@ -153,6 +174,8 @@ export function SpoolFormModal({
   const resolvedCalibrations = printersWithCalibrations.length > 0
     ? printersWithCalibrations
     : fetchedCalibrations;
+
+  const modelPresets = useModelPresets(isOpen, spool?.id, spoolmanMode);
 
   // Count selected PA profiles for tab badge
   const selectedProfileCount = selectedProfiles.size;
@@ -437,7 +460,7 @@ export function SpoolFormModal({
           const profileKeys = new Set<string>();
           for (const p of spool.k_profiles) {
             if (p.cali_idx !== null && p.cali_idx !== undefined) {
-              profileKeys.add(`${p.printer_id}:${p.cali_idx}:${p.extruder ?? 'null'}`);
+              profileKeys.add(storedCalibrationKey(p));
             }
           }
           setSelectedProfiles(profileKeys);
@@ -546,17 +569,19 @@ export function SpoolFormModal({
 
   // Mutations – dispatch to Spoolman proxy or local inventory based on mode
   const createMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) =>
-      spoolmanMode
+    mutationFn: (data: Record<string, unknown>) => {
+      if (createdTargets.current.length) return Promise.resolve(createdTargets.current[0]);
+      return spoolmanMode
         ? api.createSpoolmanInventorySpool(data as Parameters<typeof api.createSpoolmanInventorySpool>[0])
-        : api.createSpool(data as Parameters<typeof api.createSpool>[0]),
+        : api.createSpool(data as Parameters<typeof api.createSpool>[0]);
+    },
     onSuccess: async (newSpool) => {
       if (newSpool?.id) {
-        const ok = await saveKProfiles(newSpool.id);
-        if (!ok) {
+        createdTargets.current = [newSpool];
+        setHasCreatedTargets(true);
+        setModelPresetsSaveFailed(false);
+        if (!await saveProfiles(newSpool.id)) {
           await refreshSpoolQueries();
-          if (onSpoolsCreated) onSpoolsCreated([newSpool]);
-          onClose();
           return;
         }
       }
@@ -580,10 +605,12 @@ export function SpoolFormModal({
     Error,
     { data: Record<string, unknown>; qty: number }
   >({
-    mutationFn: ({ data, qty }) =>
-      spoolmanMode
+    mutationFn: ({ data, qty }) => {
+      if (createdTargets.current.length) return Promise.resolve(createdBulkResult.current ?? createdTargets.current);
+      return spoolmanMode
         ? api.bulkCreateSpoolmanInventorySpools(data as Parameters<typeof api.bulkCreateSpoolmanInventorySpools>[0], qty)
-        : api.bulkCreateSpools(data as Parameters<typeof api.bulkCreateSpools>[0], qty),
+        : api.bulkCreateSpools(data as Parameters<typeof api.bulkCreateSpools>[0], qty);
+    },
     onSuccess: async (result) => {
       // Spoolman bulk-create returns SpoolmanBulkCreateResult (207); local returns InventorySpool[].
       // Cast via unknown to satisfy strict TypeScript — the runtime shape is guaranteed by
@@ -595,10 +622,20 @@ export function SpoolFormModal({
         ? spoolmanResult.created
         : (result as InventorySpool[]);
 
-      if (selectedProfiles.size > 0) {
+      createdTargets.current = createdSpools;
+      createdBulkResult.current = spoolmanResult;
+      createdInBulk.current = true;
+      setHasCreatedTargets(createdSpools.length > 0);
+      setModelPresetsSaveFailed(false);
+      let profilesSaved = true;
+      if (hasCreatedTargets || selectedProfiles.size > 0 || modelPresets.touched || modelPresets.presets.length > 0) {
         for (const s of createdSpools) {
-          await saveKProfiles(s.id);
+          if (!await saveProfiles(s.id)) profilesSaved = false;
         }
+      }
+      if (!profilesSaved) {
+        await refreshSpoolQueries();
+        return;
       }
       await saveProcurementOffers();
       await refreshSpoolQueries();
@@ -611,7 +648,7 @@ export function SpoolFormModal({
           }),
           'warning',
         );
-      } else {
+      } else if (profilesSaved) {
         showToast(t('inventory.spoolsCreated', { count: createdSpools.length }), 'success');
       }
       onClose();
@@ -626,14 +663,21 @@ export function SpoolFormModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) =>
-      spoolmanMode
+    mutationFn: (data: Record<string, unknown>) => {
+      if (updatedTarget.current) return Promise.resolve(updatedTarget.current);
+      return spoolmanMode
         ? api.updateSpoolmanInventorySpool(spool!.id, data as Parameters<typeof api.updateSpoolmanInventorySpool>[1])
-        : api.updateSpool(spool!.id, data as Parameters<typeof api.updateSpool>[1]),
-    onSuccess: async () => {
+        : api.updateSpool(spool!.id, data as Parameters<typeof api.updateSpool>[1]);
+    },
+    onSuccess: async (savedSpool) => {
       if (spool?.id) {
-        const ok = await saveKProfiles(spool.id);
-        if (!ok) return;
+        updatedTarget.current = savedSpool;
+        setHasUpdatedTarget(true);
+        setModelPresetsSaveFailed(false);
+        if (!await saveProfiles(spool.id)) {
+          await refreshSpoolQueries();
+          return;
+        }
       }
       const procurementOk = await saveProcurementOffers();
       if (!procurementOk) return;
@@ -763,6 +807,17 @@ export function SpoolFormModal({
     }
   };
 
+  const saveProfiles = async (spoolId: number): Promise<boolean> => {
+    try {
+      await modelPresets.save(spoolId);
+    } catch {
+      setModelPresetsSaveFailed(true);
+      showToast(t('inventory.modelPresetsSaveFailed'), 'warning');
+      return false;
+    }
+    return saveKProfiles(spoolId);
+  };
+
   // Save K-profiles for selected calibrations. Returns false if any error occurred.
   const saveKProfiles = async (spoolId: number): Promise<boolean> => {
     const saveApi = spoolmanMode ? api.saveSpoolmanKProfiles : api.saveSpoolKProfiles;
@@ -781,30 +836,9 @@ export function SpoolFormModal({
     const profiles: SpoolKProfileInput[] = [];
     let dropped = 0;
     for (const key of selectedProfiles) {
-      const [printerIdStr, caliIdxStr, extruderStr] = key.split(':');
-      const printerId = parseInt(printerIdStr);
-      const caliIdx = parseInt(caliIdxStr);
-      const extruder = extruderStr === 'null' ? 0 : parseInt(extruderStr);
-
-      const pc = resolvedCalibrations.find(p => p.printer.id === printerId);
-      if (pc) {
-        const cal = pc.calibrations.find(c => c.cali_idx === caliIdx);
-        if (cal) {
-          profiles.push({
-            printer_id: printerId,
-            extruder,
-            nozzle_diameter: cal.nozzle_diameter || '0.4',
-            k_value: cal.k_value,
-            name: cal.name || null,
-            cali_idx: cal.cali_idx,
-            setting_id: cal.setting_id || null,
-          });
-        } else {
-          dropped++;
-        }
-      } else {
-        dropped++;
-      }
+      const profile = calibrationInput(key, resolvedCalibrations);
+      if (profile) profiles.push(profile);
+      else dropped++;
     }
 
     if (dropped > 0) {
@@ -887,7 +921,7 @@ export function SpoolFormModal({
 
     if (isEditing) {
       updateMutation.mutate(data);
-    } else if (quantity > 1) {
+    } else if (createdTargets.current.length ? createdInBulk.current : quantity > 1) {
       bulkCreateMutation.mutate({ data, qty: quantity });
     } else {
       createMutation.mutate(data);
@@ -907,7 +941,7 @@ export function SpoolFormModal({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-bambu-dark-tertiary flex-shrink-0">
           <h2 className="text-lg font-semibold text-white flex items-baseline gap-2">
-            {isEditing ? t('inventory.editSpool') : isCopying ? t('inventory.copySpool') : t('inventory.addSpool')}
+            {isEditing || (hasCreatedTargets && !createdInBulk.current) ? t('inventory.editSpool') : isCopying ? t('inventory.copySpool') : t('inventory.addSpool')}
             {isEditing && spool && (
               <span className="text-sm font-mono text-bambu-gray">#{spool.id}</span>
             )}
@@ -925,7 +959,7 @@ export function SpoolFormModal({
             quantity-driven bulkCreateMutation path would silently produce N
             copies under a misleading title — keep this toggle out of that
             mode entirely. */}
-        {mode === 'create' && (
+        {mode === 'create' && !hasCreatedTargets && (
           <div className="flex items-center justify-between px-4 py-2 border-b border-bambu-dark-tertiary flex-shrink-0">
             <div className="flex items-center gap-2">
               <Zap className="w-4 h-4 text-amber-600 dark:text-amber-400" />
@@ -950,6 +984,15 @@ export function SpoolFormModal({
           </div>
         )}
 
+        {isCopying && modelPresets.error && <div role="alert" className="p-4 text-sm text-red-400">
+          {t('inventory.modelPresetsLoadFailed')}
+          <Button variant="secondary" onClick={modelPresets.retry}>{t('common.retry')}</Button>
+        </div>}
+
+        {modelPresetsSaveFailed && <p role="alert" className="p-4 text-sm text-red-400">
+          {t('inventory.modelPresetsSaveFailed')}
+        </p>}
+
         {/* Tabs */}
         <div className="flex border-b border-bambu-dark-tertiary flex-shrink-0">
           <button
@@ -963,7 +1006,7 @@ export function SpoolFormModal({
             <Palette className="w-4 h-4" />
             {t('inventory.filamentInfoTab')}
           </button>
-          {!quickAdd && (
+          {(!quickAdd || hasCreatedTargets) && (
             <button
               onClick={() => setActiveTab('pa-profile')}
               className={`flex-1 px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
@@ -973,7 +1016,7 @@ export function SpoolFormModal({
               }`}
             >
               <Beaker className="w-4 h-4" />
-              {t('inventory.paProfileTab')}
+              {t('inventory.printerProfilesTab')}
               {selectedProfileCount > 0 && (
                 <span className="text-xs px-1.5 py-0.5 rounded-full bg-bambu-green/20 text-bambu-green">
                   {selectedProfileCount}
@@ -986,7 +1029,7 @@ export function SpoolFormModal({
         {/* Content */}
         <div className="p-4 overflow-y-auto flex-1" style={{ scrollbarGutter: 'stable' }}>
           {activeTab === 'filament' ? (
-            <div className="space-y-6">
+            <fieldset disabled={hasCreatedTargets || hasUpdatedTarget} className="space-y-6">
               {/* Spoolman Filament Catalog Picker — only when creating a spool in Spoolman mode */}
               {spoolmanMode && !isEditing && (
                 <div>
@@ -1125,8 +1168,14 @@ export function SpoolFormModal({
                   <SpoolUsageHistory spoolId={spool.id} />
                 </div>
               )}
-            </div>
+            </fieldset>
           ) : (
+            <>
+            <ModelPresetSection key={`${spool?.id ?? 'new'}:${spoolmanMode}`}
+              models={modelPresets.models} presets={modelPresets.presets}
+              printers={resolvedCalibrations} filamentOptions={filamentOptions}
+              loading={modelPresets.loading} error={modelPresets.error}
+              retry={modelPresets.retry} onChange={modelPresets.update} />
             <PAProfileSection
               formData={formData}
               updateField={updateField}
@@ -1136,6 +1185,7 @@ export function SpoolFormModal({
               expandedPrinters={expandedPrinters}
               setExpandedPrinters={setExpandedPrinters}
             />
+            </>
           )}
         </div>
 
@@ -1167,7 +1217,7 @@ export function SpoolFormModal({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={isPending}
+            disabled={isPending || (isCopying && (modelPresets.loading || modelPresets.error))}
           >
             {isPending ? (
               <>
@@ -1177,7 +1227,7 @@ export function SpoolFormModal({
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                {isEditing ? t('common.save') : isCopying ? t('inventory.copySpool') : t('inventory.addSpool')}
+                {isEditing || hasCreatedTargets ? t('common.save') : isCopying ? t('inventory.copySpool') : t('inventory.addSpool')}
               </>
             )}
           </Button>

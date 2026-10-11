@@ -2,6 +2,7 @@ import { ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { CalibrationProfile, PAProfileSectionProps } from './types';
 import { isMatchingCalibration } from './utils';
+import { calibrationKey, calibrationFlow } from './calibrationSelection';
 import { Checkbox } from '../ui';
 
 export function PAProfileSection({
@@ -23,9 +24,9 @@ export function PAProfileSection({
     });
   };
 
-  const toggleProfileSelected = (printerId: string, caliIdx: number, extruderId?: number | null) => {
-    const key = `${printerId}:${caliIdx}:${extruderId ?? 'null'}`;
-    const printerNozzleKey = `${printerId}:${extruderId ?? 'null'}`;
+  const toggleProfileSelected = (printerId: string, cal: CalibrationProfile) => {
+    const key = calibrationKey(printerId, cal);
+    const printerNozzleKey = `${printerId}:${cal.extruder_id ?? 0}:${Number(cal.nozzle_diameter)}`;
 
     setSelectedProfiles((prev) => {
       const next = new Set(prev);
@@ -35,7 +36,7 @@ export function PAProfileSection({
         // Remove existing profile for same printer/nozzle
         for (const existingKey of Array.from(next)) {
           const parts = existingKey.split(':');
-          const existingPrinterNozzle = `${parts[0]}:${parts[2]}`;
+          const existingPrinterNozzle = `${parts[0]}:${parts[2]}:${parts[3]}`;
           if (existingPrinterNozzle === printerNozzleKey) {
             next.delete(existingKey);
           }
@@ -57,20 +58,20 @@ export function PAProfileSection({
         isMatchingCalibration(cal, formData),
       );
 
-      // Group by extruder
+      // Keep the existing one-selection-per-diameter storage contract.
       const byExtruder = new Map<string, CalibrationProfile[]>();
       for (const cal of matchingCals) {
-        const extKey = `${cal.extruder_id ?? 'null'}`;
+        const extKey = `${cal.extruder_id ?? 0}:${Number(cal.nozzle_diameter)}`;
         if (!byExtruder.has(extKey)) byExtruder.set(extKey, []);
         byExtruder.get(extKey)!.push(cal);
       }
 
-      // Select best (highest K) for each extruder
-      for (const [extKey, cals] of byExtruder) {
-        if (cals.length > 0) {
+      // Mixed flow groups require an explicit choice; do not guess a hotend.
+      for (const cals of byExtruder.values()) {
+        if (cals.length > 0 && new Set(cals.map(c => calibrationFlow(c.nozzle_id))).size === 1) {
           const sorted = [...cals].sort((a, b) => b.k_value - a.k_value);
           const best = sorted[0];
-          newSelection.add(`${printer.id}:${best.cali_idx}:${extKey}`);
+          newSelection.add(calibrationKey(printer.id, best));
         }
       }
     }
@@ -105,11 +106,11 @@ export function PAProfileSection({
   }, 0);
 
   const renderProfile = (printer: { id: number }, cal: CalibrationProfile) => {
-    const key = `${printer.id}:${cal.cali_idx}:${cal.extruder_id ?? 'null'}`;
+    const key = calibrationKey(printer.id, cal);
     const isSelected = selectedProfiles.has(key);
     return (
       <label
-        key={`${cal.cali_idx}-${cal.extruder_id}`}
+        key={key}
         className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all border ${
           isSelected
             ? 'bg-bambu-green/10 border-bambu-green/30'
@@ -118,7 +119,7 @@ export function PAProfileSection({
       >
         <Checkbox
           checked={isSelected}
-          onChange={() => toggleProfileSelected(String(printer.id), cal.cali_idx, cal.extruder_id)}
+          onChange={() => toggleProfileSelected(String(printer.id), cal)}
         />
         <div className="flex-1 min-w-0">
           <span className={`text-sm font-medium ${isSelected ? 'text-bambu-green' : 'text-white'}`}>
@@ -128,7 +129,7 @@ export function PAProfileSection({
         <div className="flex items-center gap-2 shrink-0">
           {cal.nozzle_diameter && (
             <span className="text-xs font-mono px-2 py-0.5 rounded bg-bambu-dark text-bambu-gray">
-              {cal.nozzle_diameter}mm
+              {cal.nozzle_diameter}mm {calibrationFlow(cal.nozzle_id)}
             </span>
           )}
           <span className="text-xs font-mono px-2 py-0.5 rounded bg-bambu-dark text-bambu-gray">

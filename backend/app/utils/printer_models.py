@@ -40,6 +40,7 @@ PRINTER_MODEL_ID_MAP = {
     "P1S": "P1S",
     # P2 series
     "P2S": "P2S",
+    "N7": "P2S",  # Already recognized by STEEL_ROD_MODELS and MQTT capability gates.
     # X2 series
     "N6": "X2D",
     # A2 series (A2L is single-FDM + integrated cutter/plotter — single nozzle)

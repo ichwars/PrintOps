@@ -34,6 +34,9 @@ vi.mock('../../api/client', () => ({
     getLocalPresets: vi.fn().mockResolvedValue({ filament: [] }),
     getBuiltinFilaments: vi.fn().mockResolvedValue([]),
     getPrinters: vi.fn().mockResolvedValue([]),
+    getSlicerPrinterModels: vi.fn().mockResolvedValue({ 'Bambu Lab P2S': 'P2S' }),
+    getSpoolFilamentPresets: vi.fn().mockResolvedValue([]),
+    saveSpoolFilamentPresets: vi.fn().mockResolvedValue([]),
     getSpoolUsageHistory: vi.fn().mockResolvedValue([]),
     createSpool: vi.fn().mockResolvedValue({ id: 99 }),
     bulkCreateSpools: vi.fn().mockResolvedValue([
@@ -198,7 +201,7 @@ describe('SpoolFormModal quick-add toggle', () => {
     });
 
     // PA Profile tab should be visible initially
-    expect(screen.getByText('PA Profile')).toBeInTheDocument();
+    expect(screen.getByText('Printer profiles')).toBeInTheDocument();
 
     // Toggle quick-add on — the toggle is a button[role="switch"] sibling of the label
     const toggleButtons = screen.getAllByRole('button');
@@ -212,7 +215,7 @@ describe('SpoolFormModal quick-add toggle', () => {
 
     // PA Profile tab should be hidden
     await waitFor(() => {
-      expect(screen.queryByText('PA Profile')).not.toBeInTheDocument();
+      expect(screen.queryByText('Printer profiles')).not.toBeInTheDocument();
     });
   });
 

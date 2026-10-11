@@ -118,6 +118,12 @@ export interface InventorySpool {
   location_id?: number | null;
 }
 
+export interface SpoolFilamentPreset {
+  printer_model: string;
+  slicer_filament: string | null;
+  slicer_filament_name: string | null;
+}
+
 export interface SpoolmanBulkCreateResult {
   created: InventorySpool[];
   requested_count: number;

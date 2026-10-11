@@ -515,18 +515,18 @@ async def auto_assign_spool(
     try:
         client = printer_manager.get_client(printer_id)
         if client:
-            from backend.app.services.calibration_context import apply_rfid_calibration
+            from backend.app.services.spool_filament_presets import apply_spool_rfid_calibration
 
-            apply_rfid_calibration(
+            await apply_spool_rfid_calibration(
+                db,
                 client,
-                spool.k_profiles,
+                spool,
                 state,
                 printer_manager.get_model(printer_id),
                 printer_id,
                 ams_id,
                 tray_id,
-                spool.slicer_filament or tray_info_idx or "",
-                tray.get("cali_idx") if tray else None,
+                tray or {},
             )
 
             logger.info(

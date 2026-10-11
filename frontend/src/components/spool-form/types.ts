@@ -79,6 +79,7 @@ export interface CalibrationProfile {
   n_coef: number;
   extruder_id?: number | null;
   nozzle_diameter?: string;
+  nozzle_id?: string | null;
 }
 
 // Filament option from presets
