@@ -235,8 +235,11 @@ async def test_scheduler_loop_runs_stranded_recovery():
     scheduler.check_queue = AsyncMock(side_effect=stop_after_one_pass)
     with (
         patch("backend.app.services.print_scheduler.clear_stale_dispatch_claims", new=AsyncMock()),
+        patch("backend.app.services.print_scheduler.scheduled_drying.tick", new=AsyncMock()) as drying_tick,
         patch("backend.app.services.print_scheduler.asyncio.sleep", new=AsyncMock()),
     ):
         await scheduler.run()
 
     scheduler._stranded_print_recovery.tick.assert_awaited_once()
+    drying_tick.assert_awaited_once()
+    scheduler.check_queue.assert_awaited_once()
