@@ -1235,7 +1235,7 @@ class NotificationService:
         providers = await self._get_providers_for_event(db, "on_print_confirm_request", printer_id)
         title = "Confirm production quality"
         message = f"{printer_name}: {print_name}\nInspect good and rejected quantities: {confirm_url}"
-        await self._notify_providers(
+        await self._send_to_providers(
             providers, title, message, db, event_type="print_confirm_request",
             printer_id=printer_id, printer_name=printer_name,
             variables={"confirm_url": confirm_url, "_outcome_urls": outcome_urls},

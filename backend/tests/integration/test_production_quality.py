@@ -467,3 +467,51 @@ async def test_completion_prompt_keeps_capability_out_of_socket_and_app_link(qua
     assert run.confirm_token_hash == token_digest(token)
     assert await dispatch_outcome_confirmation(db_session, archive.id, archive.printer_id, "Printer") is False
     assert notify.call_count == 1, "duplicate completion must not invalidate sent actions"
+
+
+async def test_confirmation_event_reaches_http_actions_and_records_success(db_session, quality_run, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    import httpx
+
+    from backend.app.models.notification import NotificationLog, NotificationProvider
+    from backend.app.services.notification_service import NotificationService
+
+    archive, _, _, _ = quality_run
+    provider = NotificationProvider(
+        name="Quality",
+        provider_type="ntfy",
+        config='{"server":"https://ntfy.sh","topic":"quality"}',
+        on_print_confirm_request=True,
+    )
+    db_session.add(provider)
+    await db_session.commit()
+    requests = []
+
+    def transport(request):
+        requests.append(request)
+        return httpx.Response(200, json={"id": "notification"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+        service = NotificationService()
+        monkeypatch.setattr(service, "_get_client", AsyncMock(return_value=client))
+        await service.on_print_confirm_request(
+            archive.printer_id,
+            "Printer",
+            db_session,
+            print_name="Production",
+            confirm_url="https://printops.example/archives?confirm=1&confirm_run=7",
+            outcome_urls={
+                verdict: f"https://printops.example/api/v1/archives/outcome-link/capability/{verdict}"
+                for verdict in ("good", "reject")
+            },
+        )
+    assert len(requests) == 1
+    assert requests[0].method == "POST"
+    assert "outcome-link/capability/good" in requests[0].headers["Actions"]
+    assert "method=POST" in requests[0].headers["Actions"]
+    assert b"capability" not in requests[0].content
+    log = await db_session.scalar(select(NotificationLog).where(NotificationLog.provider_id == provider.id))
+    assert log.success is True
+    assert log.event_type == "print_confirm_request"
+    assert "capability" not in log.message
