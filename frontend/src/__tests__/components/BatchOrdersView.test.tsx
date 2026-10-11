@@ -81,6 +81,18 @@ const passthroughT = (key: string, options?: Record<string, unknown>) => {
 };
 
 describe('BatchOrdersView (#342)', () => {
+  it('shows accepted runs separately from printer completions and part quantities', async () => {
+    server.use(http.get('/api/v1/queue/batches', () => HttpResponse.json([{
+      ...batch({ completed_count: 4, target_count: 6, remaining_count: 2 }),
+      accepted_count: 0, unconfirmed_count: 4, rejected_count: 0,
+      good_quantity: 0, reject_quantity: 0,
+    }])));
+    const qualityT = (key: string, options?: Record<string, unknown>) => key === 'queue.batchProgress'
+      ? `${options?.completed}/${options?.total} accepted runs` : key;
+    render(<BatchOrdersView hasPermission={allow} t={qualityT} />);
+    expect(await screen.findByText('0/6 accepted runs')).toBeInTheDocument();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     server.use(

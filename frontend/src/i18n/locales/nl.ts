@@ -1,6 +1,37 @@
 // Dutch translations adapted from maziggy/bambuddy (nl.ts blob f6b6c638913a21cbc3aa98dde755ffda6e64aa7b).
 // PrintOps-specific text and source changes translated for PrintOps.
 export default {
+  productionQuality: {
+    "title": "Productiekwaliteit bevestigen",
+    "ask": "Om resultaatbevestiging vragen",
+    "askDescription": "Inspecteer goede en afgekeurde onderdelen na voltooiing. Verplicht voor productiebatches en klantorders.",
+    "expectedParts": "Beoogde onderdelen per print",
+    "expectedPartsDescription": "Leeg gebruikt het aantal uit het archief (standaard: 1). Dit telt onderdelen, geen printtaken.",
+    "good": "Goede onderdelen",
+    "reject": "Afgekeurde onderdelen",
+    "allGood": "Alles goed",
+    "allReject": "Alles afgekeurd",
+    "save": "Inspectie opslaan",
+    "intended": "Beoogd aantal: {{count}} onderdelen",
+    "totalRequired": "Goede en afgekeurde aantallen moeten samen {{count}} hele onderdelen zijn.",
+    "reason": "Reden voor afkeuring (optioneel)",
+    "saved": "Inspectie opgeslagen",
+    "loadFailed": "Deze productieprint kon niet worden geladen.",
+    "reproduce": "Na opslaan een vervangende print inplannen",
+    "runReplacement": "Batchdoelen tellen printtaken. Gedeeltelijke afkeuring maakt één hele print opnieuw nodig; goedgekeurde onderdelen blijven in de productietotalen.",
+    "replacementFailed": "Inspectie opgeslagen. De vervangende print kon niet worden ingepland; probeer opnieuw via de batchactie.",
+    "partCounts": "Goed: {{good}} onderdelen · afgekeurd: {{reject}} onderdelen",
+    "awaitingRuns": "Wachten op inspectie: {{count}} prints",
+    "rejectedRuns": "Vervanging nodig: {{count}} prints",
+    "production": "Bevestigde productie",
+    "deliverySeparate": "Bevestigde productie staat los van verzending, leverstatus en voorraadreserveringen.",
+    "pending": "Wacht op inspectie",
+    "inspect": "Onderdelen inspecteren",
+    "yield": "Bevestigde onderdelenopbrengst",
+    "recorded": "Vastgelegd {{date}} {{source}}",
+    "sourceLink": "via melding",
+    "sourceApp": "in de app"
+  },
   scheduledDrying: {
     "title": "Gepland AMS-drogen",
     "description": "Dagelijks drogen via de printer vereist een ondersteunde printer en een recent bevestigde AMS 2 Pro of AMS HT. De klassieke AMS en externe drogers worden niet ondersteund.",

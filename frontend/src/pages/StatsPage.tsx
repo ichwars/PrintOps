@@ -205,6 +205,10 @@ function SuccessRateWidget({
     successful_prints: number;
     failed_prints: number;
     cancelled_prints?: number;
+    confirmed_good_quantity?: number;
+    confirmed_reject_quantity?: number;
+    unconfirmed_prints?: number;
+    yield_percent?: number | null;
     prints_by_printer: Record<string, number>;
   } | undefined;
   printerMap: Map<string, string>;
@@ -269,6 +273,11 @@ function SuccessRateWidget({
             <span className="text-sm text-bambu-gray">{t('stats.cancelled')}</span>
             <span className="text-sm text-white font-medium">{stats?.cancelled_prints || 0}</span>
           </div>
+        </div>
+        <div className="mt-3 text-xs text-bambu-gray space-y-1">
+          <p>{t('productionQuality.partCounts', { good: stats?.confirmed_good_quantity ?? 0, reject: stats?.confirmed_reject_quantity ?? 0 })}</p>
+          <p>{t('productionQuality.yield')}: {stats?.yield_percent == null ? '—' : `${stats.yield_percent}%`}</p>
+          <p>{t('productionQuality.awaitingRuns', { count: stats?.unconfirmed_prints ?? 0 })}</p>
         </div>
         {/* Show per-printer breakdown when expanded */}
         {size >= 2 && stats?.prints_by_printer && Object.keys(stats.prints_by_printer).length > 0 && (

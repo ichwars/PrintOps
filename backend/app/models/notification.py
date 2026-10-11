@@ -62,6 +62,7 @@ class NotificationProvider(Base):
     # Event triggers - print lifecycle
     on_print_start = Column(Boolean, default=False)
     on_print_complete = Column(Boolean, default=True)
+    on_print_confirm_request = Column(Boolean, default=True, server_default="true")
     on_print_failed = Column(Boolean, default=True)
     on_print_stopped = Column(Boolean, default=True)  # User cancelled/stopped print
     on_print_progress = Column(Boolean, default=False)  # 25%, 50%, 75% milestones

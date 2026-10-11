@@ -2891,6 +2891,12 @@ class PrintScheduler:
             await self._power_off_if_needed(db, item)
             return
 
+        if archive:
+            from backend.app.services.print_confirmation import initialize_queue_outcome
+
+            await initialize_queue_outcome(db, item, archive)
+            await db.commit()
+
         # Check file exists on disk
         if not file_path.exists():
             item.status = "failed"

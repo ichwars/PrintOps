@@ -33,6 +33,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
 
   // Event toggles
   const [onPrintStart, setOnPrintStart] = useState(provider?.on_print_start ?? false);
+  const [onPrintConfirmRequest, setOnPrintConfirmRequest] = useState(provider?.on_print_confirm_request ?? true);
   const [onPrintComplete, setOnPrintComplete] = useState(provider?.on_print_complete ?? true);
   const [onPrintFailed, setOnPrintFailed] = useState(provider?.on_print_failed ?? true);
   const [onPrintStopped, setOnPrintStopped] = useState(provider?.on_print_stopped ?? true);
@@ -173,6 +174,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
       // Event toggles
       on_print_start: onPrintStart,
       on_print_complete: onPrintComplete,
+      on_print_confirm_request: onPrintConfirmRequest,
       on_print_failed: onPrintFailed,
       on_print_stopped: onPrintStopped,
       on_print_progress: onPrintProgress,
@@ -518,6 +520,11 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
             )}
           </div>
 
+          <label className="flex items-center justify-between text-sm text-white">
+            {t('productionQuality.title')}
+            <input type="checkbox" checked={onPrintConfirmRequest} onChange={(event) => setOnPrintConfirmRequest(event.target.checked)} />
+          </label>
+
           {/* Daily Digest */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -656,6 +663,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
             {providerType === 'ntfy' && (() => {
               const enabledEvents: Array<{ key: string; label: string }> = [];
               if (onPrintStart) enabledEvents.push({ key: 'on_print_start', label: t('notifications.start') });
+              if (onPrintConfirmRequest) enabledEvents.push({ key: 'on_print_confirm_request', label: t('productionQuality.title') });
               if (onPrintComplete) enabledEvents.push({ key: 'on_print_complete', label: t('notifications.complete') });
               if (onPrintFailed) enabledEvents.push({ key: 'on_print_failed', label: t('notifications.failed') });
               if (onPrintStopped) enabledEvents.push({ key: 'on_print_stopped', label: t('notifications.stopped') });

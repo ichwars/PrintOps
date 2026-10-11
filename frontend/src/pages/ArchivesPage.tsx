@@ -72,6 +72,7 @@ import { PrintModal } from '../components/PrintModal';
 import { UploadModal } from '../components/UploadModal';
 import { PurgeArchivesModal } from '../components/PurgeArchivesModal';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { ArchiveOutcomeBadge } from '../components/ArchiveOutcomeBadge';
 import { EditArchiveModal, FAILURE_REASON_KEYS } from '../components/EditArchiveModal';
 import { PrintLogModal } from '../components/PrintLogModal';
 import { ContextMenu, type ContextMenuItem } from '../components/ContextMenu';
@@ -817,6 +818,7 @@ function ArchiveCard({
             className={`w-5 h-5 ${archive.is_favorite ? 'text-yellow-400 fill-yellow-400' : 'text-white'} ${!canModify('archives', 'update', archive.created_by_id) ? 'opacity-50' : ''}`}
           />
         </button>
+        <div className="absolute bottom-2 left-2"><ArchiveOutcomeBadge archive={archive} /></div>
         {(archive.status === 'failed' || archive.status === 'aborted') && (
           <div className="absolute top-2 left-12 px-2 py-1 rounded text-xs bg-status-error/80 text-white">
             {archive.status === 'aborted' ? t('archives.card.cancelled') : t('archives.card.failed')}
@@ -2087,6 +2089,7 @@ function ArchiveListRow({
         <div className="col-span-4">
           <div className="flex items-center gap-2">
             <p className="text-white text-sm truncate">{archiveDisplayName(archive, t)}</p>
+            <ArchiveOutcomeBadge archive={archive} />
             {(archive.status === 'failed' || archive.status === 'aborted') && (
               <span className="px-1.5 py-0.5 rounded text-[10px] leading-tight bg-status-error/80 text-white flex-shrink-0">
                 {archive.status === 'aborted' ? t('archives.card.cancelled') : t('archives.card.failed')}

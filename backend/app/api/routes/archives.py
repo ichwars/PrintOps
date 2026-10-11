@@ -29,6 +29,7 @@ from backend.app.core.permissions import Permission
 from backend.app.models.api_key import APIKey
 from backend.app.models.archive import PrintArchive
 from backend.app.models.filament import Filament
+from backend.app.models.print_log import PrintLogEntry
 from backend.app.models.spool_usage_history import SpoolUsageHistory
 from backend.app.models.user import User
 from backend.app.schemas.archive import (
@@ -37,6 +38,7 @@ from backend.app.schemas.archive import (
     ArchiveSlim,
     ArchiveStats,
     ArchiveUpdate,
+    OutcomeConfirmation,
 )
 from backend.app.schemas.print_log import PrintLogResponse
 from backend.app.schemas.slicer import SliceRequest
@@ -59,6 +61,91 @@ from backend.app.utils.threemf_tools import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/archives", tags=["archives"])
+
+
+@router.post("/{archive_id}/runs/{run_id}/outcome")
+@router.post("/{archive_id}/outcome")
+async def confirm_production_outcome(
+    archive_id: int,
+    outcome: OutcomeConfirmation,
+    run_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN)
+    ),
+):
+    """Inspect or correct the current run with normal ownership and printer scopes."""
+    from backend.app.services.print_confirmation import OutcomeConflict, outcome_lock, record_outcome
+
+    user, can_modify_all = auth_result
+    if run_id is not None and outcome.run_id != run_id:
+        raise HTTPException(409, "The selected run does not match the inspection")
+    async with outcome_lock(db, archive_id, run_id):
+        archive = _ensure_archive_visible(await db.get(PrintArchive, archive_id), user, can_modify_all)
+        selected = await db.get(PrintLogEntry, outcome.run_id)
+        if selected is None or selected.archive_id != archive_id or not user_can_access_printer(user, selected.printer_id):
+            raise HTTPException(404, "Print run not found")
+        if api_key is not None and api_key.printer_ids is not None:
+            if any(printer_id is not None and printer_id not in api_key.printer_ids for printer_id in (archive.printer_id, selected.printer_id)):
+                raise HTTPException(404, "Print run not found")
+        try:
+            run = await record_outcome(db, archive, source="api_key" if api_key else "dialog", historical=run_id is not None, **outcome.model_dump())
+        except OutcomeConflict as error:
+            raise HTTPException(409, str(error)) from error
+        await db.commit()
+        return {"run_id": run.id, "user_verdict": run.user_verdict,
+                "good_quantity": run.good_quantity, "reject_quantity": run.reject_quantity}
+
+
+@router.get("/outcome-link/{token}/{verdict}")
+async def production_outcome_link_page(
+    request: Request, token: str, verdict: str, db: AsyncSession = Depends(get_db),
+):
+    """Read-only landing page; unfurlers never record an inspection through GET."""
+    from backend.app.api.confirmation_pages import confirmation_page
+    from backend.app.services.print_confirmation import find_token_run
+
+    match = await find_token_run(db, token) if verdict in {"good", "reject"} else None
+    if match is None:
+        raise HTTPException(404, "Confirmation link is invalid or has expired")
+    return confirmation_page(request, match[1], verdict)
+
+
+@router.post("/outcome-link/{token}/{verdict}")
+async def confirm_production_outcome_link(
+    request: Request, token: str, verdict: str, db: AsyncSession = Depends(get_db),
+):
+    """An expiring capability can answer just this run, once, with no other authority."""
+    from backend.app.api.confirmation_pages import confirmation_page
+    from backend.app.services.print_confirmation import (
+        OutcomeConflict,
+        find_token_run,
+        outcome_lock,
+        record_outcome,
+        token_digest,
+    )
+
+    match = await find_token_run(db, token) if verdict in {"good", "reject"} else None
+    if match is None:
+        raise HTTPException(404, "Confirmation link is invalid or has expired")
+    async with outcome_lock(db, match[0].id):
+        match = await find_token_run(db, token)
+        if match is None:
+            raise HTTPException(404, "Confirmation link is invalid or has expired")
+        archive, run = match
+        if run.confirm_token_used_at is not None or run.good_quantity is not None:
+            return confirmation_page(request, run, verdict)
+        try:
+            await record_outcome(
+                db, archive, run_id=run.id, source="link", token_hash=token_digest(token),
+                good_quantity=run.quantity if verdict == "good" else 0,
+                reject_quantity=run.quantity if verdict == "reject" else 0,
+            )
+        except OutcomeConflict as error:
+            raise HTTPException(409, str(error)) from error
+        await db.commit()
+        return confirmation_page(request, run, verdict, saved=True)
 
 
 def _safe_filename(filename: str) -> str:
@@ -382,6 +469,14 @@ async def _load_run_aggregates(db: AsyncSession, archive_ids: list[int]) -> dict
             "successful_run_count": int(successful or 0),
             "failed_run_count": int(failed or 0),
         }
+    from backend.app.models.print_queue import PrintQueueItem
+
+    latest_ids = select(func.max(PrintLogEntry.id)).where(PrintLogEntry.archive_id.in_(archive_ids)).group_by(PrintLogEntry.archive_id)
+    current = (await db.execute(select(
+        PrintLogEntry.id, PrintLogEntry.archive_id, PrintLogEntry.quantity, PrintQueueItem.batch_id,
+    ).outerjoin(PrintQueueItem, PrintLogEntry.queue_item_id == PrintQueueItem.id).where(PrintLogEntry.id.in_(latest_ids)))).all()
+    for run_id, archive_id, quantity, batch_id in current:
+        aggregates[archive_id].update(outcome_run_id=run_id, outcome_expected_parts=quantity, outcome_batch_id=batch_id)
     return aggregates
 
 
@@ -438,6 +533,12 @@ def archive_to_response(
         "photos": archive.photos,
         "failure_reason": archive.failure_reason,
         "quantity": archive.quantity,
+        "confirm_requested": bool(archive.confirm_requested),
+        "user_verdict": archive.user_verdict,
+        "good_quantity": archive.good_quantity,
+        "reject_quantity": archive.reject_quantity,
+        "user_verdict_source": archive.user_verdict_source,
+        "user_verdict_at": archive.user_verdict_at,
         "energy_kwh": archive.energy_kwh,
         "energy_cost": archive.energy_cost,
         "created_at": archive.created_at,
@@ -454,6 +555,8 @@ def archive_to_response(
     data.update(accuracy_data)
 
     if run_aggregate:
+        for field in ("outcome_run_id", "outcome_expected_parts", "outcome_batch_id"):
+            data[field] = run_aggregate.get(field)
         data["run_count"] = run_aggregate.get("run_count", 0)
         data["last_run_at"] = run_aggregate.get("last_run_at")
         data["total_filament_actual_grams"] = run_aggregate.get("total_filament_actual_grams")
@@ -1214,6 +1317,13 @@ async def get_archive_stats(
     if printer_scope is not None:
         base_conditions.append(printer_scope)
 
+    quality = (await db.execute(select(
+        func.coalesce(func.sum(PrintLogEntry.good_quantity), 0),
+        func.coalesce(func.sum(PrintLogEntry.reject_quantity), 0),
+        func.count(PrintLogEntry.id).filter(PrintLogEntry.confirm_requested.is_(True), PrintLogEntry.good_quantity.is_(None)),
+    ).where(PrintLogEntry.status == "completed", *base_conditions))).one()
+    good_parts, rejected_parts, unconfirmed_runs = map(int, quality)
+
     # Total counts (one row per print event).
     total_result = await db.execute(select(func.count(PrintLogEntry.id)).where(*base_conditions))
     total_prints = total_result.scalar() or 0
@@ -1384,6 +1494,10 @@ async def get_archive_stats(
         energy_source = "print_logs"
 
     return ArchiveStats(
+        confirmed_good_quantity=good_parts,
+        confirmed_reject_quantity=rejected_parts,
+        unconfirmed_prints=unconfirmed_runs,
+        yield_percent=round(100 * good_parts / (good_parts + rejected_parts), 1) if good_parts + rejected_parts else None,
         total_prints=total_prints,
         successful_prints=successful_prints,
         failed_prints=failed_prints,

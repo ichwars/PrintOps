@@ -134,6 +134,8 @@ export function PrintModal({
         layer_inspect: queueItem.layer_inspect ?? DEFAULT_PRINT_OPTIONS.layer_inspect,
         timelapse: queueItem.timelapse ?? DEFAULT_PRINT_OPTIONS.timelapse,
         nozzle_offset_cali: queueItem.nozzle_offset_cali ?? DEFAULT_PRINT_OPTIONS.nozzle_offset_cali,
+        confirm_outcome: queueItem.confirm_outcome ?? false,
+        expected_parts: queueItem.expected_parts ?? null,
         preheat_override: queueItem.preheat_override ?? DEFAULT_PRINT_OPTIONS.preheat_override,
         preheat_chamber_target_override: queueItem.preheat_chamber_target_override ?? DEFAULT_PRINT_OPTIONS.preheat_chamber_target_override,
       };
@@ -271,7 +273,8 @@ export function PrintModal({
   useEffect(() => {
     if (!settings || printDefaultsApplied.current || mode === 'edit-queue-item') return;
     printDefaultsApplied.current = true;
-    setPrintOptions({
+    setPrintOptions((current) => ({
+      ...current,
       bed_levelling: settings.default_bed_levelling ?? DEFAULT_PRINT_OPTIONS.bed_levelling,
       flow_cali: settings.default_flow_cali ?? DEFAULT_PRINT_OPTIONS.flow_cali,
       vibration_cali: settings.default_vibration_cali ?? DEFAULT_PRINT_OPTIONS.vibration_cali,
@@ -280,7 +283,7 @@ export function PrintModal({
       nozzle_offset_cali: settings.default_nozzle_offset_cali ?? DEFAULT_PRINT_OPTIONS.nozzle_offset_cali,
       preheat_override: DEFAULT_PRINT_OPTIONS.preheat_override,
       preheat_chamber_target_override: DEFAULT_PRINT_OPTIONS.preheat_chamber_target_override,
-    });
+    }));
   }, [settings, mode]);
 
   // Sync stagger defaults from settings once available

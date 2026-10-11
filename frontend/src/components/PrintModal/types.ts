@@ -65,6 +65,8 @@ export interface PrintOptions {
   layer_inspect: boolean;
   timelapse: boolean;
   nozzle_offset_cali: boolean;
+  confirm_outcome?: boolean;
+  expected_parts?: number | null;
   // Per-item preheat / heat-soak override (#1468). 'inherit' uses the global
   // Settings → Workflow toggle; 'on' / 'off' force the per-print decision.
   // chamber_target_override is non-null to bypass the per-filament-type
@@ -83,6 +85,8 @@ export const DEFAULT_PRINT_OPTIONS: PrintOptions = {
   layer_inspect: false,
   timelapse: false,
   nozzle_offset_cali: true,
+  confirm_outcome: false,
+  expected_parts: null,
   preheat_override: 'inherit',
   preheat_chamber_target_override: null,
 };

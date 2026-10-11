@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ArchiveBase(BaseModel):
@@ -20,6 +20,14 @@ class ArchiveUpdate(ArchiveBase):
     project_id: int | None = None
     # Allow changing status (e.g., clearing failed flag)
     status: str | None = None
+
+
+class OutcomeConfirmation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    run_id: int = Field(gt=0, strict=True)
+    good_quantity: int = Field(ge=0, le=1000000, strict=True)
+    reject_quantity: int = Field(ge=0, le=1000000, strict=True)
+    failure_reason: str | None = Field(default=None, max_length=100)
 
 
 class ArchiveDuplicate(BaseModel):
@@ -91,6 +99,16 @@ class ArchiveResponse(BaseModel):
     failure_reason: str | None
     quantity: int = 1  # Number of items printed
 
+    confirm_requested: bool = False
+    user_verdict: str | None = None
+    good_quantity: int | None = None
+    reject_quantity: int | None = None
+    user_verdict_source: str | None = None
+    user_verdict_at: datetime | None = None
+    outcome_run_id: int | None = None
+    outcome_expected_parts: int | None = None
+    outcome_batch_id: int | None = None
+
     # Energy tracking
     energy_kwh: float | None = None
     energy_cost: float | None = None
@@ -147,6 +165,11 @@ class ArchiveSlim(BaseModel):
 
 
 class ArchiveStats(BaseModel):
+    confirmed_good_quantity: int = 0
+    confirmed_reject_quantity: int = 0
+    unconfirmed_prints: int = 0
+    yield_percent: float | None = None
+
     total_prints: int
     successful_prints: int
     failed_prints: int

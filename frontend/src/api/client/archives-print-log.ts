@@ -46,6 +46,16 @@ export const archivesPrintLogMethods = {
 
   getArchive: (id: number) => request<Archive>(`/archives/${id}`),
 
+  confirmOutcome: (id: number, data: { run_id: number; good_quantity: number; reject_quantity: number; failure_reason?: string }) =>
+    request<{ run_id: number; user_verdict: string; good_quantity: number; reject_quantity: number }>(`/archives/${id}/outcome`, {
+      method: 'POST', body: JSON.stringify(data),
+    }),
+
+  confirmRunOutcome: (id: number, runId: number, data: { run_id: number; good_quantity: number; reject_quantity: number; failure_reason?: string }) =>
+    request<{ run_id: number; user_verdict: string; good_quantity: number; reject_quantity: number }>(`/archives/${id}/runs/${runId}/outcome`, {
+      method: 'POST', body: JSON.stringify(data),
+    }),
+
   getArchiveRuns: (id: number) => request<PrintLogResponse>(`/archives/${id}/runs`),
 
   /**

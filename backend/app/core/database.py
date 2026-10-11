@@ -3598,6 +3598,7 @@ async def _migrate_document_payments(conn) -> None:
         "CREATE INDEX IF NOT EXISTS ix_library_files_variant_group_id ON library_files (variant_group_id)",
     )
     await _migrate_backfill_variant_groups(conn)
+    await _migrate_production_quality(conn)
 
     # Migration: Home Assistant sensor alerts (#1148). The printer_ha_sensors
     # table itself is new, so create_all() builds it; only the provider opt-in
@@ -3613,6 +3614,50 @@ async def _migrate_document_payments(conn) -> None:
         conn,
         "ALTER TABLE printer_ha_sensors ADD COLUMN failure_strategy VARCHAR(16) DEFAULT 'auto'",
     )
+
+
+async def _migrate_production_quality(conn) -> None:
+    """Additive migration; historical production is never made pending."""
+    timestamp = "DATETIME" if is_sqlite() else "TIMESTAMP"
+    for table in ("print_archives", "print_log_entries"):
+        for column, declaration in (
+            ("confirm_requested", "BOOLEAN DEFAULT FALSE"),
+            ("user_verdict", "VARCHAR(10)"),
+            ("good_quantity", "INTEGER"),
+            ("reject_quantity", "INTEGER"),
+            ("user_verdict_source", "VARCHAR(16)"),
+            ("user_verdict_at", timestamp),
+        ):
+            await _safe_execute(conn, f"ALTER TABLE {table} ADD COLUMN {column} {declaration}")
+    for column, declaration in (
+        ("project_id", "INTEGER REFERENCES projects(id) ON DELETE SET NULL"),
+        ("quantity", "INTEGER NOT NULL DEFAULT 1"),
+        ("confirm_token_hash", "VARCHAR(64)"),
+        ("confirm_token_expires_at", timestamp),
+        ("confirm_token_used_at", timestamp),
+    ):
+        await _safe_execute(conn, f"ALTER TABLE print_log_entries ADD COLUMN {column} {declaration}")
+    await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN confirm_outcome BOOLEAN DEFAULT FALSE")
+    await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN expected_parts INTEGER")
+    await _safe_execute(conn, "ALTER TABLE notification_providers ADD COLUMN on_print_confirm_request BOOLEAN DEFAULT TRUE")
+    await _safe_execute(conn, "CREATE UNIQUE INDEX IF NOT EXISTS ix_print_log_entries_confirm_token_hash ON print_log_entries(confirm_token_hash)")
+    await _safe_execute(conn, "CREATE INDEX IF NOT EXISTS ix_print_log_entries_project_id ON print_log_entries(project_id)")
+    constraint = (
+        "quantity >= 1 AND ((good_quantity IS NULL AND reject_quantity IS NULL) OR "
+        "(good_quantity IS NOT NULL AND reject_quantity IS NOT NULL AND "
+        "good_quantity >= 0 AND reject_quantity >= 0 AND good_quantity + reject_quantity = quantity))"
+    )
+    if is_sqlite():
+        # SQLite cannot ADD CONSTRAINT on an existing table. Equivalent triggers
+        # protect upgraded installs without rebuilding unrelated archive/log FKs.
+        for operation in ("INSERT", "UPDATE"):
+            predicate = constraint.replace("good_quantity", "NEW.good_quantity").replace("reject_quantity", "NEW.reject_quantity")
+            predicate = predicate.replace("= quantity", "= NEW.quantity").replace("quantity >= 1", "NEW.quantity >= 1")
+            await _safe_execute(conn, f"CREATE TRIGGER IF NOT EXISTS print_log_quality_{operation.lower()} "
+                                f"BEFORE {operation} ON print_log_entries WHEN NOT ({predicate}) "
+                                "BEGIN SELECT RAISE(ABORT, 'Invalid production quality quantities'); END")
+    else:
+        await _safe_execute(conn, "ALTER TABLE print_log_entries ADD CONSTRAINT ck_print_log_quality_quantities CHECK (" + constraint + ")")
 
 
 async def _migrate_backfill_variant_groups(conn) -> None:

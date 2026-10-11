@@ -2521,6 +2521,9 @@ async def on_print_start(printer_id: int, data: dict):
                 # Update archive status to printing
                 archive.status = "printing"
                 archive.started_at = datetime.now(timezone.utc)
+                from backend.app.services.print_confirmation import reset_current_outcome
+
+                reset_current_outcome(archive)
 
                 # Reprint of an archive reuses the source row. Without resetting
                 # ``timelapse_path`` _scan_for_timelapse_with_retries early-returns
@@ -4496,6 +4499,14 @@ async def on_print_complete(printer_id: int, data: dict):
                     reconciled=bool(data.get("_reconciled")),
                 )
                 await db.commit()
+                # The earlier queue-status refresh precedes the log write. Refresh
+                # again with the run now present, so production stays awaiting
+                # inspection instead of being prematurely marked complete.
+                if queue_item_id is not None:
+                    from backend.app.services.print_batch import refresh_batch_status_for_item
+
+                    await refresh_batch_status_for_item(db, queue_item_id)
+                    await db.commit()
                 logger.info("[PRINT_LOG] Log entry written for archive %s", archive_id)
     except Exception as e:
         logger.warning("[PRINT_LOG] Failed to write log entry for archive %s: %s", archive_id, e)
@@ -4873,6 +4884,16 @@ async def on_print_complete(printer_id: int, data: dict):
                 await notification_service.on_print_complete(
                     printer_id, printer_name, print_status, data, db, archive_data=archive_data
                 )
+
+                if print_status == "completed" and archive_id:
+                    from backend.app.services.print_confirmation import dispatch_outcome_confirmation
+
+                    try:
+                        await dispatch_outcome_confirmation(db, archive_id, printer_id, printer_name)
+                    except Exception:
+                        # Inspection remains available in the archive UI. An
+                        # optional prompt must not interrupt existing user emails.
+                        logger.warning("[OUTCOME] Could not prompt inspection for archive %s", archive_id, exc_info=True)
 
                 # Send user-specific email notification
                 if archive_data:
@@ -6373,6 +6394,7 @@ async def security_headers_middleware(request, call_next):
     # script passes the policy without us needing 'unsafe-inline'. See
     # https://developers.cloudflare.com/cloudflare-challenges/challenge-types/javascript-detections/#if-you-have-a-content-security-policy-csp
     csp_nonce = secrets.token_urlsafe(16)
+    request.state.csp_nonce = csp_nonce
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     # X-Frame-Options is the legacy cross-origin embedding control. Modern
@@ -6460,6 +6482,15 @@ async def auth_middleware(request, call_next):
         return await call_next(request)
 
     # Allow public prefixes
+    # Only the exact notification capability endpoints bypass session parsing.
+    # Their indexed, expiring, single-run token grants only a good/reject answer.
+    import re
+
+    if request.method in {"GET", "POST"} and re.fullmatch(
+        r"/api/v1/archives/outcome-link/[A-Za-z0-9_-]{43}/(?:good|reject)", path
+    ):
+        return await call_next(request)
+
     for prefix in PUBLIC_API_PREFIXES:
         if path.startswith(prefix):
             return await call_next(request)

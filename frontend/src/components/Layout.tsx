@@ -15,6 +15,7 @@ import { useSponsorPrompt } from '../hooks/useSponsorPrompt';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { useUnknownTagPrompt } from '../hooks/useUnknownTagPrompt';
 import { UnknownSpoolModal } from './UnknownSpoolModal';
+import { ConfirmOutcomeDialog } from './ConfirmOutcomeDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Card, CardHeader, CardContent } from './Card';
@@ -155,6 +156,28 @@ export function Layout() {
   useColorCatalogVersion();
   const { user, authEnabled, logout, hasPermission } = useAuth();
   const { showToast } = useToast();
+  const [outcome, setOutcome] = useState<{ archiveId: number; runId?: number } | null>(null);
+  useEffect(() => {
+    const open = (event: Event) => {
+      const detail = (event as CustomEvent<{ archive_id?: number; run_id?: number }>).detail;
+      const id = Number(detail?.archive_id), runId = Number(detail?.run_id);
+      if (Number.isSafeInteger(id) && id > 0) setOutcome({ archiveId: id,
+        ...(Number.isSafeInteger(runId) && runId > 0 ? { runId } : {}) });
+    };
+    window.addEventListener('printops:confirm-outcome', open);
+    return () => window.removeEventListener('printops:confirm-outcome', open);
+  }, []);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.has('confirm')) return;
+    const id = Number(params.get('confirm')), runId = Number(params.get('confirm_run'));
+    if (Number.isSafeInteger(id) && id > 0) setOutcome({ archiveId: id,
+      ...(Number.isSafeInteger(runId) && runId > 0 ? { runId } : {}) });
+    params.delete('confirm');
+    params.delete('confirm_run');
+    const search = params.toString();
+    navigate(`${location.pathname}${search ? `?${search}` : ''}${location.hash}`, { replace: true });
+  }, [location.pathname, location.search, location.hash, navigate]);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [changePasswordData, setChangePasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [changePasswordLoading, setChangePasswordLoading] = useState(false);
@@ -1170,6 +1193,8 @@ export function Layout() {
         )}
         <Outlet />
       </main>
+
+      {outcome !== null && <ConfirmOutcomeDialog archiveId={outcome.archiveId} runId={outcome.runId} onClose={() => setOutcome(null)} />}
 
       <UnknownSpoolModal
         prompt={unknownSpool.prompt}

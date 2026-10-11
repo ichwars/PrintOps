@@ -3,9 +3,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.auth import RequirePermissionIfAuthEnabled
+from backend.app.core.auth import RequirePermissionIfAuthEnabled, allowed_printer_ids_for_user, resolve_optional_api_key
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
+from backend.app.models.api_key import APIKey
 from backend.app.models.user import User
 from backend.app.schemas.commerce import OrderRead, ReservationCommand, ReservationQuantityCommand
 from backend.app.services import stock_reservations
@@ -38,6 +39,23 @@ async def get_order(
         return OrderRead.model_validate(await stock_reservations.get_order(db, order_id))
     except OrderDomainError as exc:
         _raise(exc)
+
+
+@router.get("/{order_id}/production")
+async def order_production(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = RequirePermissionIfAuthEnabled(Permission.ORDERS_READ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
+):
+    """Confirmed parts only; shipping, order status and stock stay independent."""
+    from backend.app.services.print_confirmation import confirmed_production
+
+    try:
+        order = await stock_reservations.get_order(db, order_id)
+    except OrderDomainError as exc:
+        _raise(exc)
+    return await confirmed_production(db, order.project_id, printer_ids=api_key.printer_ids if api_key else allowed_printer_ids_for_user(user))
 
 
 @router.post("/{order_id}/cancel", response_model=OrderRead)

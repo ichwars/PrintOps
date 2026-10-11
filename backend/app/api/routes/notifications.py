@@ -40,6 +40,7 @@ def _provider_to_dict(provider: NotificationProvider) -> dict:
         # Print lifecycle events
         "on_print_start": provider.on_print_start,
         "on_print_complete": provider.on_print_complete,
+        "on_print_confirm_request": bool(provider.on_print_confirm_request),
         "on_print_failed": provider.on_print_failed,
         "on_print_stopped": provider.on_print_stopped,
         "on_print_progress": provider.on_print_progress,
@@ -119,6 +120,7 @@ async def create_notification_provider(
         # Print lifecycle events
         on_print_start=provider_data.on_print_start,
         on_print_complete=provider_data.on_print_complete,
+        on_print_confirm_request=provider_data.on_print_confirm_request,
         on_print_failed=provider_data.on_print_failed,
         on_print_stopped=provider_data.on_print_stopped,
         on_print_progress=provider_data.on_print_progress,

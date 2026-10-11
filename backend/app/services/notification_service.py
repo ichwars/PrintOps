@@ -282,6 +282,7 @@ class NotificationService:
         message: str,
         image_data: bytes | None = None,
         event_type: str | None = None,
+        outcome_urls: dict[str, str] | None = None,
     ) -> tuple[bool, str]:
         """Send notification via ntfy."""
         server = config.get("server", "https://ntfy.sh").rstrip("/")
@@ -301,6 +302,13 @@ class NotificationService:
         # non-ASCII characters (e.g. accented letters, CJK). Passing bytes
         # bypasses the ASCII check — ntfy handles UTF-8 headers correctly.
         headers: dict[str, str | bytes] = {"Title": title.encode("utf-8")}
+        if outcome_urls:
+            # Buttons perform POST. Capabilities never occur in message text or
+            # digest/log bodies, where mail scanners and preview bots read links.
+            headers["Actions"] = "; ".join(
+                f"http, {label}, {outcome_urls[verdict]}, method=POST, clear=true"
+                for verdict, label in (("good", "Good parts"), ("reject", "Reject parts"))
+            )
 
         # Per-event Priority header (#990). Only set when the user has
         # explicitly mapped this event to a 1-5 value; otherwise fall through
@@ -412,13 +420,23 @@ class NotificationService:
             except Exception:
                 return False, f"HTTP {response.status_code}: {response.text[:200]}"
 
-    async def _send_telegram(self, config: dict, message: str, image_data: bytes | None = None) -> tuple[bool, str]:
+    async def _send_telegram(
+        self, config: dict, message: str, image_data: bytes | None = None,
+        outcome_urls: dict[str, str] | None = None,
+    ) -> tuple[bool, str]:
         """Send notification via Telegram bot."""
         bot_token = config.get("bot_token", "").strip()
         chat_id = config.get("chat_id", "").strip()
 
         if not bot_token or not chat_id:
             return False, "Bot token and chat ID are required"
+
+        keyboard = None
+        if outcome_urls:
+            keyboard = {"inline_keyboard": [[
+                {"text": "Good parts", "url": outcome_urls["good"] + "?tap=1"},
+                {"text": "Reject parts", "url": outcome_urls["reject"] + "?tap=1"},
+            ]]}
 
         thread_id_raw = str(config.get("message_thread_id") or "").strip()
         message_thread_id: int | None = None
@@ -443,6 +461,8 @@ class NotificationService:
             # Use sendPhoto to attach the thumbnail with the caption
             url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
             form: dict[str, Any] = {"chat_id": chat_id, "caption": message, "parse_mode": "Markdown"}
+            if keyboard:
+                form["reply_markup"] = json.dumps(keyboard)
             if message_thread_id is not None:
                 form["message_thread_id"] = message_thread_id
             response = await client.post(
@@ -456,6 +476,7 @@ class NotificationService:
                 "chat_id": chat_id,
                 "text": message,
                 "parse_mode": "Markdown",
+                **({"reply_markup": keyboard} if keyboard else {}),
             }
             if message_thread_id is not None:
                 data["message_thread_id"] = message_thread_id
@@ -846,16 +867,21 @@ class NotificationService:
             return True, "Skipped - quiet hours"
 
         config = json.loads(provider.config) if isinstance(provider.config, str) else provider.config
+        outcome_urls = (variables or {}).get("_outcome_urls")
+        # Internal action metadata is for ntfy/Telegram buttons only.
+        variables = {key: value for key, value in (variables or {}).items() if key != "_outcome_urls"} or None
 
         try:
             if provider.provider_type == "callmebot":
                 return await self._send_callmebot(config, f"{title}\n{message}")
             elif provider.provider_type == "ntfy":
-                return await self._send_ntfy(config, title, message, image_data=image_data, event_type=event_type)
+                return await self._send_ntfy(config, title, message, image_data=image_data, event_type=event_type,
+                                             **({"outcome_urls": outcome_urls} if outcome_urls else {}))
             elif provider.provider_type == "pushover":
                 return await self._send_pushover(config, title, message, image_data=image_data)
             elif provider.provider_type == "telegram":
-                return await self._send_telegram(config, f"*{title}*\n{message}", image_data=image_data)
+                return await self._send_telegram(config, f"*{title}*\n{message}", image_data=image_data,
+                                                 **({"outcome_urls": outcome_urls} if outcome_urls else {}))
             elif provider.provider_type == "bark":
                 return await self._send_bark(config, title, message)
             elif provider.provider_type == "email":
@@ -1200,6 +1226,19 @@ class NotificationService:
             printer_name,
             image_data=image_data,
             variables=variables,
+        )
+
+    async def on_print_confirm_request(
+        self, printer_id: int, printer_name: str, db: AsyncSession, *,
+        print_name: str, confirm_url: str, outcome_urls: dict[str, str],
+    ):
+        providers = await self._get_providers_for_event(db, "on_print_confirm_request", printer_id)
+        title = "Confirm production quality"
+        message = f"{printer_name}: {print_name}\nInspect good and rejected quantities: {confirm_url}"
+        await self._notify_providers(
+            providers, title, message, db, event_type="print_confirm_request",
+            printer_id=printer_id, printer_name=printer_name,
+            variables={"confirm_url": confirm_url, "_outcome_urls": outcome_urls},
         )
 
     async def on_print_progress(

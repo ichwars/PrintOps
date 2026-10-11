@@ -7,6 +7,15 @@ export interface ArchiveDuplicate {
 }
 
 export interface Archive {
+  confirm_requested?: boolean;
+  user_verdict?: 'good' | 'reject' | 'mixed' | null;
+  good_quantity?: number | null;
+  reject_quantity?: number | null;
+  user_verdict_source?: string | null;
+  user_verdict_at?: string | null;
+  outcome_run_id?: number | null;
+  outcome_expected_parts?: number | null;
+  outcome_batch_id?: number | null;
   id: number;
   printer_id: number | null;
   project_id: number | null;
@@ -86,6 +95,14 @@ export interface ArchiveSlim {
 }
 
 export interface PrintLogEntry {
+  project_id?: number | null;
+  quantity?: number;
+  confirm_requested?: boolean;
+  user_verdict?: 'good' | 'reject' | 'mixed' | null;
+  good_quantity?: number | null;
+  reject_quantity?: number | null;
+  user_verdict_source?: string | null;
+  user_verdict_at?: string | null;
   id: number;
   archive_id: number | null;
   print_name: string | null;
@@ -114,6 +131,10 @@ export interface PrintLogResponse {
 }
 
 export interface ArchiveStats {
+  confirmed_good_quantity?: number;
+  confirmed_reject_quantity?: number;
+  unconfirmed_prints?: number;
+  yield_percent?: number | null;
   total_prints: number;
   successful_prints: number;
   failed_prints: number;

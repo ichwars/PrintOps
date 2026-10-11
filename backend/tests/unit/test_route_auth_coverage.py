@@ -83,6 +83,11 @@ _PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # Forgot-password (anonymous request) + confirm (signed token in the URL).
         ("POST", "/api/v1/auth/forgot-password"),
         ("POST", "/api/v1/auth/forgot-password/confirm"),
+        # GET only renders a read-only escaped page. POST validates an indexed,
+        # hashed, expiring, single-run capability and can only record quantities
+        # for the current run once. It grants no file/session/stock authority.
+        ("GET", "/api/v1/archives/outcome-link/{token}/{verdict}"),
+        ("POST", "/api/v1/archives/outcome-link/{token}/{verdict}"),
         # ---- HTTP API: signed-URL routes (token in path is the auth) ----
         # Signed download URLs — token in path validated by the handler.
         ("GET", "/api/v1/archives/{archive_id}/dl/{token}/{filename}"),

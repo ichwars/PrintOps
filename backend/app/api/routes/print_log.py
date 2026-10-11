@@ -85,6 +85,14 @@ async def get_print_log(
         items=[
             PrintLogEntrySchema(
                 id=e.id,
+                project_id=e.project_id,
+                quantity=e.quantity,
+                confirm_requested=bool(e.confirm_requested),
+                user_verdict=e.user_verdict,
+                good_quantity=e.good_quantity,
+                reject_quantity=e.reject_quantity,
+                user_verdict_source=e.user_verdict_source,
+                user_verdict_at=e.user_verdict_at,
                 archive_id=e.archive_id,
                 print_name=e.print_name,
                 printer_name=e.printer_name,
@@ -303,6 +311,14 @@ async def update_print_log_entry(
 
     return PrintLogEntrySchema(
         id=entry.id,
+        project_id=entry.project_id,
+        quantity=entry.quantity,
+        confirm_requested=bool(entry.confirm_requested),
+        user_verdict=entry.user_verdict,
+        good_quantity=entry.good_quantity,
+        reject_quantity=entry.reject_quantity,
+        user_verdict_source=entry.user_verdict_source,
+        user_verdict_at=entry.user_verdict_at,
         archive_id=entry.archive_id,
         print_name=entry.print_name,
         printer_name=entry.printer_name,

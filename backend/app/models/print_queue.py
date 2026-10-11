@@ -86,6 +86,10 @@ class PrintQueueItem(Base):
     # true, the scheduler deletes the source row/files after archiving a copy.
     cleanup_library_after_dispatch: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    confirm_outcome: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Explicit intended parts per run; NULL inherits the archive's quantity.
+    expected_parts: Mapped[int | None] = mapped_column(Integer)
+
     # Print options
     bed_levelling: Mapped[bool] = mapped_column(Boolean, default=True)
     flow_cali: Mapped[bool] = mapped_column(Boolean, default=False)

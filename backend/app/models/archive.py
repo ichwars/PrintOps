@@ -79,6 +79,14 @@ class PrintArchive(Base):
     failure_reason: Mapped[str | None] = mapped_column(String(100))  # For failed prints
     quantity: Mapped[int] = mapped_column(Integer, default=1)  # Number of items printed
 
+    # Quality belongs to this run, separate from the machine-reported status.
+    confirm_requested: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    user_verdict: Mapped[str | None] = mapped_column(String(10))
+    good_quantity: Mapped[int | None] = mapped_column(Integer)
+    reject_quantity: Mapped[int | None] = mapped_column(Integer)
+    user_verdict_source: Mapped[str | None] = mapped_column(String(16))
+    user_verdict_at: Mapped[datetime | None] = mapped_column(DateTime)
+
     # Energy tracking
     energy_kwh: Mapped[float | None] = mapped_column(Float)  # Energy consumed in kWh
     energy_cost: Mapped[float | None] = mapped_column(Float)  # Cost of energy consumed

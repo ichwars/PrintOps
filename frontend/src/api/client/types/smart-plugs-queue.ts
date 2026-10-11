@@ -283,6 +283,8 @@ export interface DiscoveredTasmotaDevice {
 
 // Print Queue types
 export interface PrintQueueItem {
+  confirm_outcome?: boolean;
+  expected_parts?: number | null;
   id: number;
   printer_id: number | null;  // null = unassigned
   target_model: string | null;  // Target printer model for model-based assignment
@@ -449,6 +451,11 @@ export interface QueueVariantCreate {
 }
 
 export interface PrintBatch {
+  accepted_count?: number;
+  unconfirmed_count?: number;
+  rejected_count?: number;
+  good_quantity?: number;
+  reject_quantity?: number;
   id: number;
   name: string;
   archive_id: number | null;
@@ -487,6 +494,11 @@ export interface PrintBatchPlateTarget {
 }
 
 export interface PrintBatchPlateProgress extends PrintBatchPlateTarget {
+  accepted_count?: number;
+  unconfirmed_count?: number;
+  rejected_count?: number;
+  good_quantity?: number;
+  reject_quantity?: number;
   plate_name: string | null;
   dispatched: number;
   remaining: number;
@@ -504,6 +516,8 @@ export interface PrintBatchPlateProgress extends PrintBatchPlateTarget {
 }
 
 export interface PrintQueueItemCreate {
+  confirm_outcome?: boolean;
+  expected_parts?: number | null;
   printer_id?: number | null;  // null = unassigned
   target_model?: string | null;  // Target printer model (mutually exclusive with printer_id)
   target_location?: string | null;  // Target location filter (only used with target_model)
@@ -574,6 +588,8 @@ export interface PrintBatchDispatchRequest {
 }
 
 export interface PrintQueueItemUpdate {
+  confirm_outcome?: boolean;
+  expected_parts?: number | null;
   printer_id?: number | null;  // null = unassign
   target_model?: string | null;  // Target printer model (mutually exclusive with printer_id)
   target_location?: string | null;  // Target location filter (only used with target_model)

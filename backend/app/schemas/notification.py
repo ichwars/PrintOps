@@ -32,6 +32,7 @@ class NotificationProviderBase(BaseModel):
 
     # Event triggers - print lifecycle
     on_print_start: bool = Field(default=False, description="Notify on print start")
+    on_print_confirm_request: bool = True
     on_print_complete: bool = Field(default=True, description="Notify on print complete")
     on_print_failed: bool = Field(default=True, description="Notify on print failed")
     on_print_stopped: bool = Field(default=True, description="Notify when print is stopped/cancelled")
@@ -130,6 +131,7 @@ class NotificationProviderUpdate(BaseModel):
 
     # Event triggers - print lifecycle
     on_print_start: bool | None = None
+    on_print_confirm_request: bool | None = None
     on_print_complete: bool | None = None
     on_print_failed: bool | None = None
     on_print_stopped: bool | None = None

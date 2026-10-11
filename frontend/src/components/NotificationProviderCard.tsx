@@ -285,6 +285,10 @@ export function NotificationProviderCard({ provider, onEdit }: NotificationProvi
                 </div>
 
                 <div className="flex items-center justify-between">
+                  <p className="text-sm text-white">{t('productionQuality.title')}</p>
+                  <Toggle checked={provider.on_print_confirm_request ?? true} onChange={(checked) => updateMutation.mutate({ on_print_confirm_request: checked })} />
+                </div>
+                <div className="flex items-center justify-between">
                   <p className="text-sm text-white">{t('notifications.printCompleted')}</p>
                   <Toggle
                     checked={provider.on_print_complete}
