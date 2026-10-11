@@ -5605,6 +5605,12 @@ useEmbedded: 'Usar los ajustes integrados del archivo',
       hint: 'Seleccione la impresora a la que retransmitir el tráfico del laminador. La impresora debe estar en modo LAN.',
       noPrinters: 'No hay impresoras configuradas. Añada primero una impresora para usar el modo proxy.',
     },
+    advertisedAddress: {
+      title: "Dirección IPv4 anunciada",
+      hint: "IPv4 opcional del host Docker o NAT para descubrimiento y cargas FTPS. Sustituye la dirección de la interfaz remota; vacío para selección automática. Mantén local la interfaz de escucha y publica los puertos necesarios.",
+      placeholder: "Automática",
+      save: "Guardar dirección anunciada",
+    },
     remoteInterface: {
       title: 'Anulación de la interfaz de red',
       configured: 'Anulación de la interfaz activa',

@@ -5327,6 +5327,12 @@ useEmbedded: '파일의 내장 설정 사용',
       hint: '슬라이서 트래픽을 프록시할 프린터를 선택하세요. 프린터는 LAN 모드여야 합니다.',
       noPrinters: '구성된 프린터 없음. 프록시 모드를 사용하려면 먼저 프린터를 추가하세요.'
     },
+    advertisedAddress: {
+      title: "알릴 IPv4 주소",
+      hint: "검색과 FTPS 업로드에 사용할 Docker 호스트 또는 NAT IPv4 주소(선택 사항). 원격 인터페이스 주소보다 우선하며, 비워 두면 자동 선택됩니다. 수신 인터페이스는 로컬로 유지하고 필요한 포트를 연결하세요.",
+      placeholder: "자동",
+      save: "알릴 주소 저장",
+    },
     remoteInterface: {
       title: '네트워크 인터페이스 재정의',
       configured: '인터페이스 재정의 활성',

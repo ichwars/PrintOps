@@ -5677,6 +5677,12 @@ export default {
       hint: 'Select the printer to proxy slicer traffic to. The printer must be in LAN mode.',
       noPrinters: 'No printers configured. Add a printer first to use proxy mode.',
     },
+    advertisedAddress: {
+      title: "Advertised IPv4 address",
+      hint: "Optional Docker host or NAT IPv4 address for discovery and FTPS uploads. Overrides the remote interface address; leave empty for automatic selection. Keep the bind interface local and map the required ports.",
+      placeholder: "Automatic",
+      save: "Save advertised address",
+    },
     remoteInterface: {
       title: 'Network Interface Override',
       configured: 'Interface override active',

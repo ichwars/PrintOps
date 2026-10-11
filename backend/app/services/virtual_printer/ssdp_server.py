@@ -13,6 +13,8 @@ import re
 import socket
 import struct
 
+from backend.app.utils.advertised_address import validate_advertised_ip
+
 logger = logging.getLogger(__name__)
 
 # SSDP addresses - Bambu uses port 2021
@@ -374,6 +376,7 @@ class SSDPProxy:
         remote_interface_ip: str,
         target_printer_ip: str,
         name: str | None = None,
+        advertised_ip: str = "",
     ):
         """Initialize the SSDP proxy.
 
@@ -382,9 +385,11 @@ class SSDPProxy:
             remote_interface_ip: IP of interface on slicer's network (LAN B)
             target_printer_ip: IP of the real printer to proxy SSDP for
             name: Optional VP name to advertise (replaces printer's real name)
+            advertised_ip: Optional NAT address for Location; not a socket bind.
         """
         self.local_interface_ip = local_interface_ip
         self.remote_interface_ip = remote_interface_ip
+        self.advertised_ip = validate_advertised_ip(advertised_ip) or ""
         self.target_printer_ip = target_printer_ip
         self.proxy_name = name
         self._running = False
@@ -419,7 +424,7 @@ class SSDPProxy:
             # Replace Location header with our remote interface IP
             text = re.sub(
                 r"(Location:\s*)[\d.]+",
-                f"\\g<1>{self.remote_interface_ip}",
+                f"\\g<1>{self.advertised_ip or self.remote_interface_ip}",
                 text,
                 flags=re.IGNORECASE,
             )

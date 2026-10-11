@@ -5579,6 +5579,12 @@ useEmbeddedHint: 'Esegue lo slicing come impostato dal designer (pareti, riempim
       hint: 'Seleziona la stampante a cui fare proxy. La stampante deve essere in modalita LAN.',
       noPrinters: 'Nessuna stampante configurata. Aggiungi una stampante per usare la modalita proxy.',
     },
+    advertisedAddress: {
+      title: "Indirizzo IPv4 annunciato",
+      hint: "IPv4 opzionale del host Docker o NAT per rilevamento e caricamenti FTPS. Sostituisce l’indirizzo dell’interfaccia remota; lascia vuoto per la selezione automatica. Mantieni locale l’interfaccia di ascolto e pubblica le porte necessarie.",
+      placeholder: "Automatico",
+      save: "Salva indirizzo annunciato",
+    },
     remoteInterface: {
       title: 'Sovrascrittura interfaccia di rete',
       configured: 'Sovrascrittura interfaccia attiva',

@@ -5579,6 +5579,12 @@ useEmbedded: 'Usar as configurações internas do arquivo',
       hint: 'Selecione a impressora para a qual o tráfego do slicer será enviado. A impressora deve estar no modo LAN.',
       noPrinters: 'Nenhuma impressora configurada. Adicione uma impressora primeiro para usar o modo proxy.',
     },
+    advertisedAddress: {
+      title: "Endereço IPv4 anunciado",
+      hint: "IPv4 opcional do host Docker ou NAT para descoberta e uploads FTPS. Substitui o endereço da interface remota; deixe vazio para seleção automática. Mantenha a interface de escuta local e publique as portas necessárias.",
+      placeholder: "Automático",
+      save: "Salvar endereço anunciado",
+    },
     remoteInterface: {
       title: 'Substituição da Interface de Rede',
       configured: 'Substituição da interface ativa',

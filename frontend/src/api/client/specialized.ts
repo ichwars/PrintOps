@@ -614,6 +614,7 @@ export interface VirtualPrinterConfig {
   tailscale_disabled: boolean;
   bind_ip: string | null;
   remote_interface_ip: string | null;
+  advertised_ip: string | null;
   position: number;
   status: { running: boolean; pending_files: number; proxy?: VirtualPrinterProxyStatus };
 }
@@ -640,6 +641,7 @@ export const multiVirtualPrinterApi = {
     gcode_injection?: boolean;
     bind_ip?: string;
     remote_interface_ip?: string;
+    advertised_ip?: string | null;
   }) =>
     request<VirtualPrinterConfig>('/virtual-printers', {
       method: 'POST',
@@ -659,6 +661,7 @@ export const multiVirtualPrinterApi = {
     tailscale_disabled?: boolean;
     bind_ip?: string;
     remote_interface_ip?: string;
+    advertised_ip?: string | null;
   }) =>
     request<VirtualPrinterConfig>(`/virtual-printers/${id}`, {
       method: 'PUT',
