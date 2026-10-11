@@ -89,6 +89,7 @@ from backend.app.services import (
     active_print_provenance as print_provenance,
     business_runtime,
     fallback_archive_recovery as fallback_recovery,
+    slot_unlink_grace,
 )
 from backend.app.services.archive import ArchiveService, peek_plate_index_in_3mf, swap_plate_suffix
 from backend.app.services.archive_purge import archive_purge_service
@@ -1385,49 +1386,15 @@ def _is_bambu_uuid(tray_uuid: str) -> bool:
     return bool(tray_uuid) and tray_uuid not in ("", "0" * len(tray_uuid))
 
 
-async def on_ams_change(printer_id: int, ams_data: list):
-    """Handle AMS data changes - sync to Spoolman if enabled and auto mode."""
+async def _unlink_stale_assignments(printer_id: int, ams_data: list, _print_active: bool) -> None:
+    """Run inventory cleanup independently of MQTT updates for delayed removal checks."""
     logger = logging.getLogger(__name__)
-
-    # Snapshot BEFORE any await: if a print is active, skip weight sync later.
-    # on_print_complete may pop _active_sessions during our awaits (#880).
-    from backend.app.services.usage_tracker import _active_sessions
-
-    _print_active = printer_id in _active_sessions or print_provenance.printer_is_printing(
-        printer_manager.get_status(printer_id)
-    )
-
-    # MQTT relay - publish AMS change
-    try:
-        printer_info = printer_manager.get_printer(printer_id)
-        if printer_info:
-            await mqtt_relay.on_ams_change(printer_id, printer_info.name, printer_info.serial_number, ams_data)
-    except Exception:
-        pass  # Don't fail AMS callback if MQTT fails
-
-    # Broadcast AMS change via WebSocket (bypasses status_key deduplication)
-    # This ensures frontend gets immediate updates when AMS slots are configured
-    try:
-        state = printer_manager.get_status(printer_id)
-        if state:
-            logger.info("[Printer %s] Broadcasting AMS change via WebSocket", printer_id)
-            await ws_manager.send_printer_status(
-                printer_id,
-                printer_state_to_dict(
-                    state,
-                    printer_id,
-                    printer_manager.get_model(printer_id),
-                    printer_manager.get_drying_targets(printer_id),
-                ),
-            )
-    except Exception as e:
-        logger.warning("Failed to broadcast AMS change for printer %s: %s", printer_id, e)
 
     from backend.app.utils.color_utils import colors_similar as _colors_similar
 
     # Auto-unlink spool assignments with stale fingerprints
     try:
-        async with async_session() as db:
+        async with _get_ams_assignment_lock(printer_id), async_session() as db:
             from sqlalchemy.orm import selectinload
 
             from backend.app.api.routes.inventory import _find_tray_in_ams_data
@@ -1444,6 +1411,7 @@ async def on_ams_change(printer_id: int, ams_data: list):
                 )
                 assignments = result.scalars().all()
             stale = []
+            held: set[tuple] = set()
             for assignment in assignments:
                 # External spool assignments (ams_id=255) live in vt_tray, not AMS data
                 if assignment.ams_id == 255:
@@ -1460,7 +1428,13 @@ async def on_ams_change(printer_id: int, ams_data: list):
                         continue
                 else:
                     current_tray = _find_tray_in_ams_data(ams_data, assignment.ams_id, assignment.tray_id)
-                if print_provenance.handle_missing_assignment(current_tray, _print_active, assignment, stale, logger):
+                hold_key = ("inventory", assignment.ams_id, assignment.tray_id, assignment.spool_id)
+                if not current_tray:
+                    if not _print_active:
+                        if slot_unlink_grace.removal_confirmed(printer_id, hold_key):
+                            stale.append(assignment)
+                        else:
+                            held.add(hold_key)
                     continue
                 if _is_bambu_uuid(current_tray.get("tray_uuid", "")):
                     # A Bambu Lab spool is in this slot — check if it's the same spool
@@ -1511,21 +1485,13 @@ async def on_ams_change(printer_id: int, ams_data: list):
                     fp_color = assignment.fingerprint_color or ""
                     fp_type = assignment.fingerprint_type or ""
 
-                    # SpoolBuddy pre-config replay: fingerprint_type empty means
-                    # the slot was empty when the user pre-assigned via SpoolBuddy
-                    # (the firmware drops ams_filament_setting on empty slots, so
-                    # MQTT was deferred). The moment any filament gets inserted
-                    # The "loaded" signal is state == 11 (Bambu's "filament fed to
-                    # extruder" code) OR, on firmwares that don't use the state
-                    # enum meaningfully, a non-empty tray_type when state is
-                    # NOT one of the firmware's explicit empty signals (9, 10).
-                    # state-only was wrong for firmwares that never set 11 — A1
-                    # Mini BMCU 01.07.02.00 and P1S Standard AMS 00.00.06.75 both
-                    # always report state=3 — so the replay never fired for them
-                    # (#1322). The state ∉ {9,10} guard keeps the firmware's
-                    # explicit "empty" signals authoritative over any stale
-                    # tray_type that might survive the relay's auto-clearing.
-                    loaded = cur_state == 11 or (cur_state not in (9, 10) and cur_type.strip())
+                    # Retry a pre-assignment once the firmware sees a spool.
+                    # Presence bits overrule cached empty states, including AMS-HT;
+                    # retain the existing firmware fallback when no bit is present.
+                    from backend.app.services.ams_slot_presence import spool_present
+
+                    present = spool_present(current_tray)
+                    loaded = present is True or cur_state == 11 or (cur_state not in (9, 10) and cur_type.strip())
                     if not fp_type.strip() and loaded and assignment.spool:
                         configured = False
                         try:
@@ -1564,8 +1530,14 @@ async def on_ams_change(printer_id: int, ams_data: list):
                         continue
 
                     if not _colors_similar(cur_color, fp_color) or cur_type.upper() != fp_type.upper():
-                        if _print_active and not cur_color.strip() and not cur_type.strip():
-                            continue
+                        if not cur_color.strip() and not cur_type.strip():
+                            if _print_active or (
+                                present is True and not slot_unlink_grace.is_held(printer_id, hold_key)
+                            ):
+                                continue
+                            if not slot_unlink_grace.removal_confirmed(printer_id, hold_key):
+                                held.add(hold_key)
+                                continue
                         spool = assignment.spool
                         if spool:
                             spool_color = (spool.rgba or "FFFFFFFF").upper()
@@ -1594,14 +1566,100 @@ async def on_ams_change(printer_id: int, ams_data: list):
                             spool.material if spool else "?",
                         )
                         stale.append(assignment)  # Spool changed
+            slot_unlink_grace.settle(printer_id, "inventory", held)
+            unlinked_slots = [(a.ams_id, a.tray_id) for a in stale]
             for a in stale:
                 await db.delete(a)
             if stale:
                 logger.info("Auto-unlinked %d stale spool assignments for printer %d", len(stale), printer_id)
             # Commit any changes (stale deletions and/or fingerprint updates)
             await db.commit()
+            for ams_id, tray_id in unlinked_slots:
+                await ws_manager.broadcast(
+                    {"type": "spool_assignment_changed", "printer_id": printer_id, "ams_id": ams_id, "tray_id": tray_id}
+                )
     except Exception as e:
         logger.warning("Spool assignment cleanup failed: %s", e, exc_info=True)
+
+
+async def _expire_spoolman_empty_slots(printer_id: int, ams_data: list, printing_now: bool) -> None:
+    """Recheck local assignments without depending on a reachable Spoolman server."""
+    from backend.app.api.routes.settings import get_setting
+    from backend.app.services.spoolman_slot_cleanup import expire_empty_slots
+
+    try:
+        async with _get_ams_assignment_lock(printer_id), async_session() as db:
+            enabled = await get_setting(db, "spoolman_enabled")
+            sync_mode = await get_setting(db, "spoolman_sync_mode")
+            if not enabled or enabled.lower() != "true" or (sync_mode and sync_mode != "auto"):
+                return
+            expired = await expire_empty_slots(db, printer_id, ams_data, printing_now)
+            await db.commit()
+        for ams_id, tray_id in expired:
+            await ws_manager.broadcast(
+                {"type": "spool_assignment_changed", "printer_id": printer_id, "ams_id": ams_id, "tray_id": tray_id}
+            )
+    except Exception:
+        logging.getLogger(__name__).exception("Spoolman slot removal check failed for printer %s", printer_id)
+
+
+async def _recheck_held_unlinks(printer_id: int) -> None:
+    """Confirm held removals against current connected state, even without another push."""
+    from backend.app.services.usage_tracker import _active_sessions
+
+    state = printer_manager.get_status(printer_id)
+    if state is None or not state.connected:
+        return
+    raw = state.raw_data.get("ams")
+    ams_data = raw.get("ams", []) if isinstance(raw, dict) else raw if isinstance(raw, list) else []
+    printing = printer_id in _active_sessions or print_provenance.printer_is_printing(state)
+    await _unlink_stale_assignments(printer_id, ams_data, printing)
+    await _expire_spoolman_empty_slots(printer_id, ams_data, printing)
+
+
+slot_unlink_grace.set_recheck(_recheck_held_unlinks)
+
+
+async def on_ams_change(printer_id: int, ams_data: list):
+    """Handle AMS data changes - sync to Spoolman if enabled and auto mode."""
+    logger = logging.getLogger(__name__)
+
+    # Snapshot BEFORE any await: if a print is active, skip weight sync later.
+    # on_print_complete may pop _active_sessions during our awaits (#880).
+    from backend.app.services.usage_tracker import _active_sessions
+
+    _print_active = printer_id in _active_sessions or print_provenance.printer_is_printing(
+        printer_manager.get_status(printer_id)
+    )
+
+    # MQTT relay - publish AMS change
+    try:
+        printer_info = printer_manager.get_printer(printer_id)
+        if printer_info:
+            await mqtt_relay.on_ams_change(printer_id, printer_info.name, printer_info.serial_number, ams_data)
+    except Exception:
+        pass  # Don't fail AMS callback if MQTT fails
+
+    # Broadcast AMS change via WebSocket (bypasses status_key deduplication)
+    # This ensures frontend gets immediate updates when AMS slots are configured
+    try:
+        state = printer_manager.get_status(printer_id)
+        if state:
+            logger.info("[Printer %s] Broadcasting AMS change via WebSocket", printer_id)
+            await ws_manager.send_printer_status(
+                printer_id,
+                printer_state_to_dict(
+                    state,
+                    printer_id,
+                    printer_manager.get_model(printer_id),
+                    printer_manager.get_drying_targets(printer_id),
+                ),
+            )
+    except Exception as e:
+        logger.warning("Failed to broadcast AMS change for printer %s: %s", printer_id, e)
+
+    await _unlink_stale_assignments(printer_id, ams_data, _print_active)
+    await _expire_spoolman_empty_slots(printer_id, ams_data, _print_active)
 
     # Auto-manage inventory spools from AMS tray data (skip if Spoolman manages AMS).
     # Serialised per-printer via _ams_assignment_locks: MQTT bursts can deliver
@@ -1612,6 +1670,8 @@ async def on_ams_change(printer_id: int, ams_data: list):
     # bug stayed latent there. See _ams_assignment_locks comment for details.
     try:
         async with _get_ams_assignment_lock(printer_id), async_session() as db:
+            from sqlalchemy.orm import selectinload
+
             from backend.app.api.routes.settings import get_setting
             from backend.app.models.spool import Spool
             from backend.app.models.spool_assignment import SpoolAssignment as SA
@@ -1884,7 +1944,6 @@ async def on_ams_change(printer_id: int, ams_data: list):
             # Sync each AMS tray and collect slot changes for DB persistence
             synced = 0
             slot_changes: list[tuple[int, int, int]] = []  # (ams_id, tray_id, spoolman_spool_id) to upsert
-            empty_slots: list[tuple[int, int]] = []  # (ams_id, tray_id) whose tray is now empty
             for ams_unit in ams_data:
                 if not isinstance(ams_unit, dict):
                     continue
@@ -1900,8 +1959,7 @@ async def on_ams_change(printer_id: int, ams_data: list):
                         # Empty tray slot — record for local assignment cleanup
                         # and drop any cached unknown-tag broadcast so a
                         # reinserted spool re-prompts.
-                        if not _print_active:
-                            empty_slots.append((ams_id, tray_id_raw))
+                        # Local cleanup ran before sync and holds transient empty reports.
                         _clear_unknown_tag_dedup(printer_id, ams_id, tray_id_raw)
                         continue
 
@@ -1983,7 +2041,7 @@ async def on_ams_change(printer_id: int, ams_data: list):
                 logger.info("Auto-synced %s AMS trays to Spoolman for printer %s", synced, printer_id)
 
             # Persist slot assignment changes to the local table
-            if slot_changes or empty_slots:
+            if slot_changes:
                 try:
                     for ams_id, tray_id, spool_id in slot_changes:
                         await db.execute(
@@ -2000,14 +2058,6 @@ async def on_ams_change(printer_id: int, ams_data: list):
                                 "tray_id": tray_id,
                                 "spool_id": spool_id,
                             },
-                        )
-                    for ams_id, tray_id in empty_slots:
-                        await db.execute(
-                            delete(SpoolmanSlotAssignment).where(
-                                SpoolmanSlotAssignment.printer_id == printer_id,
-                                SpoolmanSlotAssignment.ams_id == ams_id,
-                                SpoolmanSlotAssignment.tray_id == tray_id,
-                            )
                         )
                     await db.commit()
                 except Exception as e:
@@ -6090,6 +6140,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
+    slot_unlink_grace.reset()
     print_scheduler.stop()
     smart_plug_manager.stop_scheduler()
     ha_sensor_manager.stop()

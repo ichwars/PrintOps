@@ -1368,16 +1368,24 @@ class TestAutoUnlinkDuringRunout:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_cleared_tray_data_still_unlinks_when_idle(
-        self, async_client: AsyncClient, printer_factory, spool_factory, db_session: AsyncSession
+    async def test_cleared_tray_data_unlinks_when_idle_after_grace(
+        self, async_client: AsyncClient, printer_factory, spool_factory, db_session: AsyncSession, monkeypatch
     ):
         from backend.app.models.spool_assignment import SpoolAssignment
 
         printer, assignment_id = await self._assignment(printer_factory, spool_factory, db_session)
         ams_data = [{"id": 0, "tray": [{"id": 2, "tray_type": "", "tray_color": "", "state": 26}]}]
 
+        from backend.app.services import slot_unlink_grace
+
+        now = [1000.0]
+        monkeypatch.setattr(slot_unlink_grace, "_now", lambda: now[0])
         await self._run(printer.id, ams_data, state="IDLE")
 
+        db_session.expunge_all()
+        assert await db_session.get(SpoolAssignment, assignment_id) is not None
+        now[0] += 120
+        await self._run(printer.id, ams_data, state="IDLE")
         db_session.expunge_all()
         assert await db_session.get(SpoolAssignment, assignment_id) is None
 
@@ -1469,8 +1477,8 @@ class TestSpoolmanSlotAssignmentDuringRunout:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_slot_row_is_cleaned_up_when_idle(
-        self, async_client: AsyncClient, printer_factory, db_session: AsyncSession
+    async def test_slot_row_is_cleaned_up_when_idle_after_grace(
+        self, async_client: AsyncClient, printer_factory, db_session: AsyncSession, monkeypatch
     ):
         from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 
@@ -1481,7 +1489,15 @@ class TestSpoolmanSlotAssignmentDuringRunout:
         await db_session.commit()
         row_id = row.id
 
+        from backend.app.services import slot_unlink_grace
+
+        now = [1000.0]
+        monkeypatch.setattr(slot_unlink_grace, "_now", lambda: now[0])
         await self._run(printer.id, _make_printing_status(state="IDLE"))
 
+        db_session.expunge_all()
+        assert await db_session.get(SpoolmanSlotAssignment, row_id) is not None
+        now[0] += 120
+        await self._run(printer.id, _make_printing_status(state="IDLE"))
         db_session.expunge_all()
         assert await db_session.get(SpoolmanSlotAssignment, row_id) is None

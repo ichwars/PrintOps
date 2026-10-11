@@ -19,6 +19,8 @@ from backend.app.models.settings import Settings
 from backend.app.models.spoolman_k_profile import SpoolmanKProfile
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.models.user import User
+from backend.app.services import slot_unlink_grace
+from backend.app.services.active_print_provenance import printer_is_printing
 from backend.app.services.printer_manager import printer_manager
 from backend.app.services.spoolman import (
     SpoolmanClientError,
@@ -29,6 +31,8 @@ from backend.app.services.spoolman import (
     get_spoolman_client,
     init_spoolman_client,
 )
+from backend.app.services.spoolman_slot_cleanup import expire_empty_slots
+from backend.app.services.usage_tracker import _active_sessions
 from backend.app.utils.filament_ids import filament_id_to_setting_id, normalize_slicer_filament
 from backend.app.utils.filament_types import (
     generic_filament_id,
@@ -295,10 +299,8 @@ async def sync_printer_ams(
             if not isinstance(tray_data, dict):
                 continue
 
-            tray_id_raw = int(tray_data.get("id", 0))
             tray = client.parse_ams_tray(ams_id, tray_data)
             if not tray:
-                empty_slots.append((ams_id, tray_id_raw))
                 continue
 
             spool_tag = (
@@ -358,6 +360,10 @@ async def sync_printer_ams(
                 logger.error(error_msg)
                 errors.append(error_msg)
 
+    empty_slots = await expire_empty_slots(
+        db, printer_id, ams_units, printer_id in _active_sessions or printer_is_printing(state)
+    )
+
     # Persist slot assignment changes to the local table
     if slot_changes or empty_slots:
         try:
@@ -371,14 +377,6 @@ async def sync_printer_ams(
                         " DO UPDATE SET spoolman_spool_id = excluded.spoolman_spool_id"
                     ),
                     {"printer_id": printer_id, "ams_id": ams_id, "tray_id": tray_id, "spool_id": spool_id},
-                )
-            for ams_id, tray_id in empty_slots:
-                await db.execute(
-                    delete(SpoolmanSlotAssignment).where(
-                        SpoolmanSlotAssignment.printer_id == printer_id,
-                        SpoolmanSlotAssignment.ams_id == ams_id,
-                        SpoolmanSlotAssignment.tray_id == tray_id,
-                    )
                 )
             await db.commit()
         except Exception as e:
@@ -502,10 +500,8 @@ async def sync_all_printers(
                 if not isinstance(tray_data, dict):
                     continue
 
-                tray_id_raw = int(tray_data.get("id", 0))
                 tray = client.parse_ams_tray(ams_id, tray_data)
                 if not tray:
-                    all_empty_slots.append((printer.id, ams_id, tray_id_raw))
                     continue
 
                 spool_tag = (
@@ -560,6 +556,17 @@ async def sync_all_printers(
                 except Exception as e:
                     all_errors.append(f"{printer.name} AMS {ams_id}:{tray.tray_id}: {e}")
 
+    for printer in printers:
+        state = printer_manager.get_status(printer.id)
+        if state is None or not state.connected:
+            continue
+        raw = state.raw_data.get("ams")
+        units = raw.get("ams", []) if isinstance(raw, dict) else raw if isinstance(raw, list) else []
+        expired = await expire_empty_slots(
+            db, printer.id, units, printer.id in _active_sessions or printer_is_printing(state)
+        )
+        all_empty_slots.extend((printer.id, ams_id, tray_id) for ams_id, tray_id in expired)
+
     # Persist slot assignment changes across all printers
     if all_slot_changes or all_empty_slots:
         try:
@@ -573,14 +580,6 @@ async def sync_all_printers(
                         " DO UPDATE SET spoolman_spool_id = excluded.spoolman_spool_id"
                     ),
                     {"printer_id": p_id, "ams_id": ams_id, "tray_id": tray_id, "spool_id": spool_id},
-                )
-            for p_id, ams_id, tray_id in all_empty_slots:
-                await db.execute(
-                    delete(SpoolmanSlotAssignment).where(
-                        SpoolmanSlotAssignment.printer_id == p_id,
-                        SpoolmanSlotAssignment.ams_id == ams_id,
-                        SpoolmanSlotAssignment.tray_id == tray_id,
-                    )
                 )
             await db.commit()
         except Exception as e:
@@ -848,6 +847,7 @@ async def link_spool(
                 {"printer_id": p_id, "ams_id": a_id, "tray_id": t_id, "spool_id": spool_id},
             )
             await db.commit()
+            slot_unlink_grace.forget_slot(p_id, a_id, t_id)
         except Exception as e:
             await db.rollback()
             logger.error(
@@ -1202,6 +1202,7 @@ async def create_spool_from_slot(
                 },
             )
             await db.commit()
+            slot_unlink_grace.forget_slot(req.printer_id, req.ams_id, req.tray_id)
         except Exception as exc:
             await db.rollback()
             logger.exception("Failed to persist Spoolman slot assignment")

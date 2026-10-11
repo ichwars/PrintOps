@@ -93,6 +93,16 @@ def reset_auth_enabled_cache():
 
 
 @pytest.fixture(autouse=True)
+def reset_slot_unlink_grace():
+    """Keep assignment holds isolated across databases that reuse printer IDs."""
+    from backend.app.services import slot_unlink_grace
+
+    slot_unlink_grace.reset()
+    yield
+    slot_unlink_grace.reset()
+
+
+@pytest.fixture(autouse=True)
 def reset_spoolman_location_sync_cache():
     """Drop the per-URL Spoolman location-sync TTL cache between tests.
 

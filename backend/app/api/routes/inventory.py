@@ -1760,9 +1760,11 @@ async def assign_spool(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Assign a spool to an AMS slot and auto-configure via MQTT."""
+    # 1. Validate spool exists and is not archived
+    from backend.app.services import slot_unlink_grace
+    from backend.app.services.ams_slot_presence import spool_present
     from backend.app.services.printer_manager import printer_manager
 
-    # 1. Validate spool exists and is not archived
     result = await db.execute(select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id == data.spool_id))
     spool = result.scalar_one_or_none()
     if not spool:
@@ -1771,16 +1773,13 @@ async def assign_spool(
         raise HTTPException(400, "Cannot assign an archived spool")
 
     # 2. Get current AMS tray state for fingerprint + existing filament ID.
-    # tray_state: Bambu firmware reports 11=loaded, 9=empty, 10=spool present
-    # but filament not in feeder. Captured here so the empty-slot heuristic
-    # below can prefer it over tray_type — a manual "Reset slot" clears
-    # tray_type to "" while leaving state at 11 (filament still physically
-    # present), which would otherwise mislead the heuristic into the
-    # pending-config branch and skip MQTT forever (#1228 follow-up).
+    # Physical presence overrides firmware-specific or cached tray states.
+    # When the bit is absent, retain the existing state fallback.
     fingerprint_color = None
     fingerprint_type = None
     current_tray_info_idx = ""
     tray_state: int | None = None
+    slot_presence: bool | None = None
     state = printer_manager.get_status(data.printer_id)
     if state and state.raw_data:
         if data.ams_id == 255:
@@ -1789,6 +1788,7 @@ async def assign_spool(
             ext_id = data.tray_id + 254  # 0→254, 1→255
             for vt in vt_tray:
                 if isinstance(vt, dict) and int(vt.get("id", 254)) == ext_id:
+                    slot_presence = spool_present(vt)
                     fingerprint_color = vt.get("tray_color", "")
                     fingerprint_type = vt.get("tray_type", "")
                     current_tray_info_idx = vt.get("tray_info_idx", "")
@@ -1811,6 +1811,7 @@ async def assign_spool(
                 data.tray_id,
             )
             if tray:
+                slot_presence = spool_present(tray)
                 fingerprint_color = tray.get("tray_color", "")
                 fingerprint_type = tray.get("tray_type", "")
                 current_tray_info_idx = tray.get("tray_info_idx", "")
@@ -1842,41 +1843,12 @@ async def assign_spool(
     db.add(assignment)
     await db.commit()
     await db.refresh(assignment)
+    slot_unlink_grace.forget_slot(data.printer_id, data.ams_id, data.tray_id)
 
-    # 4. Auto-configure AMS slot via MQTT.
-    #
-    # Only suppress the publish when the firmware's *explicit* empty signal
-    # (state ∈ {9, 10}) is set — "no spool" / "spool present but no feed".
-    # Every other state, including state=3 (the default idle on A1 Mini BMCU /
-    # P1S Standard AMS for both loaded and unconfigured slots) and missing
-    # state (older firmwares), is treated as the user's assertion that a
-    # spool is in the slot and we attempt the MQTT push.
-    #
-    # The pre-existing "skip when slot looks empty" guard read state=3 +
-    # tray_type="" as "empty" and skipped MQTT. On these firmwares that
-    # combination is the post-"Reset Slot" state with the spool still
-    # physically inserted — there is NO AMS signal that distinguishes it
-    # from a truly-empty slot, so the guard created a deadlock: MQTT never
-    # fired, the AMS never reported any change (because nothing changed
-    # physically), and on_ams_change replay therefore never re-fired the
-    # config either. Reporter (#1322 follow-up by @RosdasHH) verified
-    # empirically that removing the guard makes the slot configure
-    # correctly because Bambu firmware DOES accept the push for a
-    # physically-loaded slot, even when tray_type is "" and state is 3.
-    #
-    # Trade-off for the truly-empty slot case: firmware drops the push
-    # silently (per Bambu's documented behavior), the SpoolAssignment row
-    # still has empty fingerprint_type because nothing in the assign path
-    # updates that column, and on_ams_change at main.py:1031-1054 still
-    # fires the deferred config when a spool eventually appears. So the
-    # SpoolBuddy weigh-then-assign-before-insert workflow continues to
-    # work — just without the optimization of skipping a no-op MQTT call.
-    #
-    # state ∈ {9, 10} stays as an explicit short-circuit so we don't churn
-    # a doomed MQTT push when the firmware has positively confirmed "no
-    # spool" — and to keep the on_ams_change replay path as the single
-    # source of truth for those slots.
-    slot_is_definitely_empty = tray_state == 9 or tray_state == 10
+    # 4. Auto-configure AMS slot via MQTT. A positive presence bit overrules
+    # stale states 9/10 (including AMS-HT). A false bit does not introduce a
+    # new suppression rule: firmware can harmlessly drop a push to an empty slot.
+    slot_is_definitely_empty = slot_presence is not True and tray_state in (9, 10)
     configured = False
     if not slot_is_definitely_empty:
         try:

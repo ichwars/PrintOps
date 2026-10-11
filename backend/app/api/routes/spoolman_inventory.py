@@ -1521,6 +1521,9 @@ async def assign_spoolman_slot(
             },
         )
         await db.commit()
+        from backend.app.services import slot_unlink_grace
+
+        slot_unlink_grace.forget_slot(body.printer_id, body.ams_id, body.tray_id)
     except Exception as exc:
         await db.rollback()
         logger.error("Failed to persist slot assignment: %s", exc)

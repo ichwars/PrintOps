@@ -506,6 +506,9 @@ async def auto_assign_spool(
     )
     db.add(assignment)
     await db.flush()
+    from backend.app.services import slot_unlink_grace
+
+    slot_unlink_grace.forget_slot(printer_id, ams_id, tray_id)
 
     # Apply K-profile via MQTT (if available)
     # NOTE: Do NOT send ams_set_filament_setting here. This function is only
