@@ -180,11 +180,13 @@
                 /^\/?downloads\/files\/local\/__printops_archive_(\d+)$/,
                 API_BASE + '/archives/$1/gcode'
             );
-            // OctoPrint file download  →  PrintOps library file gcode
-            // (sliced LibraryFile — extracts embedded gcode from .gcode.3mf
-            // or returns plain .gcode). Plate is ignored upstream for now.
+            // Preserve the explicitly selected library plate through the rewrite.
             newPath = newPath.replace(
-                /^\/?downloads\/files\/local\/__printops_libgcode_(\d+)(?:_plate\d+)?$/,
+                /^\/?downloads\/files\/local\/__printops_libgcode_(\d+)_plate(\d+)$/,
+                API_BASE + '/library/files/$1/gcode?plate=$2'
+            );
+            newPath = newPath.replace(
+                /^\/?downloads\/files\/local\/__printops_libgcode_(\d+)$/,
                 API_BASE + '/library/files/$1/gcode'
             );
             // OctoPrint plugin static assets  →  gcode-viewer static files
@@ -209,8 +211,12 @@
         var promise = _originalFetch(resource, init);
 
         // Tee GCode downloads to build the layer map for sync + nozzle animation
-        if (url && (url.match(/\/library\/files\/\d+\/download/) || url.match(/\/archives\/\d+\/gcode/))) {
+        if (url && (url.match(/\/library\/files\/\d+\/(?:download|gcode)/) || url.match(/\/archives\/\d+\/gcode/))) {
             promise = promise.then(function (response) {
+                if (!response.ok) {
+                    showPreviewError('Unable to load the requested plate (HTTP ' + response.status + ').');
+                    return response;
+                }
                 var clone = response.clone();
                 clone.text().then(function (text) {
                     gcodeLayerMap = parseGcodeLayerMap(text);
@@ -351,6 +357,17 @@
     // printer selector, auto-load-currently-printing, and library file picker are all
     // intentionally absent. Bed size is derived from the archive's sliced_for_model.
 
+    function showPreviewError(message) {
+        stopPlayback(true);
+        var playBtn = document.getElementById('bb-play-btn');
+        if (playBtn) playBtn.disabled = true;
+        var alert = document.getElementById('bb-preview-error');
+        if (alert) {
+            alert.textContent = message;
+            alert.hidden = false;
+        }
+    }
+
     function updateFilenameDisplay(filename) {
         var el = document.getElementById('bb-current-file');
         if (el) el.textContent = filename || '— no file loaded —';
@@ -362,7 +379,13 @@
     function loadArchiveById(archiveId, plate) {
         // Pretygcode downloads /downloads/files/local/__printops_archive_<id>(_plate<N>)
         // and the fetch intercept rewrites it to /api/v1/archives/<id>/gcode[?plate=N].
-        var plateSuffix = (typeof plate === 'number' && plate >= 1) ? ('_plate' + plate) : '';
+        if (plate !== undefined && (!Number.isSafeInteger(plate) || plate < 1)) {
+            showPreviewError('Invalid plate selection.');
+            return;
+        }
+        var error = document.getElementById('bb-preview-error');
+        if (error) error.hidden = true;
+        var plateSuffix = plate !== undefined ? ('_plate' + plate) : '';
         currentFileId = 'archive_' + archiveId + plateSuffix;
         currentFilename = 'Archive #' + archiveId + (plateSuffix ? (' (plate ' + plate + ')') : '');
         currentFileDate = Date.now();
@@ -422,13 +445,14 @@
     // 10b. Library file loader — invoked via /gcode-viewer/?library_file=<id>
     // -------------------------------------------------------------------------
     function loadLibraryFileById(fileId, plate) {
-        // Mirror loadArchiveById, but use the library gcode endpoint. The
-        // /library/files/<id>/gcode endpoint extracts the embedded gcode
-        // from a .gcode.3mf or returns a plain .gcode body. It does not
-        // accept a plate selector today — multi-plate library files would
-        // need an upstream change. The plate suffix here is preserved in
-        // currentFilename for display only.
-        var plateSuffix = (typeof plate === 'number' && plate >= 1) ? ('_plate' + plate) : '';
+        // Library plate selection follows the same explicit contract as archives.
+        if (plate !== undefined && (!Number.isSafeInteger(plate) || plate < 1)) {
+            showPreviewError('Invalid plate selection.');
+            return;
+        }
+        var error = document.getElementById('bb-preview-error');
+        if (error) error.hidden = true;
+        var plateSuffix = plate !== undefined ? ('_plate' + plate) : '';
         currentFileId = 'libfile_' + fileId + plateSuffix;
         currentFilename = 'Library file #' + fileId + (plateSuffix ? (' (plate ' + plate + ')') : '');
         currentFileDate = Date.now();
@@ -614,9 +638,11 @@
                 var archiveParam = params.get('archive');
                 var libParam = params.get('library_file');
                 var plateParam = params.get('plate');
-                var plateId = (plateParam && /^[1-9][0-9]*$/.test(plateParam))
-                    ? parseInt(plateParam, 10)
-                    : undefined;
+                if (plateParam !== null && (!/^[1-9][0-9]*$/.test(plateParam) || !Number.isSafeInteger(Number(plateParam)))) {
+                    showPreviewError('Invalid plate selection.');
+                    return;
+                }
+                var plateId = plateParam === null ? undefined : Number(plateParam);
                 if (archiveParam && /^[1-9][0-9]*$/.test(archiveParam)) {
                     var archiveId = parseInt(archiveParam, 10);
                     setTimeout(function () { loadArchiveById(archiveId, plateId); }, 50);
