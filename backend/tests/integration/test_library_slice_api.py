@@ -1976,3 +1976,69 @@ class TestNozzleClassGuard:
         if resp.status_code == 400:
             detail = resp.json().get("detail", "")
             assert "isn't supported" not in detail, f"guard still firing on preset path: {detail!r}"
+
+
+@pytest.mark.parametrize("fallback", [False, True])
+async def test_real_slice_and_retry_sanitize_project_indexes_before_sidecar_upload(
+    fallback, db_session, slice_test_setup
+):
+    from email import policy
+    from email.parser import BytesParser
+
+    from backend.app.api.routes.library import _run_slicer_with_fallback
+    from backend.app.schemas.slicer import SliceRequest
+
+    observed = []
+
+    def sidecar(request):
+        if not _is_slice_post(request):
+            return httpx.Response(200, json={})
+        headers = f"Content-Type: {request.headers['content-type']}\r\nMIME-Version: 1.0\r\n\r\n".encode()
+        message = BytesParser(policy=policy.default).parsebytes(headers + request.content)
+        model = next(
+            part for part in message.iter_parts() if part.get_param("name", header="content-disposition") == "file"
+        )
+        with zipfile.ZipFile(io.BytesIO(model.get_payload(decode=True))) as archive:
+            observed.append(json.loads(archive.read("Metadata/project_settings.config")))
+            assert archive.read("Metadata/model_settings.config") == b"<config><object id='1'/></config>"
+        if fallback and len(observed) == 1:
+            return httpx.Response(500, json={"message": "CLI crashed before slice completion"})
+        return httpx.Response(200, content=_make_3mf_with_settings())
+
+    _install_mock_sidecar(sidecar)
+    _, embedded = await _run_slicer_with_fallback(
+        db_session,
+        model_bytes=_make_3mf_with_settings(
+            {
+                "wall_filament": "0",
+                "sparse_infill_filament": 0,
+                "solid_infill_filament": "0",
+                "tree_support_wall_count": -1,
+                "support_filament": "0",
+                "support_interface_filament": "0",
+                "layer_height": "0.2",
+                "z_offset": "-1",
+            }
+        ),
+        model_filename="makerworld.3mf",
+        request=SliceRequest(
+            printer_preset_id=slice_test_setup["printer_id"],
+            process_preset_id=slice_test_setup["process_id"],
+            filament_preset_id=slice_test_setup["filament_id"],
+            plate=0,
+            export_3mf=True,
+        ),
+        current_user_id=None,
+    )
+    assert embedded is fallback
+    assert len(observed) == (2 if fallback else 1)
+    assert all(
+        config
+        == {
+            "support_filament": "0",
+            "support_interface_filament": "0",
+            "layer_height": "0.2",
+            "z_offset": "-1",
+        }
+        for config in observed
+    )

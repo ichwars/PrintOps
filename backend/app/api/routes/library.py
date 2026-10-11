@@ -83,6 +83,10 @@ from backend.app.services.slice_formats import (
     unsliceable_detail,
 )
 from backend.app.services.slice_output_check import slicer_output_error
+from backend.app.services.slicer_3mf_convert import (
+    PROJECT_SETTINGS_INHERIT_KEYS,
+    sanitize_project_settings_sentinels as _sanitize_project_settings_sentinels,
+)
 from backend.app.services.slicer_profile_patch import (
     patch_filament_colours as _patch_filament_colours,
     patch_process_support_settings as _patch_process_support_settings,
@@ -3297,84 +3301,8 @@ def _strip_3mf_embedded_settings(zip_bytes: bytes) -> bytes:
     return result
 
 
-# Keys in ``Metadata/project_settings.config`` that BambuStudio writes ``"-1"``
-# to when the user wants the value inherited from the parent process preset.
-# The CLI's ``StaticPrintConfig`` validator runs against the embedded settings
-# *before* ``--load-settings`` overrides apply, so a sentinel ``"-1"`` trips
-# the field's lower-bound range check and the CLI exits non-zero before our
-# profile triplet is ever consulted (#1201 — MakerWorld P2S models).
-#
-# Allowlisted (rather than "strip every '-1' value") because some fields
-# legitimately accept negative numbers (z_offset, translation values, etc.)
-# and a blanket strip would silently corrupt those.
-#
-# Add new entries here as more reports surface — the slicer's error message
-# names the offending field directly (`<field>: -1 not in range [...]`).
-_PROJECT_SETTINGS_SENTINEL_KEYS = frozenset(
-    {
-        # Reported in #1201 (MakerWorld P2S 3MFs).
-        "raft_first_layer_expansion",
-        "tree_support_wall_count",
-        # Cited in the strip-experiment comment block above as a known sentinel
-        # case from earlier reports.
-        "prime_tower_brim_width",
-    }
-)
-
-
-def _sanitize_project_settings_sentinels(zip_bytes: bytes) -> bytes:
-    """Strip ``"-1"`` inherit-from-parent sentinels from the 3MF's
-    ``Metadata/project_settings.config`` so the slicer CLI's range validator
-    accepts the file (#1201).
-
-    Removes only allowlisted keys (see ``_PROJECT_SETTINGS_SENTINEL_KEYS``)
-    when their value is exactly ``"-1"``. The rest of the config — and every
-    other entry in the zip — is preserved byte-for-byte. Unlike the earlier
-    full-strip experiment (see ``_strip_3mf_embedded_settings`` and the
-    cautionary comment in ``_run_slicer_with_fallback``) this leaves
-    ``StaticPrintConfig`` initialisation intact: the file is still present,
-    still parses, and the slicer falls back to the supplied
-    ``--load-settings`` value for the removed key.
-
-    Returns the original bytes unchanged when no sanitisation is needed
-    (input isn't a valid zip, no ``project_settings.config``, no allowlisted
-    sentinels present, or any other parse failure) so the caller can pass
-    the result on without further checks.
-    """
-    from io import BytesIO
-
-    try:
-        with zipfile.ZipFile(BytesIO(zip_bytes), "r") as zin:
-            validate_zip_archive(zin)
-            if "Metadata/project_settings.config" not in zin.namelist():
-                return zip_bytes
-            try:
-                config = read_json_member(zin, "Metadata/project_settings.config")
-            except (ArchiveBudgetError, ValueError, UnicodeDecodeError):
-                return zip_bytes
-            if not isinstance(config, dict):
-                return zip_bytes
-            removed = [key for key in _PROJECT_SETTINGS_SENTINEL_KEYS if config.get(key) == "-1"]
-            if not removed:
-                return zip_bytes
-            for key in removed:
-                config.pop(key, None)
-            patched = json.dumps(config)
-            logger.info(
-                "3MF sanitiser: removed sentinel '-1' for keys %s — slicer will use --load-settings defaults",
-                sorted(removed),
-            )
-            dst = BytesIO()
-            with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
-                for item in zin.infolist():
-                    if item.filename == "Metadata/project_settings.config":
-                        zout.writestr(item, patched)
-                    else:
-                        zout.writestr(item, read_zip_member(zin, item))
-            result = dst.getvalue()
-            return result if len(result) <= MAX_UPLOAD_BYTES else zip_bytes
-    except (ArchiveBudgetError, zipfile.BadZipFile, OSError):
-        return zip_bytes
+# Preserve the existing private import used by downstream tests/forks.
+_PROJECT_SETTINGS_SENTINEL_KEYS = PROJECT_SETTINGS_INHERIT_KEYS
 
 
 def _patch_process_bed_type(process_json: str, bed_type: str) -> str:
@@ -3566,7 +3494,7 @@ async def _run_slicer_with_fallback(
     # the embedded plate / model definitions remain intact.
     primary_bytes = model_bytes
     if is_3mf:
-        # Strip "-1" inherit-from-parent sentinels from
+        # Strip known inherit/active-filament index markers from
         # Metadata/project_settings.config so the CLI's StaticPrintConfig
         # range validator accepts the file (#1201). Surgical — keeps the
         # config present, just removes the offending keys; the supplied
