@@ -3052,6 +3052,7 @@ class PrintScheduler:
         # (#1670). `created_by_id` is set either at queue-add time (UI-added
         # items) or when the user clicks the manual-start button.
         await self._propagate_owner_to_printer_manager(db, item)
+        require_plate_clear = await self._get_bool_setting(db, "require_plate_clear", default=False)
 
         # Persist "printing" before MQTT to prevent phantom retries after a crash.
         # The CAS also lets a concurrent cancellation win before printer dispatch (#1853).
@@ -3134,11 +3135,10 @@ class PrintScheduler:
         # FINISH-state fallback — no need to force a video.
         effective_timelapse = bool(item.timelapse)
 
-        # Start the print with AMS mapping, plate_id and print options.
-        # nozzle_mapping rides through verbatim — JSON string captured from
-        # Bambu Studio's project_file on VP intake (#1780); the MQTT layer
-        # parses + injects it only for dual-nozzle models so a null on every
-        # other model is a transparent pass-through.
+        # Start with the stored AMS/nozzle mapping and plate options.
+        # nozzle_mapping comes from slicer project_file VP intake (#1780);
+        # the MQTT builder applies it only to dual-nozzle models.
+        preheat_ownership.guard_plate_clear(item.printer_id, require_plate_clear, printer_manager)
         started = printer_manager.start_print(
             item.printer_id,
             remote_filename,

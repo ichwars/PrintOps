@@ -23,6 +23,10 @@ _IDLE = frozenset({"IDLE", "FINISH", "FAILED"})
 _current: ContextVar["PreheatLease | None"] = ContextVar("preheat_lease", default=None)
 
 
+class _PlateClearRequired(Exception):
+    """A newer completed print requires acknowledgment before publication."""
+
+
 @dataclass
 class PreheatLease:
     owner: "PreheatOwnership"
@@ -229,6 +233,12 @@ class PreheatOwnership:
         token = _current.set(lease)
         try:
             yield lease
+        except _PlateClearRequired:
+            # A complete firmware print may have occurred between monitor polls.
+            # Its heater targets cannot still be claimed by our earlier preheat.
+            lease.recovered = True
+            self.forget(lease)
+            await self.defer_interrupted(lease, db)
         except asyncio.CancelledError:
             if not lease.interrupted:
                 raise
@@ -237,6 +247,11 @@ class PreheatOwnership:
             _current.reset(token)
             if self.leases.get(lease.printer_id) is lease and not lease.published:
                 self.rollback(lease)
+
+    @staticmethod
+    def guard_plate_clear(printer_id, required, manager) -> None:
+        if required and manager.is_awaiting_plate_clear(printer_id):
+            raise _PlateClearRequired
 
     def release_undispatched(self, item_id: int) -> None:
         for lease in list(self.leases.values()):
@@ -321,7 +336,7 @@ class PreheatOwnership:
             .values(status="pending", started_at=None, dispatching_at=None)
         )
         await db.commit()
-        logger.info("Queue item %s deferred: firmware started another print before publication", lease.item_id)
+        logger.info("Queue item %s deferred before command publication", lease.item_id)
 
     async def watch(self, lease: PreheatLease) -> None:
         try:
