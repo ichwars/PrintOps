@@ -14,6 +14,7 @@ import type {
   LibraryFolderTree,
   LibraryFolderUpdate,
   LibraryPurgePreview,
+  LibrarySpreadsheetPreview,
   LibraryStats,
   LibraryTag,
   LibraryTagBulkAssignResult,
@@ -282,6 +283,13 @@ export const historyLibraryMethods = {
       body: JSON.stringify(body),
     }),
 
+  uploadLibraryPreviewThumbnail: (id: number, thumbnail: Blob) => {
+    const form = new FormData(); form.append('thumbnail', thumbnail, 'preview.png');
+    return request<{ stored: boolean }>(`/library/files/${id}/preview-thumbnail`, { method: 'POST', body: form });
+  },
+  getLibrarySpreadsheetPreview: (id: number, signal?: AbortSignal) =>
+    request<LibrarySpreadsheetPreview>(
+      `/library/files/${id}/spreadsheet-preview`, { signal }),
   getLibraryFileDownloadUrl: (id: number) => `${API_BASE}/library/files/${id}/download`,
 
   createLibrarySlicerToken: (fileId: number) =>

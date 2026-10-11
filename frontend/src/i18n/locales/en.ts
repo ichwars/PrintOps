@@ -6341,6 +6341,23 @@ export default {
       submit: 'Combine',
       done: 'Created {{filename}} with {{count}} objects',
     },
+    preview: {
+      open: 'Preview',
+      error: 'This file cannot be previewed.',
+      tooLarge: 'File is too large to preview ({{size}}).',
+      page: 'Page {{current}} of {{total}}',
+      prevPage: 'Previous page',
+      nextPage: 'Next page',
+      zoomIn: 'Zoom in',
+      zoomOut: 'Zoom out',
+      resetZoom: 'Reset zoom',
+      fullscreen: 'Fullscreen',
+      exitFullscreen: 'Exit fullscreen',
+      emptySheet: 'This sheet is empty',
+      truncatedRows: 'Showing the first {{shown}} of {{total}} rows',
+      truncatedCols: 'Showing the first {{shown}} of {{total}} columns',
+      truncatedContent: 'Preview content was truncated to the display limit.',
+    },
     details: {
       title: 'File details',
       size: 'Size',
@@ -6423,7 +6440,7 @@ export default {
     linkToProjectOrArchive: 'Link to project or archive',
     generateThumbnail: 'Generate Thumbnail',
     generateThumbnails: 'Generate Thumbnails',
-    generateThumbnailsForMissing: 'Generate thumbnails for STL files missing them',
+    generateThumbnailsForMissing: 'Generate thumbnails for STL and PDF files missing them',
     gridView: 'Grid view',
     listView: 'List view',
     lowDiskSpaceWarning: 'Low disk space warning',
@@ -6562,7 +6579,7 @@ export default {
       folderRenamed: 'Folder renamed',
       thumbnailsGenerated: 'Generated {{count}} thumbnail(s)',
       thumbnailsGeneratedPartial: 'Generated {{succeeded}} thumbnail(s), {{failed}} failed',
-      noStlMissingThumbnails: 'No STL files missing thumbnails',
+      noStlMissingThumbnails: 'No STL or PDF files missing thumbnails',
       failedToGenerateThumbnails: 'Failed to generate thumbnails: {{error}}',
       thumbnailGenerated: 'Thumbnail generated',
       failedToGenerateThumbnail: 'Failed to generate thumbnail: {{error}}',
@@ -8275,6 +8292,7 @@ export default {
 
   // Model Viewer
   modelViewer: {
+    stepConverting: 'Converting STEP model… {{seconds}} s',
     openInSlicer: 'Open in Slicer',
     tabs: {
       model: '3D Model',

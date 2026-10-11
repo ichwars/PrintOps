@@ -6343,6 +6343,23 @@ export default {
       submit: 'Combineren',
       done: '{{filename}} gemaakt met {{count}} objecten',
     },
+    preview: {
+      open: 'Voorbeeld',
+      error: 'Dit bestand kan niet worden weergegeven.',
+      tooLarge: 'Bestand is te groot om weer te geven ({{size}}).',
+      page: 'Pagina {{current}} van {{total}}',
+      prevPage: 'Vorige pagina',
+      nextPage: 'Volgende pagina',
+      zoomIn: 'Inzoomen',
+      zoomOut: 'Uitzoomen',
+      resetZoom: 'Zoom herstellen',
+      fullscreen: 'Volledig scherm',
+      exitFullscreen: 'Volledig scherm afsluiten',
+      emptySheet: 'Dit werkblad is leeg',
+      truncatedRows: 'Eerste {{shown}} van {{total}} rijen worden getoond',
+      truncatedCols: 'Eerste {{shown}} van {{total}} kolommen worden getoond',
+      truncatedContent: 'De inhoud van het voorbeeld is ingekort tot de weergavelimiet.',
+    },
     details: {
       title: 'Bestandsdetails',
       size: 'Grootte',
@@ -6425,7 +6442,7 @@ export default {
     linkToProjectOrArchive: "Koppelen aan project of archief",
     generateThumbnail: "Miniatuur genereren",
     generateThumbnails: "Miniaturen genereren",
-    generateThumbnailsForMissing: "Miniaturen genereren voor STL-bestanden die deze missen",
+    generateThumbnailsForMissing: 'Miniaturen genereren voor STL- en PDF-bestanden die ze missen',
     gridView: "Rasterweergave",
     listView: "Lijstweergave",
     lowDiskSpaceWarning: "Waarschuwing weinig schijfruimte",
@@ -6564,7 +6581,7 @@ export default {
       folderRenamed: "Map hernoemd",
       thumbnailsGenerated: "{{count}} miniatuur/miniaturen gegenereerd",
       thumbnailsGeneratedPartial: "{{succeeded}} miniatuur/miniaturen gegenereerd, {{failed}} mislukt",
-      noStlMissingThumbnails: "Geen STL-bestanden zonder miniatuur",
+      noStlMissingThumbnails: 'Geen STL- of PDF-bestanden zonder miniaturen',
       failedToGenerateThumbnails: "Miniaturen genereren mislukt: {{error}}",
       thumbnailGenerated: "Miniatuur gegenereerd",
       failedToGenerateThumbnail: "Miniatuur genereren mislukt: {{error}}",
@@ -8277,6 +8294,7 @@ export default {
 
   // Model Viewer
   modelViewer: {
+    stepConverting: 'STEP-model wordt geconverteerd… {{seconds}} s',
     openInSlicer: "Openen in slicer",
     tabs: {
       model: "3D-model",

@@ -7,7 +7,10 @@ import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import JSZip from 'jszip';
 import { Loader2, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from './Button';
+import { loadStepPreview, type StepMesh } from '../utils/stepPreview';
 import { getAuthToken } from '../api/client';
+
+const DEFAULT_BUILD_VOLUME = { x: 256, y: 256, z: 256 };
 
 interface BuildVolume {
   x: number;
@@ -17,6 +20,7 @@ interface BuildVolume {
 
 interface ModelViewerProps {
   url: string;
+  onSnapshot?: (blob: Blob) => void;
   fileType?: string;
   buildVolume?: BuildVolume;
   filamentColors?: string[];
@@ -622,12 +626,14 @@ function buildModelGroup(
 export function ModelViewer({
   url,
   fileType,
-  buildVolume = { x: 256, y: 256, z: 256 },
+  buildVolume = DEFAULT_BUILD_VOLUME,
   filamentColors,
   selectedPlateId = null,
   className = '',
+  onSnapshot,
 }: ModelViewerProps) {
   const { t } = useTranslation();
+  const previewType = (fileType || url.split('?')[0].split('.').pop() || '').toLowerCase();
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -639,6 +645,11 @@ export function ModelViewer({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [parsedData, setParsedData] = useState<Parsed3MFData | null>(null);
+  const snapshotSent = useRef(false);
+  const onSnapshotRef = useRef(onSnapshot);
+  useEffect(() => { onSnapshotRef.current = onSnapshot; });
+  const [stepMeshes, setStepMeshes] = useState<StepMesh[] | null>(null);
+  const [stepElapsed, setStepElapsed] = useState(0);
   const [stlGeometry, setStlGeometry] = useState<THREE.BufferGeometry | null>(null);
 
   useEffect(() => {
@@ -717,8 +728,13 @@ export function ModelViewer({
     setError(null);
     setParsedData(null);
     setStlGeometry(null);
+    setStepMeshes(null);
+    setStepElapsed(0);
+    snapshotSent.current = false;
+    const previewController = new AbortController();
+    let progressTimer: ReturnType<typeof setInterval> | undefined;
 
-    const normalizedType = (fileType || url.split('?')[0].split('.').pop() || '').toLowerCase();
+    const normalizedType = previewType;
 
     // Build auth headers for fetch
     const headers: HeadersInit = {};
@@ -744,6 +760,14 @@ export function ModelViewer({
           setError(err.message);
           setLoading(false);
         });
+    } else if (normalizedType === 'step' || normalizedType === 'stp') {
+      const startedAt = Date.now();
+      progressTimer = setInterval(() => setStepElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+      loadStepPreview(url, headers, previewController.signal)
+        .then(setStepMeshes)
+        .catch((error: Error) => {
+          if (!previewController.signal.aborted) { setError(error.message); setLoading(false); }
+        }).finally(() => clearInterval(progressTimer));
     } else if (normalizedType === '3mf') {
       fetch(url, { headers })
         .then((res) => {
@@ -783,35 +807,49 @@ export function ModelViewer({
     resizeObserver.observe(container);
 
     return () => {
+      previewController.abort();
+      clearInterval(progressTimer);
       window.removeEventListener('resize', handleResize);
       resizeObserver.disconnect();
       cancelAnimationFrame(animationId);
       controls.dispose();
       renderer.dispose();
       container.removeChild(renderer.domElement);
+      if (modelGroupRef.current) disposeGroup(modelGroupRef.current);
       modelGroupRef.current = null;
       plateRef.current = null;
       gridRef.current = null;
     };
-  }, [url, buildVolume, fileType, t]);
+  }, [url, buildVolume, previewType, t]);
 
   useEffect(() => {
     if (!sceneRef.current || !cameraRef.current || !controlsRef.current) return;
-    if (!parsedData && !stlGeometry) return;
+    if (!parsedData && !stlGeometry && !stepMeshes) return;
 
     if (modelGroupRef.current) {
       sceneRef.current.remove(modelGroupRef.current);
       disposeGroup(modelGroupRef.current);
     }
 
-    const isStlModel = !!stlGeometry;
+    const isStlModel = !!stlGeometry || !!stepMeshes;
     const group = isStlModel
       ? (() => {
           const materialColor = filamentColors?.[0] || '#00ae42';
           const material = new THREE.MeshPhongMaterial({ color: new THREE.Color(materialColor), shininess: 30 });
-          const mesh = new THREE.Mesh(stlGeometry!, material);
           const stlGroup = new THREE.Group();
-          stlGroup.add(mesh);
+          if (stepMeshes) {
+            material.dispose();
+            for (const data of stepMeshes) {
+              const geometry = new THREE.BufferGeometry();
+              geometry.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
+              geometry.setIndex(new THREE.BufferAttribute(data.indices, 1));
+              if (data.normals) geometry.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3));
+              else geometry.computeVertexNormals();
+              geometry.rotateX(-Math.PI / 2);
+              const color = data.color ? new THREE.Color(...data.color) : new THREE.Color(materialColor);
+              stlGroup.add(new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({ color, shininess: 30 })));
+            }
+          } else stlGroup.add(new THREE.Mesh(stlGeometry!, material));
           return stlGroup;
         })()
       : buildModelGroup(parsedData!, selectedPlateId ?? null, filamentColors);
@@ -889,7 +927,37 @@ export function ModelViewer({
     controlsRef.current.update();
 
     setLoading(false);
-  }, [parsedData, stlGeometry, selectedPlateId, filamentColors, buildVolume]);
+    // One-shot snapshot of the first framed render (#2976). Rendering
+    // explicitly right before reading the canvas keeps the WebGL buffer
+    // valid without preserveDrawingBuffer.
+    if (onSnapshotRef.current && !snapshotSent.current) {
+      snapshotSent.current = true;
+      requestAnimationFrame(() => {
+        const renderer = rendererRef.current;
+        const scene = sceneRef.current;
+        const camera = cameraRef.current;
+        if (!renderer || !scene || !camera) return;
+        try {
+          renderer.render(scene, camera);
+          const source = renderer.domElement;
+          const size = 256;
+          const side = Math.min(source.width, source.height);
+          const target = document.createElement('canvas');
+          target.width = size;
+          target.height = size;
+          const ctx = target.getContext('2d');
+          if (!ctx) return;
+          ctx.drawImage(source, (source.width - side) / 2, (source.height - side) / 2, side, side, 0, 0, size, size);
+          target.toBlob((blob) => {
+            if (blob) onSnapshotRef.current?.(blob);
+          }, 'image/png');
+        } catch {
+          // Snapshot is best-effort; the preview itself already rendered.
+        }
+      });
+    }
+
+  }, [parsedData, stlGeometry, stepMeshes, selectedPlateId, filamentColors, buildVolume]);
 
   const resetView = () => {
     if (cameraRef.current && controlsRef.current) {
@@ -911,7 +979,11 @@ export function ModelViewer({
 
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-bambu-dark/80">
-          <Loader2 className="w-8 h-8 text-bambu-green animate-spin" />
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="w-8 h-8 text-bambu-green animate-spin" />
+            {['step', 'stp'].includes(previewType) &&
+              <p className="text-bambu-gray">{t('modelViewer.stepConverting', { seconds: stepElapsed })}</p>}
+          </div>
         </div>
       )}
 

@@ -18,6 +18,7 @@ interface ModelViewerModalProps {
   title: string;
   fileType?: string;
   onClose: () => void;
+  onSnapshot?: (blob: Blob) => void;
   // When set and `settings.use_slicer_api` is on, the header's slicer button
   // becomes "Slice" and calls this instead of opening BambuStudio / Orca
   // externally — so the preview modal's slice action matches the file row's
@@ -33,7 +34,7 @@ interface Capabilities {
   filament_colors: string[];
 }
 
-export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, onClose, onSliceWithPrintOps }: ModelViewerModalProps) {
+export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, onClose, onSliceWithPrintOps, onSnapshot }: ModelViewerModalProps) {
   const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
@@ -82,7 +83,7 @@ export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, on
       // upload path tags it `3mf`, so we accept both shapes here for
       // the 3D-tab + g-code-tab gating (#1543).
       const isThreeMfFamily = normalizedType === '3mf' || normalizedType === 'gcode.3mf';
-      const hasModel = isThreeMfFamily || normalizedType === 'stl';
+      const hasModel = isThreeMfFamily || ['stl', 'step', 'stp'].includes(normalizedType);
       const hasGcode = isThreeMfFamily || normalizedType === 'gcode';
       setCapabilities({
         has_model: hasModel,
@@ -635,6 +636,7 @@ export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, on
                         ? api.getSource3mfDownloadUrl(archiveId!)
                         : api.getArchiveDownload(archiveId!))}
                     fileType={fileType}
+                    onSnapshot={onSnapshot}
                     buildVolume={capabilities.build_volume}
                     filamentColors={capabilities.filament_colors}
                     selectedPlateId={selectedPlateId}

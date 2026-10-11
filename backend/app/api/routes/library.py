@@ -18,7 +18,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse as FastAPIFileResponse
-from sqlalchemy import distinct, func, select
+from sqlalchemy import distinct, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -65,6 +65,7 @@ from backend.app.schemas.library import (
     FolderResponse,
     FolderTreeItem,
     FolderUpdate,
+    SpreadsheetPreviewResponse,
     TagSummary,
     ZipExtractError,
     ZipExtractResponse,
@@ -73,6 +74,7 @@ from backend.app.schemas.library import (
 from backend.app.schemas.print_queue import PrintQueueItemCreate
 from backend.app.schemas.slicer import SliceRequest, SliceResponse
 from backend.app.services.archive import ThreeMFParser
+from backend.app.services.library_previews import generate_pdf_thumbnail
 from backend.app.services.library_queue_references import (
     folder_tree_file_ids,
     prepare_folder_hard_delete,
@@ -686,7 +688,7 @@ IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", "
 
 
 async def _backfill_external_stl_thumbnails(folder_ids: list[int]) -> None:
-    """Generate STL thumbnails for an external folder tree in the background.
+    """Generate STL/PDF thumbnails for an external folder tree in the background.
 
     Spawned via ``asyncio.create_task`` from ``scan_external_folder`` so the
     HTTP request can return as soon as the filesystem walk + folder/file rows
@@ -708,7 +710,7 @@ async def _backfill_external_stl_thumbnails(folder_ids: list[int]) -> None:
         result = await db.execute(
             LibraryFile.active().where(
                 LibraryFile.folder_id.in_(folder_ids),
-                LibraryFile.file_type == "stl",
+                LibraryFile.file_type.in_(("stl", "pdf")),
                 LibraryFile.thumbnail_path.is_(None),
             )
         )
@@ -716,7 +718,7 @@ async def _backfill_external_stl_thumbnails(folder_ids: list[int]) -> None:
         if not stl_files:
             return
         logger.info(
-            "Backfilling STL thumbnails: %d file(s) across %d folder(s)",
+            "Backfilling STL/PDF thumbnails: %d file(s) across %d folder(s)",
             len(stl_files),
             len(folder_ids),
         )
@@ -728,14 +730,18 @@ async def _backfill_external_stl_thumbnails(folder_ids: list[int]) -> None:
             # Bulk-uploaded ZIPs of stub STLs would otherwise trigger one
             # trimesh.load() call + one debug log line per stub.
             try:
-                if abs_path.stat().st_size < MIN_USABLE_STL_BYTES:
+                if stl_file.file_type == "stl" and abs_path.stat().st_size < MIN_USABLE_STL_BYTES:
                     continue
             except OSError:
                 continue
             try:
-                thumb_path = generate_stl_thumbnail(abs_path, thumbnails_dir)
+                thumb_path = (
+                    await asyncio.to_thread(generate_pdf_thumbnail, abs_path, thumbnails_dir)
+                    if stl_file.file_type == "pdf"
+                    else generate_stl_thumbnail(abs_path, thumbnails_dir)
+                )
             except Exception as exc:  # noqa: BLE001 — never let one bad STL kill the rest
-                logger.debug("STL thumbnail backfill skipped %s: %s", abs_path, exc)
+                logger.debug("STL/PDF thumbnail backfill skipped %s: %s", abs_path, exc)
                 continue
             if thumb_path:
                 stl_file.thumbnail_path = to_relative_path(Path(thumb_path))
@@ -2145,6 +2151,9 @@ async def upload_file(
             # For image files, create a thumbnail from the image itself
             thumbnail_path = create_image_thumbnail(file_path, thumbnails_dir)
 
+        elif ext == ".pdf":
+            thumbnail_path = await asyncio.to_thread(generate_pdf_thumbnail, file_path, thumbnails_dir)
+
         elif ext == ".stl":
             # Generate STL thumbnail if enabled. Same MIN_USABLE_STL_BYTES
             # pre-skip as extract_zip_file — stubs / placeholders below this
@@ -2418,6 +2427,9 @@ async def extract_zip_file(
                     elif ext.lower() in IMAGE_EXTENSIONS:
                         thumbnail_path = create_image_thumbnail(file_path, thumbnails_dir)
 
+                    elif ext == ".pdf":
+                        thumbnail_path = await asyncio.to_thread(generate_pdf_thumbnail, file_path, thumbnails_dir)
+
                     elif ext == ".stl":
                         # Generate STL thumbnail if enabled. Pre-skip files
                         # below MIN_USABLE_STL_BYTES — they can't contain
@@ -2492,7 +2504,7 @@ async def batch_generate_stl_thumbnails(
     db: AsyncSession = Depends(get_db),
     _: User | None = Depends(require_permission_if_auth_enabled(Permission.LIBRARY_UPDATE_ALL)),
 ):
-    """Generate thumbnails for STL files in batch.
+    """Generate thumbnails for STL and PDF files in batch.
 
     Note: Requires library:update_all permission since this is a batch operation
     that may affect files owned by different users.
@@ -2506,7 +2518,7 @@ async def batch_generate_stl_thumbnails(
     results: list[BatchThumbnailResult] = []
 
     # Build query based on request
-    query = LibraryFile.active().where(LibraryFile.file_type == "stl")
+    query = LibraryFile.active().where(LibraryFile.file_type.in_(("stl", "pdf")))
 
     if request.file_ids:
         # Specific files
@@ -2556,7 +2568,11 @@ async def batch_generate_stl_thumbnails(
             continue
 
         try:
-            thumbnail_path = generate_stl_thumbnail(file_path, thumbnails_dir)
+            thumbnail_path = (
+                await asyncio.to_thread(generate_pdf_thumbnail, file_path, thumbnails_dir)
+                if stl_file.file_type == "pdf"
+                else generate_stl_thumbnail(file_path, thumbnails_dir)
+            )
 
             if thumbnail_path:
                 # Update database with relative path
@@ -4395,6 +4411,91 @@ async def print_library_file(
 
 
 # ============ File Detail Endpoints ============
+
+
+@router.get("/files/{file_id}/spreadsheet-preview", response_model=SpreadsheetPreviewResponse)
+async def get_spreadsheet_preview(
+    file_id: int,
+    db: AsyncSession = Depends(get_db),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.LIBRARY_READ_ALL, Permission.LIBRARY_READ_OWN)
+    ),
+):
+    from backend.app.services.library_previews import spreadsheet_preview
+
+    user, can_read_all = auth_result
+    file = _ensure_library_file_visible(
+        (await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))).scalar_one_or_none(),
+        user,
+        can_read_all,
+    )
+    path = _resolve_source_disk_path(file)
+    if path is None or not path.is_file():
+        raise HTTPException(404, "File not found on disk")
+    if file.file_type not in ("csv", "xlsx", "ods"):
+        raise HTTPException(400, "Preview supports CSV, XLSX and ODS")
+    try:
+        return await asyncio.to_thread(spreadsheet_preview, path, file.file_type)
+    except ArchiveBudgetError as exc:
+        raise HTTPException(413, str(exc)) from exc
+    except Exception as exc:
+        logger.debug("Spreadsheet preview rejected file %s: %s", file.id, type(exc).__name__)
+        raise HTTPException(400, "Document cannot be previewed") from exc
+
+
+@router.post("/files/{file_id}/preview-thumbnail")
+async def store_preview_thumbnail(
+    file_id: int,
+    thumbnail: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.LIBRARY_UPDATE_ALL, Permission.LIBRARY_UPDATE_OWN)
+    ),
+):
+    user, can_modify_all = auth_result
+    row = _ensure_library_file_visible(
+        (await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))).scalar_one_or_none(),
+        user,
+        can_modify_all,
+    )
+    if row.file_type not in {"step", "stp", "pdf", "csv", "xlsx", "ods"}:
+        raise HTTPException(400, "File type does not accept preview thumbnails")
+    if row.thumbnail_path:
+        return {"stored": False}
+    try:
+        content = await read_upload_limited(thumbnail, max_bytes=2 * 1024 * 1024)
+    except ArchiveBudgetError as exc:
+        raise HTTPException(413, str(exc)) from exc
+    from PIL import Image, UnidentifiedImageError
+
+    try:
+        with Image.open(BytesIO(content)) as image:
+            if image.format != "PNG" or image.width * image.height > 4_000_000:
+                raise ValueError("Invalid preview dimensions")
+            image.load()
+            image.thumbnail((256, 256), Image.Resampling.LANCZOS)
+            output = BytesIO()
+            image.save(output, "PNG")
+    except (UnidentifiedImageError, ValueError, OSError, Image.DecompressionBombError) as exc:
+        raise HTTPException(400, "Thumbnail must be a bounded PNG") from exc
+    path = get_library_thumbnails_dir() / f"{uuid.uuid4().hex}.png"
+    path.write_bytes(output.getvalue())
+    try:
+        # Concurrent previews may finish together; keep the first result and
+        # remove the losing file. A trash/move cannot resurrect a deleted row.
+        result = await db.execute(
+            update(LibraryFile)
+            .where(LibraryFile.id == file_id, LibraryFile.deleted_at.is_(None), LibraryFile.thumbnail_path.is_(None))
+            .values(thumbnail_path=to_relative_path(path))
+        )
+        stored = bool(result.rowcount)
+        await db.commit()
+        if not stored:
+            path.unlink(missing_ok=True)
+        return {"stored": stored}
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
 
 
 @router.post("/files/{file_id}/photos")

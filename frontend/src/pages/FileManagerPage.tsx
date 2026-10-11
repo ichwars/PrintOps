@@ -45,6 +45,7 @@ import {
   Tag as TagIcon,
   Info,
   Combine,
+  Eye,
 } from 'lucide-react';
 import { api } from '../api/client';
 import type {
@@ -62,6 +63,9 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { PrintModal } from '../components/PrintModal';
 import { ModelViewerModal } from '../components/ModelViewerModal';
 import { LibraryFileDetailsModal } from '../components/LibraryFileDetailsModal';
+import { ImagePreviewModal } from '../components/ImagePreviewModal';
+import { PdfPreviewModal } from '../components/PdfPreviewModal';
+import { SpreadsheetPreviewModal } from '../components/SpreadsheetPreviewModal';
 import { CombineFilesModal } from '../components/CombineFilesModal';
 import { SliceModal } from '../components/SliceModal';
 import { RunWithPipelineModal } from '../components/RunWithPipelineModal';
@@ -676,6 +680,7 @@ interface FileCardProps {
   onSlice?: (file: LibraryFileListItem) => void;
   onRunPipeline?: (file: LibraryFileListItem) => void;
   useSlicerApi?: boolean;
+  onPreviewDocument?: (file: LibraryFileListItem) => void;
   onPreview3d?: (file: LibraryFileListItem) => void;
   onRename?: (file: LibraryFileListItem) => void;
   onGenerateThumbnail?: (file: LibraryFileListItem) => void;
@@ -688,7 +693,7 @@ interface FileCardProps {
   t: TFunction;
 }
 
-function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onDetails, onPrint, onSlice, onRunPipeline, useSlicerApi, onPreview3d, onRename, onGenerateThumbnail, onTagClick, thumbnailVersion, hasPermission, canModify, authEnabled, showModified, t }: FileCardProps) {
+function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onDetails, onPrint, onSlice, onRunPipeline, useSlicerApi, onPreviewDocument, onPreview3d, onRename, onGenerateThumbnail, onTagClick, thumbnailVersion, hasPermission, canModify, authEnabled, showModified, t }: FileCardProps) {
   return (
     <div
       className={`group relative bg-bambu-dark-secondary rounded-lg border transition-all cursor-pointer overflow-hidden ${
@@ -842,7 +847,14 @@ function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onDetails,
                   {t('library.runWithPipeline.actionLabel')}
                 </button>
               )}
-              {onPreview3d && (file.file_type === '3mf' || file.file_type === 'gcode' || file.file_type === 'stl' || file.file_type === 'gcode.3mf') && (
+              {onPreviewDocument && ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'pdf', 'csv', 'xlsx', 'ods'].includes(file.file_type) && (
+                <button role="menuitem" disabled={!hasPermission('library:read')}
+                  className="w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 text-white hover:bg-bambu-dark disabled:opacity-50"
+                  onClick={() => { if (hasPermission('library:read')) { close(); onPreviewDocument(file); } }}>
+                  <Eye className="w-3.5 h-3.5" />{t('fileManager.preview.open')}
+                </button>
+              )}
+              {onPreview3d && (file.file_type === '3mf' || file.file_type === 'gcode' || file.file_type === 'stl' || file.file_type === 'gcode.3mf' || file.file_type === 'step' || file.file_type === 'stp') && (
                 <button
                   role="menuitem"
                   className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
@@ -889,7 +901,7 @@ function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onDetails,
                   {t('common.rename')}
                 </button>
               )}
-              {onGenerateThumbnail && file.file_type === 'stl' && (
+              {onGenerateThumbnail && ['stl', 'pdf'].includes(file.file_type) && (
                 <button
                   role="menuitem"
                   className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
@@ -971,6 +983,15 @@ export function FileManagerPage() {
   const [runPipelineFile, setRunPipelineFile] = useState<LibraryFileListItem | null>(null);
   const [renameItem, setRenameItem] = useState<{ type: 'file' | 'folder'; id: number; name: string } | null>(null);
   const [thumbnailVersions, setThumbnailVersions] = useState<Record<number, number>>({});
+  const storePreviewThumbnail = (file: LibraryFileListItem) =>
+    !file.thumbnail_path && canModify('library', 'update', file.created_by_id)
+      ? (blob: Blob) => {
+          void api.uploadLibraryPreviewThumbnail(file.id, blob).then(({ stored }) => {
+            if (stored) void queryClient.invalidateQueries({ queryKey: ['library-files'] });
+          }).catch(() => {}); // A snapshot is optional; its preview already succeeded.
+        }
+      : undefined;
+  const [documentFile, setDocumentFile] = useState<LibraryFileListItem | null>(null);
   const [viewerFile, setViewerFile] = useState<LibraryFileListItem | null>(null);
   const [detailsFile, setDetailsFile] = useState<LibraryFileListItem | null>(null);
   const [showCombineModal, setShowCombineModal] = useState(false);
@@ -2354,6 +2375,7 @@ export function FileManagerPage() {
                     onSlice={setSliceFile}
                     onRunPipeline={setRunPipelineFile}
                     useSlicerApi={settings?.use_slicer_api ?? false}
+                    onPreviewDocument={setDocumentFile}
                     onPreview3d={(f) => {
                       // Content-classified sliced files open the same
                       // full-page gcode viewer the archive card uses, so
@@ -2476,7 +2498,7 @@ export function FileManagerPage() {
                     <div>
                       <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
                         file.file_type === '3mf' ? 'bg-bambu-green/20 text-bambu-green'
-                        : (file.file_type === 'gcode' || file.file_type === 'gcode.3mf') ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400'
+                        : (file.file_type === 'gcode' || file.file_type === 'gcode.3mf' || file.file_type === 'step' || file.file_type === 'stp') ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400'
                         : file.file_type === 'stl' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400'
                         : 'bg-bambu-gray/20 text-bambu-gray'
                       }`}>
@@ -2566,7 +2588,7 @@ export function FileManagerPage() {
                           <Play className="w-4 h-4" />
                         </button>
                       )}
-                      {(file.file_type === '3mf' || file.file_type === 'gcode' || file.file_type === 'gcode.3mf' || file.file_type === 'stl') && (
+                      {(file.file_type === '3mf' || file.file_type === 'gcode' || file.file_type === 'gcode.3mf' || file.file_type === 'stl' || file.file_type === 'step' || file.file_type === 'stp') && (
                         <button
                           onClick={() => {
                             if (!hasPermission('library:read')) return;
@@ -2585,6 +2607,12 @@ export function FileManagerPage() {
                           disabled={!hasPermission('library:read')}
                         >
                           <Box className="w-4 h-4" />
+                        </button>
+                      )}
+                      {['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'pdf', 'csv', 'xlsx', 'ods'].includes(file.file_type) && (
+                        <button title={t('fileManager.preview.open')} disabled={!hasPermission('library:read')}
+                          onClick={() => setDocumentFile(file)} className="p-1.5 rounded text-bambu-gray hover:text-bambu-green disabled:opacity-50">
+                          <Eye className="w-4 h-4" />
                         </button>
                       )}
                       <button title={t('fileManager.details.title')} onClick={() => setDetailsFile(file)}
@@ -2615,7 +2643,7 @@ export function FileManagerPage() {
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
-                      {file.file_type === 'stl' && (
+                      {['stl', 'pdf'].includes(file.file_type) && (
                         <button
                           onClick={() => canModify('library', 'update', file.created_by_id) && singleThumbnailMutation.mutate(file.id)}
                           className={`p-1.5 rounded transition-colors ${
@@ -2813,11 +2841,18 @@ export function FileManagerPage() {
           onClose={() => setDetailsFile(null)} />
       )}
 
+      {documentFile && (documentFile.file_type === 'pdf'
+        ? <PdfPreviewModal onSnapshot={storePreviewThumbnail(documentFile)} libraryFileId={documentFile.id} filename={documentFile.filename} fileSize={documentFile.file_size} onClose={() => setDocumentFile(null)} />
+        : ['csv', 'xlsx', 'ods'].includes(documentFile.file_type)
+          ? <SpreadsheetPreviewModal onSnapshot={storePreviewThumbnail(documentFile)} libraryFileId={documentFile.id} filename={documentFile.filename} fileType={documentFile.file_type} fileSize={documentFile.file_size} onClose={() => setDocumentFile(null)} />
+          : <ImagePreviewModal libraryFileId={documentFile.id} filename={documentFile.filename} fileSize={documentFile.file_size} onClose={() => setDocumentFile(null)} />)}
+
       {viewerFile && (
         <ModelViewerModal
           libraryFileId={viewerFile.id}
           title={viewerFile.print_name || viewerFile.filename}
           fileType={viewerFile.file_type}
+          onSnapshot={['step', 'stp'].includes(viewerFile.file_type) ? storePreviewThumbnail(viewerFile) : undefined}
           onClose={() => setViewerFile(null)}
           onSliceWithPrintOps={
             // Only offer in-app slicing on files the SliceModal can actually

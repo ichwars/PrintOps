@@ -214,6 +214,11 @@ export interface LibraryFileDuplicate {
   created_at: string;
 }
 
+export interface LibrarySpreadsheetPreview {
+  sheets: Array<{ name: string; rows: string[][]; totalRows: number; totalCols: number }>;
+  truncated: boolean;
+}
+
 export interface LibraryFile {
   id: number;
   folder_id: number | null;

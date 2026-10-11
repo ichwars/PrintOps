@@ -4,6 +4,7 @@ import logging
 import mimetypes as _mimetypes
 import os
 import posixpath
+import re
 import secrets
 import time
 from contextlib import asynccontextmanager
@@ -6393,7 +6394,20 @@ async def security_headers_middleware(request, call_next):
     #   - img-src data: / blob:: base64 thumbnails and Blob-URL timelapse previews.
     #   - media-src blob:: timelapse video player uses Blob URLs.
     #   - font-src data:: some icon fonts are embedded as data URIs.
-    if request.url.path.startswith("/gcode-viewer"):
+    if (
+        request.method == "GET"
+        and response.status_code == 200
+        and re.fullmatch(r"/assets/stepPreview\.worker-[A-Za-z0-9_-]+\.js", request.url.path)
+        and response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+        in {"application/javascript", "text/javascript"}
+    ):
+        # Emscripten embind requires dynamic functions; only this local worker
+        # receives that capability. Inputs and WASM arrive from its parent.
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; script-src 'self' 'unsafe-eval'; "
+            "connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none';"
+        )
+    elif request.url.path.startswith("/gcode-viewer"):
         # The gcode viewer is embedded in an iframe served by this same origin,
         # so frame-ancestors must allow 'self'.  prettygcode.js also uses eval()
         # internally, so script-src needs 'unsafe-eval'.

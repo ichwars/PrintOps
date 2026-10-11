@@ -6263,6 +6263,23 @@ export default {
       submit: 'Combina',
       done: 'Creato {{filename}} con {{count}} oggetti',
     },
+    preview: {
+      open: 'Anteprima',
+      error: 'Impossibile visualizzare l\'anteprima di questo file.',
+      tooLarge: 'Il file è troppo grande per l\'anteprima ({{size}}).',
+      page: 'Pagina {{current}} di {{total}}',
+      prevPage: 'Pagina precedente',
+      nextPage: 'Pagina successiva',
+      zoomIn: 'Ingrandisci',
+      zoomOut: 'Riduci',
+      resetZoom: 'Reimposta zoom',
+      fullscreen: 'Schermo intero',
+      exitFullscreen: 'Esci da schermo intero',
+      emptySheet: 'Questo foglio è vuoto',
+      truncatedRows: 'Visualizzate le prime {{shown}} righe di {{total}}',
+      truncatedCols: 'Visualizzate le prime {{shown}} colonne di {{total}}',
+      truncatedContent: 'Il contenuto dell’anteprima è stato ridotto al limite di visualizzazione.',
+    },
     details: {
       title: 'Dettagli del file',
       size: 'Dimensione',
@@ -6345,7 +6362,7 @@ export default {
     linkToProjectOrArchive: 'Collega a progetto o archivio',
     generateThumbnail: 'Genera miniatura',
     generateThumbnails: 'Genera miniature',
-    generateThumbnailsForMissing: 'Genera miniature per STL senza miniatura',
+    generateThumbnailsForMissing: 'Genera miniature per STL e PDF senza miniatura',
     gridView: 'Vista griglia',
     listView: 'Vista elenco',
     lowDiskSpaceWarning: 'Avviso spazio disco basso',
@@ -6484,7 +6501,7 @@ export default {
       folderRenamed: 'Cartella rinominata',
       thumbnailsGenerated: 'Generate {{count}} miniature',
       thumbnailsGeneratedPartial: 'Generate {{succeeded}} miniature, {{failed}} fallite',
-      noStlMissingThumbnails: 'Nessun file STL senza miniature',
+      noStlMissingThumbnails: 'Nessun file STL o PDF senza miniature',
       failedToGenerateThumbnails: 'Generazione miniature fallita: {{error}}',
       thumbnailGenerated: 'Miniatura generata',
       failedToGenerateThumbnail: 'Generazione miniatura fallita: {{error}}',
@@ -8177,6 +8194,7 @@ useEmbeddedHint: 'Esegue lo slicing come impostato dal designer (pareti, riempim
 
   // Model Viewer
   modelViewer: {
+    stepConverting: 'Conversione del modello STEP… {{seconds}} s',
     openInSlicer: 'Apri nello slicer',
     tabs: {
       model: 'Modello 3D',

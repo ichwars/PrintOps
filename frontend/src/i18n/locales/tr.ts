@@ -6270,6 +6270,23 @@ export default {
       submit: 'Birleştir',
       done: '{{filename}} oluşturuldu ({{count}} nesne)',
     },
+    preview: {
+      open: 'Önizleme',
+      error: 'Bu dosya önizlenemiyor.',
+      tooLarge: 'Dosya önizleme için çok büyük ({{size}}).',
+      page: 'Sayfa {{current}} / {{total}}',
+      prevPage: 'Önceki sayfa',
+      nextPage: 'Sonraki sayfa',
+      zoomIn: 'Yakınlaştır',
+      zoomOut: 'Uzaklaştır',
+      resetZoom: 'Yakınlaştırmayı sıfırla',
+      fullscreen: 'Tam ekran',
+      exitFullscreen: 'Tam ekrandan çık',
+      emptySheet: 'Bu sayfa boş',
+      truncatedRows: '{{total}} satırdan ilk {{shown}} tanesi gösteriliyor',
+      truncatedCols: '{{total}} sütundan ilk {{shown}} tanesi gösteriliyor',
+      truncatedContent: 'Önizleme içeriği görüntüleme sınırına göre kısaltıldı.',
+    },
     details: {
       title: 'Dosya ayrıntıları',
       size: 'Boyut',
@@ -6352,7 +6369,7 @@ export default {
     linkToProjectOrArchive: 'Projeye veya arşive bağla',
     generateThumbnail: 'Küçük Resim Oluştur',
     generateThumbnails: 'Küçük Resimler Oluştur',
-    generateThumbnailsForMissing: 'Eksik olan STL dosyaları için küçük resimler oluştur',
+    generateThumbnailsForMissing: 'Eksik olan STL ve PDF dosyaları için küçük resimler oluştur',
     gridView: 'Izgara görünümü',
     listView: 'Liste görünümü',
     lowDiskSpaceWarning: 'Düşük disk alanı uyarısı',
@@ -6491,7 +6508,7 @@ export default {
       folderRenamed: 'Klasör yeniden adlandırıldı',
       thumbnailsGenerated: '{{count}} küçük resim oluşturuldu',
       thumbnailsGeneratedPartial: '{{succeeded}} küçük resim oluşturuldu, {{failed}} başarısız',
-      noStlMissingThumbnails: 'Küçük resmi eksik STL dosyası yok',
+      noStlMissingThumbnails: 'Küçük resmi eksik STL veya PDF dosyası yok',
       failedToGenerateThumbnails: 'Küçük resimler oluşturulamadı: {{error}}',
       thumbnailGenerated: 'Küçük resim oluşturuldu',
       failedToGenerateThumbnail: 'Küçük resim oluşturulamadı: {{error}}',
@@ -8152,6 +8169,7 @@ useEmbeddedHint: 'Yukarıdaki profiller yerine tasarımcının ayarlarıyla (duv
 
   // Model Görüntüleyici
   modelViewer: {
+    stepConverting: 'STEP modeli dönüştürülüyor… {{seconds}} sn',
     openInSlicer: 'Dilimleyicide Aç',
     tabs: {
       model: '3B Model',

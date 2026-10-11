@@ -115,6 +115,20 @@ class FileCreate(BaseModel):
     project_id: int | None = None
 
 
+class SpreadsheetSheetPreview(BaseModel):
+    """Bounded, literal cell values for one spreadsheet tab."""
+
+    name: str = Field(..., max_length=2000)
+    rows: list[list[str]] = Field(..., max_length=500)
+    totalRows: int = Field(..., ge=0)
+    totalCols: int = Field(..., ge=0)
+
+
+class SpreadsheetPreviewResponse(BaseModel):
+    sheets: list[SpreadsheetSheetPreview] = Field(..., max_length=20)
+    truncated: bool
+
+
 class CombineItem(BaseModel):
     file_id: int = Field(..., gt=0, strict=True)
     copies: int = Field(1, ge=1, le=100, strict=True)

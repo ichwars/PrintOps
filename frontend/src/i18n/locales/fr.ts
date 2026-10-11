@@ -6264,6 +6264,23 @@ export default {
       submit: 'Combiner',
       done: '{{filename}} créé avec {{count}} objets',
     },
+    preview: {
+      open: 'Aperçu',
+      error: 'Ce fichier ne peut pas être prévisualisé.',
+      tooLarge: 'Le fichier est trop volumineux pour être prévisualisé ({{size}}).',
+      page: 'Page {{current}} sur {{total}}',
+      prevPage: 'Page précédente',
+      nextPage: 'Page suivante',
+      zoomIn: 'Zoom avant',
+      zoomOut: 'Zoom arrière',
+      resetZoom: 'Réinitialiser le zoom',
+      fullscreen: 'Plein écran',
+      exitFullscreen: 'Quitter plein écran',
+      emptySheet: 'Cette feuille est vide',
+      truncatedRows: 'Affichage des {{shown}} premières lignes sur {{total}}',
+      truncatedCols: 'Affichage des {{shown}} premières colonnes sur {{total}}',
+      truncatedContent: 'Le contenu de l’aperçu a été réduit à la limite d’affichage.',
+    },
     details: {
       title: 'Détails du fichier',
       size: 'Taille',
@@ -6346,7 +6363,7 @@ export default {
     linkToProjectOrArchive: 'Lier à projet ou archive',
     generateThumbnail: 'Générer vignette',
     generateThumbnails: 'Générer vignettes',
-    generateThumbnailsForMissing: 'Vignettes STL manquantes',
+    generateThumbnailsForMissing: 'Vignettes STL et PDF manquantes',
     gridView: 'Grille',
     listView: 'Liste',
     lowDiskSpaceWarning: 'Espace disque faible',
@@ -6485,7 +6502,7 @@ export default {
       folderRenamed: 'Dossier renommé',
       thumbnailsGenerated: '{{count}} vignette(s) générée(s)',
       thumbnailsGeneratedPartial: '{{succeeded}} succès, {{failed}} échecs',
-      noStlMissingThumbnails: 'Aucun STL sans vignette',
+      noStlMissingThumbnails: 'Aucun STL ni PDF sans vignette',
       failedToGenerateThumbnails: 'Échec vignettes : {{error}}',
       thumbnailGenerated: 'Vignette générée',
       failedToGenerateThumbnail: 'Échec vignette : {{error}}',
@@ -8178,6 +8195,7 @@ useEmbeddedHint: 'Découpe comme le concepteur l\'a configuré (parois, rempliss
 
   // Model Viewer
   modelViewer: {
+    stepConverting: 'Conversion du modèle STEP… {{seconds}} s',
     openInSlicer: 'Ouvrir dans le Slicer',
     tabs: {
       model: 'Modèle 3D',
