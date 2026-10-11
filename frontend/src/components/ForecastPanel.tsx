@@ -120,7 +120,7 @@ function formatDateShort(date: Date): string {
  * Returns null when there are fewer than 2 distinct days (no gap to measure)
  * — the delta-rate fallback handles that case.
  */
-function computeHistoryRate(records: SpoolUsageRecord[]): { rate: number; stdDev: number } | null {
+export function computeHistoryRate(records: SpoolUsageRecord[]): { rate: number; stdDev: number } | null {
   if (records.length < 2) return null;
 
   // Aggregate by UTC calendar day so concurrent multi-spool prints on the
@@ -154,6 +154,8 @@ function computeHistoryRate(records: SpoolUsageRecord[]): { rate: number; stdDev
     observations.push({ rate: intervalRate, weight: w });
   }
 
+  if (observations.length === 1) return { rate: observations[0].rate, stdDev: 0 };
+
   const totalW = observations.reduce((s, o) => s + o.weight, 0);
   if (totalW === 0) return null;
 
@@ -163,7 +165,7 @@ function computeHistoryRate(records: SpoolUsageRecord[]): { rate: number; stdDev
   return { rate: mean, stdDev: Math.sqrt(variance) };
 }
 
-function computeDeltaRate(spools: InventorySpool[]): number | null {
+export function computeDeltaRate(spools: InventorySpool[]): number | null {
   // Use weight_used - baseline so "Reset usage to 0" on the Inventory page
   // makes forecast restart from zero rather than carrying stale lifetime
   // consumption across the reset (#1390).

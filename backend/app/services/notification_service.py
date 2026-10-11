@@ -2063,9 +2063,12 @@ class NotificationService:
         rate_g_day: float,
         days_left: int,
         db: AsyncSession,
+        skip_break_subscribers: bool = False,
     ):
         """Fire when an inventory SKU reaches its reorder point."""
         providers = await self._get_providers_for_event(db, "on_stock_reorder_alert", None)
+        if skip_break_subscribers:
+            providers = [provider for provider in providers if not provider.on_stock_break_alert]
         if not providers:
             return
 

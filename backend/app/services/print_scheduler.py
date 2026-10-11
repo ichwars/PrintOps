@@ -46,6 +46,7 @@ from backend.app.services.library_queue_references import (
     fail_missing_library_source,
 )
 from backend.app.services.notification_service import notification_service
+from backend.app.services.stock_alert_monitor import StockAlertMonitor
 from backend.app.services.preheat_chamber import derive_chamber_target, normalize_filament_type
 from backend.app.services.preheat_config import DEFAULT_PREHEAT_FILAMENT_TARGETS, parse_preheat_filament_targets
 from backend.app.services.preheat_ownership import current_preheat_lease, preheat_ownership
@@ -400,6 +401,7 @@ class PrintScheduler:
         self._inflight: dict[int, tuple[asyncio.Task, int | None]] = {}
         self._stranded_print_recovery = StrandedPrintRecovery()
         self._keep_warm = QueueKeepWarm()
+        self._stock_alerts = StockAlertMonitor()
 
     async def run(self):
         """Main loop - check queue every interval."""
@@ -511,6 +513,7 @@ class PrintScheduler:
         the run loop can refill the upload pool promptly.
         """
         async with async_session() as db:
+            await self._stock_alerts.tick(db)
             items, sjf_enabled = await self._pending_queue_items(db)
 
             # Read plate-clear setting once per queue check. Default MUST be
