@@ -8419,6 +8419,8 @@ useEmbedded: 'ファイル内蔵設定を使用',
 
   // Notifications
   notifications: {
+    attachPhoto: 'カメラ写真を添付',
+    attachPhotoHint: '利用可能なスナップショットを含めます。共有画像リンクは3日後に期限切れになります。',
     // Provider types
     providerTypes: {
       callmebot: 'CallMeBot/WhatsApp',

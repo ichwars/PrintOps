@@ -8407,6 +8407,8 @@ useEmbeddedHint: 'Esegue lo slicing come impostato dal designer (pareti, riempim
 
   // Notifications
   notifications: {
+    attachPhoto: 'Allega foto della fotocamera',
+    attachPhotoHint: 'Includi le istantanee disponibili. I link condivisi scadono dopo 3 giorni.',
     // Provider types
     providerTypes: {
       callmebot: 'CallMeBot/WhatsApp',

@@ -30,6 +30,8 @@ class NotificationProviderBase(BaseModel):
     enabled: bool = Field(default=True, description="Whether notifications are enabled")
     config: dict[str, Any] = Field(..., description="Provider-specific configuration")
 
+    attach_photo: bool = True
+
     # Event triggers - print lifecycle
     on_print_start: bool = Field(default=False, description="Notify on print start")
     on_print_confirm_request: bool = True
@@ -127,6 +129,7 @@ class NotificationProviderUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     provider_type: ProviderType | None = None
     enabled: bool | None = None
+    attach_photo: bool | None = None
     config: dict[str, Any] | None = None
 
     # Event triggers - print lifecycle

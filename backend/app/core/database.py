@@ -778,6 +778,7 @@ async def run_migrations(conn):
     await migrate_document_layout_schema(conn)
     await migrate_number_sequence_monthly_reset_policy(conn, _safe_execute)
     await _migrate_document_payments(conn)
+    await _migrate_notification_photo_options(conn)
     await _safe_execute(
         conn,
         "ALTER TABLE small_parts ADD COLUMN default_consumption_reason VARCHAR(120) NOT NULL DEFAULT 'Produktion'",
@@ -3614,6 +3615,11 @@ async def _migrate_document_payments(conn) -> None:
         conn,
         "ALTER TABLE printer_ha_sensors ADD COLUMN failure_strategy VARCHAR(16) DEFAULT 'auto'",
     )
+
+
+async def _migrate_notification_photo_options(conn) -> None:
+    # TRUE works for both dialects and preserves existing provider attachments.
+    await _safe_execute(conn, "ALTER TABLE notification_providers ADD COLUMN attach_photo BOOLEAN NOT NULL DEFAULT TRUE")
 
 
 async def _migrate_production_quality(conn) -> None:

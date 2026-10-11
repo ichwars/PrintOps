@@ -261,6 +261,16 @@ export function NotificationProviderCard({ provider, onEdit }: NotificationProvi
                 />
               </div>
 
+              {provider.provider_type !== 'callmebot' && (
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-white">{t('notifications.attachPhoto')}</p>
+                    <p className="text-xs text-bambu-gray">{t('notifications.attachPhotoHint')}</p>
+                  </div>
+                  <Toggle ariaLabel={t('notifications.attachPhoto')} checked={provider.attach_photo ?? true} onChange={(checked) => updateMutation.mutate({ attach_photo: checked })} />
+                </div>
+              )}
+
               {/* Print Lifecycle Events */}
               <div className="space-y-2">
                 <p className="text-xs text-bambu-gray uppercase tracking-wide">{t('notifications.printEvents')}</p>

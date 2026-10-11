@@ -8380,6 +8380,8 @@ useEmbeddedHint: 'Yukarıdaki profiller yerine tasarımcının ayarlarıyla (duv
 
   // Bildirimler
   notifications: {
+    attachPhoto: 'Kamera fotoğrafı ekle',
+    attachPhotoHint: 'Mevcut görüntüleri ekleyin. Paylaşılan resim bağlantıları 3 gün sonra sona erer.',
     providerTypes: {
       callmebot: 'CallMeBot/WhatsApp',
       ntfy: 'ntfy',

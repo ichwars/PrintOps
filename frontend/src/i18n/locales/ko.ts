@@ -8144,6 +8144,8 @@ useEmbedded: '파일의 내장 설정 사용',
     delayAfterDryingMinutes: '건조 후 지연 (분)'
   },
   notifications: {
+    attachPhoto: '카메라 사진 첨부',
+    attachPhotoHint: '사용 가능한 사진을 포함합니다. 공유 이미지 링크는 3일 후 만료됩니다.',
     providerTypes: {
       callmebot: 'CallMeBot/WhatsApp',
       ntfy: 'ntfy',

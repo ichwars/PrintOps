@@ -31,6 +31,8 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
   const [dailyDigestEnabled, setDailyDigestEnabled] = useState(provider?.daily_digest_enabled || false);
   const [dailyDigestTime, setDailyDigestTime] = useState(provider?.daily_digest_time || '08:00');
 
+  const [attachPhoto, setAttachPhoto] = useState(provider?.attach_photo ?? true);
+
   // Event toggles
   const [onPrintStart, setOnPrintStart] = useState(provider?.on_print_start ?? false);
   const [onPrintConfirmRequest, setOnPrintConfirmRequest] = useState(provider?.on_print_confirm_request ?? true);
@@ -165,6 +167,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
       provider_type: providerType,
       config: finalConfig,
       printer_id: printerId,
+      attach_photo: attachPhoto,
       quiet_hours_enabled: quietHoursEnabled,
       quiet_hours_start: quietHoursEnabled ? quietHoursStart : null,
       quiet_hours_end: quietHoursEnabled ? quietHoursEnd : null,
@@ -521,6 +524,16 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
           </div>
 
           <Checkbox label={t('productionQuality.title')} checked={onPrintConfirmRequest} onCheckedChange={setOnPrintConfirmRequest} />
+
+          {providerType !== 'callmebot' && (
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm text-white">{t('notifications.attachPhoto')}</p>
+                <p className="text-xs text-bambu-gray">{t('notifications.attachPhotoHint')}</p>
+              </div>
+              <Toggle ariaLabel={t('notifications.attachPhoto')} checked={attachPhoto} onChange={setAttachPhoto} />
+            </div>
+          )}
 
           {/* Daily Digest */}
           <div className="space-y-2">

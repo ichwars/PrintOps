@@ -86,6 +86,8 @@ _PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # GET only renders a read-only escaped page. POST validates an indexed,
         # hashed, expiring, single-run capability and can only record quantities
         # for the current run once. It grants no file/session/stock authority.
+        # Separate 3-day capability returns only the selected digest-bound JPEG.
+        ("GET", "/api/v1/notifications/photos/{token}"),
         ("GET", "/api/v1/archives/outcome-link/{token}/{verdict}"),
         ("POST", "/api/v1/archives/outcome-link/{token}/{verdict}"),
         # ---- HTTP API: signed-URL routes (token in path is the auth) ----

@@ -8505,6 +8505,8 @@ export default {
 
   // Notifications
   notifications: {
+    attachPhoto: 'Attach camera photo',
+    attachPhotoHint: 'Include available snapshots. Shared image links expire after 3 days.',
     // Provider types
     providerTypes: {
       callmebot: 'CallMeBot/WhatsApp',

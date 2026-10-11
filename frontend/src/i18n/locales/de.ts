@@ -8455,6 +8455,8 @@ useEmbedded: 'Datei-eigene Einstellungen verwenden',
 
   // Notifications
   notifications: {
+    attachPhoto: 'Kamerafoto anhängen',
+    attachPhotoHint: 'Verfügbare Aufnahmen einschließen. Geteilte Bildlinks verfallen nach 3 Tagen.',
     // Provider types
     providerTypes: {
       callmebot: 'CallMeBot/WhatsApp',

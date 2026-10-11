@@ -8433,6 +8433,8 @@ useEmbedded: 'Usar los ajustes integrados del archivo',
 
   // Notifications
   notifications: {
+    attachPhoto: 'Adjuntar foto de la cámara',
+    attachPhotoHint: 'Incluir capturas disponibles. Los enlaces compartidos caducan tras 3 días.',
     // Provider types
     providerTypes: {
       callmebot: 'CallMeBot/WhatsApp',

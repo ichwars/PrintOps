@@ -8408,6 +8408,8 @@ useEmbeddedHint: 'Découpe comme le concepteur l\'a configuré (parois, rempliss
 
   // Notifications
   notifications: {
+    attachPhoto: 'Joindre une photo de la caméra',
+    attachPhotoHint: 'Inclure les captures disponibles. Les liens partagés expirent après 3 jours.',
     // Provider types
     providerTypes: {
       callmebot: 'CallMeBot/WhatsApp',

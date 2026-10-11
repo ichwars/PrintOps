@@ -2346,32 +2346,39 @@ async def on_print_start(printer_id: int, data: dict):
                 # Auto-turn on chamber light if it's off for better detection
                 light_was_off = False
                 client = printer_manager.get_client(printer_id)
-                if client and client.state:
-                    light_was_off = not client.state.chamber_light
-                    if light_was_off:
-                        logger.info("[PLATE CHECK] Turning on chamber light for printer %s", printer_id)
-                        client.set_chamber_light(True)
-                        # Wait for light to physically turn on and camera to adjust exposure
-                        await asyncio.sleep(2.5)
+                plate_image_data = None
+                try:
+                    if client and client.state:
+                        light_was_off = not client.state.chamber_light
+                        if light_was_off:
+                            logger.info("[PLATE CHECK] Turning on chamber light for printer %s", printer_id)
+                            client.set_chamber_light(True)
+                            # Wait for light to physically turn on and camera to adjust exposure
+                            await asyncio.sleep(2.5)
 
-                logger.info("[PLATE CHECK] Running plate detection for printer %s", printer_id)
-                plate_result = await check_plate_empty(
-                    printer_id=printer_id,
-                    ip_address=printer.ip_address,
-                    access_code=printer.access_code,
-                    model=printer.model,
-                    include_debug_image=False,
-                    external_camera_url=printer.external_camera_url,
-                    external_camera_type=printer.external_camera_type,
-                    use_external=printer.external_camera_enabled,
-                    roi=roi,
-                    external_camera_snapshot_url=printer.external_camera_snapshot_url,
-                )
+                    logger.info("[PLATE CHECK] Running plate detection for printer %s", printer_id)
+                    plate_result = await check_plate_empty(
+                        printer_id=printer_id,
+                        ip_address=printer.ip_address,
+                        access_code=printer.access_code,
+                        model=printer.model,
+                        include_debug_image=False,
+                        external_camera_url=printer.external_camera_url,
+                        external_camera_type=printer.external_camera_type,
+                        use_external=printer.external_camera_enabled,
+                        roi=roi,
+                        external_camera_snapshot_url=printer.external_camera_snapshot_url,
+                    )
 
-                # Restore chamber light to original state
-                if light_was_off and client:
-                    logger.info("[PLATE CHECK] Restoring chamber light to off for printer %s", printer_id)
-                    client.set_chamber_light(False)
+                    if not plate_result.needs_calibration and not plate_result.is_empty:
+                        if client:
+                            client.pause_print()
+                            logger.info("[PLATE CHECK] Print paused for printer %s", printer_id)
+                        plate_image_data = await _capture_snapshot_for_notification(printer_id, printer, logger)
+                finally:
+                    if light_was_off and client:
+                        logger.info("[PLATE CHECK] Restoring chamber light to off for printer %s", printer_id)
+                        client.set_chamber_light(False)
 
                 if not plate_result.needs_calibration and not plate_result.is_empty:
                     # Objects detected - pause the print!
@@ -2379,11 +2386,6 @@ async def on_print_start(printer_id: int, data: dict):
                         f"[PLATE CHECK] Objects detected on plate for printer {printer_id}! "
                         f"Confidence: {plate_result.confidence:.0%}, Diff: {plate_result.difference_percent:.1f}%"
                     )
-                    client = printer_manager.get_client(printer_id)
-                    if client:
-                        client.pause_print()
-                        logger.info("[PLATE CHECK] Print paused for printer %s", printer_id)
-
                     # Send notification about plate not empty
                     await ws_manager.broadcast(
                         {
@@ -2401,6 +2403,7 @@ async def on_print_start(printer_id: int, data: dict):
                             printer_name=printer.name,
                             db=db,
                             difference_percent=plate_result.difference_percent,
+                            image_data=plate_image_data,
                         )
                     except Exception as notif_err:
                         logger.warning("[PLATE CHECK] Failed to send notification: %s", notif_err)
@@ -4844,42 +4847,18 @@ async def on_print_complete(printer_id: int, data: dict):
                             archive_data["usage_results"] = usage_results
                         # Add finish photo URL and image bytes if available
                         if finish_photo_filename:
-                            from backend.app.api.routes.settings import get_setting
+                            from backend.app.services.notification_photos import finish_photo_for_notification
 
-                            external_url = await get_setting(db, "external_url")
-                            if external_url:
-                                external_url = external_url.rstrip("/")
-                                archive_data["finish_photo_url"] = (
-                                    f"{external_url}/api/v1/archives/{archive_id}/photos/{finish_photo_filename}"
-                                )
-                            else:
-                                # Fallback to relative URL (won't work for external services)
-                                archive_data["finish_photo_url"] = (
-                                    f"/api/v1/archives/{archive_id}/photos/{finish_photo_filename}"
-                                )
-
-                            # Read finish photo bytes for image attachment (e.g. Pushover)
                             try:
-                                from pathlib import Path
-
-                                photo_path = (
-                                    app_settings.base_dir
-                                    / Path(archive.file_path).parent
-                                    / "photos"
-                                    / finish_photo_filename
-                                )
-                                if photo_path.exists():
-                                    photo_bytes = await asyncio.to_thread(photo_path.read_bytes)
-                                    if len(photo_bytes) <= 2_500_000:
-                                        archive_data["image_data"] = photo_bytes
-                                        logger.info("[NOTIFY-BG] Loaded finish photo bytes: %s bytes", len(photo_bytes))
-                                    else:
-                                        logger.warning(
-                                            f"[NOTIFY-BG] Finish photo too large for attachment: "
-                                            f"{len(photo_bytes)} bytes"
-                                        )
-                            except Exception as e:
-                                logger.warning("[NOTIFY-BG] Failed to read finish photo bytes: %s", e)
+                                photo_url, photo_bytes = await finish_photo_for_notification(db, archive, finish_photo_filename)
+                                if photo_url:
+                                    archive_data["finish_photo_url"] = photo_url
+                                if photo_bytes:
+                                    archive_data["image_data"] = photo_bytes
+                            except Exception:
+                                await db.rollback()
+                                await db.refresh(archive)
+                                logger.warning("[NOTIFY-BG] Could not prepare finish photo; sending text notification")
 
                 await notification_service.on_print_complete(
                     printer_id, printer_name, print_status, data, db, archive_data=archive_data

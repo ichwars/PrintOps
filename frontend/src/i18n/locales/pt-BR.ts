@@ -8407,6 +8407,8 @@ useEmbedded: 'Usar as configurações internas do arquivo',
 
   // Notifications
   notifications: {
+    attachPhoto: 'Anexar foto da câmera',
+    attachPhotoHint: 'Incluir capturas disponíveis. Os links compartilhados expiram após 3 dias.',
     // Provider types
     providerTypes: {
       callmebot: 'CallMeBot/WhatsApp',

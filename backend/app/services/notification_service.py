@@ -491,7 +491,7 @@ class NotificationService:
         else:
             return False, f"HTTP {response.status_code}: {response.text[:200]}"
 
-    async def _send_bark(self, config: dict, title: str, message: str) -> tuple[bool, str]:
+    async def _send_bark(self, config: dict, title: str, message: str, image_url: str | None = None) -> tuple[bool, str]:
         """Send notification via Bark."""
         device_key = config.get("device_key", "").strip()
         server = (config.get("server") or "https://api.day.app").strip().rstrip("/")
@@ -508,6 +508,8 @@ class NotificationService:
             "title": title,
             "body": message,
         }
+        if image_url:
+            payload["image"] = image_url
         for key in ("group", "sound"):
             value = str(config.get(key) or "").strip()
             if value:
@@ -698,6 +700,7 @@ class NotificationService:
         image_data: bytes | None = None,
         event_type: str | None = None,
         variables: dict | None = None,
+        image_url: str | None = None,
     ) -> tuple[bool, str]:
         """Send notification via generic webhook (POST JSON).
 
@@ -740,6 +743,14 @@ class NotificationService:
                     if key not in data:  # Don't overwrite title/message/timestamp/source
                         data[key] = value
 
+        if image_url and payload_format == "slack":
+            data["blocks"] = [
+                {"type": "section", "text": {"type": "plain_text", "text": f"{title}\n{message}"}},
+                {"type": "image", "image_url": image_url, "alt_text": "Printer camera snapshot"},
+            ]
+        elif image_url:
+            data["image_url"] = image_url
+
         # Attach base64-encoded image when available (generic format only)
         if image_data and payload_format != "slack":
             import base64
@@ -766,7 +777,7 @@ class NotificationService:
             return False, f"Webhook error: {str(e)}"
 
     async def _send_homeassistant(
-        self, config: dict, title: str, message: str, db: AsyncSession | None = None
+        self, config: dict, title: str, message: str, db: AsyncSession | None = None, image_url: str | None = None
     ) -> tuple[bool, str]:
         """Send notification via Home Assistant.
 
@@ -840,6 +851,9 @@ class NotificationService:
             "message": message,
         }
 
+        if image_url and endpoint.startswith("api/services/notify/"):
+            payload["data"] = {"image": image_url}
+
         client = await self._get_client()
         response = await client.post(url, json=payload, headers=headers)
 
@@ -868,8 +882,11 @@ class NotificationService:
 
         config = json.loads(provider.config) if isinstance(provider.config, str) else provider.config
         outcome_urls = (variables or {}).get("_outcome_urls")
-        # Internal action metadata is for ntfy/Telegram buttons only.
-        variables = {key: value for key, value in (variables or {}).items() if key != "_outcome_urls"} or None
+        image_url = (variables or {}).get("_notification_photo_url")
+        if getattr(provider, "attach_photo", True) is False:
+            image_data, image_url = None, None
+        # Internal action/image metadata does not enter generic webhook fields.
+        variables = {key: value for key, value in (variables or {}).items() if key not in {"_outcome_urls", "_notification_photo_url"}} or None
 
         try:
             if provider.provider_type == "callmebot":
@@ -883,7 +900,7 @@ class NotificationService:
                 return await self._send_telegram(config, f"*{title}*\n{message}", image_data=image_data,
                                                  **({"outcome_urls": outcome_urls} if outcome_urls else {}))
             elif provider.provider_type == "bark":
-                return await self._send_bark(config, title, message)
+                return await self._send_bark(config, title, message, **({"image_url": image_url} if image_url else {}))
             elif provider.provider_type == "email":
                 # finish_photo_url is pulled from the rendered template variables
                 # so _send_email can detect whether the template referenced the
@@ -896,10 +913,11 @@ class NotificationService:
                 return await self._send_discord(config, title, message, image_data=image_data)
             elif provider.provider_type == "webhook":
                 return await self._send_webhook(
-                    config, title, message, image_data=image_data, event_type=event_type, variables=variables
+                    config, title, message, image_data=image_data, event_type=event_type, variables=variables,
+                    **({"image_url": image_url} if image_url else {})
                 )
             elif provider.provider_type == "homeassistant":
-                return await self._send_homeassistant(config, title, message, db=db)
+                return await self._send_homeassistant(config, title, message, db=db, **({"image_url": image_url} if image_url else {}))
             else:
                 return False, f"Unknown provider type: {provider.provider_type}"
         except Exception as e:
@@ -989,6 +1007,23 @@ class NotificationService:
         All notifications are always sent immediately. If digest mode is enabled,
         the notification is ALSO queued for the daily digest summary.
         """
+        variables = dict(variables or {})
+        if image_data and not variables.get("_notification_photo_url") and any(
+            provider.provider_type in {"homeassistant", "bark", "webhook"} and getattr(provider, "attach_photo", True) is not False
+            for provider in providers
+        ):
+            try:
+                from backend.app.services.notification_photos import create_notification_photo_url
+
+                photo_url = await create_notification_photo_url(db, image_data)
+                if photo_url:
+                    variables["_notification_photo_url"] = photo_url
+            except Exception:
+                await db.rollback()
+                # Rollback expires ORM attributes; reload before continuing the fan-out.
+                for provider in providers:
+                    await db.refresh(provider)
+                logger.warning("Could not publish notification image; sending available text/attachments")
         for provider in providers:
             try:
                 # Always send notification immediately
@@ -1182,6 +1217,7 @@ class NotificationService:
                 variables["reason"] = archive_data["failure_reason"]
             if archive_data.get("finish_photo_url"):
                 variables["finish_photo_url"] = archive_data["finish_photo_url"]
+                variables["_notification_photo_url"] = archive_data["finish_photo_url"]
 
             # Build per-slot breakdown string with AMS info when available
             if archive_data.get("usage_results"):
@@ -1412,6 +1448,7 @@ class NotificationService:
         printer_name: str,
         db: AsyncSession,
         difference_percent: float | None = None,
+        image_data: bytes | None = None,
     ):
         """Handle plate not empty event - objects detected on build plate before print."""
         providers = await self._get_providers_for_event(db, "on_plate_not_empty", printer_id)
@@ -1433,6 +1470,7 @@ class NotificationService:
             printer_id,
             printer_name,
             force_immediate=True,
+            image_data=image_data,
             variables=variables,
         )
 

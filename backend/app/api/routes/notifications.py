@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,6 +37,7 @@ def _provider_to_dict(provider: NotificationProvider) -> dict:
         "name": provider.name,
         "provider_type": provider.provider_type,
         "enabled": provider.enabled,
+        "attach_photo": provider.attach_photo is not False,
         "config": json.loads(provider.config) if isinstance(provider.config, str) else provider.config,
         # Print lifecycle events
         "on_print_start": provider.on_print_start,
@@ -93,6 +95,22 @@ def _provider_to_dict(provider: NotificationProvider) -> dict:
 # Provider List/Create Routes (no path parameters)
 
 
+@router.get("/photos/{token}")
+async def get_notification_photo(token: str, db: AsyncSession = Depends(get_db)):
+    """Only an unexpired capability bound to this immutable image can read it."""
+    from backend.app.services.notification_photos import resolve_notification_photo
+
+    data = await resolve_notification_photo(db, token)
+    if data is None:
+        raise HTTPException(404, "Notification photo not found")
+    return Response(
+        data, media_type="image/jpeg", headers={
+            "Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
+            "X-Robots-Tag": "noindex, nofollow", "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 @router.get("/", response_model=list[NotificationProviderResponse])
 async def list_notification_providers(
     db: AsyncSession = Depends(get_db),
@@ -116,6 +134,7 @@ async def create_notification_provider(
         name=provider_data.name,
         provider_type=provider_data.provider_type.value,
         enabled=provider_data.enabled,
+        attach_photo=provider_data.attach_photo,
         config=json.dumps(provider_data.config),
         # Print lifecycle events
         on_print_start=provider_data.on_print_start,

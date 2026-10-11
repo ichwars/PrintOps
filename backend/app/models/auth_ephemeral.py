@@ -43,6 +43,7 @@ class TokenType(str, Enum):
     EMAIL_OTP_SETUP = "email_otp_setup"
     SLICER_DOWNLOAD = "slicer_download"
     MEDIA = "media"
+    NOTIFICATION_PHOTO = "notification_photo"
 
 
 class EventType(str, Enum):

@@ -55,6 +55,8 @@ class NotificationProvider(Base):
     name = Column(String(100), nullable=False)  # User-defined name
     provider_type = Column(String(50), nullable=False)  # callmebot, ntfy, pushover, telegram, email
     enabled = Column(Boolean, default=True)
+    # Preserve attachments already sent by existing providers.
+    attach_photo = Column(Boolean, nullable=False, default=True, server_default="true")
 
     # Provider-specific configuration stored as JSON string
     config = Column(Text, nullable=False)

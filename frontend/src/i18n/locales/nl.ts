@@ -8507,6 +8507,8 @@ export default {
 
   // Notifications
   notifications: {
+    attachPhoto: 'Camerafoto bijvoegen',
+    attachPhotoHint: 'Beschikbare opnamen toevoegen. Gedeelde afbeeldingslinks verlopen na 3 dagen.',
     // Provider types
     providerTypes: {
       callmebot: "CallMeBot/WhatsApp",

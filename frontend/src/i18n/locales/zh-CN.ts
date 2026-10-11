@@ -8407,6 +8407,8 @@ useEmbedded: '使用文件内置设置',
 
   // Notifications
   notifications: {
+    attachPhoto: '附加摄像头照片',
+    attachPhotoHint: '包含可用快照。共享图片链接将在3天后过期。',
     // Provider types
     providerTypes: {
       callmebot: 'CallMeBot/WhatsApp',
