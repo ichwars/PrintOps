@@ -335,3 +335,46 @@ async def test_sheet_preview_renders_one_cell_and_validates_fields(async_client,
             },
         )
         assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("backend", ["inventory", "spoolman"])
+async def test_material_number_labels_use_existing_shared_sku_without_allocating(
+    async_client, db_session, spool_factory, backend
+):
+    from contextlib import closing
+
+    import pypdfium2 as pdfium
+    from sqlalchemy import select
+
+    from backend.app.models.filament_sku_settings import FilamentSkuSettings
+    from backend.app.models.settings import Settings
+    from backend.app.models.warehouse_number_sequence import WarehouseNumberSequence
+
+    sku = FilamentSkuSettings(material="PLA", subtype="Basic", brand="Polymaker", color_name="Orange", material_number="MAT-00444")
+    db_session.add(sku)
+    await db_session.commit()
+    if backend == "inventory":
+        spool = await spool_factory(color_name="Orange")
+        spool_id = spool.id
+        request_context = patch("backend.app.api.routes.labels.get_spoolman_client", new_callable=AsyncMock)
+    else:
+        spool_id = 77
+        remote = {"id": spool_id, "extra": {"bambu_color_name": '\"Orange\"'}, "filament": {
+            "material": "PLA", "name": "PLA Basic", "weight": 1000, "color_hex": "FF8800", "vendor": {"name": "Polymaker"},
+        }}
+        db_session.add(Settings(key="spoolman_enabled", value="true"))
+        await db_session.commit()
+        client = MagicMock(is_connected=True)
+        client.get_spools = AsyncMock(return_value=[remote])
+        request_context = patch("backend.app.api.routes.labels.get_spoolman_client", new_callable=AsyncMock, return_value=client)
+    before = list((await db_session.scalars(select(WarehouseNumberSequence))).all())
+    with request_context:
+        response = await async_client.post(f"/api/v1/{backend}/labels", json={
+            "spool_ids": [spool_id], "template": "ams_holder_75x55", "fields": ["material_number"],
+        })
+    assert response.status_code == 200, response.text
+    with pdfium.PdfDocument(response.content) as document, closing(document[0]) as page, closing(page.get_textpage()) as text:
+        assert "MAT-00444" in text.get_text_range()
+    assert list((await db_session.scalars(select(WarehouseNumberSequence))).all()) == before
+    assert list((await db_session.scalars(select(FilamentSkuSettings))).all()) == [sku]
