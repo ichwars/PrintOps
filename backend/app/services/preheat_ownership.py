@@ -282,6 +282,7 @@ class PreheatOwnership:
                 for heater, target in lease.targets.items()
             )
         )
+
     @staticmethod
     def guard_plate_clear(printer_id, required, manager) -> None:
         if required and manager.is_awaiting_plate_clear(printer_id):
