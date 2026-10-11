@@ -24,4 +24,3 @@ export function readLabelPreferences(key: string): LabelPreferences {
       dpi: [203, 300, 600].includes(saved.dpi) ? saved.dpi : 300, monochrome: saved.monochrome === true };
   } catch { return defaults; }
 }
-

@@ -103,4 +103,3 @@ export function saveLogColumnConfig(config: Array<{ id: string; visible: boolean
     // Private-mode / quota failures shouldn't break the page.
   }
 }
-

@@ -81,4 +81,3 @@ export function computeDeltaRate(spools: InventorySpool[]): number | null {
   if (daysSinceOldest < 1) return null;
   return totalUsed / daysSinceOldest;
 }
-
