@@ -36,12 +36,32 @@ Calibration selection keys include printer, diameter, reported extruder and
 reported HS/HH flow. Saving a reused index never chooses the first row from a
 different diameter or flow. Legacy keys are resolved only when exactly one
 compatible entry exists. Missing or ambiguous calibration metadata remains
-gated by the shared backend resolver. The editor keeps the existing limit of
-one stored K selection per printer/extruder/diameter in Spoolman mode; it does
-not migrate that table's uniqueness constraint to retain two simultaneous flow
-variants for the same diameter. The selected flow is saved explicitly.
+gated by the shared backend resolver. Local and Spoolman storage both support
+independent HS and HH selections for one printer/extruder/diameter, including
+when firmware reuses the same calibration index. Replacing or removing one
+selection leaves the other context intact. Auto-selection chooses within each
+reported flow group, including a separate unknown-flow group.
 
-The software tests use synthetic MQTT payloads. X1C firmware 01.12.00.00 and
+The old Spoolman four-column UNIQUE is replaced by a portable expression index
+on spool, printer, extruder, diameter and the explicitly reported HS/HH prefix.
+Unknown nozzle values map to NULL in the index and retain their original stored
+value. Existing ambiguous unknown rows remain in the database and the resolver
+continues to reject them. API writes reject duplicate normalized contexts before
+changing rows. Startup migration runs transactionally and idempotently, preserves
+IDs, timestamps, printer/spool foreign keys and CASCADE, and also runs after
+restoring old SQLite backups. PostgreSQL removes only the old matching UNIQUE
+constraint; SQLite copies the table without it. No legacy material name is
+converted into Standard or High Flow. If historical explicit HS/HH selections
+collide in the same context, migration fails transactionally and preserves the
+source rows for explicit correction. Cross-database restore rejects such a
+backup before changing destination tables, so conflict-ignore imports cannot
+silently discard a selection. Unknown-flow duplicates remain restorable.
+Full database backups preserve these
+application-owned records; the separate Git printer-calibration restore retains
+its existing behavior and is not expanded here.
+
+Device behavior tests use synthetic MQTT payloads. Migration and cross-database
+restore are also exercised against an ephemeral PostgreSQL 18 database. X1C firmware 01.12.00.00 and
 P2S firmware 01.03.00.00 have not been validated against real device telemetry
 in this change. H2 hotend/rack numbering is deliberately not inferred: unknown
 physical hotend contexts remain blocked for automatic K selection. This covers
