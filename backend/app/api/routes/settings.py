@@ -3,11 +3,13 @@ import logging
 import os
 import zipfile
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
+from typing import get_args
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,6 +26,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 DEFAULT_SETTINGS = AppSettings()
+
+# Derive storage parsing and null refusals from our own response schema. This
+# also covers domain fields (including Decimal stock defaults) and preserves
+# nullable choices such as default_printer_id.
+_SETTING_SCALAR_TYPES = (bool, int, float, Decimal)
+_TYPED_SETTING_ADAPTERS = {
+    key: TypeAdapter(field.rebuild_annotation(), config=ConfigDict(allow_inf_nan=False))
+    for key, field in AppSettings.model_fields.items()
+    if field.annotation in _SETTING_SCALAR_TYPES
+    or any(annotation in _SETTING_SCALAR_TYPES for annotation in get_args(field.annotation))
+}
+_NULLABLE_TYPED_SETTING_KEYS = frozenset(
+    key for key in _TYPED_SETTING_ADAPTERS if type(None) in get_args(AppSettings.model_fields[key].annotation)
+)
+_NON_NULL_TYPED_SETTING_KEYS = _TYPED_SETTING_ADAPTERS.keys() - _NULLABLE_TYPED_SETTING_KEYS
 
 # Sensitive credential fields blanked for API-key callers
 _SENSITIVE_FIELDS_FOR_API_KEY = (
@@ -105,81 +122,14 @@ async def _build_settings_response(db: AsyncSession, is_api_key: bool = False) -
     for setting in result.scalars().all():
         if setting.key not in settings_dict:
             continue
-        if setting.key in [
-            "auto_archive",
-            "save_thumbnails",
-            "capture_finish_photo",
-            "spoolman_enabled",
-            "spoolman_disable_weight_sync",
-            "spoolman_report_partial_usage",
-            "auto_add_unknown_rfid",
-            "disable_filament_warnings",
-            "prefer_lowest_filament",
-            "small_parts_low_stock_warning",
-            "check_updates",
-            "check_printer_firmware",
-            "show_developer_lan_warning",
-            "show_sponsor_prompts",
-            "include_beta_updates",
-            "virtual_printer_enabled",
-            "ftp_retry_enabled",
-            "mqtt_enabled",
-            "mqtt_use_tls",
-            "ha_enabled",
-            "per_printer_mapping_expanded",
-            "prometheus_enabled",
-            "user_notifications_enabled",
-            "queue_drying_enabled",
-            "queue_drying_block",
-            "ambient_drying_enabled",
-            "print_drying_enabled",
-            "require_plate_clear",
-            "queue_shortest_first",
-            "default_bed_levelling",
-            "default_flow_cali",
-            "default_vibration_cali",
-            "default_layer_inspect",
-            "default_timelapse",
-            "default_nozzle_offset_cali",
-            "ldap_enabled",
-            "ldap_auto_provision",
-            "local_login_enabled",
-            "preheat_enabled",
-            "queue_keep_bed_warm",
-        ]:
-            settings_dict[setting.key] = setting.value.lower() == "true"
-        elif setting.key in [
-            "default_filament_cost",
-            "energy_cost_per_kwh",
-            "ams_temp_good",
-            "ams_temp_fair",
-            "library_disk_warning_gb",
-            "low_stock_threshold",
-            "small_parts_default_minimum_stock",
-        ]:
-            settings_dict[setting.key] = float(setting.value)
-        elif setting.key in [
-            "ams_humidity_good",
-            "ams_humidity_fair",
-            "ams_history_retention_days",
-            "printer_sensor_history_retention_days",
-            "ftp_retry_count",
-            "ftp_retry_delay",
-            "ftp_timeout",
-            "mqtt_port",
-            "stagger_group_size",
-            "stagger_interval_minutes",
-            "queue_max_concurrent_uploads",
-            "forecast_global_lead_time_days",
-            "session_max_hours",
-            "pipeline_max_copies",
-            "preheat_max_wait_seconds",
-            "preheat_soak_seconds",
-            "queue_keep_warm_max_minutes",
-        ]:
-            settings_dict[setting.key] = int(setting.value)
-        elif setting.key == "default_printer_id":
-            settings_dict[setting.key] = int(setting.value) if setting.value and setting.value != "None" else None
+        if setting.key in _TYPED_SETTING_ADAPTERS:
+            if setting.key in _NULLABLE_TYPED_SETTING_KEYS and setting.value in ("", "None", None):
+                settings_dict[setting.key] = None
+                continue
+            try:
+                settings_dict[setting.key] = _TYPED_SETTING_ADAPTERS[setting.key].validate_python(setting.value)
+            except (TypeError, ValueError, ValidationError):
+                logger.warning("Setting %s has an invalid stored value; using its default", setting.key)
         elif setting.key == "open_in_slicer":
             # None means "inherit from preferred_slicer" (#1329). The PUT path
             # serializes None as the literal string "None"; strip it back so
@@ -221,6 +171,14 @@ async def update_settings(
 ):
     """Update application settings."""
     update_data = settings_update.model_dump(exclude_unset=True)
+
+    # Refuse the whole request before any writes or integration side effects.
+    # Missing fields remain untouched; only explicitly supplied nulls are invalid.
+    null_keys = sorted(
+        key for key, value in update_data.items() if value is None and key in _NON_NULL_TYPED_SETTING_KEYS
+    )
+    if null_keys:
+        raise HTTPException(422, detail=f"These settings cannot be null: {', '.join(null_keys)}")
 
     # Safety refusals on disabling local login (#1589). Two failure modes
     # would otherwise lock everyone out of the install:
