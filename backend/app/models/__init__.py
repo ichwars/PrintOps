@@ -120,6 +120,7 @@ from backend.app.models.stock_reservation import (
     StockReservationCommand,
     StockResourceLock,
 )
+from backend.app.models.storage_ha_sensor import StorageHASensor
 from backend.app.models.user import User
 from backend.app.models.user_email_pref import UserEmailPreference
 from backend.app.models.user_otp_code import UserOTPCode

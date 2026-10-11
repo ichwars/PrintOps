@@ -69,6 +69,7 @@ from backend.app.api.routes import (
     spoolbuddy,
     spoolman,
     spoolman_inventory,
+    storage_ha_sensors,
     support,
     system,
     updates,
@@ -269,7 +270,6 @@ log_level = getattr(logging, log_level_str, logging.INFO)
 # backend/app/core/trace.py for the ContextVar that feeds this slot.
 log_format = "%(asctime)s %(levelname)s [%(name)s] [%(trace_id)s] %(message)s"
 
-# Create root logger
 root_logger = logging.getLogger()
 root_logger.setLevel(log_level)
 
@@ -6596,7 +6596,6 @@ async def trace_id_middleware(request, call_next):
     return response
 
 
-# API routes
 app.include_router(auth.router, prefix=app_settings.api_prefix)
 app.include_router(mfa.router, prefix=app_settings.api_prefix)
 app.include_router(bug_report.router, prefix=app_settings.api_prefix)
@@ -6615,6 +6614,7 @@ app.include_router(orca_cloud.router, prefix=app_settings.api_prefix)
 app.include_router(local_presets.router, prefix=app_settings.api_prefix)
 app.include_router(smart_plugs.router, prefix=app_settings.api_prefix)
 app.include_router(ha_sensors.router, prefix=app_settings.api_prefix)
+app.include_router(storage_ha_sensors.router, prefix=app_settings.api_prefix)
 app.include_router(print_log.router, prefix=app_settings.api_prefix)
 app.include_router(print_queue.router, prefix=app_settings.api_prefix)
 app.include_router(kprofiles.router, prefix=app_settings.api_prefix)

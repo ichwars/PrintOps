@@ -7426,4 +7426,20 @@ useEmbeddedHint: 'Yukarıdaki profiller yerine tasarımcının ayarlarıyla (duv
     noWriteAccess: 'Tahmin ayarlarını değiştirme izniniz yok.',
   },
   suppliers: { navTitle: 'Tedarikçiler', title: 'Tedarikçiler', subtitle: 'Satın alma kişilerini ve satın alma koşullarını yönetin.', createTitle: 'Tedarikçi ekle', editTitle: 'Tedarikçiyi düzenle', searchLabel: 'Tedarikçi ara', searchPlaceholder: 'Şirket, ilgili kişi, e-posta, müşteri numarası …', activeFilter: 'Durum', loading: 'Tedarikçiler yükleniyor …', empty: 'Eşleşen tedarikçi bulunamadı.', noContact: 'İletişim bilgisi yok', leadTime: 'Varsayılan teslim süresi: {{count}} gün', sections: { masterData: 'Ana bilgiler', contactAddress: 'İletişim ve adres', procurement: 'Satın alma', internalNotes: 'Dahili not' }, fields: { name: 'Şirket', customerNumber: 'Müşteri numarası', active: 'Aktif tedarikçi', contactName: 'İlgili kişi', email: 'E-posta', phone: 'Telefon', website: 'Web sitesi', addressLine1: 'Adres satırı 1', addressLine2: 'Adres satırı 2', postalCode: 'Posta kodu', city: 'Şehir', countryCode: 'Ülke kodu', paymentTerms: 'Ödeme koşulları', defaultLeadTime: 'Varsayılan teslim süresi', internalNotes: 'Dahili notlar' }, filters: { active: 'Aktif', inactive: 'Pasif', all: 'Tüm tedarikçiler' }, actions: { create: 'Tedarikçi ekle', save: 'Tedarikçiyi kaydet', edit: '{{name}} tedarikçisini düzenle', delete: 'Tedarikçiyi sil' }, validation: { nameRequired: 'Şirket adı zorunludur.' }, errors: { load: 'Tedarikçiler yüklenemedi.', save: 'Tedarikçi kaydedilemedi.', delete: 'Tedarikçi silinemedi.', noReadPermission: 'Tedarikçileri görüntüleme izniniz yok.' } },
+  storageSensors: {
+    environment: "Ortam",
+    manage: "Sensörler",
+    title: "Sensörler: {{location}}",
+    hint: "Bu depolama konumunun sıcaklığını ve nemini izleyin.",
+    fresh: "Güncel",
+    stale: "Eski",
+    unavailable: "Kullanılamıyor",
+    pending: "Ölçüm bekleniyor",
+    lastRead: "Son ölçüm: {{time}}",
+    loadFailed: "Sensör ölçümleri yüklenemedi.",
+    entitiesFailed: "Home Assistant devre dışı, kullanılamıyor veya yapılandırılmamış.",
+    notifyHint: "Uyarılar için yazıcı filtresi olmayan bir sağlayıcıda depolama sensörü bildirimleri etkinleştirilmelidir.",
+    notifications: "Depolama sensörü uyarıları",
+  },
+
 };

@@ -286,6 +286,7 @@ async def init_db():
         spoolman_k_profile,
         spoolman_slot_assignment,
         stock_reservation,
+        storage_ha_sensor,
         user,
         user_email_pref,
         user_otp_code,
@@ -3640,14 +3641,13 @@ async def _migrate_document_payments(conn) -> None:
     # Migration: Home Assistant sensor alerts (#1148). The printer_ha_sensors
     # table itself is new, so create_all() builds it; only the provider opt-in
     # column needs adding to existing databases.
-    #
     # DEFAULT FALSE, not DEFAULT 0: Postgres will not take an integer default
     # for a boolean column, and _safe_execute swallows the DatatypeMismatchError
-    # — so the older "BOOLEAN DEFAULT 0" migrations above quietly do nothing on
-    # Postgres and only work there because create_all() builds the column on a
-    # fresh install. SQLite has understood FALSE since 3.23, so this spelling
-    # is the one that actually applies on both.
+    # SQLite also supports FALSE, so both database engines accept this migration.
     await _safe_execute(conn, "ALTER TABLE notification_providers ADD COLUMN on_ha_sensor_alert BOOLEAN DEFAULT FALSE")
+    await _safe_execute(
+        conn, "ALTER TABLE notification_providers ADD COLUMN on_storage_sensor_alert BOOLEAN DEFAULT FALSE"
+    )
     await _safe_execute(
         conn,
         "ALTER TABLE printer_ha_sensors ADD COLUMN failure_strategy VARCHAR(16) DEFAULT 'auto'",

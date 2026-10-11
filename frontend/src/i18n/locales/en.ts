@@ -7593,4 +7593,20 @@ export default {
     filters: { active: 'Active', inactive: 'Inactive', all: 'All suppliers' }, actions: { create: 'Add supplier', save: 'Save supplier', edit: 'Edit {{name}}', delete: 'Delete supplier' }, validation: { nameRequired: 'Company is required.' },
     errors: { load: 'Suppliers could not be loaded.', save: 'Supplier could not be saved.', delete: 'Supplier could not be deleted.', noReadPermission: 'You do not have permission to view suppliers.' },
   },
+  storageSensors: {
+    environment: "Environment",
+    manage: "Sensors",
+    title: "Sensors: {{location}}",
+    hint: "Monitor temperature and humidity at this storage location.",
+    fresh: "Fresh",
+    stale: "Stale",
+    unavailable: "Unavailable",
+    pending: "Awaiting reading",
+    lastRead: "Last reading: {{time}}",
+    loadFailed: "Sensor readings could not be loaded.",
+    entitiesFailed: "Home Assistant is disabled, unavailable, or not configured.",
+    notifyHint: "Alerts require storage sensor notifications on a provider with no printer filter.",
+    notifications: "Storage sensor alerts",
+  },
+
 };

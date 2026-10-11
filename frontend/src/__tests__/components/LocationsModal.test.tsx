@@ -13,6 +13,7 @@ const mockOnPickLocation = vi.fn();
 vi.mock('../../api/client', () => ({
   api: {
     getLocations: vi.fn(),
+    getStorageHASensorReadings: vi.fn().mockResolvedValue([]),
     createLocation: vi.fn(),
     updateLocation: vi.fn(),
     deleteLocation: vi.fn(),
@@ -25,6 +26,8 @@ vi.mock('../../api/client', () => ({
     }
   },
 }));
+
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ hasPermission: () => true }) }));
 
 vi.mock('../../contexts/ToastContext', () => ({
   useToast: () => ({ showToast: mockShowToast }),

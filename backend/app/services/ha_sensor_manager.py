@@ -17,6 +17,7 @@ default to fail-open, while critical safety classes default to fail-closed.
 
 import asyncio
 import logging
+import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -25,7 +26,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.printer import Printer
 from backend.app.models.printer_ha_sensor import LAST_STATE_MAX_LENGTH, PrinterHASensor
+from backend.app.models.storage_ha_sensor import StorageHASensor
 from backend.app.services.homeassistant import as_float, homeassistant_service
+from backend.app.services.storage_ha_sensors import storage_ha_sensor_manager
 from backend.app.utils.local_time import utcnow_naive
 
 logger = logging.getLogger(__name__)
@@ -47,7 +50,9 @@ class SensorReading:
     reachable: bool
 
 
-def persist_sensor_reading(sensor: PrinterHASensor, reading: SensorReading, previous: SensorReading | None) -> None:
+def persist_sensor_reading(
+    sensor: PrinterHASensor | StorageHASensor, reading: SensorReading, previous: SensorReading | None
+) -> None:
     """Bound storage while preserving observable raw-state transitions."""
     if not reading.reachable:
         return
@@ -194,6 +199,8 @@ class HASensorManager:
         async with async_session() as db:
             result = await db.execute(select(PrinterHASensor))
             sensors = list(result.scalars().all())
+            storage_sensors = list((await db.execute(select(StorageHASensor))).scalars().all())
+            storage_ha_sensor_manager.retain(storage_sensors)
 
             # Drop readings for rows that no longer exist. The delete route
             # calls forget(), but a printer deleted with sensors attached takes
@@ -203,7 +210,7 @@ class HASensorManager:
             for stale in set(self._readings) - live:
                 self.forget(stale)
 
-            if not sensors:
+            if not sensors and not storage_sensors:
                 return
 
             if not await self._configure(db):
@@ -211,10 +218,14 @@ class HASensorManager:
                 # but the readings must not go stale-but-confident either.
                 for sensor in sensors:
                     self._readings[sensor.id] = SensorReading(None, None, False, False)
+                storage_ha_sensor_manager.unavailable(storage_sensors)
                 return
 
-            states = await homeassistant_service.fetch_states(sorted({s.entity_id for s in sensors}))
+            states = await homeassistant_service.fetch_states(
+                sorted({s.entity_id for s in [*sensors, *storage_sensors]})
+            )
             await self._apply(db, sensors, states)
+            await storage_ha_sensor_manager.apply(db, storage_sensors, states)
 
     async def refresh_one(self, db: AsyncSession, sensor: PrinterHASensor):
         """Read a single sensor now, on the caller's session.
@@ -250,9 +261,12 @@ class HASensorManager:
         except Exception as e:
             logger.warning("Failed to read Home Assistant settings: %s", e)
             return False
-        if not ha_settings["ha_url"] or not ha_settings["ha_token"]:
+        if not ha_settings["ha_enabled"] or not ha_settings["ha_url"] or not ha_settings["ha_token"]:
             return False
-        homeassistant_service.configure(ha_settings["ha_url"], ha_settings["ha_token"])
+        safe_url = homeassistant_service._validate_url(ha_settings["ha_url"])
+        if safe_url is None:
+            return False
+        homeassistant_service.configure(safe_url, ha_settings["ha_token"])
         return True
 
     async def _apply(self, db: AsyncSession, sensors: list[PrinterHASensor], states: dict[str, dict | None]):
@@ -300,13 +314,13 @@ class HASensorManager:
                 logger.warning("Failed to send HA sensor alert for '%s': %s", sensor.name, e)
 
 
-def evaluate(sensor: PrinterHASensor, payload: dict | None) -> SensorReading:
+def evaluate(sensor: PrinterHASensor | StorageHASensor, payload: dict | None) -> SensorReading:
     """Turn one HA state payload into a reading.
 
     Split out from the manager so the alert rules can be tested without a
     poller, a database or a Home Assistant.
     """
-    if payload is None:
+    if not isinstance(payload, dict):
         return SensorReading(state=None, value=None, alerting=False, reachable=False)
 
     state = payload.get("state")
@@ -319,7 +333,7 @@ def evaluate(sensor: PrinterHASensor, payload: dict | None) -> SensorReading:
     state = str(state)
     if sensor.kind == "numeric":
         value = as_float(state)
-        if value is None:
+        if value is None or not math.isfinite(value):
             # A sensor that used to report numbers and now reports text is
             # not a reading we can place against a threshold.  Treat that as
             # unreachable uncertainty so fail-closed interlocks stay closed.
@@ -334,7 +348,7 @@ def evaluate(sensor: PrinterHASensor, payload: dict | None) -> SensorReading:
     return SensorReading(state=normalized, value=None, alerting=alerting, reachable=True)
 
 
-def describe_state(sensor: PrinterHASensor, reading: SensorReading) -> str:
+def describe_state(sensor: PrinterHASensor | StorageHASensor, reading: SensorReading) -> str:
     """Human-readable state for a notification body ("open", "31.4 °C")."""
     if sensor.kind == "numeric" and reading.value is not None:
         return f"{reading.value:g} {sensor.unit}".strip() if sensor.unit else f"{reading.value:g}"
