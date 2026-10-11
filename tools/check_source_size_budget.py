@@ -90,7 +90,7 @@ FILE_ALLOWLIST = {
     "backend/app/services/notification_service.py": 2184,
     "backend/app/services/print_scheduler.py": 3622,
     "backend/tests/integration/test_mfa_api.py": 5132,
-    "backend/tests/integration/test_printers_api.py": 4100,
+    "backend/tests/integration/test_printers_api.py": 4046,
     "backend/tests/unit/services/test_bambu_mqtt.py": 6742,
     "backend/tests/unit/test_github_restore.py": 3473,
     "backend/tests/unit/services/test_virtual_printer.py": 4056,
