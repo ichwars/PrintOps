@@ -23,6 +23,10 @@ _IDLE = frozenset({"IDLE", "FINISH", "FAILED"})
 _current: ContextVar["PreheatLease | None"] = ContextVar("preheat_lease", default=None)
 
 
+class _PlateClearRequired(Exception):
+    """A newer completed print requires acknowledgment before publication."""
+
+
 @dataclass
 class PreheatLease:
     owner: "PreheatOwnership"
@@ -38,6 +42,7 @@ class PreheatLease:
     monitor: asyncio.Task | None = None
     recovered: bool = False
     purpose: str = "dispatch"
+    interrupted: bool = False
 
     def activate(self, lifetime: float) -> None:
         existing = self.owner.leases.get(self.printer_id)
@@ -218,7 +223,7 @@ class PreheatOwnership:
         return True
 
     @asynccontextmanager
-    async def dispatch(self, item, manager):
+    async def dispatch(self, item, manager, db=None):
         lease = self.leases.get(item.printer_id)
         if lease and lease.purpose == "keep_warm" and lease.item_id == item.id and lease.expires_at > time.time():
             lease.purpose = "handoff"
@@ -228,6 +233,16 @@ class PreheatOwnership:
         token = _current.set(lease)
         try:
             yield lease
+        except _PlateClearRequired:
+            # A complete firmware print may have occurred between monitor polls.
+            # Its heater targets cannot still be claimed by our earlier preheat.
+            lease.recovered = True
+            self.forget(lease)
+            await self.defer_interrupted(lease, db)
+        except asyncio.CancelledError:
+            if not lease.interrupted:
+                raise
+            await self.defer_interrupted(lease, db)
         finally:
             _current.reset(token)
             if self.leases.get(lease.printer_id) is lease and not lease.published:
@@ -267,6 +282,10 @@ class PreheatOwnership:
                 for heater, target in lease.targets.items()
             )
         )
+    @staticmethod
+    def guard_plate_clear(printer_id, required, manager) -> None:
+        if required and manager.is_awaiting_plate_clear(printer_id):
+            raise _PlateClearRequired
 
     async def item_status(self, lease: PreheatLease) -> str | None:
         from backend.app.core.database import async_session
@@ -294,6 +313,30 @@ class PreheatOwnership:
             )
             await db.commit()
 
+    async def defer_interrupted(self, lease: PreheatLease, db=None) -> None:
+        """Revert an optimistic CAS whose print command was never published."""
+        from sqlalchemy import update
+
+        from backend.app.core.database import async_session
+        from backend.app.models.print_queue import PrintQueueItem
+
+        if db is None:
+            async with (self.session_factory or async_session)() as session:
+                await self.defer_interrupted(lease, session)
+            return
+        await db.rollback()
+        await db.execute(
+            update(PrintQueueItem)
+            .where(
+                PrintQueueItem.id == lease.item_id,
+                PrintQueueItem.printer_id == lease.printer_id,
+                PrintQueueItem.status.in_(("pending", "printing")),
+            )
+            .values(status="pending", started_at=None, dispatching_at=None)
+        )
+        await db.commit()
+        logger.info("Queue item %s deferred before command publication", lease.item_id)
+
     async def watch(self, lease: PreheatLease) -> None:
         try:
             while self.leases.get(lease.printer_id) is lease:
@@ -304,6 +347,9 @@ class PreheatOwnership:
                     pass
                 state = lease.manager.get_status(lease.printer_id)
                 if state is not None and getattr(state, "state", None) in _ACTIVE:
+                    if not lease.published and lease.task and not lease.task.done():
+                        lease.interrupted = True
+                        lease.task.cancel()
                     self.forget(lease)
                     return
                 published_before_read = lease.published
