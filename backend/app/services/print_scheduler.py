@@ -43,6 +43,7 @@ from backend.app.services.library_queue_references import (
 )
 from backend.app.services.notification_service import notification_service
 from backend.app.services.preheat_chamber import derive_chamber_target, normalize_filament_type
+from backend.app.services.preheat_config import DEFAULT_PREHEAT_FILAMENT_TARGETS, parse_preheat_filament_targets
 from backend.app.services.preheat_ownership import current_preheat_lease, preheat_ownership
 from backend.app.services.preheat_stage import preheat_and_soak
 from backend.app.services.print_completion_identity import StrandedPrintRecovery, clear_stale_dispatch_claims
@@ -51,6 +52,7 @@ from backend.app.services.printer_manager import (
     supports_drying,
     supports_drying_while_printing,
 )
+from backend.app.services.queue_keep_warm import QueueKeepWarm
 from backend.app.services.smart_plug_manager import smart_plug_manager
 from backend.app.services.smart_plug_selection import (
     pick_power_plug as select_power_plug,
@@ -347,6 +349,7 @@ class PrintScheduler:
         # from re-selection and launches only free pool slots.
         self._inflight: dict[int, tuple[asyncio.Task, int | None]] = {}
         self._stranded_print_recovery = StrandedPrintRecovery()
+        self._keep_warm = QueueKeepWarm()
 
     async def run(self):
         """Main loop - check queue every interval."""
@@ -377,6 +380,7 @@ class PrintScheduler:
 
     async def _dispatch_with_claim(self, db: AsyncSession, item: PrintQueueItem) -> bool:
         if not await self._claim_for_dispatch(db, item.id):
+            preheat_ownership.release_undispatched(item.id)
             logger.info("Queue item %s is no longer claimable for dispatch", item.id)
             return False
         try:
@@ -405,6 +409,59 @@ class PrintScheduler:
         except Exception as exc:
             logger.warning("Queue item %s: failed to clear dispatch claim: %s", item_id, exc)
 
+    async def _pending_queue_items(self, db):
+        # Check if shortest-job-first scheduling is enabled
+        sjf_enabled = await self._get_bool_setting(db, "queue_shortest_first")
+
+        # Get all pending items, ordered by printer and position (or SJF order)
+        if sjf_enabled:
+            # SJF: group by printer (and target_model for model-based jobs),
+            # then items already jumped get top priority (starvation guard),
+            # then sort by print_time ascending. Items with no print time go last.
+            result = await db.execute(
+                select(PrintQueueItem)
+                .options(
+                    selectinload(PrintQueueItem.archive),
+                    selectinload(PrintQueueItem.library_file),
+                    selectinload(PrintQueueItem.variants).selectinload(PrintQueueVariant.library_file),
+                )
+                .where(PrintQueueItem.status == "pending")
+                .where(PrintQueueItem.dispatching_at.is_(None))
+                .order_by(
+                    PrintQueueItem.printer_id,
+                    PrintQueueItem.target_model,
+                    PrintQueueItem.been_jumped.desc(),
+                    PrintQueueItem.print_time_seconds.asc().nullslast(),
+                    PrintQueueItem.position,
+                )
+            )
+        else:
+            result = await db.execute(
+                select(PrintQueueItem)
+                .options(
+                    selectinload(PrintQueueItem.archive),
+                    selectinload(PrintQueueItem.library_file),
+                    selectinload(PrintQueueItem.variants).selectinload(PrintQueueVariant.library_file),
+                )
+                .where(PrintQueueItem.status == "pending")
+                .where(PrintQueueItem.dispatching_at.is_(None))
+                .order_by(PrintQueueItem.printer_id, PrintQueueItem.position)
+            )
+        items = list(result.scalars().all())
+
+        if self._inflight:
+            inflight_ids = set(self._inflight)
+            items = [item for item in items if item.id not in inflight_ids]
+        return items, sjf_enabled
+
+    async def _refresh_keep_warm(self, db, items, dispatch_ids, interlocked, require_plate_clear):
+        try:
+            await self._keep_warm.refresh(
+                self, db, items, dispatch_ids, interlocked, require_plate_clear, printer_manager
+            )
+        except Exception as exc:
+            logger.warning("Keep-warm pass failed, continuing queue dispatch: %s", exc)
+
     async def check_queue(self) -> bool:
         """Check for prints ready to start.
 
@@ -412,48 +469,7 @@ class PrintScheduler:
         the run loop can refill the upload pool promptly.
         """
         async with async_session() as db:
-            # Check if shortest-job-first scheduling is enabled
-            sjf_enabled = await self._get_bool_setting(db, "queue_shortest_first")
-
-            # Get all pending items, ordered by printer and position (or SJF order)
-            if sjf_enabled:
-                # SJF: group by printer (and target_model for model-based jobs),
-                # then items already jumped get top priority (starvation guard),
-                # then sort by print_time ascending. Items with no print time go last.
-                result = await db.execute(
-                    select(PrintQueueItem)
-                    .options(
-                        selectinload(PrintQueueItem.archive),
-                        selectinload(PrintQueueItem.library_file),
-                        selectinload(PrintQueueItem.variants).selectinload(PrintQueueVariant.library_file),
-                    )
-                    .where(PrintQueueItem.status == "pending")
-                    .where(PrintQueueItem.dispatching_at.is_(None))
-                    .order_by(
-                        PrintQueueItem.printer_id,
-                        PrintQueueItem.target_model,
-                        PrintQueueItem.been_jumped.desc(),
-                        PrintQueueItem.print_time_seconds.asc().nullslast(),
-                        PrintQueueItem.position,
-                    )
-                )
-            else:
-                result = await db.execute(
-                    select(PrintQueueItem)
-                    .options(
-                        selectinload(PrintQueueItem.archive),
-                        selectinload(PrintQueueItem.library_file),
-                        selectinload(PrintQueueItem.variants).selectinload(PrintQueueVariant.library_file),
-                    )
-                    .where(PrintQueueItem.status == "pending")
-                    .where(PrintQueueItem.dispatching_at.is_(None))
-                    .order_by(PrintQueueItem.printer_id, PrintQueueItem.position)
-                )
-            items = list(result.scalars().all())
-
-            if self._inflight:
-                inflight_ids = set(self._inflight)
-                items = [item for item in items if item.id not in inflight_ids]
+            items, sjf_enabled = await self._pending_queue_items(db)
 
             # Read plate-clear setting once per queue check. Default MUST be
             # False to match the schema (SettingsSchema.require_plate_clear
@@ -465,6 +481,7 @@ class PrintScheduler:
             require_plate_clear = await self._get_bool_setting(db, "require_plate_clear", default=False)
 
             if not items:
+                await self._refresh_keep_warm(db, [], [], {}, require_plate_clear)
                 # No dispatchable pending items — still check auto-drying, but
                 # hold printers with uploads in flight out of it because their
                 # print is imminent.
@@ -909,6 +926,7 @@ class PrintScheduler:
                         awaiting,
                     )
 
+            await self._refresh_keep_warm(db, items, dispatch_ids, interlocked, require_plate_clear)
             upload_limit = max(1, await self._get_int_setting(db, "queue_max_concurrent_uploads", default=4))
             await db.commit()
 
@@ -952,6 +970,7 @@ class PrintScheduler:
         async with async_session() as item_db:
             item = await item_db.get(PrintQueueItem, item_id)
             if not item:
+                preheat_ownership.release_undispatched(item_id)
                 logger.info("Queue item %s vanished before dispatch — skipping", item_id)
                 return
             await self._dispatch_with_claim(item_db, item)
@@ -2443,52 +2462,10 @@ class PrintScheduler:
                 printer_manager.send_drying_command(printer_id, ams_id, 0, 0, mode=0)
         self._drying_in_progress.pop(printer_id, None)
 
-    # Bundled defaults for preheat_filament_targets (#1468). Values are the
-    # chamber-temperature recommendations BambuStudio ships for the matching
-    # filament profile; users can override via Settings → Workflow → Preheat
-    # card. "default" applies when a loaded tray's normalised type isn't in
-    # the map (rare — Bambu RFID-tagged spools always carry a known type).
-    DEFAULT_PREHEAT_FILAMENT_TARGETS: dict[str, int] = {
-        "PLA": 0,
-        "PETG": 0,
-        "PETG-CF": 40,
-        "ABS": 45,
-        "ASA": 45,
-        "PA": 50,
-        "PA-CF": 55,
-        "PC": 50,
-        "PC-FR": 50,
-        "TPU": 0,
-        "PVA": 0,
-        "default": 0,
-    }
+    DEFAULT_PREHEAT_FILAMENT_TARGETS = DEFAULT_PREHEAT_FILAMENT_TARGETS
 
     async def _get_preheat_filament_targets(self, db: AsyncSession) -> dict[str, int]:
-        """Parse the user-configured filament→chamber-target map, falling back
-        to DEFAULT_PREHEAT_FILAMENT_TARGETS on missing / malformed JSON. Keys
-        are uppercased and the 'default' fallback is always present in the
-        returned dict so the resolution loop can index it unconditionally."""
-        raw = await self._get_setting(db, "preheat_filament_targets")
-        if not raw:
-            return dict(self.DEFAULT_PREHEAT_FILAMENT_TARGETS)
-        try:
-            parsed = json.loads(raw)
-            if not isinstance(parsed, dict):
-                raise ValueError("not an object")
-        except (json.JSONDecodeError, ValueError) as exc:
-            logger.warning("preheat_filament_targets unparseable, using defaults: %s", exc)
-            return dict(self.DEFAULT_PREHEAT_FILAMENT_TARGETS)
-        # Coerce values to int; drop unparseable rows so a stray string
-        # doesn't crash the loop.
-        out: dict[str, int] = {}
-        for key, value in parsed.items():
-            try:
-                out[str(key).upper()] = int(value)
-            except (TypeError, ValueError):
-                continue
-        if "DEFAULT" not in out:
-            out["DEFAULT"] = self.DEFAULT_PREHEAT_FILAMENT_TARGETS["default"]
-        return out
+        return parse_preheat_filament_targets(await self._get_setting(db, "preheat_filament_targets"))
 
     @staticmethod
     def _normalize_filament_type(tray_type: str) -> str:
@@ -3052,7 +3029,7 @@ class PrintScheduler:
         return file_path, injected_path
 
     async def _start_print(self, db: AsyncSession, item: PrintQueueItem):
-        if preheat_ownership.blocks_power_off(item.printer_id):
+        if preheat_ownership.blocks_power_off(item.printer_id) and not preheat_ownership.can_adopt(item):
             logger.info("Queue item %s deferred: printer has unresolved preheat ownership", item.id)
             return
         async with preheat_ownership.dispatch(item, printer_manager):
@@ -3076,6 +3053,7 @@ class PrintScheduler:
         # falls through to the normal upload+start path rather than turning a
         # configuration issue into a failed queue item.
         await self._preheat_and_soak(db, item, printer, archive)
+        preheat_ownership.release_skipped_preheat()
 
         file_path, injected_path = await self._inject_dispatch_gcode(db, item, printer, file_path)
         uploaded = await self._upload_print_file(db, item, printer, file_path, filename, injected_path)

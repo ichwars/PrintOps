@@ -37,25 +37,40 @@ class PreheatLease:
     published: bool = False
     monitor: asyncio.Task | None = None
     recovered: bool = False
+    purpose: str = "dispatch"
 
     def activate(self, lifetime: float) -> None:
-        if self.owner.blocks_power_off(self.printer_id) or self.printer_id in self.owner.power_off_in_progress:
+        existing = self.owner.leases.get(self.printer_id)
+        if (
+            self.owner.blocks_power_off(self.printer_id) and existing is not self
+        ) or self.printer_id in self.owner.power_off_in_progress:
             raise RuntimeError("Printer already has preheat ownership")
+        prior_expiry = self.expires_at
         # Absolute cap also bounds malformed/unexpected settings and retry budgets.
         self.expires_at = time.time() + min(max(lifetime, 1), 24 * 3600)
         self.owner.leases[self.printer_id] = self
         try:
             self.owner.save(self)
         except OSError:
-            self.owner.leases.pop(self.printer_id, None)
-            self.expires_at = 0
+            if existing is self:
+                self.expires_at = prior_expiry
+            else:
+                self.owner.leases.pop(self.printer_id, None)
+                self.expires_at = 0
             raise
-        self.monitor = asyncio.create_task(self.owner.watch(self), name=f"preheat-owner-{self.item_id}")
+        if self.purpose == "handoff":
+            self.purpose = "dispatch"
+        if self.monitor is None or self.monitor.done():
+            self.monitor = asyncio.create_task(self.owner.watch(self), name=f"preheat-owner-{self.item_id}")
 
     def command(self, client, heater: str, target: int) -> bool:
         self.client = client
         state = self.manager.get_status(self.printer_id)
         if state is None or getattr(state, "state", None) in _ACTIVE:
+            return False
+        if self.purpose == "keep_warm" and (
+            state.state != "FINISH" or (state.temperatures or {}).get(f"{heater}_target") != 0
+        ):
             return False
         if (state.temperatures or {}).get(f"{heater}_target") == target:
             return True  # An existing heater session is not ours to stop.
@@ -204,7 +219,12 @@ class PreheatOwnership:
 
     @asynccontextmanager
     async def dispatch(self, item, manager):
-        lease = PreheatLease(self, item.printer_id, item.id, manager, asyncio.current_task())
+        lease = self.leases.get(item.printer_id)
+        if lease and lease.purpose == "keep_warm" and lease.item_id == item.id and lease.expires_at > time.time():
+            lease.purpose = "handoff"
+            lease.task = asyncio.current_task()
+        else:
+            lease = PreheatLease(self, item.printer_id, item.id, manager, asyncio.current_task())
         token = _current.set(lease)
         try:
             yield lease
@@ -212,6 +232,41 @@ class PreheatOwnership:
             _current.reset(token)
             if self.leases.get(lease.printer_id) is lease and not lease.published:
                 self.rollback(lease)
+
+    def release_undispatched(self, item_id: int) -> None:
+        for lease in list(self.leases.values()):
+            if lease.item_id == item_id and lease.purpose == "keep_warm":
+                self.rollback(lease)
+
+    def release_skipped_preheat(self) -> None:
+        if (lease := current_preheat_lease()) and lease.purpose == "handoff":
+            self.rollback(lease)
+
+    def can_adopt(self, item) -> bool:
+        lease = self.leases.get(item.printer_id)
+        if not (
+            lease
+            and not lease.recovered
+            and lease.purpose == "keep_warm"
+            and lease.item_id == item.id
+            and lease.expires_at > time.time()
+        ):
+            return False
+        client = lease.manager.get_client(lease.printer_id)
+        state = lease.manager.get_status(lease.printer_id)
+        revisions = getattr(client, "_heater_command_revisions", {})
+        return bool(
+            client is lease.client
+            and state is not None
+            and getattr(state, "connected", False)
+            and state.state in _IDLE
+            and isinstance(revisions, dict)
+            and all(
+                revisions.get(heater, 0) == lease.revisions.get(heater, 0)
+                and (state.temperatures or {}).get(f"{heater}_target") == target
+                for heater, target in lease.targets.items()
+            )
+        )
 
     async def item_status(self, lease: PreheatLease) -> str | None:
         from backend.app.core.database import async_session
@@ -251,14 +306,21 @@ class PreheatOwnership:
                 if state is not None and getattr(state, "state", None) in _ACTIVE:
                     self.forget(lease)
                     return
+                published_before_read = lease.published
                 try:
                     status = await self.item_status(lease)
-                    ended = status not in ("pending", "printing") or (lease.published and status == "pending")
+                    ended = status not in ("pending", "printing") or (published_before_read and status == "pending")
                 except Exception as exc:
                     logger.warning("Cannot verify preheat queue item %s: %s", lease.item_id, exc)
                     ended = False
                 expired = time.time() >= lease.expires_at
-                if expired and not ended and not lease.published and not lease.recovered:
+                if (
+                    expired
+                    and not ended
+                    and not lease.published
+                    and not lease.recovered
+                    and lease.purpose != "keep_warm"
+                ):
                     try:
                         await self.fail_expired_dispatch(lease)
                     except Exception as exc:

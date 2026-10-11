@@ -386,6 +386,14 @@ class AppSettings(BaseModel):
         description="Additional hold time at temperature after the chamber reaches the target (or after max_wait_seconds elapses). 0 = no soak.",
     )
 
+    queue_keep_bed_warm: bool = Field(
+        default=False,
+        description="Hold the verified bed target between compatible X1C/P2S queued plates while awaiting plate clear.",
+    )
+    queue_keep_warm_max_minutes: int = Field(
+        default=10, ge=1, le=30, description="Maximum duration of one keep-warm hold; the deadline is never renewed."
+    )
+
     # User-configurable presets for the printer-card temperature / fan-speed
     # popovers. Each is a JSON array of exactly 3 ints (the "Off" button is
     # rendered separately and is not configurable). Empty string = use built-in
@@ -585,6 +593,8 @@ class AppSettingsUpdate(BaseModel):
     require_plate_clear: bool | None = None
     queue_shortest_first: bool | None = None
     queue_max_concurrent_uploads: int | None = Field(default=None, ge=1, le=16)
+    queue_keep_bed_warm: bool | None = None
+    queue_keep_warm_max_minutes: int | None = Field(default=None, ge=1, le=30)
     preheat_enabled: bool | None = None
     preheat_filament_targets: str | None = None
     preheat_max_wait_seconds: int | None = Field(default=None, ge=60, le=3600)
