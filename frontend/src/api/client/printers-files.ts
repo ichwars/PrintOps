@@ -13,7 +13,7 @@ import {
   authToken,
   parseContentDispositionFilename,
   request,
-  withStreamToken,
+  withMediaToken,
 } from './core';
 
 export const printersFilesMethods = {
@@ -318,7 +318,7 @@ export const printersFilesMethods = {
     }>(`/printers/${printerId}/files/plates?path=${encodeURIComponent(path)}`),
 
   getPrinterFilePlateThumbnail: (printerId: number, plateIndex: number, path: string) =>
-    withStreamToken(`${API_BASE}/printers/${printerId}/files/plate-thumbnail/${plateIndex}?path=${encodeURIComponent(path)}`),
+    withMediaToken(`${API_BASE}/printers/${printerId}/files/plate-thumbnail/${plateIndex}?path=${encodeURIComponent(path)}`),
 
   // Downloads a single printer file (e.g. a multi-hundred-MB printer log).
   // Returns a download_id up front (before the fetch resolves) so the

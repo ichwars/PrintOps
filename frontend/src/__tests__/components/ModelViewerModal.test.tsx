@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { render } from '../utils';
 import { ModelViewerModal } from '../../components/ModelViewerModal';
-import { setStreamToken } from '../../api/client';
+import { setMediaToken } from '../../api/client';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
 
@@ -86,7 +86,7 @@ describe('ModelViewerModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    setStreamToken(null);
+    setMediaToken(null);
     server.use(
       http.get('/api/v1/archives/:id/capabilities', () => {
         return HttpResponse.json(mockCapabilities);
@@ -387,8 +387,8 @@ describe('ModelViewerModal', () => {
       });
     });
 
-    it('appends the camera stream token to plate thumbnail URLs', async () => {
-      setStreamToken('tok-2661');
+    it('appends the media token to plate thumbnail URLs', async () => {
+      setMediaToken('tok-2661');
 
       render(
         <ModelViewerModal

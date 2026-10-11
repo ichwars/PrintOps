@@ -38,6 +38,8 @@ import type {
 import { request } from './core';
 
 export const authUsersMethods = {
+  getMediaToken: () => request<{ token: string }>('/auth/media-token', { method: 'POST' }),
+
   // Authentication
   getAuthStatus: () => request<AuthStatus>('/auth/status'),
 

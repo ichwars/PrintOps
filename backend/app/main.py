@@ -6447,6 +6447,18 @@ async def auth_middleware(request, call_next):
         if path.startswith(prefix):
             return await call_next(request)
 
+    # Browser plate previews use URL credentials; the archive route enforces
+    # media-token permission, ownership and printer scope itself.
+    parts = path.split("/")
+    if (
+        request.method == "GET"
+        and len(parts) == 6
+        and parts[:4] == ["", "api", "v1", "archives"]
+        and parts[4].isdigit()
+        and parts[5] == "plate-preview"
+    ):
+        return await call_next(request)
+
     # Allow public patterns (read-only display data like thumbnails)
     for pattern in PUBLIC_API_PATTERNS:
         if pattern in path:

@@ -48,6 +48,7 @@ import {
   request,
   uploadSpoolsCsv,
   withStreamToken,
+  withMediaToken,
 } from './core';
 
 export const inventoryMaintenanceMethods = {
@@ -745,5 +746,5 @@ export const inventoryMaintenanceMethods = {
   deleteExternalLinkIcon: (id: number) =>
     request<ExternalLink>(`/external-links/${id}/icon`, { method: 'DELETE' }),
 
-  getExternalLinkIconUrl: (id: number) => withStreamToken(`${API_BASE}/external-links/${id}/icon`)
+  getExternalLinkIconUrl: (id: number) => withMediaToken(`${API_BASE}/external-links/${id}/icon`)
 };

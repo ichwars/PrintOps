@@ -25,7 +25,7 @@ from sqlalchemy.orm import selectinload
 from backend.app.api.gcode_preview import gcode_preview_response
 from backend.app.api.routes.cloud import resolve_api_key_cloud_owner
 from backend.app.core.auth import (
-    RequireCameraStreamTokenIfAuthEnabled,
+    require_media_token_ownership,
     require_ownership_permission,
     require_permission_if_auth_enabled,
 )
@@ -2956,13 +2956,16 @@ async def get_library_file_plate_thumbnail(
     file_id: int,
     plate_index: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.LIBRARY_READ_ALL, Permission.LIBRARY_READ_OWN)
+    ),
 ):
     """Get the thumbnail image for a specific plate from a library file."""
+    user, can_read_all = auth_result
     from starlette.responses import Response
 
     result = await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))
-    lib_file = result.scalar_one_or_none()
+    lib_file = _ensure_library_file_visible(result.scalar_one_or_none(), user, can_read_all)
 
     if not lib_file:
         raise HTTPException(status_code=404, detail="File not found")
@@ -4680,11 +4683,14 @@ async def download_library_file_for_slicer(
 async def get_thumbnail(
     file_id: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.LIBRARY_READ_ALL, Permission.LIBRARY_READ_OWN)
+    ),
 ):
     """Get a file's thumbnail."""
+    user, can_read_all = auth_result
     result = await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))
-    file = result.scalar_one_or_none()
+    file = _ensure_library_file_visible(result.scalar_one_or_none(), user, can_read_all)
 
     if not file:
         raise HTTPException(status_code=404, detail="File not found")

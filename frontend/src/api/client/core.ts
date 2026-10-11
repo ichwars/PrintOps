@@ -46,7 +46,13 @@ export let authToken: string | null =
 export type TokenPersistence = 'session' | 'persistent';
 
 export function setAuthToken(token: string | null, persistence: TokenPersistence = 'session') {
-  authToken = token;
+  if (authToken !== token) {
+    streamToken = null;
+    mediaToken = null;
+    authSessionId += 1;
+    authToken = token;
+    authSessionListeners.forEach((listener) => listener());
+  }
   try {
     if (token) {
       sessionStorage.setItem('auth_token', token);
@@ -95,6 +101,29 @@ export function getTokenExpiry(token: string): number | null {
   } catch {
     return null;
   }
+}
+
+// A generation identifies this tab's credential session without putting its JWT
+// in query-cache keys. Renewals and account changes clear URL credentials.
+let authSessionId = 0;
+const authSessionListeners = new Set<() => void>();
+export const getAuthSessionId = () => authSessionId;
+export function subscribeAuthSession(listener: () => void) {
+  authSessionListeners.add(listener);
+  return () => { authSessionListeners.delete(listener); };
+}
+
+let mediaToken: string | null = null;
+export function setMediaToken(token: string | null) { mediaToken = token; }
+export function getMediaToken(): string | null { return mediaToken; }
+export function withMediaToken(url: string): string {
+  if (!mediaToken) return url;
+  try {
+    const target = new URL(url, window.location.origin);
+    if (target.origin !== window.location.origin || !target.pathname.startsWith(`${API_BASE}/`)) return url;
+  } catch { return url; }
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}token=${encodeURIComponent(mediaToken)}`;
 }
 
 // Stream token for image/video URLs loaded via <img>/<video> tags

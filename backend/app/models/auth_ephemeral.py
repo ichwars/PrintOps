@@ -42,6 +42,7 @@ class TokenType(str, Enum):
     PASSWORD_RESET = "password_reset"
     EMAIL_OTP_SETUP = "email_otp_setup"
     SLICER_DOWNLOAD = "slicer_download"
+    MEDIA = "media"
 
 
 class EventType(str, Enum):
@@ -74,6 +75,7 @@ class AuthEphemeralToken(Base):
     # oidc_state: which provider initiated the flow
     provider_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # media: immutable issuing user id (username remains the lookup key)
     # oidc_state: replay-protection nonce embedded in the ID token
     nonce: Mapped[str | None] = mapped_column(String(128), nullable=True)
 

@@ -31,7 +31,7 @@ import {
   buildSlicerUrlFilename,
   parseContentDispositionFilename,
   request,
-  withStreamToken,
+  withMediaToken,
 } from './core';
 
 export const historyLibraryMethods = {
@@ -291,10 +291,10 @@ export const historyLibraryMethods = {
     window.URL.revokeObjectURL(url);
   },
 
-  getLibraryFileThumbnailUrl: (id: number) => withStreamToken(`${API_BASE}/library/files/${id}/thumbnail`),
+  getLibraryFileThumbnailUrl: (id: number) => withMediaToken(`${API_BASE}/library/files/${id}/thumbnail`),
 
   getLibraryFilePlateThumbnail: (id: number, plateIndex: number) =>
-    withStreamToken(`${API_BASE}/library/files/${id}/plate-thumbnail/${plateIndex}`),
+    withMediaToken(`${API_BASE}/library/files/${id}/plate-thumbnail/${plateIndex}`),
 
   getLibraryFileGcodeUrl: (id: number) => `${API_BASE}/library/files/${id}/gcode`,
 

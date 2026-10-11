@@ -219,45 +219,24 @@ class TestProjectUrlAndCoverImage:
         )
         assert response.status_code == 400
 
+    @pytest.mark.asyncio
     @pytest.mark.integration
-    def test_cover_image_get_uses_stream_token_gate(self):
-        """Regression guard: GET /projects/{id}/cover-image MUST be gated by
-        ``RequireCameraStreamTokenIfAuthEnabled`` (accepts ``?token=…`` query
-        string) rather than by the bearer-token gate, because browsers can't
-        attach an ``Authorization`` header to ``<img src>`` requests. Swapping
-        back to the bearer gate would silently 401 every cover image when auth
-        is enabled."""
-        from fastapi.routing import APIRoute
+    async def test_cover_image_get_accepts_media_credentials(self, async_client, db_session, project_factory):
+        from backend.tests.integration.test_media_tokens import _admin_token, _make_user, _mint_media_token
 
-        from backend.app.api.routes.projects import router
-
-        # Find the GET cover-image route. The router exposes path/methods/
-        # dependencies via APIRoute objects.
-
-        cover_get = None
-        for route in router.routes:
-            if isinstance(route, APIRoute) and route.path.endswith("/cover-image") and "GET" in route.methods:
-                cover_get = route
-                break
-
-        assert cover_get is not None, "GET cover-image route missing"
-
-        # The route's dependant tree includes a Depends(require_camera_stream_token_if_auth_enabled())
-        # — its `call` is the inner check function returned by that factory.
-        # Walk the dependant tree and assert one of the dependencies came from
-        # the stream-token factory, NOT from require_permission_if_auth_enabled.
-        from backend.app.core.auth import (
-            require_camera_stream_token_if_auth_enabled,
+        admin = await _admin_token(async_client, "_project_cover")
+        jwt, _ = await _make_user(async_client, admin, username="projectreader", permissions=["projects:read"])
+        project = await project_factory()
+        uploaded = await async_client.post(
+            f"/api/v1/projects/{project.id}/cover-image",
+            headers={"Authorization": f"Bearer {admin}"},
+            files={"file": ("cover.png", b"\x89PNG\r\n\x1a\n" + b"0" * 32, "image/png")},
         )
-
-        # The factory returns a fresh closure each call; the most reliable
-        # signature is the qualified name of the function in the closure chain.
-        expected_qualname = require_camera_stream_token_if_auth_enabled().__qualname__
-
-        gate_qualnames = [dep.call.__qualname__ for dep in cover_get.dependant.dependencies if dep.call]
-        assert expected_qualname in gate_qualnames, (
-            f"GET cover-image route is not gated by RequireCameraStreamTokenIfAuthEnabled. Found: {gate_qualnames}"
-        )
+        assert uploaded.status_code == 200, uploaded.text
+        token = await _mint_media_token(async_client, jwt)
+        served = await async_client.get(f"/api/v1/projects/{project.id}/cover-image?token={token}")
+        assert served.status_code == 200, served.text
+        assert served.content.startswith(b"\x89PNG")
 
 
 class TestProjectPartsTracking:

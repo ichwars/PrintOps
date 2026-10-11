@@ -9,9 +9,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import (
-    RequireCameraStreamTokenIfAuthEnabled,
     RequirePermissionIfAuthEnabled,
     is_auth_enabled,
+    require_media_token_printer_permission,
 )
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
@@ -366,7 +366,7 @@ async def get_printer_cover(
     printer_id: int,
     view: str | None = None,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    _: User | None = Depends(require_media_token_printer_permission(Permission.PRINTERS_READ)),
 ):
     """Get the cover image for the current print job.
 

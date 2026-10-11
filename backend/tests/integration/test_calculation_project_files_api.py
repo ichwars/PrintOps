@@ -28,25 +28,20 @@ def _project_file() -> bytes:
     return output.getvalue()
 
 
-def test_project_plate_thumbnail_uses_stream_token_gate():
-    """An img request cannot attach the normal bearer authorization header."""
-    from fastapi.routing import APIRoute
+@pytest.mark.asyncio
+async def test_project_plate_thumbnail_requires_calculation_permission(async_client):
+    from backend.tests.integration.test_media_tokens import _admin_token, _make_user, _mint_media_token
 
-    from backend.app.api.routes.calculation_projects import router
-    from backend.app.core.auth import require_camera_stream_token_if_auth_enabled
-
-    thumbnail_get = next(
-        (
-            route
-            for route in router.routes
-            if isinstance(route, APIRoute) and route.path.endswith("/thumbnail") and "GET" in route.methods
-        ),
-        None,
-    )
-    assert thumbnail_get is not None, "project plate thumbnail route missing"
-    expected_qualname = require_camera_stream_token_if_auth_enabled().__qualname__
-    gate_qualnames = [dependency.call.__qualname__ for dependency in thumbnail_get.dependant.dependencies]
-    assert expected_qualname in gate_qualnames, gate_qualnames
+    admin = await _admin_token(async_client, "_calc_plate")
+    jwt, _ = await _make_user(async_client, admin, username="calcreader", permissions=["calculations:read"])
+    token = await _mint_media_token(async_client, jwt)
+    # An authorized user reaches the row lookup, even without camera:view.
+    response = await async_client.get(f"/api/v1/calculations/project-files/1/plates/1/thumbnail?token={token}")
+    assert response.status_code == 404
+    jwt, _ = await _make_user(async_client, admin, username="otherreader", permissions=["projects:read"])
+    token = await _mint_media_token(async_client, jwt)
+    response = await async_client.get(f"/api/v1/calculations/project-files/1/plates/1/thumbnail?token={token}")
+    assert response.status_code == 403
 
 
 @pytest.mark.asyncio

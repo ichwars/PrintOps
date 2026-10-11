@@ -7,13 +7,17 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import (
-    RequireCameraStreamTokenIfAuthEnabled,
     RequirePermissionIfAuthEnabled,
+    check_printer_access,
+    require_media_token_ownership,
     require_ownership_permission,
+    resolve_optional_api_key,
+    user_can_access_printer,
 )
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
+from backend.app.models.api_key import APIKey
 from backend.app.models.print_log import PrintLogEntry
 from backend.app.models.user import User
 from backend.app.schemas.print_log import PrintLogEntrySchema, PrintLogEntryUpdate, PrintLogResponse
@@ -111,11 +115,14 @@ async def get_print_log(
 async def get_print_log_thumbnail(
     entry_id: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get the thumbnail for a print log entry.
 
-    Requires a stream token query param (?token=xxx) when auth is enabled.
+    Requires a media token query param (?token=xxx) when auth is enabled.
 
     Self-heals stale entries: when thumbnail_path points to a file that no
     longer exists on disk (archive was deleted, or print failed before the
@@ -124,9 +131,18 @@ async def get_print_log_thumbnail(
     gated on entry.thumbnail_path being truthy, so the next fetch of the
     log list will simply not request this thumbnail again.
     """
+    user, can_read_all = auth_result
     entry = await db.get(PrintLogEntry, entry_id)
     if not entry or not entry.thumbnail_path:
         raise HTTPException(404, "Thumbnail not found")
+
+    if not can_read_all and (user is None or entry.created_by_id != user.id):
+        raise HTTPException(404, "Thumbnail not found")
+    if not user_can_access_printer(user, entry.printer_id):
+        raise HTTPException(404, "Thumbnail not found")
+
+    if api_key is not None:
+        check_printer_access(api_key, entry.printer_id)
 
     thumb_path = settings.base_dir / entry.thumbnail_path
     if not thumb_path.exists():
@@ -137,7 +153,7 @@ async def get_print_log_thumbnail(
     return FileResponse(
         path=thumb_path,
         media_type="image/png",
-        headers={"Cache-Control": "public, max-age=86400"},
+        headers={"Cache-Control": "private, no-cache, must-revalidate"},
     )
 
 

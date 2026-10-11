@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Box, Repeat } from 'lucide-react';
-import { withStreamToken } from '../../api/client';
+import { withMediaToken } from '../../api/client';
 import { formatDuration } from '../../utils/date';
 import type { Printer, HMSError } from '../../api/client';
 import { filterKnownHMSErrors } from '../../components/HMSErrorModal';
@@ -712,7 +712,7 @@ export function CoverImage({
   const cacheBustedUrl = useMemo(() => {
     if (!url) return null;
     const sep = url.includes('?') ? '&' : '?';
-    return withStreamToken(`${url}${sep}v=${encodeURIComponent(printName || Date.now().toString())}`);
+    return withMediaToken(`${url}${sep}v=${encodeURIComponent(printName || Date.now().toString())}`);
   }, [url, printName]);
 
   // Reset loaded/error state when the image URL changes

@@ -15,15 +15,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.gcode_preview import gcode_preview_response
 from backend.app.core.auth import (
-    RequireCameraStreamTokenIfAuthEnabled,
     RequirePermissionIfAuthEnabled,
     allowed_printer_ids_for_user,
+    check_printer_access,
+    require_media_token_ownership,
     require_ownership_permission,
+    resolve_optional_api_key,
     user_can_access_printer,
 )
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
+from backend.app.models.api_key import APIKey
 from backend.app.models.archive import PrintArchive
 from backend.app.models.filament import Filament
 from backend.app.models.spool_usage_history import SpoolUsageHistory
@@ -2287,14 +2290,20 @@ async def download_archive_for_slicer(
 async def get_thumbnail(
     archive_id: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get the thumbnail image.
 
-    Requires a stream token query param (?token=xxx) when auth is enabled.
+    Requires a media token query param (?token=xxx) when auth is enabled.
     """
+    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = await service.get_archive(archive_id)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    if api_key is not None:
+        check_printer_access(api_key, archive.printer_id)
     if not archive or not archive.thumbnail_path:
         raise HTTPException(404, "Thumbnail not found")
 
@@ -2319,14 +2328,20 @@ async def get_thumbnail(
 async def get_timelapse(
     archive_id: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get the timelapse video.
 
-    Requires a stream token query param (?token=xxx) when auth is enabled.
+    Requires a media token query param (?token=xxx) when auth is enabled.
     """
+    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = await service.get_archive(archive_id)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    if api_key is not None:
+        check_printer_access(api_key, archive.printer_id)
     if not archive or not archive.timelapse_path:
         raise HTTPException(404, "Timelapse not found")
 
@@ -2931,14 +2946,20 @@ async def get_photo(
     archive_id: int,
     filename: str,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get a specific photo.
 
-    Requires a stream token query param (?token=xxx) when auth is enabled.
+    Requires a media token query param (?token=xxx) when auth is enabled.
     """
+    user, can_read_all = auth_result
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = result.scalar_one_or_none()
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_read_all)
+    if api_key is not None:
+        check_printer_access(api_key, archive.printer_id)
     if not archive:
         raise HTTPException(404, "Archive not found")
 
@@ -3015,12 +3036,16 @@ async def get_qrcode(
     request: Request,
     size: int = 200,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Generate a QR code that links to this archive.
 
-    Requires a stream token query param (?token=xxx) when auth is enabled.
+    Requires a media token query param (?token=xxx) when auth is enabled.
     """
+    user, can_read_all = auth_result
     try:
         import qrcode
         from PIL import Image as PILImage
@@ -3028,7 +3053,9 @@ async def get_qrcode(
         raise HTTPException(500, "QR code generation not available - qrcode package not installed")
 
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = result.scalar_one_or_none()
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_read_all)
+    if api_key is not None:
+        check_printer_access(api_key, archive.printer_id)
     if not archive:
         raise HTTPException(404, "Archive not found")
 
@@ -3324,17 +3351,23 @@ async def get_gcode(
 async def get_plate_preview(
     archive_id: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get the plate preview image from the 3MF file.
 
     Returns the slicer-generated plate thumbnail which shows the model
     with correct colors and positioning.
 
-    Requires a stream token query param (?token=xxx) when auth is enabled.
+    Requires a media token query param (?token=xxx) when auth is enabled.
     """
+    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = await service.get_archive(archive_id)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    if api_key is not None:
+        check_printer_access(api_key, archive.printer_id)
     if not archive:
         raise HTTPException(404, "Archive not found")
 
@@ -3819,14 +3852,20 @@ async def get_plate_thumbnail(
     archive_id: int,
     plate_index: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get the thumbnail image for a specific plate.
 
-    Requires a stream token query param (?token=xxx) when auth is enabled.
+    Requires a media token query param (?token=xxx) when auth is enabled.
     """
+    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = await service.get_archive(archive_id)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    if api_key is not None:
+        check_printer_access(api_key, archive.printer_id)
     if not archive:
         raise HTTPException(404, "Archive not found")
 
@@ -4241,16 +4280,22 @@ async def get_project_image(
     archive_id: int,
     image_path: str,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get an image from the 3MF project page.
 
-    Requires a stream token query param (?token=xxx) when auth is enabled.
+    Requires a media token query param (?token=xxx) when auth is enabled.
     """
+    user, can_read_all = auth_result
     from backend.app.services.archive import ProjectPageParser
 
     service = ArchiveService(db)
-    archive = await service.get_archive(archive_id)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    if api_key is not None:
+        check_printer_access(api_key, archive.printer_id)
     if not archive:
         raise HTTPException(404, "Archive not found")
 

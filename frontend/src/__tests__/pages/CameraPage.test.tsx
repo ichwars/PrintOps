@@ -355,6 +355,7 @@ describe('CameraPage', () => {
 
   describe('stream token handling (#979)', () => {
     it('does not render image src until stream token arrives when auth is enabled', async () => {
+      setAuthToken('camera-user-session');
       let resolveToken!: (value: unknown) => void;
       const tokenPromise = new Promise((resolve) => {
         resolveToken = resolve;

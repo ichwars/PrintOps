@@ -13,12 +13,12 @@ import time
 import zipfile
 
 import defusedxml.ElementTree as ET
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from sqlalchemy import select
 
 from backend.app.core import database
-from backend.app.core.auth import RequirePermissionIfAuthEnabled
+from backend.app.core.auth import RequirePermissionIfAuthEnabled, require_media_token_printer_permission
 from backend.app.core.permissions import Permission
 from backend.app.core.websocket import ws_manager
 from backend.app.models.printer import Printer
@@ -424,7 +424,7 @@ async def get_printer_file_plate_thumbnail(
     printer_id: int,
     plate_index: int,
     path: str = Query(..., description="Full path to the 3MF file on the printer"),
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_FILES),
+    _=Depends(require_media_token_printer_permission(Permission.PRINTERS_FILES)),
 ):
     """Get a plate thumbnail image from a printer-stored 3MF file."""
     printer = await _load_printer_or_404(printer_id)
