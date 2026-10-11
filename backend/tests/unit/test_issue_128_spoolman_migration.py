@@ -168,6 +168,7 @@ async def test_postgres_upgrade_is_idempotent_by_sql_construction():
         patch("backend.app.core.database._safe_execute", side_effect=capture),
         patch("backend.app.core.database._migrate_update_auto_link_constraint", AsyncMock()),
         patch("backend.app.core.database._migrate_widen_spoolman_slot_ams_id_range", AsyncMock()),
+        patch("backend.app.core.database.migrate_spool_k_profile_contexts", AsyncMock()),
     ):
         await database_module.run_migrations(connection)
 
