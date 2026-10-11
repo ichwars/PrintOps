@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { screen, waitFor, render as rtlRender } from '@testing-library/react';
+import { act, screen, waitFor, fireEvent, render as rtlRender } from '@testing-library/react';
 import { CameraPage } from '../../pages/CameraPage';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
@@ -14,6 +14,7 @@ import { ToastProvider } from '../../contexts/ToastContext';
 import { AuthProvider } from '../../contexts/AuthContext';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../../i18n';
+import { setAuthToken } from '../../api/client';
 
 // Mock navigator.sendBeacon which isn't available in jsdom
 vi.stubGlobal('navigator', {
@@ -63,6 +64,10 @@ describe('CameraPage', () => {
   const originalTitle = document.title;
 
   beforeEach(() => {
+    const storage = new Map<string, string>();
+    vi.mocked(localStorage.getItem).mockImplementation(key => storage.get(key) ?? null);
+    vi.mocked(localStorage.setItem).mockImplementation((key, value) => { storage.set(key, value); });
+    vi.mocked(localStorage.removeItem).mockImplementation(key => { storage.delete(key); });
     server.use(
       http.get('/api/v1/printers/:id', () => {
         return HttpResponse.json(mockPrinter);
@@ -85,6 +90,171 @@ describe('CameraPage', () => {
 
   afterEach(() => {
     document.title = originalTitle;
+    setAuthToken(null);
+    vi.mocked(localStorage.getItem).mockReset();
+    vi.mocked(localStorage.setItem).mockReset();
+    vi.mocked(localStorage.removeItem).mockReset();
+  });
+
+  describe('per-printer camera preference', () => {
+    const preferenceKey = 'printops:camera-view:v1:http%3A%2F%2Flocalhost%3A3000:appliance:1';
+
+    it('updates the camera window title when the interface language changes', async () => {
+      try {
+        await i18n.changeLanguage('nl');
+        const view = renderCameraPage(1);
+        await waitFor(() => expect(document.title).toBe('X1 Carbon - Cameraweergave'));
+        await act(() => i18n.changeLanguage('en'));
+        await waitFor(() => expect(document.title).toBe('X1 Carbon - Camera View'));
+        view.unmount();
+        expect(document.title).toBe('PrintOps');
+      } finally {
+        await i18n.changeLanguage('en');
+      }
+    });
+
+    it('opens the saved snapshot without starting a live player', async () => {
+      localStorage.setItem(preferenceKey, JSON.stringify({ version: 1, mode: 'snapshot' }));
+      renderCameraPage(1);
+
+      await waitFor(() => {
+        expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot');
+      });
+      expect(document.querySelector('video')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Snapshot' })).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('waits for the signed-in identity before opening its saved snapshot', async () => {
+      localStorage.setItem('printops:camera-view:v1:http%3A%2F%2Flocalhost%3A3000:user:1:1', '{"version":1,"mode":"snapshot"}');
+      setAuthToken('preference-test-token', 'session');
+      let resolveIdentity!: () => void;
+      let identityRequested = false;
+      const identity = new Promise<void>(resolve => { resolveIdentity = resolve; });
+      server.use(
+        http.get('*/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })),
+        http.get('*/api/v1/auth/me', async () => {
+          identityRequested = true;
+          await identity;
+          return HttpResponse.json({ id: 1, username: 'admin', role: 'admin', is_active: true, is_admin: true, groups: [], permissions: [], created_at: '2024-01-01T00:00:00Z' });
+        }),
+        http.post('*/api/v1/printers/camera/stream-token', () => HttpResponse.json({ token: 'camera-test-token' })),
+      );
+      renderCameraPage(1);
+      await waitFor(() => expect(identityRequested).toBe(true));
+      expect(document.querySelector('img[src*="/camera/"], video[src*="/camera/"]')).toBeNull();
+      resolveIdentity();
+      await waitFor(() => {
+        expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot');
+        expect(document.querySelector('img')?.getAttribute('src')).toContain('token=camera-test-token');
+      });
+      expect(document.querySelector('video')).toBeNull();
+    });
+
+    it('remembers a camera-page mode change for the next opening', async () => {
+      const first = renderCameraPage(1);
+      await screen.findByText('X1 Carbon');
+      fireEvent.load(document.querySelector('img')!);
+      fireEvent.click(screen.getByRole('button', { name: 'Snapshot' }));
+      await waitFor(() => {
+        expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot');
+      });
+      first.unmount();
+      renderCameraPage(1);
+      await waitFor(() => {
+        expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot');
+      });
+      expect(JSON.parse(localStorage.getItem(preferenceKey)!)).toEqual({ version: 1, mode: 'snapshot' });
+    });
+
+    it('keeps camera-token links independent of stored appliance preferences', async () => {
+      localStorage.setItem(preferenceKey, JSON.stringify({ version: 1, mode: 'snapshot' }));
+      renderCameraPage(1, '?camera_token=anonymous-link');
+      await waitFor(() => {
+        expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/stream');
+      });
+      fireEvent.load(document.querySelector('img')!);
+      fireEvent.click(screen.getByRole('button', { name: 'Snapshot' }));
+      await waitFor(() => {
+        expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot');
+      });
+      fireEvent.load(document.querySelector('img')!);
+      fireEvent.click(screen.getByRole('button', { name: 'Live' }));
+      await waitFor(() => {
+        expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/stream');
+      });
+      expect(JSON.parse(localStorage.getItem(preferenceKey)!)).toEqual({ version: 1, mode: 'snapshot' });
+    });
+
+    it('honors an explicit launch view without rewriting the saved default', async () => {
+      localStorage.setItem(preferenceKey, '{"version":1,"mode":"snapshot"}');
+      renderCameraPage(1, '?view=stream');
+      await waitFor(() => {
+        expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/stream');
+      });
+      expect(JSON.parse(localStorage.getItem(preferenceKey)!)).toEqual({ version: 1, mode: 'snapshot' });
+    });
+
+    it.each(['stream', null] as const)('releases the snapshot launch hint when this printer default changes to %s in another tab', async (value) => {
+      renderCameraPage(1, '?view=snapshot');
+      await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot'));
+      if (value === null) localStorage.removeItem(preferenceKey);
+      else localStorage.setItem(preferenceKey, JSON.stringify({ version: 1, mode: value }));
+      act(() => window.dispatchEvent(new StorageEvent('storage', { key: preferenceKey })));
+      await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/stream'));
+      expect(screen.getByRole('button', { name: 'Live' })).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('ignores unknown launch views and uses the saved default', async () => {
+      localStorage.setItem(preferenceKey, '{"version":1,"mode":"snapshot"}');
+      renderCameraPage(1, '?view=invalid');
+      await waitFor(() => {
+        expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot');
+      });
+    });
+
+    it('cancels a live retry when another tab changes this printer to snapshot', async () => {
+      renderCameraPage(1);
+      await waitFor(() => {
+        expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/stream');
+      });
+      vi.useFakeTimers();
+      try {
+        fireEvent.error(document.querySelector('img')!);
+        expect(screen.getByText(/Reconnecting in/)).toBeInTheDocument();
+        localStorage.setItem(preferenceKey, '{"version":1,"mode":"snapshot"}');
+        act(() => window.dispatchEvent(new StorageEvent('storage', { key: preferenceKey })));
+        expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot');
+        expect(screen.queryByText(/Reconnecting in/)).not.toBeInTheDocument();
+        fireEvent.load(document.querySelector('img')!);
+        const snapshotUrl = document.querySelector('img')?.getAttribute('src');
+        act(() => vi.advanceTimersByTime(2500));
+        expect(document.querySelector('img')?.getAttribute('src')).toBe(snapshotUrl);
+        expect(screen.getByRole('button', { name: 'Live' })).toBeEnabled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('uses a snapshot launch hint and remains switchable when camera storage is blocked', async () => {
+      vi.mocked(localStorage.getItem).mockImplementation(key => {
+        if (key.includes('camera')) throw new Error('camera storage blocked');
+        return null;
+      });
+      vi.mocked(localStorage.setItem).mockImplementation(key => {
+        if (key.includes('camera')) throw new Error('camera storage blocked');
+      });
+      renderCameraPage(1, '?view=snapshot');
+      await waitFor(() => {
+        expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot');
+      });
+      fireEvent.load(document.querySelector('img')!);
+      fireEvent.click(screen.getByRole('button', { name: 'Live' }));
+      await waitFor(() => {
+        expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/stream');
+      });
+      fireEvent.load(document.querySelector('img')!);
+      expect(screen.getByRole('button', { name: 'Snapshot' })).toBeEnabled();
+    });
   });
 
   describe('rendering', () => {

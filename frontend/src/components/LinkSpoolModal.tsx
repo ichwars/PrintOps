@@ -19,6 +19,7 @@ interface LinkSpoolModalProps {
 }
 
 export function LinkSpoolModal({ isOpen, onClose, tagUid, trayUuid, printerId, amsId, trayId }: LinkSpoolModalProps) {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -80,7 +81,7 @@ export function LinkSpoolModal({ isOpen, onClose, tagUid, trayUuid, printerId, a
               {t('spoolman.selectSpool')}
             </h3>
             <p className="text-xs text-bambu-gray mt-1">
-              AMS {amsId} T{trayId} &middot; Printer #{printerId}
+              AMS {amsId} T{trayId} {translateInterface("orders.runtimeInterface.middotPrinter")}{printerId}
             </p>
           </div>
           <button onClick={onClose} className="p-1 text-bambu-gray hover:text-white rounded transition-colors">
@@ -102,7 +103,7 @@ export function LinkSpoolModal({ isOpen, onClose, tagUid, trayUuid, printerId, a
           </div>
           {(trayUuid || tagUid) && (
             <p className="text-xs text-bambu-gray mt-2 font-mono truncate" title={trayUuid || tagUid}>
-              Tag: {trayUuid || tagUid}
+              {translateInterface("orders.runtimeInterface.tag")} {trayUuid || tagUid}
             </p>
           )}
         </div>

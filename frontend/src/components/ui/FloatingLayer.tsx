@@ -7,7 +7,7 @@ import {
   size,
   type Placement,
 } from '@floating-ui/dom';
-import { useEffect, useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 
 export type FloatingLayerProps = {
@@ -32,6 +32,23 @@ export function FloatingLayer({
   matchAnchorWidth = false,
 }: FloatingLayerProps) {
   const layerRef = useRef<HTMLDivElement>(null);
+  const [portalContainer, setPortalContainer] = useState<Element | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    const ownerDocument = anchorRef.current?.ownerDocument ?? document;
+    const updatePortalContainer = () => {
+      const fullscreenElement = ownerDocument.fullscreenElement;
+      const anchor = anchorRef.current;
+      // A body portal is outside the visible subtree when its anchor is fullscreen.
+      setPortalContainer(fullscreenElement && anchor && fullscreenElement.contains(anchor)
+        ? fullscreenElement
+        : ownerDocument.body);
+    };
+    updatePortalContainer();
+    ownerDocument.addEventListener('fullscreenchange', updatePortalContainer);
+    return () => ownerDocument.removeEventListener('fullscreenchange', updatePortalContainer);
+  }, [anchorRef, open]);
 
   useLayoutEffect(() => {
     if (!open) return undefined;
@@ -61,7 +78,7 @@ export function FloatingLayer({
         Object.assign(layer.style, { left: `${x}px`, top: `${y}px` });
       });
     });
-  }, [anchorRef, matchAnchorWidth, open, placement]);
+  }, [anchorRef, matchAnchorWidth, open, placement, portalContainer]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -97,6 +114,6 @@ export function FloatingLayer({
     >
       {children}
     </div>,
-    document.body,
+    portalContainer ?? document.body,
   );
 }

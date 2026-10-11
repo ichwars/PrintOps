@@ -21,13 +21,13 @@ interface AssetControlsProps {
 }
 
 const roleOptions: Array<{ value: LayoutAssetRole; label: string }> = [
-  { value: 'logo', label: 'Logo' },
-  { value: 'letterhead_first', label: 'Letterhead - first page' },
-  { value: 'letterhead_following', label: 'Letterhead - following pages' },
-  { value: 'font_regular', label: 'Font - regular' },
-  { value: 'font_bold', label: 'Font - bold' },
-  { value: 'font_italic', label: 'Font - italic' },
-  { value: 'font_bold_italic', label: 'Font - bold italic' },
+  { value: 'logo', label: 'logo' },
+  { value: 'letterhead_first', label: 'letterhead_first' },
+  { value: 'letterhead_following', label: 'letterhead_following' },
+  { value: 'font_regular', label: 'font_regular' },
+  { value: 'font_bold', label: 'font_bold' },
+  { value: 'font_italic', label: 'font_italic' },
+  { value: 'font_bold_italic', label: 'font_bold_italic' },
 ];
 
 function assetTypeForRole(role: LayoutAssetRole): LayoutAssetType {
@@ -124,7 +124,7 @@ export function AssetControls({ businessProfileId, layoutId, assets, readOnly, o
       <Select
         ariaLabel={t('settings.documentLayout.assets.usedBy', 'Asset role')}
         value={role}
-        options={roleOptions}
+        options={roleOptions.map((option) => ({ ...option, label: t(`orders.runtimeDomain.documentLayoutExtras.${option.label}`) }))}
         disabled={readOnly || state !== 'idle'}
         onValueChange={(value) => setRole(value)}
       />
@@ -158,7 +158,7 @@ export function AssetControls({ businessProfileId, layoutId, assets, readOnly, o
         </div>
         {!readOnly ? <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-bambu-gray hover:bg-red-500/10 hover:text-red-400" aria-label={t('settings.documentLayout.actions.delete', 'Delete')} onClick={() => void remove(asset.id)}><Trash2 className="h-4 w-4" /></button> : null}
       </article>)}
-      {assets.length === 0 ? <p className="rounded-lg bg-bambu-dark p-3 text-sm text-bambu-gray">No assets assigned.</p> : null}
+      {assets.length === 0 ? <p className="rounded-lg bg-bambu-dark p-3 text-sm text-bambu-gray">{t('orders.runtimeDomain.documentLayoutExtras.noAssets')}</p> : null}
     </div>
   </div>;
 }

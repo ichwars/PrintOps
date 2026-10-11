@@ -167,7 +167,7 @@ describe('BusinessProfileSettings', () => {
     await user.type(screen.getByLabelText('Legal name'), 'North America LLC');
     await chooseOption(user, screen.getByLabelText('Profile country'), 'FR');
     await chooseOption(user, screen.getByLabelText('Currency'), 'JPY');
-    await chooseOption(user, screen.getByLabelText('Locale'), 'Français');
+    await chooseOption(user, screen.getByLabelText('Locale'), 'Nederlands');
     await user.clear(screen.getByLabelText('Timezone'));
     await user.type(screen.getByLabelText('Timezone'), 'Asia/Tokyo');
     await user.type(screen.getByLabelText('Street'), '100 Main Street');
@@ -181,7 +181,7 @@ describe('BusinessProfileSettings', () => {
       legal_name: 'North America LLC',
       country_code: 'FR',
       default_currency: 'JPY',
-      default_locale: 'fr',
+      default_locale: 'nl',
       timezone: 'Asia/Tokyo',
       addresses: [expect.objectContaining({ kind: 'registered', street: '100 Main Street', city: 'New York', country_code: 'FR' })],
     }));

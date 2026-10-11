@@ -28,17 +28,14 @@ interface SequenceDraft {
 
 interface SequenceDefinition {
   key: NumberSequenceKey;
-  germanStem: string;
-  germanNoun: string;
-  englishName: string;
   defaults: SequenceDraft;
 }
 
 const DEFINITIONS: SequenceDefinition[] = [
-  { key: 'customer', germanStem: 'Kunden', germanNoun: 'Kundennummernkreis', englishName: 'Customer', defaults: { prefix: 'KD', pattern: '{PREFIX}-{#####}', nextValue: '1', resetPolicy: 'none' } },
-  { key: 'offer', germanStem: 'Angebots', germanNoun: 'Angebotsnummernkreis', englishName: 'Offer', defaults: { prefix: 'AG', pattern: '{PREFIX}{YYMM}{####}', nextValue: '1', resetPolicy: 'monthly' } },
-  { key: 'order', germanStem: 'Auftrags', germanNoun: 'Auftragsnummernkreis', englishName: 'Order', defaults: { prefix: 'AU', pattern: '{PREFIX}-{YYYY}-{#####}', nextValue: '1', resetPolicy: 'yearly' } },
-  { key: 'invoice', germanStem: 'Rechnungs', germanNoun: 'Rechnungsnummernkreis', englishName: 'Invoice', defaults: { prefix: 'RE', pattern: '{PREFIX}-{YYYY}-{#####}', nextValue: '1', resetPolicy: 'yearly' } },
+  { key: 'customer', defaults: { prefix: 'KD', pattern: '{PREFIX}-{#####}', nextValue: '1', resetPolicy: 'none' } },
+  { key: 'offer', defaults: { prefix: 'AG', pattern: '{PREFIX}{YYMM}{####}', nextValue: '1', resetPolicy: 'monthly' } },
+  { key: 'order', defaults: { prefix: 'AU', pattern: '{PREFIX}-{YYYY}-{#####}', nextValue: '1', resetPolicy: 'yearly' } },
+  { key: 'invoice', defaults: { prefix: 'RE', pattern: '{PREFIX}-{YYYY}-{#####}', nextValue: '1', resetPolicy: 'yearly' } },
 ];
 
 function initialDrafts(): Record<NumberSequenceKey, SequenceDraft> {
@@ -59,8 +56,8 @@ function supportsResetPolicy(draft: SequenceDraft) {
 }
 
 export function NumberSequenceSettings({ profiles, canManage }: Props) {
-  const { i18n } = useTranslation();
-  const german = i18n.language.startsWith('de');
+  const { t } = useTranslation();
+  const tr = (key: string, values?: { name: string }) => t(`orders.runtimeDevice.${key}`, values);
   const queryClient = useQueryClient();
   const [profileId, setProfileId] = useState<number | null>(null);
   const [drafts, setDrafts] = useState(initialDrafts);
@@ -105,9 +102,9 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
 
   const saveMutation = useMutation({
     mutationFn: async ({ definition, existing }: { definition: SequenceDefinition; existing?: NumberSequence }) => {
-      if (profileId === null) throw new Error('No business profile selected');
+      if (profileId === null) throw new Error(tr('business.noProfileSelected'));
       if (!supportsResetPolicy(drafts[definition.key])) {
-        throw new Error(german ? 'Monatliches Zurücksetzen benötigt den Platzhalter {YYMM} im Format.' : 'Monthly resets require the {YYMM} token in the number format.');
+        throw new Error(tr('business.monthlyRequirement'));
       }
       const values = valuesFromDraft(drafts[definition.key]);
       if (existing) {
@@ -122,7 +119,7 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
     },
     onError: (caught) => {
       setSavedKey(null);
-      setError(caught instanceof ApiError ? caught.message : caught instanceof Error ? caught.message : (german ? 'Nummernkreis konnte nicht gespeichert werden.' : 'Could not save number sequence.'));
+      setError(caught instanceof ApiError ? caught.message : caught instanceof Error ? caught.message : tr('sequenceSaveError'));
     },
   });
 
@@ -135,35 +132,33 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
     <section id="card-number-sequences" className="w-full overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary card-shadow" aria-labelledby="number-sequences-heading">
       <div className="flex items-center gap-2 border-b border-bambu-dark-tertiary px-4 py-4">
         <Hash className="h-5 w-5 text-bambu-green" aria-hidden="true" />
-        <h2 id="number-sequences-heading" className="text-lg font-semibold text-white">{german ? 'Nummernkreise' : 'Number sequences'}</h2>
+        <h2 id="number-sequences-heading" className="text-lg font-semibold text-white">{tr('business.title')}</h2>
       </div>
       <div className="space-y-4 p-4">
         <div className="grid gap-4 md:grid-cols-[minmax(240px,360px)_1fr] md:items-end">
           {profiles.length > 0 ? (
             <Select
-              ariaLabel={german ? 'Unternehmensprofil für Nummernkreise' : 'Business profile for number sequences'}
-              label={german ? 'Unternehmensprofil für Nummernkreise' : 'Business profile for number sequences'}
+              ariaLabel={tr('business.profile')}
+              label={tr('business.profile')}
               value={profileId ?? profiles[0].id}
               onValueChange={(value) => setProfileId(Number(value))}
               options={profiles.map((profile) => ({ value: profile.id, label: profile.name }))}
             />
-          ) : <p className="text-sm text-bambu-gray">{german ? 'Legen Sie zuerst ein Unternehmensprofil an.' : 'Create a business profile first.'}</p>}
+          ) : <p className="text-sm text-bambu-gray">{tr('business.empty')}</p>}
           <p className="text-sm text-bambu-gray">
-            {german
-              ? 'Präfix, Format und nächste laufende Nummer je Dokumenttyp. Erlaubte Platzhalter: {PREFIX}, {YYYY}, {YY}, {YYMM} und {####} (1–10 Stellen).'
-              : 'Prefix, format, and next counter per document type. Supported placeholders: {PREFIX}, {YYYY}, {YY}, {YYMM}, and {####} (1–10 digits).'}
+            {tr('business.description')}
           </p>
         </div>
 
         {(error || sequencesQuery.error) && (
           <div role="alert" className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
             <AlertTriangle className="h-4 w-4 shrink-0" />
-            {error ?? (sequencesQuery.error instanceof Error ? sequencesQuery.error.message : (german ? 'Nummernkreise konnten nicht geladen werden.' : 'Could not load number sequences.'))}
+            {error ?? (sequencesQuery.error instanceof Error ? sequencesQuery.error.message : tr('sequenceLoadError'))}
           </div>
         )}
 
         {profileId !== null && sequencesQuery.isPending && (
-          <div className="flex items-center gap-2 text-sm text-bambu-gray"><Loader2 className="h-4 w-4 animate-spin" />{german ? 'Nummernkreise werden geladen …' : 'Loading number sequences…'}</div>
+          <div className="flex items-center gap-2 text-sm text-bambu-gray"><Loader2 className="h-4 w-4 animate-spin" />{tr('sequenceLoading')}</div>
         )}
 
         {profileId !== null && !sequencesQuery.isPending && (
@@ -171,43 +166,44 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
             {DEFINITIONS.map((definition) => {
               const existing = sequencesByKey.get(definition.key);
               const draft = drafts[definition.key];
-              const stem = german ? definition.germanStem : definition.englishName;
-              const noun = german ? definition.germanNoun : `${definition.englishName} number sequence`;
+              const textKey = 'business.types.' + definition.key;
+              const noun = tr(textKey + '.title');
+              const actionName = tr(textKey + '.actionName');
               const pending = saveMutation.isPending && saveMutation.variables?.definition.key === definition.key;
               const resetPolicySupported = supportsResetPolicy(draft);
               return (
                 <div key={definition.key} className="space-y-3 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark/35 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="font-medium text-white">{noun}</h3>
-                    <span className={`text-xs ${existing ? 'text-bambu-green' : 'text-bambu-gray'}`}>{existing ? (german ? 'Aktiv' : 'Active') : (german ? 'Noch nicht angelegt' : 'Not created')}</span>
+                    <span className={`text-xs ${existing ? 'text-bambu-green' : 'text-bambu-gray'}`}>{existing ? tr('active') : tr('notCreated')}</span>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <TextField label={german ? `${stem}-Präfix` : `${stem} prefix`} aria-label={german ? `${stem}-Präfix` : `${stem} prefix`} value={draft.prefix} onValueChange={(value) => updateDraft(definition.key, { prefix: value })} disabled={!canManage || pending} />
-                    <NumberField label={german ? `Nächste ${stem}nummer` : `Next ${stem.toLowerCase()} number`} aria-label={german ? `Nächste ${stem}nummer` : `Next ${stem.toLowerCase()} number`} min="1" step="1" value={draft.nextValue} onValueChange={(value) => updateDraft(definition.key, { nextValue: value })} disabled={!canManage || pending} />
+                    <TextField label={tr(textKey + '.prefix')} aria-label={tr(textKey + '.prefix')} value={draft.prefix} onValueChange={(value) => updateDraft(definition.key, { prefix: value })} disabled={!canManage || pending} />
+                    <NumberField label={tr(textKey + '.next')} aria-label={tr(textKey + '.next')} min="1" step="1" value={draft.nextValue} onValueChange={(value) => updateDraft(definition.key, { nextValue: value })} disabled={!canManage || pending} />
                   </div>
-                  <TextField label={german ? `${stem}-Nummernformat` : `${stem} number format`} aria-label={german ? `${stem}-Nummernformat` : `${stem} number format`} value={draft.pattern} onValueChange={(value) => updateDraft(definition.key, { pattern: value })} disabled={!canManage || pending} />
-                  {!resetPolicySupported && <p role="alert" className="text-xs text-red-300">{german ? 'Monatliches Zurücksetzen benötigt {YYMM}, damit Nummern je Monat eindeutig bleiben.' : 'Monthly resets require {YYMM} so numbers remain unique per month.'}</p>}
+                  <TextField label={tr(textKey + '.format')} aria-label={tr(textKey + '.format')} value={draft.pattern} onValueChange={(value) => updateDraft(definition.key, { pattern: value })} disabled={!canManage || pending} />
+                  {!resetPolicySupported && <p role="alert" className="text-xs text-red-300">{tr('business.monthlyWarning')}</p>}
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <Select
-                      ariaLabel={german ? `${stem}nummer zurücksetzen` : `Reset ${stem.toLowerCase()} number`}
-                      label={german ? 'Zurücksetzen' : 'Reset'}
+                      ariaLabel={tr(textKey + '.reset')}
+                      label={tr('business.reset')}
                       value={draft.resetPolicy}
                       onValueChange={(value) => updateDraft(definition.key, { resetPolicy: value as NumberSequenceResetPolicy })}
                       options={[
-                        { value: 'none', label: german ? 'Nicht zurücksetzen' : 'Do not reset' },
-                        { value: 'yearly', label: german ? 'Jährlich' : 'Yearly' },
-                        { value: 'monthly', label: german ? 'Monatlich' : 'Monthly' },
+                        { value: 'none', label: tr('business.resetNone') },
+                        { value: 'yearly', label: tr('business.resetYearly') },
+                        { value: 'monthly', label: tr('business.resetMonthly') },
                       ]}
                       disabled={!canManage || pending}
                     />
                     {canManage && (
                       <Button type="button" size="sm" onClick={() => saveMutation.mutate({ definition, existing })} loading={pending} disabled={saveMutation.isPending || !resetPolicySupported}>
                         {!pending && <Save className="h-4 w-4" />}
-                        {existing ? (german ? `${noun} speichern` : `Save ${noun.toLowerCase()}`) : (german ? `${noun} anlegen` : `Create ${noun.toLowerCase()}`)}
+                        {existing ? tr('saveSequence', { name: actionName }) : tr('createSequence', { name: actionName })}
                       </Button>
                     )}
                   </div>
-                  {savedKey === definition.key && <p role="status" className="text-xs text-bambu-green">{german ? 'Nummernkreis gespeichert.' : 'Number sequence saved.'}</p>}
+                  {savedKey === definition.key && <p role="status" className="text-xs text-bambu-green">{tr('sequenceSaved')}</p>}
                 </div>
               );
             })}

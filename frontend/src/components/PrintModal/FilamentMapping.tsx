@@ -25,6 +25,7 @@ export function FilamentMapping({
   forceColorMatch,
   onForceColorMatchChange,
 }: FilamentMappingProps & { defaultExpanded?: boolean }) {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -194,11 +195,11 @@ export function FilamentMapping({
         <Circle className="w-4 h-4" fill={statusColor} stroke="none" />
         <span>{t('printModal.filamentMapping')}</span>
         {hasTypeMismatch ? (
-          <span className="text-xs text-orange-700 dark:text-orange-400">(Type not found)</span>
+          <span className="text-xs text-orange-700 dark:text-orange-400">{translateInterface("orders.runtimeInterface.typeNotFound")}</span>
         ) : hasColorMismatch ? (
-          <span className="text-xs text-yellow-700 dark:text-yellow-400">(Color mismatch)</span>
+          <span className="text-xs text-yellow-700 dark:text-yellow-400">{translateInterface("orders.runtimeInterface.colorMismatch")}</span>
         ) : (
-          <span className="text-xs text-bambu-green">(Ready)</span>
+          <span className="text-xs text-bambu-green">{translateInterface("orders.runtimeInterface.ready")}</span>
         )}
         {isExpanded ? (
           <ChevronUp className="w-4 h-4 ml-auto" />
@@ -210,7 +211,7 @@ export function FilamentMapping({
       {isExpanded && (
         <div className="mt-2 bg-bambu-dark rounded-lg p-3 space-y-2">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-bambu-gray">Click to change slot assignment</span>
+            <span className="text-xs text-bambu-gray">{translateInterface("orders.runtimeInterface.clickToChangeSlotAssignment")}</span>
             <button
               type="button"
               onClick={handleRefresh}
@@ -218,7 +219,7 @@ export function FilamentMapping({
               disabled={isRefreshing}
             >
               <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span>Re-read</span>
+              <span>{translateInterface("orders.runtimeInterface.reRead")}</span>
             </button>
           </div>
           {filamentComparison.map((item, idx) => {
@@ -268,10 +269,10 @@ export function FilamentMapping({
                       ? 'border-yellow-500 dark:border-yellow-400/50 text-yellow-700 dark:text-yellow-400'
                       : 'border-orange-500 dark:border-orange-400/50 text-orange-700 dark:text-orange-400'
                   } ${item.isManual ? 'ring-1 ring-blue-400/50' : ''}`}
-                  title={item.isManual ? 'Manually selected' : 'Auto-matched'}
+                  title={item.isManual ? translateInterface("orders.runtimeInterface.manuallySelected") : 'Auto-matched'}
                 >
                   <option value="" className="bg-bambu-dark text-bambu-gray">
-                    -- Select slot --
+                    {translateInterface("orders.runtimeInterface.selectSlot")}
                   </option>
                   {/*
                     #1722: every loaded slot is offered for every filament row,
@@ -315,11 +316,11 @@ export function FilamentMapping({
                 {item.status === 'match' ? (
                   <Check className="w-3 h-3 text-bambu-green" />
                 ) : item.status === 'type_only' ? (
-                  <span title="Same type, different color">
+                  <span title={translateInterface("printModal.sameTypeDifferentColor")}>
                     <AlertTriangle className="w-3 h-3 text-yellow-600 dark:text-yellow-400" />
                   </span>
                 ) : (
-                  <span title="Filament type not loaded">
+                  <span title={translateInterface("printModal.filamentTypeNotLoaded")}>
                     <AlertTriangle className="w-3 h-3 text-orange-600 dark:text-orange-400" />
                   </span>
                 )}
@@ -345,7 +346,7 @@ export function FilamentMapping({
             </span>
           </div>
           {hasTypeMismatch && (
-            <p className="text-xs text-orange-700 dark:text-orange-400 mt-2">Required filament type not found in printer.</p>
+            <p className="text-xs text-orange-700 dark:text-orange-400 mt-2">{translateInterface("orders.runtimeInterface.requiredFilamentTypeNotFoundInPrinter")}</p>
           )}
         </div>
       )}

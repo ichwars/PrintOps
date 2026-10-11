@@ -1,8 +1,8 @@
 # Inventory color sorting and toast readability
 
-This implements the color-sorting and notification-readability parts of issue
-#156. The issue permits selected improvements; this change does not complete
-every item in that issue.
+This describes the selected inventory, notification, camera-entry and language
+improvements from issue #156. Candidate evaluation and persistent inventory
+filters are documented in `optional-ui-parity.md` for #97 and #196.
 
 ## Actual-color sorting
 
@@ -49,12 +49,47 @@ status role. Long words and preserved line breaks fit the toast viewport.
 Success/info/loading notifications keep their three-second duration. Persistent
 notifications and background dispatch progress keep their existing lifecycle.
 
-## Remaining issue scope
+## Camera-entry preference
 
-Persistent filters and card scaling belong to assigned issue #97. The camera
-overlay and URL builder are already covered by closed issues #101 and #102.
-The existing camera page offers stream/snapshot switching; adding a separate
-per-printer preference at the printer entry requires a further API and settings
-change and is deferred here. The repository has eleven complete locale packs
-and no Dutch pack. The new control is translated in all eleven; a full Dutch
-translation is deferred rather than introduced as an incomplete locale.
+Each printer's camera entry offers Default (Stream), Stream and Snapshot. The
+choice is scoped to the current user, browser origin and printer. In an
+auth-disabled installation it uses a separate local appliance scope; it never
+inherits an authenticated user's choice. Default removes the explicit preference.
+The global window/embedded setting continues to choose the presentation surface;
+the printer preference determines its initial stream/snapshot mode.
+
+Camera-window launches carry a nonsecret view hint so the selected mode still
+works if browser storage cannot be written. The camera page and embedded viewer
+honor the initial mode and allow switching during viewing. Invalid/obsolete
+records use Stream; unavailable storage does not prevent opening the camera.
+No camera credentials, authentication tokens or source URLs are stored in these
+preferences. The existing camera authorization and URL security remain in use.
+
+## Dutch locale
+
+Nederlands is offered in the language picker and loaded through the existing
+lazy locale loader. Its key, plural and interpolation-placeholder sets match
+English, including PrintOps orders, customers, commercial documents, warehouse,
+business settings and the new camera controls. The strict untranslated-English
+check applies to Dutch; only genuine cognates, brands and technical tokens have
+narrow exceptions. Translations adapted from Bambuddy are source-aligned;
+PrintOps-only or changed strings are explicitly translated.
+
+Runtime bindings also cover calculations, invoices, business-dashboard data and
+CSV headings, material management, device/numbering settings and existing classic
+dialogs. Literal translation calls are checked against the catalog, and table
+column arrays retain their actual array shape. Inventory headers and composed
+archive/tag/printer counts use translated labels and plural forms. The inventory
+header actions wrap on narrow screens rather than clipping translated text.
+
+The backend's existing notification events support `en`, `de` and `nl` with the
+same event keys and formatting placeholders. The UI language does not add Dutch
+legal-document templates: generated commercial documents retain their existing
+German/English output support. For the other nine existing UI locales, newly
+extracted runtime labels use explicitly listed English entries until translations
+are supplied. This finite allowance never applies to Dutch or German; these
+English entries are not claimed as new translations for the other locales.
+
+The parity gate verifies structure and placeholders rather than asserting a
+native-speaker review of every term. Existing PrintOps branding and navigation
+are retained.

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useEffect } from 'react';
 import { X, Download } from 'lucide-react';
 import { Button } from './Button';
@@ -10,6 +11,7 @@ interface QRCodeModalProps {
 }
 
 export function QRCodeModal({ archiveId, archiveName, onClose }: QRCodeModalProps) {
+  const { t: translateInterface } = useTranslation();
   const qrCodeUrl = api.getArchiveQRCodeUrl(archiveId, 300);
 
   // Close on Escape key
@@ -39,7 +41,7 @@ export function QRCodeModal({ archiveId, archiveName, onClose }: QRCodeModalProp
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-bambu-dark-tertiary">
-          <h2 className="text-lg font-semibold text-white">QR Code</h2>
+          <h2 className="text-lg font-semibold text-white">{translateInterface("archives.menu.qrCode")}</h2>
           <button
             onClick={onClose}
             className="text-bambu-gray hover:text-white transition-colors"
@@ -56,16 +58,16 @@ export function QRCodeModal({ archiveId, archiveName, onClose }: QRCodeModalProp
           <div className="bg-white p-4 rounded-lg mb-4">
             <img
               src={qrCodeUrl}
-              alt="QR Code"
+              alt={translateInterface("archives.menu.qrCode")}
               className="w-64 h-64"
             />
           </div>
           <p className="text-xs text-bambu-gray mb-4 text-center">
-            Scan to open this archive
+            {translateInterface("orders.runtimeInterface.scanToOpenThisArchive")}
           </p>
           <Button onClick={handleDownload} className="w-full">
             <Download className="w-4 h-4" />
-            Download QR Code
+            {translateInterface("orders.runtimeInterface.downloadQRCode")}
           </Button>
         </div>
       </div>

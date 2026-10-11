@@ -17,6 +17,7 @@ export function EditPrinterModal({
   printer: Printer;
   onClose: () => void;
 }) {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -204,7 +205,7 @@ export function EditPrinterModal({
               </div>
             )}
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">Location / Group</label>
+              <label className="block text-sm text-bambu-gray mb-1">{translateInterface("orders.runtimeInterface.locationGroup")}</label>
               <TextField
                 type="text"
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"

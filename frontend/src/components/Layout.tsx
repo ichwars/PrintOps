@@ -137,6 +137,7 @@ export function setDefaultView(path: string) {
 }
 
 export function Layout() {
+  const { t: translateInterface } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { mode, toggleMode } = useTheme();
@@ -672,7 +673,7 @@ export function Layout() {
           <button
             onClick={() => setMobileDrawerOpen(true)}
             className="p-2 -ml-2 rounded-lg hover:bg-bambu-dark-tertiary transition-colors"
-            aria-label="Open menu"
+            aria-label={translateInterface("layout.openMenu")}
           >
             <Menu className="w-6 h-6 text-white" />
           </button>
@@ -938,7 +939,7 @@ export function Layout() {
                 ) : (
                   <span
                     className="p-2 rounded-lg text-bambu-gray/50 cursor-not-allowed"
-                    title="You do not have permission to view system information"
+                    title={translateInterface("layout.noPermissionSystemInfo")}
                   >
                     <Info className="w-5 h-5" />
                   </span>
@@ -1043,7 +1044,7 @@ export function Layout() {
               ) : (
                 <span
                   className="p-2 rounded-lg text-bambu-gray/50 cursor-not-allowed"
-                  title="You do not have permission to view system information"
+                  title={translateInterface("layout.noPermissionSystemInfo")}
                 >
                   <Info className="w-5 h-5" />
                 </span>

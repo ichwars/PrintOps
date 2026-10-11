@@ -34,6 +34,7 @@ interface Capabilities {
 }
 
 export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, onClose, onSliceWithPrintOps }: ModelViewerModalProps) {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
   // Desktop "Open in Slicer" target — falls back to preferred_slicer when the
@@ -357,7 +358,7 @@ export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, on
               variant="secondary"
               size="sm"
               onClick={() => setIsFullscreen((prev) => !prev)}
-              title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              title={isFullscreen ? translateInterface("camera.exitFullscreen") : translateInterface("orders.runtimeInterface.enterFullscreen")}
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </Button>

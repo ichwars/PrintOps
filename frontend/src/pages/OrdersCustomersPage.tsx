@@ -33,7 +33,7 @@ function localizedOrderError(error: unknown, t: (key: string) => string, languag
   } as Record<string, string | null>)[error.code] : undefined;
   if (knownKey === null) return fallback;
   if (knownKey) return t(knownKey);
-  if (language.startsWith('de') && error.status === 409) return t('orderMessages.errors.conflict');
+  if ((language.startsWith('de') || language.startsWith('nl')) && error.status === 409) return t('orderMessages.errors.conflict');
   return error.message;
 }
 

@@ -466,7 +466,7 @@ describe('LabelTemplatePickerModal', () => {
       />,
     );
 
-    expect(screen.getByText('Material-Etiketten drucken')).toBeInTheDocument();
+    expect(screen.getByText('Print material labels')).toBeInTheDocument();
     expect(screen.getByText(/M3 Gewindeeinsatz/)).toBeInTheDocument();
     fireEvent.click(screen.getByText(/Box label \(62 × 29 mm\)/i));
 

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { WebGLPreview } from 'gcode-preview';
 import { Loader2, Layers, ChevronLeft, ChevronRight, FileWarning } from 'lucide-react';
@@ -17,6 +18,7 @@ export function GcodeViewer({
   filamentColors,
   className = ''
 }: GcodeViewerProps) {
+  const { t: translateInterface } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewRef = useRef<WebGLPreview | null>(null);
   const renderTimeoutRef = useRef<number | null>(null);
@@ -209,7 +211,7 @@ export function GcodeViewer({
           <div className="absolute inset-0 flex items-center justify-center bg-bambu-dark/80">
             <div className="text-center">
               <Loader2 className="w-8 h-8 animate-spin text-bambu-green mx-auto mb-2" />
-              <p className="text-bambu-gray text-sm">Loading G-code...</p>
+              <p className="text-bambu-gray text-sm">{translateInterface("orders.runtimeInterface.loadingGCode")}</p>
             </div>
           </div>
         )}
@@ -218,10 +220,9 @@ export function GcodeViewer({
           <div className="absolute inset-0 flex items-center justify-center bg-bambu-dark/80">
             <div className="text-center max-w-sm px-4">
               <FileWarning className="w-12 h-12 text-bambu-gray mx-auto mb-3" />
-              <p className="text-white font-medium mb-2">G-code not available</p>
+              <p className="text-white font-medium mb-2">{translateInterface("orders.runtimeInterface.gCodeNotAvailable")}</p>
               <p className="text-bambu-gray text-sm">
-                This file hasn't been sliced yet. G-code preview is only available
-                after slicing in Bambu Studio or Orca Slicer.
+                {translateInterface("orders.runtimeInterface.thisFileHasnTBeenSlicedYetGCodePreviewIsOnlyAvailableAfterSlicingInBam")}
               </p>
             </div>
           </div>

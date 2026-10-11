@@ -1,3 +1,4 @@
+import { smallPartsText } from './warehouse/smallPartsCopy';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Loader2, Printer, CheckSquare, Square, Search } from 'lucide-react';
@@ -358,7 +359,7 @@ export function LabelTemplatePickerModal({
           <div className="flex flex-wrap min-w-0 items-center gap-x-2 gap-y-1">
             <Printer className="w-5 h-5 text-bambu-green" />
             <h2 className="text-lg font-semibold text-white">
-              {resourceType === 'material' ? 'Material-Etiketten drucken' : t('inventory.labels.title', 'Print spool labels')}
+              {resourceType === 'material' ? smallPartsText('labelsTitle') : t('inventory.labels.title', 'Print spool labels')}
             </h2>
             {selectedCount > 0 && (
               <span className="text-sm text-bambu-gray">
@@ -384,14 +385,14 @@ export function LabelTemplatePickerModal({
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={resourceType === 'material' ? 'Name, Artikelnummer oder #ID suchen' : t('inventory.labels.searchPlaceholder', 'Search name, brand, or #ID')}
+              placeholder={resourceType === 'material' ? smallPartsText('labelsSearch') : t('inventory.labels.searchPlaceholder', 'Search name, brand, or #ID')}
               className="w-full pl-9 pr-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray focus:outline-none focus:border-bambu-green"
             />
           </div>
           {materials.length > 1 && (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs text-bambu-gray mr-1">
-                {resourceType === 'material' ? 'Kategorie:' : t('inventory.labels.filterByMaterial', 'Material:')}
+                {resourceType === 'material' ? smallPartsText('categoryFilter') : t('inventory.labels.filterByMaterial', 'Material:')}
               </span>
               <button
                 type="button"
@@ -453,7 +454,7 @@ export function LabelTemplatePickerModal({
         {/* Action bar */}
         <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-3 flex-wrap">
           <span className="text-sm text-bambu-gray">
-            {resourceType === 'material' ? 'Material für Etiketten auswählen:' : t('inventory.labels.pickSpools', 'Pick which spools to print labels for:')}
+            {resourceType === 'material' ? smallPartsText('pickLabelMaterials') : t('inventory.labels.pickSpools', 'Pick which spools to print labels for:')}
           </span>
           <div className="flex items-center gap-3 text-xs">
             <button
@@ -485,10 +486,10 @@ export function LabelTemplatePickerModal({
             <div className="text-center text-sm text-bambu-gray py-6">
               {sortedItems.length === 0
                 ? resourceType === 'material'
-                  ? 'Kein Material für Etiketten vorhanden.'
+                  ? smallPartsText('noMaterialsForLabels')
                   : t('inventory.labels.noSpoolsToShow', 'No spools to show. Adjust your filter and try again.')
                 : resourceType === 'material'
-                  ? 'Kein Material passt zur aktuellen Suche oder Kategorie.'
+                  ? smallPartsText('noLabelMatches')
                   : t('inventory.labels.noMatches', 'No spools match the current search or filter.')}
             </div>
           ) : (

@@ -94,6 +94,7 @@ function PowerDropdownItem({
 }
 
 export function PrintersPage() {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const { resolvedMode, darkAccent, lightAccent } = useTheme();
   const activeAccent = resolvedMode === 'dark' ? darkAccent : lightAccent;
@@ -1003,7 +1004,7 @@ export function PrintersPage() {
                 ))}
                 {printers?.filter(p => smartPlugByPrinter[p.id]).length === 0 && (
                   <div className="px-3 py-2 text-sm text-bambu-gray">
-                    No printers with smart plugs
+                    {translateInterface("orders.runtimeInterface.noPrintersWithSmartPlugs")}
                   </div>
                 )}
               </div>

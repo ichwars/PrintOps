@@ -1,3 +1,5 @@
+import { resolveSupportedLanguage } from '../../../i18n';
+import { useTranslation } from 'react-i18next';
 import { Copy, Star } from 'lucide-react';
 
 import type { CalculationVariant } from '../../../api/calculations';
@@ -12,25 +14,26 @@ interface VariantStripProps {
 }
 
 export function VariantStrip({ variants, activeIndex, locale, onActiveChange, onPreferredChange, onClone }: VariantStripProps) {
-  const de = locale.startsWith('de');
+  const language = resolveSupportedLanguage(locale);
+  const { t } = useTranslation(undefined, { lng: language });
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-white">2. {de ? 'Varianten' : 'Variants'}</h3>
-          <p className="text-xs text-bambu-gray">{de ? 'Anklicken zum Bearbeiten; Stern bestimmt die Angebotsvariante.' : 'Click to edit; the star selects the offer variant.'}</p>
+          <h3 className="font-semibold text-white">2. {t('orders.runtimeCalculation.variants', { lng: language })}</h3>
+          <p className="text-xs text-bambu-gray">{t('orders.runtimeCalculation.clickToEditTheStarSelectsTheOfferVariant', { lng: language })}</p>
         </div>
         <button type="button" onClick={onClone} className="inline-flex items-center gap-2 rounded bg-bambu-dark px-3 py-2 text-sm text-white">
-          <Copy className="h-4 w-4" />{de ? 'Variante kopieren' : 'Clone variant'}
+          <Copy className="h-4 w-4" />{t('orders.runtimeCalculation.cloneVariant', { lng: language })}
         </button>
       </div>
       <div className="flex flex-wrap gap-2">
         {variants.map((variant, index) => (
           <div key={`${variant.name}-${index}`} className={`flex items-center rounded-lg border ${index === activeIndex ? 'border-bambu-green bg-bambu-green/5' : 'border-bambu-dark-tertiary'}`}>
-            <button type="button" aria-label={de ? `Variante ${variant.name} bearbeiten` : `Edit variant ${variant.name}`} onClick={() => onActiveChange(index)} className="px-3 py-2 text-sm text-white">
+            <button type="button" aria-label={t('orders.runtimeCalculation.editVariant', { lng: language, name: variant.name })} onClick={() => onActiveChange(index)} className="px-3 py-2 text-sm text-white">
               {variant.name}
             </button>
-            <button type="button" aria-label={de ? `${variant.name} als bevorzugt markieren` : `Mark ${variant.name} as preferred`} aria-pressed={variant.is_preferred} onClick={() => onPreferredChange(index)} className={`border-l border-bambu-dark-tertiary p-2 ${variant.is_preferred ? 'text-bambu-green' : 'text-bambu-gray hover:text-white'}`}>
+            <button type="button" aria-label={t('orders.runtimeCalculation.markAsPreferred', { lng: language, name: variant.name })} aria-pressed={variant.is_preferred} onClick={() => onPreferredChange(index)} className={`border-l border-bambu-dark-tertiary p-2 ${variant.is_preferred ? 'text-bambu-green' : 'text-bambu-gray hover:text-white'}`}>
               <Star className="h-4 w-4" fill={variant.is_preferred ? 'currentColor' : 'none'} />
             </button>
           </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
   Pencil,
   Plus,
@@ -16,6 +17,13 @@ import {
   type PrinterCreate,
 } from '../../api/client';
 import { Button, DatePicker, IconButton, NumberField, TextField } from '../ui';
+import { resolveSupportedLanguage } from '../../i18n';
+
+function useDeviceTranslation(locale: string) {
+  const language = resolveSupportedLanguage(locale);
+  const { t } = useTranslation(undefined, { lng: language });
+  return (key: string) => t(`orders.runtimeDevice.${key}`, { lng: language });
+}
 
 const inputClass =
   'mt-1 h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 text-sm text-white outline-none transition-colors focus:border-bambu-green';
@@ -93,7 +101,7 @@ function DeviceMetric({
 }
 
 export function PrinterManagementCard({ locale }: { locale: string }) {
-  const de = locale.startsWith('de');
+  const tr = useDeviceTranslation(locale);
   const queryClient = useQueryClient();
   const { data: printers = [] } = useQuery({
     queryKey: ['printers'],
@@ -120,16 +128,12 @@ export function PrinterManagementCard({ locale }: { locale: string }) {
             className="mt-0.5 h-5 w-5 shrink-0 text-bambu-green"
           />
         }
-        title={de ? 'Drucker' : 'Printers'}
-        description={
-          de
-            ? 'Verbindung, Betrieb und kaufmännische Kostenbasis zentral verwalten.'
-            : 'Manage connectivity, operation, and commercial cost basis centrally.'
-        }
+        title={tr('printersTitle')}
+        description={tr('printersDescription')}
         action={
           <Button size="sm" onClick={() => setPrinterDraft(initialPrinter())}>
             <Plus className="h-4 w-4" />
-            {de ? 'Drucker hinzufügen' : 'Add printer'}
+            {tr('addPrinter')}
           </Button>
         }
       />
@@ -139,10 +143,10 @@ export function PrinterManagementCard({ locale }: { locale: string }) {
           <div className="grid gap-3 rounded-lg border border-bambu-green/20 bg-bambu-dark p-4 sm:grid-cols-2">
             {(
               [
-                ['name', de ? 'Bezeichnung' : 'Name'],
-                ['serial_number', de ? 'Seriennummer' : 'Serial number'],
-                ['ip_address', 'IP / Hostname'],
-                ['access_code', de ? 'Zugriffscode' : 'Access code'],
+                ['name', tr('name')],
+                ['serial_number', tr('serialNumber')],
+                ['ip_address', tr('host')],
+                ['access_code', tr('accessCode')],
               ] as Array<[keyof PrinterCreate, string]>
             ).map(([key, label]) => (
               <TextField
@@ -171,10 +175,10 @@ export function PrinterManagementCard({ locale }: { locale: string }) {
                   createPrinter.isPending
                 }
               >
-                {de ? 'Drucker speichern' : 'Save printer'}
+                {tr('savePrinter')}
               </Button>
               <Button size="sm" variant="secondary" onClick={() => setPrinterDraft(null)}>
-                {de ? 'Abbrechen' : 'Cancel'}
+                {tr('cancel')}
               </Button>
             </div>
           </div>
@@ -191,7 +195,7 @@ export function PrinterManagementCard({ locale }: { locale: string }) {
 
         {printers.length === 0 && (
           <p className="rounded-lg border border-dashed border-bambu-dark-tertiary px-4 py-6 text-center text-sm text-bambu-gray">
-            {de ? 'Noch keine Drucker vorhanden.' : 'No printers configured.'}
+            {tr('printersEmpty')}
           </p>
         )}
       </div>
@@ -208,7 +212,7 @@ function PrinterCostEditor({
   locale: string;
   onSaved: () => void;
 }) {
-  const de = locale.startsWith('de');
+  const tr = useDeviceTranslation(locale);
   const [draft, setDraft] = useState({
     acquisition_date: printer.acquisition_date ?? '',
     acquisition_value: printer.acquisition_value ?? '',
@@ -249,12 +253,12 @@ function PrinterCostEditor({
         }).format(Number(value));
 
   const fields: Array<[keyof typeof draft, string, string]> = [
-    ['acquisition_date', de ? 'Anschaffungsdatum' : 'Acquisition date', 'date'],
-    ['acquisition_value', de ? 'Anschaffungswert' : 'Acquisition value', 'number'],
-    ['service_years', de ? 'Nutzungsdauer Jahre' : 'Service life years', 'number'],
-    ['annual_hours', de ? 'Betriebsstunden/Jahr' : 'Operating hours/year', 'number'],
-    ['maintenance_rate', de ? 'Wartung (0–1)' : 'Maintenance (0–1)', 'number'],
-    ['nominal_power_watts', de ? 'Leistung Watt' : 'Power watts', 'number'],
+    ['acquisition_date', tr('acquisitionDate'), 'date'],
+    ['acquisition_value', tr('acquisitionValue'), 'number'],
+    ['service_years', tr('serviceYears'), 'number'],
+    ['annual_hours', tr('annualHours'), 'number'],
+    ['maintenance_rate', tr('maintenanceRate'), 'number'],
+    ['nominal_power_watts', tr('powerWatts'), 'number'],
   ];
 
   return (
@@ -263,17 +267,17 @@ function PrinterCostEditor({
         <div className="min-w-0">
           <h3 className="truncate font-semibold text-white">{printer.name}</h3>
           <p className="mt-0.5 text-xs text-bambu-gray">
-            {printer.model || (de ? 'Modell nicht erkannt' : 'Model not detected')}
+            {printer.model || tr('modelNotDetected')}
           </p>
         </div>
         <dl className="grid grid-cols-2 gap-2 sm:min-w-64">
           <DeviceMetric
-            label={de ? 'Restwert' : 'Residual value'}
+            label={tr('residualValue')}
             value={money(printer.residual_value)}
             accent="printer"
           />
           <DeviceMetric
-            label={de ? 'Stundensatz' : 'Hourly rate'}
+            label={tr('hourlyRate')}
             value={`${money(printer.hourly_rate)}/h`}
             accent="printer"
           />
@@ -307,7 +311,7 @@ function PrinterCostEditor({
 
       <div className="mt-4 flex justify-end">
         <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
-          {de ? 'Kostenwerte speichern' : 'Save cost values'}
+          {tr('saveCostValues')}
         </Button>
       </div>
     </article>
@@ -315,7 +319,7 @@ function PrinterCostEditor({
 }
 
 export function DryerManagementCard({ locale }: { locale: string }) {
-  const de = locale.startsWith('de');
+  const tr = useDeviceTranslation(locale);
   const queryClient = useQueryClient();
   const { data: dryers = [] } = useQuery({
     queryKey: ['equipment'],
@@ -385,12 +389,8 @@ export function DryerManagementCard({ locale }: { locale: string }) {
             className="mt-0.5 h-5 w-5 shrink-0 text-cyan-400"
           />
         }
-        title={de ? 'Trockner' : 'Dryers'}
-        description={
-          de
-            ? 'Zentrale Stammdaten für Trocknungs- und Kalkulationskosten.'
-            : 'Central master data for drying and calculation costs.'
-        }
+        title={tr('dryersTitle')}
+        description={tr('dryersDescription')}
         action={
           <Button
             size="sm"
@@ -400,7 +400,7 @@ export function DryerManagementCard({ locale }: { locale: string }) {
             }}
           >
             <Plus className="h-4 w-4" />
-            {de ? 'Trockner hinzufügen' : 'Add dryer'}
+            {tr('addDryer')}
           </Button>
         }
       />
@@ -409,7 +409,6 @@ export function DryerManagementCard({ locale }: { locale: string }) {
         {draft && (
           <DryerForm
             draft={draft}
-            de={de}
             locale={locale}
             pending={create.isPending || update.isPending}
             onChange={setDraft}
@@ -426,7 +425,6 @@ export function DryerManagementCard({ locale }: { locale: string }) {
             key={dryer.id}
             dryer={dryer}
             locale={locale}
-            de={de}
             onEdit={() => editDryer(dryer)}
             onToggle={() =>
               update.mutate({
@@ -440,7 +438,7 @@ export function DryerManagementCard({ locale }: { locale: string }) {
 
         {dryers.length === 0 && (
           <p className="rounded-lg border border-dashed border-cyan-500/20 px-4 py-6 text-center text-sm text-bambu-gray">
-            {de ? 'Noch keine Trockner angelegt.' : 'No dryers configured.'}
+            {tr('dryersEmpty')}
           </p>
         )}
       </div>
@@ -450,7 +448,6 @@ export function DryerManagementCard({ locale }: { locale: string }) {
 
 function DryerForm({
   draft,
-  de,
   locale,
   pending,
   onChange,
@@ -458,13 +455,13 @@ function DryerForm({
   onCancel,
 }: {
   draft: EquipmentInput;
-  de: boolean;
   locale: string;
   pending: boolean;
   onChange: (draft: EquipmentInput) => void;
   onSave: () => void;
   onCancel: () => void;
 }) {
+  const tr = useDeviceTranslation(locale);
   type DryerNumericField =
     | 'acquisition_value'
     | 'service_years'
@@ -473,23 +470,23 @@ function DryerForm({
     | 'nominal_power_watts';
 
   const fields: Array<[DryerNumericField, string]> = [
-    ['acquisition_value', de ? 'Anschaffungswert' : 'Acquisition value'],
-    ['service_years', de ? 'Nutzungsdauer Jahre' : 'Service life years'],
-    ['annual_hours', de ? 'Betriebsstunden/Jahr' : 'Operating hours/year'],
-    ['maintenance_rate', de ? 'Wartung (0–1)' : 'Maintenance (0–1)'],
-    ['nominal_power_watts', de ? 'Leistung Watt' : 'Power watts'],
+    ['acquisition_value', tr('acquisitionValue')],
+    ['service_years', tr('serviceYears')],
+    ['annual_hours', tr('annualHours')],
+    ['maintenance_rate', tr('maintenanceRate')],
+    ['nominal_power_watts', tr('powerWatts')],
   ];
 
   return (
     <div className="grid gap-3 rounded-lg border border-cyan-500/20 bg-bambu-dark p-4 sm:grid-cols-2">
       <TextField
-          label={de ? 'Bezeichnung' : 'Name'}
+          label={tr('name')}
           value={draft.name}
           onValueChange={(value) => onChange({ ...draft, name: value })}
           className={inputClass}
         />
       <DatePicker
-          label={de ? 'Anschaffungsdatum' : 'Acquisition date'}
+          label={tr('acquisitionDate')}
           locale={locale}
           value={draft.acquisition_date}
           onValueChange={(value) => onChange({ ...draft, acquisition_date: value })}
@@ -508,10 +505,10 @@ function DryerForm({
       ))}
       <div className="flex flex-wrap items-end justify-end gap-2 sm:col-span-2">
         <Button size="sm" onClick={onSave} disabled={!draft.name || pending}>
-          {de ? 'Speichern' : 'Save'}
+          {tr('save')}
         </Button>
         <Button size="sm" variant="secondary" onClick={onCancel}>
-          {de ? 'Abbrechen' : 'Cancel'}
+          {tr('cancel')}
         </Button>
       </div>
     </div>
@@ -521,18 +518,17 @@ function DryerForm({
 function DryerPanel({
   dryer,
   locale,
-  de,
   onEdit,
   onToggle,
   onDelete,
 }: {
   dryer: Equipment;
   locale: string;
-  de: boolean;
   onEdit: () => void;
   onToggle: () => void;
   onDelete: () => void;
 }) {
+  const tr = useDeviceTranslation(locale);
   const money = (value: string) =>
     new Intl.NumberFormat(locale, {
       style: 'currency',
@@ -552,23 +548,23 @@ function DryerPanel({
                   : 'rounded-full bg-bambu-dark-tertiary px-2 py-0.5 text-xs text-bambu-gray'
               }
             >
-              {dryer.is_active ? (de ? 'Aktiv' : 'Active') : de ? 'Inaktiv' : 'Inactive'}
+              {dryer.is_active ? tr('active') : tr('inactive')}
             </span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <IconButton
-            label={de ? 'Trockner bearbeiten' : 'Edit dryer'}
+            label={tr('editDryer')}
             icon={Pencil}
             onClick={onEdit}
           />
           <IconButton
-            label={de ? 'Aktivstatus ändern' : 'Toggle active'}
+            label={tr('toggleActive')}
             icon={Power}
             onClick={onToggle}
           />
           <IconButton
-            label={de ? 'Trockner löschen' : 'Delete dryer'}
+            label={tr('deleteDryer')}
             icon={Trash2}
             onClick={onDelete}
             className="text-red-300 hover:bg-red-500/10 hover:text-red-200"
@@ -578,21 +574,21 @@ function DryerPanel({
 
       <dl className="mt-4 grid grid-cols-2 gap-2">
         <DeviceMetric
-          label={de ? 'Restwert' : 'Residual value'}
+          label={tr('residualValue')}
           value={money(dryer.residual_value)}
           accent="dryer"
         />
         <DeviceMetric
-          label={de ? 'Stundensatz' : 'Hourly rate'}
+          label={tr('hourlyRate')}
           value={`${money(dryer.hourly_rate)}/h`}
           accent="dryer"
         />
         <DeviceMetric
-          label={de ? 'Leistung' : 'Power'}
+          label={tr('power')}
           value={`${Number(dryer.nominal_power_watts)} W`}
         />
         <DeviceMetric
-          label={de ? 'Anschaffung' : 'Acquisition'}
+          label={tr('acquisition')}
           value={money(dryer.acquisition_value)}
         />
       </dl>

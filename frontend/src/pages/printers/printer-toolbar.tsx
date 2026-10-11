@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { computePopoverPosition } from '../../utils/popoverPosition';
@@ -125,6 +126,7 @@ export function IndicatorControlPopover({
   onSubmit?: (value: number) => void;
   children?: React.ReactNode;
 }) {
+  const { t: translateInterface } = useTranslation();
   const anchorRef = useRef<HTMLSpanElement>(null);
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
   const [customValue, setCustomValue] = useState('');
@@ -213,7 +215,7 @@ export function IndicatorControlPopover({
                 step={customStep}
                 value={customValue}
                 onChange={e => setCustomValue(e.target.value)}
-                placeholder="Custom"
+                placeholder={translateInterface("maintenance.custom")}
                 className="h-8 min-w-0 flex-1 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-2 text-xs text-white placeholder:text-bambu-gray/60 focus:border-bambu-green focus:outline-none"
               />
               <button
@@ -221,7 +223,7 @@ export function IndicatorControlPopover({
                 disabled={isPending || customValue.trim() === ''}
                 className="h-8 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-2 text-xs font-medium text-white transition-colors hover:bg-bambu-dark-tertiary disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Set
+                {translateInterface("orders.runtimeInterface.set")}
               </button>
             </form>
           </>
@@ -253,6 +255,7 @@ export function NozzleTemperatureControlBox({
   onSubmit: (value: number) => void;
   options?: Array<{ label: string; value: number }>;
 }) {
+  const { t: translateInterface } = useTranslation();
   const [customValue, setCustomValue] = useState('');
 
   const submitCustom = () => {
@@ -296,7 +299,7 @@ export function NozzleTemperatureControlBox({
           step={1}
           value={customValue}
           onChange={e => setCustomValue(e.target.value)}
-          placeholder="Custom"
+          placeholder={translateInterface("maintenance.custom")}
           className="h-7 min-w-0 flex-1 rounded-md border border-bambu-dark-tertiary bg-bambu-dark-secondary px-1.5 text-[11px] text-white placeholder:text-bambu-gray/60 focus:border-bambu-green focus:outline-none"
         />
         <button
@@ -304,7 +307,7 @@ export function NozzleTemperatureControlBox({
           disabled={isPending || customValue.trim() === ''}
           className="h-7 rounded-md border border-bambu-dark-tertiary bg-bambu-dark-secondary px-2 text-[11px] font-medium text-white transition-colors hover:bg-bambu-dark-tertiary disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Set
+          {translateInterface("orders.runtimeInterface.set")}
         </button>
       </form>
     </div>

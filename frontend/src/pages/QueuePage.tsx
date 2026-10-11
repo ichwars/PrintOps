@@ -589,7 +589,7 @@ function SortableQueueItem({
                 className="text-bambu-green font-medium"
                 title={t('queue.time.etaIfStartedNow')}
               >
-                ETA {queueItemEta}
+                {t("printers.sort.eta")} {queueItemEta}
               </span>
             )}
             {item.filament_used_grams && (
@@ -686,7 +686,7 @@ function SortableQueueItem({
                         {formatDuration(remaining * 60)}
                       </span>
                       <span className="text-bambu-green font-medium" title={t('printers.estimatedCompletion')}>
-                        ETA {formatETA(remaining, timeFormat, t)}
+                        {t("printers.sort.eta")} {formatETA(remaining, timeFormat, t)}
                       </span>
                     </>
                   )}

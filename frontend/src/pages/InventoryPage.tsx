@@ -1,3 +1,4 @@
+import interfaceI18n from "../i18n";
 import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -26,6 +27,8 @@ import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { resolveSpoolColorName } from '../utils/colors';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
+import { useInventoryFilters } from '../hooks/useInventoryFilters';
+import { parseInventoryURLFilters } from '../utils/inventoryURLFilters';
 import { formatDateInput, parseUTCDate, type DateFormat } from '../utils/date';
 import { formatSlotLabel } from '../utils/amsHelpers';
 import { filterSpoolsByQuery } from '../utils/inventorySearch';
@@ -44,9 +47,6 @@ import {
   tableHeaderRowClass,
 } from '../components/ui/tableStyles';
 
-type ArchiveFilter = 'active' | 'archived';
-type UsageFilter = 'all' | 'used' | 'new' | 'lowstock';
-type InventoryFocusFilter = 'low-stock' | 'missing-cost' | 'missing-location' | 'used';
 type ViewMode = 'table' | 'cards' | 'forecast';
 
 type DisplayItem =
@@ -133,10 +133,6 @@ function saveColumnConfig(config: ColumnConfig[]) {
   }
 }
 
-function isInventoryFocusFilter(value: string | null): value is InventoryFocusFilter {
-  return value === 'low-stock' || value === 'missing-cost' || value === 'missing-location' || value === 'used';
-}
-
 function formatWeight(g: number, useKg = false): string {
   if (useKg && g >= 1000) return `${(g / 1000).toFixed(1)}kg`;
   return `${Math.round(g)}g`;
@@ -178,29 +174,29 @@ type CellCtx = {
 // Column header labels (25 columns — matching SpoolBuddy exactly)
 const columnHeaders: Record<string, (t: TFn) => string> = {
   id: () => '#',
-  added_time: () => 'Added',
-  encode_time: () => 'Encoded',
-  last_used_time: () => 'Last Used',
+  added_time: (t) => t('orders.runtimeInterface.inventoryColumns.added'),
+  encode_time: (t) => t('orders.runtimeInterface.inventoryColumns.encoded'),
+  last_used_time: (t) => t('orders.runtimeInterface.inventoryColumns.lastUsed'),
   rgba: (t) => t('inventory.color'),
   material: (t) => t('inventory.material'),
   subtype: (t) => t('inventory.subtype'),
   color_name: (t) => t('inventory.colorName'),
   brand: (t) => t('inventory.brand'),
   slicer_filament: (t) => t('inventory.slicerFilament'),
-  location: () => 'Location',
+  location: (t) => t('orders.runtimeInterface.inventoryColumns.location'),
   storage_location: (t) => t('inventory.storageLocation'),
   label_weight: (t) => t('inventory.labelWeight'),
   net: (t) => t('inventory.net'),
-  gross: () => 'Gross',
-  added_full: () => 'Full',
+  gross: (t) => t('orders.runtimeInterface.inventoryColumns.gross'),
+  added_full: (t) => t('orders.runtimeInterface.inventoryColumns.full'),
   used: (t) => t('inventory.weightUsed'),
-  printed_total: () => 'Printed Total',
-  printed_since_weight: () => 'Printed Since Weight',
+  printed_total: (t) => t('orders.runtimeInterface.inventoryColumns.printedTotal'),
+  printed_since_weight: (t) => t('orders.runtimeInterface.inventoryColumns.printedSinceWeight'),
   note: (t) => t('inventory.note'),
   pa_k: () => 'PA(K)',
-  tag_id: () => 'Tag ID',
-  data_origin: () => 'Data Origin',
-  tag_type: () => 'Linked Tag Type',
+  tag_id: (t) => t('orders.runtimeInterface.inventoryColumns.tagId'),
+  data_origin: (t) => t('orders.runtimeInterface.inventoryColumns.dataOrigin'),
+  tag_type: (t) => t('orders.runtimeInterface.inventoryColumns.tagType'),
   stock: (t) => t('inventory.stock'),
   remaining: (t) => t('inventory.remaining'),
   spool_name: (t) => t('inventory.spoolName'),
@@ -280,8 +276,8 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
   gross: ({ spool, remaining }) => (
     <span className="text-sm text-bambu-gray">{formatWeight(remaining + spool.core_weight)}</span>
   ),
-  added_full: ({ spool }) => (
-    <span className="text-sm text-bambu-gray">{spool.added_full == null ? '-' : spool.added_full ? 'Yes' : 'No'}</span>
+  added_full: ({ spool, t }) => (
+    <span className="text-sm text-bambu-gray">{spool.added_full == null ? '-' : spool.added_full ? t('common.yes') : t('common.no')}</span>
   ),
   used: ({ spool }) => (
     <span className="text-sm text-bambu-gray">{spool.weight_used > 0 ? formatWeight(spool.weight_used) : '-'}</span>
@@ -351,7 +347,7 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
   ),
   weight_check: ({ spool, onSyncWeight }) => {
     const scaleWeight = spool.last_scale_weight;
-    if (scaleWeight == null) return <span className="text-sm text-bambu-gray/50" title="No scale measurement">-</span>;
+    if (scaleWeight == null) return <span className="text-sm text-bambu-gray/50" title={interfaceI18n.t("orders.runtimeInterface.noScaleMeasurement")}>-</span>;
 
     const coreWeight = spool.core_weight || 0;
     const calculatedWeight = Math.max(0, spool.label_weight - spool.weight_used) + coreWeight;
@@ -392,7 +388,7 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
                   onSyncWeight(spool);
                 }}
                 className="p-1 hover:bg-bambu-green/20 rounded transition-colors text-bambu-green"
-                title="Sync: trust scale weight and reset tracking"
+                title={interfaceI18n.t("orders.runtimeInterface.syncTrustScaleWeightAndResetTracking")}
               >
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
@@ -445,6 +441,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const { hasPermission, loading: authLoading } = useAuth();
   const canViewForecast = !authLoading && hasPermission('inventory:forecast_read');
   const [searchParams, setSearchParams] = useSearchParams();
+  const { focusFilter, storageLocationFilter, deepLinkSpoolId, hasURLOverride } = parseInventoryURLFilters(searchParams);
   const [formModal, setFormModal] = useState<{ spool?: InventorySpool | null; mode: SpoolFormMode } | null>(null);
   const deepLinkHandled = useRef(false);
   const [confirmAction, setConfirmAction] = useState<
@@ -460,17 +457,23 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const [locationsModalOpen, setLocationsModalOpen] = useState(false);
 
   // Filter state
-  const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>('active');
-  const [usageFilter, setUsageFilter] = useState<UsageFilter>('all');
-  const [materialFilter, setMaterialFilter] = useState('');
-  const [brandFilter, setBrandFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [spoolFilter, setSpoolFilter] = useState('');
-  const [stockFilter, setStockFilter] = useState<'all' | 'stock' | 'configured'>('all');
-  const [search, setSearch] = useState('');
+  const { filters, setFilter, resetFilters, beginTransientView } = useInventoryFilters(
+    spoolmanMode, hasURLOverride,
+  );
+  const { archiveFilter, usageFilter, materialFilter, brandFilter, categoryFilter, spoolFilter, stockFilter, search } = filters;
+  const setArchiveFilter = (value: typeof archiveFilter) => setFilter('archiveFilter', value);
+  const setUsageFilter = (value: typeof usageFilter) => setFilter('usageFilter', value);
+  const setMaterialFilter = (value: string) => setFilter('materialFilter', value);
+  const setBrandFilter = (value: string) => setFilter('brandFilter', value);
+  const setCategoryFilter = (value: string) => setFilter('categoryFilter', value);
+  const setSpoolFilter = (value: string) => setFilter('spoolFilter', value);
+  const setStockFilter = (value: typeof stockFilter) => setFilter('stockFilter', value);
+  const setSearch = (value: string) => setFilter('search', value);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [sortState, setSortState] = useState<SortState>(loadSortState);
   const [columnConfig, setColumnConfig] = useState<ColumnConfig[]>(loadColumnConfig);
+  const localizedColumns = useMemo(() => columnConfig.map(column => ({ ...column, label: columnHeaders[column.id]?.(t) ?? column.label })), [columnConfig, t]);
+  const localizedDefaultColumns = useMemo(() => DEFAULT_COLUMNS.map(column => ({ ...column, label: columnHeaders[column.id]?.(t) ?? column.label })), [t]);
   const [showColumnModal, setShowColumnModal] = useState(false);
   const [groupSimilar, setGroupSimilar] = useState(() => {
     try {
@@ -478,8 +481,6 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     } catch { return false; }
   });
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const rawFocusParam = searchParams.get('focus');
-  const focusFilter = isInventoryFocusFilter(rawFocusParam) ? rawFocusParam : null;
 
   // Bulk-selection state for batch actions on the spool list (#1795).
   // Cleared when the user switches filter/tab/page because cross-page selection
@@ -560,26 +561,9 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     queryFn: api.getLocations,
   });
 
-  // Deep-link / filter: ?location_id=<id> or ?location_id=__none__
-  const _rawLocationParam = searchParams.get('location_id');
-  const storageLocationFilter =
-    _rawLocationParam === '__none__'
-      ? '__none__'
-      : _rawLocationParam && /^\d+$/.test(_rawLocationParam) && Number(_rawLocationParam) > 0
-        ? _rawLocationParam
-        : '';
-
   // Deep-link: open edit modal for ?spool=<id>
   // Prefer the already-loaded spool list (no extra API call); fall back to a
   // targeted fetch for the rare case where the full list hasn't arrived yet.
-  const _rawSpoolParam = searchParams.get('spool');
-  // Only accept strings of digits representing a positive integer — guards against
-  // NaN (Number('abc')), 0, negatives, and floats like '1.5' that would produce
-  // an invalid path parameter and trigger unnecessary 422 responses from the API.
-  const deepLinkSpoolId =
-    _rawSpoolParam && /^\d+$/.test(_rawSpoolParam) && Number(_rawSpoolParam) > 0
-      ? Number(_rawSpoolParam)
-      : null;
   const deepLinkInList = spools?.find((s) => s.id === deepLinkSpoolId) ?? null;
 
   const clearDeepLinkParam = useCallback(() => {
@@ -1187,6 +1171,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const resetPage = () => setPageIndex(0);
 
   const setStorageLocationFilter = useCallback((value: string) => {
+    if (value) beginTransientView();
     setSearchParams((prev) => {
       prev.delete('location_id');
       if (value) {
@@ -1195,7 +1180,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
       return prev;
     }, { replace: true });
     resetPage();
-  }, [setSearchParams]);
+  }, [setSearchParams, beginTransientView]);
 
   // Unique values for filter dropdowns
   const uniqueMaterials = [...new Set(spools?.map((s) => s.material) || [])].sort();
@@ -1335,14 +1320,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   };
 
   const clearAllFilters = () => {
-    setArchiveFilter('active');
-    setUsageFilter('all');
-    setMaterialFilter('');
-    setBrandFilter('');
-    setCategoryFilter('');
-    setSpoolFilter('');
-    setStockFilter('all');
-    setSearch('');
+    resetFilters();
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.delete('location_id');
@@ -1361,7 +1339,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   return (
     <div className="p-4 md:p-8 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-3">
             <Package className="w-7 h-7 text-bambu-green" />
@@ -1369,7 +1347,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
           </h1>
           <p className="text-bambu-gray mt-1">{t('inventory.subtitle')}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* CSV import/export (#1576). Operates on PrintOps's local inventory.
               In Spoolman mode the buttons stay visible (feature parity) but are
               disabled with a hint pointing at Spoolman's own CSV export, since
@@ -2237,7 +2215,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                       onClick={() => setPageIndex(0)}
                       disabled={safePageIndex === 0}
                       className="p-1.5 rounded text-bambu-gray hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      title="First page"
+                      title={t("orders.runtimeInterface.firstPage")}
                     >
                       <ChevronsLeft className="w-4 h-4" />
                     </button>
@@ -2262,7 +2240,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                       onClick={() => setPageIndex(totalPages - 1)}
                       disabled={safePageIndex >= totalPages - 1}
                       className="p-1.5 rounded text-bambu-gray hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      title="Last page"
+                      title={t("orders.runtimeInterface.lastPage")}
                     >
                       <ChevronsRight className="w-4 h-4" />
                     </button>
@@ -2334,8 +2312,8 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
       <ColumnConfigModal
         isOpen={showColumnModal}
         onClose={() => setShowColumnModal(false)}
-        columns={columnConfig}
-        defaultColumns={DEFAULT_COLUMNS}
+        columns={localizedColumns}
+        defaultColumns={localizedDefaultColumns}
         onSave={handleColumnConfigSave}
       />
 

@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 export function GCodeViewerPage() {
+  const { t: translateInterface } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { t } = useTranslation();
@@ -13,8 +14,8 @@ export function GCodeViewerPage() {
   if (window !== window.top) {
     return (
       <div style={{ padding: 32, color: '#f88' }}>
-        GCode viewer static files not found. Check that the{' '}
-        <code>gcode_viewer/</code> directory exists and restart uvicorn.
+        {translateInterface("orders.runtimeInterface.gCodeViewerStaticFilesNotFoundCheckThatThe")}{' '}
+        <code>gcode_viewer/</code> {translateInterface("orders.runtimeInterface.directoryExistsAndRestartUvicorn")}
       </div>
     );
   }
@@ -62,7 +63,7 @@ export function GCodeViewerPage() {
       </div>
       <iframe
         src={iframeSrc}
-        title="GCode Viewer"
+        title={translateInterface("orders.runtimeInterface.gCodeViewer")}
         style={{
           display: 'block',
           width: '100%',

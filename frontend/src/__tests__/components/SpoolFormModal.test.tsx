@@ -169,8 +169,8 @@ describe('SpoolFormModal weightTouched', () => {
       expect(screen.getByRole('heading', { name: 'Add Spool' })).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Beschaffung')).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: 'Bezugsquelle hinzufügen' })).toBeInTheDocument();
+    expect(screen.getByText('Procurement')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Add procurement source' })).toBeInTheDocument();
   });
 
   it('excludes weight_used from PATCH when editing without changing weight', async () => {

@@ -78,6 +78,7 @@ function KeyBadge({ children }: { children: string }) {
 }
 
 export function KeyboardShortcutsModal({ onClose, navItems, sidebarItems }: KeyboardShortcutsModalProps) {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const shortcuts = getShortcuts(sidebarItems, navItems, t);
 
@@ -98,7 +99,7 @@ export function KeyboardShortcutsModal({ onClose, navItems, sidebarItems }: Keyb
           <div className="flex items-center justify-between p-4 border-b border-bambu-dark-tertiary">
             <div className="flex items-center gap-2">
               <Keyboard className="w-5 h-5 text-bambu-green" />
-              <h2 className="text-xl font-semibold text-white">Keyboard Shortcuts</h2>
+              <h2 className="text-xl font-semibold text-white">{translateInterface("keyboardShortcuts.title")}</h2>
             </div>
             <button
               onClick={onClose}
@@ -137,7 +138,7 @@ export function KeyboardShortcutsModal({ onClose, navItems, sidebarItems }: Keyb
           {/* Footer */}
           <div className="p-4 border-t border-bambu-dark-tertiary">
             <p className="text-xs text-bambu-gray text-center">
-              Press <KeyBadge>Esc</KeyBadge> or click outside to close
+              {translateInterface("orders.runtimeInterface.press")} <KeyBadge>Esc</KeyBadge> {translateInterface("orders.runtimeInterface.orClickOutsideToClose")}
             </p>
           </div>
         </CardContent>

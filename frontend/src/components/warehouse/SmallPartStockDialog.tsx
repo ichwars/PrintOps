@@ -1,3 +1,4 @@
+import { smallPartsText as text, useSmallPartsText, smallPartsLocale } from './smallPartsCopy';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
@@ -19,6 +20,7 @@ function formatQuantity(value: string, decimalPlaces: number): string {
 }
 
 export function SmallPartStockDialog({ part, onClose }: SmallPartStockDialogProps) {
+  useSmallPartsText();
   const queryClient = useQueryClient();
   const [entryKind, setEntryKind] = useState<'receipt' | 'correction'>('receipt');
   const [quantity, setQuantity] = useState('');
@@ -48,15 +50,15 @@ export function SmallPartStockDialog({ part, onClose }: SmallPartStockDialogProp
     },
     onError: (caught) => {
       if (caught instanceof ApiError && caught.code === 'insufficient_stock') {
-        setError('Die Buchung würde den verfügbaren Bestand unterschreiten.');
+        setError(text('stockShortfall'));
       } else {
-        setError(caught instanceof Error ? caught.message : 'Buchung fehlgeschlagen');
+        setError(caught instanceof Error ? caught.message : text('bookingFailed'));
       }
     },
   });
 
   return (
-    <Modal open onClose={onClose} title={`Bestand · ${part.sku}`} description={part.name} closeLabel="Schließen">
+    <Modal open onClose={onClose} title={text('stockTitle', { sku: part.sku })} description={part.name} closeLabel={text('close')}>
       <form
         className="space-y-4"
         onSubmit={(event) => {
@@ -66,30 +68,29 @@ export function SmallPartStockDialog({ part, onClose }: SmallPartStockDialogProp
         }}
       >
         <div className="grid gap-3 sm:grid-cols-2">
-          <Select label="Buchungsart" value={entryKind} onValueChange={(value) => setEntryKind(value)} options={[{ value: 'receipt', label: 'Zugang' }, { value: 'correction', label: 'Korrektur' }]} />
-          <NumberField label="Menge" aria-label="Menge" step={quantityStep} required value={quantity} onValueChange={setQuantity} onBlur={() => setQuantity(formatQuantity(quantity, part.unit.decimal_places))} />
+          <Select label={text('movementKind')} value={entryKind} onValueChange={(value) => setEntryKind(value)} options={[{ value: 'receipt', label: text('receipt') }, { value: 'correction', label: text('correction') }]} />
+          <NumberField label={text('quantity')} aria-label={text('quantity')} step={quantityStep} required value={quantity} onValueChange={setQuantity} onBlur={() => setQuantity(formatQuantity(quantity, part.unit.decimal_places))} />
         </div>
-        <TextArea label="Grund" aria-label="Grund" required value={reason} onValueChange={setReason} className="min-h-20" />
+        <TextArea label={text('reason')} aria-label={text('reason')} required value={reason} onValueChange={setReason} className="min-h-20" />
         {error && <p role="alert" className="rounded-lg bg-red-950/60 px-3 py-2 text-sm text-red-300">{error}</p>}
         <Button
           type="submit"
           loading={mutation.isPending}
           disabled={!quantity || !reason.trim()}
-        >
-          Buchung speichern
+        >{text('saveBooking')}
         </Button>
       </form>
 
       <div className="mt-6 border-t border-bambu-dark-tertiary pt-4">
-        <h3 className="font-medium text-white">Buchungsjournal</h3>
-        {ledger.isLoading && <p className="mt-3 text-sm text-bambu-gray">Wird geladen …</p>}
-        {!ledger.isLoading && !ledger.data?.length && <p className="mt-3 text-sm text-bambu-gray">Noch keine Buchungen.</p>}
+        <h3 className="font-medium text-white">{text('ledger')}</h3>
+        {ledger.isLoading && <p className="mt-3 text-sm text-bambu-gray">{text('loading')}</p>}
+        {!ledger.isLoading && !ledger.data?.length && <p className="mt-3 text-sm text-bambu-gray">{text('noBookings')}</p>}
         <div className="mt-3 space-y-2">
           {ledger.data?.map((entry) => (
             <div key={entry.id} className="rounded-lg border border-bambu-dark-tertiary p-3 text-sm">
               <div className="flex justify-between gap-3 text-white">
-                <span>{entry.entry_kind}</span>
-                <span>{Number(entry.physical_delta).toLocaleString('de-DE')}</span>
+                <span>{['receipt', 'correction'].includes(entry.entry_kind) ? text(entry.entry_kind) : entry.entry_kind}</span>
+                <span>{Number(entry.physical_delta).toLocaleString(smallPartsLocale())}</span>
               </div>
               <p className="mt-1 text-bambu-gray">{entry.reason}</p>
             </div>

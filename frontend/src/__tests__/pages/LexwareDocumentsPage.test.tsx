@@ -1,3 +1,4 @@
+import i18n from '../../i18n';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -26,7 +27,8 @@ const document = {
 };
 const finance = { source: 'lexware', as_of: '2026-08-31', totals: [], included_count: 0, linked_count: 0, unknown_count: 1, excluded_count: 1, unsupported_count: 0, stale_connection_count: 0 };
 
-beforeEach(() => {
+beforeEach(async () => {
+  await i18n.changeLanguage('en');
   auth.permissions = new Set(['commercial_documents:read', 'payments:read', 'commercial_documents:draft']);
   setAuthToken(null);
   server.use(
@@ -107,4 +109,15 @@ describe('Lexware documents', () => {
     expect(result.filename).toBe('lexware-original.pdf');
     expect(result.blob.size).toBe(13);
   });
+});
+
+it('renders Dutch financial separation and unknown payment data in the actual document UI', async () => {
+  await i18n.changeLanguage('nl');
+  render(<LexwareDocumentsPage />);
+  expect(await screen.findByText('LX-42')).toBeInTheDocument();
+  expect(screen.getByText('Onbekend')).toBeInTheDocument();
+  expect(screen.getByText(/Geen banksaldo/)).toHaveTextContent('Lokale betalingen blijven ongewijzigd.');
+  await userEvent.click(screen.getByRole('button', { name: 'Gegevens' }));
+  expect(await screen.findByText('Handmatige PrintOps-koppeling')).toBeInTheDocument();
+  expect(screen.getByRole('combobox', { name: 'Selecteer een lokaal document' })).toBeInTheDocument();
 });

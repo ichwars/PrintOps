@@ -130,6 +130,7 @@ interface BackupModalProps {
 }
 
 export function BackupModal({ onClose, onExport }: BackupModalProps) {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const [selected, setSelected] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
@@ -259,7 +260,7 @@ export function BackupModal({ onClose, onExport }: BackupModalProps) {
                   </div>
                   <div className="text-xs text-bambu-gray">
                     {category.requiresPrinters && !selected.printers
-                      ? 'Requires Printers to be selected'
+                      ? translateInterface("backupExport.requiresPrinters")
                       : category.description}
                   </div>
                 </div>
@@ -274,8 +275,8 @@ export function BackupModal({ onClose, onExport }: BackupModalProps) {
               <div className="flex items-start gap-2 text-sm">
                 <Archive className="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0" />
                 <div className="text-yellow-700 dark:text-yellow-200">
-                  <span className="font-medium">ZIP file will be created.</span>
-                  <span className="text-yellow-600 dark:text-yellow-200/70"> Includes all 3MF files, thumbnails, timelapses, and photos. This may take a while and result in a large file.</span>
+                  <span className="font-medium">{translateInterface("backupExport.zipFileWarning")}</span>
+                  <span className="text-yellow-600 dark:text-yellow-200/70"> {translateInterface("backupExport.zipFileDescription")}</span>
                 </div>
               </div>
             </div>
@@ -288,8 +289,8 @@ export function BackupModal({ onClose, onExport }: BackupModalProps) {
                 <div className="flex items-start gap-2">
                   <Key className="w-4 h-4 text-orange-500 dark:text-orange-400 mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-white">Include Access Codes</p>
-                    <p className="text-xs text-bambu-gray">For transferring to another machine</p>
+                    <p className="text-sm font-medium text-white">{translateInterface("backupExport.includeAccessCodes")}</p>
+                    <p className="text-xs text-bambu-gray">{translateInterface("backupExport.includeAccessCodesDescription")}</p>
                   </div>
                 </div>
                 <Toggle checked={includeAccessCodes} onChange={setIncludeAccessCodes} />
@@ -299,7 +300,7 @@ export function BackupModal({ onClose, onExport }: BackupModalProps) {
                   <div className="flex items-start gap-2 text-xs">
                     <AlertTriangle className="w-3 h-3 text-orange-500 dark:text-orange-400 mt-0.5 flex-shrink-0" />
                     <span className="text-orange-700 dark:text-orange-200">
-                      Access codes will be included in plain text. Keep this backup file secure!
+                      {translateInterface("backupExport.includeAccessCodesWarning")}
                     </span>
                   </div>
                 </div>

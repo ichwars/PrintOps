@@ -2,6 +2,11 @@
 
 Status: software safety boundary implemented; hardware release pending.
 
+The [acceptance matrix](hardware-acceptance.md) distinguishes the completed
+software boundary from the mandatory real-device evidence in #126 and #150,
+and describes private collection and anonymization. Neither O1C nor O1C2
+hardware is available for this acceptance; both release paths remain blocked.
+
 ## Data flow and owner
 
 The Virtual Printer receives Bambu Studio's `project_file` MQTT payload and

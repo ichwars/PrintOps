@@ -23,10 +23,29 @@ export function ColumnConfigModal({ isOpen, onClose, columns, defaultColumns, on
   const [localColumns, setLocalColumns] = useState<ColumnConfig[]>(columns);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const draggedIndexRef = useRef<number | null>(null);
+  const wasOpenRef = useRef(false);
+  const dirtyRef = useRef(false);
 
   useEffect(() => {
-    if (isOpen) {
+    const opening = isOpen && !wasOpenRef.current;
+    wasOpenRef.current = isOpen;
+    if (!isOpen) {
+      dirtyRef.current = false;
+      return;
+    }
+    if (opening || !dirtyRef.current) {
       setLocalColumns(columns.map((c) => ({ ...c })));
+    } else {
+      // Refresh labels/schema without erasing unsaved visibility or ordering.
+      const incoming = new Map(columns.map(column => [column.id, column]));
+      setLocalColumns(previous => {
+        const previousIds = new Set(previous.map(column => column.id));
+        return [
+          ...previous.filter(column => incoming.has(column.id))
+            .map(column => ({ ...column, label: incoming.get(column.id)!.label })),
+          ...columns.filter(column => !previousIds.has(column.id)).map(column => ({ ...column })),
+        ];
+      });
     }
   }, [isOpen, columns]);
 
@@ -42,6 +61,7 @@ export function ColumnConfigModal({ isOpen, onClose, columns, defaultColumns, on
   if (!isOpen) return null;
 
   const toggleVisibility = (index: number) => {
+    dirtyRef.current = true;
     setLocalColumns((prev) =>
       prev.map((col, i) => (i === index ? { ...col, visible: !col.visible } : col))
     );
@@ -49,6 +69,7 @@ export function ColumnConfigModal({ isOpen, onClose, columns, defaultColumns, on
 
   const moveColumn = (fromIndex: number, toIndex: number) => {
     if (toIndex < 0 || toIndex >= localColumns.length) return;
+    dirtyRef.current = true;
     setLocalColumns((prev) => {
       const newColumns = [...prev];
       const [moved] = newColumns.splice(fromIndex, 1);
@@ -84,6 +105,7 @@ export function ColumnConfigModal({ isOpen, onClose, columns, defaultColumns, on
   };
 
   const resetToDefaults = () => {
+    dirtyRef.current = true;
     setLocalColumns(defaultColumns.map((c) => ({ ...c })));
   };
 

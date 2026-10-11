@@ -845,10 +845,10 @@ function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onPrint, o
                   }`}
                   onClick={() => { if (hasPermission('library:read')) { close(); onPreview3d(file); } }}
                   disabled={!hasPermission('library:read')}
-                  title={!hasPermission('library:read') ? 'You do not have permission to preview files' : undefined}
+                  title={!hasPermission('library:read') ? t("orders.runtimeInterface.youDoNotHavePermissionToPreviewFiles") : undefined}
                 >
                   <Box className="w-3.5 h-3.5" />
-                  3D Preview
+                  {t("archives.menu.preview3d")}
                 </button>
               )}
               <button
@@ -2559,7 +2559,7 @@ export function FileManagerPage() {
                               ? 'hover:bg-bambu-dark text-bambu-gray hover:text-bambu-green'
                               : 'text-bambu-gray/50 cursor-not-allowed'
                           }`}
-                          title={hasPermission('library:read') ? '3D Preview' : 'You do not have permission to preview files'}
+                          title={hasPermission('library:read') ? t("archives.menu.preview3d") : t("orders.runtimeInterface.youDoNotHavePermissionToPreviewFiles")}
                           disabled={!hasPermission('library:read')}
                         >
                           <Box className="w-4 h-4" />

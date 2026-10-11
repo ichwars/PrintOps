@@ -11,6 +11,7 @@ import { useCameraStream } from '../hooks/useCameraStream';
 import { ChamberLight } from '../components/icons/ChamberLight';
 import { SkipObjectsModal, SkipObjectsIcon } from '../components/SkipObjectsModal';
 import { CameraDiagnoseModal } from '../components/CameraDiagnoseModal';
+import { useCameraViewPreference } from '../hooks/useCameraViewPreference';
 
 const MAX_RECONNECT_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 2000; // 2 seconds
@@ -25,6 +26,11 @@ export function CameraPage() {
   const { printerId } = useParams<{ printerId: string }>();
   const id = parseInt(printerId || '0', 10);
   const [searchParams] = useSearchParams();
+  const launchView = searchParams.get('view');
+  const { mode: streamMode, setPreference: setStreamMode, ready: preferenceReady, identity: preferenceIdentity } = useCameraViewPreference(id, {
+    anonymous: searchParams.has('camera_token'),
+    initialMode: launchView === 'stream' || launchView === 'snapshot' ? launchView : undefined,
+  });
   const fpsParam = parseInt(searchParams.get('fps') || '15', 10);
   const fps = Math.min(Math.max(isNaN(fpsParam) ? 15 : fpsParam, 1), 30);
 
@@ -40,7 +46,6 @@ export function CameraPage() {
   });
   const streamTokenValue = streamTokenData?.token ?? getStreamToken();
 
-  const [streamMode, setStreamMode] = useState<'stream' | 'snapshot'>('stream');
   const [showSkipObjectsModal, setShowSkipObjectsModal] = useState(false);
   const [showDiagnoseModal, setShowDiagnoseModal] = useState(false);
   const [streamError, setStreamError] = useState(false);
@@ -64,6 +69,24 @@ export function CameraPage() {
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const stallCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Preferences also change through other tabs and authenticated identities.
+  // Cancel the previous viewer's timers before they can refresh the new mode.
+  useEffect(() => {
+    setStreamLoading(true);
+    setStreamError(false);
+    setReconnectAttempts(0);
+    setIsReconnecting(false);
+    setReconnectCountdown(0);
+    setZoomLevel(1);
+    setPanOffset({ x: 0, y: 0 });
+    if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    if (stallCheckIntervalRef.current) clearInterval(stallCheckIntervalRef.current);
+    reconnectTimerRef.current = null;
+    countdownIntervalRef.current = null;
+    stallCheckIntervalRef.current = null;
+  }, [streamMode, preferenceIdentity]);
+
   // Fetch printer info for the title
   const { data: printer } = useQuery({
     queryKey: ['printer', id],
@@ -78,7 +101,7 @@ export function CameraPage() {
   const [mseGaveUp, setMseGaveUp] = useState(false);
   const { videoRef: mseVideoRef, status: mseStatus, reconnect: mseReconnect } = useCameraStream({
     printerId: id,
-    enabled: id > 0 && streamMode === 'stream' && !!printer && !printer.external_camera_enabled && !mseGaveUp,
+    enabled: preferenceReady && !transitioning && id > 0 && streamMode === 'stream' && !!printer && !printer.external_camera_enabled && !mseGaveUp,
     onPlaying: () => {
       setStreamLoading(false);
       setStreamError(false);
@@ -107,7 +130,7 @@ export function CameraPage() {
       return { previousStatus };
     },
     onSuccess: (_, on) => {
-      showToast(`Chamber light ${on ? 'on' : 'off'}`);
+      showToast(t(`orders.runtimeDomain.cameraControls.${on ? 'lightOn' : 'lightOff'}`));
     },
     onError: (error: Error, _, context) => {
       if (context?.previousStatus) {
@@ -122,12 +145,12 @@ export function CameraPage() {
   // Update document title
   useEffect(() => {
     if (printer) {
-      document.title = `${printer.name} - Camera`;
+      document.title = `${printer.name} - ${t('camera.title')}`;
     }
     return () => {
       document.title = 'PrintOps';
     };
-  }, [printer]);
+  }, [printer, t]);
 
   // Cleanup on unmount - stop the camera stream
   // Track if we've already sent the stop signal to avoid duplicate calls
@@ -213,12 +236,14 @@ export function CameraPage() {
       // Debounce to avoid saving during drag
       clearTimeout(saveTimeout);
       saveTimeout = setTimeout(() => {
-        localStorage.setItem('cameraWindowState', JSON.stringify({
-          width: window.outerWidth,
-          height: window.outerHeight,
-          left: window.screenX,
-          top: window.screenY,
-        }));
+        try {
+          localStorage.setItem('cameraWindowState', JSON.stringify({
+            width: window.outerWidth,
+            height: window.outerHeight,
+            left: window.screenX,
+            top: window.screenY,
+          }));
+        } catch { /* Camera controls work even when browser storage is unavailable. */ }
       }, 500);
     };
 
@@ -356,7 +381,9 @@ export function CameraPage() {
     }
 
     // Auto-resize window to fit video content (only if no saved preference)
-    if (imgRef.current && !localStorage.getItem('cameraWindowState')) {
+    let hasSavedWindowState = false;
+    try { hasSavedWindowState = !!localStorage.getItem('cameraWindowState'); } catch { /* Use automatic sizing. */ }
+    if (imgRef.current && !hasSavedWindowState) {
       const img = imgRef.current;
       const videoWidth = img.naturalWidth;
       const videoHeight = img.naturalHeight;
@@ -417,9 +444,9 @@ export function CameraPage() {
     if (streamMode === 'stream') {
       stopStream();
     }
+    setStreamMode(newMode);
 
     setTimeout(() => {
-      setStreamMode(newMode);
       setImageKey(Date.now());
       setTransitioning(false);
     }, 100);
@@ -621,13 +648,13 @@ export function CameraPage() {
   const waitingForStreamToken = authEnabled && !streamTokenValue;
   const appendToken = (url: string) =>
     !authEnabled ? url : streamTokenValue ? `${url}&token=${encodeURIComponent(streamTokenValue)}` : withStreamToken(url);
-  const currentUrl = transitioning || waitingForStreamToken
+  const currentUrl = !preferenceReady || transitioning || waitingForStreamToken
     ? ''
     : streamMode === 'stream'
       ? appendToken(`/api/v1/printers/${id}/camera/stream?fps=${fps}&t=${imageKey}`)
       : appendToken(`/api/v1/printers/${id}/camera/snapshot?t=${imageKey}`);
 
-  const isDisabled = streamLoading || transitioning || isReconnecting;
+  const isDisabled = !preferenceReady || streamLoading || transitioning || isReconnecting;
 
   if (!id) {
     return (
@@ -643,13 +670,14 @@ export function CameraPage() {
       <div className="flex items-center justify-between px-4 py-2 bg-bambu-dark-secondary border-b border-bambu-dark-tertiary">
         <h1 className="text-sm font-medium text-white flex items-center gap-2">
           <Camera className="w-4 h-4" />
-          {printer?.name || `Printer ${id}`}
+          {printer?.name || `${t('common.printer')} ${id}`}
         </h1>
         <div className="flex items-center gap-2">
           {/* Mode toggle */}
           <div className="flex bg-bambu-dark rounded p-0.5">
             <button
               onClick={() => switchToMode('stream')}
+              aria-pressed={streamMode === 'stream'}
               disabled={isDisabled}
               className={`px-3 py-1 text-xs rounded transition-colors ${
                 streamMode === 'stream'
@@ -661,6 +689,7 @@ export function CameraPage() {
             </button>
             <button
               onClick={() => switchToMode('snapshot')}
+              aria-pressed={streamMode === 'snapshot'}
               disabled={isDisabled}
               className={`px-3 py-1 text-xs rounded transition-colors ${
                 streamMode === 'snapshot'

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Archive } from '../api/client';
@@ -26,6 +27,7 @@ const MONTH_NAMES = [
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function CalendarView({ archives, onArchiveClick, highlightedArchiveId }: CalendarViewProps) {
+  const { t: translateInterface } = useTranslation();
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
@@ -110,7 +112,7 @@ export function CalendarView({ archives, onArchiveClick, highlightedArchiveId }:
               onClick={goToToday}
               className="px-2 py-1 text-xs bg-bambu-dark-tertiary hover:bg-bambu-green/20 text-bambu-gray hover:text-white rounded transition-colors"
             >
-              Today
+              {translateInterface("common.today")}
             </button>
           </div>
           <button
@@ -189,7 +191,7 @@ export function CalendarView({ archives, onArchiveClick, highlightedArchiveId }:
                   return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
                 }).length}
               </div>
-              <div className="text-xs text-bambu-gray">Prints this month</div>
+              <div className="text-xs text-bambu-gray">{translateInterface("orders.runtimeInterface.printsThisMonth")}</div>
             </div>
             <div>
               <div className="text-2xl font-bold text-green-700 dark:text-green-400">
@@ -198,7 +200,7 @@ export function CalendarView({ archives, onArchiveClick, highlightedArchiveId }:
                   return d.getMonth() === currentMonth && d.getFullYear() === currentYear && a.status === 'completed';
                 }).length}
               </div>
-              <div className="text-xs text-bambu-gray">Successful</div>
+              <div className="text-xs text-bambu-gray">{translateInterface("orders.runtimeInterface.successful")}</div>
             </div>
             <div>
               <div className="text-2xl font-bold text-red-700 dark:text-red-400">
@@ -207,7 +209,7 @@ export function CalendarView({ archives, onArchiveClick, highlightedArchiveId }:
                   return d.getMonth() === currentMonth && d.getFullYear() === currentYear && a.status === 'failed';
                 }).length}
               </div>
-              <div className="text-xs text-bambu-gray">Failed</div>
+              <div className="text-xs text-bambu-gray">{translateInterface("queue.status.failed")}</div>
             </div>
           </div>
         </div>
@@ -278,12 +280,12 @@ export function CalendarView({ archives, onArchiveClick, highlightedArchiveId }:
                 })}
               </div>
             ) : (
-              <p className="text-sm text-bambu-gray">No prints on this day</p>
+              <p className="text-sm text-bambu-gray">{translateInterface("orders.runtimeInterface.noPrintsOnThisDay")}</p>
             )}
           </>
         ) : (
           <div className="text-center py-8">
-            <p className="text-sm text-bambu-gray">Select a day to see prints</p>
+            <p className="text-sm text-bambu-gray">{translateInterface("orders.runtimeInterface.selectADayToSeePrints")}</p>
           </div>
         )}
       </div>

@@ -44,7 +44,7 @@ export function LayoutContextBar({
   documentType,
   documentTypes,
   language,
-  languages = [{ value: 'de', label: 'Deutsch' }, { value: 'en', label: 'English' }],
+  languages,
   source,
   sources,
   canReadCommercialDocuments,
@@ -82,7 +82,7 @@ export function LayoutContextBar({
     />
     <Select
       value={language}
-      options={languages}
+      options={languages ?? (['de', 'en'] as const).map((value) => ({ value, label: t(`orders.runtimeDomain.documentLanguageNames.${value}`) }))}
       label={t('settings.documentLayout.context.language', 'Language')}
       ariaLabel={t('settings.documentLayout.context.language', 'Language')}
       disabled={disabled}

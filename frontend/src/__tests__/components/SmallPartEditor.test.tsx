@@ -1,3 +1,4 @@
+import i18n from '../../i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -91,6 +92,8 @@ async function chooseUnit(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('combobox', { name: /^Einheit/ }));
   await user.click(screen.getByRole('option', { name: 'Stück' }));
 }
+
+beforeEach(async () => { await i18n.changeLanguage('de'); });
 
 describe('SmallPartEditor', () => {
   beforeEach(() => {
@@ -303,4 +306,20 @@ describe('SmallPartEditor', () => {
     expect(smallPartsApi.update).toHaveBeenCalledWith(7, expect.not.objectContaining({ opening_quantity: expect.anything() }));
     expect(procurementOffersApi.replace).toHaveBeenCalledWith({ kind: 'material', small_part_id: 7 }, []);
   });
+  it('renders Dutch material/procurement controls and preserves the saved form data', async () => {
+    await i18n.changeLanguage('nl');
+    vi.mocked(smallPartsApi.update).mockResolvedValue(part);
+    const user = userEvent.setup();
+    renderEditor(part);
+    expect(screen.getByRole('dialog', { name: 'Materiaal bewerken' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Inkoop' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Artikelnummer' })).toHaveValue('MAT-0001');
+    expect(screen.getByLabelText('Stukprijs €')).toHaveValue(0.15);
+    expect(await screen.findByRole('button', { name: 'Inkoopbron toevoegen' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Materiaal opslaan' }));
+    await waitFor(() => expect(smallPartsApi.update).toHaveBeenCalledWith(7, expect.objectContaining({
+      sku: 'MAT-0001', unit_cost: '0.15', unit_code: 'C62', default_consumption_reason: 'Montage',
+    })));
+  });
+
 });

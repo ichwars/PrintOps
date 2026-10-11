@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Building2, ImageOff, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { availableLanguages } from '../../i18n';
 import {
   ApiError,
   api,
@@ -33,11 +34,7 @@ const taxFields = ['kind', 'value', 'country_code', 'is_primary', 'valid_from', 
 const bankFields = ['label', 'account_holder', 'bank_name', 'country_code', 'currency', 'iban', 'bic', 'account_number', 'routing_number', 'is_default'];
 const addressKinds = ['registered', 'billing', 'shipping', 'other'] as const;
 const taxIdentifierKinds = ['vat', 'tax', 'other'] as const;
-const supportedLocales = [
-  ['de', 'Deutsch'], ['en', 'English'], ['es', 'Español'], ['fr', 'Français'], ['it', 'Italiano'],
-  ['ja', '日本語'], ['ko', '한국어'], ['pt-BR', 'Português (Brasil)'], ['tr', 'Türkçe'],
-  ['zh-CN', '简体中文'], ['zh-TW', '繁體中文'],
-] as const;
+const supportedLocales = availableLanguages.map(({ code, nativeName }) => [code, nativeName] as const);
 const countryOptions = orderMasterDataCountryCodes;
 const currencyOptions = orderMasterDataCurrencyCodes;
 
@@ -133,8 +130,8 @@ function localizedApiMessage(error: unknown, t: Translate, language: string): st
     not_found: 'orderUiNotFound',
   } as Record<string, string>)[error.code] : undefined;
   if (knownKey) return t(knownKey);
-  if (language.startsWith('de') && error.status === 409) return t('orderMessages.errors.conflict');
-  if (language.startsWith('de') && error.status === 422) return t('orderMessages.validation.failed');
+  if ((language.startsWith('de') || language.startsWith('nl')) && error.status === 409) return t('orderMessages.errors.conflict');
+  if ((language.startsWith('de') || language.startsWith('nl')) && error.status === 422) return t('orderMessages.validation.failed');
   return error.message;
 }
 
@@ -149,7 +146,7 @@ function mapApiValidationErrors(error: unknown, knownPaths: Set<string>, t: Tran
   error.validationErrors.forEach((issue) => {
     const loc = issue.loc[0] === 'body' ? issue.loc.slice(1) : issue.loc;
     const path = loc.map(String).join('.');
-    const message = language.startsWith('de') ? t('orderMessages.validation.invalidField') : issue.msg || error.message;
+    const message = (language.startsWith('de') || language.startsWith('nl')) ? t('orderMessages.validation.invalidField') : issue.msg || error.message;
     if (path && knownPaths.has(path)) {
       mapped.fields[path] = mapped.fields[path] ? `${mapped.fields[path]}; ${message}` : message;
     } else {
@@ -185,12 +182,11 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
       : [[current, current], ...supportedLocales] as const;
   }, [draft.default_locale]);
   const german = i18n.language.startsWith('de');
-  const tradingNameHelp = german
-    ? 'Optional. Im Geschäftsverkehr verwendeter Name, falls er vom rechtlichen Namen abweicht.'
-    : 'Optional. Name used in business if it differs from the legal name.';
-  const taxKindLabels: Record<(typeof taxIdentifierKinds)[number], string> = german
-    ? { vat: 'Umsatzsteuer-Identifikationsnummer', tax: 'Steuernummer', other: 'Sonstige Steuer-ID' }
-    : { vat: 'VAT identification number', tax: 'Tax number', other: 'Other tax ID' };
+  const tradingNameHelp = t('orders.runtimeBusinessProfile.tradingNameHelp');
+  const taxKindLabels: Record<(typeof taxIdentifierKinds)[number], string> = {
+    vat: t('orders.runtimeBusinessProfile.taxIdVat'), tax: t('orders.runtimeBusinessProfile.taxIdTax'),
+    other: t('orders.runtimeBusinessProfile.taxIdOther'),
+  };
   const validation = useMemo(() => mapApiValidationErrors(error, knownFieldPaths(draft), t, i18n.language), [draft, error, i18n.language, t]);
   const updateAddress = (index: number, patch: Partial<BusinessProfileAddress>) => setDraft((current) => ({
     ...current,
@@ -400,40 +396,40 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
           </fieldset>
 
           <fieldset className="space-y-3">
-            <legend className="font-medium text-white">{german ? 'Dokumentdarstellung' : 'Document appearance'}</legend>
+            <legend className="font-medium text-white">{t('orders.runtimeBusinessProfile.documentAppearance')}</legend>
             <div className="rounded-lg border border-bambu-dark-tertiary p-3">
               <div className="flex flex-wrap items-center gap-3">
-                <LogoPreview profile={profile} logoFile={logoFile} removeLogo={removeLogo} german={german} />
+                <LogoPreview profile={profile} logoFile={logoFile} removeLogo={removeLogo} />
                 <label className="text-sm text-bambu-gray-light">
-                  {german ? 'Logo hochladen' : 'Upload logo'}
-                  <FileInput accept="image/png,image/jpeg" aria-label={german ? 'Logo hochladen' : 'Upload logo'} onChange={(event) => { setLogoFile(event.target.files?.[0] ?? null); setRemoveLogo(false); }} className="mt-1 block text-sm" />
+                  {t('orders.runtimeBusinessProfile.uploadLogo')}
+                  <FileInput accept="image/png,image/jpeg" aria-label={t('orders.runtimeBusinessProfile.uploadLogo')} onChange={(event) => { setLogoFile(event.target.files?.[0] ?? null); setRemoveLogo(false); }} className="mt-1 block text-sm" />
                 </label>
-                {(logoFile || (profile?.logo_version && !removeLogo)) && <Button type="button" variant="ghost" size="sm" onClick={() => { setLogoFile(null); setRemoveLogo(true); }} className="text-red-300">{german ? 'Logo entfernen' : 'Remove logo'}</Button>}
+                {(logoFile || (profile?.logo_version && !removeLogo)) && <Button type="button" variant="ghost" size="sm" onClick={() => { setLogoFile(null); setRemoveLogo(true); }} className="text-red-300">{t('orders.runtimeBusinessProfile.removeLogo')}</Button>}
               </div>
               <label className="mt-3 inline-flex min-h-10 items-center gap-2 text-sm text-bambu-gray-light">
                 <Checkbox checked={draft.show_offer_qr ?? false} onChange={(event) => setDraft({ ...draft, show_offer_qr: event.target.checked })} />
-                {german ? 'QR-Code zum Online-Angebot auf PDFs anzeigen' : 'Show online-offer QR code on PDFs'}
+                {t('orders.runtimeBusinessProfile.offerQR')}
               </label>
-              <p className="text-xs text-bambu-gray">{german ? 'Erfordert eine von außen erreichbare PrintOps-URL. Die PDF-Ausgabe folgt mit der Dokumentfunktion.' : 'Requires a publicly reachable PrintOps URL. PDF output follows with document support.'}</p>
+              <p className="text-xs text-bambu-gray">{t('orders.runtimeBusinessProfile.offerQRHelp')}</p>
             </div>
           </fieldset>
 
           <fieldset className="space-y-3">
-            <legend className="font-medium text-white">{german ? 'Steuerangaben' : 'Tax settings'}</legend>
-            <p className="text-xs text-bambu-gray">{german ? 'Diese Angaben steuern die spätere Dokumentlogik und ersetzen keine steuerliche Prüfung.' : 'These settings control future document logic and do not replace professional tax advice.'}</p>
+            <legend className="font-medium text-white">{t('orders.runtimeBusinessProfile.taxSettings')}</legend>
+            <p className="text-xs text-bambu-gray">{t('orders.runtimeBusinessProfile.taxHelp')}</p>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-sm text-bambu-gray-light">{german ? 'Steuermodus' : 'Tax mode'}
-                <Select ariaLabel={german ? 'Steuermodus' : 'Tax mode'} value={draft.tax_mode ?? 'standard'} onValueChange={(taxMode) => setDraft({ ...draft, tax_mode: taxMode as 'standard' | 'exempt' | 'none', ...(taxMode === 'standard' ? {} : { default_tax_rate: '0.00', input_tax_deductible: false }) })} options={[
-                  { value: 'standard', label: german ? 'Reguläre Umsatzsteuer' : 'Standard VAT' },
-                  { value: 'exempt', label: german && draft.country_code === 'DE' ? 'Kleinunternehmerregelung §19 UStG' : (german ? 'Steuerbefreit' : 'Tax exempt') },
-                  { value: 'none', label: german ? 'Keine Umsatzsteuer' : 'No VAT' },
+              <label className="text-sm text-bambu-gray-light">{t('orders.runtimeBusinessProfile.taxMode')}
+                <Select ariaLabel={t('orders.runtimeBusinessProfile.taxMode')} value={draft.tax_mode ?? 'standard'} onValueChange={(taxMode) => setDraft({ ...draft, tax_mode: taxMode as 'standard' | 'exempt' | 'none', ...(taxMode === 'standard' ? {} : { default_tax_rate: '0.00', input_tax_deductible: false }) })} options={[
+                  { value: 'standard', label: t('orders.runtimeBusinessProfile.standardVAT') },
+                  { value: 'exempt', label: german && draft.country_code === 'DE' ? 'Kleinunternehmerregelung §19 UStG' : (t('orders.runtimeBusinessProfile.taxExempt')) },
+                  { value: 'none', label: t('orders.runtimeBusinessProfile.noVAT') },
                 ]} />
               </label>
-              <label className="text-sm text-bambu-gray-light">{german ? 'Standard-MwSt. %' : 'Default VAT %'}
-                <NumberField min="0" max="100" step="0.01" disabled={draft.tax_mode !== 'standard'} aria-label={german ? 'Standard-MwSt. %' : 'Default VAT %'} value={draft.default_tax_rate ?? '0.00'} onChange={(event) => setDraft({ ...draft, default_tax_rate: event.target.value })} className={inputClass} />
+              <label className="text-sm text-bambu-gray-light">{t('orders.runtimeBusinessProfile.defaultVAT')}
+                <NumberField min="0" max="100" step="0.01" disabled={draft.tax_mode !== 'standard'} aria-label={t('orders.runtimeBusinessProfile.defaultVAT')} value={draft.default_tax_rate ?? '0.00'} onChange={(event) => setDraft({ ...draft, default_tax_rate: event.target.value })} className={inputClass} />
               </label>
-              <Checkbox checked={draft.cash_accounting ?? false} onCheckedChange={(checked) => setDraft({ ...draft, cash_accounting: checked })} label={german ? 'Ist-Versteuerung' : 'Cash accounting'} />
-              <Checkbox disabled={draft.tax_mode !== 'standard'} checked={draft.input_tax_deductible ?? false} onCheckedChange={(checked) => setDraft({ ...draft, input_tax_deductible: checked })} label={german ? 'Vorsteuerabzug aktiv' : 'Input tax deductible'} />
+              <Checkbox checked={draft.cash_accounting ?? false} onCheckedChange={(checked) => setDraft({ ...draft, cash_accounting: checked })} label={t('orders.runtimeBusinessProfile.cashAccounting')} />
+              <Checkbox disabled={draft.tax_mode !== 'standard'} checked={draft.input_tax_deductible ?? false} onCheckedChange={(checked) => setDraft({ ...draft, input_tax_deductible: checked })} label={t('orders.runtimeBusinessProfile.inputTax')} />
             </div>
           </fieldset>
 
@@ -459,7 +455,7 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
                   <TextField required aria-label={`${t('orders.businessProfile.taxIdValue')} ${index + 1}`} value={identifier.value} onChange={(event) => updateTaxId(index, { value: event.target.value })} className={inputClass} />
                   {identifier.kind === 'vat' && (
                     <span className="mt-1 block text-xs text-bambu-gray">
-                      {german ? 'Für Deutschland die Umsatzsteuer-ID einschließlich DE-Präfix eingeben, z. B. DE123456789.' : 'For Germany, enter the VAT ID including the DE prefix, e.g. DE123456789.'}
+                      {t('orders.runtimeBusinessProfile.germanVatHint')}
                     </span>
                   )}
                   <FieldError message={validation.fields[`tax_identifiers.${index}.value`]} />
@@ -604,13 +600,12 @@ function LogoPreview({
   profile,
   logoFile,
   removeLogo,
-  german,
 }: {
   profile?: BusinessProfile | null;
   logoFile: File | null;
   removeLogo: boolean;
-  german: boolean;
 }) {
+  const { t } = useTranslation();
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [remotePreviewUrl, setRemotePreviewUrl] = useState<string | null>(null);
@@ -663,7 +658,7 @@ function LogoPreview({
     return (
       <div className="flex h-16 w-24 items-center justify-center rounded border border-bambu-dark-tertiary text-xs text-bambu-gray">
         <Building2 className="h-5 w-5" aria-hidden="true" />
-        <span className="sr-only">{german ? 'Kein Logo' : 'No logo'}</span>
+        <span className="sr-only">{t('orders.runtimeBusinessProfile.noLogo')}</span>
       </div>
     );
   }
@@ -672,7 +667,7 @@ function LogoPreview({
     return (
       <div className="flex h-16 w-24 flex-col items-center justify-center gap-1 rounded border border-bambu-dark-tertiary text-xs text-bambu-gray">
         <ImageOff className="h-5 w-5" aria-hidden="true" />
-        <span>{german ? 'Nicht ladbar' : 'Not loaded'}</span>
+        <span>{t('orders.runtimeBusinessProfile.logoNotLoaded')}</span>
       </div>
     );
   }
@@ -681,7 +676,7 @@ function LogoPreview({
   if (loading || !src) {
     return (
       <div className="flex h-16 w-24 items-center justify-center rounded border border-bambu-dark-tertiary text-xs text-bambu-gray">
-        {german ? 'Lädt...' : 'Loading...'}
+        {t('orders.runtimeBusinessProfile.logoLoading')}
       </div>
     );
   }
@@ -689,7 +684,7 @@ function LogoPreview({
   return (
     <img
       className="h-16 w-24 rounded border border-bambu-dark-tertiary object-contain"
-      alt={german ? 'Logovorschau' : 'Logo preview'}
+      alt={t('orders.runtimeBusinessProfile.logoPreview')}
       src={src}
       onError={() => setFailed(true)}
     />

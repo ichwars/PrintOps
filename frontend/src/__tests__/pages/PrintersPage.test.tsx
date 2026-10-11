@@ -2,10 +2,10 @@
  * Tests for the PrintersPage component.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { screen, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { render } from '../utils';
+import { render, selectComboboxOption } from '../utils';
 import { PrintersPage } from '../../pages/PrintersPage';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
@@ -71,6 +71,11 @@ const selectToolbarDropdownOption = async (triggerName: RegExp, optionName: RegE
 };
 
 describe('PrintersPage', () => {
+  afterEach(() => {
+    vi.mocked(localStorage.getItem).mockReset();
+    vi.mocked(localStorage.setItem).mockReset();
+    vi.mocked(localStorage.removeItem).mockReset();
+  });
   beforeEach(() => {
     localStorage.removeItem('printerCardSize');
 
@@ -116,6 +121,61 @@ describe('PrintersPage', () => {
   });
 
   describe('rendering', () => {
+    it('offers an independent camera default for each printer and resets it to Stream', async () => {
+      const user = userEvent.setup();
+      const storage = new Map<string, string>();
+      vi.mocked(localStorage.getItem).mockImplementation(key => storage.get(key) ?? null);
+      vi.mocked(localStorage.setItem).mockImplementation((key, value) => { storage.set(key, value); });
+      vi.mocked(localStorage.removeItem).mockImplementation(key => { storage.delete(key); });
+      const first = render(<PrintersPage />);
+      const selects = await screen.findAllByRole('combobox', { name: /Default camera view/ });
+      expect(selects).toHaveLength(2);
+      const primary = screen.getByRole('combobox', { name: 'Default camera view — X1 Carbon' });
+      const backup = screen.getByRole('combobox', { name: 'Default camera view — P1S Backup' });
+      selectComboboxOption(primary, 'Snapshot');
+      expect(primary).toHaveAttribute('data-value', 'snapshot');
+      expect(backup).toHaveAttribute('data-value', 'default');
+      const open = vi.spyOn(window, 'open').mockReturnValue(null);
+      storage.set('cameraWindowState', '{malformed');
+      const launch = within(document.getElementById('printer-card-1')!).getByTitle('Open camera in new window');
+      await waitFor(() => expect(launch).toBeEnabled());
+      await user.click(launch);
+      expect(open).toHaveBeenCalledWith('/camera/1?view=snapshot', 'camera-1', expect.stringContaining('width=640,height=400'));
+      open.mockRestore();
+
+      first.unmount();
+      render(<PrintersPage />);
+      const reopened = await screen.findByRole('combobox', { name: 'Default camera view — X1 Carbon' });
+      expect(reopened).toHaveAttribute('data-value', 'snapshot');
+      selectComboboxOption(reopened, 'Default (Stream)');
+      expect(reopened).toHaveAttribute('data-value', 'default');
+      expect(localStorage.getItem('printops:camera-view:v1:http%3A%2F%2Flocalhost%3A3000:appliance:1')).toBeNull();
+    });
+
+    it('preserves the global embedded choice while opening the selected snapshot', async () => {
+      const user = userEvent.setup();
+      const storage = new Map<string, string>();
+      vi.mocked(localStorage.getItem).mockImplementation(key => storage.get(key) ?? null);
+      vi.mocked(localStorage.setItem).mockImplementation((key, value) => { storage.set(key, value); });
+      vi.mocked(localStorage.removeItem).mockImplementation(key => { storage.delete(key); });
+      server.use(
+        http.get('/api/v1/settings/ui-preferences', () => HttpResponse.json({ camera_view_mode: 'embedded' })),
+        http.get('/api/v1/printers/1', () => HttpResponse.json(mockPrinters[0])),
+        http.post('/api/v1/printers/1/camera/stop', () => HttpResponse.json({ success: true })),
+      );
+      const open = vi.spyOn(window, 'open').mockReturnValue(null);
+      render(<PrintersPage />);
+      const select = await screen.findByRole('combobox', { name: 'Default camera view — X1 Carbon' });
+      selectComboboxOption(select, 'Snapshot');
+      const launch = within(document.getElementById('printer-card-1')!).getByTitle('Open camera overlay');
+      await waitFor(() => expect(launch).toBeEnabled());
+      await user.click(launch);
+      await waitFor(() => expect(document.querySelector('img[src*="/camera/snapshot"]')).not.toBeNull());
+      expect(screen.getByRole('combobox', { name: 'Default camera view' })).toHaveAttribute('data-value', 'snapshot');
+      expect(open).not.toHaveBeenCalled();
+      open.mockRestore();
+    });
+
     it('renders the page title', async () => {
       render(<PrintersPage />);
 

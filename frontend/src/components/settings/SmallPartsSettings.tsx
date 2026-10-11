@@ -1,3 +1,4 @@
+import { smallPartsText as text, useSmallPartsText } from '../warehouse/smallPartsCopy';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
@@ -14,6 +15,7 @@ interface SmallPartsSettingsProps {
 }
 
 export function SmallPartsSettings({ defaultMinimumStock, lowStockWarning, onDefaultsChange }: SmallPartsSettingsProps) {
+  useSmallPartsText();
   const client = useQueryClient();
   const [categoryName, setCategoryName] = useState('');
   const [unitCode, setUnitCode] = useState('');
@@ -49,78 +51,78 @@ export function SmallPartsSettings({ defaultMinimumStock, lowStockWarning, onDef
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold text-white">Materialkataloge</h2>
+      <h2 className="text-xl font-semibold text-white">{text('catalogs')}</h2>
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
-          <CardHeader><h3 className="font-semibold text-white">Kategorien</h3></CardHeader>
+          <CardHeader><h3 className="font-semibold text-white">{text('categories')}</h3></CardHeader>
           <CardContent className="space-y-3">
             <form className="flex items-end gap-2" onSubmit={(event) => { event.preventDefault(); addCategory.mutate(); }}>
               <div className="min-w-0 flex-1 space-y-1">
-                <p className="text-sm text-bambu-gray-light">Bezeichnung der Materialkategorie</p>
-                <TextField aria-label="Neue Kategorie" required value={categoryName} onValueChange={setCategoryName} className={inputClass} />
+                <p className="text-sm text-bambu-gray-light">{text('categoryHint')}</p>
+                <TextField aria-label={text('newCategory')} required value={categoryName} onValueChange={setCategoryName} className={inputClass} />
               </div>
-              <button aria-label="Kategorie hinzufügen" className={addButtonClass}><Plus className="h-5 w-5" /></button>
+              <button aria-label={text('addCategory')} className={addButtonClass}><Plus className="h-5 w-5" /></button>
             </form>
             {categories.data?.map((category) => (
               <div key={category.id} className={listItemClass}>
                 <span>{category.name}</span>
-                <button aria-label={`${category.name} löschen`} onClick={() => deleteCategory.mutate(category.id)} className={deleteButtonClass}><Trash2 className="h-4 w-4" /></button>
+                <button aria-label={text('deleteNamed', { name: category.name })} onClick={() => deleteCategory.mutate(category.id)} className={deleteButtonClass}><Trash2 className="h-4 w-4" /></button>
               </div>
             ))}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><h3 className="font-semibold text-white">Einheiten</h3></CardHeader>
+          <CardHeader><h3 className="font-semibold text-white">{text('units')}</h3></CardHeader>
           <CardContent className="space-y-3">
             <form className="grid grid-cols-[1fr_2fr_auto_auto] items-end gap-2" onSubmit={(event) => { event.preventDefault(); addUnit.mutate(); }}>
               <div className="space-y-1">
-                <p className="text-sm text-bambu-gray-light">Einheitencode, z. B. C62</p>
-                <TextField aria-label="Einheit Code" placeholder="C62" required value={unitCode} onValueChange={setUnitCode} className={inputClass} />
+                <p className="text-sm text-bambu-gray-light">{text('unitCodeHint')}</p>
+                <TextField aria-label={text('unitCode')} placeholder="C62" required value={unitCode} onValueChange={setUnitCode} className={inputClass} />
               </div>
               <div className="space-y-1">
-                <p className="text-sm text-bambu-gray-light">Anzeigename, z. B. Stück</p>
-                <TextField aria-label="Einheit Bezeichnung" placeholder="Stück" required value={unitLabel} onValueChange={setUnitLabel} className={inputClass} />
+                <p className="text-sm text-bambu-gray-light">{text('unitLabelHint')}</p>
+                <TextField aria-label={text('unitLabel')} placeholder={text('piece')} required value={unitLabel} onValueChange={setUnitLabel} className={inputClass} />
               </div>
               <div className="space-y-1">
-                <p className="text-sm text-bambu-gray-light">Nachkommastellen</p>
-                <NumberField aria-label="Nachkommastellen" min="0" max="6" value={unitDecimals} onValueChange={(value) => setUnitDecimals(Number(value))} className={`${inputClass} w-20`} />
+                <p className="text-sm text-bambu-gray-light">{text('decimalPlaces')}</p>
+                <NumberField aria-label={text('decimalPlaces')} min="0" max="6" value={unitDecimals} onValueChange={(value) => setUnitDecimals(Number(value))} className={`${inputClass} w-20`} />
               </div>
-              <button aria-label="Einheit hinzufügen" className={addButtonClass}><Plus className="h-5 w-5" /></button>
+              <button aria-label={text('addUnit')} className={addButtonClass}><Plus className="h-5 w-5" /></button>
             </form>
             {units.data?.map((unit) => (
               <div key={unit.code} className={listItemClass}>
-                <span>{unit.label} <span className="text-bambu-gray">({unit.code}, {unit.decimal_places} Stellen)</span></span>
-                <button aria-label={`${unit.label} löschen`} onClick={() => deleteUnit.mutate(unit.code)} className={deleteButtonClass}><Trash2 className="h-4 w-4" /></button>
+                <span>{unit.label} <span className="text-bambu-gray">{text('unitDetails', { code: unit.code, count: unit.decimal_places })}</span></span>
+                <button aria-label={text('deleteNamed', { name: unit.label })} onClick={() => deleteUnit.mutate(unit.code)} className={deleteButtonClass}><Trash2 className="h-4 w-4" /></button>
               </div>
             ))}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><h3 className="font-semibold text-white">Lagerorte</h3></CardHeader>
+          <CardHeader><h3 className="font-semibold text-white">{text('locations')}</h3></CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-1">
-              <p className="text-sm text-bambu-gray-light">Lagerorte gelten gemeinsam für Filament und Material.</p>
+              <p className="text-sm text-bambu-gray-light">{text('locationHint')}</p>
               <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); addLocation.mutate(); }}>
-                <TextField aria-label="Neuer Lagerort" required value={locationName} onValueChange={setLocationName} className={`${inputClass} min-w-0 flex-1`} />
-                <button aria-label="Lagerort hinzufügen" className={addButtonClass}><Plus className="h-5 w-5" /></button>
+                <TextField aria-label={text('newLocation')} required value={locationName} onValueChange={setLocationName} className={`${inputClass} min-w-0 flex-1`} />
+                <button aria-label={text('addLocation')} className={addButtonClass}><Plus className="h-5 w-5" /></button>
               </form>
             </div>
             {locations.data?.map((location) => (
               <div key={location.id} className={listItemClass}>
                 <span>{location.name}</span>
-                <button aria-label={`${location.name} löschen`} onClick={() => deleteLocation.mutate(location.id)} className={deleteButtonClass}><Trash2 className="h-4 w-4" /></button>
+                <button aria-label={text('deleteNamed', { name: location.name })} onClick={() => deleteLocation.mutate(location.id)} className={deleteButtonClass}><Trash2 className="h-4 w-4" /></button>
               </div>
             ))}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><h3 className="font-semibold text-white">Standardwerte</h3></CardHeader>
+          <CardHeader><h3 className="font-semibold text-white">{text('defaults')}</h3></CardHeader>
           <CardContent className="space-y-4">
-            <NumberField label="Standard-Meldebestand" min="0" step="0.01" value={defaultMinimumStock} onValueChange={(value) => onDefaultsChange({ defaultMinimumStock: value, lowStockWarning })} className={`${inputClass} w-full`} />
-            <Checkbox checked={lowStockWarning} onCheckedChange={(checked) => onDefaultsChange({ defaultMinimumStock, lowStockWarning: checked })} label="Warnung bei niedrigem Bestand" />
+            <NumberField label={text('defaultReorder')} min="0" step="0.01" value={defaultMinimumStock} onValueChange={(value) => onDefaultsChange({ defaultMinimumStock: value, lowStockWarning })} className={`${inputClass} w-full`} />
+            <Checkbox checked={lowStockWarning} onCheckedChange={(checked) => onDefaultsChange({ defaultMinimumStock, lowStockWarning: checked })} label={text('warnLowStock')} />
           </CardContent>
         </Card>
       </div>

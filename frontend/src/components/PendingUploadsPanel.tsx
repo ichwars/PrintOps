@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Archive, Trash2, FileBox, Clock, Upload, ChevronDown, ChevronUp } from 'lucide-react';
@@ -42,6 +43,7 @@ function PendingUploadItem({
   isArchiving,
   isDiscarding,
 }: PendingUploadItemProps) {
+  const { t: translateInterface } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [tags, setTags] = useState(upload.tags || '');
   const [notes, setNotes] = useState(upload.notes || '');
@@ -66,7 +68,7 @@ function PendingUploadItem({
                 {upload.source_ip && (
                   <>
                     <span>·</span>
-                    <span>from {upload.source_ip}</span>
+                    <span>{translateInterface("orders.runtimeInterface.from")} {upload.source_ip}</span>
                   </>
                 )}
               </div>
@@ -90,7 +92,7 @@ function PendingUploadItem({
               ) : (
                 <>
                   <Archive className="w-4 h-4" />
-                  Archive
+                  {translateInterface("inventory.archive")}
                 </>
               )}
             </Button>
@@ -112,7 +114,7 @@ function PendingUploadItem({
         {/* Discard Confirmation Modal */}
         {showDiscardConfirm && (
           <ConfirmModal
-            title="Discard Upload"
+            title={translateInterface("pendingUploads.discardUpload")}
             message={`Are you sure you want to discard "${upload.filename}"? This cannot be undone.`}
             confirmText="Discard"
             variant="danger"
@@ -128,7 +130,7 @@ function PendingUploadItem({
         {expanded && (
           <div className="mt-4 pt-4 border-t border-bambu-dark-tertiary space-y-3">
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">Tags</label>
+              <label className="block text-sm text-bambu-gray mb-1">{translateInterface("tags.title")}</label>
               <TextField
                 type="text"
                 value={tags}
@@ -138,23 +140,23 @@ function PendingUploadItem({
               />
             </div>
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">Notes</label>
+              <label className="block text-sm text-bambu-gray mb-1">{translateInterface("editArchive.notes")}</label>
               <TextArea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add notes about this print..."
+                placeholder={translateInterface("editArchive.notesPlaceholder")}
                 rows={2}
                 className="w-full bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-md px-3 py-2 text-white placeholder-bambu-gray text-sm resize-none"
               />
             </div>
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">Project</label>
+              <label className="block text-sm text-bambu-gray mb-1">{translateInterface("fileManager.project")}</label>
               <LegacySelect
                 value={projectId || ''}
                 onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : null)}
                 className="w-full bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-md px-3 py-2 text-white text-sm"
               >
-                <option value="">No project</option>
+                <option value="">{translateInterface("editArchive.noProject")}</option>
                 {projects.map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.name}
@@ -170,6 +172,7 @@ function PendingUploadItem({
 }
 
 export function PendingUploadsPanel() {
+  const { t: translateInterface } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [showArchiveAllConfirm, setShowArchiveAllConfirm] = useState(false);
@@ -284,7 +287,7 @@ export function PendingUploadsPanel() {
             <div className="flex items-center gap-2">
               <Upload className="w-5 h-5 text-yellow-500" />
               <h2 className="text-lg font-semibold text-white">
-                Pending Uploads ({uploads.length})
+                {translateInterface("orders.runtimeInterface.pendingUploads")}{uploads.length})
               </h2>
             </div>
             <div className="flex items-center gap-2">
@@ -299,7 +302,7 @@ export function PendingUploadsPanel() {
                 ) : (
                   <>
                     <Archive className="w-4 h-4" />
-                    Archive All
+                    {translateInterface("orders.runtimeInterface.archiveAll")}
                   </>
                 )}
               </Button>
@@ -314,7 +317,7 @@ export function PendingUploadsPanel() {
                 ) : (
                   <>
                     <Trash2 className="w-4 h-4" />
-                    Discard All
+                    {translateInterface("orders.runtimeInterface.discardAll")}
                   </>
                 )}
               </Button>
@@ -323,7 +326,7 @@ export function PendingUploadsPanel() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-bambu-gray mb-4">
-            These files were uploaded via the virtual printer. Review and archive them to add to your collection.
+            {translateInterface("orders.runtimeInterface.theseFilesWereUploadedViaTheVirtualPrinterReviewAndArchiveThemToAddToY")}
           </p>
           <div className="space-y-3">
             {uploads.map((upload) => (
@@ -344,7 +347,7 @@ export function PendingUploadsPanel() {
       {/* Archive All Confirmation */}
       {showArchiveAllConfirm && (
         <ConfirmModal
-          title="Archive All Uploads"
+          title={translateInterface("pendingUploads.archiveAllUploads")}
           message={`Are you sure you want to archive all ${uploads.length} pending uploads?`}
           confirmText="Archive All"
           onConfirm={() => {
@@ -358,7 +361,7 @@ export function PendingUploadsPanel() {
       {/* Discard All Confirmation */}
       {showDiscardAllConfirm && (
         <ConfirmModal
-          title="Discard All Uploads"
+          title={translateInterface("pendingUploads.discardAllUploads")}
           message={`Are you sure you want to discard all ${uploads.length} pending uploads? This cannot be undone.`}
           confirmText="Discard All"
           variant="danger"

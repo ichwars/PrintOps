@@ -13,6 +13,7 @@ interface MQTTDebugModalProps {
 }
 
 export function MQTTDebugModal({ printerId, printerName, onClose }: MQTTDebugModalProps) {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [autoScroll, setAutoScroll] = useState(true);
@@ -179,7 +180,7 @@ export function MQTTDebugModal({ printerId, printerName, onClose }: MQTTDebugMod
                 checked={autoScroll}
                 onChange={(e) => setAutoScroll(e.target.checked)}
               />
-              Auto-scroll
+              {translateInterface("orders.runtimeInterface.autoScroll")}
             </label>
             <span className="text-sm text-bambu-gray">
               {filteredLogs.length}/{logs.length}

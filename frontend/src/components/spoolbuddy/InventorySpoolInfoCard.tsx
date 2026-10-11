@@ -45,6 +45,7 @@ export function InventorySpoolInfoCard({
   onUnassignFromAms,
   className,
 }: InventorySpoolInfoCardProps) {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const [syncing, setSyncing] = useState(false);
   const [synced, setSynced] = useState(false);
@@ -152,7 +153,7 @@ export function InventorySpoolInfoCard({
         <div className="flex-1 min-w-0 pt-1">
           <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold text-zinc-100">
-              {spool.color_name || 'Unknown color'}
+              {spool.color_name || translateInterface("orders.runtimeInterface.unknownColor")}
             </h3>
             <span className="text-xs font-mono text-zinc-500 shrink-0">#{spool.id}</span>
           </div>

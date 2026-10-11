@@ -37,11 +37,6 @@ const documentTypeFallbacks: Record<DocumentType, string> = {
   self_billing: 'Self-billing invoice',
 };
 
-const documentLanguages = [
-  { value: 'de', label: 'Deutsch' },
-  { value: 'en', label: 'English' },
-];
-
 const PROFILE_LANGUAGE_VALUE = 'profile';
 
 export function DocumentContextHeader({
@@ -54,6 +49,8 @@ export function DocumentContextHeader({
   onChange,
 }: DocumentContextHeaderProps) {
   const { t } = useTranslation();
+  const languageName = (language: 'de' | 'en') => t(`orders.runtimeDomain.documentLanguageNames.${language}`);
+  const documentLanguages = (['de', 'en'] as const).map((value) => ({ value, label: languageName(value) }));
   const status = configuration?.status ?? null;
   const selectedProfile = profiles.find((item) => item.id === context.profileId);
   const profileLanguage = supportedDocumentLanguage(selectedProfile?.default_locale);
@@ -62,8 +59,8 @@ export function DocumentContextHeader({
     {
       value: PROFILE_LANGUAGE_VALUE,
       label: t('settings.documents.languageProfileDefault', {
-        language: profileLanguage === 'de' ? 'Deutsch' : 'English',
-        defaultValue: `Aus Unternehmensprofil (${profileLanguage === 'de' ? 'Deutsch' : 'English'})`,
+        language: languageName(profileLanguage),
+        defaultValue: `Aus Unternehmensprofil (${languageName(profileLanguage)})`,
       }),
     },
     ...documentLanguages,
@@ -128,8 +125,8 @@ export function DocumentContextHeader({
             context.languageOverride
               ? t('settings.documents.languageOverrideHint', 'Overrides the business profile language for this document context.')
               : t('settings.documents.languageProfileDefaultHint', {
-                language: effectiveLanguage === 'de' ? 'Deutsch' : 'English',
-                defaultValue: `Folgt aktuell dem Unternehmensprofil: ${effectiveLanguage === 'de' ? 'Deutsch' : 'English'}.`,
+                language: languageName(effectiveLanguage),
+                defaultValue: `Folgt aktuell dem Unternehmensprofil: ${languageName(effectiveLanguage)}.`,
               })
           }
           options={languageOptions}

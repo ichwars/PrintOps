@@ -1,3 +1,4 @@
+import { smallPartsText as text, useSmallPartsText } from './smallPartsCopy';
 import { useEffect, useId, useState } from 'react';
 import { Plus, Star, Trash2 } from 'lucide-react';
 
@@ -55,6 +56,7 @@ export function ProcurementOffersEditor({
   readOnly = false,
   defaultPackageUnitCode = 'C62',
 }: ProcurementOffersEditorProps) {
+  useSmallPartsText();
   const [visibleOffers, setVisibleOffers] = useState<OfferWithSnapshot[]>(offers);
 
   useEffect(() => setVisibleOffers(offers), [offers]);
@@ -138,23 +140,23 @@ export function ProcurementOffersEditor({
 
   return (
     <div className="space-y-4">
-      {preferredIndex >= 0 ? section(preferredIndex, 'Bevorzugte Bezugsquelle') : null}
-      {alternativeIndex >= 0 ? section(alternativeIndex, 'Alternative Bezugsquelle') : null}
+      {preferredIndex >= 0 ? section(preferredIndex, text('preferredSource')) : null}
+      {alternativeIndex >= 0 ? section(alternativeIndex, text('alternativeSource')) : null}
       {additionalIndices.length > 0 ? (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-white">Weitere Bezugsquellen</h3>
+          <h3 className="text-sm font-semibold text-white">{text('additionalSources')}</h3>
           {additionalIndices.map((index, position) =>
-            section(index, `Weitere Bezugsquelle ${position + 1}`))}
+            section(index, text('additionalSource', { number: position + 1 })))}
         </div>
       ) : null}
       {!readOnly ? (
         <Button type="button" variant="secondary" onClick={addOffer}>
           <Plus aria-hidden="true" className="h-4 w-4" />
           {visibleOffers.length === 0
-            ? 'Bezugsquelle hinzufügen'
+            ? text('addSource')
             : alternativeIndex < 0
-              ? 'Alternative Bezugsquelle hinzufügen'
-              : 'Weitere Bezugsquelle hinzufügen'}
+              ? text('addAlternativeSource')
+              : text('addAdditionalSource')}
         </Button>
       ) : null}
     </div>
@@ -188,6 +190,7 @@ function OfferSection({
   onPromote,
   onRemove,
 }: OfferSectionProps) {
+  useSmallPartsText();
   const headingId = `procurement-offer-${useId().replace(/:/g, '')}`;
   const selectedSupplier = suppliers.find((supplier) => supplier.id === offer.supplier_id)
     ?? (offer.supplier?.id === offer.supplier_id ? offer.supplier : undefined);
@@ -198,7 +201,7 @@ function OfferSection({
     selectableSuppliers.push(selectedSupplier);
   }
   const supplierOptions: SelectOption<number | ''>[] = [
-    { value: '', label: 'Lieferant auswählen' },
+    { value: '', label: text('chooseSupplier') },
     ...selectableSuppliers.map((supplier) => ({
       value: supplier.id,
       label: supplier.name,
@@ -215,8 +218,7 @@ function OfferSection({
         <div className="flex flex-wrap items-center gap-2">
           <h3 id={headingId} className="text-sm font-semibold text-white">{title}</h3>
           {selectedSupplier && !selectedSupplier.is_active ? (
-            <span className="rounded-full bg-bambu-dark-tertiary px-2 py-0.5 text-xs text-bambu-gray-light">
-              Lieferant deaktiviert
+            <span className="rounded-full bg-bambu-dark-tertiary px-2 py-0.5 text-xs text-bambu-gray-light">{text('supplierDisabled')}
             </span>
           ) : null}
         </div>
@@ -224,13 +226,12 @@ function OfferSection({
           <div className="flex flex-wrap gap-2">
             {!offer.is_preferred && offer.is_active ? (
               <Button type="button" variant="secondary" size="sm" onClick={() => onPromote(offerIndex)}>
-                <Star aria-hidden="true" className="h-4 w-4" />
-                Als bevorzugt festlegen
+                <Star aria-hidden="true" className="h-4 w-4" />{text('preferSource')}
               </Button>
             ) : null}
             <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(offerIndex)}>
               <Trash2 aria-hidden="true" className="h-4 w-4 text-red-400" />
-              {offer.id === undefined ? 'Entfernen' : 'Deaktivieren'}
+              {offer.id === undefined ? text('remove') : text('deactivate')}
             </Button>
           </div>
         ) : null}
@@ -238,7 +239,7 @@ function OfferSection({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Select
-          label="Lieferant"
+          label={text('supplier')}
           required
           value={offer.supplier_id ?? ''}
           options={supplierOptions}
@@ -248,15 +249,15 @@ function OfferSection({
           )}
           disabled={readOnly}
         />
-        <TextField label="Lieferantenartikelnummer" value={offer.supplier_sku ?? ''} onValueChange={(value) => onUpdate(offerIndex, 'supplier_sku', value)} disabled={readOnly} />
-        <TextField type="url" label="Bezugs-URL" value={offer.purchase_url ?? ''} onValueChange={(value) => onUpdate(offerIndex, 'purchase_url', value)} disabled={readOnly} className="sm:col-span-2" />
-        <NumberField label="Packungsmenge" min={0.000001} step="any" value={offer.package_quantity} onValueChange={(value) => onUpdate(offerIndex, 'package_quantity', value)} disabled={readOnly} />
-        <TextField label="Packungseinheit" required value={offer.package_unit_code} onValueChange={(value) => onUpdate(offerIndex, 'package_unit_code', value)} disabled={readOnly} />
-        <NumberField label="Mindestbestellmenge" min={0.000001} step="any" value={offer.minimum_order_quantity} onValueChange={(value) => onUpdate(offerIndex, 'minimum_order_quantity', value)} disabled={readOnly} />
-        <NumberField label="Lieferzeit (Tage)" min={0} max={3650} step={1} value={offer.lead_time_days ?? ''} onValueChange={(value) => onUpdate(offerIndex, 'lead_time_days', integerOrNull(value))} disabled={readOnly} />
-        <NumberField label="Nettopreis" min={0} step="any" value={offer.net_price} onValueChange={(value) => onUpdate(offerIndex, 'net_price', value)} disabled={readOnly} />
-        <NumberField label="Bruttopreis" min={0} step="any" value={offer.gross_price} onValueChange={(value) => onUpdate(offerIndex, 'gross_price', value)} disabled={readOnly} />
-        <Checkbox label="Aktiv" checked={offer.is_active} onCheckedChange={(checked) => onUpdate(offerIndex, 'is_active', checked)} disabled={readOnly} />
+        <TextField label={text('supplierSku')} value={offer.supplier_sku ?? ''} onValueChange={(value) => onUpdate(offerIndex, 'supplier_sku', value)} disabled={readOnly} />
+        <TextField type="url" label={text('purchaseUrl')} value={offer.purchase_url ?? ''} onValueChange={(value) => onUpdate(offerIndex, 'purchase_url', value)} disabled={readOnly} className="sm:col-span-2" />
+        <NumberField label={text('packageQuantity')} min={0.000001} step="any" value={offer.package_quantity} onValueChange={(value) => onUpdate(offerIndex, 'package_quantity', value)} disabled={readOnly} />
+        <TextField label={text('packageUnit')} required value={offer.package_unit_code} onValueChange={(value) => onUpdate(offerIndex, 'package_unit_code', value)} disabled={readOnly} />
+        <NumberField label={text('minimumOrder')} min={0.000001} step="any" value={offer.minimum_order_quantity} onValueChange={(value) => onUpdate(offerIndex, 'minimum_order_quantity', value)} disabled={readOnly} />
+        <NumberField label={text('leadTimeDays')} min={0} max={3650} step={1} value={offer.lead_time_days ?? ''} onValueChange={(value) => onUpdate(offerIndex, 'lead_time_days', integerOrNull(value))} disabled={readOnly} />
+        <NumberField label={text('netPrice')} min={0} step="any" value={offer.net_price} onValueChange={(value) => onUpdate(offerIndex, 'net_price', value)} disabled={readOnly} />
+        <NumberField label={text('grossPrice')} min={0} step="any" value={offer.gross_price} onValueChange={(value) => onUpdate(offerIndex, 'gross_price', value)} disabled={readOnly} />
+        <Checkbox label={text('active')} checked={offer.is_active} onCheckedChange={(checked) => onUpdate(offerIndex, 'is_active', checked)} disabled={readOnly} />
       </div>
     </section>
   );

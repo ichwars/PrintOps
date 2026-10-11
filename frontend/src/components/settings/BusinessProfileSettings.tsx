@@ -69,7 +69,7 @@ export function BusinessProfileSettings() {
       not_found: 'orderUiNotFound',
     } as Record<string, string>)[error.code] : undefined;
     if (knownKey) return t(knownKey);
-    if (i18n.language.startsWith('de') && error.status === 409) return t('orderMessages.errors.conflict');
+    if ((i18n.language.startsWith('de') || i18n.language.startsWith('nl')) && error.status === 409) return t('orderMessages.errors.conflict');
     return error.message;
   };
   const showActionError = (error: unknown, action: RowActionIdentity) => setServerError({

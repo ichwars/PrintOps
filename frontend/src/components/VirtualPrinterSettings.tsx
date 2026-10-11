@@ -502,26 +502,13 @@ export function VirtualPrinterSettings() {
               <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-bambu-gray">
                 <p className="mb-2">
-                  <strong className="text-white">{localMode === 'proxy' ? t('virtualPrinter.howItWorks.titleProxy') : t('virtualPrinter.howItWorks.title')}:</strong>
+                  <strong className="text-white">{t('virtualPrinter.howItWorks.title')}:</strong>
                 </p>
-                {localMode === 'proxy' ? (
-                  <ol className="list-decimal list-inside space-y-1">
-                    <li>{t('virtualPrinter.howItWorks.proxyStep1')}</li>
-                    <li>{t('virtualPrinter.howItWorks.proxyStep2')}</li>
-                    <li>{t('virtualPrinter.howItWorks.proxyStep3')}</li>
-                    <li>{t('virtualPrinter.howItWorks.proxyStep4')}</li>
-                    <li>{t('virtualPrinter.howItWorks.proxyStep5')}</li>
-                  </ol>
-                ) : (
-                  <ol className="list-decimal list-inside space-y-1">
-                    <li>{t('virtualPrinter.howItWorks.step1')}</li>
-                    <li>{t('virtualPrinter.howItWorks.step2')}</li>
-                    <li>{t('virtualPrinter.howItWorks.step3')}</li>
-                    <li>{t('virtualPrinter.howItWorks.step4')}</li>
-                    <li>{t('virtualPrinter.howItWorks.step5')}</li>
-                    <li>{t('virtualPrinter.howItWorks.step6')}</li>
-                  </ol>
-                )}
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>{t('virtualPrinter.howItWorks.step1')}</li>
+                  <li>{t('virtualPrinter.howItWorks.step2')}</li>
+                  <li>{t('virtualPrinter.howItWorks.step3')}</li>
+                </ol>
               </div>
             </div>
           </CardContent>

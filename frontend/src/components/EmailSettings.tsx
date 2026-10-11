@@ -24,6 +24,7 @@ const PORT_SECURITY_MAP: Record<number, string> = {
 };
 
 export function EmailSettings() {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
@@ -292,7 +293,7 @@ export function EmailSettings() {
                     type="password"
                     value={smtpSettings.smtp_password || ''}
                     onChange={(e) => setSMTPSettings({ ...smtpSettings, smtp_password: e.target.value })}
-                    placeholder={existingSettings ? '••••••••' : 'App password'}
+                    placeholder={existingSettings ? '••••••••' : translateInterface("orders.runtimeInterface.appPassword")}
                     disabled={!smtpSettings.smtp_auth_enabled}
                     className={smtpSettings.smtp_auth_enabled ? inputClasses : disabledInputClasses}
                   />

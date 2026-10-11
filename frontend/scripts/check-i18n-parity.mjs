@@ -1,5 +1,5 @@
-// Verifies parity across locale files (en / de / fr / it / ja / pt-BR / zh-CN / zh-TW):
-//   1. Leaf-key sets are identical
+// Verifies parity across all discovered locale files:
+//   1. Leaf-key sets are identical (string-array entries use numeric paths)
 //   2. Each leaf's {{placeholder}} set is identical
 //   3. Plural suffixes: every en key ending in _plural / _one / _other must
 //      exist in every other locale, and other locales must not introduce an
@@ -29,6 +29,7 @@ const ts = tsModule.default ?? tsModule;
 
 function collectLeaves(node, prefix, leaves) {
   if (!ts.isObjectLiteralExpression(node)) return;
+  leaves.containerTypes?.set(prefix, 'object');
   for (const prop of node.properties) {
     if (!ts.isPropertyAssignment(prop)) {
       console.error(
@@ -50,6 +51,14 @@ function collectLeaves(node, prefix, leaves) {
     const p = prefix ? `${prefix}.${name}` : name;
     if (ts.isObjectLiteralExpression(prop.initializer)) {
       collectLeaves(prop.initializer, p, leaves);
+    } else if (ts.isArrayLiteralExpression(prop.initializer)) {
+      // Runtime table dictionaries use ordered column-label arrays. Inspect
+      // every entry with the same strict string and placeholder checks.
+      leaves.containerTypes?.set(p, 'array');
+      prop.initializer.elements.forEach((element, index) => {
+        const key = `${p}.${index}`;
+        leaves.set(key, extractStringValue(element, key));
+      });
     } else {
       const value = extractStringValue(prop.initializer, p);
       leaves.set(p, value);
@@ -87,6 +96,7 @@ function loadLocale(filePath) {
     process.exit(1);
   }
   const leaves = new Map();
+  leaves.containerTypes = new Map();
   let foundExport = false;
   ts.forEachChild(sf, (n) => {
     if (ts.isExportAssignment(n)) {
@@ -107,340 +117,51 @@ function loadLocale(filePath) {
 
 const placeholderRe = /\{\{[^{}]+\}\}/g;
 
-// Task 6 deliberately ships English fallbacks outside German. Scope that
-// temporary exception to the exact locale/key pairs so the same values still
-// fail when copied into unrelated leaves.
-const ORDER_MANAGEMENT_ENGLISH_FALLBACK_LOCALES = new Set([
-  'es', 'fr', 'it', 'ja', 'ko', 'pt-BR', 'tr', 'zh-CN', 'zh-TW',
-]);
-const PRINTER_CONTROL_ENGLISH_FALLBACK_KEYS = new Set([
-  'printers.localControlUnavailable',
-  'printers.localControlBadge',
-  'printers.localControlBadgeTitle',
-  'printers.localControlUnavailableCloudCandidate',
-  'printers.localControlUnavailableCloudNotImplemented',
-  'printers.localControlUnavailableCloudUncertain',
-  'printers.localControlUnavailableLocalOnly',
-  'printers.cloudControlActionTitle',
-  'printers.cloudControlConfigured',
-  'printers.cloudControlConfiguredTitle',
-  'printers.controlPathTitle',
-  'printers.controlPath.local',
-  'printers.controlPath.cloud',
-  'printers.controlPath.none',
-  'printers.controlMatrix.title',
-  'printers.controlMatrix.toggle',
-  'printers.controlMatrix.action',
-  'printers.controlMatrix.local',
-  'printers.controlMatrix.cloud',
-  'printers.controlMatrix.printops',
-  'printers.controlMatrix.status',
-  'printers.controlMatrix.statusOnly',
-  'printers.controlMatrix.localCloudFallback',
-  'printers.controlMatrix.cloudNotImplemented',
-  'printers.controlMatrix.localOnly',
-  'printers.controlMatrix.available',
-  'printers.controlMatrix.uncertain',
-  'printers.controlCapabilities.status',
-  'printers.controlCapabilities.startPrint',
-  'printers.controlCapabilities.temperature',
-  'printers.controlCapabilities.fan',
-  'printers.controlCapabilities.light',
-  'printers.controlCapabilities.camera',
-  'printers.controlCapabilities.fileManagement',
-  'printers.controlCapabilities.amsSlot',
-]);
-const ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS = new Set([
-  'orders.default',
-  'orders.businessProfile.title',
-  'orders.businessProfile.loading',
-  'orders.businessProfile.error',
-  'orders.businessProfile.empty',
-  'orders.businessProfile.permissionDenied',
-  'orders.businessProfile.add',
-  'orders.businessProfile.includeInactive',
-  'orders.businessProfile.profile',
-  'orders.businessProfile.country',
-  'orders.businessProfile.currency',
-  'orders.businessProfile.timezone',
-  'orders.businessProfile.billingMode',
-  'orders.businessProfile.status',
-  'orders.businessProfile.actions',
-  'orders.businessProfile.active',
-  'orders.businessProfile.inactive',
-  'orders.businessProfile.edit',
-  'orders.businessProfile.setDefault',
-  'orders.businessProfile.activate',
-  'orders.businessProfile.deactivate',
-  'orders.businessProfile.delete',
-  'orders.businessProfile.deleteConfirm',
-  'orders.businessProfile.dismiss',
-  'orders.businessProfile.createTitle',
-  'orders.businessProfile.editTitle',
-  'orders.businessProfile.identity',
-  'orders.businessProfile.address',
-  'orders.businessProfile.taxAndBank',
-  'orders.businessProfile.localeSection',
-  'orders.businessProfile.profileName',
-  'orders.businessProfile.profileCountry',
-  'orders.businessProfile.legalName',
-  'orders.businessProfile.tradingName',
-  'orders.businessProfile.street',
-  'orders.businessProfile.city',
-  'orders.businessProfile.postalCode',
-  'orders.businessProfile.addAddress',
-  'orders.businessProfile.removeAddress',
-  'orders.businessProfile.defaultAddress',
-  'orders.businessProfile.taxIdKind',
-  'orders.businessProfile.taxIdValue',
-  'orders.businessProfile.addTaxId',
-  'orders.businessProfile.removeTaxId',
-  'orders.businessProfile.primaryTaxId',
-  'orders.businessProfile.bankAccountLabel',
-  'orders.businessProfile.accountHolder',
-  'orders.businessProfile.bankName',
-  'orders.businessProfile.bankCountry',
-  'orders.businessProfile.bankCurrency',
-  'orders.businessProfile.iban',
-  'orders.businessProfile.bic',
-  'orders.businessProfile.accountNumber',
-  'orders.businessProfile.routingNumber',
-  'orders.businessProfile.defaultBankAccount',
-  'orders.businessProfile.addBankAccount',
-  'orders.businessProfile.removeBankAccount',
-  'orders.businessProfile.locale',
-  'orders.businessProfile.save',
-  'orders.customers.title',
-  'orders.customers.subtitle',
-  'orders.customers.businessProfile',
-  'orders.customers.loading',
-  'orders.customers.error',
-  'orders.customers.noBusinessProfile',
-  'orders.customers.empty',
-  'orders.customers.customer',
-  'orders.customers.discount',
-  'orders.customerEditor.title',
-  'orders.customerEditor.company',
-  'orders.customerEditor.person',
-  'orders.status.active',
-  'orders.status.inactive',
-  'orders.status.blocked',
-  'settings.tabs.orderManagementBusinessProfile',
-  'settings.orderManagementSubTabDescriptions.businessProfile',
-  'settings.tabs.orderManagementDocuments',
-  'settings.orderManagementSubTabDescriptions.documents',
-  'settings.documents.title',
-  'settings.documents.description',
-  'settings.documents.contextHint',
-]);
+// Exact exceptions are static reviewable data, independent of runtime catalogs.
+// Dutch and German do not inherit the older-locale English fallback list.
+const parityData = JSON.parse(fs.readFileSync(path.join(scriptDir, 'i18n-parity-data.json'), 'utf8'));
 
-[
-  'settings.documents.profile',
-  'settings.documents.documentType',
-  'settings.documents.language',
-  'settings.documents.version',
-  'settings.documents.status.draft',
-  'settings.documents.status.scheduled',
-  'settings.documents.status.active',
-  'settings.documents.status.superseded',
-  'settings.documents.readiness.ready',
-  'settings.documents.readiness.warnings',
-  'settings.documents.readiness.blocked',
-  'settings.documents.changeReason',
-  'settings.documents.changeReasonHint',
-  'settings.documents.readOnlyHint',
-  'settings.documents.permissionDenied',
-  'settings.documents.loading',
-  'settings.documents.loadError',
-  'settings.documents.actions.create',
-  'settings.documents.actions.check',
-  'settings.documents.actions.save',
-  'settings.documents.actions.publish',
-  'settings.documents.actions.withdraw',
-  'settings.documents.actions.clone',
-  'settings.documents.messages.createSuccess',
-  'settings.documents.messages.saveSuccess',
-  'settings.documents.messages.checkSuccess',
-  'settings.documents.messages.publishSuccess',
-  'settings.documents.messages.cloneSuccess',
-  'settings.documents.messages.withdrawSuccess',
-  'settings.documents.messages.actionFailed',
-  'settings.documents.policy.title',
-  'settings.documents.policy.hint',
-  'settings.documents.empty.title',
-  'settings.documents.empty.description',
-  'settings.documents.history.title',
-  'settings.documents.history.empty',
-  'settings.documents.history.version',
-  'settings.documents.history.status',
-  'settings.documents.history.effectiveFrom',
-  'settings.documents.history.reason',
-  'settings.documents.history.actor',
-  'settings.documents.history.rules',
-  'settings.documents.history.publishedAt',
-  'settings.documents.history.auditTitle',
-  'settings.documents.history.auditEmpty',
-  'settings.documents.history.correlation',
-  'settings.documents.history.actions.create',
-  'settings.documents.history.actions.update',
-  'settings.documents.history.actions.clone',
-  'settings.documents.history.actions.publication',
-  'settings.documents.history.actions.withdraw',
-  'settings.documents.unsaved.title',
-  'settings.documents.unsaved.message',
-  'settings.documents.unsaved.discard',
-  'settings.documents.publish.title',
-  'settings.documents.publish.description',
-  'settings.documents.publish.effectiveFrom',
-  'settings.documents.publish.reason',
-  'settings.documents.documentTypes.quotation',
-  'settings.documents.documentTypes.order_confirmation',
-  'settings.documents.documentTypes.delivery_note',
-  'settings.documents.documentTypes.advance_invoice',
-  'settings.documents.documentTypes.progress_invoice',
-  'settings.documents.documentTypes.final_invoice',
-  'settings.documents.documentTypes.invoice',
-  'settings.documents.documentTypes.cancellation_invoice',
-  'settings.documents.documentTypes.invoice_correction',
-  'settings.documents.documentTypes.commercial_credit_note',
-  'settings.documents.documentTypes.payment_reminder',
-  'settings.documents.documentTypes.dunning_notice',
-  'settings.documents.documentTypes.self_billing',
-].forEach((key) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(key));
+function exactValueSet(values, name) {
+  if (!Array.isArray(values) || values.some((value) => typeof value !== 'string')) {
+    throw new Error(`Invalid exact parity data: ${name} must be an array of strings.`);
+  }
+  return new Set(values);
+}
 
-// Task 17 policy-editor terminology intentionally falls back to English
-// outside the complete German translation.
-[
-  'inheritance.system', 'inheritance.businessProfile', 'inheritance.customer', 'inheritance.configuration', 'inheritance.document', 'inheritance.reset',
-  'basic.title', 'basic.description', 'basic.subject', 'basic.validityDays', 'basic.dateRule', 'basic.dates.issue', 'basic.dates.service', 'basic.dates.delivery',
-  'basic.rounding', 'basic.roundingModes.commercial', 'basic.roundingModes.bankers', 'basic.roundingModes.down', 'basic.references',
-  'basic.reference.customer_reference', 'basic.reference.order_reference', 'basic.reference.service_period', 'basic.successors', 'basic.technicalContent',
-  'basic.includeCalculation', 'basic.content.print_time', 'basic.content.material', 'basic.content.plate_notes',
-  'payment.title', 'payment.description', 'payment.termDays', 'payment.currency', 'payment.dueBasis', 'payment.bankAccount', 'payment.discountDays',
-  'payment.discountPercent', 'payment.prepayment', 'payment.methods.bank_transfer', 'payment.methods.cash', 'payment.methods.card',
-  'payment.methods.direct_debit', 'payment.methods.paypal', 'payment.useTermInText', 'payment.installments', 'payment.installmentPercent',
-  'payment.installmentDue', 'payment.removeInstallment', 'payment.installmentTotalError', 'payment.addInstallment', 'payment.dunningEnabled',
-  'payment.interest', 'payment.flatFee', 'payment.stage', 'payment.removeStage', 'payment.waitDays', 'payment.stageFee', 'payment.newDueDays',
-  'payment.stageText', 'payment.chargeInterest', 'payment.addStage',
-  'textBlocks.title', 'textBlocks.description', 'textBlocks.insertPlaceholder', 'textBlocks.choosePlaceholder', 'textBlocks.purposes.intro',
-  'textBlocks.purposes.closing', 'textBlocks.purposes.payment_terms', 'textBlocks.purposes.delivery_terms', 'textBlocks.purposes.tax_note',
-  'textBlocks.purposes.footer', 'textBlocks.purposes.dunning_notice',
-  'placeholders.company_name', 'placeholders.company_address', 'placeholders.company_tax_id', 'placeholders.company_vat_id',
-  'placeholders.customer_name', 'placeholders.customer_number', 'placeholders.customer_address', 'placeholders.customer_email',
-  'placeholders.customer_vat_id', 'placeholders.document_number', 'placeholders.document_issue_date', 'placeholders.document_due_date',
-  'placeholders.document_service_date', 'placeholders.document_currency', 'placeholders.payment_term_days', 'placeholders.payment_discount_deadline',
-  'placeholders.payment_discount_percent', 'placeholders.dunning_stage', 'placeholders.dunning_fee', 'placeholders.dunning_new_due_date',
-  'placeholders.DOCUMENT_NUMBER', 'placeholders.VALID_UNTIL', 'placeholders.ORDER_REFERENCE', 'placeholders.DUE_DATE',
-  'placeholders.SERVICE_DATE', 'placeholders.ORIGINAL_DOCUMENT_NUMBER', 'placeholders.OPEN_AMOUNT', 'placeholders.CURRENCY', 'placeholders.DUNNING_LEVEL',
-].forEach((suffix) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(`settings.documents.${suffix}`));
-
-// Task 18 compliance terminology uses the same explicit English fallback.
-[
-  'readiness.loading', 'readiness.versionConflict', 'readiness.checkFailed', 'readiness.ruleId', 'readiness.correlationId',
-  'readiness.unknownError', 'readiness.reloadCompare', 'readiness.title', 'readiness.noFindings', 'readiness.findings.buyer_endpoint_missing',
-  'tax.title', 'tax.description', 'tax.ruleVersion', 'tax.allowedCases', 'tax.allowOverride', 'tax.recordedOverride', 'tax.manualOverride',
-  'tax.treatment', 'tax.taxCountry', 'tax.placeOfSupply', 'tax.category', 'tax.rate', 'tax.legalReasonCode', 'tax.legalReasonText',
-  'tax.sellerVatId', 'tax.buyerVatId', 'tax.evidence', 'tax.overrideReason', 'tax.applyOverride',
-  'tax.cases.domestic_standard', 'tax.cases.small_business_exempt', 'tax.cases.intra_community_supply',
-  'tax.cases.eu_reverse_charge', 'tax.cases.eu_b2c_oss', 'tax.cases.third_country', 'tax.cases.explicit_exemption',
-  'einvoice.title', 'einvoice.description', 'einvoice.requirement', 'einvoice.optional', 'einvoice.ruleRequired', 'einvoice.syntax',
-  'einvoice.pinned', 'einvoice.zugferdProfile', 'einvoice.processId', 'einvoice.sellerEndpoint', 'einvoice.endpointScheme',
-  'einvoice.buyerEndpoint', 'einvoice.buyerReference', 'einvoice.defaultPaymentMethod', 'einvoice.bankAccount',
-  'einvoice.validationLayers', 'einvoice.layers.xsd', 'einvoice.layers.en16931', 'einvoice.layers.cius',
-  'einvoice.validationStatus', 'einvoice.downloadXml', 'einvoice.downloadReport', 'einvoice.findingCount',
-].forEach((suffix) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(`settings.documents.${suffix}`));
-
-// Task 8 extends the same deliberately narrow English-fallback contract.
-[
-  'orders.customers.permissionDenied', 'orders.customers.configureProfiles', 'orders.customers.add',
-  'orders.customers.search', 'orders.customers.statusFilter', 'orders.customers.kindFilter',
-  'orders.customers.emptyFiltered', 'orders.customers.number', 'orders.customers.name',
-  'orders.customers.primaryContact', 'orders.customers.billingAddress', 'orders.customers.actions',
-  'orders.customers.view', 'orders.customers.viewAria', 'orders.customers.editCustomer',
-  'orders.customers.editAria', 'orders.customers.deleteCustomer', 'orders.customers.deleteAria',
-  'orders.customers.deleteTitle', 'orders.customers.deleteConfirm', 'orders.customers.pagination',
-  'orders.customers.previous', 'orders.customers.next', 'orders.customerEditor.createTitle',
-  'orders.customerEditor.editTitle', 'orders.customerEditor.kind', 'orders.customerEditor.identity',
-  'orders.customerEditor.displayName', 'orders.customerEditor.companyName', 'orders.customerEditor.firstName',
-  'orders.customerEditor.lastName', 'orders.customerEditor.accounts', 'orders.customerEditor.addAccount',
-  'orders.customerEditor.removeAccount', 'orders.customerEditor.accountProfile', 'orders.customerEditor.customerNumber',
-  'orders.customerEditor.currency', 'orders.customerEditor.paymentDays', 'orders.customerEditor.deliveryTerms',
-  'orders.customerEditor.discount', 'orders.customerEditor.activeAccount', 'orders.customerEditor.contacts',
-  'orders.customerEditor.addContact', 'orders.customerEditor.removeContact', 'orders.customerEditor.salutation',
-  'orders.customerEditor.contactFirstName', 'orders.customerEditor.contactLastName', 'orders.customerEditor.contactRole',
-  'orders.customerEditor.contactEmail', 'orders.customerEditor.contactPhone', 'orders.customerEditor.primaryContact',
-  'orders.customerEditor.includeContact', 'orders.customerEditor.onDocuments', 'orders.customerEditor.includeDocuments',
-  'orders.customerEditor.addresses', 'orders.customerEditor.addAddress', 'orders.customerEditor.removeAddress',
-  'orders.customerEditor.addressKindLabel', 'orders.customerEditor.addressKind.billing',
-  'orders.customerEditor.addressKind.delivery', 'orders.customerEditor.addressKind.other',
-  'orders.customerEditor.addressLabel', 'orders.customerEditor.additional', 'orders.customerEditor.street',
-  'orders.customerEditor.street2', 'orders.customerEditor.postalCode', 'orders.customerEditor.city',
-  'orders.customerEditor.region', 'orders.customerEditor.country', 'orders.customerEditor.defaultAddress',
-  'orders.customerEditor.taxIdentifiers', 'orders.customerEditor.addTax', 'orders.customerEditor.removeTax',
-  'orders.customerEditor.taxKind', 'orders.customerEditor.taxValue', 'orders.customerEditor.taxCountry',
-  'orders.customerEditor.validationStatus', 'orders.customerEditor.preferences', 'orders.customerEditor.locale',
-  'orders.customerEditor.tags', 'orders.customerEditor.notes', 'orders.customerEditor.required',
-  'orders.customerEditor.reload', 'orders.customerEditor.save', 'orders.customerEditor.loadError', 'orders.customerDetails.title',
-  'orders.customerDetails.loadError', 'orders.customerDetails.paymentDays', 'orders.customerDetails.created', 'orders.customerDetails.updated',
-].forEach((key) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(key));
-
-// Final foundation review adds shared profile/customer validation copy. The
-// approved increment translates German natively and intentionally retains
-// English fallbacks in the other non-English locales.
-[
-  'orderMessages.addressKind',
-  'orderMessages.addressKinds.registered',
-  'orderMessages.addressKinds.billing',
-  'orderMessages.addressKinds.shipping',
-  'orderMessages.addressKinds.other',
-  'orderMessages.addressLabel',
-  'orderMessages.additional',
-  'orderMessages.street2',
-  'orderMessages.region',
-  'orderMessages.taxCountry',
-  'orderMessages.validFrom',
-  'orderMessages.validUntil',
-  'orderMessages.taxValidationStatus.unchecked',
-  'orderMessages.taxValidationStatus.valid',
-  'orderMessages.taxValidationStatus.invalid',
-  'orderMessages.validation.required',
-  'orderMessages.validation.maxCharacters',
-  'orderMessages.validation.customerKind',
-  'orderMessages.validation.customerStatus',
-  'orderMessages.validation.accountRequired',
-  'orderMessages.validation.businessProfile',
-  'orderMessages.validation.duplicateAccountProfile',
-  'orderMessages.validation.currency',
-  'orderMessages.validation.range',
-  'orderMessages.validation.twoDecimalPlaces',
-  'orderMessages.validation.addressKind',
-  'orderMessages.validation.country',
-  'orderMessages.validation.duplicateDefaultAddress',
-  'orderMessages.validation.taxValidationStatus',
-  'orderMessages.validation.duplicateTaxIdentifier',
-  'orderMessages.validation.maxTags',
-  'orderMessages.validation.normalizedTag',
-  'orderMessages.validation.invalidField',
-  'orderMessages.validation.failed',
-  'orderMessages.errors.conflict',
-  'orderMessages.errors.business_profile_in_use',
-  'orderMessages.errors.business_profile_referenced',
-  'orderMessages.errors.business_profile_version_conflict',
-  'orderMessages.errors.customer_number_conflict',
-  'orderMessages.errors.customer_account_number_conflict',
-  'orderMessages.errors.customer_version_conflict',
-  'orderUi.operationBlocked',
-  'orderUi.duplicateRecord',
-  'orderUi.singlePrimaryContact',
-  'orderUi.billingModes.internal',
-  'orderUi.billingModes.external',
-  'orderUi.billingModes.hybrid',
-].forEach((key) => ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS.add(key));
+const ORDER_MANAGEMENT_ENGLISH_FALLBACK_LOCALES = exactValueSet(
+  parityData.orderManagementEnglishFallbackLocales, 'orderManagementEnglishFallbackLocales',
+);
+const PRINTER_CONTROL_ENGLISH_FALLBACK_KEYS = exactValueSet(
+  parityData.printerControlEnglishFallbackKeys, 'printerControlEnglishFallbackKeys',
+);
+const ORDER_MANAGEMENT_ENGLISH_FALLBACK_KEYS = exactValueSet(
+  parityData.orderManagementEnglishFallbackKeys, 'orderManagementEnglishFallbackKeys',
+);
 
 // Task 16 deliberately provides the complete English layout-editor fallback
 // outside German. The exception is constrained to the new namespace and its
 // two navigation leaves; unrelated copied English strings still fail.
 function isAllowedOrderManagementEnglishFallback(locale, key) {
+  // This message was already unconditionally English in the German business
+  // number-sequence UI. Preserve that exact legacy display; it is not claimed
+  // as a German translation. The Dutch resource is translated and checked.
+  if (locale === 'de' && key === 'orders.runtimeDevice.business.noProfileSelected') return true;
+  // These rows previously displayed the raw backend status code in German.
+  // Preserve those exact displays; Dutch has translated labels for each code.
+  const legacyGermanStatusCodes = new Set([
+    'orders.runtimeDomain.orderStatus.active',
+    'orders.runtimeDomain.orderStatus.cancelled',
+    'orders.runtimeDomain.orderStatus.completed',
+    'orders.runtimeDomain.reservationStatus.active',
+    'orders.runtimeDomain.reservationStatus.released',
+    'orders.runtimeDomain.reservationStatus.cancelled',
+    'orders.runtimeDomain.reservationStatus.consumed',
+    'orders.runtimeDomain.reservationStatus.completed',
+  ]);
+  if (locale === 'de' && legacyGermanStatusCodes.has(key)) return true;
+  // The language selector already displayed the native names Deutsch/English.
+  if (locale === 'de' && (key === 'orders.runtimeDomain.documentLanguageNames.de'
+    || key === 'orders.runtimeDomain.documentLanguageNames.en')) return true;
   const isDocumentLayoutFallback = key === 'settings.tabs.orderManagementFormatPreview'
     || key === 'settings.orderManagementSubTabDescriptions.formatPreview'
     || key.startsWith('settings.documentLayout.');
@@ -474,267 +195,13 @@ function isAlwaysAllowedIdentical(value) {
   return false;
 }
 
-// Per-(locale, value) allow-list for strings that are a real word/term in
-// that target locale and so legitimately match en.ts. Curated — add an entry
-// here ONLY after verifying that the word is correct (not just a shortcut to
-// silence the check).
-//
-// Convention: same shape as the locales themselves — { de: Set, fr: Set, ... }.
-// Values are matched exactly. To allow a value across many locales, list it in
-// each one (verbosity is the point: every locale's allow-list is an explicit
-// translator decision).
-// German loanwords / cognates from English are extensive. Most short technical
-// UI labels are identical in DE. List below curates the legitimate ones.
-const DE_COGNATES = [
-  'Name', 'Status', 'Tag', 'Tags', 'Online', 'Offline', 'Standard', 'Modus', 'PayPal', 'Syntax',
-  'EU B2C / OSS', 'CIUS / XRechnung',
-  'Stop', 'Reset', 'Test', 'Code', 'Token', 'Server', 'Port', 'Bug', 'Job',
-  'Bambu Cloud', 'Orca Cloud',  // brand names — same in every locale
-  'AMS Filament Backup',  // Bambu Lab product/firmware feature name
-
-  'Pause', 'Power', 'System', 'Problem', 'Designer', 'Extruder', 'Firmware',
-  'Material', 'Original', 'Position', 'Webhook', 'Workflow', 'Slicer',
-  'Pipeline', 'Pipelines', 'Filament {{n}}',  // #1425 — Slicer Pipelines (DE)
-  'parallel',  // #1425 PR C polish — "parallel" is the same word in German
-  'Region', 'Normal', 'Orange', 'Branch', 'Budget', 'Commit', 'Global',
-  'Version', 'Version {{version}}', 'Slot', 'Live', 'Rate', 'Host', 'Trend', 'Min', 'Admin', 'Cloud',
-  'Filament', 'Filaments', 'Software', 'Hardware', 'Avatar', 'Pin', 'Modal',
-  'Active', 'Plate', 'Layer', 'Total', 'Plus', 'Pro', 'Mini', 'Studio',
-  'Temperatur', 'Process', 'Service', 'Cache', 'Color', 'Login', 'Logout',
-  'Action', 'Description', 'Sender', 'Setup', 'Bundle', 'Cluster', 'Tier',
-  'Standard (100%)', 'Sport (124%)', 'Ludicrous (166%)',
-  'Smart Plugs', 'Smart Switches', 'Smart Plug', 'High Flow',
-  'Optional', 'optional', 'Filter', 'Filters', 'optional)',
-  'Material:', 'Default:', 'Name *', '(System)', '(Inv)',
-  'Spoolman URL', 'Bundle', 'Slicer Bundles', 'Imported',
-  'STARTTLS (Port 587)', 'SSL/TLS (Port 465)', 'Sport', 'Standard',
-  'EC984C,#6CD4BC,A66EB9,D87694',
-  'Hex', 'Warm', 'Neutral', 'Navigation', 'Screenshot', 'Architecture',
-  'Backend & Auth', 'Stream Overlay', 'PrintOps Backend URL',
-  'Material (optional)', 'Custom Headers (JSON)', '({{count}}/8)',
-  'Box label (62 × 29 mm)',
-  'Avery L7160 — A4 sheet (38.1 × 63.5 mm × 21)',
-  'Avery 5160 — US Letter sheet (25.4 × 66.7 mm × 30)',
-  'China', 'Proxy', 'Start',
-  'Diagnose',  // DE: same spelling/meaning as EN — camera diagnostic button label
-  '{{filament}} @ {{temp}}°C',  // drying badge: filament code + universal °C
-];
-
-// French cognates — many UI labels overlap with English exactly.
-const FR_COGNATES = [
-  'Bambu Cloud', 'Orca Cloud',  // brand names — same in every locale
-  'AMS Filament Backup',  // Bambu Lab product/firmware feature name
-  'Status', 'Tag', 'Tags', 'Online', 'Offline', 'Standard', 'Filament',
-  'Filaments', 'Software', 'Hardware', 'Stop', 'Reset', 'Test', 'Code',
-  'Token', 'Server', 'Port', 'Plate', 'Layer', 'Active', 'Total', 'Avatar',
-  'Job', 'Modal', 'Pin', 'Pro', 'Mini', 'Studio', 'Excellent', 'Description',
-  'Pipeline', 'Pipelines', 'Filament {{n}}',  // #1425 — Slicer Pipelines (FR)
-  'Copies', '{{n}} copies', 'max {{n}}',  // #1425 PR C — French uses these forms verbatim
-  'round robin',  // borrowed English term used as-is in French tech contexts
-  'Action', 'Actions', 'Date', 'Type', 'Cache', 'Service', 'Configuration',
-  'Archives', 'Maintenance', 'Notifications', 'Notification', 'Position',
-  'Pause', 'Solution', 'Source', 'Version', 'Format', 'Documentation',
-  'Mode', 'Format', 'Default', 'Auto', 'Image', 'Audio', 'Video', 'Hex',
-  'Camera', 'Avatar', 'Information', 'Initialization', 'Inactive', 'Active',
-  'Print', 'Console', 'Cluster', 'Tier', 'Status URL',
-  'Smart Plugs', 'Smart Switches', 'Smart Plug', 'High Flow',
-  'Material:', 'Default:', 'Name *', '(System)', '(Inv)',
-  'Process', 'Service', 'Service', 'Connect', 'Network', 'Local',
-  'Sport (124%)', 'Ludicrous (166%)', 'Standard (100%)',
-  'STARTTLS (Port 587)', 'SSL/TLS (Port 465)',
-  'Bundle', 'Slicer Bundles', 'Imported',
-  'Page', 'Note', 'Tare', 'Est.', 'Cloud', 'Style', 'Notes', 'Stock',
-  'Accent', 'Orange', 'Global', 'Stable', 'Archive', 'visible', 'minutes',
-  'Message', 'Slicer', 'Rotation', 'Original', 'Direction', 'Architecture',
-  'notifications', 'Maintenance OK', 'total', 'Provider', 'Token name',
-  '{{count}} filament', '{{count}} filaments', '{{count}} permissions',
-  '{{count}} downloads', '{{count}} item', '{{count}} selected',
-  '({{count}} item)', 'Provisioning...', 'Pressure Advance',
-  '{{name}} ({{count}} copies)',  // FR plural of "copie" is also "copies"
-  'Box label (62 × 29 mm)',
-  'Avery L7160 — A4 sheet (38.1 × 63.5 mm × 21)',
-  'Avery 5160 — US Letter sheet (25.4 × 66.7 mm × 30)',
-  '({{count}}/8)', 'Custom Headers (JSON)', 'Permissions',
-  'Expand dispatch details', 'Collapse dispatch details',
-  'Cancelling upload...', 'Backup in progress...', 'Searching directory...',
-  'EC984C,#6CD4BC,A66EB9,D87694',
-  'Proxy', 'Navigation', 'Budget', 'Commit', 'Designer',
-  'Compact',  // cam-wall status overlay mode — same word in French
-  'ntfy, Pushover, Discord, etc.',
-  '{{filament}} @ {{temp}}°C',  // drying badge: filament code + universal °C
-];
-
-// Italian cognates.
-const IT_COGNATES = [
-  'Bambu Cloud', 'Orca Cloud',  // brand names — same in every locale
-  'AMS Filament Backup',  // Bambu Lab product/firmware feature name
-  'Email',  // common loanword in Italian, used verbatim in UI labels
-  'Pipeline', 'slicing',  // #1425 — Slicer Pipelines (cognate in IT)
-  'max {{n}}',  // #1425 PR C — same form in Italian (max + number)
-  'round robin',  // borrowed English term used as-is in Italian tech contexts
-  'Status', 'Tag', 'Tags', 'Online', 'Offline', 'Standard', 'Filament',
-  'Filaments', 'Software', 'Hardware', 'Stop', 'Reset', 'Test', 'Code',
-  'Token', 'Server', 'Port', 'Plate', 'Layer', 'Modal', 'Pin', 'Pro', 'Mini',
-  'Studio', 'Cache', 'Service', 'Avatar', 'Slicer', 'Action', 'Actions',
-  'Format', 'Modal', 'Login', 'Logout', 'Color', 'Plus', 'Job', 'Live',
-  'Position', 'Original', 'Material', 'Cluster', 'Tier', 'Auto', 'Hex',
-  'Bundle', 'Slicer Bundles', 'Imported', 'Smart Plugs', 'Smart Switches',
-  'Smart Plug', 'High Flow', 'Sport (124%)', 'Ludicrous (166%)',
-  'Standard (100%)', 'STARTTLS (Port 587)', 'SSL/TLS (Port 465)',
-  'Slot', 'Host', 'File', 'Cloud', 'Admin', 'Silk', '(Inv)', 'Slice',
-  'Backup', 'Legacy', 'Branch', 'Auto On', 'Display', 'Password',
-  'Auto Off', 'Dashboard', 'Timestamp', 'Pressure Advance', 'Provisioning...',
-  '(25%, 50%, 75%)', 'Provider', 'Provider: {{type}}', 'Base: {{name}}',
-  'Slicing…', 'Designer', 'Firmware', 'Timelapse', 'Commit', 'Budget',
-  '({{count}}/8)', 'Custom Headers (JSON)', 'ETA {{minutes}} min',
-  '{{name}} - Timelapse', 'Box label (62 × 29 mm)',
-  'Avery L7160 — A4 sheet (38.1 × 63.5 mm × 21)',
-  'Avery 5160 — US Letter sheet (25.4 × 66.7 mm × 30)',
-  'Hex: #{{hex}}',
-  'EC984C,#6CD4BC,A66EB9,D87694',
-  'Proxy', 'Designer',
-  'Off',  // cam-wall status overlay mode — common loanword in Italian UI
-  '{{filament}} @ {{temp}}°C',  // drying badge: filament code + universal °C
-];
-
-// Japanese: very few cognates because of script difference. Almost
-// everything needs translation. Only true loanwords / proper nouns stay.
-const JA_COGNATES = [
-  'OK', 'Bambu', 'Code',
-  'Bambu Cloud', 'Orca Cloud',  // brand names — same in every locale
-  'EU (DD/MM/YYYY)', 'US (MM/DD/YYYY)', 'ON, true, 1',
-  '({{count}}/8)', 'Custom Headers (JSON)',
-  'Box label (62 × 29 mm)',
-  'Avery L7160 — A4 sheet (38.1 × 63.5 mm × 21)',
-  'Avery 5160 — US Letter sheet (25.4 × 66.7 mm × 30)',
-  'EC984C,#6CD4BC,A66EB9,D87694',
-  '{{filament}} @ {{temp}}°C',  // drying badge: filament code + universal °C
-];
-
-// Portuguese (BR) cognates.
-const PT_BR_COGNATES = [
-  'Bambu Cloud', 'Orca Cloud',  // brand names — same in every locale
-  'AMS Filament Backup',  // Bambu Lab product/firmware feature name
-  'Pipeline', 'Pipelines',  // #1425 — Slicer Pipelines (PT-BR)
-  'round robin',  // borrowed English term used as-is in Portuguese tech contexts
-  'Status', 'Tag', 'Tags', 'Online', 'Offline', 'Standard', 'Filament',
-  'Software', 'Hardware', 'Stop', 'Reset', 'Test', 'Code', 'Token', 'Server',
-  'Port', 'Plate', 'Layer', 'Modal', 'Pin', 'Pro', 'Mini', 'Studio', 'Cache',
-  'Service', 'Avatar', 'Total', 'Active', 'Login', 'Logout', 'Color', 'Hex',
-  'Slot', 'Live', 'Rate', 'Host', 'Trend', 'Original', 'Auto', 'Bundle',
-  'Imported', 'Action', 'Actions', 'Slicer Bundles', 'Sport (124%)',
-  'Ludicrous (166%)', 'Standard (100%)', 'STARTTLS (Port 587)',
-  'SSL/TLS (Port 465)', 'Smart Plugs', 'Smart Switches', 'High Flow',
-  'Position', 'Mode', 'Setup', 'Modal',
-  'Local', 'Metal', 'China', 'Admin', 'Silk', 'Backup', '(Inv)', 'Branch',
-  'Normal', 'Material', 'Material:', 'Multicolor', 'Designer', 'Firmware',
-  'Timelapse', 'Est.', 'total', 'Commit', 'Global',
-  'Base: {{name}}', 'ETA {{minutes}} min', '{{count}} item',
-  '{{count}} downloads', '({{count}} item)', '(25%, 50%, 75%)',
-  '({{count}}/8)', 'Custom Headers (JSON)', '{{name}} - Timelapse',
-  'Box label (62 × 29 mm)',
-  'Avery L7160 — A4 sheet (38.1 × 63.5 mm × 21)',
-  'Avery 5160 — US Letter sheet (25.4 × 66.7 mm × 30)',
-  'Cancelling upload...', 'EC984C,#6CD4BC,A66EB9,D87694',
-  'Expand dispatch details', 'Collapse dispatch details',
-  'e.g., Home Assistant, OctoPrint', 'ntfy, Pushover, Discord, etc.',
-  'Proxy', 'total: {{minutes}} min',
-  '{{filament}} @ {{temp}}°C',  // drying badge: filament code + universal °C
-];
-
-// Chinese (Simplified): very few cognates beyond brand names.
-const ZH_CN_COGNATES = [
-  'OK', 'Bambu',
-  'Bambu Cloud', 'Orca Cloud',  // brand names — same in every locale
-  '({{count}}/8)', 'Custom Headers (JSON)',
-  'Box label (62 × 29 mm)',
-  'Avery L7160 — A4 sheet (38.1 × 63.5 mm × 21)',
-  'Avery 5160 — US Letter sheet (25.4 × 66.7 mm × 30)',
-  'EC984C,#6CD4BC,A66EB9,D87694',
-  '{{filament}} @ {{temp}}°C',  // drying badge: filament code + universal °C
-];
-
-const ZH_TW_COGNATES = [
-  'OK', 'Bambu',
-  'Bambu Cloud', 'Orca Cloud',  // brand names — same in every locale
-  '({{count}}/8)', 'Custom Headers (JSON)',
-  'Box label (62 × 29 mm)',
-  'Avery L7160 — A4 sheet (38.1 × 63.5 mm × 21)',
-  'Avery 5160 — US Letter sheet (25.4 × 66.7 mm × 30)',
-  'EC984C,#6CD4BC,A66EB9,D87694',
-  '{{filament}} @ {{temp}}°C',  // drying badge: filament code + universal °C
-];
-
-// Korean: script difference means almost nothing is identical.
-// Allow loanwords/acronyms, format strings, and proper nouns that stay verbatim.
-const KO_COGNATES = [
-  'OK', 'Bambu', 'N/A',
-  'Bambu Cloud', 'Orca Cloud',  // brand names — same in every locale
-  '({{count}}/8)', '(25%, 50%, 75%)',
-  'Custom Headers (JSON)',
-  'Box label (62 × 29 mm)',
-  'Avery L7160 — A4 sheet (38.1 × 63.5 mm × 21)',
-  'Avery 5160 — US Letter sheet (25.4 × 66.7 mm × 30)',
-  'EC984C,#6CD4BC,A66EB9,D87694',
-  '{{weight}}g',                                      // unit suffix format string
-  'MakerWorld: {{designer}}',                         // brand + placeholder
-  'email',                                            // OIDC claim name placeholder
-  '{{printer}}: {{error}}',                           // pure placeholders
-  '{{name}} — {{stage}} ({{percent}}%) — {{elapsed}}', // pure placeholders
-  'Obico ML API URL',                                 // product name (Obico)
-  '{{filament}} @ {{temp}}°C',                        // drying badge format
-];
-
-// Spanish cognates — words/phrases that are genuinely identical in Spanish.
-const ES_COGNATES = [
-  'Bambu Cloud', 'Orca Cloud',  // brand names — same in every locale
-  'AMS Filament Backup',  // Bambu Lab product/firmware feature name
-  'Pipeline', 'Pipelines',  // #1425 — Slicer Pipelines (ES)
-  'round robin',  // borrowed English term used as-is in Spanish tech contexts
-  'Error', 'Firmware', 'General', 'Control', 'Total', 'total', 'Material',
-  'Material:', 'Color', 'Hex', 'Local', 'Global', 'China', 'Editable',
-  'Normal', 'Metal', 'Multicolor', 'Proxy', 'Host', 'Factor', 'Original',
-  'Sport (124%)', 'Ludicrous (166%)', 'MakerWorld: {{designer}}',
-  '{{printer}}: {{error}}', 'Base: {{name}}',
-  '{{name}} — {{stage}} ({{percent}}%) — {{elapsed}}', 'total: {{minutes}} min',
-  '({{count}}/8)', 'Hex: #{{hex}}', '(25%, 50%, 75%)',
-  'EC984C,#6CD4BC,A66EB9,D87694', 'Est.',
-  'ntfy, Pushover, Discord, etc.',
-  'Box label (62 × 29 mm)',
-  'Avery L7160 — A4 sheet (38.1 × 63.5 mm × 21)',
-  'Avery 5160 — US Letter sheet (25.4 × 66.7 mm × 30)',
-  '{{filament}} @ {{temp}}°C',  // drying badge: filament code + universal °C
-];
-
-// Turkish cognates — technical UI labels that Turkish speakers use verbatim
-// from English (loanwords + acronyms + format strings). Curated, not a shortcut.
-const TR_COGNATES = [
-  'Filament', 'Firmware', 'Disk', 'Hex', 'Test', 'Port', 'Model', 'Metal',
-  'Bambu Cloud', 'Orca Cloud',  // brand names — same in every locale
-  'AMS Filament Backup',  // Bambu Lab product/firmware feature name
-  'Pipeline', 'Filament {{n}}',  // #1425 — Slicer Pipelines (TR)
-  'Min', 'Normal', 'Platform', 'Net', 'Trend', 'Commit', 'Global', 'Proxy',
-  'N/A', 'email',
-  'STARTTLS (Port 587)', 'SSL/TLS (Port 465)',
-  '({{count}}/8)', 'Hex: #{{hex}}', 'MakerWorld: {{designer}}',
-  '{{count}} filament', '{{printer}}: {{error}}', '{{weight}}g',
-  'Filament {{index}} ({{type}})',
-  'EC984C,#6CD4BC,A66EB9,D87694',
-  '{{filament}} @ {{temp}}°C',  // drying badge: filament code + universal °C
-];
-
-const IDENTICAL_TO_EN_ALLOWED = {
-  de: new Set(DE_COGNATES),
-  fr: new Set(FR_COGNATES),
-  it: new Set(IT_COGNATES),
-  ja: new Set(JA_COGNATES),
-  ko: new Set(KO_COGNATES),
-  es: new Set(ES_COGNATES),
-  'pt-BR': new Set(PT_BR_COGNATES),
-  'zh-CN': new Set(ZH_CN_COGNATES),
-  'zh-TW': new Set(ZH_TW_COGNATES),
-  tr: new Set(TR_COGNATES),
-};
+// Each locale has a finite exact-value cognate list. Translator notes live next
+// to these values in i18n-parity-data.json; unrelated English still fails.
+const IDENTICAL_TO_EN_ALLOWED = Object.fromEntries(
+  Object.entries(parityData.identicalToEnglishAllowed).map(([locale, values]) => [
+    locale, exactValueSet(values, `identicalToEnglishAllowed.${locale}`),
+  ]),
+);
 
 // Pure comparison logic, exported so tests can verify each failure mode
 // without going through file IO or the TypeScript parser.
@@ -757,6 +224,19 @@ export function compareLocales(locales) {
     const extra = [...keys].filter((k) => !enKeys.has(k)).sort();
     add(`${code}: missing keys vs en`, missing);
     add(`${code}: extra keys vs en`, extra);
+    if (locales.en.containerTypes && map.containerTypes) {
+      const shapeMismatches = [];
+      for (const [key, expected] of locales.en.containerTypes) {
+        const actual = map.containerTypes.get(key);
+        // Leaf parity already checks object keys. Arrays additionally require
+        // their ordered runtime shape, rather than a numeric-key object.
+        if (expected !== 'array' && actual !== 'array') continue;
+        if (actual !== expected) {
+          shapeMismatches.push(`${key || '<root>'}: expected ${expected}, got ${actual ?? 'missing'}`);
+        }
+      }
+      add(`${code}: container type mismatch vs en`, shapeMismatches);
+    }
   }
 
   // Check 2: placeholder set equality per leaf

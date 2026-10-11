@@ -94,7 +94,7 @@ function matchingVersions(layouts: LayoutSummary[], selected: LayoutSummary): La
   );
 }
 
-class PreviewBoundary extends Component<{ resetKey: string; children: ReactNode }, { error: Error | null }> {
+class PreviewBoundary extends Component<{ resetKey: string; failureMessage: string; children: ReactNode }, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
 
   static getDerivedStateFromError(error: Error) {
@@ -112,7 +112,7 @@ class PreviewBoundary extends Component<{ resetKey: string; children: ReactNode 
   render() {
     if (this.state.error) {
       return <div role="alert" className="flex min-h-[520px] items-center justify-center rounded-xl border border-red-500/40 bg-bambu-dark-secondary p-6 text-center text-sm text-red-300">
-        PDF preview failed. Your layout draft is still available in the controls.
+        {this.props.failureMessage}
       </div>;
     }
     return this.props.children;
@@ -120,7 +120,8 @@ class PreviewBoundary extends Component<{ resetKey: string; children: ReactNode 
 }
 
 function LoadingState() {
-  return <div className="flex min-h-64 items-center justify-center rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary"><LoaderCircle className="h-6 w-6 animate-spin text-bambu-green" aria-label="Loading" /></div>;
+  const { t } = useTranslation();
+  return <div className="flex min-h-64 items-center justify-center rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary"><LoaderCircle className="h-6 w-6 animate-spin text-bambu-green" aria-label={t('orders.runtimeDomain.documentLayoutExtras.loading')} /></div>;
 }
 
 export function DocumentLayoutSettings() {
@@ -339,7 +340,7 @@ export function DocumentLayoutSettings() {
       documentType={documentType}
       documentTypes={(catalog?.document_types ?? []).map((type) => ({ value: type, label: t(`settings.documents.documentTypes.${type}`, type) }))}
       language={language}
-      languages={(catalog?.languages ?? ['de', 'en']).map((item) => ({ value: item, label: item === 'de' ? 'Deutsch' : 'English' }))}
+      languages={(catalog?.languages ?? ['de', 'en']).map((item) => ({ value: item, label: t(`orders.runtimeDomain.documentLanguageNames.${item === 'de' ? 'de' : 'en'}`) }))}
       source={source}
       sources={sourceOptions}
       canReadCommercialDocuments={canReadCommercialDocuments}
@@ -353,11 +354,11 @@ export function DocumentLayoutSettings() {
     {!canManage ? <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-sm text-blue-200"><strong>{t('settings.documentLayout.access.readOnly', 'Read only')}</strong> - {t('settings.documentLayout.access.readOnlyHint', 'Layouts and previews can be inspected. Changes and publication require management permission.')}</div> : null}
 
     {!detail && selectedLayout ? <LoadingState /> : !detail ? <section className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-5">
-      <h2 className="font-semibold text-white">No layout exists for this context</h2>
-      <p className="mt-1 text-sm text-bambu-gray">Create a versioned draft from the selected base template.</p>
+      <h2 className="font-semibold text-white">{t('orders.runtimeDomain.documentLayoutExtras.noLayout')}</h2>
+      <p className="mt-1 text-sm text-bambu-gray">{t('orders.runtimeDomain.documentLayoutExtras.createHint')}</p>
       {canManage ? <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-        <TextField className="min-h-11 flex-1" value={createReason} placeholder="Reason for creating the draft" aria-label="Reason for creating the draft" onValueChange={setCreateReason} />
-        <Button loading={actionBusy} disabled={createReason.trim().length < 3 || !businessProfileId || !documentType} onClick={() => void runAction(() => documentLayoutsApi.createLayout({ scope: { business_profile_id: businessProfileId!, document_type: documentType, language }, template_key: 'classic', reason: createReason.trim() }))}><FilePlus2 className="h-4 w-4" />Create draft</Button>
+        <TextField className="min-h-11 flex-1" value={createReason} placeholder={t('orders.runtimeDomain.documentLayoutExtras.createReason')} aria-label={t('orders.runtimeDomain.documentLayoutExtras.createReason')} onValueChange={setCreateReason} />
+        <Button loading={actionBusy} disabled={createReason.trim().length < 3 || !businessProfileId || !documentType} onClick={() => void runAction(() => documentLayoutsApi.createLayout({ scope: { business_profile_id: businessProfileId!, document_type: documentType, language }, template_key: 'classic', reason: createReason.trim() }))}><FilePlus2 className="h-4 w-4" />{t('orders.runtimeDomain.documentLayoutExtras.createDraft')}</Button>
       </div> : null}
     </section> : <>
       <LayoutLifecycleBar
@@ -380,7 +381,7 @@ export function DocumentLayoutSettings() {
 
       <main className="grid min-w-0 gap-4 min-[900px]:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
         <div className="min-w-0 min-[900px]:min-w-[680px]">
-          <PreviewBoundary resetKey={previewKey}>
+          <PreviewBoundary resetKey={previewKey} failureMessage={t('orders.runtimeDomain.documentLayoutExtras.previewFailed')}>
             <Suspense fallback={<LoadingState />}>
               <PdfPreviewPane
                 layoutId={detail.summary.id}

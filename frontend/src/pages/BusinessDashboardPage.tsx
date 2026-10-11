@@ -47,10 +47,11 @@ import { Select } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { formatMoney } from '../utils/calculationFormatting';
+import i18n from '../i18n';
+import { dashboardEnergySource, dashboardPaymentMethod, dashboardText, dateRangeOptions, isDateRangeValue, type DateRangeValue } from '../utils/businessDashboardDisplay';
 
 type DashboardTab = 'overview' | 'revenue' | 'margin' | 'inventory' | 'energy';
 type Tone = 'green' | 'blue' | 'amber' | 'red' | 'violet' | 'cyan' | 'neutral';
-type DateRangeValue = '7' | '30' | '90' | '365';
 
 type CostSlice = {
   label: string;
@@ -119,25 +120,15 @@ type DashboardProcurementResource = {
 };
 
 const tabs: Array<{ value: DashboardTab; label: string; icon: LucideIcon }> = [
-  { value: 'overview', label: 'Übersicht', icon: BarChart3 },
-  { value: 'revenue', label: 'Einnahmen', icon: Receipt },
-  { value: 'margin', label: 'Kosten & Marge', icon: CircleDollarSign },
-  { value: 'inventory', label: 'Lager & Verbrauch', icon: Warehouse },
-  { value: 'energy', label: 'Energie', icon: Zap },
-];
-
-const dateRangeOptions: Array<{ value: DateRangeValue; days: number; label: string }> = [
-  { value: '7', days: 7, label: 'letzte 7 Tage' },
-  { value: '30', days: 30, label: 'letzte 30 Tage' },
-  { value: '90', days: 90, label: 'letzte 90 Tage' },
-  { value: '365', days: 365, label: 'letzte 12 Monate' },
+  { value: 'overview', get label() { return dashboardText('overview'); }, icon: BarChart3 },
+  { value: 'revenue', get label() { return dashboardText('revenue'); }, icon: Receipt },
+  { value: 'margin', get label() { return dashboardText('costsMargin'); }, icon: CircleDollarSign },
+  { value: 'inventory', get label() { return dashboardText('inventoryUsage'); }, icon: Warehouse },
+  { value: 'energy', get label() { return dashboardText('energy'); }, icon: Zap },
 ];
 
 const isDashboardTab = (value: string | null): value is DashboardTab =>
   tabs.some((tab) => tab.value === value);
-
-const isDateRangeValue = (value: string | null): value is DateRangeValue =>
-  dateRangeOptions.some((option) => option.value === value);
 
 const surface = {
   panel: 'rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4 shadow-sm',
@@ -168,10 +159,10 @@ const materialKey = (value: string | null | undefined) => (value ?? '').trim().t
 const spoolRemainingGrams = (spool: InventorySpool) => Math.max(0, spool.label_weight - spool.weight_used);
 
 const spoolMaterialLabel = (spool: InventorySpool) =>
-  [spool.material, spool.subtype].filter(Boolean).join(' ') || 'Unbekannt';
+  [spool.material, spool.subtype].filter(Boolean).join(' ') || dashboardText('unknown');
 
 const spoolItemLabel = (spool: InventorySpool) =>
-  [spool.material, spool.subtype, spool.color_name].filter(Boolean).join(' ') || `Spule #${spool.id}`;
+  [spool.material, spool.subtype, spool.color_name].filter(Boolean).join(' ') || dashboardText('spoolValue', { value1: spool.id });
 
 function spoolProcurementResource(spool: InventorySpool): DashboardProcurementResource {
   const resource: SpoolProcurementResource = {
@@ -209,7 +200,7 @@ function preferredProcurementOffer(offers: ProcurementOffer[]) {
 
 function compactMaterialList(values: string[]) {
   const unique = Array.from(new Set(values.filter(Boolean)));
-  if (unique.length === 0) return 'nicht zugeordnet';
+  if (unique.length === 0) return dashboardText('notAssigned');
   if (unique.length <= 2) return unique.join(', ');
   return `${unique.slice(0, 2).join(', ')} +${unique.length - 2}`;
 }
@@ -288,7 +279,7 @@ const readRevisionText = (snapshot: Record<string, unknown> | undefined, key: st
   return typeof value === 'string' && value.trim() ? value : '';
 };
 
-const displayCustomer = (customerId: number | null | undefined) => (customerId ? `Kunde #${customerId}` : 'Ohne Kunde');
+const displayCustomer = (customerId: number | null | undefined) => (customerId ? dashboardText('customerValue', { value1: customerId }) : dashboardText('noCustomer'));
 
 const formatPercent = (value: number, locale: string) =>
   `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value)} %`;
@@ -309,7 +300,7 @@ const formatMaterialRemaining = (item: MaterialUsage, locale: string) =>
 
 const materialUsageProgressLabel = (item: MaterialUsage, locale: string) =>
   item.kind === 'filament'
-    ? `${item.label} · ${item.days} Tage`
+    ? dashboardText('daysValue', { value1: item.label, value2: item.days })
     : `${item.label} · ${formatMaterialRemaining(item, locale)}`;
 
 function createMetricTrend(
@@ -320,13 +311,13 @@ function createMetricTrend(
 ): MetricTrend {
   const delta = current - previous;
   if (Math.abs(delta) < 0.005) {
-    return { label: 'unverändert vs vorher', direction: 'flat', positive: true };
+    return { label: dashboardText('unchangedFromPreviousPeriod'), direction: 'flat', positive: true };
   }
   const direction = delta > 0 ? 'up' : 'down';
   const positive = higherIsPositive ? delta > 0 : delta < 0;
   const sign = delta > 0 ? '+' : '-';
   return {
-    label: `${sign}${formatter(Math.abs(delta))} vs vorher`,
+    label: dashboardText('fromPreviousPeriodValue', { value1: sign, value2: formatter(Math.abs(delta)) }),
     direction,
     positive,
   };
@@ -407,6 +398,7 @@ function createTrend(
   rangeStart: Date,
   rangeEnd: Date,
   currency: string,
+  locale: string,
 ): TrendPoint[] {
   const bucketCount = 7;
   const rangeMs = Math.max(rangeEnd.getTime() - rangeStart.getTime(), 86400000);
@@ -416,8 +408,8 @@ function createTrend(
     const bucketDate = new Date(rangeStart.getTime() + bucketMs * index + bucketMs / 2);
     return {
       label: useDailyLabels
-        ? new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit' }).format(bucketDate)
-        : `KW ${getIsoWeek(bucketDate)}`,
+        ? new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit' }).format(bucketDate)
+        : dashboardText('weekValue', { value1: getIsoWeek(bucketDate) }),
       revenue: 0,
       costs: 0,
       energy: 0,
@@ -511,6 +503,7 @@ function createRevenueRows(
   documents: CommercialDocument[],
   today: Date,
   currency: string,
+  locale: string,
 ): RevenueRow[] {
   const documentRows = documents
     .filter(isPaymentDocument)
@@ -521,7 +514,7 @@ function createRevenueRows(
       const overdue = openAmount > 0 && dueDate !== null && dueDate.getTime() < today.getTime();
       const documentFilter = openAmount > 0 ? 'open' : 'paid';
       return {
-        number: document.number ?? `Dokument #${document.id}`,
+        number: document.number ?? dashboardText('documentValue', { value1: document.id }),
         customer: displayCustomer(document.customer_id),
         status: overdue ? 'overdue' as const : document.payment_status === 'paid' || document.payment_status === 'overpaid'
           ? 'paid' as const
@@ -543,7 +536,7 @@ function createRevenueRows(
       customer: displayCustomer(order.customer_id),
       status: order.status === 'completed' ? 'completed' as const : 'active' as const,
       amount: readAcceptedRevisionValue(order, 'selling_price'),
-      due: new Date(order.updated_at || order.created_at).toLocaleDateString('de-DE'),
+      due: new Date(order.updated_at || order.created_at).toLocaleDateString(locale),
       to: `/orders/${order.id}`,
     }));
   const offerRows = offers
@@ -554,7 +547,7 @@ function createRevenueRows(
       customer: displayCustomer(offer.customer_id),
       status: 'offer' as const,
       amount: readRevisionValue(offer, 'selling_price'),
-      due: new Date(offer.updated_at || offer.created_at).toLocaleDateString('de-DE'),
+      due: new Date(offer.updated_at || offer.created_at).toLocaleDateString(locale),
       to: '/orders/offers',
     }));
   return [...documentRows, ...orderRows, ...offerRows]
@@ -584,7 +577,7 @@ function deriveMaterialUsage(spools: InventorySpool[], smallParts: SmallPart[]):
     const physical = asNumber(part.balance.physical);
     const unitCost = asNumber(part.unit_cost);
     grouped.set(`material-${part.id}`, {
-      label: part.name || part.sku || `Material #${part.id}`,
+      label: part.name || part.sku || dashboardText('materialValue', { value1: part.id }),
       kind: 'small_part',
       grams: 0,
       value: physical * unitCost,
@@ -805,10 +798,10 @@ function FinanceTrendChart({
               <ChartTooltip
                 title={item.label}
                 lines={[
-                  { label: 'Auftragswert', value: formatMoney(item.revenue, locale, currency) },
-                  { label: 'Kosten', value: formatMoney(item.costs, locale, currency) },
-                  { label: 'Energie', value: formatMoney(item.energy, locale, currency) },
-                  { label: 'Marge', value: formatPercent(item.margin, locale) },
+                  { label: dashboardText('orderValue'), value: formatMoney(item.revenue, locale, currency) },
+                  { label: dashboardText('costs'), value: formatMoney(item.costs, locale, currency) },
+                  { label: dashboardText('energy'), value: formatMoney(item.energy, locale, currency) },
+                  { label: dashboardText('margin'), value: formatPercent(item.margin, locale) },
                 ]}
                 className="flex h-[178px] w-full max-w-[48px] items-end"
               >
@@ -827,7 +820,7 @@ function FinanceTrendChart({
         <polyline points={points} fill="none" stroke="#00a14a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       </svg>
       <div className="absolute bottom-0 left-0 text-xs text-bambu-gray">
-        grün = Auftragswert, orange = Kosten, blau = Energie, Linie = Marge
+        {dashboardText('greenOrderValueOrangeCostsBlueEnergyLineMargin')}
       </div>
     </div>
   );
@@ -877,7 +870,7 @@ function Donut({
           })}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <span className="text-xs text-bambu-gray">Kosten</span>
+          <span className="text-xs text-bambu-gray">{dashboardText('costs')}</span>
           <strong className="text-sm text-white">{center}</strong>
         </div>
       </div>
@@ -887,8 +880,8 @@ function Donut({
             key={slice.label}
             title={slice.label}
             lines={[
-              { label: 'Wert', value: formatValue(slice.value) },
-              { label: 'Anteil', value: `${Math.round((slice.value / total) * 100)}%` },
+              { label: dashboardText('value'), value: formatValue(slice.value) },
+              { label: dashboardText('share'), value: `${Math.round((slice.value / total) * 100)}%` },
             ]}
             className={`grid w-full grid-cols-[minmax(0,1fr)_32px] items-center gap-2 ${rowText}`}
           >
@@ -916,8 +909,8 @@ function PipelineChart({ stages, currency, locale }: { stages: PipelineStage[]; 
             <ChartTooltip
               title={stage.label}
               lines={[
-                { label: 'Wert', value: formatMoney(stage.value, locale, currency) },
-                { label: 'Anteil max.', value: `${Math.round((stage.value / max) * 100)}%` },
+                { label: dashboardText('value'), value: formatMoney(stage.value, locale, currency) },
+                { label: dashboardText('shareOfMaximum'), value: `${Math.round((stage.value / max) * 100)}%` },
               ]}
               className="mx-auto h-full w-full max-w-[54px] items-end"
             >
@@ -956,8 +949,8 @@ function ProgressRow({
       <ChartTooltip
         title={label}
         lines={[
-          { label: 'Wert', value: suffix },
-          { label: 'Anteil', value: `${Math.round((value / Math.max(max, 1)) * 100)}%` },
+          { label: dashboardText('value'), value: suffix },
+          { label: dashboardText('share'), value: `${Math.round((value / Math.max(max, 1)) * 100)}%` },
         ]}
         className="block w-full"
       >
@@ -984,7 +977,7 @@ function EnergyHeatmap({
   locale: string;
   currency: string;
 }) {
-  const days = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+  const days = [dashboardText('mon'), dashboardText('tue'), dashboardText('wed'), dashboardText('thu'), dashboardText('fri'), dashboardText('sat'), dashboardText('sun')];
   const hours = Array.from({ length: 24 }, (_, index) => index);
   const cells = new Map<string, { kwh: number; cost: number; runs: number; source: string }>();
   const measuredKwh = archiveEvents.reduce((sum, event) => sum + asNumber(event.energy_kwh), 0);
@@ -996,7 +989,7 @@ function EnergyHeatmap({
       const dayIndex = (date.getDay() + 6) % 7;
       const hour = date.getHours();
       const key = `${dayIndex}-${hour}`;
-      const current = cells.get(key) ?? { kwh: 0, cost: 0, runs: 0, source: 'Smart-Plug History' };
+      const current = cells.get(key) ?? { kwh: 0, cost: 0, runs: 0, source: dashboardText('smartPlugHistory') };
       current.kwh += asNumber(point.energy_kwh);
       current.cost += asNumber(point.energy_cost);
       current.runs += Math.max(asNumber(point.sample_count), 1);
@@ -1016,7 +1009,7 @@ function EnergyHeatmap({
           ? (totalKwh * weight) / totalWeight
           : 0;
       const cost = totalKwh > 0 ? (totalCost * kwh) / totalKwh : 0;
-      const current = cells.get(key) ?? { kwh: 0, cost: 0, runs: 0, source: measuredKwh > 0 ? 'Print-Log' : 'Zeitanteil aus Zeitraumssumme' };
+      const current = cells.get(key) ?? { kwh: 0, cost: 0, runs: 0, source: measuredKwh > 0 ? dashboardText('printLog') : dashboardText('timeShareOfPeriodTotal') };
       current.kwh += kwh;
       current.cost += cost;
       current.runs += 1;
@@ -1034,7 +1027,7 @@ function EnergyHeatmap({
           kwh: kwhPerSlot,
           cost: costPerSlot,
           runs: 1,
-          source: 'Zeitraumssumme verteilt',
+          source: dashboardText('distributedPeriodTotal'),
         });
       });
     });
@@ -1048,17 +1041,17 @@ function EnergyHeatmap({
             <div key={day} className="contents">
               <span className="text-xs text-bambu-gray">{day}</span>
               {hours.map((hour) => {
-                const cell = cells.get(`${days.indexOf(day)}-${hour}`) ?? { kwh: 0, cost: 0, runs: 0, source: 'keine Daten' };
+                const cell = cells.get(`${days.indexOf(day)}-${hour}`) ?? { kwh: 0, cost: 0, runs: 0, source: dashboardText('noData') };
                 const value = cell.kwh > 0 ? clamp((cell.kwh / maxKwh) * 100, 12, 100) : 0;
                 return (
                   <ChartTooltip
                     key={`${day}-${hour}`}
                     title={`${day} ${hour}:00`}
                     lines={[
-                      { label: 'Verbrauch', value: formatKwh(cell.kwh, locale) },
-                      { label: 'Kosten', value: formatMoney(cell.cost, locale, currency) },
-                      { label: 'Samples/Drucke', value: String(cell.runs) },
-                      { label: 'Quelle', value: cell.source },
+                      { label: dashboardText('usage'), value: formatKwh(cell.kwh, locale) },
+                      { label: dashboardText('costs'), value: formatMoney(cell.cost, locale, currency) },
+                      { label: dashboardText('samplesPrints'), value: String(cell.runs) },
+                      { label: dashboardText('source'), value: cell.source },
                     ]}
                     className="block"
                   >
@@ -1084,14 +1077,14 @@ function EnergyHeatmap({
 
 function RevenueStatus({ status }: { status: RevenueRow['status'] }) {
   const labels = {
-    paid: 'Bezahlt',
-    partially_paid: 'Teilbezahlt',
-    unpaid: 'Offen',
-    overdue: 'Überfällig',
-    completed: 'Abgeschlossen',
-    active: 'Aktiver Auftrag',
-    offer: 'Angebot',
-    missing_payment_source: 'Zahlungsquelle fehlt',
+    paid: dashboardText('paid'),
+    partially_paid: dashboardText('partiallyPaid'),
+    unpaid: dashboardText('open'),
+    overdue: dashboardText('overdue'),
+    completed: dashboardText('completed'),
+    active: dashboardText('activeOrder'),
+    offer: dashboardText('offer'),
+    missing_payment_source: dashboardText('paymentSourceMissing'),
   };
   const tones = {
     paid: 'text-[#35c46f]',
@@ -1202,7 +1195,7 @@ function CompactTable({
       const rightNumber = sortableNumber(rightText);
       const comparison = leftNumber !== null && rightNumber !== null
         ? leftNumber - rightNumber
-        : leftText.localeCompare(rightText, 'de', { numeric: true, sensitivity: 'base' });
+        : leftText.localeCompare(rightText, i18n.language, { numeric: true, sensitivity: 'base' });
       return sort.direction === 'asc' ? comparison : -comparison;
     });
   }, [rows, sort]);
@@ -1289,7 +1282,7 @@ function Overview({
 }) {
   const materialMax = Math.max(...materialUsage.map((item) => item.remaining), 1);
   const pipelineTotal = pipelineStages.reduce((sum, stage) => sum + stage.value, 0);
-  const completedStage = pipelineStages.find((stage) => stage.label === 'Abgeschlossen')?.value ?? 0;
+  const completedStage = pipelineStages.find((stage) => stage.label === dashboardText('completed'))?.value ?? 0;
   const revenueRowsForTable = revenueRows.slice(0, 4).map((row) => [
     <EntityLink to={row.to}>{row.number}</EntityLink>,
     row.customer,
@@ -1300,14 +1293,14 @@ function Overview({
   return (
     <div className="mt-5 space-y-5">
       <div className="grid gap-5 xl:grid-cols-[1.12fr_1.18fr_1fr]">
-        <Panel icon={BarChart3} title="Finanztrend mit Kosten, Energie und Marge" subtitle="Auftragswerte, Kosten und Energiekosten aus vorhandenen Quellen">
+        <Panel icon={BarChart3} title={dashboardText('financialTrendWithCostsEnergyAndMargin')} subtitle={dashboardText('orderValuesCostsAndEnergyCostsFromAvailableSources')}>
           <FinanceTrendChart data={trend} currency={currency} locale={locale} />
         </Panel>
 
-        <Panel icon={Zap} title="Energie & Stromkosten" subtitle="Smart-Plug / Print-Log Quelle mit Hinweis, falls Daten fehlen">
+        <Panel icon={Zap} title={dashboardText('energyElectricityCosts')} subtitle={dashboardText('smartPlugPrintLogSourceWithANoticeWhenDataIsMissing')}>
           <div className="mb-4 grid grid-cols-3 gap-3">
-            <MiniMetric icon={Zap} label="Verbrauch" value={formatKwh(stats?.total_energy_kwh ?? 0, locale)} tone="cyan" />
-            <MiniMetric icon={CircleDollarSign} label="Kosten" value={formatMoney(stats?.total_energy_cost ?? 0, locale, currency)} tone="amber" />
+            <MiniMetric icon={Zap} label={dashboardText('usage')} value={formatKwh(stats?.total_energy_kwh ?? 0, locale)} tone="cyan" />
+            <MiniMetric icon={CircleDollarSign} label={dashboardText('costs')} value={formatMoney(stats?.total_energy_cost ?? 0, locale, currency)} tone="amber" />
             <MiniMetric icon={BatteryCharging} label="kWh/h" value={energyPerHour.toFixed(2)} tone="green" />
           </div>
           <div className="grid gap-4 min-[1500px]:grid-cols-[1.05fr_1fr]">
@@ -1316,27 +1309,27 @@ function Overview({
               center={String(Math.round(stats?.total_energy_kwh ?? 0))}
               valueFormatter={(value) => formatKwh(value, locale)}
               slices={(stats?.total_energy_kwh ?? 0) > 0
-                ? [{ label: stats?.energy_source ?? 'Archiv', value: stats?.total_energy_kwh ?? 0, color: '#21b7cf' }]
+                ? [{ label: dashboardEnergySource(stats?.energy_source, dashboardText('archive')), value: stats?.total_energy_kwh ?? 0, color: '#21b7cf' }]
                 : []}
             />
             <div className={`${surface.panelQuiet} text-sm`}>
-              <strong className="block text-white">Energie-Signale</strong>
-              <p className="mt-3 text-bambu-gray">Zeitraum: {formatKwh(stats?.total_energy_kwh ?? 0, locale)}</p>
-              <p className="mt-2 text-bambu-gray">Kosten: {formatMoney(stats?.total_energy_cost ?? 0, locale, currency)}</p>
-              <p className="mt-2 text-bambu-gray">Quelle: {stats?.energy_source ?? 'Archivstatistik'}</p>
+              <strong className="block text-white">{dashboardText('energySignals')}</strong>
+              <p className="mt-3 text-bambu-gray">{dashboardText('period')} {formatKwh(stats?.total_energy_kwh ?? 0, locale)}</p>
+              <p className="mt-2 text-bambu-gray">{dashboardText('costs2')} {formatMoney(stats?.total_energy_cost ?? 0, locale, currency)}</p>
+              <p className="mt-2 text-bambu-gray">{dashboardText('source2')} {dashboardEnergySource(stats?.energy_source, dashboardText('archiveStatistics'))}</p>
             </div>
           </div>
         </Panel>
 
-        <Panel icon={TrendingUp} title="Pipeline ohne Einnahmen-Verwechslung" subtitle="Angebote, aktive Aufträge und abgeschlossene Aufträge getrennt">
+        <Panel icon={TrendingUp} title={dashboardText('pipelineSeparateFromReceivedRevenue')} subtitle={dashboardText('offersActiveOrdersAndCompletedOrdersShownSeparately')}>
           <PipelineChart stages={pipelineStages} currency={currency} locale={locale} />
           <div className={`${surface.panelQuiet} text-sm`}>
             <div className="flex items-center justify-between gap-3">
-              <strong className="text-white">Erwarteter Umsatz</strong>
+              <strong className="text-white">{dashboardText('expectedRevenue')}</strong>
               <span className="text-bambu-gray">{formatMoney(pipelineTotal, locale, currency)}</span>
             </div>
             <div className="mt-2 flex items-center justify-between gap-3 text-bambu-gray">
-              <span>davon abgeschlossen</span>
+              <span>{dashboardText('ofWhichCompleted')}</span>
               <span>{formatMoney(completedStage, locale, currency)}</span>
             </div>
           </div>
@@ -1344,19 +1337,19 @@ function Overview({
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr_0.9fr]">
-        <Panel icon={Lightbulb} title="Prioritäten" subtitle="Nächste Schritte aus Einnahmen, Marge, Lager und Energie">
-          <CompactTable columns={['Bereich', 'Signal', 'Wert', 'Aktion']} rows={priorityRows} />
+        <Panel icon={Lightbulb} title={dashboardText('priorities')} subtitle={dashboardText('nextStepsForRevenueMarginInventoryAndEnergy')}>
+          <CompactTable columns={[dashboardText('area'), dashboardText('signal'), dashboardText('value'), dashboardText('action')]} rows={priorityRows} />
         </Panel>
-        <Panel icon={TrendingUp} title="30-Tage-Vorschau" subtitle="Hochrechnung aus dem gewählten Zeitraum">
-          <CompactTable columns={['Kennzahl', '30 Tage', 'Basis', 'Nächster Schritt']} rows={forecastRows} />
+        <Panel icon={TrendingUp} title={dashboardText('label30DayForecast')} subtitle={dashboardText('projectionFromTheSelectedPeriod')}>
+          <CompactTable columns={[dashboardText('metric'), dashboardText('label30Days'), dashboardText('basis'), dashboardText('nextStep')]} rows={forecastRows} />
         </Panel>
-        <Panel icon={Gauge} title="Datenqualität" subtitle="Welche Datenbasis aktuell belastbar ist">
-          <CompactTable columns={['Quelle', 'Abdeckung', 'Auswirkung', 'Nächster Schritt']} rows={dataQualityRows} />
+        <Panel icon={Gauge} title={dashboardText('dataQuality')} subtitle={dashboardText('whichDataIsCurrentlyReliable')}>
+          <CompactTable columns={[dashboardText('source'), dashboardText('coverage'), dashboardText('impact'), dashboardText('nextStep')]} rows={dataQualityRows} />
         </Panel>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-4">
-        <Panel icon={Receipt} title="Umsatz kompakt" subtitle="Echte Auftrags- und Angebotswerte">
+        <Panel icon={Receipt} title={dashboardText('revenueSummary')} subtitle={dashboardText('actualOrderAndOfferValues')}>
           {revenueRows.length > 0 ? (
             <>
               <div className="flex h-24 items-end gap-3 border-b border-bambu-dark-tertiary pb-1">
@@ -1365,9 +1358,9 @@ function Overview({
                     key={row.number}
                     title={row.number}
                     lines={[
-                      { label: 'Kunde', value: row.customer },
-                      { label: 'Status', value: textFromNode(<RevenueStatus status={row.status} />) },
-                      { label: 'Betrag', value: formatMoney(row.amount, locale, currency) },
+                      { label: dashboardText('customer'), value: row.customer },
+                      { label: dashboardText('status'), value: textFromNode(<RevenueStatus status={row.status} />) },
+                      { label: dashboardText('amount'), value: formatMoney(row.amount, locale, currency) },
                     ]}
                     className="h-full flex-1 items-end"
                   >
@@ -1379,17 +1372,17 @@ function Overview({
                 ))}
               </div>
               <p className="mt-8 text-xs text-bambu-gray">
-                Bezahlt {formatMoney(revenueRows.filter((row) => row.status === 'paid').reduce((sum, row) => sum + row.amount, 0), locale, currency)} · offen {formatMoney(revenueRows.filter((row) => row.status === 'unpaid' || row.status === 'partially_paid' || row.status === 'overdue').reduce((sum, row) => sum + row.amount, 0), locale, currency)}
+                {dashboardText('paid')} {formatMoney(revenueRows.filter((row) => row.status === 'paid').reduce((sum, row) => sum + row.amount, 0), locale, currency)} {dashboardText('open2')} {formatMoney(revenueRows.filter((row) => row.status === 'unpaid' || row.status === 'partially_paid' || row.status === 'overdue').reduce((sum, row) => sum + row.amount, 0), locale, currency)}
               </p>
             </>
-          ) : <EmptyState label="Noch keine Angebots- oder Auftragswerte vorhanden." />}
+          ) : <EmptyState label={dashboardText('noOfferOrOrderValuesYet')} />}
         </Panel>
 
-        <Panel icon={CircleDollarSign} title="Kosten & Marge kompakt" subtitle="Kostenarten inkl. Energie">
-          <Donut size="small" slices={costSlices} center="Kosten" valueFormatter={(value) => formatMoney(value, locale, currency)} />
+        <Panel icon={CircleDollarSign} title={dashboardText('costsMarginSummary')} subtitle={dashboardText('costCategoriesIncludingEnergy')}>
+          <Donut size="small" slices={costSlices} center={dashboardText('costs')} valueFormatter={(value) => formatMoney(value, locale, currency)} />
         </Panel>
 
-        <Panel icon={Warehouse} title="Lager & Verbrauch kompakt" subtitle="Wert, Reservierung, Reichweite">
+        <Panel icon={Warehouse} title={dashboardText('inventoryUsageSummary')} subtitle={dashboardText('valueReservationsAndStockCoverage')}>
           {materialUsage.length > 0 ? (
             <div className="space-y-4">
               {materialUsage.slice(0, 4).map((item, index) => (
@@ -1403,13 +1396,13 @@ function Overview({
                 />
               ))}
             </div>
-          ) : <EmptyState label="Keine aktiven Lagerartikel gefunden." />}
+          ) : <EmptyState label={dashboardText('noActiveInventoryItemsFound')} />}
           <p className="mt-5 text-xs text-bambu-gray">
-            Lagerwert {formatMoney(stockValue, locale, currency)} · reserviert {formatMoney(reservedValue, locale, currency)}
+            {dashboardText('inventoryValue')} {formatMoney(stockValue, locale, currency)} {dashboardText('reserved')} {formatMoney(reservedValue, locale, currency)}
           </p>
         </Panel>
 
-        <Panel icon={BatteryCharging} title="Energieprofil kompakt" subtitle="Stundenmuster aus Print-Logs oder zeitanteilig aus Zeitraumssumme">
+        <Panel icon={BatteryCharging} title={dashboardText('energyProfileSummary')} subtitle={dashboardText('hourlyPatternsFromPrintLogsOrTimeSharesOfThePeriodTotal')}>
           <EnergyHeatmap
             archiveEvents={archiveEvents}
             energyHistory={energyHistory}
@@ -1422,21 +1415,21 @@ function Overview({
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_1fr_1fr]">
-        <Panel icon={Receipt} title="Aufträge und Angebote">
-          <CompactTable columns={['Beleg', 'Kunde', 'Status', 'Betrag']} rows={revenueRowsForTable} />
+        <Panel icon={Receipt} title={dashboardText('ordersAndOffers')}>
+          <CompactTable columns={[dashboardText('document'), dashboardText('customer'), dashboardText('status'), dashboardText('amount')]} rows={revenueRowsForTable} />
         </Panel>
-        <Panel icon={ClipboardList} title="Aufträge nach Marge">
+        <Panel icon={ClipboardList} title={dashboardText('ordersByMargin')}>
           {orderMarginRows.length > 0 ? (
             <CompactTable
-              columns={['Auftrag', 'Umsatz / Titel', 'Kosten', 'Marge', 'Signal']}
+              columns={[dashboardText('order'), dashboardText('revenueTitle'), dashboardText('costs'), dashboardText('margin'), dashboardText('signal')]}
               rows={orderMarginRows}
             />
-          ) : <EmptyState label="Noch keine kalkulierten Aufträge vorhanden." />}
+          ) : <EmptyState label={dashboardText('noCalculatedOrdersYet')} />}
         </Panel>
-        <Panel icon={AlertTriangle} title="Lager-Risiken">
+        <Panel icon={AlertTriangle} title={dashboardText('inventoryRisks')}>
           {riskRows.length > 0 ? (
-            <CompactTable columns={['Ressource', 'Bestand', 'Ort / Quelle', 'Signal']} rows={riskRows} />
-          ) : <EmptyState label="Keine kritischen Lagersignale im aktuellen Zeitraum." />}
+            <CompactTable columns={[dashboardText('resource'), dashboardText('stock'), dashboardText('locationSource'), dashboardText('signal')]} rows={riskRows} />
+          ) : <EmptyState label={dashboardText('noCriticalInventorySignalsInTheCurrentPeriod')} />}
         </Panel>
       </div>
     </div>
@@ -1700,7 +1693,7 @@ export function BusinessDashboardPage() {
     const paymentDocuments = documents
       .filter(isPaymentDocument)
       .filter((document) => hasDisplayCurrency(document.currency, currencyCode));
-    const revenueRows = createRevenueRows(periodOrders, periodOffers, periodDocuments, today, currencyCode);
+    const revenueRows = createRevenueRows(periodOrders, periodOffers, periodDocuments, today, currencyCode, locale);
     const paymentEffectiveRevenue = paymentDocuments.reduce(
       (sum, document) => sum + document.payments
         .filter((payment) => isInDateRange(payment.paid_at, rangeStart, rangeEnd))
@@ -1730,25 +1723,25 @@ export function BusinessDashboardPage() {
           <EntityLink to={`/orders/${order.id}`}>{order.number}</EntityLink>,
           reservation.material_code ?? reservation.resource_kind,
           `${reservation.requested_quantity} ${reservation.unit_code}`,
-          value > 0 ? formatMoney(value, locale, currencyCode) : <span className="text-bambu-gray">nicht bewertbar</span>,
-          reservation.status === 'fulfilled' || reservation.status === 'allocated' ? 'OK' : <span className="text-amber-300">prüfen</span>,
+          value > 0 ? formatMoney(value, locale, currencyCode) : <span className="text-bambu-gray">{dashboardText('cannotBeValued')}</span>,
+          reservation.status === 'fulfilled' || reservation.status === 'allocated' ? 'OK' : <span className="text-amber-300">{dashboardText('check')}</span>,
         ] as Array<ReactNode>;
       }))
       .slice(0, 6);
 
     const costSlices: CostSlice[] = [
-      { label: 'Material', value: acceptedCost > 0 ? 0 : stats?.total_cost ?? 0, color: '#00a14a' },
-      { label: 'Auftragskalkulation', value: acceptedCost, color: '#38a8d5' },
-      { label: 'Energie', value: acceptedCost > 0 ? 0 : energyCost, color: '#21b7cf' },
-      { label: 'Reservierung', value: reservedValue, color: '#8d73d9' },
+      { label: dashboardText('material'), value: acceptedCost > 0 ? 0 : stats?.total_cost ?? 0, color: '#00a14a' },
+      { label: dashboardText('orderCalculation'), value: acceptedCost, color: '#38a8d5' },
+      { label: dashboardText('energy'), value: acceptedCost > 0 ? 0 : energyCost, color: '#21b7cf' },
+      { label: dashboardText('reservation'), value: reservedValue, color: '#8d73d9' },
     ];
 
     const pipelineStages: PipelineStage[] = [
-      { label: 'Entwurf', value: draftRevenue, color: '#00a14a' },
-      { label: 'Versendet', value: sentRevenue, color: '#38a8d5' },
-      { label: 'Angenommen', value: acceptedOfferRevenue, color: '#d89a18' },
-      { label: 'Aktiv', value: activeOrderRevenue, color: '#8d73d9' },
-      { label: 'Abgeschlossen', value: completedRevenue, color: '#dc5b64' },
+      { label: dashboardText('draft'), value: draftRevenue, color: '#00a14a' },
+      { label: dashboardText('sent'), value: sentRevenue, color: '#38a8d5' },
+      { label: dashboardText('accepted'), value: acceptedOfferRevenue, color: '#d89a18' },
+      { label: dashboardText('active'), value: activeOrderRevenue, color: '#8d73d9' },
+      { label: dashboardText('completed'), value: completedRevenue, color: '#dc5b64' },
     ];
 
     return {
@@ -1818,8 +1811,8 @@ export function BusinessDashboardPage() {
   }, [currencyCode, documents, previousPeriodOffers, previousPeriodOrders, previousRangeEnd, previousRangeStart, previousStats]);
 
   const trend = useMemo(
-    () => createTrend(periodOrders, archiveEvents, energyHistory, stats, rangeStart, rangeEnd, currencyCode),
-    [archiveEvents, currencyCode, energyHistory, periodOrders, rangeEnd, rangeStart, stats],
+    () => createTrend(periodOrders, archiveEvents, energyHistory, stats, rangeStart, rangeEnd, currencyCode, locale),
+    [archiveEvents, currencyCode, energyHistory, locale, periodOrders, rangeEnd, rangeStart, stats],
   );
   const energyPerHour = (stats?.total_print_time_hours ?? 0) > 0
     ? (stats?.total_energy_kwh ?? 0) / (stats?.total_print_time_hours ?? 1)
@@ -1827,7 +1820,7 @@ export function BusinessDashboardPage() {
   const completionRate = derived.acceptedRevenue > 0
     ? (derived.completedRevenue / derived.acceptedRevenue) * 100
     : 0;
-  const energyMode = energyTrackingMode === 'total' ? 'Gesamtverbrauch' : 'Druckverbrauch';
+  const energyMode = energyTrackingMode === 'total' ? dashboardText('totalUsage') : dashboardText('printUsage');
   const trendLabels = {
     paymentEffectiveRevenue: createMetricTrend(derived.paymentEffectiveRevenue, previousDerived.paymentEffectiveRevenue, (value) => formatMoney(value, locale, currencyCode)),
     acceptedRevenue: createMetricTrend(derived.acceptedRevenue, previousDerived.acceptedRevenue, (value) => formatMoney(value, locale, currencyCode)),
@@ -1909,18 +1902,18 @@ export function BusinessDashboardPage() {
     .map((row) => [
       <EntityLink to={spoolDetailUrl(row.spool)}>{spoolItemLabel(row.spool)}</EntityLink>,
       formatMoney(row.value, locale, currencyCode),
-      row.idleDays === null ? 'unbekannt' : `${row.idleDays} Tage`,
-      row.spool.storage_location ?? 'ohne Ort',
-      row.value > 25 ? <span className="text-amber-300">Bestand prüfen</span> : 'beobachten',
+      row.idleDays === null ? dashboardText('unknown2') : dashboardText('daysValue2', { value1: row.idleDays }),
+      row.spool.storage_location ?? dashboardText('noLocation'),
+      row.value > 25 ? <span className="text-amber-300">{dashboardText('checkStock')}</span> : dashboardText('monitor'),
     ] as Array<ReactNode>);
   const inventoryWithoutCostCount = spoolsWithoutCostCount + activeSmallPartsWithoutCostCount;
   const procurementReadinessRows = [
-    ['Kostenbasis', `${inventoryItemCount - inventoryWithoutCostCount}/${inventoryItemCount || 0} Artikel`, inventoryWithoutCostCount > 0 ? <span className="text-amber-300">Marge unvollständig</span> : 'OK', inventoryWithoutCostCount > 0 ? <EntityLink to={inventoryFocusUrl('missing-cost')}>Kosten pflegen</EntityLink> : 'keine Aktion'],
-    ['SKU-Lieferant', `${directSupplierAssignedSpoolCount}/${spools.length || 0} Spulen`, directSupplierAssignedSpoolCount < spools.length ? <span className="text-amber-300">Zuordnung fehlt</span> : 'OK', <EntityLink to={supplierListUrl()}>Lieferanten prüfen</EntityLink>],
-    ['Lieferantenbezug gesamt', `${supplierAssignedSpoolCount}/${spools.length || 0} Spulen`, supplierAssignedSpoolCount < spools.length ? <span className="text-amber-300">Angebote fehlen</span> : 'OK', <EntityLink to={supplierListUrl()}>Angebote prüfen</EntityLink>],
-    ['Lagerort', `${inventoryWithLocationCount}/${inventoryItemCount || 0} Artikel`, inventoryWithLocationCount < inventoryItemCount ? <span className="text-amber-300">Suche erschwert</span> : 'OK', <EntityLink to={inventoryFocusUrl('missing-location')}>Orte pflegen</EntityLink>],
-    ['Engpassquote', `${derived.lowStockCount}/${inventoryItemCount || 0} Artikel`, derived.lowStockCount > 0 ? <span className="text-red-300">Nachbestellen</span> : 'OK', derived.lowStockCount > 0 ? <EntityLink to={inventoryFocusUrl('low-stock')}>Bestellvorschläge</EntityLink> : 'keine Aktion'],
-    ['Reservierungsdruck', `${derived.reservedLines} Positionen`, formatMoney(derived.reservedValue, locale, currencyCode), derived.reservedLines > 0 ? <EntityLink to="/orders">Aufträge prüfen</EntityLink> : 'OK'],
+    [dashboardText('costBasis'), dashboardText('itemsValue', { value1: inventoryItemCount - inventoryWithoutCostCount, value2: inventoryItemCount || 0 }), inventoryWithoutCostCount > 0 ? <span className="text-amber-300">{dashboardText('marginIncomplete')}</span> : 'OK', inventoryWithoutCostCount > 0 ? <EntityLink to={inventoryFocusUrl('missing-cost')}>{dashboardText('maintainCosts')}</EntityLink> : dashboardText('noAction')],
+    [dashboardText('skuSupplier'), dashboardText('spoolsValue', { value1: directSupplierAssignedSpoolCount, value2: spools.length || 0 }), directSupplierAssignedSpoolCount < spools.length ? <span className="text-amber-300">{dashboardText('assignmentMissing')}</span> : 'OK', <EntityLink to={supplierListUrl()}>{dashboardText('checkSuppliers')}</EntityLink>],
+    [dashboardText('overallSupplierCoverage'), dashboardText('spoolsValue', { value1: supplierAssignedSpoolCount, value2: spools.length || 0 }), supplierAssignedSpoolCount < spools.length ? <span className="text-amber-300">{dashboardText('offersMissing')}</span> : 'OK', <EntityLink to={supplierListUrl()}>{dashboardText('checkOffers')}</EntityLink>],
+    [dashboardText('storageLocation'), dashboardText('itemsValue', { value1: inventoryWithLocationCount, value2: inventoryItemCount || 0 }), inventoryWithLocationCount < inventoryItemCount ? <span className="text-amber-300">{dashboardText('harderToLocate')}</span> : 'OK', <EntityLink to={inventoryFocusUrl('missing-location')}>{dashboardText('maintainLocations')}</EntityLink>],
+    [dashboardText('shortageRate'), dashboardText('itemsValue', { value1: derived.lowStockCount, value2: inventoryItemCount || 0 }), derived.lowStockCount > 0 ? <span className="text-red-300">{dashboardText('reorder')}</span> : 'OK', derived.lowStockCount > 0 ? <EntityLink to={inventoryFocusUrl('low-stock')}>{dashboardText('reorderSuggestions')}</EntityLink> : dashboardText('noAction')],
+    [dashboardText('reservationPressure'), dashboardText('linesValue', { value1: derived.reservedLines }), formatMoney(derived.reservedValue, locale, currencyCode), derived.reservedLines > 0 ? <EntityLink to="/orders">{dashboardText('checkOrders')}</EntityLink> : 'OK'],
   ] as Array<Array<ReactNode>>;
   const inventoryRiskRows = [
     ...lowStockSpools.slice(0, 4).map((spool) => {
@@ -1928,17 +1921,17 @@ export function BusinessDashboardPage() {
       const remaining = Math.max(0, spool.label_weight - spool.weight_used);
       const pct = spool.label_weight > 0 ? (remaining / spool.label_weight) * 100 : 0;
       return [
-        <EntityLink to={spoolDetailUrl(spool)}>{label || `Spule #${spool.id}`}</EntityLink>,
+        <EntityLink to={spoolDetailUrl(spool)}>{label || dashboardText('spoolValue', { value1: spool.id })}</EntityLink>,
         `${Math.round(remaining)} g`,
-        spool.storage_location ?? 'Lager',
-        pct < 8 ? <span className="text-red-300">kritisch</span> : <span className="text-amber-300">knapp</span>,
+        spool.storage_location ?? dashboardText('inventory'),
+        pct < 8 ? <span className="text-red-300">{dashboardText('critical')}</span> : <span className="text-amber-300">{dashboardText('low')}</span>,
       ] as Array<ReactNode>;
     }),
     ...lowStockSmallParts.slice(0, 4).map((part) => [
       <EntityLink to={`/warehouse/parts?part=${part.id}`}>{part.name}</EntityLink>,
       `${formatQuantity(asNumber(part.balance.available), locale)} ${part.unit.label || part.unit_code}`,
-      part.location_id ? `Lagerort #${part.location_id}` : 'Materiallager',
-      asNumber(part.balance.available) <= 0 ? <span className="text-red-300">kritisch</span> : <span className="text-amber-300">knapp</span>,
+      part.location_id ? dashboardText('storageLocationValue', { value1: part.location_id }) : dashboardText('materialStorage'),
+      asNumber(part.balance.available) <= 0 ? <span className="text-red-300">{dashboardText('critical')}</span> : <span className="text-amber-300">{dashboardText('low')}</span>,
     ] as Array<ReactNode>),
   ];
   const riskRows = inventoryRiskRows;
@@ -1978,11 +1971,11 @@ export function BusinessDashboardPage() {
       return [
         <EntityLink to={supplierListUrl(group.supplier.name)}>{group.supplier.name}</EntityLink>,
         compactMaterialList(Array.from(group.materialLabels)),
-        `${shortestLeadTime} Tage`,
-        group.supplier.email || group.supplier.phone || group.supplier.website || 'kein Kontakt',
+        dashboardText('daysValue2', { value1: shortestLeadTime }),
+        group.supplier.email || group.supplier.phone || group.supplier.website || dashboardText('noContact'),
         group.skuCount > 0
-          ? <span className="text-[#35c46f]">{group.skuCount} SKU direkt</span>
-          : `${group.fallbackCount} Angebots-Fallback`,
+          ? <span className="text-[#35c46f]">{group.skuCount} {dashboardText('directSkuAssignment')}</span>
+          : dashboardText('offerFallbacksValue', { value1: group.fallbackCount }),
       ] as Array<ReactNode>;
     });
   const reorderRows = lowStockSpools.slice(0, 6).map((spool) => {
@@ -1994,10 +1987,10 @@ export function BusinessDashboardPage() {
     return [
       <EntityLink to={spoolDetailUrl(spool)}>{label}</EntityLink>,
       `${Math.round(remaining)} g`,
-      '1 Rolle',
-      supplier ? <EntityLink to={supplierListUrl(supplier.name)}>{supplier.name}</EntityLink> : <EntityLink to={supplierListUrl(spool.brand ?? '')}>{spool.brand || 'Lieferant zuordnen'}</EntityLink>,
-      assignment.leadTimeDays > 0 ? `${assignment.leadTimeDays} Tage` : `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(pct)} % Rest`,
-      pct < 8 ? <span className="text-red-300">heute prüfen</span> : <span className="text-amber-300">einplanen</span>,
+      dashboardText('label1Spool'),
+      supplier ? <EntityLink to={supplierListUrl(supplier.name)}>{supplier.name}</EntityLink> : <EntityLink to={supplierListUrl(spool.brand ?? '')}>{spool.brand || dashboardText('assignSupplier')}</EntityLink>,
+      assignment.leadTimeDays > 0 ? dashboardText('daysValue2', { value1: assignment.leadTimeDays }) : dashboardText('remainingValue', { value1: new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(pct) }),
+      pct < 8 ? <span className="text-red-300">{dashboardText('checkToday')}</span> : <span className="text-amber-300">{dashboardText('plan')}</span>,
     ] as Array<ReactNode>;
   });
   const materialPlanningRows = derived.materialUsage
@@ -2026,14 +2019,14 @@ export function BusinessDashboardPage() {
     .slice(0, 6)
     .map((item) => [
       item.label,
-      `${item.days} Tage`,
-      item.supplier ? <EntityLink to={supplierListUrl(item.supplier.name)}>{item.supplier.name}</EntityLink> : 'Lieferant zuordnen',
-      item.supplier ? `${item.leadTimeDays} Tage` : '-',
-      item.reorderGrams > 0 ? `${formatWeightKg(item.reorderGrams, locale)} nachziehen` : 'Bestand reicht',
+      dashboardText('daysValue2', { value1: item.days }),
+      item.supplier ? <EntityLink to={supplierListUrl(item.supplier.name)}>{item.supplier.name}</EntityLink> : dashboardText('assignSupplier'),
+      item.supplier ? dashboardText('daysValue2', { value1: item.leadTimeDays }) : '-',
+      item.reorderGrams > 0 ? dashboardText('replenishValue', { value1: formatWeightKg(item.reorderGrams, locale) }) : dashboardText('stockSufficient'),
       item.days <= Math.max(item.leadTimeDays + 7, 14)
-        ? <span className="text-red-300">kritisch</span>
+        ? <span className="text-red-300">{dashboardText('critical')}</span>
         : item.reorderGrams > 0
-          ? <span className="text-amber-300">einplanen</span>
+          ? <span className="text-amber-300">{dashboardText('plan')}</span>
         : 'OK',
     ] as Array<ReactNode>);
   const openReceivableDocuments = [...derived.paymentDocuments]
@@ -2063,41 +2056,41 @@ export function BusinessDashboardPage() {
     .slice(0, 8)
     .map(({ document, payment }) => [
       parseBusinessDate(payment.paid_at)?.toLocaleDateString(locale) ?? payment.paid_at,
-      <EntityLink to={invoiceListUrl('paid')}>{document.number ?? `Dokument #${document.id}`}</EntityLink>,
+      <EntityLink to={invoiceListUrl('paid')}>{document.number ?? dashboardText('documentValue', { value1: document.id })}</EntityLink>,
       displayCustomer(document.customer_id),
       formatMoney(asNumber(payment.amount), locale, payment.currency || currencyCode),
-      payment.method,
+      dashboardPaymentMethod(payment.method),
     ] as Array<ReactNode>);
   const receivableRows = openReceivableDocuments.slice(0, 8).map((document) => {
     const dueDate = parseBusinessDate(document.due_date);
     const daysUntilDue = dueDate ? Math.ceil((dueDate.getTime() - today.getTime()) / 86400000) : null;
     return [
-      <EntityLink to={invoicePaymentUrl(document.id)}>{document.number ?? `Dokument #${document.id}`}</EntityLink>,
+      <EntityLink to={invoicePaymentUrl(document.id)}>{document.number ?? dashboardText('documentValue', { value1: document.id })}</EntityLink>,
       displayCustomer(document.customer_id),
-      dueDate ? dueDate.toLocaleDateString(locale) : <span className="text-bambu-gray">ohne Fälligkeit</span>,
+      dueDate ? dueDate.toLocaleDateString(locale) : <span className="text-bambu-gray">{dashboardText('noDueDate')}</span>,
       formatMoney(asNumber(document.open_amount), locale, document.currency || currencyCode),
       daysUntilDue === null
-        ? <span className="text-amber-300">Fälligkeit pflegen</span>
+        ? <span className="text-amber-300">{dashboardText('maintainDueDate')}</span>
         : daysUntilDue < 0
-          ? <span className="text-red-300">{Math.abs(daysUntilDue)} Tage überfällig</span>
+          ? <span className="text-red-300">{Math.abs(daysUntilDue)} {dashboardText('daysOverdue')}</span>
           : daysUntilDue <= 7
-            ? <span className="text-amber-300">fällig in {daysUntilDue} Tagen</span>
+            ? <span className="text-amber-300">{dashboardText('dueIn')} {daysUntilDue} {dashboardText('days')}</span>
             : 'OK',
-      <EntityLink to={invoicePaymentUrl(document.id)}>Zahlung erfassen</EntityLink>,
+      <EntityLink to={invoicePaymentUrl(document.id)}>{dashboardText('recordPayment')}</EntityLink>,
     ] as Array<ReactNode>;
   });
   const nextPaymentDocument = overdueDocuments[0] ?? dueSoonDocuments[0] ?? openReceivableDocuments[0] ?? null;
   const paymentStatusRows = [
-    ['Zahlungswirksam', formatMoney(derived.paymentEffectiveRevenue, locale, currencyCode), `${paymentRows.length} Buchungen`, derived.paymentEffectiveRevenue > 0 ? 'OK' : <span className="text-bambu-gray">keine Buchungen</span>],
-    ['Offene Forderungen', formatMoney(derived.openRevenue, locale, currencyCode), `${openReceivableDocuments.length} Belege`, nextPaymentDocument ? <EntityLink to={invoicePaymentUrl(nextPaymentDocument.id)}>Zahlung erfassen</EntityLink> : <EntityLink to={invoiceListUrl('open')}>prüfen</EntityLink>],
-    ['Überfällig', formatMoney(derived.overdueRevenue, locale, currencyCode), `${overdueDocuments.length} Belege`, overdueDocuments.length > 0 ? <EntityLink to={invoiceListUrl('overdue')}>Mahnlauf</EntityLink> : 'OK'],
-    ['Demnächst fällig', formatMoney(dueSoonDocuments.reduce((sum, document) => sum + asNumber(document.open_amount), 0), locale, currencyCode), `${dueSoonDocuments.length} Belege`, dueSoonDocuments.length > 0 ? <EntityLink to={invoiceListUrl('open')}>erinnern</EntityLink> : 'OK'],
+    [dashboardText('receivedPayments'), formatMoney(derived.paymentEffectiveRevenue, locale, currencyCode), dashboardText('transactionsValue', { value1: paymentRows.length }), derived.paymentEffectiveRevenue > 0 ? 'OK' : <span className="text-bambu-gray">{dashboardText('noTransactions')}</span>],
+    [dashboardText('openReceivables'), formatMoney(derived.openRevenue, locale, currencyCode), dashboardText('documentsValue', { value1: openReceivableDocuments.length }), nextPaymentDocument ? <EntityLink to={invoicePaymentUrl(nextPaymentDocument.id)}>{dashboardText('recordPayment')}</EntityLink> : <EntityLink to={invoiceListUrl('open')}>{dashboardText('check')}</EntityLink>],
+    [dashboardText('overdue'), formatMoney(derived.overdueRevenue, locale, currencyCode), dashboardText('documentsValue', { value1: overdueDocuments.length }), overdueDocuments.length > 0 ? <EntityLink to={invoiceListUrl('overdue')}>{dashboardText('dunningRun')}</EntityLink> : 'OK'],
+    [dashboardText('dueSoon'), formatMoney(dueSoonDocuments.reduce((sum, document) => sum + asNumber(document.open_amount), 0), locale, currencyCode), dashboardText('documentsValue', { value1: dueSoonDocuments.length }), dueSoonDocuments.length > 0 ? <EntityLink to={invoiceListUrl('open')}>{dashboardText('sendReminder')}</EntityLink> : 'OK'],
   ] as Array<Array<ReactNode>>;
   const revenueActionRows = [
-    ['Zahlung erfassen', `${openReceivableDocuments.length} offene Belege`, nextPaymentDocument ? <EntityLink to={invoicePaymentUrl(nextPaymentDocument.id)}>nächsten Beleg öffnen</EntityLink> : <EntityLink to={invoiceListUrl('open')}>Rechnungen öffnen</EntityLink>, openReceivableDocuments.length > 0 ? 'manuell bestätigen' : 'keine Aktion'],
-    ['Mahnlauf vorbereiten', `${overdueDocuments.length} überfällig`, formatMoney(derived.overdueRevenue, locale, currencyCode), overdueDocuments.length > 0 ? <EntityLink to={invoiceListUrl('overdue')}>prüfen</EntityLink> : 'OK'],
-    ['Pipeline trennen', formatMoney(derived.pipelineRevenue, locale, currencyCode), <EntityLink to="/orders/offers">Angebote</EntityLink>, 'nicht als Einnahme zählen'],
-    ['Kontoabgleich später', derived.missingPaymentSource ? 'Quelle fehlt' : 'Quelle vorhanden', 'Roadmap', 'optional anbinden'],
+    [dashboardText('recordPayment'), dashboardText('openDocumentsValue', { value1: openReceivableDocuments.length }), nextPaymentDocument ? <EntityLink to={invoicePaymentUrl(nextPaymentDocument.id)}>{dashboardText('openNextDocument')}</EntityLink> : <EntityLink to={invoiceListUrl('open')}>{dashboardText('openInvoices')}</EntityLink>, openReceivableDocuments.length > 0 ? dashboardText('confirmManually') : dashboardText('noAction')],
+    [dashboardText('prepareDunningRun'), dashboardText('overdueValue', { value1: overdueDocuments.length }), formatMoney(derived.overdueRevenue, locale, currencyCode), overdueDocuments.length > 0 ? <EntityLink to={invoiceListUrl('overdue')}>{dashboardText('check')}</EntityLink> : 'OK'],
+    [dashboardText('separatePipeline'), formatMoney(derived.pipelineRevenue, locale, currencyCode), <EntityLink to="/orders/offers">{dashboardText('offers')}</EntityLink>, dashboardText('doNotCountAsReceivedRevenue')],
+    [dashboardText('bankReconciliationLater'), derived.missingPaymentSource ? dashboardText('sourceMissing') : dashboardText('sourceAvailable'), dashboardText('roadmap'), dashboardText('connectOptionally')],
   ] as Array<Array<ReactNode>>;
   const energyPerKg = (stats?.total_filament_grams ?? 0) > 0
     ? (stats?.total_energy_kwh ?? 0) / ((stats?.total_filament_grams ?? 1) / 1000)
@@ -2153,15 +2146,15 @@ export function BusinessDashboardPage() {
       `${String(row.hour).padStart(2, '0')}:00-${String((row.hour + 1) % 24).padStart(2, '0')}:00`,
       formatKwh(row.kwh, locale),
       formatMoney(row.cost, locale, currencyCode),
-      `${row.runs} Drucke`,
-      row.kwh > 0 && row.kwh >= (stats?.total_energy_kwh ?? 0) * 0.2 ? <span className="text-amber-300">Peak prüfen</span> : 'OK',
+      dashboardText('printsValue', { value1: row.runs }),
+      row.kwh > 0 && row.kwh >= (stats?.total_energy_kwh ?? 0) * 0.2 ? <span className="text-amber-300">{dashboardText('checkPeak')}</span> : 'OK',
     ] as Array<ReactNode>);
   const energyActionRows = [
-    ['Zeitraumssumme', formatKwh(stats?.total_energy_kwh ?? 0, locale), selectedDateRange.label, <EntityLink to={archiveEnergyUrl('measured')}>{stats?.energy_source ?? 'Archiv'}</EntityLink>],
-    ['Energiekosten', formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode), selectedDateRange.label, (stats?.total_energy_cost ?? 0) > 0 ? <EntityLink to={archiveEnergyUrl('measured')}>Kosten prüfen</EntityLink> : <span className="text-bambu-gray">keine Kosten</span>],
-    ['Kosten/kWh', formatMoney(settingsQuery.data?.energy_cost_per_kwh ?? 0, locale, currencyCode), 'Einstellung', <EntityLink to={energyCostSettingsUrl}>öffnen</EntityLink>],
-    ['Druckintensität', `${energyPerHour.toFixed(2)} kWh/h`, `${formatWeightKg((stats?.total_filament_grams ?? 0), locale)} Filament`, energyPerHour > 0 ? 'OK' : <span className="text-amber-300">keine Stunden</span>],
-    ['Messabdeckung', formatPercent(energyDataCoverage, locale), `${measuredEnergyEvents.length}/${archiveEvents.length || 0} Ereignisse`, energyDataCoverage >= 80 ? <EntityLink to={archiveEnergyUrl('measured')}>Messwerte</EntityLink> : <EntityLink to={archiveEnergyUrl('missing')}>Datenlücke</EntityLink>],
+    [dashboardText('periodTotal'), formatKwh(stats?.total_energy_kwh ?? 0, locale), selectedDateRange.label, <EntityLink to={archiveEnergyUrl('measured')}>{dashboardEnergySource(stats?.energy_source, dashboardText('archive'))}</EntityLink>],
+    [dashboardText('energyCosts'), formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode), selectedDateRange.label, (stats?.total_energy_cost ?? 0) > 0 ? <EntityLink to={archiveEnergyUrl('measured')}>{dashboardText('checkCosts')}</EntityLink> : <span className="text-bambu-gray">{dashboardText('noCosts')}</span>],
+    [dashboardText('costsKwh'), formatMoney(settingsQuery.data?.energy_cost_per_kwh ?? 0, locale, currencyCode), dashboardText('setting'), <EntityLink to={energyCostSettingsUrl}>{dashboardText('open3')}</EntityLink>],
+    [dashboardText('printIntensity'), `${energyPerHour.toFixed(2)} kWh/h`, dashboardText('filamentValue', { value1: formatWeightKg((stats?.total_filament_grams ?? 0), locale) }), energyPerHour > 0 ? 'OK' : <span className="text-amber-300">{dashboardText('noHours')}</span>],
+    [dashboardText('measurementCoverage'), formatPercent(energyDataCoverage, locale), dashboardText('eventsValue', { value1: measuredEnergyEvents.length, value2: archiveEvents.length || 0 }), energyDataCoverage >= 80 ? <EntityLink to={archiveEnergyUrl('measured')}>{dashboardText('measurements')}</EntityLink> : <EntityLink to={archiveEnergyUrl('missing')}>{dashboardText('dataGap')}</EntityLink>],
   ];
   const printerRows = Object.entries(stats?.prints_by_printer ?? {})
     .sort(([, left], [, right]) => right - left)
@@ -2177,22 +2170,22 @@ export function BusinessDashboardPage() {
     .slice(0, 8)
     .map((event) => [
       eventDate(event)?.toLocaleDateString(locale) ?? '-',
-      <EntityLink to={archiveEnergyUrl(undefined, 'log', event.print_name || '')}>{event.print_name || 'Druck ohne Namen'}</EntityLink>,
-      event.printer_id ? <EntityLink to="/printers">{`Drucker #${event.printer_id}`}</EntityLink> : 'unbekannt',
-      asNumber(event.energy_kwh) > 0 ? formatKwh(asNumber(event.energy_kwh), locale) : <span className="text-bambu-gray">aus Zeitraum</span>,
-      asNumber(event.energy_cost) > 0 ? formatMoney(asNumber(event.energy_cost), locale, currencyCode) : <span className="text-bambu-gray">anteilig</span>,
+      <EntityLink to={archiveEnergyUrl(undefined, 'log', event.print_name || '')}>{event.print_name || dashboardText('unnamedPrint')}</EntityLink>,
+      event.printer_id ? <EntityLink to="/printers">{dashboardText('printerValue', { value1: event.printer_id })}</EntityLink> : dashboardText('unknown2'),
+      asNumber(event.energy_kwh) > 0 ? formatKwh(asNumber(event.energy_kwh), locale) : <span className="text-bambu-gray">{dashboardText('fromPeriod')}</span>,
+      asNumber(event.energy_cost) > 0 ? formatMoney(asNumber(event.energy_cost), locale, currencyCode) : <span className="text-bambu-gray">{dashboardText('proportional')}</span>,
     ] as Array<ReactNode>);
   const energyQualityRows = [
-    ['Print-Log Messwerte', `${measuredEnergyEvents.length}/${archiveEvents.length || 0}`, formatPercent(energyDataCoverage, locale), energyDataCoverage >= 80 ? <EntityLink to={archiveEnergyUrl('measured')}>stabil</EntityLink> : <EntityLink to={archiveEnergyUrl('missing')}>Messwerte ergänzen</EntityLink>],
-    ['Zeitanteilige Schätzung', archiveEvents.length > measuredEnergyEvents.length ? `${archiveEvents.length - measuredEnergyEvents.length} Drucke` : '0 Drucke', stats?.energy_source ?? 'Archiv', archiveEvents.length > measuredEnergyEvents.length ? <EntityLink to={archiveEnergyUrl('missing')}>transparent markieren</EntityLink> : 'OK'],
-    ['Smart-Plug Verlauf', stats?.energy_data_warming_up ? 'wärmt auf' : 'bereit', selectedDateRange.label, stats?.energy_data_warming_up ? <span className="text-amber-300">Historie sammeln</span> : 'OK'],
-    ['Kostenbasis', formatMoney(settingsQuery.data?.energy_cost_per_kwh ?? 0, locale, currencyCode), 'Einstellungen', (settingsQuery.data?.energy_cost_per_kwh ?? 0) > 0 ? 'OK' : <EntityLink to={energyCostSettingsUrl}>pflegen</EntityLink>],
+    [dashboardText('printLogMeasurements'), `${measuredEnergyEvents.length}/${archiveEvents.length || 0}`, formatPercent(energyDataCoverage, locale), energyDataCoverage >= 80 ? <EntityLink to={archiveEnergyUrl('measured')}>{dashboardText('stable')}</EntityLink> : <EntityLink to={archiveEnergyUrl('missing')}>{dashboardText('addMeasurements')}</EntityLink>],
+    [dashboardText('timeBasedEstimate'), archiveEvents.length > measuredEnergyEvents.length ? dashboardText('printsValue', { value1: archiveEvents.length - measuredEnergyEvents.length }) : dashboardText('label0Prints'), dashboardEnergySource(stats?.energy_source, dashboardText('archive')), archiveEvents.length > measuredEnergyEvents.length ? <EntityLink to={archiveEnergyUrl('missing')}>{dashboardText('markEstimateClearly')}</EntityLink> : 'OK'],
+    [dashboardText('smartPlugHistory2'), stats?.energy_data_warming_up ? dashboardText('warmingUp') : dashboardText('ready'), selectedDateRange.label, stats?.energy_data_warming_up ? <span className="text-amber-300">{dashboardText('collectHistory')}</span> : 'OK'],
+    [dashboardText('costBasis'), formatMoney(settingsQuery.data?.energy_cost_per_kwh ?? 0, locale, currencyCode), dashboardText('settings'), (settingsQuery.data?.energy_cost_per_kwh ?? 0) > 0 ? 'OK' : <EntityLink to={energyCostSettingsUrl}>{dashboardText('maintain')}</EntityLink>],
   ];
   const energyRecommendationRows = [
-    ['Peak-Fenster', peakHourRows.length > 0 ? peakHourRows[0][0] : 'keine Daten', peakHourRows.length > 0 ? peakHourRows[0][1] : '-', peakHourRows.length > 0 ? 'Druckplanung bündeln' : 'Daten sammeln'],
-    ['Kosten je kg', energyPerKg > 0 ? `${energyPerKg.toFixed(2)} kWh/kg` : 'keine Daten', formatWeightKg(stats?.total_filament_grams ?? 0, locale), energyPerKg > 0 ? 'Materialmix beobachten' : 'Archiv abwarten'],
-    ['Kosten je Druck', (stats?.total_prints ?? 0) > 0 ? formatMoney((stats?.total_energy_cost ?? 0) / (stats?.total_prints ?? 1), locale, currencyCode) : 'keine Daten', `${stats?.total_prints ?? 0} Drucke`, (stats?.total_prints ?? 0) > 0 ? 'Kalkulation prüfen' : 'keine Aktion'],
-    ['Abdeckung verbessern', formatPercent(energyDataCoverage, locale), stats?.energy_source ?? 'Archiv', energyDataCoverage < 80 ? <EntityLink to={archiveEnergyUrl('missing')}>Smart-Plug/Logs prüfen</EntityLink> : 'OK'],
+    [dashboardText('peakWindows'), peakHourRows.length > 0 ? peakHourRows[0][0] : dashboardText('noData'), peakHourRows.length > 0 ? peakHourRows[0][1] : '-', peakHourRows.length > 0 ? dashboardText('consolidatePrintPlanning') : dashboardText('collectData')],
+    [dashboardText('costsPerKg'), energyPerKg > 0 ? `${energyPerKg.toFixed(2)} kWh/kg` : dashboardText('noData'), formatWeightKg(stats?.total_filament_grams ?? 0, locale), energyPerKg > 0 ? dashboardText('monitorMaterialMix') : dashboardText('waitForArchiveData')],
+    [dashboardText('costsPerPrint'), (stats?.total_prints ?? 0) > 0 ? formatMoney((stats?.total_energy_cost ?? 0) / (stats?.total_prints ?? 1), locale, currencyCode) : dashboardText('noData'), dashboardText('printsValue', { value1: stats?.total_prints ?? 0 }), (stats?.total_prints ?? 0) > 0 ? dashboardText('checkCalculation') : dashboardText('noAction')],
+    [dashboardText('improveCoverage'), formatPercent(energyDataCoverage, locale), dashboardEnergySource(stats?.energy_source, dashboardText('archive')), energyDataCoverage < 80 ? <EntityLink to={archiveEnergyUrl('missing')}>{dashboardText('checkSmartPlugLogs')}</EntityLink> : 'OK'],
   ];
   const orderMarginRows = derived.activeOrders
     .map((order) => {
@@ -2216,7 +2209,7 @@ export function BusinessDashboardPage() {
       row.title || formatMoney(row.revenue, locale, currencyCode),
       formatMoney(row.cost, locale, currencyCode),
       formatPercent(row.margin, locale),
-      row.margin < 20 ? <span className="text-red-300">Marge Risiko</span> : row.margin < 35 ? <span className="text-amber-300">Prüfen</span> : 'OK',
+      row.margin < 20 ? <span className="text-red-300">{dashboardText('marginRisk')}</span> : row.margin < 35 ? <span className="text-amber-300">{dashboardText('check2')}</span> : 'OK',
     ] as Array<ReactNode>);
   const marginSourceRows = derived.activeOrders
     .map((order) => {
@@ -2228,85 +2221,85 @@ export function BusinessDashboardPage() {
     .filter((row) => row.revenue > 0 || row.cost > 0);
   const lowMarginOrders = marginSourceRows.filter((row) => row.revenue > 0 && row.margin < 25);
   const contributionRows = [
-    ['Auftragswert', formatMoney(derived.acceptedRevenue, locale, currencyCode), `${derived.activeOrders.length} Aufträge`, 'Basis'],
-    ['Produktionskosten', formatMoney(derived.productionCost, locale, currencyCode), 'Material, Produktion, Energie', derived.productionCost > derived.acceptedRevenue && derived.acceptedRevenue > 0 ? <span className="text-red-300">zu hoch</span> : 'OK'],
-    ['Deckungsbeitrag', formatMoney(Math.max(derived.acceptedRevenue - derived.productionCost, 0), locale, currencyCode), formatPercent(derived.margin, locale), derived.margin < 25 && derived.acceptedRevenue > 0 ? <span className="text-amber-300">prüfen</span> : 'OK'],
-    ['Reservierter Lagerwert', formatMoney(derived.reservedValue, locale, currencyCode), `${derived.reservedLines} Reservierungen`, derived.reservedValue > 0 ? 'gebunden' : 'frei'],
+    [dashboardText('orderValue'), formatMoney(derived.acceptedRevenue, locale, currencyCode), dashboardText('ordersValue', { value1: derived.activeOrders.length }), dashboardText('basis')],
+    [dashboardText('productionCosts'), formatMoney(derived.productionCost, locale, currencyCode), dashboardText('materialProductionEnergy'), derived.productionCost > derived.acceptedRevenue && derived.acceptedRevenue > 0 ? <span className="text-red-300">{dashboardText('tooHigh')}</span> : 'OK'],
+    [dashboardText('contributionMargin'), formatMoney(Math.max(derived.acceptedRevenue - derived.productionCost, 0), locale, currencyCode), formatPercent(derived.margin, locale), derived.margin < 25 && derived.acceptedRevenue > 0 ? <span className="text-amber-300">{dashboardText('check')}</span> : 'OK'],
+    [dashboardText('reservedInventoryValue'), formatMoney(derived.reservedValue, locale, currencyCode), dashboardText('reservationsValue', { value1: derived.reservedLines }), derived.reservedValue > 0 ? dashboardText('committed') : dashboardText('available')],
   ] as Array<Array<ReactNode>>;
   const costControlRows = [
-    ['Archivkosten', formatMoney(stats?.total_cost ?? 0, locale, currencyCode), stats?.total_prints ? `${stats.total_prints} Drucke` : 'keine Drucke', (stats?.total_cost ?? 0) > 0 ? <EntityLink to="/archives">prüfen</EntityLink> : 'OK'],
-    ['Auftragskalkulation', formatMoney(derived.acceptedCost, locale, currencyCode), <EntityLink to="/orders/calculation">Kalkulation</EntityLink>, 'Kostenbasis'],
-    ['Energieanteil', formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode), formatKwh(stats?.total_energy_kwh ?? 0, locale), (stats?.total_energy_cost ?? 0) > 0 ? <EntityLink to={dashboardTabUrl('energy')}>Energie ansehen</EntityLink> : 'keine Kosten'],
-    ['Lagerbindung', formatMoney(derived.reservedValue, locale, currencyCode), `${derived.reservedLines} Positionen`, derived.reservedLines > 0 ? <EntityLink to={dashboardTabUrl('inventory')}>Reservierungen prüfen</EntityLink> : 'OK'],
+    [dashboardText('archiveCosts'), formatMoney(stats?.total_cost ?? 0, locale, currencyCode), stats?.total_prints ? dashboardText('printsValue', { value1: stats.total_prints }) : dashboardText('noPrints'), (stats?.total_cost ?? 0) > 0 ? <EntityLink to="/archives">{dashboardText('check')}</EntityLink> : 'OK'],
+    [dashboardText('orderCalculation'), formatMoney(derived.acceptedCost, locale, currencyCode), <EntityLink to="/orders/calculation">{dashboardText('calculation')}</EntityLink>, dashboardText('costBasis')],
+    [dashboardText('energyShare'), formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode), formatKwh(stats?.total_energy_kwh ?? 0, locale), (stats?.total_energy_cost ?? 0) > 0 ? <EntityLink to={dashboardTabUrl('energy')}>{dashboardText('viewEnergy')}</EntityLink> : dashboardText('noCosts')],
+    [dashboardText('inventoryCommitment'), formatMoney(derived.reservedValue, locale, currencyCode), dashboardText('linesValue', { value1: derived.reservedLines }), derived.reservedLines > 0 ? <EntityLink to={dashboardTabUrl('inventory')}>{dashboardText('checkReservations')}</EntityLink> : 'OK'],
   ] as Array<Array<ReactNode>>;
   const marginActionRows = [
-    ['Marge unter 25 %', `${lowMarginOrders.length} Aufträge`, lowMarginOrders.length > 0 ? formatMoney(lowMarginOrders.reduce((sum, row) => sum + row.revenue, 0), locale, currencyCode) : '-', lowMarginOrders.length > 0 ? <span className="text-amber-300">neu kalkulieren</span> : 'OK'],
-    ['Kosten ohne Umsatz', derived.acceptedRevenue <= 0 && derived.productionCost > 0 ? formatMoney(derived.productionCost, locale, currencyCode) : '0,00 €', 'Zeitraum', derived.acceptedRevenue <= 0 && derived.productionCost > 0 ? <span className="text-red-300">prüfen</span> : 'OK'],
-    ['Energie in Kalkulation', formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode), settingsQuery.data?.energy_tracking_mode ?? 'Archiv', (stats?.total_energy_cost ?? 0) > 0 ? 'berücksichtigt' : <span className="text-amber-300">keine Daten</span>],
-    ['Materialkosten pflegen', `${inventoryWithoutCostCount} Artikel`, <EntityLink to={inventoryFocusUrl('missing-cost')}>Lager öffnen</EntityLink>, inventoryWithoutCostCount > 0 ? <span className="text-amber-300">ergänzen</span> : 'OK'],
+    [dashboardText('marginBelow25'), dashboardText('ordersValue', { value1: lowMarginOrders.length }), lowMarginOrders.length > 0 ? formatMoney(lowMarginOrders.reduce((sum, row) => sum + row.revenue, 0), locale, currencyCode) : '-', lowMarginOrders.length > 0 ? <span className="text-amber-300">{dashboardText('recalculate')}</span> : 'OK'],
+    [dashboardText('costsWithoutRevenue'), derived.acceptedRevenue <= 0 && derived.productionCost > 0 ? formatMoney(derived.productionCost, locale, currencyCode) : '0,00 €', dashboardText('period2'), derived.acceptedRevenue <= 0 && derived.productionCost > 0 ? <span className="text-red-300">{dashboardText('check')}</span> : 'OK'],
+    [dashboardText('energyInCalculation'), formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode), settingsQuery.data?.energy_tracking_mode ?? dashboardText('archive'), (stats?.total_energy_cost ?? 0) > 0 ? dashboardText('included') : <span className="text-amber-300">{dashboardText('noData')}</span>],
+    [dashboardText('maintainMaterialCosts'), dashboardText('itemsValue2', { value1: inventoryWithoutCostCount }), <EntityLink to={inventoryFocusUrl('missing-cost')}>{dashboardText('openInventory')}</EntityLink>, inventoryWithoutCostCount > 0 ? <span className="text-amber-300">{dashboardText('complete')}</span> : 'OK'],
   ] as Array<Array<ReactNode>>;
   const overviewPriorityRows = [
     [
-      'Einnahmen',
-      overdueDocuments.length > 0 ? <span className="text-red-300">überfällig</span> : openReceivableDocuments.length > 0 ? <span className="text-amber-300">offen</span> : 'OK',
+      dashboardText('revenue'),
+      overdueDocuments.length > 0 ? <span className="text-red-300">{dashboardText('overdue2')}</span> : openReceivableDocuments.length > 0 ? <span className="text-amber-300">{dashboardText('open4')}</span> : 'OK',
       overdueDocuments.length > 0 ? formatMoney(derived.overdueRevenue, locale, currencyCode) : formatMoney(derived.openRevenue, locale, currencyCode),
-      openReceivableDocuments.length > 0 ? <EntityLink to={dashboardTabUrl('revenue')}>Forderungen prüfen</EntityLink> : 'keine Aktion',
+      openReceivableDocuments.length > 0 ? <EntityLink to={dashboardTabUrl('revenue')}>{dashboardText('checkReceivables')}</EntityLink> : dashboardText('noAction'),
     ],
     [
-      'Marge',
-      lowMarginOrders.length > 0 ? <span className="text-amber-300">Risiko</span> : 'OK',
-      `${lowMarginOrders.length} Aufträge`,
-      lowMarginOrders.length > 0 ? <EntityLink to={dashboardTabUrl('margin')}>Kalkulation prüfen</EntityLink> : 'keine Aktion',
+      dashboardText('margin'),
+      lowMarginOrders.length > 0 ? <span className="text-amber-300">{dashboardText('risk')}</span> : 'OK',
+      dashboardText('ordersValue', { value1: lowMarginOrders.length }),
+      lowMarginOrders.length > 0 ? <EntityLink to={dashboardTabUrl('margin')}>{dashboardText('checkCalculation')}</EntityLink> : dashboardText('noAction'),
     ],
     [
-      'Lager',
-      derived.lowStockCount > 0 ? <span className="text-red-300">Nachschub</span> : 'OK',
-      `${derived.lowStockCount} Artikel`,
-      derived.lowStockCount > 0 ? <EntityLink to={dashboardTabUrl('inventory')}>Bestellvorschläge</EntityLink> : 'Bestand stabil',
+      dashboardText('inventory'),
+      derived.lowStockCount > 0 ? <span className="text-red-300">{dashboardText('replenishment')}</span> : 'OK',
+      dashboardText('itemsValue2', { value1: derived.lowStockCount }),
+      derived.lowStockCount > 0 ? <EntityLink to={dashboardTabUrl('inventory')}>{dashboardText('reorderSuggestions')}</EntityLink> : dashboardText('stockStable'),
     ],
     [
-      'Energie',
-      energyDataCoverage < 80 ? <span className="text-amber-300">Datenlücke</span> : 'OK',
+      dashboardText('energy'),
+      energyDataCoverage < 80 ? <span className="text-amber-300">{dashboardText('dataGap')}</span> : 'OK',
       formatPercent(energyDataCoverage, locale),
-      energyDataCoverage < 80 ? <EntityLink to={dashboardTabUrl('energy')}>Messbasis prüfen</EntityLink> : 'Messbasis stabil',
+      energyDataCoverage < 80 ? <EntityLink to={dashboardTabUrl('energy')}>{dashboardText('checkMeasurementBasis')}</EntityLink> : dashboardText('measurementBasisStable'),
     ],
     [
-      'Pipeline',
-      derived.pipelineRevenue > derived.paymentEffectiveRevenue && derived.paymentEffectiveRevenue <= 0 ? <span className="text-amber-300">nicht zahlungswirksam</span> : 'OK',
+      dashboardText('pipeline'),
+      derived.pipelineRevenue > derived.paymentEffectiveRevenue && derived.paymentEffectiveRevenue <= 0 ? <span className="text-amber-300">{dashboardText('notAReceivedPayment')}</span> : 'OK',
       formatMoney(derived.pipelineRevenue, locale, currencyCode),
-      <EntityLink to="/orders/offers">Angebote öffnen</EntityLink>,
+      <EntityLink to="/orders/offers">{dashboardText('openOffers')}</EntityLink>,
     ],
   ] as Array<Array<ReactNode>>;
   const overviewDataQualityRows = [
     [
-      'Zahlungen',
-      paymentRows.length > 0 ? `${paymentRows.length} Buchungen` : 'keine Buchungen',
-      derived.missingPaymentSource ? <span className="text-amber-300">manuelle Bestätigung fehlt</span> : 'Forderungen auswertbar',
-      <EntityLink to={invoiceListUrl(derived.openRevenue > 0 ? 'open' : undefined)}>Rechnungen</EntityLink>,
+      dashboardText('payments'),
+      paymentRows.length > 0 ? dashboardText('transactionsValue', { value1: paymentRows.length }) : dashboardText('noTransactions'),
+      derived.missingPaymentSource ? <span className="text-amber-300">{dashboardText('manualConfirmationMissing')}</span> : dashboardText('receivablesCanBeEvaluated'),
+      <EntityLink to={invoiceListUrl(derived.openRevenue > 0 ? 'open' : undefined)}>{dashboardText('invoices')}</EntityLink>,
     ],
     [
-      'Materialkosten',
-      `${inventoryItemCount - inventoryWithoutCostCount}/${inventoryItemCount || 0} Artikel`,
-      inventoryWithoutCostCount > 0 ? <span className="text-amber-300">Marge unvollständig</span> : 'Kostenbasis OK',
-      inventoryWithoutCostCount > 0 ? <EntityLink to={inventoryFocusUrl('missing-cost')}>Kosten pflegen</EntityLink> : 'keine Aktion',
+      dashboardText('materialCosts'),
+      dashboardText('itemsValue', { value1: inventoryItemCount - inventoryWithoutCostCount, value2: inventoryItemCount || 0 }),
+      inventoryWithoutCostCount > 0 ? <span className="text-amber-300">{dashboardText('marginIncomplete')}</span> : dashboardText('costBasisOk'),
+      inventoryWithoutCostCount > 0 ? <EntityLink to={inventoryFocusUrl('missing-cost')}>{dashboardText('maintainCosts')}</EntityLink> : dashboardText('noAction'),
     ],
     [
-      'Lieferanten',
-      `${directSupplierAssignedSpoolCount}/${spools.length || 0} direkt · ${supplierAssignedSpoolCount} gesamt`,
-      directSupplierAssignedSpoolCount < spools.length ? <span className="text-amber-300">SKU-Zuordnung fehlt</span> : 'Nachschub gut ableitbar',
-      <EntityLink to={supplierListUrl()}>Lieferanten</EntityLink>,
+      dashboardText('suppliers'),
+      dashboardText('directTotalValue', { value1: directSupplierAssignedSpoolCount, value2: spools.length || 0, value3: supplierAssignedSpoolCount }),
+      directSupplierAssignedSpoolCount < spools.length ? <span className="text-amber-300">{dashboardText('skuAssignmentMissing')}</span> : dashboardText('replenishmentCanBeDetermined'),
+      <EntityLink to={supplierListUrl()}>{dashboardText('suppliers')}</EntityLink>,
     ],
     [
-      'Energie',
+      dashboardText('energy'),
       formatPercent(energyDataCoverage, locale),
-      energyDataCoverage < 80 ? <span className="text-amber-300">teilweise geschätzt</span> : 'Messwerte belastbar',
-      <EntityLink to="/settings?tab=operations">Einstellungen</EntityLink>,
+      energyDataCoverage < 80 ? <span className="text-amber-300">{dashboardText('partlyEstimated')}</span> : dashboardText('measurementsReliable'),
+      <EntityLink to="/settings?tab=operations">{dashboardText('settings')}</EntityLink>,
     ],
     [
-      'Kalkulation',
-      `${marginSourceRows.length}/${derived.activeOrders.length || 0} Aufträge`,
-      marginSourceRows.length < derived.activeOrders.length ? <span className="text-amber-300">nicht alle Aufträge bewertet</span> : 'Margen ableitbar',
-      <EntityLink to="/orders/calculation">Kalkulation</EntityLink>,
+      dashboardText('calculation'),
+      dashboardText('ordersValue2', { value1: marginSourceRows.length, value2: derived.activeOrders.length || 0 }),
+      marginSourceRows.length < derived.activeOrders.length ? <span className="text-amber-300">{dashboardText('notAllOrdersValued')}</span> : dashboardText('marginsCanBeDetermined'),
+      <EntityLink to="/orders/calculation">{dashboardText('calculation')}</EntityLink>,
     ],
   ] as Array<Array<ReactNode>>;
   const forecastScale30 = 30 / Math.max(selectedDateRange.days, 1);
@@ -2321,69 +2314,69 @@ export function BusinessDashboardPage() {
   const openDueSoonValue = dueSoonDocuments.reduce((sum, document) => sum + asNumber(document.open_amount), 0);
   const overviewForecastRows = [
     [
-      'Zahlungseingang',
+      dashboardText('paymentReceipt'),
       formatMoney(forecastPaymentRevenue, locale, currencyCode),
-      `${paymentRows.length} Buchungen`,
-      forecastPaymentRevenue > 0 ? 'Liquidität einplanen' : <EntityLink to={invoiceListUrl('open')}>Zahlungen buchen</EntityLink>,
+      dashboardText('transactionsValue', { value1: paymentRows.length }),
+      forecastPaymentRevenue > 0 ? dashboardText('planCashFlow') : <EntityLink to={invoiceListUrl('open')}>{dashboardText('bookPayments')}</EntityLink>,
     ],
     [
-      'Kostenlauf',
+      dashboardText('costRunRate'),
       formatMoney(forecastProductionCost, locale, currencyCode),
-      'Produktion inkl. Energie',
-      forecastProductionCost > derived.acceptedRevenue && derived.acceptedRevenue > 0 ? <span className="text-amber-300">Deckung prüfen</span> : <EntityLink to={dashboardTabUrl('margin')}>Kosten ansehen</EntityLink>,
+      dashboardText('productionIncludingEnergy'),
+      forecastProductionCost > derived.acceptedRevenue && derived.acceptedRevenue > 0 ? <span className="text-amber-300">{dashboardText('checkCostCoverage')}</span> : <EntityLink to={dashboardTabUrl('margin')}>{dashboardText('viewCosts')}</EntityLink>,
     ],
     [
-      'Energiebedarf',
+      dashboardText('energyDemand'),
       formatKwh(forecastEnergyKwh, locale),
       formatMoney(forecastEnergyCost, locale, currencyCode),
-      forecastEnergyKwh > 0 ? <EntityLink to={dashboardTabUrl('energy')}>Peak-Zeiten prüfen</EntityLink> : <EntityLink to="/settings?tab=operations">Messung pflegen</EntityLink>,
+      forecastEnergyKwh > 0 ? <EntityLink to={dashboardTabUrl('energy')}>{dashboardText('checkPeakTimes')}</EntityLink> : <EntityLink to="/settings?tab=operations">{dashboardText('maintainMeasurements')}</EntityLink>,
     ],
     [
-      'Materialverbrauch',
+      dashboardText('materialUsage'),
       formatWeightKg(forecastMaterialGrams, locale),
-      'seit Verbrauchs-Reset',
-      forecastMaterialGrams > 0 ? <EntityLink to={inventoryFocusUrl('low-stock')}>Nachschub planen</EntityLink> : <EntityLink to={inventoryFocusUrl('used')}>Verbrauch pflegen</EntityLink>,
+      dashboardText('sinceUsageReset'),
+      forecastMaterialGrams > 0 ? <EntityLink to={inventoryFocusUrl('low-stock')}>{dashboardText('planReplenishment')}</EntityLink> : <EntityLink to={inventoryFocusUrl('used')}>{dashboardText('maintainUsage')}</EntityLink>,
     ],
     [
-      'Forderungen',
+      dashboardText('receivables'),
       formatMoney(derived.openRevenue, locale, currencyCode),
-      openDueSoonValue > 0 ? `${formatMoney(openDueSoonValue, locale, currencyCode)} bald fällig` : 'aktueller Stand',
-      derived.openRevenue > 0 ? <EntityLink to={invoiceListUrl(overdueDocuments.length > 0 ? 'overdue' : 'open')}>Fälligkeiten öffnen</EntityLink> : 'keine Aktion',
+      openDueSoonValue > 0 ? dashboardText('dueSoonValue', { value1: formatMoney(openDueSoonValue, locale, currencyCode) }) : dashboardText('currentStatus'),
+      derived.openRevenue > 0 ? <EntityLink to={invoiceListUrl(overdueDocuments.length > 0 ? 'overdue' : 'open')}>{dashboardText('openDueDates')}</EntityLink> : dashboardText('noAction'),
     ],
     [
-      'Nachschubrisiko',
-      `${derived.lowStockCount} Artikel`,
-      lowStockInventoryValue > 0 ? formatMoney(lowStockInventoryValue, locale, currencyCode) : 'kein Wert gebunden',
-      derived.lowStockCount > 0 ? <EntityLink to={inventoryFocusUrl('low-stock')}>Bestellvorschläge</EntityLink> : 'Bestand stabil',
+      dashboardText('replenishmentRisk'),
+      dashboardText('itemsValue2', { value1: derived.lowStockCount }),
+      lowStockInventoryValue > 0 ? formatMoney(lowStockInventoryValue, locale, currencyCode) : dashboardText('noCommittedValue'),
+      derived.lowStockCount > 0 ? <EntityLink to={inventoryFocusUrl('low-stock')}>{dashboardText('reorderSuggestions')}</EntityLink> : dashboardText('stockStable'),
     ],
   ] as Array<Array<ReactNode>>;
   const revenueShortcuts: ActionShortcut[] = [
     {
-      label: 'Zahlung erfassen',
+      label: dashboardText('recordPayment'),
       detail: nextPaymentDocument
-        ? `${nextPaymentDocument.number ?? `Dokument #${nextPaymentDocument.id}`} · ${formatMoney(asNumber(nextPaymentDocument.open_amount), locale, nextPaymentDocument.currency || currencyCode)} offen`
-        : 'keine offenen Belege',
+        ? dashboardText('openValue', { value1: nextPaymentDocument.number ?? dashboardText('documentValue', { value1: nextPaymentDocument.id }), value2: formatMoney(asNumber(nextPaymentDocument.open_amount), locale, nextPaymentDocument.currency || currencyCode) })
+        : dashboardText('noOpenDocuments'),
       to: nextPaymentDocument ? invoicePaymentUrl(nextPaymentDocument.id) : invoiceListUrl('open'),
       icon: Receipt,
       tone: nextPaymentDocument ? 'green' : 'neutral',
     },
     {
-      label: 'Fälligkeiten prüfen',
-      detail: `${overdueDocuments.length} überfällig · ${dueSoonDocuments.length} bald fällig`,
+      label: dashboardText('checkDueDates'),
+      detail: dashboardText('overdueDueSoonValue', { value1: overdueDocuments.length, value2: dueSoonDocuments.length }),
       to: invoiceListUrl(overdueDocuments.length > 0 ? 'overdue' : 'open'),
       icon: AlertTriangle,
       tone: overdueDocuments.length > 0 ? 'red' : dueSoonDocuments.length > 0 ? 'amber' : 'neutral',
     },
     {
-      label: 'Angebote öffnen',
+      label: dashboardText('openOffers'),
       detail: formatMoney(derived.pipelineRevenue, locale, currencyCode),
       to: '/orders/offers',
       icon: TrendingUp,
       tone: 'blue',
     },
     {
-      label: 'Rechnungsliste',
-      detail: `${derived.paymentDocuments.length} Rechnungen mit Zahlungsdaten`,
+      label: dashboardText('invoiceList'),
+      detail: dashboardText('invoicesWithPaymentDataValue', { value1: derived.paymentDocuments.length }),
       to: invoiceListUrl(),
       icon: ClipboardList,
       tone: 'green',
@@ -2391,29 +2384,29 @@ export function BusinessDashboardPage() {
   ];
   const marginShortcuts: ActionShortcut[] = [
     {
-      label: 'Kalkulation öffnen',
-      detail: `${marginSourceRows.length} bewertete Aufträge`,
+      label: dashboardText('openCalculation'),
+      detail: dashboardText('valuedOrdersValue', { value1: marginSourceRows.length }),
       to: '/orders/calculation',
       icon: Factory,
       tone: 'green',
     },
     {
-      label: 'Niedrige Marge',
-      detail: `${lowMarginOrders.length} Aufträge unter 25 %`,
+      label: dashboardText('lowMargin'),
+      detail: dashboardText('ordersBelow25Value', { value1: lowMarginOrders.length }),
       to: lowMarginOrders[0] ? `/orders/${lowMarginOrders[0].order.id}` : '/orders',
       icon: AlertTriangle,
       tone: lowMarginOrders.length > 0 ? 'amber' : 'neutral',
     },
     {
-      label: 'Energieanteil prüfen',
+      label: dashboardText('checkEnergyShare'),
       detail: formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode),
       to: dashboardTabUrl('energy'),
       icon: Zap,
       tone: (stats?.total_energy_cost ?? 0) > 0 ? 'cyan' : 'neutral',
     },
     {
-      label: 'Materialkosten pflegen',
-      detail: `${inventoryWithoutCostCount} Artikel ohne Kosten`,
+      label: dashboardText('maintainMaterialCosts'),
+      detail: dashboardText('itemsWithoutCostsValue', { value1: inventoryWithoutCostCount }),
       to: inventoryFocusUrl(),
       icon: Package,
       tone: inventoryWithoutCostCount > 0 ? 'amber' : 'neutral',
@@ -2421,29 +2414,29 @@ export function BusinessDashboardPage() {
   ];
   const inventoryShortcuts: ActionShortcut[] = [
     {
-      label: 'Bestellvorschläge',
-      detail: `${derived.lowStockCount} Engpass-Signale`,
+      label: dashboardText('reorderSuggestions'),
+      detail: dashboardText('shortageSignalsValue', { value1: derived.lowStockCount }),
       to: inventoryFocusUrl('low-stock'),
       icon: AlertTriangle,
       tone: derived.lowStockCount > 0 ? 'red' : 'neutral',
     },
     {
-      label: 'Lieferanten pflegen',
-      detail: `${directSupplierAssignedSpoolCount}/${spools.length || 0} direkt · ${supplierAssignedSpoolCount} mit Bezug`,
+      label: dashboardText('maintainSuppliers'),
+      detail: dashboardText('directWithSourceValue', { value1: directSupplierAssignedSpoolCount, value2: spools.length || 0, value3: supplierAssignedSpoolCount }),
       to: supplierListUrl(),
       icon: Truck,
       tone: directSupplierAssignedSpoolCount < spools.length ? 'amber' : 'green',
     },
     {
-      label: 'Filament öffnen',
-      detail: `${spools.length} Spulen · ${formatMoney(derived.stockValue, locale, currencyCode)}`,
+      label: dashboardText('openFilament'),
+      detail: dashboardText('spoolsValue2', { value1: spools.length, value2: formatMoney(derived.stockValue, locale, currencyCode) }),
       to: inventoryFocusUrl('used'),
       icon: Warehouse,
       tone: 'green',
     },
     {
-      label: 'Reservierungen',
-      detail: `${derived.reservedLines} Positionen · ${formatMoney(derived.reservedValue, locale, currencyCode)}`,
+      label: dashboardText('reservations'),
+      detail: dashboardText('linesValue2', { value1: derived.reservedLines, value2: formatMoney(derived.reservedValue, locale, currencyCode) }),
       to: '/orders',
       icon: ClipboardList,
       tone: derived.reservedLines > 0 ? 'blue' : 'neutral',
@@ -2451,28 +2444,28 @@ export function BusinessDashboardPage() {
   ];
   const energyShortcuts: ActionShortcut[] = [
     {
-      label: 'Energie einstellen',
-      detail: `${formatMoney(settingsQuery.data?.energy_cost_per_kwh ?? 0, locale, currencyCode)} pro kWh`,
+      label: dashboardText('configureEnergy'),
+      detail: dashboardText('perKwhValue', { value1: formatMoney(settingsQuery.data?.energy_cost_per_kwh ?? 0, locale, currencyCode) }),
       to: energyCostSettingsUrl,
       icon: BatteryCharging,
       tone: (settingsQuery.data?.energy_cost_per_kwh ?? 0) > 0 ? 'green' : 'amber',
     },
     {
-      label: 'Archiv prüfen',
-      detail: `${archiveEvents.length} Druckereignisse`,
+      label: dashboardText('checkArchive'),
+      detail: dashboardText('printEventsValue', { value1: archiveEvents.length }),
       to: archiveEnergyUrl(undefined, 'log'),
       icon: BarChart3,
       tone: archiveEvents.length > 0 ? 'cyan' : 'neutral',
     },
     {
-      label: 'Drucker ansehen',
-      detail: `${printerRows.length} Quellen im Mix`,
+      label: dashboardText('viewPrinters'),
+      detail: dashboardText('sourcesInTheMixValue', { value1: printerRows.length }),
       to: '/printers',
       icon: Factory,
       tone: printerRows.length > 0 ? 'blue' : 'neutral',
     },
     {
-      label: 'Kostenwirkung',
+      label: dashboardText('costImpact'),
       detail: `${formatKwh(stats?.total_energy_kwh ?? 0, locale)} · ${selectedDateRange.label}`,
       to: dashboardTabUrl('margin'),
       icon: CircleDollarSign,
@@ -2483,44 +2476,44 @@ export function BusinessDashboardPage() {
     switch (activeTab) {
       case 'revenue':
         return [
-          { title: 'Zahlungsstatus', columns: ['Status', 'Wert', 'Umfang', 'Aktion'], rows: paymentStatusRows },
-          { title: 'Offene Forderungen', columns: ['Beleg', 'Kunde', 'Fällig', 'Offen', 'Signal', 'Aktion'], rows: receivableRows },
-          { title: 'Zahlungseingänge', columns: ['Datum', 'Beleg', 'Kunde', 'Betrag', 'Methode'], rows: paymentRows },
-          { title: 'Einnahmen-Aktionen', columns: ['Thema', 'Umfang', 'Ziel', 'Aktion'], rows: revenueActionRows },
+          { title: dashboardText('paymentStatus'), columns: [dashboardText('status'), dashboardText('value'), dashboardText('scope'), dashboardText('action')], rows: paymentStatusRows },
+          { title: dashboardText('openReceivables'), columns: [dashboardText('document'), dashboardText('customer'), dashboardText('due'), dashboardText('open'), dashboardText('signal'), dashboardText('action')], rows: receivableRows },
+          { title: dashboardText('paymentReceipts'), columns: [dashboardText('date'), dashboardText('document'), dashboardText('customer'), dashboardText('amount'), dashboardText('method')], rows: paymentRows },
+          { title: dashboardText('revenueActions'), columns: [dashboardText('topic'), dashboardText('scope'), dashboardText('target'), dashboardText('action')], rows: revenueActionRows },
         ];
       case 'margin':
         return [
-          { title: 'Deckungsbeitrag kompakt', columns: ['Kennzahl', 'Wert', 'Basis', 'Signal'], rows: contributionRows },
-          { title: 'Kostenkontrolle', columns: ['Treiber', 'Wert', 'Quelle', 'Aktion'], rows: costControlRows },
-          { title: 'Margen-Aktionen', columns: ['Thema', 'Umfang', 'Wert / Ziel', 'Aktion'], rows: marginActionRows },
-          { title: 'Aufträge nach Marge', columns: ['Auftrag', 'Umsatz / Titel', 'Kosten', 'Marge', 'Signal'], rows: orderMarginRows },
+          { title: dashboardText('contributionMarginSummary'), columns: [dashboardText('metric'), dashboardText('value'), dashboardText('basis'), dashboardText('signal')], rows: contributionRows },
+          { title: dashboardText('costControl'), columns: [dashboardText('driver'), dashboardText('value'), dashboardText('source'), dashboardText('action')], rows: costControlRows },
+          { title: dashboardText('marginActions'), columns: [dashboardText('topic'), dashboardText('scope'), dashboardText('valueTarget'), dashboardText('action')], rows: marginActionRows },
+          { title: dashboardText('ordersByMargin'), columns: [dashboardText('order'), dashboardText('revenueTitle'), dashboardText('costs'), dashboardText('margin'), dashboardText('signal')], rows: orderMarginRows },
         ];
       case 'inventory':
         return [
-          { title: 'Nachbestellen und Reservierung', columns: ['Ressource', 'Bestand', 'Ort / Quelle', 'Signal'], rows: riskRows },
-          { title: 'Lieferanten-Cockpit', columns: ['Lieferant', 'Materialbezug', 'Lieferzeit', 'Kontakt', 'Status'], rows: supplierRows },
-          { title: 'Bestellvorschläge', columns: ['Artikel', 'Bestand', 'Vorschlag', 'Lieferant', 'Lieferzeit', 'Aktion'], rows: reorderRows },
-          { title: 'Material- & Lieferantenplanung', columns: ['Material', 'Reichweite', 'Lieferant', 'Lieferzeit', 'Vorschlag', 'Signal'], rows: materialPlanningRows },
-          { title: 'Beschaffungsreife', columns: ['Prüfpunkt', 'Abdeckung', 'Signal', 'Aktion'], rows: procurementReadinessRows },
-          { title: 'Langsamdreher & Kapitalbindung', columns: ['Spule', 'Wert', 'Ruhezeit', 'Ort', 'Aktion'], rows: staleSpoolRows },
+          { title: dashboardText('reorderingAndReservations'), columns: [dashboardText('resource'), dashboardText('stock'), dashboardText('locationSource'), dashboardText('signal')], rows: riskRows },
+          { title: dashboardText('supplierDashboard'), columns: [dashboardText('supplier'), dashboardText('materialSourcing'), dashboardText('leadTime'), dashboardText('contact'), dashboardText('status')], rows: supplierRows },
+          { title: dashboardText('reorderSuggestions'), columns: [dashboardText('item'), dashboardText('stock'), dashboardText('suggestion'), dashboardText('supplier'), dashboardText('leadTime'), dashboardText('action')], rows: reorderRows },
+          { title: dashboardText('materialSupplierPlanning'), columns: [dashboardText('material'), dashboardText('stockCoverage'), dashboardText('supplier'), dashboardText('leadTime'), dashboardText('suggestion'), dashboardText('signal')], rows: materialPlanningRows },
+          { title: dashboardText('procurementReadiness'), columns: [dashboardText('checkPoint'), dashboardText('coverage'), dashboardText('signal'), dashboardText('action')], rows: procurementReadinessRows },
+          { title: dashboardText('slowMovingStockTiedUpCapital'), columns: [dashboardText('spool'), dashboardText('value'), dashboardText('idleTime'), dashboardText('location'), dashboardText('action')], rows: staleSpoolRows },
         ];
       case 'energy':
         return [
-          { title: 'Energie-Signale', columns: ['Signal', 'Wert', 'Zeitfenster', 'Aktion'], rows: energyActionRows },
-          { title: 'Energie je Druck', columns: ['Datum', 'Druck', 'Drucker', 'kWh', 'Kosten'], rows: energyEventRows },
-          { title: 'Peak-Fenster', columns: ['Zeitfenster', 'kWh', 'Kosten', 'Drucke', 'Signal'], rows: peakHourRows },
-          { title: 'Datenqualität & Kostenbasis', columns: ['Prüfpunkt', 'Wert', 'Quelle', 'Aktion'], rows: energyQualityRows },
-          { title: 'Energie-Optimierung', columns: ['Hebel', 'Wert', 'Basis', 'Nächster Schritt'], rows: energyRecommendationRows },
-          { title: 'Drucker- und Quellenmix', columns: ['Drucker', 'Drucke', 'kWh anteilig', 'Anteil'], rows: printerRows },
+          { title: dashboardText('energySignals'), columns: [dashboardText('signal'), dashboardText('value'), dashboardText('timeWindow'), dashboardText('action')], rows: energyActionRows },
+          { title: dashboardText('energyPerPrint'), columns: [dashboardText('date'), dashboardText('print'), dashboardText('printer'), 'kWh', dashboardText('costs')], rows: energyEventRows },
+          { title: dashboardText('peakWindows'), columns: [dashboardText('timeWindow'), 'kWh', dashboardText('costs'), dashboardText('prints'), dashboardText('signal')], rows: peakHourRows },
+          { title: dashboardText('dataQualityCostBasis'), columns: [dashboardText('checkPoint'), dashboardText('value'), dashboardText('source'), dashboardText('action')], rows: energyQualityRows },
+          { title: dashboardText('energyOptimization'), columns: [dashboardText('improvementLever'), dashboardText('value'), dashboardText('basis'), dashboardText('nextStep')], rows: energyRecommendationRows },
+          { title: dashboardText('printerAndSourceMix'), columns: [dashboardText('printer'), dashboardText('prints'), dashboardText('proportionalKwh'), dashboardText('share')], rows: printerRows },
         ];
       case 'overview':
       default:
         return [
-          { title: 'Prioritäten', columns: ['Bereich', 'Signal', 'Wert', 'Aktion'], rows: overviewPriorityRows },
-          { title: '30-Tage-Vorschau', columns: ['Kennzahl', '30 Tage', 'Basis', 'Nächster Schritt'], rows: overviewForecastRows },
-          { title: 'Datenqualität', columns: ['Quelle', 'Abdeckung', 'Auswirkung', 'Nächster Schritt'], rows: overviewDataQualityRows },
-          { title: 'Aufträge und Angebote', columns: ['Beleg', 'Kunde', 'Status', 'Betrag'], rows: derived.revenueRows.slice(0, 4).map((row) => [row.number, row.customer, <RevenueStatus status={row.status} />, formatMoney(row.amount, locale, currencyCode)] as Array<ReactNode>) },
-          { title: 'Lager-Risiken', columns: ['Ressource', 'Bestand', 'Ort / Quelle', 'Signal'], rows: riskRows },
+          { title: dashboardText('priorities'), columns: [dashboardText('area'), dashboardText('signal'), dashboardText('value'), dashboardText('action')], rows: overviewPriorityRows },
+          { title: dashboardText('label30DayForecast'), columns: [dashboardText('metric'), dashboardText('label30Days'), dashboardText('basis'), dashboardText('nextStep')], rows: overviewForecastRows },
+          { title: dashboardText('dataQuality'), columns: [dashboardText('source'), dashboardText('coverage'), dashboardText('impact'), dashboardText('nextStep')], rows: overviewDataQualityRows },
+          { title: dashboardText('ordersAndOffers'), columns: [dashboardText('document'), dashboardText('customer'), dashboardText('status'), dashboardText('amount')], rows: derived.revenueRows.slice(0, 4).map((row) => [row.number, row.customer, <RevenueStatus status={row.status} />, formatMoney(row.amount, locale, currencyCode)] as Array<ReactNode>) },
+          { title: dashboardText('inventoryRisks'), columns: [dashboardText('resource'), dashboardText('stock'), dashboardText('locationSource'), dashboardText('signal')], rows: riskRows },
         ];
     }
   })();
@@ -2540,67 +2533,67 @@ export function BusinessDashboardPage() {
   const revenueTab = (
     <div className="mt-5 space-y-5">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={Receipt} label="Zahlungswirksam" value={formatMoney(derived.paymentEffectiveRevenue, locale, currencyCode)} detail={derived.paymentDocuments.length > 0 ? `${derived.paymentDocuments.length} Rechnungen` : derived.missingPaymentSource ? 'Zahlungsquelle fehlt' : 'keine Buchungen'} tone={derived.paymentEffectiveRevenue > 0 ? 'green' : 'neutral'} to={invoiceListUrl(derived.paymentEffectiveRevenue > 0 ? 'paid' : undefined)} trend={trendLabels.paymentEffectiveRevenue} />
-        <MetricCard icon={AlertTriangle} label="Offen / Überfällig" value={formatMoney(derived.openRevenue, locale, currencyCode)} detail={`${formatMoney(derived.overdueRevenue, locale, currencyCode)} überfällig`} tone={derived.overdueRevenue > 0 ? 'red' : 'amber'} to={invoiceListUrl(overdueDocuments.length > 0 ? 'overdue' : 'open')} />
-        <MetricCard icon={Clock} label="Aktive Aufträge" value={formatMoney(derived.activeOrderRevenue, locale, currencyCode)} detail={`${derived.runningOrders.length} laufend`} tone="amber" to="/orders" />
-        <MetricCard icon={TrendingUp} label="Pipeline" value={formatMoney(derived.pipelineRevenue, locale, currencyCode)} detail="Angebote und Aufträge" tone="blue" to="/orders/offers" trend={trendLabels.pipelineRevenue} />
+        <MetricCard icon={Receipt} label={dashboardText('receivedPayments')} value={formatMoney(derived.paymentEffectiveRevenue, locale, currencyCode)} detail={derived.paymentDocuments.length > 0 ? dashboardText('invoicesValue', { value1: derived.paymentDocuments.length }) : derived.missingPaymentSource ? dashboardText('paymentSourceMissing') : dashboardText('noTransactions')} tone={derived.paymentEffectiveRevenue > 0 ? 'green' : 'neutral'} to={invoiceListUrl(derived.paymentEffectiveRevenue > 0 ? 'paid' : undefined)} trend={trendLabels.paymentEffectiveRevenue} />
+        <MetricCard icon={AlertTriangle} label={dashboardText('openOverdue')} value={formatMoney(derived.openRevenue, locale, currencyCode)} detail={dashboardText('overdueValue', { value1: formatMoney(derived.overdueRevenue, locale, currencyCode) })} tone={derived.overdueRevenue > 0 ? 'red' : 'amber'} to={invoiceListUrl(overdueDocuments.length > 0 ? 'overdue' : 'open')} />
+        <MetricCard icon={Clock} label={dashboardText('activeOrders')} value={formatMoney(derived.activeOrderRevenue, locale, currencyCode)} detail={dashboardText('runningValue', { value1: derived.runningOrders.length })} tone="amber" to="/orders" />
+        <MetricCard icon={TrendingUp} label={dashboardText('pipeline')} value={formatMoney(derived.pipelineRevenue, locale, currencyCode)} detail={dashboardText('offersAndOrders')} tone="blue" to="/orders/offers" trend={trendLabels.pipelineRevenue} />
       </div>
       <ActionStrip actions={revenueShortcuts} />
 
       <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-        <Panel icon={Receipt} title="Aufträge, Angebote und Zahlungsquelle" subtitle="Echte Einnahmen bleiben 0, bis Rechnungszahlungen oder Kontoabgleich angebunden sind">
+        <Panel icon={Receipt} title={dashboardText('ordersOffersAndPaymentSource')} subtitle={dashboardText('receivedRevenueStaysAt0UntilInvoicePaymentsOrBankReconciliationAreConnected')}>
           {derived.revenueRows.length > 0 ? (
             <CompactTable
-              columns={['Beleg', 'Kunde', 'Status', 'Betrag']}
+              columns={[dashboardText('document'), dashboardText('customer'), dashboardText('status'), dashboardText('amount')]}
               rows={derived.revenueRows.map((row) => [<EntityLink to={row.to}>{row.number}</EntityLink>, row.customer, <RevenueStatus status={row.status} />, formatMoney(row.amount, locale, currencyCode)])}
             />
-          ) : <EmptyState label="Noch keine Angebote oder Aufträge vorhanden." />}
+          ) : <EmptyState label={dashboardText('noOffersOrOrdersYet')} />}
         </Panel>
-        <Panel icon={CircleDollarSign} title="Abschlussquote und offene Werte">
+        <Panel icon={CircleDollarSign} title={dashboardText('completionRateAndOpenValues')}>
           <div className="flex items-end gap-4">
             <strong className="text-6xl font-semibold text-white">{formatPercent(completionRate, locale)}</strong>
-            <span className="pb-2 text-sm text-bambu-gray">aus Auftragsstatus</span>
+            <span className="pb-2 text-sm text-bambu-gray">{dashboardText('fromOrderStatus')}</span>
           </div>
           <div className="mt-5 h-3 rounded bg-bambu-dark-tertiary">
             <div className="h-3 rounded bg-[#00a14a]" style={{ width: `${clamp(completionRate, 0, 100)}%` }} />
           </div>
           <div className="mt-5 space-y-4">
-            <ProgressRow label="Abgeschlossen" value={derived.completedRevenue} max={Math.max(derived.acceptedRevenue, derived.pipelineRevenue, 1)} suffix={formatMoney(derived.completedRevenue, locale, currencyCode)} tone="green" />
-            <ProgressRow label="Offene Rechnungen" value={derived.openRevenue} max={Math.max(derived.openRevenue, derived.acceptedRevenue, derived.pipelineRevenue, 1)} suffix={formatMoney(derived.openRevenue, locale, currencyCode)} tone="amber" />
-            <ProgressRow label="Überfällig" value={derived.overdueRevenue} max={Math.max(derived.openRevenue, 1)} suffix={formatMoney(derived.overdueRevenue, locale, currencyCode)} tone="red" />
-            <ProgressRow label="Angebote" value={derived.pipelineRevenue} max={Math.max(derived.acceptedRevenue, derived.pipelineRevenue, 1)} suffix={formatMoney(derived.pipelineRevenue, locale, currencyCode)} tone="blue" />
+            <ProgressRow label={dashboardText('completed')} value={derived.completedRevenue} max={Math.max(derived.acceptedRevenue, derived.pipelineRevenue, 1)} suffix={formatMoney(derived.completedRevenue, locale, currencyCode)} tone="green" />
+            <ProgressRow label={dashboardText('openInvoices2')} value={derived.openRevenue} max={Math.max(derived.openRevenue, derived.acceptedRevenue, derived.pipelineRevenue, 1)} suffix={formatMoney(derived.openRevenue, locale, currencyCode)} tone="amber" />
+            <ProgressRow label={dashboardText('overdue')} value={derived.overdueRevenue} max={Math.max(derived.openRevenue, 1)} suffix={formatMoney(derived.overdueRevenue, locale, currencyCode)} tone="red" />
+            <ProgressRow label={dashboardText('offers')} value={derived.pipelineRevenue} max={Math.max(derived.acceptedRevenue, derived.pipelineRevenue, 1)} suffix={formatMoney(derived.pipelineRevenue, locale, currencyCode)} tone="blue" />
           </div>
         </Panel>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-        <Panel icon={TrendingUp} title="Pipeline ist Erwartung" subtitle="Nicht mit zahlungswirksamen Einnahmen vermischen">
+        <Panel icon={TrendingUp} title={dashboardText('pipelineRepresentsExpectations')} subtitle={dashboardText('keepSeparateFromReceivedPayments')}>
           <PipelineChart stages={derived.pipelineStages} currency={currencyCode} locale={locale} />
         </Panel>
-        <Panel icon={BarChart3} title="Einnahmen, Kosten und Marge im Verlauf">
+        <Panel icon={BarChart3} title={dashboardText('revenueCostsAndMarginOverTime')}>
           <FinanceTrendChart data={trend} currency={currencyCode} locale={locale} />
         </Panel>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-        <Panel icon={AlertTriangle} title="Offene Forderungen" subtitle="Fälligkeit, Restbetrag und nächster manueller Schritt">
+        <Panel icon={AlertTriangle} title={dashboardText('openReceivables')} subtitle={dashboardText('dueDateOutstandingAmountAndNextManualStep')}>
           {receivableRows.length > 0 ? (
-            <CompactTable columns={['Beleg', 'Kunde', 'Fällig', 'Offen', 'Signal', 'Aktion']} rows={receivableRows} />
-          ) : <EmptyState label="Keine offenen Forderungen im gewählten Zeitraum." />}
+            <CompactTable columns={[dashboardText('document'), dashboardText('customer'), dashboardText('due'), dashboardText('open'), dashboardText('signal'), dashboardText('action')]} rows={receivableRows} />
+          ) : <EmptyState label={dashboardText('noOpenReceivablesInTheSelectedPeriod')} />}
         </Panel>
-        <Panel icon={Receipt} title="Zahlungsstatus" subtitle="Aus tatsächlich erfassten Zahlungen und offenen Rechnungen">
-          <CompactTable columns={['Status', 'Wert', 'Umfang', 'Aktion']} rows={paymentStatusRows} />
+        <Panel icon={Receipt} title={dashboardText('paymentStatus')} subtitle={dashboardText('fromRecordedPaymentsAndOpenInvoices')}>
+          <CompactTable columns={[dashboardText('status'), dashboardText('value'), dashboardText('scope'), dashboardText('action')]} rows={paymentStatusRows} />
         </Panel>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-        <Panel icon={CircleDollarSign} title="Zahlungseingänge" subtitle="Manuell bestätigte Zahlungen im Zeitraum">
+        <Panel icon={CircleDollarSign} title={dashboardText('paymentReceipts')} subtitle={dashboardText('manuallyConfirmedPaymentsInThePeriod')}>
           {paymentRows.length > 0 ? (
-            <CompactTable columns={['Datum', 'Beleg', 'Kunde', 'Betrag', 'Methode']} rows={paymentRows} />
-          ) : <EmptyState label="Noch keine Zahlungseingänge im gewählten Zeitraum erfasst." />}
+            <CompactTable columns={[dashboardText('date'), dashboardText('document'), dashboardText('customer'), dashboardText('amount'), dashboardText('method')]} rows={paymentRows} />
+          ) : <EmptyState label={dashboardText('noPaymentReceiptsRecordedInTheSelectedPeriodYet')} />}
         </Panel>
-        <Panel icon={Lightbulb} title="Einnahmen-Aktionen" subtitle="Was als nächstes manuell zu prüfen ist">
-          <CompactTable columns={['Thema', 'Umfang', 'Ziel', 'Aktion']} rows={revenueActionRows} />
+        <Panel icon={Lightbulb} title={dashboardText('revenueActions')} subtitle={dashboardText('whatToCheckManuallyNext')}>
+          <CompactTable columns={[dashboardText('topic'), dashboardText('scope'), dashboardText('target'), dashboardText('action')]} rows={revenueActionRows} />
         </Panel>
       </div>
     </div>
@@ -2609,52 +2602,52 @@ export function BusinessDashboardPage() {
   const marginTab = (
     <div className="mt-5 space-y-5">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={Factory} label="Produktionskosten" value={formatMoney(derived.productionCost, locale, currencyCode)} detail="Material, Produktion, Energie" tone="violet" to="/orders/calculation" trend={trendLabels.productionCost} />
-        <MetricCard icon={Zap} label="Energieanteil" value={formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode)} detail="separat auswertbar" tone="cyan" to={dashboardTabUrl('energy')} trend={trendLabels.energyCost} />
-        <MetricCard icon={CircleDollarSign} label="Deckungsbeitrag" value={formatMoney(Math.max(derived.acceptedRevenue - derived.productionCost, 0), locale, currencyCode)} detail="vor Gemeinkosten" tone="green" to="/orders" trend={trendLabels.contribution} />
-        <MetricCard icon={Gauge} label="Marge" value={formatPercent(derived.margin, locale)} detail="effektiv" tone="green" to="/orders/calculation" trend={trendLabels.margin} />
+        <MetricCard icon={Factory} label={dashboardText('productionCosts')} value={formatMoney(derived.productionCost, locale, currencyCode)} detail={dashboardText('materialProductionEnergy')} tone="violet" to="/orders/calculation" trend={trendLabels.productionCost} />
+        <MetricCard icon={Zap} label={dashboardText('energyShare')} value={formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode)} detail={dashboardText('canBeEvaluatedSeparately')} tone="cyan" to={dashboardTabUrl('energy')} trend={trendLabels.energyCost} />
+        <MetricCard icon={CircleDollarSign} label={dashboardText('contributionMargin')} value={formatMoney(Math.max(derived.acceptedRevenue - derived.productionCost, 0), locale, currencyCode)} detail={dashboardText('beforeOverheads')} tone="green" to="/orders" trend={trendLabels.contribution} />
+        <MetricCard icon={Gauge} label={dashboardText('margin')} value={formatPercent(derived.margin, locale)} detail={dashboardText('effective')} tone="green" to="/orders/calculation" trend={trendLabels.margin} />
       </div>
       <ActionStrip actions={marginShortcuts} />
 
       <div className="grid gap-5 xl:grid-cols-[0.78fr_1.22fr]">
-        <Panel icon={CircleDollarSign} title="Kostenstruktur im Detail" subtitle="Archivkosten, Auftragskalkulation, Energie und Reservierung">
+        <Panel icon={CircleDollarSign} title={dashboardText('detailedCostStructure')} subtitle={dashboardText('archiveCostsOrderCalculationEnergyAndReservations')}>
           <Donut slices={derived.costSlices} center={formatMoney(derived.productionCost, locale, currencyCode)} valueFormatter={(value) => formatMoney(value, locale, currencyCode)} />
         </Panel>
-        <Panel icon={ClipboardList} title="Aufträge nach Marge">
+        <Panel icon={ClipboardList} title={dashboardText('ordersByMargin')}>
           {orderMarginRows.length > 0 ? (
             <CompactTable
-              columns={['Auftrag', 'Umsatz / Titel', 'Kosten', 'Marge', 'Signal']}
+              columns={[dashboardText('order'), dashboardText('revenueTitle'), dashboardText('costs'), dashboardText('margin'), dashboardText('signal')]}
               rows={orderMarginRows}
             />
-          ) : <EmptyState label="Noch keine kalkulierten Aufträge vorhanden." />}
+          ) : <EmptyState label={dashboardText('noCalculatedOrdersYet')} />}
         </Panel>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-        <Panel icon={BarChart3} title="Kostenentwicklung">
+        <Panel icon={BarChart3} title={dashboardText('costTrend')}>
           <FinanceTrendChart data={trend} currency={currencyCode} locale={locale} />
         </Panel>
-        <Panel icon={Factory} title="Kostentreiber">
+        <Panel icon={Factory} title={dashboardText('costDrivers')}>
           <div className="space-y-4">
-            <ProgressRow label="Archivkosten" value={stats?.total_cost ?? 0} max={Math.max(derived.productionCost, 1)} suffix={formatMoney(stats?.total_cost ?? 0, locale, currencyCode)} tone="green" />
-            <ProgressRow label="Auftragskalkulation" value={derived.acceptedCost} max={Math.max(derived.productionCost, 1)} suffix={formatMoney(derived.acceptedCost, locale, currencyCode)} tone="blue" />
-            <ProgressRow label="Energie" value={stats?.total_energy_cost ?? 0} max={Math.max(derived.productionCost, 1)} suffix={formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode)} tone="cyan" />
-            <ProgressRow label="Reservierter Lagerwert" value={derived.reservedValue} max={Math.max(derived.stockValue, derived.productionCost, 1)} suffix={formatMoney(derived.reservedValue, locale, currencyCode)} tone="amber" />
+            <ProgressRow label={dashboardText('archiveCosts')} value={stats?.total_cost ?? 0} max={Math.max(derived.productionCost, 1)} suffix={formatMoney(stats?.total_cost ?? 0, locale, currencyCode)} tone="green" />
+            <ProgressRow label={dashboardText('orderCalculation')} value={derived.acceptedCost} max={Math.max(derived.productionCost, 1)} suffix={formatMoney(derived.acceptedCost, locale, currencyCode)} tone="blue" />
+            <ProgressRow label={dashboardText('energy')} value={stats?.total_energy_cost ?? 0} max={Math.max(derived.productionCost, 1)} suffix={formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode)} tone="cyan" />
+            <ProgressRow label={dashboardText('reservedInventoryValue')} value={derived.reservedValue} max={Math.max(derived.stockValue, derived.productionCost, 1)} suffix={formatMoney(derived.reservedValue, locale, currencyCode)} tone="amber" />
           </div>
         </Panel>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-        <Panel icon={CircleDollarSign} title="Deckungsbeitrag kompakt" subtitle="Auftragswert gegen Kosten und gebundenes Lager">
-          <CompactTable columns={['Kennzahl', 'Wert', 'Basis', 'Signal']} rows={contributionRows} />
+        <Panel icon={CircleDollarSign} title={dashboardText('contributionMarginSummary')} subtitle={dashboardText('orderValueComparedWithCostsAndCommittedStock')}>
+          <CompactTable columns={[dashboardText('metric'), dashboardText('value'), dashboardText('basis'), dashboardText('signal')]} rows={contributionRows} />
         </Panel>
-        <Panel icon={ClipboardList} title="Kostenkontrolle" subtitle="Wo die Kosten herkommen und wohin der nächste Klick führt">
-          <CompactTable columns={['Treiber', 'Wert', 'Quelle', 'Aktion']} rows={costControlRows} />
+        <Panel icon={ClipboardList} title={dashboardText('costControl')} subtitle={dashboardText('whereCostsComeFromAndWhereToGoNext')}>
+          <CompactTable columns={[dashboardText('driver'), dashboardText('value'), dashboardText('source'), dashboardText('action')]} rows={costControlRows} />
         </Panel>
       </div>
 
-      <Panel icon={Lightbulb} title="Margen-Aktionen" subtitle="Konkrete Prüfungen für Kalkulation, Energie und Materialdaten">
-        <CompactTable columns={['Thema', 'Umfang', 'Wert / Ziel', 'Aktion']} rows={marginActionRows} />
+      <Panel icon={Lightbulb} title={dashboardText('marginActions')} subtitle={dashboardText('specificChecksForCalculationEnergyAndMaterialData')}>
+        <CompactTable columns={[dashboardText('topic'), dashboardText('scope'), dashboardText('valueTarget'), dashboardText('action')]} rows={marginActionRows} />
       </Panel>
     </div>
   );
@@ -2662,15 +2655,15 @@ export function BusinessDashboardPage() {
   const inventoryTab = (
     <div className="mt-5 space-y-5">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={Warehouse} label="Lagerwert" value={formatMoney(derived.stockValue, locale, currencyCode)} detail={`${formatMoney(derived.reservedValue, locale, currencyCode)} reserviert`} tone="green" to={inventoryFocusUrl()} />
-        <MetricCard icon={AlertTriangle} label="Nachbestellen" value={`${derived.lowStockCount} Artikel`} detail="unter Schwellwert" tone={derived.lowStockCount > 0 ? 'red' : 'neutral'} to={inventoryFocusUrl('low-stock')} />
-        <MetricCard icon={ClipboardList} label="Reservierungen" value={`${derived.reservedLines}`} detail="aus offenen Aufträgen" tone="blue" to="/orders" />
-        <MetricCard icon={Package} label="Verbrauch" value={formatWeightKg(derived.consumedGrams, locale)} detail="seit Verbrauchs-Reset" tone="amber" to={inventoryFocusUrl('used')} />
+        <MetricCard icon={Warehouse} label={dashboardText('inventoryValue')} value={formatMoney(derived.stockValue, locale, currencyCode)} detail={dashboardText('reservedValue', { value1: formatMoney(derived.reservedValue, locale, currencyCode) })} tone="green" to={inventoryFocusUrl()} />
+        <MetricCard icon={AlertTriangle} label={dashboardText('reorder')} value={dashboardText('itemsValue2', { value1: derived.lowStockCount })} detail={dashboardText('belowThreshold')} tone={derived.lowStockCount > 0 ? 'red' : 'neutral'} to={inventoryFocusUrl('low-stock')} />
+        <MetricCard icon={ClipboardList} label={dashboardText('reservations')} value={`${derived.reservedLines}`} detail={dashboardText('fromOpenOrders')} tone="blue" to="/orders" />
+        <MetricCard icon={Package} label={dashboardText('usage')} value={formatWeightKg(derived.consumedGrams, locale)} detail={dashboardText('sinceUsageReset')} tone="amber" to={inventoryFocusUrl('used')} />
       </div>
       <ActionStrip actions={inventoryShortcuts} />
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <Panel icon={Warehouse} title="Lagerreichweite und Verbrauch" subtitle="Lagerverwaltung bleibt eigener Schwerpunkt">
+        <Panel icon={Warehouse} title={dashboardText('stockCoverageAndUsage')} subtitle={dashboardText('inventoryManagementRemainsASeparateFocus')}>
           {derived.materialUsage.length > 0 ? (
             <div className="space-y-4">
               {derived.materialUsage.map((item, index) => (
@@ -2684,15 +2677,15 @@ export function BusinessDashboardPage() {
                 />
               ))}
             </div>
-          ) : <EmptyState label="Keine aktiven Lagerartikel gefunden." />}
+          ) : <EmptyState label={dashboardText('noActiveInventoryItemsFound')} />}
         </Panel>
-        <Panel icon={AlertTriangle} title="Nachbestellen und Reservierung">
+        <Panel icon={AlertTriangle} title={dashboardText('reorderingAndReservations')}>
           {riskRows.length > 0 ? (
-            <CompactTable columns={['Ressource', 'Bestand', 'Ort / Quelle', 'Signal']} rows={riskRows} />
-          ) : <EmptyState label="Keine kritischen Lagersignale im aktuellen Zeitraum." />}
+            <CompactTable columns={[dashboardText('resource'), dashboardText('stock'), dashboardText('locationSource'), dashboardText('signal')]} rows={riskRows} />
+          ) : <EmptyState label={dashboardText('noCriticalInventorySignalsInTheCurrentPeriod')} />}
         </Panel>
 
-        <Panel icon={Package} title="Lagerwert nach Material">
+        <Panel icon={Package} title={dashboardText('inventoryValueByMaterial')}>
           {derived.materialUsage.length > 0 ? (
             <div className="space-y-4">
               {derived.materialUsage.map((item, index) => (
@@ -2706,64 +2699,64 @@ export function BusinessDashboardPage() {
                 />
               ))}
             </div>
-          ) : <EmptyState label="Keine Materialwerte berechenbar." />}
+          ) : <EmptyState label={dashboardText('noMaterialValuesCanBeCalculated')} />}
         </Panel>
-        <Panel icon={ClipboardList} title="Reservierungsdruck">
+        <Panel icon={ClipboardList} title={dashboardText('reservationPressure')}>
           {derived.reservationRows.length > 0 ? (
             <CompactTable
-              columns={['Auftrag', 'Material', 'Reserviert', 'Wert', 'Status']}
+              columns={[dashboardText('order'), dashboardText('material'), dashboardText('reserved2'), dashboardText('value'), dashboardText('status')]}
               rows={derived.reservationRows}
             />
-          ) : <EmptyState label="Keine offenen Reservierungen gefunden." />}
+          ) : <EmptyState label={dashboardText('noOpenReservationsFound')} />}
         </Panel>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_1fr_1fr]">
-        <Panel icon={Truck} title="Lieferanten-Cockpit" subtitle="Bezugsquelle, Materialabdeckung und Zuverlässigkeit">
+        <Panel icon={Truck} title={dashboardText('supplierDashboard')} subtitle={dashboardText('supplySourceMaterialCoverageAndReliability')}>
           {supplierRows.length > 0 ? (
-            <CompactTable columns={['Lieferant', 'Materialbezug', 'Lieferzeit', 'Kontakt', 'Status']} rows={supplierRows} />
-          ) : <EmptyState label="Noch keine aktiven Lieferanten hinterlegt." />}
+            <CompactTable columns={[dashboardText('supplier'), dashboardText('materialSourcing'), dashboardText('leadTime'), dashboardText('contact'), dashboardText('status')]} rows={supplierRows} />
+          ) : <EmptyState label={dashboardText('noActiveSuppliersConfiguredYet')} />}
         </Panel>
-        <Panel icon={ClipboardList} title="Bestellvorschläge" subtitle="Nachschub nach Reichweite und Reservierung">
+        <Panel icon={ClipboardList} title={dashboardText('reorderSuggestions')} subtitle={dashboardText('replenishmentBasedOnStockCoverageAndReservations')}>
           {reorderRows.length > 0 ? (
-            <CompactTable columns={['Artikel', 'Bestand', 'Vorschlag', 'Lieferant', 'Lieferzeit', 'Aktion']} rows={reorderRows} />
-          ) : <EmptyState label="Aktuell keine Bestellvorschläge aus niedrigen Lagerbeständen." />}
+            <CompactTable columns={[dashboardText('item'), dashboardText('stock'), dashboardText('suggestion'), dashboardText('supplier'), dashboardText('leadTime'), dashboardText('action')]} rows={reorderRows} />
+          ) : <EmptyState label={dashboardText('noCurrentReorderSuggestionsFromLowStockLevels')} />}
         </Panel>
-        <Panel icon={Gauge} title="Materialfluss" subtitle="Was blockiert, was bindet Kapital?">
+        <Panel icon={Gauge} title={dashboardText('materialFlow')} subtitle={dashboardText('whatIsBlockedAndWhatTiesUpCapital')}>
           <div className="space-y-4">
-            <ProgressRow label="Verfügbar" value={Math.max(derived.stockValue - derived.reservedValue, 0)} max={Math.max(derived.stockValue, 1)} suffix={formatMoney(Math.max(derived.stockValue - derived.reservedValue, 0), locale, currencyCode)} tone="green" />
-            <ProgressRow label="Reserviert" value={derived.reservedValue} max={Math.max(derived.stockValue, 1)} suffix={formatMoney(derived.reservedValue, locale, currencyCode)} tone="blue" />
-            <ProgressRow label="Kritisch gebunden" value={lowStockInventoryValue} max={Math.max(derived.stockValue, 1)} suffix={`${derived.lowStockCount} Positionen · ${formatMoney(lowStockInventoryValue, locale, currencyCode)}`} tone={derived.lowStockCount > 0 ? 'red' : 'neutral'} />
-            <ProgressRow label="Verbrauchsdynamik" value={derived.consumedGrams} max={Math.max(derived.consumedGrams * 1.35, 1)} suffix={formatWeightKg(derived.consumedGrams, locale)} tone="amber" />
+            <ProgressRow label={dashboardText('available2')} value={Math.max(derived.stockValue - derived.reservedValue, 0)} max={Math.max(derived.stockValue, 1)} suffix={formatMoney(Math.max(derived.stockValue - derived.reservedValue, 0), locale, currencyCode)} tone="green" />
+            <ProgressRow label={dashboardText('reserved2')} value={derived.reservedValue} max={Math.max(derived.stockValue, 1)} suffix={formatMoney(derived.reservedValue, locale, currencyCode)} tone="blue" />
+            <ProgressRow label={dashboardText('criticallyCommitted')} value={lowStockInventoryValue} max={Math.max(derived.stockValue, 1)} suffix={dashboardText('linesValue2', { value1: derived.lowStockCount, value2: formatMoney(lowStockInventoryValue, locale, currencyCode) })} tone={derived.lowStockCount > 0 ? 'red' : 'neutral'} />
+            <ProgressRow label={dashboardText('usageDynamics')} value={derived.consumedGrams} max={Math.max(derived.consumedGrams * 1.35, 1)} suffix={formatWeightKg(derived.consumedGrams, locale)} tone="amber" />
           </div>
         </Panel>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-        <Panel icon={Lightbulb} title="Material- & Lieferantenplanung" subtitle="Reichweite gegen Lieferzeit und Verbrauch gespiegelt">
+        <Panel icon={Lightbulb} title={dashboardText('materialSupplierPlanning')} subtitle={dashboardText('stockCoverageComparedWithLeadTimeAndUsage')}>
           {materialPlanningRows.length > 0 ? (
-            <CompactTable columns={['Material', 'Reichweite', 'Lieferant', 'Lieferzeit', 'Vorschlag', 'Signal']} rows={materialPlanningRows} />
-          ) : <EmptyState label="Keine Materialplanung berechenbar." />}
+            <CompactTable columns={[dashboardText('material'), dashboardText('stockCoverage'), dashboardText('supplier'), dashboardText('leadTime'), dashboardText('suggestion'), dashboardText('signal')]} rows={materialPlanningRows} />
+          ) : <EmptyState label={dashboardText('noMaterialPlanningCanBeCalculated')} />}
         </Panel>
-        <Panel icon={Gauge} title="Lagerqualität" subtitle="Wert, Engpass und Datenpflege auf einen Blick">
+        <Panel icon={Gauge} title={dashboardText('inventoryQuality')} subtitle={dashboardText('valueShortagesAndDataMaintenanceAtAGlance')}>
           <div className="space-y-4">
-            <ProgressRow label="SKU-Lieferanten" value={directSupplierAssignedSpoolCount} max={Math.max(spools.length, 1)} suffix={`${directSupplierAssignedSpoolCount} von ${spools.length}`} tone={directSupplierAssignedSpoolCount < spools.length ? 'amber' : 'green'} />
-            <ProgressRow label="Angebotsabdeckung" value={supplierAssignedSpoolCount} max={Math.max(spools.length, 1)} suffix={`${supplierAssignedSpoolCount} von ${spools.length}`} tone="green" />
-            <ProgressRow label="Ohne Kosten" value={inventoryWithoutCostCount} max={Math.max(inventoryItemCount, 1)} suffix={`${inventoryWithoutCostCount} Artikel`} tone={inventoryWithoutCostCount > 0 ? 'amber' : 'neutral'} />
-            <ProgressRow label="Kritischer Bestand" value={derived.lowStockCount} max={Math.max(inventoryItemCount, 1)} suffix={`${derived.lowStockCount} Artikel`} tone={derived.lowStockCount > 0 ? 'red' : 'green'} />
-            <ProgressRow label="Mit Lagerort" value={inventoryWithLocationCount} max={Math.max(inventoryItemCount, 1)} suffix={`${inventoryWithLocationCount} Artikel`} tone="blue" />
+            <ProgressRow label={dashboardText('skuSuppliers')} value={directSupplierAssignedSpoolCount} max={Math.max(spools.length, 1)} suffix={dashboardText('ofValue', { value1: directSupplierAssignedSpoolCount, value2: spools.length })} tone={directSupplierAssignedSpoolCount < spools.length ? 'amber' : 'green'} />
+            <ProgressRow label={dashboardText('offerCoverage')} value={supplierAssignedSpoolCount} max={Math.max(spools.length, 1)} suffix={dashboardText('ofValue', { value1: supplierAssignedSpoolCount, value2: spools.length })} tone="green" />
+            <ProgressRow label={dashboardText('withoutCosts')} value={inventoryWithoutCostCount} max={Math.max(inventoryItemCount, 1)} suffix={dashboardText('itemsValue2', { value1: inventoryWithoutCostCount })} tone={inventoryWithoutCostCount > 0 ? 'amber' : 'neutral'} />
+            <ProgressRow label={dashboardText('criticalStock')} value={derived.lowStockCount} max={Math.max(inventoryItemCount, 1)} suffix={dashboardText('itemsValue2', { value1: derived.lowStockCount })} tone={derived.lowStockCount > 0 ? 'red' : 'green'} />
+            <ProgressRow label={dashboardText('withStorageLocation')} value={inventoryWithLocationCount} max={Math.max(inventoryItemCount, 1)} suffix={dashboardText('itemsValue2', { value1: inventoryWithLocationCount })} tone="blue" />
           </div>
         </Panel>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-        <Panel icon={Gauge} title="Beschaffungsreife" subtitle="Wie vollständig Nachbestellung und Kalkulation ableitbar sind">
-          <CompactTable columns={['Prüfpunkt', 'Abdeckung', 'Signal', 'Aktion']} rows={procurementReadinessRows} />
+        <Panel icon={Gauge} title={dashboardText('procurementReadiness')} subtitle={dashboardText('howFullyReorderingAndCalculationsCanBeDetermined')}>
+          <CompactTable columns={[dashboardText('checkPoint'), dashboardText('coverage'), dashboardText('signal'), dashboardText('action')]} rows={procurementReadinessRows} />
         </Panel>
-        <Panel icon={Package} title="Langsamdreher & Kapitalbindung" subtitle="Bestand mit langer Ruhezeit und vorhandenem Restwert">
+        <Panel icon={Package} title={dashboardText('slowMovingStockTiedUpCapital')} subtitle={dashboardText('stockWithLongIdleTimesAndRemainingValue')}>
           {staleSpoolRows.length > 0 ? (
-            <CompactTable columns={['Spule', 'Wert', 'Ruhezeit', 'Ort', 'Aktion']} rows={staleSpoolRows} />
-          ) : <EmptyState label="Keine langsam drehenden Bestände mit Restwert gefunden." />}
+            <CompactTable columns={[dashboardText('spool'), dashboardText('value'), dashboardText('idleTime'), dashboardText('location'), dashboardText('action')]} rows={staleSpoolRows} />
+          ) : <EmptyState label={dashboardText('noSlowMovingStockWithRemainingValueFound')} />}
         </Panel>
       </div>
     </div>
@@ -2772,26 +2765,26 @@ export function BusinessDashboardPage() {
   const energyTab = (
     <div className="mt-5 space-y-5">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={Zap} label="Verbrauch" value={formatKwh(stats?.total_energy_kwh ?? 0, locale)} detail={`${selectedDateRange.label} · ${energyMode}`} tone="cyan" to="/dashboard" trend={trendLabels.energyKwh} />
-        <MetricCard icon={CircleDollarSign} label="Energiekosten" value={formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode)} detail="im Zeitraum" tone="amber" to={energyCostSettingsUrl} trend={trendLabels.energyCost} />
-        <MetricCard icon={BatteryCharging} label="Kosten/kWh" value={formatMoney(settingsQuery.data?.energy_cost_per_kwh ?? 0, locale, currencyCode)} detail="aus Einstellungen" tone="neutral" to={energyCostSettingsUrl} />
-        <MetricCard icon={Gauge} label="Intensität" value={`${energyPerHour.toFixed(2)} kWh/h`} detail="je Druckstunde" tone="green" to={archiveEnergyUrl(undefined, 'log')} />
+        <MetricCard icon={Zap} label={dashboardText('usage')} value={formatKwh(stats?.total_energy_kwh ?? 0, locale)} detail={`${selectedDateRange.label} · ${energyMode}`} tone="cyan" to="/dashboard" trend={trendLabels.energyKwh} />
+        <MetricCard icon={CircleDollarSign} label={dashboardText('energyCosts')} value={formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode)} detail={dashboardText('inThePeriod')} tone="amber" to={energyCostSettingsUrl} trend={trendLabels.energyCost} />
+        <MetricCard icon={BatteryCharging} label={dashboardText('costsKwh')} value={formatMoney(settingsQuery.data?.energy_cost_per_kwh ?? 0, locale, currencyCode)} detail={dashboardText('fromSettings')} tone="neutral" to={energyCostSettingsUrl} />
+        <MetricCard icon={Gauge} label={dashboardText('intensity')} value={`${energyPerHour.toFixed(2)} kWh/h`} detail={dashboardText('perPrintHour')} tone="green" to={archiveEnergyUrl(undefined, 'log')} />
       </div>
       <ActionStrip actions={energyShortcuts} />
 
       <div className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
-        <Panel icon={Zap} title="Energie-Kennzahlen" subtitle={`${selectedDateRange.label} · ${energyMode}`}>
+        <Panel icon={Zap} title={dashboardText('energyMetrics')} subtitle={`${selectedDateRange.label} · ${energyMode}`}>
           <div className="grid gap-3 sm:grid-cols-2">
-            <MiniMetric icon={Zap} label="Verbrauch" value={formatKwh(stats?.total_energy_kwh ?? 0, locale)} tone="cyan" />
-            <MiniMetric icon={CircleDollarSign} label="Energiekosten" value={formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode)} tone="amber" />
-            <MiniMetric icon={BatteryCharging} label="Kosten/kWh" value={formatMoney(settingsQuery.data?.energy_cost_per_kwh ?? 0, locale, currencyCode)} tone="neutral" />
-            <MiniMetric icon={Factory} label="kWh / Druckstunde" value={energyPerHour.toFixed(2)} tone="green" />
+            <MiniMetric icon={Zap} label={dashboardText('usage')} value={formatKwh(stats?.total_energy_kwh ?? 0, locale)} tone="cyan" />
+            <MiniMetric icon={CircleDollarSign} label={dashboardText('energyCosts')} value={formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode)} tone="amber" />
+            <MiniMetric icon={BatteryCharging} label={dashboardText('costsKwh')} value={formatMoney(settingsQuery.data?.energy_cost_per_kwh ?? 0, locale, currencyCode)} tone="neutral" />
+            <MiniMetric icon={Factory} label={dashboardText('kwhPrintHour')} value={energyPerHour.toFixed(2)} tone="green" />
           </div>
           <div className={`${surface.panelQuiet} mt-5 text-sm text-bambu-gray`}>
-            Quelle: <span className="font-medium text-white">{stats?.energy_source ?? 'Archivstatistik'}</span>
+            {dashboardText('source2')} <span className="font-medium text-white">{dashboardEnergySource(stats?.energy_source, dashboardText('archiveStatistics'))}</span>
           </div>
         </Panel>
-        <Panel icon={BatteryCharging} title="Stundenprofil" subtitle="Print-Log-Energie, sonst nach realer Druckdauer aus der Zeitraumssumme verteilt">
+        <Panel icon={BatteryCharging} title={dashboardText('hourlyProfile')} subtitle={dashboardText('printLogEnergyOtherwiseThePeriodTotalDistributedByActualPrintDuration')}>
           {(stats?.total_energy_kwh ?? 0) > 0 || archiveEvents.length > 0
             ? (
               <EnergyHeatmap
@@ -2803,55 +2796,55 @@ export function BusinessDashboardPage() {
                 currency={currencyCode}
               />
             )
-            : <EmptyState label="Keine Energiedaten im Zeitraum." />}
+            : <EmptyState label={dashboardText('noEnergyDataInThePeriod')} />}
         </Panel>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-        <Panel icon={BarChart3} title="Energie je Druck" subtitle="Letzte Ereignisse aus dem gewählten Zeitraum">
+        <Panel icon={BarChart3} title={dashboardText('energyPerPrint')} subtitle={dashboardText('latestEventsFromTheSelectedPeriod')}>
           {energyEventRows.length > 0 ? (
-            <CompactTable columns={['Datum', 'Druck', 'Drucker', 'kWh', 'Kosten']} rows={energyEventRows} />
-          ) : <EmptyState label="Noch keine Druckereignisse im Zeitraum vorhanden." />}
+            <CompactTable columns={[dashboardText('date'), dashboardText('print'), dashboardText('printer'), 'kWh', dashboardText('costs')]} rows={energyEventRows} />
+          ) : <EmptyState label={dashboardText('noPrintEventsInThePeriodYet')} />}
         </Panel>
-        <Panel icon={AlertTriangle} title="Energie-Signale">
+        <Panel icon={AlertTriangle} title={dashboardText('energySignals')}>
           <CompactTable
-            columns={['Signal', 'Wert', 'Zeitfenster', 'Aktion']}
+            columns={[dashboardText('signal'), dashboardText('value'), dashboardText('timeWindow'), dashboardText('action')]}
             rows={energyActionRows}
           />
         </Panel>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-        <Panel icon={Clock} title="Peak-Fenster" subtitle="Stunden mit höchstem Energiebedarf im Zeitraum">
+        <Panel icon={Clock} title={dashboardText('peakWindows')} subtitle={dashboardText('hoursWithTheHighestEnergyDemandInThePeriod')}>
           {peakHourRows.length > 0 ? (
-            <CompactTable columns={['Zeitfenster', 'kWh', 'Kosten', 'Drucke', 'Signal']} rows={peakHourRows} />
-          ) : <EmptyState label="Noch keine Zeitfenster aus Druckereignissen berechenbar." />}
+            <CompactTable columns={[dashboardText('timeWindow'), 'kWh', dashboardText('costs'), dashboardText('prints'), dashboardText('signal')]} rows={peakHourRows} />
+          ) : <EmptyState label={dashboardText('noTimeWindowsCanBeCalculatedFromPrintEventsYet')} />}
         </Panel>
-        <Panel icon={Gauge} title="Datenqualität & Kostenbasis" subtitle="Was gemessen ist und was geschätzt werden muss">
-          <CompactTable columns={['Prüfpunkt', 'Wert', 'Quelle', 'Aktion']} rows={energyQualityRows} />
+        <Panel icon={Gauge} title={dashboardText('dataQualityCostBasis')} subtitle={dashboardText('whatIsMeasuredAndWhatNeedsEstimating')}>
+          <CompactTable columns={[dashboardText('checkPoint'), dashboardText('value'), dashboardText('source'), dashboardText('action')]} rows={energyQualityRows} />
         </Panel>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_1fr_1fr]">
-        <Panel icon={Lightbulb} title="Energie-Optimierung" subtitle="Konkrete Hebel aus vorhandenen Kennzahlen">
-          <CompactTable columns={['Hebel', 'Wert', 'Basis', 'Nächster Schritt']} rows={energyRecommendationRows} />
+        <Panel icon={Lightbulb} title={dashboardText('energyOptimization')} subtitle={dashboardText('specificImprovementsBasedOnAvailableMetrics')}>
+          <CompactTable columns={[dashboardText('improvementLever'), dashboardText('value'), dashboardText('basis'), dashboardText('nextStep')]} rows={energyRecommendationRows} />
         </Panel>
-        <Panel icon={Clock} title="Archivkennzahlen" subtitle="Reale Summen aus dem gewählten Zeitraum">
+        <Panel icon={Clock} title={dashboardText('archiveMetrics')} subtitle={dashboardText('actualTotalsFromTheSelectedPeriod')}>
           <CompactTable
-            columns={['Kennzahl', 'Wert', 'Quelle', 'Signal']}
+            columns={[dashboardText('metric'), dashboardText('value'), dashboardText('source'), dashboardText('signal')]}
             rows={[
-              ['Druckstunden', `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(stats?.total_print_time_hours ?? 0)} h`, 'Archiv', 'OK'],
-              ['Filament', formatWeightKg(stats?.total_filament_grams ?? 0, locale), 'Archiv', 'OK'],
-              ['Energiequelle', stats?.energy_source ?? 'keine', energyMode, (stats?.total_energy_kwh ?? 0) > 0 ? 'OK' : <span className="text-amber-300">fehlt</span>],
-              ['Aufwärmphase', stats?.energy_data_warming_up ? 'aktiv' : 'nein', 'Archiv', stats?.energy_data_warming_up ? <span className="text-amber-300">warten</span> : 'OK'],
+              [dashboardText('printHours'), `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(stats?.total_print_time_hours ?? 0)} h`, dashboardText('archive'), 'OK'],
+              [dashboardText('filament'), formatWeightKg(stats?.total_filament_grams ?? 0, locale), dashboardText('archive'), 'OK'],
+              [dashboardText('energySource'), dashboardEnergySource(stats?.energy_source, dashboardText('none')), energyMode, (stats?.total_energy_kwh ?? 0) > 0 ? 'OK' : <span className="text-amber-300">{dashboardText('missing')}</span>],
+              [dashboardText('warmUpPhase'), stats?.energy_data_warming_up ? dashboardText('active2') : dashboardText('no'), dashboardText('archive'), stats?.energy_data_warming_up ? <span className="text-amber-300">{dashboardText('wait')}</span> : 'OK'],
             ]}
           />
         </Panel>
-        <Panel icon={Factory} title="Drucker- und Quellenmix" subtitle="Druckanteile aus der Archivstatistik">
+        <Panel icon={Factory} title={dashboardText('printerAndSourceMix')} subtitle={dashboardText('printSharesFromArchiveStatistics')}>
           {printerRows.length > 0 ? (
-            <CompactTable columns={['Drucker', 'Drucke', 'kWh anteilig', 'Anteil']} rows={printerRows} />
-          ) : <EmptyState label="Keine Druckeranteile im Zeitraum vorhanden." />}
-          <p className="mt-5 text-xs text-bambu-gray">Quelle: {stats?.energy_source ?? 'Archivstatistik'} · Modus: {energyMode}</p>
+            <CompactTable columns={[dashboardText('printer'), dashboardText('prints'), dashboardText('proportionalKwh'), dashboardText('share')]} rows={printerRows} />
+          ) : <EmptyState label={dashboardText('noPrinterSharesInThePeriod')} />}
+          <p className="mt-5 text-xs text-bambu-gray">{dashboardText('source2')} {dashboardEnergySource(stats?.energy_source, dashboardText('archiveStatistics'))} {dashboardText('mode')} {energyMode}</p>
         </Panel>
       </div>
     </div>
@@ -2862,9 +2855,9 @@ export function BusinessDashboardPage() {
       <div className="w-full">
         <header className="space-y-4">
           <div>
-            <h1 className="text-[1.75rem] font-semibold leading-tight text-white sm:text-[2rem]">Business Dashboard</h1>
+            <h1 className="text-[1.75rem] font-semibold leading-tight text-white sm:text-[2rem]">{dashboardText('businessDashboard')}</h1>
             <p className="mt-1 text-sm leading-5 text-bambu-gray">
-              Kosten, Einnahmen, Lager und Energieverbrauch als eigene betriebliche Übersicht.
+              {dashboardText('aDedicatedBusinessOverviewOfCostsRevenueInventoryAndEnergyUsage')}
             </p>
           </div>
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -2876,10 +2869,10 @@ export function BusinessDashboardPage() {
                 className="flex min-h-10 items-center gap-2 rounded border border-bambu-dark-tertiary bg-bambu-dark-secondary px-3 text-sm font-medium text-bambu-gray transition-colors hover:border-bambu-green/60 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green"
               >
                 <Download className="h-4 w-4 text-bambu-green" />
-                CSV Export
+                {dashboardText('csvExport')}
               </button>
               <Select
-                ariaLabel="Zeitraum"
+                ariaLabel={dashboardText('period2')}
                 value={dateRangeValue}
                 onValueChange={(value) => handleDateRangeChange(value as DateRangeValue)}
                 options={dateRangeOptions.map((option) => ({
@@ -2891,7 +2884,7 @@ export function BusinessDashboardPage() {
                 renderValue={(option) => (
                   <span className="flex items-center gap-2">
                     <CalendarDays className="h-4 w-4 text-bambu-green" />
-                    <span className="text-bambu-gray">Zeitraum:</span>
+                    <span className="text-bambu-gray">{dashboardText('period')}</span>
                     <span className="font-medium text-white">{option?.label}</span>
                   </span>
                 )}
@@ -2902,22 +2895,22 @@ export function BusinessDashboardPage() {
 
         {!canReadBusinessDashboard ? (
           <div className="mt-6">
-            <Panel icon={AlertTriangle} title="Keine Berechtigung" subtitle="Für das Business Dashboard werden Kennzahlen aus Aufträgen, Zahlungen, Lager und Archiv gemeinsam benötigt.">
-              <EmptyState label="Bitte Rolle/Rechte prüfen: Statistik, Aufträge, Lager, Rechnungen, Zahlungen und Archivzugriff." />
+            <Panel icon={AlertTriangle} title={dashboardText('permissionDenied')} subtitle={dashboardText('theBusinessDashboardRequiresMetricsFromOrdersPaymentsInventoryAndArchivesTogether')}>
+              <EmptyState label={dashboardText('checkYourRoleAndPermissionsStatisticsOrdersInventoryInvoicesPaymentsAndArchiveAccess')} />
             </Panel>
           </div>
         ) : null}
 
         {canReadBusinessDashboard && activeTab === 'overview' ? (
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
-            <MetricCard icon={Receipt} label="Zahlungswirksam" value={formatMoney(derived.paymentEffectiveRevenue, locale, currencyCode)} detail={derived.paymentDocuments.length > 0 ? `${derived.paymentDocuments.length} Rechnungen` : derived.missingPaymentSource ? 'Zahlungsquelle fehlt' : 'keine Buchungen'} tone={derived.paymentEffectiveRevenue > 0 ? 'green' : 'neutral'} to={dashboardTabUrl('revenue')} trend={trendLabels.paymentEffectiveRevenue} />
-            <MetricCard icon={TrendingUp} label="Auftragswert" value={formatMoney(derived.acceptedRevenue, locale, currencyCode)} detail={`${derived.activeOrders.length} Aufträge`} tone="green" to={dashboardTabUrl('revenue')} trend={trendLabels.acceptedRevenue} />
-            <MetricCard icon={CircleDollarSign} label="Deckungsbeitrag" value={formatMoney(Math.max(derived.acceptedRevenue - derived.productionCost, 0), locale, currencyCode)} detail={`${formatPercent(derived.margin, locale)} effektive Marge`} tone="green" to={dashboardTabUrl('margin')} trend={trendLabels.contribution} />
-            <MetricCard icon={Warehouse} label="Lagerwert" value={formatMoney(derived.stockValue, locale, currencyCode)} detail={`${formatMoney(derived.reservedValue, locale, currencyCode)} reserviert`} tone="cyan" to={dashboardTabUrl('inventory')} />
-            <MetricCard icon={Zap} label="Energieverbrauch" value={formatKwh(stats?.total_energy_kwh ?? 0, locale)} detail={`${formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode)} Strom`} tone="cyan" to={dashboardTabUrl('energy')} trend={trendLabels.energyKwh} />
-            <MetricCard icon={AlertTriangle} label="Nachbestellen" value={`${derived.lowStockCount} Artikel`} detail={`${riskRows.length} Signale`} tone={derived.lowStockCount > 0 ? 'red' : 'neutral'} to={dashboardTabUrl('inventory')} />
-            <MetricCard icon={Factory} label="Produktionskosten" value={formatMoney(derived.productionCost, locale, currencyCode)} detail="Material, Produktion, Energie" tone="violet" to={dashboardTabUrl('margin')} trend={trendLabels.productionCost} />
-            <MetricCard icon={Gauge} label="Abschlussquote" value={formatPercent(completionRate, locale)} detail="aus Auftragsstatus" tone="green" to={dashboardTabUrl('revenue')} trend={trendLabels.completionRate} />
+            <MetricCard icon={Receipt} label={dashboardText('receivedPayments')} value={formatMoney(derived.paymentEffectiveRevenue, locale, currencyCode)} detail={derived.paymentDocuments.length > 0 ? dashboardText('invoicesValue', { value1: derived.paymentDocuments.length }) : derived.missingPaymentSource ? dashboardText('paymentSourceMissing') : dashboardText('noTransactions')} tone={derived.paymentEffectiveRevenue > 0 ? 'green' : 'neutral'} to={dashboardTabUrl('revenue')} trend={trendLabels.paymentEffectiveRevenue} />
+            <MetricCard icon={TrendingUp} label={dashboardText('orderValue')} value={formatMoney(derived.acceptedRevenue, locale, currencyCode)} detail={dashboardText('ordersValue', { value1: derived.activeOrders.length })} tone="green" to={dashboardTabUrl('revenue')} trend={trendLabels.acceptedRevenue} />
+            <MetricCard icon={CircleDollarSign} label={dashboardText('contributionMargin')} value={formatMoney(Math.max(derived.acceptedRevenue - derived.productionCost, 0), locale, currencyCode)} detail={dashboardText('effectiveMarginValue', { value1: formatPercent(derived.margin, locale) })} tone="green" to={dashboardTabUrl('margin')} trend={trendLabels.contribution} />
+            <MetricCard icon={Warehouse} label={dashboardText('inventoryValue')} value={formatMoney(derived.stockValue, locale, currencyCode)} detail={dashboardText('reservedValue', { value1: formatMoney(derived.reservedValue, locale, currencyCode) })} tone="cyan" to={dashboardTabUrl('inventory')} />
+            <MetricCard icon={Zap} label={dashboardText('energyUsage')} value={formatKwh(stats?.total_energy_kwh ?? 0, locale)} detail={dashboardText('electricityValue', { value1: formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode) })} tone="cyan" to={dashboardTabUrl('energy')} trend={trendLabels.energyKwh} />
+            <MetricCard icon={AlertTriangle} label={dashboardText('reorder')} value={dashboardText('itemsValue2', { value1: derived.lowStockCount })} detail={dashboardText('signalsValue', { value1: riskRows.length })} tone={derived.lowStockCount > 0 ? 'red' : 'neutral'} to={dashboardTabUrl('inventory')} />
+            <MetricCard icon={Factory} label={dashboardText('productionCosts')} value={formatMoney(derived.productionCost, locale, currencyCode)} detail={dashboardText('materialProductionEnergy')} tone="violet" to={dashboardTabUrl('margin')} trend={trendLabels.productionCost} />
+            <MetricCard icon={Gauge} label={dashboardText('completionRate')} value={formatPercent(completionRate, locale)} detail={dashboardText('fromOrderStatus')} tone="green" to={dashboardTabUrl('revenue')} trend={trendLabels.completionRate} />
           </div>
         ) : null}
 

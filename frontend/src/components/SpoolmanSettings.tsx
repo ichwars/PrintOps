@@ -11,6 +11,7 @@ import { ConfirmModal } from './ConfirmModal';
 import { useToast } from '../contexts/ToastContext';
 
 export function SpoolmanSettings() {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -589,7 +590,7 @@ export function SpoolmanSettings() {
                         <div className="flex items-center gap-1.5">
                           <AlertTriangle className="w-3.5 h-3.5" />
                           <span className="font-medium">
-                            {syncResult.skipped_count} spool{syncResult.skipped_count !== 1 ? 's' : ''} skipped
+                            {syncResult.skipped_count} {translateInterface("inventory.spool")}{syncResult.skipped_count !== 1 ? 's' : ''} {translateInterface("printers.skipObjects.skipped")}
                           </span>
                         </div>
                         {syncResult.skipped_count > 5 && (
@@ -597,7 +598,7 @@ export function SpoolmanSettings() {
                             onClick={() => setShowAllSkipped(!showAllSkipped)}
                             className="text-xs text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 underline"
                           >
-                            {showAllSkipped ? 'Show less' : 'Show all'}
+                            {showAllSkipped ? translateInterface("inventory.showLess") : translateInterface("archives.showAll")}
                           </Button>
                         )}
                       </div>
@@ -616,7 +617,7 @@ export function SpoolmanSettings() {
                         ))}
                         {!showAllSkipped && syncResult.skipped_count > 5 && (
                           <li className="text-amber-700/70 dark:text-amber-300/60 italic">
-                            ...and {syncResult.skipped_count - 5} more
+                            {translateInterface("orders.runtimeInterface.and")} {syncResult.skipped_count - 5} {translateInterface("orders.runtimeInterface.more")}
                           </li>
                         )}
                       </ul>
@@ -626,7 +627,7 @@ export function SpoolmanSettings() {
                   {/* Errors */}
                   {syncResult.errors.length > 0 && (
                     <div className="p-2 bg-red-50 dark:bg-red-500/10 border border-red-300 dark:border-red-500/30 rounded text-sm">
-                      <div className="text-red-700 dark:text-red-400 font-medium mb-1">Errors:</div>
+                      <div className="text-red-700 dark:text-red-400 font-medium mb-1">{translateInterface("orders.runtimeInterface.errors")}</div>
                       <ul className="text-xs text-red-700/90 dark:text-red-300/80 space-y-0.5">
                         {syncResult.errors.map((err, i) => (
                           <li key={i}>{err}</li>

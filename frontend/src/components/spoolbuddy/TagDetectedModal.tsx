@@ -134,6 +134,7 @@ interface KnownSpoolViewProps {
 }
 
 function KnownSpoolView({ spool, scaleWeight, weightStable, syncing, synced, onSyncWeight, onAssignToAms, onClose }: KnownSpoolViewProps) {
+  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const colorHex = spoolColorString(spool.rgba);
 
@@ -190,7 +191,7 @@ function KnownSpoolView({ spool, scaleWeight, weightStable, syncing, synced, onS
         <div className="flex-1 min-w-0 pt-1">
           <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold text-zinc-100">
-              {spool.color_name || 'Unknown color'}
+              {spool.color_name || translateInterface("orders.runtimeInterface.unknownColor")}
             </h3>
             <span className="text-xs font-mono text-zinc-500 shrink-0">#{spool.id}</span>
           </div>

@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+import interfaceI18n from "./i18n";
 import { Component, lazy, Suspense, type ReactNode, type ErrorInfo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -70,7 +72,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
     if (this.state.error) {
       return (
         <div style={{ padding: 24, color: '#ef4444', backgroundColor: '#18181b', minHeight: '100vh', fontFamily: 'monospace' }}>
-          <h1 style={{ fontSize: 20, marginBottom: 12 }}>UI Crash</h1>
+          <h1 style={{ fontSize: 20, marginBottom: 12 }}>{interfaceI18n.t("orders.runtimeInterface.uICrash")}</h1>
           <pre style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{this.state.error.message}</pre>
           <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, color: '#a1a1aa', marginTop: 12 }}>
             {this.state.error.stack}
@@ -79,7 +81,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
             onClick={() => { this.setState({ error: null, errorInfo: null }); }}
             style={{ marginTop: 16, padding: '8px 16px', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}
           >
-            Retry
+            {interfaceI18n.t("common.retry")}
           </button>
         </div>
       );
@@ -102,10 +104,16 @@ function StreamTokenSync() {
   return null;
 }
 
+function LegacyInventoryRedirect() {
+  const { search, hash } = useLocation();
+  return <Navigate to={{ pathname: '/warehouse/filament', search, hash }} replace />;
+}
+
 function RouteFallback() {
+  const { t: translateInterface } = useTranslation();
   return (
     <div className="min-h-screen flex items-center justify-center" role="status" aria-live="polite">
-      Loading...
+      {translateInterface("common.loading")}
     </div>
   );
 }
@@ -117,11 +125,12 @@ function WebSocketProvider({ children }: { children: React.ReactNode }) {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { t: translateInterface } = useTranslation();
   const { authEnabled, loading, user } = useAuth();
   const location = useLocation();
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return <div className="min-h-screen flex items-center justify-center">{translateInterface("common.loading")}</div>;
   }
 
   if (authEnabled && !user) {
@@ -132,6 +141,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PermissionRoute({ permission, children }: { permission: string; children: React.ReactNode }) {
+  const { t: translateInterface } = useTranslation();
   // Permission-gated route: any user with the given permission can enter, not
   // just admins. Individual components below this guard apply their own
   // per-action permission checks. Used for pages where delegation is supported
@@ -141,7 +151,7 @@ function PermissionRoute({ permission, children }: { permission: string; childre
   const location = useLocation();
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return <div className="min-h-screen flex items-center justify-center">{translateInterface("common.loading")}</div>;
   }
 
   // Auth disabled → open access (backward compatibility)
@@ -169,10 +179,11 @@ function SettingsRoute() {
 }
 
 function SetupRoute({ children }: { children: React.ReactNode }) {
+  const { t: translateInterface } = useTranslation();
   const { authEnabled, loading } = useAuth();
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return <div className="min-h-screen flex items-center justify-center">{translateInterface("common.loading")}</div>;
   }
 
   // If auth is already enabled, redirect to login
@@ -253,7 +264,7 @@ function App() {
                   <Route path="warehouse/suppliers" element={<PermissionRoute permission="inventory:read"><SuppliersPage /></PermissionRoute>} />
                   <Route path="warehouse/material" element={<Navigate to="/warehouse/parts" replace />} />
                   <Route path="warehouse/goods" element={<Navigate to="/warehouse/stock" replace />} />
-                  <Route path="inventory" element={<Navigate to="/warehouse/filament" replace />} />
+                  <Route path="inventory" element={<LegacyInventoryRedirect />} />
                   <Route path="orders" element={<OrdersOverviewPage />} />
                   <Route path="orders/:id" element={<OrderDetailPage />} />
                   <Route path="orders/customers" element={<OrdersCustomersPage />} />

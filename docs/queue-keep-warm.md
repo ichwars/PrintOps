@@ -1,5 +1,10 @@
 # Optional bed keep-warm between queue jobs
 
+The [acceptance matrix](hardware-acceptance.md) records the completed software
+criteria for #148 and optional supervised P2S/X1C observations. That issue does
+not require an active chamber heater or a real-device acceptance before closing
+its bounded opt-in scheduler scope.
+
 `queue_keep_bed_warm` defaults to `false`. Enable it in Settings → Printers &
 Production → Print Process → Preheat & Heat Soak. It also requires ordinary
 preheat and plate-clear confirmation to be enabled. The maximum hold defaults

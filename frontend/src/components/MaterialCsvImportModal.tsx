@@ -1,3 +1,4 @@
+import { smallPartsText as text, useSmallPartsText } from './warehouse/smallPartsCopy';
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { AlertTriangle, CheckCircle, FileText, Loader2, MinusCircle, Upload, X, XCircle } from 'lucide-react';
 
@@ -10,6 +11,7 @@ interface MaterialCsvImportModalProps {
 }
 
 export function MaterialCsvImportModal({ onClose, onImported }: MaterialCsvImportModalProps) {
+  useSmallPartsText();
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [preview, setPreview] = useState<SmallPartCsvImportPreview | null>(null);
@@ -26,7 +28,7 @@ export function MaterialCsvImportModal({ onClose, onImported }: MaterialCsvImpor
     try {
       setPreview(await smallPartsApi.importCsvPreview(selected));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'CSV-Datei konnte nicht gelesen werden.');
+      setError(err instanceof Error ? err.message : text('csvReadFailed'));
     } finally {
       setLoading(false);
     }
@@ -52,12 +54,12 @@ export function MaterialCsvImportModal({ onClose, onImported }: MaterialCsvImpor
       const result = await smallPartsApi.importCsv(file);
       if (result.errors > 0) {
         const first = result.error_rows[0];
-        setError(first ? `Import abgebrochen: Zeile ${first.row_number}: ${first.reason}` : 'Import abgebrochen.');
+        setError(first ? text('importRowError', { number: first.row_number, reason: first.reason }) : text('importCancelled'));
         return;
       }
       onImported(result.created, result.updated);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Import fehlgeschlagen.');
+      setError(err instanceof Error ? err.message : text('importFailed'));
     } finally {
       setImporting(false);
     }
@@ -78,8 +80,8 @@ export function MaterialCsvImportModal({ onClose, onImported }: MaterialCsvImpor
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary">
         <div className="flex items-center justify-between border-b border-bambu-dark-tertiary p-4">
-          <h2 className="text-lg font-semibold text-white">Material aus CSV importieren</h2>
-          <button type="button" onClick={onClose} className="rounded p-1 hover:bg-bambu-dark" aria-label="Schließen">
+          <h2 className="text-lg font-semibold text-white">{text('importMaterialCsv')}</h2>
+          <button type="button" onClick={onClose} className="rounded p-1 hover:bg-bambu-dark" aria-label={text('close')}>
             <X className="h-5 w-5 text-bambu-gray" />
           </button>
         </div>
@@ -107,16 +109,16 @@ export function MaterialCsvImportModal({ onClose, onImported }: MaterialCsvImpor
               </p>
             ) : (
               <>
-                <p className="font-medium text-white">CSV-Datei auswählen oder hier ablegen</p>
-                <p className="mt-1 text-xs text-bambu-gray/70">Kopfzeile: Artikelnummer, Bezeichnung, Einheit, Physisch, Mindestbestand, Einzelpreis...</p>
+                <p className="font-medium text-white">{text('selectCsv')}</p>
+                <p className="mt-1 text-xs text-bambu-gray/70">{text('csvHeader')}</p>
               </>
             )}
           </div>
-          <FileInput ref={fileInputRef} aria-label="CSV-Datei" accept=".csv,text/csv" className="hidden" onChange={handleFileSelect} />
+          <FileInput ref={fileInputRef} aria-label={text('csvFile')} accept=".csv,text/csv" className="hidden" onChange={handleFileSelect} />
 
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-4 text-bambu-gray">
-              <Loader2 className="h-4 w-4 animate-spin" /> Datei wird gelesen...
+              <Loader2 className="h-4 w-4 animate-spin" />{text('readingFile')}
             </div>
           ) : null}
 
@@ -130,9 +132,9 @@ export function MaterialCsvImportModal({ onClose, onImported }: MaterialCsvImpor
           {preview ? (
             <>
               <div className="flex flex-wrap gap-3 text-sm">
-                <span className="rounded bg-bambu-green/10 px-2 py-1 text-bambu-green">{preview.valid_count} gültig</span>
-                <span className="rounded bg-red-500/10 px-2 py-1 text-red-300">{preview.error_count} Fehler</span>
-                <span className="rounded bg-bambu-dark px-2 py-1 text-bambu-gray">{preview.skipped_count} übersprungen</span>
+                <span className="rounded bg-bambu-green/10 px-2 py-1 text-bambu-green">{text('validRows', { count: preview.valid_count })}</span>
+                <span className="rounded bg-red-500/10 px-2 py-1 text-red-300">{text('errorRows', { count: preview.error_count })}</span>
+                <span className="rounded bg-bambu-dark px-2 py-1 text-bambu-gray">{text('skippedRows', { count: preview.skipped_count })}</span>
               </div>
 
               {preview.warnings.length > 0 ? (
@@ -150,11 +152,11 @@ export function MaterialCsvImportModal({ onClose, onImported }: MaterialCsvImpor
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-bambu-dark">
                       <tr className="text-left text-bambu-gray">
-                        <th className="px-3 py-2 font-medium">Zeile</th>
-                        <th className="px-3 py-2 font-medium">Status</th>
-                        <th className="px-3 py-2 font-medium">Artikelnummer</th>
-                        <th className="px-3 py-2 font-medium">Bezeichnung</th>
-                        <th className="px-3 py-2 font-medium">Bestand</th>
+                        <th className="px-3 py-2 font-medium">{text('row')}</th>
+                        <th className="px-3 py-2 font-medium">{text('status')}</th>
+                        <th className="px-3 py-2 font-medium">{text('sku')}</th>
+                        <th className="px-3 py-2 font-medium">{text('name')}</th>
+                        <th className="px-3 py-2 font-medium">{text('stock')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -165,7 +167,7 @@ export function MaterialCsvImportModal({ onClose, onImported }: MaterialCsvImpor
                             <div className="flex items-center gap-1.5">
                               {statusIcon(row)}
                               <span className="text-xs text-bambu-gray-light">
-                                {row.reason ?? (row.action === 'update' ? 'Aktualisieren' : 'Anlegen')}
+                                {row.reason ?? (row.action === 'update' ? text('update') : text('create'))}
                               </span>
                             </div>
                           </td>
@@ -183,12 +185,11 @@ export function MaterialCsvImportModal({ onClose, onImported }: MaterialCsvImpor
         </div>
 
         <div className="flex justify-end gap-2 border-t border-bambu-dark-tertiary p-4">
-          <Button type="button" variant="secondary" onClick={onClose} disabled={importing}>
-            Abbrechen
+          <Button type="button" variant="secondary" onClick={onClose} disabled={importing}>{text('cancel')}
           </Button>
           <Button type="button" onClick={handleImport} disabled={!preview || validCount === 0 || preview.error_count > 0 || importing}>
             {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {validCount > 0 ? `${validCount} Zeilen importieren` : 'Keine gültigen Zeilen'}
+            {validCount > 0 ? text('importRows', { count: validCount }) : text('noValidRows')}
           </Button>
         </div>
       </div>
