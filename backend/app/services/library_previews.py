@@ -16,6 +16,8 @@ MAX_ROWS = 500
 MAX_COLS = 40
 MAX_SHEETS = 20
 MAX_CELL_CHARS = 2000
+MAX_TOTAL_CHARS = 300_000
+MAX_TOTAL_CELLS = 50_000
 _BUDGET = ArchiveBudget(
     max_members=1024,
     max_member_bytes=MAX_PREVIEW_BYTES,
@@ -48,12 +50,29 @@ def spreadsheet_preview(path: Path, file_type: str) -> dict:
     data = read_preview_bytes(path)
     sheets = []
     truncated = False
+    remaining_chars = MAX_TOTAL_CHARS
+    remaining_cells = MAX_TOTAL_CELLS
 
-    def bounded_cell(value):
-        nonlocal truncated
-        text = "" if value is None else str(value)
-        truncated |= len(text) > MAX_CELL_CHARS
-        return text[:MAX_CELL_CHARS]
+    def can_project():
+        return remaining_chars > 0 and remaining_cells > 0
+
+    def project_row(values):
+        nonlocal truncated, remaining_chars, remaining_cells
+        if not can_project():
+            truncated = True
+            return None
+        projected = []
+        for value in islice(values, MAX_COLS):
+            if not can_project():
+                truncated = True
+                break
+            text = "" if value is None else str(value)
+            limit = min(MAX_CELL_CHARS, remaining_chars)
+            truncated |= len(text) > limit
+            projected.append(text[:limit])
+            remaining_chars -= len(projected[-1])
+            remaining_cells -= 1
+        return projected
 
     if file_type == "csv":
         text = data.decode("utf-8-sig")
@@ -64,7 +83,9 @@ def spreadsheet_preview(path: Path, file_type: str) -> dict:
             total_rows += 1
             total_cols = max(total_cols, len(row))
             if len(rows) < MAX_ROWS:
-                rows.append([bounded_cell(cell) for cell in row[:MAX_COLS]])
+                projected = project_row(row)
+                if projected is not None:
+                    rows.append(projected)
         sheets.append(_sheet(path.name, rows, total_rows, total_cols))
     elif file_type in ("xlsx", "ods"):
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
@@ -78,15 +99,18 @@ def spreadsheet_preview(path: Path, file_type: str) -> dict:
                 try:
                     truncated = len(workbook.worksheets) > MAX_SHEETS
                     for worksheet in workbook.worksheets[:MAX_SHEETS]:
-                        rows = [
-                            [bounded_cell(cell) for cell in row]
+                        rows = []
+                        if can_project():
                             for row in worksheet.iter_rows(
                                 min_row=1,
                                 max_row=min(worksheet.max_row or MAX_ROWS, MAX_ROWS),
                                 max_col=min(worksheet.max_column or MAX_COLS, MAX_COLS),
                                 values_only=True,
-                            )
-                        ]
+                            ):
+                                projected = project_row(row)
+                                if projected is None:
+                                    break
+                                rows.append(projected)
                         sheets.append(
                             _sheet(worksheet.title, rows, worksheet.max_row or len(rows), worksheet.max_column or 0)
                         )
@@ -103,44 +127,35 @@ def spreadsheet_preview(path: Path, file_type: str) -> dict:
                         row_repeat = min(int(row.get(_TABLE + "number-rows-repeated", "1")), 1_048_576)
                         if row_repeat < 1:
                             raise ValueError("Invalid row repetition")
-                        values = []
                         width = 0
+                        cells = []
                         for cell in row:
                             if cell.tag not in (_TABLE + "table-cell", _TABLE + "covered-table-cell"):
                                 continue
                             repeat = min(int(cell.get(_TABLE + "number-columns-repeated", "1")), 16_384)
                             if repeat < 1:
                                 raise ValueError("Invalid column repetition")
-                            value = bounded_cell("\n".join("".join(p.itertext()) for p in cell.findall(_TEXT + "p")))
-                            values.extend([value] * min(repeat, max(0, MAX_COLS - len(values))))
+                            cells.append((cell, repeat))
                             width += repeat
                         total_cols = max(total_cols, width)
                         total_rows += row_repeat
-                        rows.extend([values] * min(row_repeat, max(0, MAX_ROWS - len(rows))))
+                        for _ in range(min(row_repeat, max(0, MAX_ROWS - len(rows)))):
+                            if not can_project():
+                                truncated = True
+                                break
+
+                            def values(source_cells=cells):
+                                for cell, repeat in source_cells:
+                                    value = "\n".join("".join(p.itertext()) for p in cell.findall(_TEXT + "p"))
+                                    for _ in range(min(repeat, MAX_COLS)):
+                                        yield value
+
+                            projected = project_row(values())
+                            if projected is not None:
+                                rows.append(projected)
                     sheets.append(_sheet(table.get(_TABLE + "name", "Sheet"), rows, total_rows, total_cols))
     else:
         raise ValueError("Preview supports CSV, XLSX and ODS")
-    # Repeated cells and shared XLSX strings can expand a small source into a
-    # huge JSON document. Bound the aggregate projection as well as each sheet.
-    remaining_chars = 300_000
-    remaining_cells = 50_000
-    for sheet in sheets:
-        projected = []
-        for row in sheet["rows"]:
-            if remaining_chars <= 0 or remaining_cells <= 0:
-                truncated = True
-                break
-            values = []
-            for value in row:
-                if remaining_chars <= 0 or remaining_cells <= 0:
-                    truncated = True
-                    break
-                values.append(value[:remaining_chars])
-                truncated |= len(value) > remaining_chars
-                remaining_chars -= len(values[-1])
-                remaining_cells -= 1
-            projected.append(values)
-        sheet["rows"] = projected
     return {
         "sheets": sheets,
         "truncated": truncated
