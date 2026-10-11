@@ -170,7 +170,7 @@ async def test_explicit_zero_override_still_disables_mapped_asa(scheduler):
 
     with (
         patch.object(scheduler, "_get_int_setting", AsyncMock(return_value=0)),
-        patch("backend.app.services.print_scheduler.extract_bed_temperature_from_3mf", return_value=60),
+        patch("backend.app.services.preheat_stage.extract_bed_temperature_from_3mf", return_value=60),
         patch("backend.app.services.print_scheduler.printer_manager") as manager,
         patch("backend.app.services.print_scheduler.asyncio.sleep", AsyncMock()),
     ):

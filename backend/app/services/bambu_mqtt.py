@@ -4874,7 +4874,9 @@ class BambuMQTTClient:
         Returns:
             True if command was sent, False otherwise
         """
-        return self.send_gcode(f"M140 S{target}")
+        from backend.app.services.heater_commands import set_heater_temperature
+
+        return set_heater_temperature(self, "bed", target)
 
     def set_nozzle_temperature(self, target: int, nozzle: int = 0) -> bool:
         """Set the nozzle target temperature.
@@ -4906,19 +4908,9 @@ class BambuMQTTClient:
         Returns:
             True if command was sent, False otherwise
         """
-        # M141 sets chamber temperature
-        result = self.send_gcode(f"M141 S{target}")
-        # Track chamber target locally (MQTT reports encoded values that need filtering)
-        if result:
-            self.state.temperatures["chamber_target"] = float(target)
-            self.state.temperatures["_chamber_target_set_time"] = time.time()
-            # Update heating state immediately based on new target
-            current_temp = self.state.temperatures.get("chamber", 0)
-            self.state.temperatures["chamber_heating"] = target > 0 and current_temp < target
-            logger.info(
-                f"[{self.serial_number}] Tracking chamber target locally: {target}°C (heating={self.state.temperatures['chamber_heating']})"
-            )
-        return result
+        from backend.app.services.heater_commands import set_heater_temperature
+
+        return set_heater_temperature(self, "chamber", target)
 
     def set_print_speed(self, mode: int) -> bool:
         """Set the print speed mode.

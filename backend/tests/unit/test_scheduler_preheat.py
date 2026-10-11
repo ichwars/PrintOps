@@ -328,7 +328,7 @@ async def test_selected_plate_temperature_overrides_archive_default(scheduler, i
     with (
         patch.object(scheduler, "_get_bool_setting", AsyncMock(return_value=True)),
         patch.object(scheduler, "_get_int_setting", _ints(preheat_soak_seconds=0)),
-        patch("backend.app.services.print_scheduler.extract_bed_temperature_from_3mf", return_value=70),
+        patch("backend.app.services.preheat_stage.extract_bed_temperature_from_3mf", return_value=70),
         patch("backend.app.services.print_scheduler.printer_manager") as pm,
         patch("backend.app.services.print_scheduler.asyncio.sleep", AsyncMock()),
     ):
@@ -351,7 +351,7 @@ async def test_missing_selected_plate_temperature_does_not_reuse_another_plate(s
     with (
         patch.object(scheduler, "_get_bool_setting", AsyncMock(return_value=True)),
         patch.object(scheduler, "_get_int_setting", _ints()),
-        patch("backend.app.services.print_scheduler.extract_bed_temperature_from_3mf", return_value=None),
+        patch("backend.app.services.preheat_stage.extract_bed_temperature_from_3mf", return_value=None),
         patch("backend.app.services.print_scheduler.printer_manager") as pm,
     ):
         pm.get_client.return_value = client
