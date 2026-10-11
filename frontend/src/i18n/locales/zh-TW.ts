@@ -5572,6 +5572,12 @@ useEmbedded: '使用檔案內建設定',
       hint: '選擇要將切片軟體流量代理到的印表機。印表機必須處於區域網路模式。',
       noPrinters: '未設定印表機。請先新增印表機以使用代理模式。',
     },
+    advertisedAddress: {
+      title: "廣播的 IPv4 位址",
+      hint: "用於探索和 FTPS 上傳的可選 Docker 主機或 NAT IPv4 位址。優先於遠端介面位址；留空則自動選擇。監聽介面仍須使用本機位址，並對應所需連接埠。",
+      placeholder: "自動",
+      save: "儲存廣播位址",
+    },
     remoteInterface: {
       title: '網路介面覆蓋',
       configured: '介面覆蓋已啟用',

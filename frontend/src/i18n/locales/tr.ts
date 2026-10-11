@@ -5547,6 +5547,12 @@ useEmbeddedHint: 'Yukarıdaki profiller yerine tasarımcının ayarlarıyla (duv
       hint: 'Dilimleyici trafiğine proxy yapmak için yazıcıyı seçin. Yazıcı LAN modunda olmalıdır.',
       noPrinters: 'Yapılandırılmış yazıcı yok. Proxy modunu kullanmak için önce bir yazıcı ekleyin.',
     },
+    advertisedAddress: {
+      title: "Duyurulan IPv4 adresi",
+      hint: "Keşif ve FTPS yüklemeleri için isteğe bağlı Docker ana makinesi veya NAT IPv4 adresi. Uzak arayüz adresinin önüne geçer; otomatik seçim için boş bırakın. Dinleme arayüzünü yerel tutun ve gerekli portları eşleyin.",
+      placeholder: "Otomatik",
+      save: "Duyurulan adresi kaydet",
+    },
     remoteInterface: {
       title: 'Ağ Arayüzü Geçersiz Kılma',
       configured: 'Arayüz geçersiz kılma aktif',

@@ -5573,6 +5573,12 @@ useEmbeddedHint: 'Découpe comme le concepteur l\'a configuré (parois, rempliss
       hint: 'L\'imprimante doit être en mode LAN.',
       noPrinters: 'Ajoutez une imprimante réelle d\'abord.',
     },
+    advertisedAddress: {
+      title: "Adresse IPv4 annoncée",
+      hint: "IPv4 facultative du serveur Docker ou NAT pour la découverte et les transferts FTPS. Remplace l’adresse de l’interface distante ; laisser vide pour la sélection automatique. Garder l’interface d’écoute locale et publier les ports requis.",
+      placeholder: "Automatique",
+      save: "Enregistrer l’adresse annoncée",
+    },
     remoteInterface: {
       title: 'Exception Interface Réseau',
       configured: 'Override actif',

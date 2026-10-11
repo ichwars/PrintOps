@@ -5620,6 +5620,12 @@ useEmbedded: 'Datei-eigene Einstellungen verwenden',
       hint: 'Wähle den Drucker aus, an den der Slicer-Datenverkehr weitergeleitet werden soll. Der Drucker muss im LAN-Modus sein.',
       noPrinters: 'Keine Drucker konfiguriert. Füge zuerst einen Drucker hinzu, um den Proxy-Modus zu verwenden.',
     },
+    advertisedAddress: {
+      title: "Angekündigte IPv4-Adresse",
+      hint: "Optionale IPv4-Adresse des Docker-Hosts oder NAT-Ziels für Discovery und FTPS-Uploads. Überschreibt die entfernte Schnittstelle; leer lassen für automatische Auswahl. Die Bind-Schnittstelle bleibt lokal; erforderliche Ports weiterleiten.",
+      placeholder: "Automatisch",
+      save: "Angekündigte Adresse speichern",
+    },
     remoteInterface: {
       title: 'Netzwerkschnittstelle überschreiben',
       configured: 'Schnittstellenüberschreibung aktiv',

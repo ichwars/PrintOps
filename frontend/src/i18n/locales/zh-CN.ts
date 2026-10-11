@@ -5572,6 +5572,12 @@ useEmbedded: '使用文件内置设置',
       hint: '选择要将切片软件流量代理到的打印机。打印机必须处于局域网模式。',
       noPrinters: '未配置打印机。请先添加打印机以使用代理模式。',
     },
+    advertisedAddress: {
+      title: "广播的 IPv4 地址",
+      hint: "用于发现和 FTPS 上传的可选 Docker 主机或 NAT IPv4 地址。优先于远程接口地址；留空则自动选择。监听接口仍须使用本地地址，并映射所需端口。",
+      placeholder: "自动",
+      save: "保存广播地址",
+    },
     remoteInterface: {
       title: '网络接口覆盖',
       configured: '接口覆盖已激活',
