@@ -808,7 +808,7 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
 
         <p className="px-4 py-1 text-xs text-bambu-gray">{t('printerFiles.rangeSelectionHint')}</p>
         {downloadErrors.length > 0 && (
-          <div role="alert" className="px-4 py-2 text-sm text-red-400 max-h-24 overflow-y-auto">
+          <div role="alert" aria-label={t('common.error')} className="px-4 py-2 text-sm text-red-400 max-h-24 overflow-y-auto">
             {downloadErrors.map((error, index) => <p key={index}>{error}</p>)}
           </div>
         )}

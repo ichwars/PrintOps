@@ -63,7 +63,7 @@ describe('printer video files', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Download (3)' }));
     await waitFor(() => expect(downloaded).toEqual(videos.filter(f => !f.is_directory).map(f => f.path).sort()));
     expect(zip).not.toHaveBeenCalled();
-    expect(await screen.findByRole('alert')).toHaveTextContent('video-b.avi');
+    expect(await screen.findByRole('alert', { name: 'Error', exact: true })).toHaveTextContent('video-b.avi');
     expect(screen.getByRole('checkbox', { name: 'video-b.avi' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'video-a.mp4' })).not.toBeChecked();
   });
