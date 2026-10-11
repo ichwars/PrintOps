@@ -278,7 +278,7 @@ describe('ForecastPanel filament procurement', () => {
     const user = userEvent.setup();
     render(<ForecastPanel spools={[spool]} />);
     await user.click(await screen.findByRole('button', { name: 'Poly PLA Matte Black expand' }));
-    const supplierSku = await screen.findByRole('textbox', { name: 'Lieferantenartikelnummer' });
+    const supplierSku = await screen.findByRole('textbox', { name: 'Supplier article number' });
     await user.click(screen.getByRole('button', { name: 'Save procurement sources' }));
     await waitFor(() => expect(saveStarted).toBe(true));
 

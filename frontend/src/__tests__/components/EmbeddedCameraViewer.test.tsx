@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { EmbeddedCameraViewer } from '../../components/EmbeddedCameraViewer';
-import { render } from '../utils';
+import { render, selectComboboxOption } from '../utils';
 import { server } from '../mocks/server';
 
 describe('EmbeddedCameraViewer camera defaults', () => {
@@ -32,7 +32,19 @@ describe('EmbeddedCameraViewer camera defaults', () => {
       expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot');
     });
     expect(document.querySelector('video')).toBeNull();
-    expect(screen.getByRole('combobox', { name: 'Default camera view' })).toHaveValue('snapshot');
+    expect(screen.getByRole('combobox', { name: 'Default camera view' })).toHaveAttribute('data-value', 'snapshot');
+  });
+
+  it('changes and resets the default through the owned camera combobox', async () => {
+    render(<EmbeddedCameraViewer printerId={1} printerName="Workshop" onClose={() => {}} />);
+    await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot'));
+    const control = screen.getByRole('combobox', { name: 'Default camera view' });
+    selectComboboxOption(control, 'Stream');
+    expect(control).toHaveAttribute('data-value', 'stream');
+    await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/stream'));
+    selectComboboxOption(control, 'Default (Stream)');
+    expect(control).toHaveAttribute('data-value', 'default');
+    expect(localStorage.getItem('printops:camera-view:v1:http%3A%2F%2Flocalhost%3A3000:appliance:1')).toBeNull();
   });
 
   it('keeps new and restored viewers inside a mobile viewport after resizing', async () => {

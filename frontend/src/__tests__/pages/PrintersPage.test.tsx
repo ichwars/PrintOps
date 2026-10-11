@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { screen, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { render } from '../utils';
+import { render, selectComboboxOption } from '../utils';
 import { PrintersPage } from '../../pages/PrintersPage';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
@@ -132,9 +132,9 @@ describe('PrintersPage', () => {
       expect(selects).toHaveLength(2);
       const primary = screen.getByRole('combobox', { name: 'Default camera view — X1 Carbon' });
       const backup = screen.getByRole('combobox', { name: 'Default camera view — P1S Backup' });
-      await user.selectOptions(primary, 'snapshot');
-      expect(primary).toHaveValue('snapshot');
-      expect(backup).toHaveValue('default');
+      selectComboboxOption(primary, 'Snapshot');
+      expect(primary).toHaveAttribute('data-value', 'snapshot');
+      expect(backup).toHaveAttribute('data-value', 'default');
       const open = vi.spyOn(window, 'open').mockReturnValue(null);
       storage.set('cameraWindowState', '{malformed');
       const launch = within(document.getElementById('printer-card-1')!).getByTitle('Open camera in new window');
@@ -146,9 +146,9 @@ describe('PrintersPage', () => {
       first.unmount();
       render(<PrintersPage />);
       const reopened = await screen.findByRole('combobox', { name: 'Default camera view — X1 Carbon' });
-      expect(reopened).toHaveValue('snapshot');
-      await user.selectOptions(reopened, 'default');
-      expect(reopened).toHaveValue('default');
+      expect(reopened).toHaveAttribute('data-value', 'snapshot');
+      selectComboboxOption(reopened, 'Default (Stream)');
+      expect(reopened).toHaveAttribute('data-value', 'default');
       expect(localStorage.getItem('printops:camera-view:v1:http%3A%2F%2Flocalhost%3A3000:appliance:1')).toBeNull();
     });
 
@@ -166,12 +166,12 @@ describe('PrintersPage', () => {
       const open = vi.spyOn(window, 'open').mockReturnValue(null);
       render(<PrintersPage />);
       const select = await screen.findByRole('combobox', { name: 'Default camera view — X1 Carbon' });
-      await user.selectOptions(select, 'snapshot');
+      selectComboboxOption(select, 'Snapshot');
       const launch = within(document.getElementById('printer-card-1')!).getByTitle('Open camera overlay');
       await waitFor(() => expect(launch).toBeEnabled());
       await user.click(launch);
       await waitFor(() => expect(document.querySelector('img[src*="/camera/snapshot"]')).not.toBeNull());
-      expect(screen.getByRole('combobox', { name: 'Default camera view' })).toHaveValue('snapshot');
+      expect(screen.getByRole('combobox', { name: 'Default camera view' })).toHaveAttribute('data-value', 'snapshot');
       expect(open).not.toHaveBeenCalled();
       open.mockRestore();
     });

@@ -1,6 +1,6 @@
 import { computePopoverPosition } from '../../utils/popoverPosition';
 import { buildPresetOptions } from '../../utils/temperatureFanPresets';
-import { Checkbox } from '../../components/ui';
+import { Checkbox, Select } from '../../components/ui';
 import { Link, Unlink, Signal, Clock, MoreVertical, Trash2, RefreshCw, RotateCw, HardDrive, AlertTriangle, Terminal, Zap, Wrench, ChevronDown, Pencil, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Layers, Video, Loader2, Square, Pause, Play, X, Fan, Wind, AirVent, Download, ScanSearch, CheckCircle, CheckSquare, User, Home, Printer as PrinterIcon, Info, Cable, Flame, Snowflake, Gauge, DoorOpen, DoorClosed, Move, LogIn, LogOut, Stethoscope, LineChart as LineChartIcon } from 'lucide-react';
 import { formatDateOnly, formatETA, formatDuration } from '../../utils/date';
 import { Card, CardContent } from '../../components/Card';
@@ -2949,18 +2949,19 @@ return (
                 >
                   <Video className="w-4 h-4" />
                 </Button>
-                <select
-                  aria-label={`${t('camera.defaultView')} — ${printer.name}`}
-                  title={t('camera.defaultView')}
+                <Select<CameraViewPreference | 'default'>
+                  ariaLabel={`${t('camera.defaultView')} — ${printer.name}`}
                   value={cameraPreference.preference ?? 'default'}
                   disabled={!hasPermission('camera:view') || !cameraPreference.ready}
-                  onChange={(event) => cameraPreference.setPreference(event.target.value === 'default' ? null : event.target.value as CameraViewPreference)}
-                  className="max-w-36 h-8 px-2 text-xs bg-bambu-dark-secondary border border-bambu-dark-tertiary text-white rounded-lg focus:outline-none focus:border-bambu-green disabled:opacity-50"
-                >
-                  <option value="default">{t('camera.defaultStream')}</option>
-                  <option value="stream">{t('camera.stream')}</option>
-                  <option value="snapshot">{t('camera.snapshot')}</option>
-                </select>
+                  onValueChange={(value) => cameraPreference.setPreference(value === 'default' ? null : value)}
+                  className="w-36 max-w-full min-w-0"
+                  controlClassName="h-8 px-2 text-xs bg-bambu-dark-secondary"
+                  options={[
+                    { value: 'default', label: t('camera.defaultStream') },
+                    { value: 'stream', label: t('camera.stream') },
+                    { value: 'snapshot', label: t('camera.snapshot') },
+                  ]}
+                />
                 <Button
                   variant="secondary"
                   size="sm"

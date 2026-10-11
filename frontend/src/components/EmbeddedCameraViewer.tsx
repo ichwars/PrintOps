@@ -10,6 +10,7 @@ import { ChamberLight } from './icons/ChamberLight';
 import { SkipObjectsModal, SkipObjectsIcon } from './SkipObjectsModal';
 import { CameraDiagnoseModal } from './CameraDiagnoseModal';
 import { useCameraViewPreference, type CameraViewPreference } from '../hooks/useCameraViewPreference';
+import { Select } from './ui';
 
 interface EmbeddedCameraViewerProps {
   printerId: number;
@@ -712,18 +713,19 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
           onTouchEnd={handleTouchEnd}
           style={{ touchAction: 'none' }}
         >
-          <select
-            aria-label={t('camera.defaultView')}
-            title={t('camera.defaultView')}
+          <Select<CameraViewPreference | 'default'>
+            ariaLabel={t('camera.defaultView')}
             value={preference ?? 'default'}
             disabled={!preferenceReady || !hasPermission('camera:view')}
-            onChange={(event) => setPreference(event.target.value === 'default' ? null : event.target.value as CameraViewPreference)}
-            className="absolute top-2 right-2 z-20 max-w-36 px-2 py-1 text-xs bg-bambu-dark border border-bambu-dark-tertiary text-white rounded no-drag disabled:opacity-50"
-          >
-            <option value="default">{t('camera.defaultStream')}</option>
-            <option value="stream">{t('camera.stream')}</option>
-            <option value="snapshot">{t('camera.snapshot')}</option>
-          </select>
+            onValueChange={(value) => setPreference(value === 'default' ? null : value)}
+            className="absolute top-2 right-2 z-20 w-36 max-w-full min-w-0 no-drag"
+            controlClassName="h-8 px-2 text-xs"
+            options={[
+              { value: 'default', label: t('camera.defaultStream') },
+              { value: 'stream', label: t('camera.stream') },
+              { value: 'snapshot', label: t('camera.snapshot') },
+            ]}
+          />
           {streamLoading && !isReconnecting && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
               <RefreshCw className="w-6 h-6 text-bambu-gray animate-spin" />

@@ -49,8 +49,8 @@ import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { formatMoney } from '../utils/calculationFormatting';
 import i18n, { resolveSupportedLanguage } from '../i18n';
 
-// Read the current catalog when display labels are constructed. The page's
-// useTranslation subscription rerenders helpers and localized derived rows.
+// Read the current catalog when display labels are constructed. The page
+// subscribes through useTranslation to refresh helpers and localized rows.
 function dashboardText(key: string, values?: Record<string, string | number>) {
   return i18n.t(`orders.runtimeDashboard.${key}`, {
     ...values, lng: resolveSupportedLanguage(i18n.language || 'en'),

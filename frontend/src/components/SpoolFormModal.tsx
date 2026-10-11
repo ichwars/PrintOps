@@ -789,7 +789,7 @@ export function SpoolFormModal({
     if (!procurementTouched) return true;
     const offersReady = procurementOffersQuery.isSuccess && loadedProcurementKey.current === currentProcurementKey;
     if (!suppliersQuery.isSuccess || !offersReady) {
-      showToast('Bezugsquellen sind noch nicht vollständig geladen.', 'warning');
+      showToast(t('orders.runtimeDomain.spoolProcurement.offersNotReady'), 'warning');
       return false;
     }
     try {
@@ -800,7 +800,7 @@ export function SpoolFormModal({
       return true;
     } catch (e) {
       console.error('Failed to save filament procurement offers:', e);
-      showToast('Bezugsquellen konnten nicht gespeichert werden.', 'warning');
+      showToast(t('orders.runtimeDomain.spoolProcurement.saveOffersFailed'), 'warning');
       return false;
     } finally {
       setIsSavingProcurement(false);
@@ -1120,14 +1120,14 @@ export function SpoolFormModal({
                 <div>
                   <h3 className="text-sm font-semibold text-bambu-gray uppercase tracking-wide mb-3 flex items-center gap-2">
                     <ShoppingCart className="w-4 h-4 text-bambu-green" />
-                    Beschaffung
+                    {t('orders.runtimeDomain.smallParts.procurement')}
                   </h3>
                   <div className="space-y-4 rounded-lg border border-bambu-dark-tertiary p-4">
                     {procurementOffersQuery.isPending && currentProcurementResource.material ? (
-                      <p className="text-sm text-bambu-gray">Bezugsquellen werden geladen …</p>
+                      <p className="text-sm text-bambu-gray">{t('orders.runtimeDomain.smallParts.loadingOffers')}</p>
                     ) : null}
                     {procurementOffersQuery.isError ? (
-                      <p role="alert" className="text-sm text-red-400">Bezugsquellen konnten nicht geladen werden.</p>
+                      <p role="alert" className="text-sm text-red-400">{t('orders.runtimeDomain.smallParts.loadOffersFailed')}</p>
                     ) : null}
                     {!currentProcurementResource.material || procurementOffersQuery.isSuccess ? (
                       <ProcurementOffersEditor
@@ -1143,7 +1143,7 @@ export function SpoolFormModal({
                     ) : null}
                     {suppliersQuery.isError ? (
                       <div className="flex flex-wrap items-center gap-3">
-                        <p role="alert" className="text-sm text-red-400">Lieferanten konnten nicht geladen werden. Die Spule kann weiterhin ohne Änderung der Bezugsquellen gespeichert werden.</p>
+                        <p role="alert" className="text-sm text-red-400">{t('orders.runtimeDomain.spoolProcurement.loadSuppliersFailed')}</p>
                         <Button
                           type="button"
                           variant="secondary"
@@ -1154,7 +1154,7 @@ export function SpoolFormModal({
                           {suppliersQuery.isFetching ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : null}
-                          Lieferanten erneut laden
+                          {t('orders.runtimeDomain.smallParts.retrySuppliers')}
                         </Button>
                       </div>
                     ) : null}

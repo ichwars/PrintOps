@@ -1481,6 +1481,11 @@ export default {
         "warningCount_other": "{{count}} warning",
         "blockerCount_one": "{{count}} blocker",
         "blockerCount_other": "{{count}} blocker"
+      },
+      "spoolProcurement": {
+        "loadSuppliersFailed": "Suppliers could not be loaded. The spool can still be saved without changing procurement sources.",
+        "offersNotReady": "Procurement sources are not fully loaded yet.",
+        "saveOffersFailed": "Procurement sources could not be saved."
       }
     },
 

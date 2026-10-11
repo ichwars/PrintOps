@@ -1513,6 +1513,11 @@ export default {
         "warningCount_other": "{{count}} waarschuwingen",
         "blockerCount_one": "{{count}} blokkade",
         "blockerCount_other": "{{count}} blokkades"
+      },
+      "spoolProcurement": {
+        "loadSuppliersFailed": "Leveranciers konden niet worden geladen. De spoel kan nog steeds worden opgeslagen zonder de inkoopbronnen te wijzigen.",
+        "offersNotReady": "Inkoopbronnen zijn nog niet volledig geladen.",
+        "saveOffersFailed": "Inkoopbronnen konden niet worden opgeslagen."
       }
     },
 

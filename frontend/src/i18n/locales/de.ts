@@ -1511,6 +1511,11 @@ export default {
         "warningCount_other": "{{count}} Warnung",
         "blockerCount_one": "{{count}} blockierend",
         "blockerCount_other": "{{count}} blockierend"
+      },
+      "spoolProcurement": {
+        "loadSuppliersFailed": "Lieferanten konnten nicht geladen werden. Die Spule kann weiterhin ohne Änderung der Bezugsquellen gespeichert werden.",
+        "offersNotReady": "Bezugsquellen sind noch nicht vollständig geladen.",
+        "saveOffersFailed": "Bezugsquellen konnten nicht gespeichert werden."
       }
     },
 
