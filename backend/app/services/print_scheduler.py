@@ -40,13 +40,13 @@ from backend.app.services.bambu_ftp import (
 )
 from backend.app.services.drying_ownership import claim_queue_item, reserved_printers
 from backend.app.services.filament_deficit import compute_deficit_for_queue_item
+from backend.app.services.filament_low_monitor import FilamentLowMonitor
 from backend.app.services.ha_sensor_manager import ha_sensor_manager
 from backend.app.services.library_queue_references import (
     consume_transient_library_source,
     fail_missing_library_source,
 )
 from backend.app.services.notification_service import notification_service
-from backend.app.services.stock_alert_monitor import StockAlertMonitor
 from backend.app.services.preheat_chamber import derive_chamber_target, normalize_filament_type
 from backend.app.services.preheat_config import DEFAULT_PREHEAT_FILAMENT_TARGETS, parse_preheat_filament_targets
 from backend.app.services.preheat_ownership import current_preheat_lease, preheat_ownership
@@ -64,6 +64,7 @@ from backend.app.services.smart_plug_selection import (
     pick_power_plug as select_power_plug,
     plugs_for_printer,
 )
+from backend.app.services.stock_alert_monitor import StockAlertMonitor
 from backend.app.utils.filename import derive_remote_filename
 from backend.app.utils.printer_models import is_gcode_compatible, normalize_printer_model
 from backend.app.utils.threemf_tools import default_plate_number
@@ -402,31 +403,64 @@ class PrintScheduler:
         self._stranded_print_recovery = StrandedPrintRecovery()
         self._keep_warm = QueueKeepWarm()
         self._stock_alerts = StockAlertMonitor()
+        self._filament_low = FilamentLowMonitor()
+        self._inventory_alert_task: asyncio.Task | None = None
+        self._inventory_alerts_stopped = False
 
     async def run(self):
         """Main loop - check queue every interval."""
         self._running = True
+        self._inventory_alerts_stopped = False
         logger.info("Print scheduler started")
 
         await preheat_ownership.recover(printer_manager)
         await self._clear_stale_dispatch_claims()
 
-        while self._running:
-            dispatched = False
-            try:
-                await self._stranded_print_recovery.tick()
-                await scheduled_drying.tick()
-                dispatched = await self.check_queue()
-            except Exception as e:
-                logger.error("Scheduler error: %s", e)
+        try:
+            while self._running:
+                dispatched = False
+                try:
+                    await self._stranded_print_recovery.tick()
+                    await scheduled_drying.tick()
+                    dispatched = await self.check_queue()
+                except Exception as e:
+                    logger.error("Scheduler error: %s", e)
 
-            await asyncio.sleep(self._fast_check_interval if dispatched else self._check_interval)
+                await asyncio.sleep(self._fast_check_interval if dispatched else self._check_interval)
+        finally:
+            await self.close_inventory_alerts()
 
     def stop(self):
         """Stop the scheduler."""
         self._running = False
+        self._inventory_alerts_stopped = True
+        if self._inventory_alert_task is not None:
+            self._inventory_alert_task.cancel()
         preheat_ownership.stop()
         logger.info("Print scheduler stopped")
+
+    def _schedule_inventory_alerts(self) -> None:
+        if self._inventory_alerts_stopped:
+            return
+        if self._inventory_alert_task is not None and not self._inventory_alert_task.done():
+            return
+        self._inventory_alert_task = spawn_background_task(
+            self._check_inventory_alerts(async_session), name="inventory-alerts"
+        )
+
+    async def _check_inventory_alerts(self, session_factory) -> None:
+        async with session_factory() as db:
+            await self._stock_alerts.tick(db)
+            await self._filament_low.tick(db)
+
+    async def close_inventory_alerts(self) -> None:
+        """Cancel and drain the owned alert pass before closing database/HTTP clients."""
+        self._inventory_alerts_stopped = True
+        task = self._inventory_alert_task
+        if task is not None:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            self._inventory_alert_task = None
 
     async def _clear_stale_dispatch_claims(self) -> None:
         await clear_stale_dispatch_claims(async_session)
@@ -512,8 +546,8 @@ class PrintScheduler:
         Returns True while this pass launched or is still tracking uploads so
         the run loop can refill the upload pool promptly.
         """
+        self._schedule_inventory_alerts()
         async with async_session() as db:
-            await self._stock_alerts.tick(db)
             items, sjf_enabled = await self._pending_queue_items(db)
 
             # Read plate-clear setting once per queue check. Default MUST be

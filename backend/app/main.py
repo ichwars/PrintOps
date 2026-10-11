@@ -6159,6 +6159,7 @@ async def lifespan(app: FastAPI):
 
     kprofile_drift.reset()
     print_scheduler.stop()
+    await print_scheduler.close_inventory_alerts()
     smart_plug_manager.stop_scheduler()
     ha_sensor_manager.stop()
     notification_service.stop_digest_scheduler()

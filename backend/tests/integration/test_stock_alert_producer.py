@@ -6,8 +6,9 @@ from itertools import count
 import httpx
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from backend.app.core.database import Base
 from backend.app.models.filament_sku_settings import FilamentSkuSettings
 from backend.app.models.notification import NotificationLog, NotificationProvider
 from backend.app.models.notification_template import NotificationTemplate
@@ -17,6 +18,18 @@ from backend.app.models.spool import Spool
 from backend.app.models.spool_usage_history import SpoolUsageHistory
 from backend.app.services.notification_service import notification_service
 from backend.app.services.print_scheduler import PrintScheduler
+from backend.tests.conftest import test_engine as model_engine  # noqa: F401
+
+
+@pytest.fixture
+async def test_engine(model_engine, tmp_path):
+    # Queue and alert passes own independent sessions. A file database gives
+    # them independent connections instead of one shared :memory: transaction.
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path}/stock-alerts.db")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield engine
+    await engine.dispose()
 
 
 @pytest.fixture
@@ -34,8 +47,15 @@ async def alert_scheduler(test_engine, monkeypatch):
     client = httpx.AsyncClient(transport=httpx.MockTransport(deliver))
     monkeypatch.setattr(notification_service, "_http_client", client)
     monkeypatch.setattr(notification_service, "_template_cache", {})
-    yield PrintScheduler(), deliveries
+    scheduler = PrintScheduler()
+    yield scheduler, deliveries
+    await scheduler.close_inventory_alerts()
     await client.aclose()
+
+
+async def run_alert_pass(scheduler):
+    await scheduler.check_queue()
+    await scheduler._inventory_alert_task
 
 
 async def seed_stock(db, *, stock=80, margin=14, lead=7):
@@ -92,7 +112,7 @@ async def test_periodic_queue_pass_produces_stock_alert_with_own_history(db_sess
     if populated_queue:
         db_session.add(PrintQueueItem(status="pending", manual_start=True))
         await db_session.commit()
-    await scheduler.check_queue()
+    await run_alert_pass(scheduler)
     logs = list((await db_session.scalars(select(NotificationLog))).all())
     assert [(log.event_type, log.message, log.success) for log in logs] == [
         ("stock_reorder_alert", "PLA Red|Own|80|10.0|8|", True)
@@ -108,20 +128,22 @@ async def logs(db):
 async def test_dedup_survives_restart_escalates_and_rearms_on_recovery(db_session, alert_scheduler):
     scheduler, deliveries = alert_scheduler
     spool = await seed_stock(db_session)
-    await scheduler.check_queue()
-    await scheduler.check_queue()
-    await PrintScheduler().check_queue()
+    await run_alert_pass(scheduler)
+    await run_alert_pass(scheduler)
+    restarted = PrintScheduler()
+    await run_alert_pass(restarted)
+    await restarted.close_inventory_alerts()
     assert len(deliveries) == 1
     spool.weight_used = 940
     await db_session.commit()
-    await scheduler.check_queue()
+    await run_alert_pass(scheduler)
     assert [log.event_type for log in await logs(db_session)] == ["stock_reorder_alert", "stock_break_alert"]
     spool.weight_used = 100
     await db_session.commit()
-    await scheduler.check_queue()
+    await run_alert_pass(scheduler)
     spool.weight_used = 920
     await db_session.commit()
-    await scheduler.check_queue()
+    await run_alert_pass(scheduler)
     assert [log.event_type for log in await logs(db_session)] == [
         "stock_reorder_alert",
         "stock_break_alert",
@@ -137,7 +159,7 @@ async def test_disabled_provider_does_no_external_inventory_work_and_reenable_re
 ):
     scheduler, deliveries = alert_scheduler
     await seed_stock(db_session)
-    await scheduler.check_queue()
+    await run_alert_pass(scheduler)
     provider = await db_session.scalar(select(NotificationProvider))
     provider.enabled = False
     db_session.add(Settings(key="spoolman_enabled", value="true"))
@@ -158,7 +180,7 @@ async def test_disabled_provider_does_no_external_inventory_work_and_reenable_re
         return client
 
     monkeypatch.setattr("backend.app.services.stock_alert_monitor.get_spoolman_client", get_client)
-    await scheduler.check_queue()
+    await run_alert_pass(scheduler)
     await db_session.refresh(provider)
     assert provider.last_error is None
     assert reads == []
@@ -168,7 +190,7 @@ async def test_disabled_provider_does_no_external_inventory_work_and_reenable_re
     setting = await db_session.scalar(select(Settings).where(Settings.key == "spoolman_enabled"))
     setting.value = "false"
     await db_session.commit()
-    await scheduler.check_queue()
+    await run_alert_pass(scheduler)
     assert len(deliveries) == 2
 
 
@@ -178,17 +200,17 @@ async def test_baseline_reset_excludes_old_history_and_snoozing_rearms(db_sessio
     spool = await seed_stock(db_session)
     spool.weight_used_baseline = spool.weight_used
     await db_session.commit()
-    await scheduler.check_queue()
+    await run_alert_pass(scheduler)
     assert deliveries == []
     spool.weight_used_baseline = 0
     sku = await db_session.scalar(select(FilamentSkuSettings))
     sku.alerts_snoozed = True
     await db_session.commit()
-    await scheduler.check_queue()
+    await run_alert_pass(scheduler)
     assert deliveries == []
     sku.alerts_snoozed = False
     await db_session.commit()
-    await scheduler.check_queue()
+    await run_alert_pass(scheduler)
     assert len(deliveries) == 1
 
 
@@ -215,7 +237,7 @@ async def test_preferred_procurement_offer_on_legacy_alias_sets_actual_lead(db_s
     await db_session.commit()
     await backfill_material_numbers(db_session)
     await db_session.commit()
-    await scheduler.check_queue()
+    await run_alert_pass(scheduler)
     assert [(log.event_type, log.message) for log in await logs(db_session)] == [
         ("stock_break_alert", "PLA Red|Own|80|10.0|8|12")
     ]
@@ -247,7 +269,7 @@ async def test_forecast_uses_free_stock_from_real_order_reservation(async_client
         )
     await db_session.commit()
     scheduler, deliveries = alert_scheduler
-    await scheduler.check_queue()
+    await run_alert_pass(scheduler)
     petg = [log for log in await logs(db_session) if log.message.startswith("PETG|")]
     assert [(log.event_type, log.message) for log in petg] == [("stock_reorder_alert", "PETG|Own|80|10.0|8|")]
     await db_session.refresh(allocation)
@@ -262,11 +284,11 @@ async def test_new_break_subscription_is_not_suppressed_by_reorder_fallback(db_s
     provider = await db_session.scalar(select(NotificationProvider))
     provider.on_stock_break_alert = False
     await db_session.commit()
-    await scheduler.check_queue()
+    await run_alert_pass(scheduler)
     assert [log.event_type for log in await logs(db_session)] == ["stock_reorder_alert"]
     provider.on_stock_break_alert = True
     await db_session.commit()
-    await scheduler.check_queue()
+    await run_alert_pass(scheduler)
     assert [log.event_type for log in await logs(db_session)] == ["stock_reorder_alert", "stock_break_alert"]
 
 
@@ -314,19 +336,19 @@ async def test_spoolman_own_baseline_outage_and_recovery_without_local_history_c
 
     monkeypatch.setattr("backend.app.services.stock_alert_monitor.get_spoolman_client", get_client)
     try:
-        await scheduler.check_queue()
+        await run_alert_pass(scheduler)
         assert [(log.event_type, log.message) for log in await logs(db_session)] == [
             ("stock_reorder_alert", "PLA Matte Red|Own|50|5.0|10|")
         ]
         status["code"] = 503
-        await scheduler.check_queue()
+        await run_alert_pass(scheduler)
         status["code"] = 200
-        await scheduler.check_queue()
+        await run_alert_pass(scheduler)
         assert len(deliveries) == 1
         raw["remaining_weight"] = 250
-        await scheduler.check_queue()
+        await run_alert_pass(scheduler)
         raw["remaining_weight"] = 50
-        await scheduler.check_queue()
+        await run_alert_pass(scheduler)
         assert len(deliveries) == 2
         assert reads
     finally:
@@ -352,11 +374,11 @@ async def test_break_reaches_separate_reorder_subscribers_without_double_deliver
     )
     db_session.add(reorder)
     await db_session.commit()
-    await scheduler.check_queue()
+    await run_alert_pass(scheduler)
     assert sorted((log.provider_id, log.event_type) for log in await logs(db_session)) == [
         (original.id, "stock_break_alert"),
         (reorder.id, "stock_reorder_alert"),
     ]
     assert len(deliveries) == 2
-    await scheduler.check_queue()
+    await run_alert_pass(scheduler)
     assert len(deliveries) == 2

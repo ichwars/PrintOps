@@ -1478,7 +1478,7 @@ class NotificationService:
         self,
         printer_id: int,
         printer_name: str,
-        slot: int,
+        slot: int | str,
         remaining_percent: int,
         db: AsyncSession,
         color: str | None = None,
