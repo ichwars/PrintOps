@@ -129,6 +129,24 @@ describe('SpoolFormModal weightTouched', () => {
     vi.mocked(procurementOffersApi.replace).mockResolvedValue([]);
   });
 
+  it.each([false, true])('clears only the tray UUID in inventory mode %s', async (spoolmanMode) => {
+    render(<SpoolFormModal isOpen onClose={vi.fn()} mode="edit" currencySymbol="$"
+      spoolmanMode={spoolmanMode} spool={{ ...existingSpool, tag_uid: '04A1B2C3', tray_uuid: 'A'.repeat(32) }} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Clear Tray UUID/i }));
+    await waitFor(() => expect(spoolmanMode ? api.updateSpoolmanInventorySpool : api.updateSpool)
+      .toHaveBeenCalledWith(1, { tray_uuid: null }));
+  });
+
+  it('allows clearing an RFID association carried only by a tray UUID', async () => {
+    render(<SpoolFormModal isOpen onClose={vi.fn()} mode="edit" currencySymbol="$"
+      spool={{ ...existingSpool, tray_uuid: 'A'.repeat(32) }} />);
+    const clear = await screen.findByRole('button', { name: /Clear RFID Tag/i });
+    expect(clear).toBeEnabled();
+    fireEvent.click(clear);
+    await waitFor(() => expect(api.updateSpool).toHaveBeenCalledWith(1,
+      { tag_uid: null, tray_uuid: null, tag_type: null, data_origin: null }));
+  });
+
   it('shows supplier assignment controls when adding a local spool', async () => {
     vi.mocked(suppliersApi.list).mockResolvedValue({
       items: [{

@@ -73,6 +73,7 @@ from backend.app.services.spool_csv import (
 )
 from backend.app.services.spool_filament_presets import resolve_spool_preset
 from backend.app.services.spoolman import SpoolmanClient, get_spoolman_client, init_spoolman_client
+from backend.app.services.tag_conflict import tag_conflict
 from backend.app.utils.filament_ids import (
     GENERIC_FILAMENT_IDS,
     filament_id_to_setting_id,
@@ -2007,14 +2008,17 @@ async def link_tag_to_spool(
     # Check for conflicts: tag already linked to another active spool
     if normalized_tag_uid:
         conflict = await db.execute(
-            select(Spool).where(
+            select(Spool)
+            .where(
                 func.upper(Spool.tag_uid) == normalized_tag_uid,
                 Spool.id != spool_id,
                 Spool.archived_at.is_(None),
             )
+            .order_by(Spool.id)
+            .limit(1)
         )
-        if conflict.scalar_one_or_none():
-            raise HTTPException(409, "Tag UID already linked to another active spool")
+        if holder := conflict.scalar_one_or_none():
+            raise tag_conflict(holder.id, "tag_uid")
         # Auto-clear from archived spools (tag recycling)
         archived_with_tag = await db.execute(
             select(Spool).where(
@@ -2028,14 +2032,17 @@ async def link_tag_to_spool(
 
     if normalized_tray_uuid:
         conflict = await db.execute(
-            select(Spool).where(
+            select(Spool)
+            .where(
                 func.upper(Spool.tray_uuid) == normalized_tray_uuid,
                 Spool.id != spool_id,
                 Spool.archived_at.is_(None),
             )
+            .order_by(Spool.id)
+            .limit(1)
         )
-        if conflict.scalar_one_or_none():
-            raise HTTPException(409, "Tray UUID already linked to another active spool")
+        if holder := conflict.scalar_one_or_none():
+            raise tag_conflict(holder.id, "tray_uuid")
         archived_with_uuid = await db.execute(
             select(Spool).where(
                 func.upper(Spool.tray_uuid) == normalized_tray_uuid,

@@ -7327,6 +7327,8 @@ export default {
     // taxonomy delete; this clears the RFID tag/UUID off the spool record)
     materialNumber: 'Material number',
     clearRfid: 'Clear RFID Tag',
+    clearTrayUuid: 'Clear Tray UUID',
+    trayUuidCleared: 'Tray UUID cleared',
     rfidCleared: 'RFID tag cleared',
     archive: 'Archive',
     restore: 'Restore',
@@ -7508,7 +7510,7 @@ export default {
     linkToSpool: 'Link to Spool',
     tagLinked: 'Tag linked to spool',
     tagLinkFailed: 'Failed to link tag',
-    tagAlreadyLinked: 'Tag already linked to another spool',
+    tagAlreadyLinked: 'Tag is already linked to spool {{id}}',
     unknownTag: 'Unknown RFID tag detected',
     // Usage history
     usageHistory: 'Usage History',

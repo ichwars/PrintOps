@@ -100,6 +100,8 @@ def _filament_subtype_part(name: str, material: str) -> str:
 
 def _extra_string_value(extra: dict, key: str) -> str:
     """Return a normalised string from Spoolman's JSON-encoded extra values."""
+    if not isinstance(extra, dict):
+        return ""
     raw = extra.get(key)
     if not isinstance(raw, str):
         return ""

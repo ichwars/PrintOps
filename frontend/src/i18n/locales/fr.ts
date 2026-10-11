@@ -7238,6 +7238,8 @@ useEmbeddedHint: 'Découpe comme le concepteur l\'a configuré (parois, rempliss
     lowStockThresholdOverrideHelp: 'Laisser vide pour utiliser le seuil global ({{global}} %).',
     materialNumber: 'Numéro de matériau',
     clearRfid: 'Effacer le tag RFID',
+    clearTrayUuid: 'Effacer UUID du plateau',
+    trayUuidCleared: 'UUID du plateau effacé',
     rfidCleared: 'Tag RFID effacé',
     archive: 'Archiver',
     restore: 'Restaurer',
@@ -7416,7 +7418,7 @@ useEmbeddedHint: 'Découpe comme le concepteur l\'a configuré (parois, rempliss
     linkToSpool: 'Lier à une Bobine',
     tagLinked: 'Tag lié à la bobine',
     tagLinkFailed: 'Échec lien tag',
-    tagAlreadyLinked: 'Tag déjà lié à une autre bobine',
+    tagAlreadyLinked: 'Tag déjà lié à la bobine {{id}}',
     unknownTag: 'Tag RFID inconnu détecté',
     // Usage history
     usageHistory: 'Historique de Consommation',

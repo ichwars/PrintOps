@@ -7329,6 +7329,8 @@ export default {
     // taxonomy delete; this clears the RFID tag/UUID off the spool record)
     materialNumber: 'Materiaalnummer',
     clearRfid: "RFID-tag wissen",
+    clearTrayUuid: 'Tray-UUID wissen',
+    trayUuidCleared: 'Tray-UUID gewist',
     rfidCleared: "RFID-tag gewist",
     archive: "Archief",
     restore: "Herstellen",
@@ -7510,7 +7512,7 @@ export default {
     linkToSpool: "Koppelen aan spoel",
     tagLinked: "Tag aan spoel gekoppeld",
     tagLinkFailed: "Tag koppelen mislukt",
-    tagAlreadyLinked: "Tag al gekoppeld aan een andere spoel",
+    tagAlreadyLinked: 'Tag is al gekoppeld aan spoel {{id}}',
     unknownTag: "Onbekende RFID-tag gedetecteerd",
     // Usage history
     usageHistory: "Verbruiksgeschiedenis",

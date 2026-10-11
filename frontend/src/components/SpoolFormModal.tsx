@@ -715,6 +715,18 @@ export function SpoolFormModal({
     },
   });
 
+  const clearTrayUuidMutation = useMutation({
+    mutationFn: () => spoolmanMode
+      ? api.updateSpoolmanInventorySpool(spool!.id, { tray_uuid: null })
+      : api.updateSpool(spool!.id, { tray_uuid: null }),
+    onSuccess: async () => {
+      await refreshSpoolQueries();
+      showToast(t('inventory.trayUuidCleared', 'Tray UUID cleared'), 'success');
+      onClose();
+    },
+    onError: () => showToast(t('inventory.tagClearFailed'), 'error'),
+  });
+
   // Fetch assignment for this spool (to show Unassign button). In Spoolman mode
   // the slot assignment lives in the spoolman_slot_assignments table keyed by
   // spoolman_spool_id, not in the legacy spool_assignments table — #1336 was the
@@ -928,7 +940,7 @@ export function SpoolFormModal({
     }
   };
 
-  const isPending = createMutation.isPending || bulkCreateMutation.isPending || updateMutation.isPending || deleteTagMutation.isPending || unassignMutation.isPending || isSavingProcurement;
+  const isPending = createMutation.isPending || bulkCreateMutation.isPending || updateMutation.isPending || deleteTagMutation.isPending || clearTrayUuidMutation.isPending || unassignMutation.isPending || isSavingProcurement;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -1196,10 +1208,15 @@ export function SpoolFormModal({
               <Button
                 variant="secondary"
                 onClick={() => deleteTagMutation.mutate()}
-                disabled={isPending || !spool?.tag_uid}
+                disabled={isPending || !(spool?.tag_uid || spool?.tray_uuid)}
               >
                 <Tag className="w-4 h-4" />
                 {t('inventory.clearRfid', 'Clear RFID Tag')}
+              </Button>
+              <Button variant="secondary" onClick={() => clearTrayUuidMutation.mutate()}
+                disabled={isPending || !spool?.tray_uuid}>
+                <Tag className="w-4 h-4" />
+                {t('inventory.clearTrayUuid', 'Clear Tray UUID')}
               </Button>
               <Button
                 variant="secondary"

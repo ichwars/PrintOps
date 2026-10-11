@@ -7237,6 +7237,8 @@ useEmbeddedHint: 'Esegue lo slicing come impostato dal designer (pareti, riempim
     lowStockThresholdOverrideHelp: 'Lascia vuoto per usare la soglia globale ({{global}}%).',
     materialNumber: 'Numero materiale',
     clearRfid: 'Cancella tag RFID',
+    clearTrayUuid: 'Cancella UUID vassoio',
+    trayUuidCleared: 'UUID vassoio cancellato',
     rfidCleared: 'Tag RFID cancellato',
     archive: 'Archivia',
     restore: 'Ripristina',
@@ -7415,7 +7417,7 @@ useEmbeddedHint: 'Esegue lo slicing come impostato dal designer (pareti, riempim
     linkToSpool: 'Collega a bobina',
     tagLinked: 'Tag collegato alla bobina',
     tagLinkFailed: 'Impossibile collegare il tag',
-    tagAlreadyLinked: 'Tag già collegato a un\'altra bobina',
+    tagAlreadyLinked: 'Tag già collegato alla bobina {{id}}',
     unknownTag: 'Tag RFID sconosciuto rilevato',
     // Usage history
     usageHistory: 'Cronologia utilizzo',

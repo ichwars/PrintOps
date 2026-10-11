@@ -22,6 +22,10 @@ vi.mock('../../contexts/ToastContext', async (importOriginal) => {
 });
 
 vi.mock('../../api/client', () => ({
+  ApiError: class ApiError extends Error {
+    constructor(message: string, public status: number, public code: string | null = null,
+      public detail: Record<string, unknown> | null = null) { super(message); }
+  },
   api: {
     getSpools: vi.fn().mockResolvedValue([
       { id: 1, material: 'PLA', brand: 'Bambu', tag_uid: 'AA:BB', tray_uuid: null, archived_at: null, color_name: 'Red', rgba: 'FF0000FF', subtype: null, label_weight: 1000, core_weight: 250, weight_used: 100 },
@@ -403,8 +407,8 @@ describe('SpoolBuddyDashboard', () => {
       });
     });
 
-    it('shows error toast and closes modal when Spoolman link fails', async () => {
-      const { api } = await import('../../api/client');
+    it.each([false, true])('shows the existing spool holder for a structured RFID conflict (%s)', async (conflict) => {
+      const { api, ApiError } = await import('../../api/client');
       (api.getSpoolmanSettings as ReturnType<typeof vi.fn>).mockResolvedValue({
         spoolman_enabled: 'true',
         spoolman_url: 'http://localhost:7912',
@@ -415,7 +419,9 @@ describe('SpoolBuddyDashboard', () => {
       (api.getSpoolmanInventorySpools as ReturnType<typeof vi.fn>).mockResolvedValue([
         { id: 30, material: 'TPU', brand: 'Bambu', tag_uid: null, tray_uuid: null, archived_at: null, color_name: 'Orange', rgba: 'FF6600FF', subtype: null, label_weight: 1000, core_weight: 250, weight_used: 0 },
       ]);
-      (api.linkTagToSpoolmanSpool as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('503'));
+      (api.linkTagToSpoolmanSpool as ReturnType<typeof vi.fn>).mockRejectedValue(conflict
+        ? new ApiError('Tag already assigned', 409, 'tag_already_linked', { spool_id: 11 })
+        : new Error('503'));
 
       renderPage({
         unknownTagUid: 'AABB1122334455FF',
@@ -430,7 +436,7 @@ describe('SpoolBuddyDashboard', () => {
 
       await waitFor(() => {
         // Error toast shown
-        expect(mockShowToast).toHaveBeenCalledWith('spoolman.linkFailed', 'error');
+        expect(mockShowToast).toHaveBeenCalledWith(conflict ? 'Tag is already linked to spool 11' : 'spoolman.linkFailed', 'error');
         // Modal closed via finally
         expect(screen.queryByText('Link Tag')).toBeNull();
         // UnknownTagCard still visible — no card switch on failure

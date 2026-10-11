@@ -70,6 +70,7 @@ from backend.app.services.spoolman import (
 )
 from backend.app.services.spoolman_costs import spoolman_full_price_from_cost_per_kg
 from backend.app.services.spoolman_tracking import get_fallback_spool_tag_for_slot
+from backend.app.services.tag_conflict import tag_conflict
 from backend.app.utils.filament_ids import (
     filament_id_to_setting_id,
     normalize_slicer_filament,
@@ -836,11 +837,7 @@ async def update_spool(
 
     # Tag removal: clear only the "tag" key so other custom Spoolman extra fields
     # set outside PrintOps are preserved.
-    tag_nulled = (
-        ("tag_uid" in data.model_fields_set or "tray_uuid" in data.model_fields_set)
-        and _tag_cleared(data.tag_uid)
-        and _tag_cleared(data.tray_uuid)
-    )
+    tag_nulled = bool({"tag_uid", "tray_uuid"} & data.model_fields_set)
 
     # Serialise tag-clear + PATCH under the per-spool extra lock to prevent a
     # concurrent merge_spool_extra call (e.g. NFC write-back) from overwriting
@@ -856,7 +853,15 @@ async def update_spool(
             async with _translate_spoolman_errors():
                 fresh = await client.get_spool(spool_id)
             cur_extra = dict(fresh.get("extra") or {})
-            cur_extra["tag"] = json.dumps("")
+            mapped_tags = _map_spoolman_spool(fresh)
+            # The legacy tag_uid=null action clears the RFID association;
+            # tray_uuid=null alone is the independent UUID-only action.
+            remaining_uuid = None if {"tag_uid", "tray_uuid"} & data.model_fields_set else mapped_tags["tray_uuid"]
+            remaining_uid = None if "tag_uid" in data.model_fields_set else mapped_tags["tag_uid"]
+            cur_extra["tag"] = json.dumps(remaining_uuid or remaining_uid or "")
+            for field_name, value in (("bambu_tray_uuid", remaining_uuid), ("bambu_tag_uid", remaining_uid)):
+                if field_name in cur_extra:
+                    cur_extra[field_name] = json.dumps(value or "")
             extra: dict | None = cur_extra
         else:
             extra = None
@@ -1235,15 +1240,13 @@ async def link_tag_to_spoolman_spool(
         # Duplicate check: scan all spools for the same tag on a different spool.
         async with _translate_spoolman_errors():
             all_spools = await client.get_all_spools()
-        for s in all_spools:
+        for s in sorted(all_spools, key=lambda item: int(item.get("id") or 0)):
             s_extra = s.get("extra") or {}
-            if s.get("id") != spool_id and any(
-                _extra_string_value(s_extra, field_name) == tag for field_name in BAMBU_TAG_EXTRA_FIELDS
-            ):
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Tag is already assigned to spool {s['id']}",
-                )
+            if s.get("id") == spool_id or s.get("archived"):
+                continue
+            for request_field, value in (("tray_uuid", tray_uuid), ("tag_uid", tag_uid)):
+                if value and any(_extra_string_value(s_extra, key) == value for key in BAMBU_TAG_EXTRA_FIELDS):
+                    raise tag_conflict(s["id"], request_field)
 
         # Re-fetch inside the lock so cur_extra reflects any concurrent update.
         async with _translate_spoolman_errors():
