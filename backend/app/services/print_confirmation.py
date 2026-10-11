@@ -302,7 +302,13 @@ async def dispatch_outcome_confirmation(
             if is_current:
                 token = await issue_confirmation_token(db, archive, run_id=run.id)
                 if token is None:
-                    return False  # Keep already-sent current-run buttons valid.
+                    await db.rollback()
+                    if run_id is None or attempt:
+                        return False
+                    # A newer log may have appeared during token validation.
+                    # Revalidate outside this lock; unchanged current buttons
+                    # remain valid and cannot enter the historical retry.
+                    continue
             elif run_id is None:
                 return False  # Historical requests require the concrete completed run.
             # Claim external prompting atomically, independently of token issuance.

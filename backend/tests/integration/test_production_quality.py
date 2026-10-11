@@ -938,9 +938,11 @@ async def test_external_historical_fallback_rejects_invalid_runs_and_preserves_a
     assert run.confirm_token_hash == (token_digest(existing_token) if existing_token else None)
 
 
-@pytest.mark.parametrize("changed_after_rollback", [None, "answered", "deleted", "duplicate"])
+@pytest.mark.parametrize("changed_after_rollback,next_status", [
+    (None, "printing"), ("answered", "printing"), ("deleted", "printing"), ("duplicate", "printing"), (None, "completed"),
+])
 async def test_external_prompt_revalidates_after_next_copy_wins_the_current_claim(
-    tmp_path, monkeypatch, changed_after_rollback
+    tmp_path, monkeypatch, changed_after_rollback, next_status
 ):
     import asyncio
     from datetime import datetime, timedelta
@@ -1003,17 +1005,24 @@ async def test_external_prompt_revalidates_after_next_copy_wins_the_current_clai
         latest = confirmation.latest_run
         reads = 0
         next_start = datetime.now()
+        next_run_id = None
 
         async def start_next_before_token_flush(session, current_archive_id):
-            nonlocal reads
+            nonlocal reads, next_run_id
             reads += 1
             if reads == 2:
                 # This commits between the current mirror read and token flush,
                 # just as the independent print-start callback can.
                 async with sessions() as next_db:
                     await next_db.execute(update(PrintArchive).where(PrintArchive.id == archive_id)
-                                          .values(status="printing", started_at=next_start))
+                                          .values(status=next_status, started_at=next_start))
+                    if next_status == "completed":
+                        next_run = PrintLogEntry(archive_id=archive_id, printer_id=printer_id, status="completed",
+                                                started_at=next_start, quantity=4, confirm_requested=True)
+                        next_db.add(next_run)
                     await next_db.commit()
+                    if next_status == "completed":
+                        next_run_id = next_run.id
             return await latest(session, current_archive_id)
 
         monkeypatch.setattr(confirmation, "latest_run", start_next_before_token_flush)
@@ -1038,8 +1047,12 @@ async def test_external_prompt_revalidates_after_next_copy_wins_the_current_clai
             saved_run = await check.get(PrintLogEntry, run_id)
             saved_archive = await check.get(PrintArchive, archive_id)
             assert saved_run.confirm_token_hash is None and saved_run.confirm_token_expires_at is None
-            assert (saved_archive.status, saved_archive.started_at) == ("printing", next_start)
+            assert (saved_archive.status, saved_archive.started_at) == (next_status, next_start)
             assert (saved_archive.good_quantity, saved_archive.reject_quantity) == (None, None)
+            if next_run_id is not None:
+                saved_next_run = await check.get(PrintLogEntry, next_run_id)
+                assert saved_next_run.confirm_token_hash is None and saved_next_run.confirm_prompted_at is None
+                assert (saved_next_run.good_quantity, saved_next_run.reject_quantity) == (None, None)
             assert await check.scalar(select(func.count(NotificationLog.id)).where(
                 NotificationLog.event_type == "print_confirm_request", NotificationLog.success.is_(True))) == len(requests)
             assert (saved_run.confirm_prompted_at is not None) is (changed_after_rollback in (None, "duplicate"))
