@@ -2670,6 +2670,9 @@ export default {
       unload: "Ontladen",
     },
     bedJog: {
+      limitWarning: 'Bewegingslimieten worden niet afgedwongen tijdens handmatige verplaatsingen — door een bug in Bambu-firmware worden software-eindstops bij externe opdrachten genegeerd. Verplaats voorzichtig om een botsing te voorkomen.',
+      toolheadUp: 'Printkop omhoog bewegen',
+      toolheadDown: 'Printkop omlaag bewegen',
       title: "Jog-bediening",
       bed: "Printbed",
       step: "Stap (mm)",

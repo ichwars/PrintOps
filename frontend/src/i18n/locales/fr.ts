@@ -2628,6 +2628,9 @@ export default {
       unload: 'Décharger',
     },
     bedJog: {
+      limitWarning: 'Les limites de déplacement ne sont pas appliquées lors des mouvements manuels : un bug du firmware Bambu ignore les butées logicielles pour les commandes à distance. Déplacez avec précaution pour éviter une collision.',
+      toolheadUp: 'Monter la tête',
+      toolheadDown: 'Descendre la tête',
       title: 'Commandes de déplacement',
       bed: 'Plateau',
       step: 'Pas (mm)',

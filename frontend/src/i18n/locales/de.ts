@@ -2665,6 +2665,9 @@ export default {
       unload: 'Entladen',
     },
     bedJog: {
+      limitWarning: 'Verfahrwege werden bei manuellen Bewegungen nicht begrenzt – ein Firmware-Fehler von Bambu ignoriert die Software-Endschalter bei Remote-Befehlen. Bewegen Sie vorsichtig, um Kollisionen zu vermeiden.',
+      toolheadUp: 'Druckkopf hoch',
+      toolheadDown: 'Druckkopf runter',
       title: 'Jog-Steuerung',
       bed: 'Bett',
       step: 'Schritt (mm)',

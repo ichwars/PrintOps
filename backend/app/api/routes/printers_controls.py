@@ -526,32 +526,30 @@ async def bed_jog(
     distance: float = Query(
         ...,
         description=(
-            "Signed nozzle-bed gap adjustment in mm. Negative = decrease gap "
-            '("up" arrow in the UI: bed up on bed-on-Z models, toolhead down '
-            "on A1 bed-slingers). Positive = increase gap. The backend "
-            "translates this into the right G-code Z sign per printer model."
+            "Signed nozzle-bed gap adjustment in mm on every model: positive "
+            "opens the gap (more clearance), negative closes it. Sent unchanged "
+            "as the G-code Z value, whether Z moves the bed or the toolhead."
         ),
     ),
-    force: bool = Query(False, description="If true, bypass soft endstops via M211 (for use when Z is not homed)"),
+    force: bool = Query(
+        False,
+        description="Deprecated compatibility parameter; ignored. Jog commands never change soft endstops.",
+        deprecated=True,
+    ),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
     _drying_guard=Depends(printer_operation_guard),
 ):
-    """Adjust the nozzle-bed gap by a relative distance.
+    """Adjust the nozzle-bed gap by a relative distance on every model.
 
-    Emits a short G-code sequence via MQTT. When ``force`` is true the soft
-    endstops are disabled for the duration of the move, matching the
-    "ignore and move anyway" option Bambu Studio offers when the printer
-    is not homed.
+    Positive Z opens the gap on both bed-on-Z printers and bed-slingers;
+    model-specific arrow direction and labels belong to the frontend.
 
-    Direction handling: on bed-on-Z printers (X1 / P1 / H2 family) the bed
-    is the Z-axis, and Bambu's home convention puts Z=0 at the top with
-    Z+ moving the bed down — so a frontend "Up" (decrease gap) maps
-    naturally to ``G1 Z-``. On bed-slingers (A1 / A1 Mini) the Z-axis is
-    the *toolhead*, and ``G1 Z-`` instead drives the nozzle DOWN into the
-    bed (#1334 reported exactly that crash). For those models we invert
-    the sign before emitting the G-code, so the UI semantics stay the
-    same regardless of which part physically moves.
+    Never emit M211, including for legacy ``force=true`` requests. Disabling
+    soft endstops globally also removed the touchscreen's protection (#2579).
+    A bare move still has no travel-limit guarantee: Bambu firmware ignores
+    soft endstops on MQTT G-code and reports no axis position to clamp against.
+    The jog panel warns about this; no client-side position clamp exists.
     """
     if distance == 0 or abs(distance) > 200:
         raise HTTPException(400, "Distance must be non-zero and ≤ 200 mm")
@@ -565,16 +563,8 @@ async def bed_jog(
     if not client:
         raise HTTPException(400, "Printer not connected")
 
-    from backend.app.services.printer_manager import is_bed_slinger
-
-    gcode_distance = -distance if is_bed_slinger(printer.model) else distance
-
-    lines = []
-    if force:
-        lines.append("M211 S0")
-    lines += ["G91", f"G1 Z{gcode_distance:.2f} F600", "G90"]
-    if force:
-        lines.append("M211 S1")
+    # Preserve the signed gap; leave global endstop settings untouched.
+    lines = ["G91", f"G1 Z{distance:.2f} F600", "G90"]
 
     if not client.send_gcode("\n".join(lines)):
         raise HTTPException(500, "Failed to send bed-jog command")
@@ -591,7 +581,11 @@ async def xy_jog(
     db: AsyncSession = Depends(get_db),
     _drying_guard=Depends(printer_operation_guard),
 ):
-    """Move the toolhead by a relative X/Y distance."""
+    """Move the toolhead by a relative X/Y distance.
+
+    As with bed-jog, MQTT moves have no travel-limit guarantee. Never change
+    global soft-endstop settings; the jog panel warns about unbounded moves.
+    """
     if (x == 0 and y == 0) or abs(x) > 200 or abs(y) > 200:
         raise HTTPException(400, "X/Y movement must be non-zero and ≤ 200 mm per axis")
 

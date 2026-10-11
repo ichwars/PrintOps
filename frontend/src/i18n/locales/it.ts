@@ -2628,6 +2628,9 @@ export default {
       unload: 'Scarica',
     },
     bedJog: {
+      limitWarning: 'I limiti di corsa non vengono applicati durante i movimenti manuali: un bug del firmware Bambu ignora i finecorsa software per i comandi remoti. Muovi con cautela per evitare collisioni.',
+      toolheadUp: 'Sposta testina su',
+      toolheadDown: 'Sposta testina giù',
       title: 'Controlli jog',
       bed: 'Piano',
       step: 'Passo (mm)',

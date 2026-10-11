@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle, Flame, Loader2, Pencil, ScanSearch, X, XCircle } from 'lucide-react';
+import { CheckCircle, Flame, Loader2, Pencil, ScanSearch, X, XCircle } from 'lucide-react';
 import { api } from '../../api/client';
 import { parseUTCDate } from '../../utils/date';
 import { Button } from '../../components/Button';
@@ -39,7 +39,7 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
     showPowerOffConfirm, setShowPowerOffConfirm, haToggleConfirm, setHaToggleConfirm,
     showHMSModal, setShowHMSModal, amsBackupModalOpen, setAmsBackupModalOpen,
     showStopConfirm, setShowStopConfirm, showPauseConfirm, setShowPauseConfirm,
-    showNotHomedModal, setShowNotHomedModal, showResumeConfirm, setShowResumeConfirm,
+    showResumeConfirm, setShowResumeConfirm,
     showSkipObjectsModal, setShowSkipObjectsModal, showUploadForPrint, setShowUploadForPrint,
     showPrinterInfo, showDiagnostic, setShowDiagnostic, closePrinterInfo,
     printAfterUpload, setPrintAfterUpload, dryingPopoverAmsId, setDryingPopoverAmsId,
@@ -53,7 +53,7 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
     firmwareInfo, amsData,
     runoutGuidance, smartPlug, canUsePrinterControl, startDryingMutation,
     setAmsBackupMutation, powerControlMutation, runScriptMutation, stopPrintMutation,
-    pausePrintMutation, resumePrintMutation, bedJogMutation, homeAxesMutation,
+    pausePrintMutation, resumePrintMutation,
     maintenanceMutation, confirmMaintenanceEnter, setConfirmMaintenanceEnter, plateReferences,
     editingRefLabel, setEditingRefLabel, closePlateCheckModal, handleCalibratePlate,
     handleUpdateRefLabel, handleDeleteRef, handleSaveRoi,
@@ -518,53 +518,6 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
         }}
         onCancel={() => setShowResumeConfirm(false)}
       />
-    )}
-
-    {/* Bed Jog — not-homed warning (Studio-style) */}
-    {showNotHomedModal && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-        <div className="bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl w-full max-w-sm p-5">
-          <div className="flex items-start gap-3 mb-4">
-            <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="text-sm font-semibold text-white mb-1">
-                {t('printers.bedJog.notHomedTitle')}
-              </h3>
-              <p className="text-xs text-bambu-gray leading-relaxed">
-                {t('printers.bedJog.notHomedMessage')}
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={() => {
-                homeAxesMutation.mutate('all');
-                setShowNotHomedModal(null);
-              }}
-              className="w-full px-3 py-2 rounded-lg text-xs font-medium bg-bambu-green/20 text-bambu-green hover:bg-bambu-green/30 transition-colors"
-            >
-              {t('printers.bedJog.homeZ')}
-            </button>
-            <button
-              onClick={() => {
-                const d = showNotHomedModal.distance;
-                try { sessionStorage.setItem(`printops.bedJog.warned.${printer.id}`, '1'); } catch { /* ignore */ }
-                bedJogMutation.mutate({ distance: d, force: true });
-                setShowNotHomedModal(null);
-              }}
-              className="w-full px-3 py-2 rounded-lg text-xs font-medium bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-500/30 transition-colors"
-            >
-              {t('printers.bedJog.moveAnyway')}
-            </button>
-            <button
-              onClick={() => setShowNotHomedModal(null)}
-              className="w-full px-3 py-2 rounded-lg text-xs font-medium bg-bambu-dark text-bambu-gray hover:bg-bambu-dark-tertiary transition-colors"
-            >
-              {t('common.cancel')}
-            </button>
-          </div>
-        </div>
-      </div>
     )}
 
     {/* Skip Objects Modal */}

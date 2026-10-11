@@ -2634,6 +2634,9 @@ export default {
       unload: 'Descargar',
     },
     bedJog: {
+      limitWarning: 'Los límites de recorrido no se aplican en los movimientos manuales: un error del firmware de Bambu ignora los finales de carrera por software en los comandos remotos. Muévelo con cuidado para evitar colisiones.',
+      toolheadUp: 'Subir el cabezal',
+      toolheadDown: 'Bajar el cabezal',
       title: 'Controles de movimiento',
       bed: 'Cama',
       step: 'Paso (mm)',

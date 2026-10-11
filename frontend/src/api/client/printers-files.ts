@@ -143,12 +143,14 @@ export const printersFilesMethods = {
       method: 'POST',
     }),
 
-  // Bed (Z-axis) jog
-  bedJog: (printerId: number, distance: number, force: boolean = false) =>
-    request<{ success: boolean; message: string }>(
-      `/printers/${printerId}/bed-jog?distance=${distance}&force=${force}`,
+  // Signed nozzle-bed gap on every model. Legacy force argument is ignored.
+  bedJog: (printerId: number, distance: number, force: boolean = false) => {
+    void force;
+    return request<{ success: boolean; message: string }>(
+      `/printers/${printerId}/bed-jog?distance=${distance}`,
       { method: 'POST' }
-    ),
+    );
+  },
 
   xyJog: (printerId: number, x: number, y: number) =>
     request<{ success: boolean; message: string }>(

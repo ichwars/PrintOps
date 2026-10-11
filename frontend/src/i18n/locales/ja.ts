@@ -2627,6 +2627,9 @@ export default {
       unload: 'アンロード',
     },
     bedJog: {
+      limitWarning: '手動移動では可動範囲の制限が適用されません。Bambu のファームウェアの不具合により、リモートコマンドではソフトウェアリミットが無視されます。衝突しないよう注意して操作してください。',
+      toolheadUp: 'ツールヘッドを上へ',
+      toolheadDown: 'ツールヘッドを下へ',
       title: 'ジョグ操作',
       bed: 'ベッド',
       step: 'ステップ (mm)',

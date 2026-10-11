@@ -2627,6 +2627,9 @@ export default {
       unload: 'Çıkar',
     },
     bedJog: {
+      limitWarning: 'Manuel hareketlerde hareket sınırları uygulanmaz — bir Bambu donanım yazılımı hatası, uzaktan komutlarda yazılım limit anahtarlarını yok sayar. Çarpışmayı önlemek için dikkatlice hareket ettirin.',
+      toolheadUp: 'Baskı kafasını yukarı hareket ettir',
+      toolheadDown: 'Baskı kafasını aşağı hareket ettir',
       title: 'Jog kontrolleri',
       bed: 'Tabla',
       step: 'Adım (mm)',
