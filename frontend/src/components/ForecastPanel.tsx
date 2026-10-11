@@ -83,7 +83,7 @@ async function loadAllSuppliers() {
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
 function skuKey(material: string, subtype: string | null, brand: string | null, colorName: string | null) {
-  return `${material}||${subtype ?? ''}||${brand ?? ''}||${colorName ?? ''}`;
+  return [material, subtype, brand, colorName].map((value) => value?.trim() ?? '').join('||');
 }
 
 function addDays(date: Date, days: number): Date {
@@ -153,7 +153,13 @@ export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
 
   const settingsMap = useMemo(() => {
     const m = new Map<string, FilamentSkuSettings>();
-    for (const s of skuSettingsList) m.set(skuKey(s.material, s.subtype, s.brand, s.color_name), s);
+    // Match the server's numbered-first, then oldest canonical SKU without
+    // replacing the historical alias rows or their procurement references.
+    for (const s of [...skuSettingsList].sort((a, b) => a.id - b.id)) {
+      const key = skuKey(s.material, s.subtype, s.brand, s.color_name);
+      const previous = m.get(key);
+      if (!previous || (!previous.material_number && s.material_number)) m.set(key, s);
+    }
     return m;
   }, [skuSettingsList]);
 
