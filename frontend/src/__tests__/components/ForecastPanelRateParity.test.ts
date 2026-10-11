@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { computeHistoryRate, computeDeltaRate } from '../../components/ForecastPanel';
+import { computeHistoryRate, computeDeltaRate } from '../../utils/stockForecastRate';
 import type { InventorySpool, SpoolUsageRecord } from '../../api/client';
 
 const NOW = Date.parse('2026-09-30T00:00:00Z');

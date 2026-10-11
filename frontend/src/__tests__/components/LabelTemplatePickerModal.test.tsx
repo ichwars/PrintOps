@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor, fireEvent } from '@testing-library/react';
-import { render } from '../utils';
+import { render, selectComboboxOption } from '../utils';
 import { LabelTemplatePickerModal } from '../../components/LabelTemplatePickerModal';
 import { api } from '../../api/client';
 import { smallPartsApi } from '../../api/smallParts';
@@ -488,8 +488,8 @@ it('exports selected fields as a 600 dpi PNG while preserving material sheet pos
   render(<LabelTemplatePickerModal isOpen onClose={vi.fn()} availableMaterials={MATERIALS}
     initialSelectedIds={[7]} resourceType="material" />);
   fireEvent.click(screen.getByRole('checkbox', { name: /Brand/i }));
-  fireEvent.change(screen.getByRole('combobox', { name: /Output/i }), { target: { value: 'png' } });
-  fireEvent.change(screen.getByRole('combobox', { name: /Resolution/i }), { target: { value: '600' } });
+  selectComboboxOption(screen.getByRole('combobox', { name: /Output/i }), 'PNG / ZIP');
+  selectComboboxOption(screen.getByRole('combobox', { name: /Resolution/i }), '600 dpi');
   fireEvent.change(screen.getByRole('spinbutton', { name: /Start position.*L7160/i }), { target: { value: '21' } });
   fireEvent.click(screen.getByRole('button', { name: /Avery L7160/i }));
   await waitFor(() => expect(smallPartsApi.printLabels).toHaveBeenCalledWith(expect.objectContaining({
