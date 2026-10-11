@@ -936,3 +936,115 @@ async def test_external_historical_fallback_rejects_invalid_runs_and_preserves_a
     await db_session.refresh(run)
     assert run.confirm_prompted_at is None
     assert run.confirm_token_hash == (token_digest(existing_token) if existing_token else None)
+
+
+@pytest.mark.parametrize("changed_after_rollback", [None, "answered", "deleted", "duplicate"])
+async def test_external_prompt_revalidates_after_next_copy_wins_the_current_claim(
+    tmp_path, monkeypatch, changed_after_rollback
+):
+    import asyncio
+    from datetime import datetime, timedelta
+    from unittest.mock import AsyncMock
+
+    import httpx
+    from sqlalchemy import update
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+    from backend.app.core.database import Base
+    from backend.app.models.notification import NotificationLog, NotificationProvider
+    from backend.app.models.printer import Printer
+    from backend.app.models.settings import Settings
+    from backend.app.services import print_confirmation as confirmation
+    from backend.app.services.notification_service import notification_service
+
+    # A file database gives the print-start callback a genuinely independent
+    # connection; the in-memory shared connection cannot reproduce this race.
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'quality-race.db'}")
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        async with sessions() as setup:
+            printer = Printer(name="Quality", serial_number="QUALITY-RACE", ip_address="127.0.0.1",
+                              access_code="fixture", model="X1C")
+            setup.add_all([printer, Settings(key="external_url", value="https://printops.example"),
+                           NotificationProvider(name="Quality", provider_type="ntfy",
+                               config='{"server":"https://ntfy.sh","topic":"quality"}', on_print_confirm_request=True)])
+            await setup.flush()
+            start = datetime.now() - timedelta(minutes=5)
+            archive = PrintArchive(printer_id=printer.id, filename="parts.3mf", file_path="parts.3mf",
+                                   file_size=1, status="completed", started_at=start, quantity=4, confirm_requested=True)
+            setup.add(archive)
+            await setup.flush()
+            run = PrintLogEntry(archive_id=archive.id, printer_id=printer.id, status="completed",
+                                started_at=start, quantity=4, confirm_requested=True)
+            setup.add(run)
+            await setup.commit()
+            archive_id, run_id, printer_id = archive.id, run.id, printer.id
+
+        rolled_back = False
+
+        class RaceSession(AsyncSession):
+            async def rollback(self):
+                nonlocal rolled_back
+                await super().rollback()
+                rolled_back = True
+                if changed_after_rollback:
+                    async with sessions() as changed:
+                        if changed_after_rollback == "deleted":
+                            await changed.execute(update(PrintArchive).where(PrintArchive.id == archive_id)
+                                                  .values(deleted_at=datetime.now()))
+                        else:
+                            values = ({"good_quantity": 4, "reject_quantity": 0, "user_verdict": "good"}
+                                      if changed_after_rollback == "answered" else {"confirm_prompted_at": datetime.now()})
+                            await changed.execute(update(PrintLogEntry).where(PrintLogEntry.id == run_id).values(**values))
+                        await changed.commit()
+
+        latest = confirmation.latest_run
+        reads = 0
+        next_start = datetime.now()
+
+        async def start_next_before_token_flush(session, current_archive_id):
+            nonlocal reads
+            reads += 1
+            if reads == 2:
+                # This commits between the current mirror read and token flush,
+                # just as the independent print-start callback can.
+                async with sessions() as next_db:
+                    await next_db.execute(update(PrintArchive).where(PrintArchive.id == archive_id)
+                                          .values(status="printing", started_at=next_start))
+                    await next_db.commit()
+            return await latest(session, current_archive_id)
+
+        monkeypatch.setattr(confirmation, "latest_run", start_next_before_token_flush)
+        requests = []
+
+        def transport(request):
+            requests.append(request)
+            return httpx.Response(200, json={"id": "quality"})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+            monkeypatch.setattr(notification_service, "_get_client", AsyncMock(return_value=client))
+            async with RaceSession(engine, expire_on_commit=False) as db:
+                sent = await asyncio.wait_for(confirmation.dispatch_outcome_confirmation(
+                    db, archive_id, printer_id, "Quality", run_id=run_id, notify_user=False), timeout=5)
+        assert sent is (changed_after_rollback is None), "a lost current claim must revalidate the historical request"
+        assert rolled_back, "the temporary public token must be rolled back before historical fallback"
+        assert len(requests) == (1 if changed_after_rollback is None else 0)
+        if requests:
+            assert "Actions" not in requests[0].headers
+            assert f"https://printops.example/archives?confirm={archive_id}&confirm_run={run_id}".encode() in requests[0].content
+        async with sessions() as check:
+            saved_run = await check.get(PrintLogEntry, run_id)
+            saved_archive = await check.get(PrintArchive, archive_id)
+            assert saved_run.confirm_token_hash is None and saved_run.confirm_token_expires_at is None
+            assert (saved_archive.status, saved_archive.started_at) == ("printing", next_start)
+            assert (saved_archive.good_quantity, saved_archive.reject_quantity) == (None, None)
+            assert await check.scalar(select(func.count(NotificationLog.id)).where(
+                NotificationLog.event_type == "print_confirm_request", NotificationLog.success.is_(True))) == len(requests)
+            assert (saved_run.confirm_prompted_at is not None) is (changed_after_rollback in (None, "duplicate"))
+            assert not await confirmation.dispatch_outcome_confirmation(
+                check, archive_id, printer_id, "Quality", run_id=run_id, notify_user=False)
+        assert len(requests) == (1 if changed_after_rollback is None else 0)
+    finally:
+        await engine.dispose()
