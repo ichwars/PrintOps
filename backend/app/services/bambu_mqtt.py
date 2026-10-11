@@ -34,6 +34,7 @@ from backend.app.services.mqtt_print_provenance import (
     observe_loaded_tray,
     request_topic_probe_rejected,
 )
+from backend.app.utils.paho_teardown import retire_paho_client
 
 logger = logging.getLogger(__name__)
 
@@ -851,14 +852,7 @@ class BambuMQTTClient:
         old_client = self._client
         self._client = None
         if old_client is not None:
-            try:
-                old_client.disconnect()  # MQTT DISCONNECT — broker drops session
-            except Exception:
-                pass
-            try:
-                old_client.loop_stop()  # blocks briefly until the network thread exits
-            except Exception:
-                pass
+            retire_paho_client(old_client, self.serial_number)
         # Skip reconnect if no asyncio loop is available (test environment or
         # pre-init). The next initial connect() call from PrinterManager will
         # set up the client fresh.
@@ -4277,13 +4271,19 @@ class BambuMQTTClient:
         return True
 
     def disconnect(self, timeout: float = 0):
-        """Disconnect from the printer."""
+        """Wait for an optional acknowledgement, then retire without joining paho."""
         if self._client:
+            old_client = self._client
             self._disconnection_event = threading.Event()
-            self._client.disconnect()
-            self._disconnection_event.wait(timeout=timeout)
-            self._client.loop_stop()
+            if timeout > 0:
+                # Explicit probe callers need the callback before it is detached.
+                try:
+                    old_client.disconnect()
+                    self._disconnection_event.wait(timeout=timeout)
+                except Exception:
+                    pass
             self._client = None
+            retire_paho_client(old_client, self.serial_number)
             self.state.connected = False
 
     def send_command(self, command: dict):
