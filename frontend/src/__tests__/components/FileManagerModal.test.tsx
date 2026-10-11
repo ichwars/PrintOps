@@ -206,7 +206,7 @@ describe('FileManagerModal', () => {
       });
 
       // Find and click a checkbox (files have checkboxes, directories don't)
-      const checkboxes = screen.getAllByRole('button').filter(btn =>
+      const checkboxes = screen.getAllByRole('checkbox').filter(btn =>
         btn.querySelector('svg')?.classList.contains('lucide-square')
       );
 
@@ -438,7 +438,7 @@ describe('FileManagerModal', () => {
         expect(screen.getByText('benchy.3mf')).toBeInTheDocument();
       });
 
-      const checkboxes = screen.getAllByRole('button').filter(btn =>
+      const checkboxes = screen.getAllByRole('checkbox').filter(btn =>
         btn.querySelector('svg')?.classList.contains('lucide-square')
       );
       expect(checkboxes.length).toBeGreaterThan(0);
@@ -452,7 +452,7 @@ describe('FileManagerModal', () => {
       fireEvent.click(downloadButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/did not complete in time/i)).toBeInTheDocument();
+        expect(screen.getByRole('alert')).toHaveTextContent(/did not complete in time/i);
       });
     });
   });

@@ -3314,6 +3314,9 @@ export default {
 
   // Printer File Manager modal (printer internal storage)
   printerFiles: {
+    videos: 'Videos',
+    rangeSelectionHint: 'Click a file, then Shift-click another to select a range.',
+    saveToFolder: 'Save videos to folder',
     title: 'File Manager',
     storageUsed: 'Used:',
     storageFree: 'Free:',

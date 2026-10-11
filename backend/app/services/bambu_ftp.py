@@ -615,6 +615,52 @@ class BambuFTPClient:
         except (OSError, ftplib.Error):
             return None
 
+    def download_to_sink(
+        self,
+        remote_path: str,
+        sink: Callable[[bytes], None],
+        *,
+        expected_size: int | None = None,
+        cancel_event: threading.Event | None = None,
+        progress_callback: Callable[[int, int], None] | None = None,
+        data_socket_callback: Callable[[socket.socket], None] | None = None,
+    ) -> None:
+        """Forward bounded chunks, validating completion without buffering."""
+        if not self._ftp:
+            raise OSError("Printer file service is not connected")
+        transferred = 0
+        pending = None
+        try:
+            self._ftp.voidcmd("TYPE I")
+            with self._ftp.transfercmd(f"RETR {remote_path}") as conn:
+                if data_socket_callback is not None:
+                    data_socket_callback(conn)
+                while True:
+                    if cancel_event is not None and cancel_event.is_set():
+                        raise DownloadCancelled(remote_path)
+                    chunk = conn.recv(self.CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    if expected_size is not None and transferred + len(chunk) > expected_size:
+                        raise OSError("Printer file changed size during download")
+                    if pending is not None:
+                        sink(pending)
+                    pending = chunk
+                    transferred += len(chunk)
+                    if progress_callback is not None:
+                        progress_callback(transferred, expected_size or 0)
+                if isinstance(conn, ssl.SSLSocket):
+                    conn.unwrap()
+            self._ftp.voidresp()
+            if expected_size is not None and transferred != expected_size:
+                raise OSError("Printer file download is incomplete")
+            if pending is not None:
+                sink(pending)
+        except ftplib.error_perm as exc:
+            if str(exc).startswith("550"):
+                raise FileNotOnPrinterError(remote_path) from exc
+            raise
+
     def download_to_file(
         self,
         remote_path: str,
@@ -1864,7 +1910,7 @@ async def with_ftp_retry(
             # Operation returned failure indicator
             if attempt > 0:
                 logger.info("%s attempt %s/%s returned failure", operation_name, attempt + 1, max_retries + 1)
-        except UploadCancelled:
+        except (UploadCancelled, DownloadCancelled):
             raise
         except DownloadDeadlineExceeded:
             raise

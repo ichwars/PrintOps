@@ -3251,6 +3251,9 @@ export default {
 
   // Yazıcı Dosya Yöneticisi modali (yazıcı dahili deposu)
   printerFiles: {
+    videos: 'Videolar',
+    rangeSelectionHint: 'Bir dosyaya, ardından Shift tuşuyla başka bir dosyaya tıklayarak bir aralık seçin.',
+    saveToFolder: 'Videoları klasöre kaydet',
     title: 'Dosya Yöneticisi',
     storageUsed: 'Kullanılan:',
     storageFree: 'Boş:',
