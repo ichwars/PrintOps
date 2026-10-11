@@ -2,12 +2,17 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from backend.app.utils.printer_models import PRINTER_MODEL_ID_MAP, PRINTER_MODEL_MAP
 
+# These X1 SSDP aliases agree with virtual_printer.manager's existing registry.
+# Other SSDP codes overlap 3MF model IDs; retain their existing interpretation.
+_LEGACY_X1_MODEL_CODES = {"BL-P001": "X1C", "BL-P002": "X1"}
+
 
 def known_printer_model(value: str | None) -> str | None:
     """Canonicalize documented keys only; do not accept guessed model names."""
     if not isinstance(value, str):
         return None
     value = value.strip()
+    value = _LEGACY_X1_MODEL_CODES.get(value, value)
     normalized = PRINTER_MODEL_ID_MAP.get(value, PRINTER_MODEL_MAP.get(value, value))
     return normalized if normalized in PRINTER_MODEL_MAP.values() else None
 

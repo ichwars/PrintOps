@@ -90,6 +90,48 @@ async def test_spoolman_map_is_local_and_namespaced(async_client, db_session, le
     assert remote.slicer_filament == "GFA02"
 
 
+@pytest.mark.parametrize("remote", [False, True])
+@pytest.mark.parametrize("alias, canonical", [("BL-P001", "X1C"), ("BL-P002", "X1")])
+@pytest.mark.parametrize("preset", ["GFA02", None])
+async def test_legacy_ssdp_model_alias_uses_canonical_override(
+    async_client, db_session, legacy_spool, printer_factory, remote, alias, canonical, preset
+):
+    from backend.app.services.spool_filament_presets import resolve_spool_preset
+
+    printer = await printer_factory(model=alias)
+    spool = {"id": legacy_spool.id, "slicer_filament": "GFA00"} if remote else legacy_spool
+    url = f"/api/v1/{'spoolman/inventory' if remote else 'inventory'}/spools/{legacy_spool.id}/filament-presets"
+    client = AsyncMock()
+    client.get_spool.return_value = {"id": legacy_spool.id}
+    row = {"printer_model": canonical, "slicer_filament": preset}
+    with patch("backend.app.api.routes.spoolman_inventory._get_client", return_value=client):
+        assert (await async_client.put(url, json=[row])).status_code == 200
+        resolved = await resolve_spool_preset(db_session, spool, printer.id, spoolman=remote)
+        assert resolved.slicer_filament == preset
+        assert resolved.configured
+
+        # Alias input also stores the canonical key and cannot create a second row.
+        assert (await async_client.put(url, json=[{**row, "printer_model": alias}])).status_code == 200
+        assert [r["printer_model"] for r in (await async_client.get(url)).json()] == [canonical]
+        duplicate = [row, {**row, "printer_model": alias}]
+        assert (await async_client.put(url, json=duplicate)).status_code == 422
+        assert len((await async_client.get(url)).json()) == 1
+
+        assert (await async_client.put(url, json=[])).status_code == 200
+        resolved = await resolve_spool_preset(db_session, spool, printer.id, spoolman=remote)
+        assert resolved.slicer_filament == "GFA00"
+        assert not resolved.configured
+    await db_session.refresh(printer)
+    assert printer.model == alias
+
+
+@pytest.mark.parametrize("model", ["BL-P999", "Unknown", "X1C high flow", "bl-p001", "BLP001"])
+async def test_unverified_model_alias_remains_unknown(model):
+    from backend.app.schemas.spool_filament_preset import known_printer_model
+
+    assert known_printer_model(model) is None
+
+
 @pytest.mark.parametrize(
     "model, preset, expected", [("P2S", "GFA02", "GFA02"), ("X1C", None, "GFL99"), ("P2S", "99999", "GFL99")]
 )
