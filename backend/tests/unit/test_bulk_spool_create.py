@@ -7,8 +7,6 @@ Tests:
 - Bulk create returns spools with k_profiles loaded
 """
 
-from unittest.mock import AsyncMock, MagicMock
-
 import pytest
 from pydantic import ValidationError
 
@@ -86,99 +84,55 @@ class TestSpoolBulkCreateSchema:
 # ── Endpoint Logic ─────────────────────────────────────────────────────────
 
 
-def _make_mock_spool(spool_id):
-    """Create a mock Spool ORM object."""
-    spool = MagicMock()
-    spool.id = spool_id
-    spool.material = "PLA"
-    spool.label_weight = 1000
-    spool.k_profiles = []
-    return spool
-
-
 class TestBulkCreateEndpoint:
-    """Tests for the bulk_create_spools endpoint logic."""
+    """Verify the public operation against a real database and numbered SKU."""
 
     @pytest.mark.asyncio
-    async def test_creates_requested_number_of_spools(self):
-        """Verify N spools are created and added to the session."""
-        from backend.app.api.routes.inventory import bulk_create_spools
+    async def test_creates_requested_number_of_spools(self, async_client, db_session):
+        from sqlalchemy import select
 
-        data = SpoolBulkCreate(
-            spool=SpoolCreate(material="PLA", brand="Test", label_weight=1000),
-            quantity=3,
+        from backend.app.models.filament_sku_settings import FilamentSkuSettings
+        from backend.app.models.spool import Spool
+
+        response = await async_client.post(
+            "/api/v1/inventory/spools/bulk",
+            json={"spool": {"material": "PLA", "brand": "Test", "label_weight": 1000}, "quantity": 3},
         )
-
-        db = AsyncMock()
-        added_objects = []
-        db.add = lambda obj: added_objects.append(obj)
-
-        # Mock the re-fetch query
-        mock_result = MagicMock()
-        mock_spools = [_make_mock_spool(i + 1) for i in range(3)]
-        mock_result.scalars.return_value.all.return_value = mock_spools
-        db.execute = AsyncMock(return_value=mock_result)
-
-        result = await bulk_create_spools(data=data, db=db, _=None)
-
-        assert len(result) == 3
-        assert len(added_objects) == 3
-        db.commit.assert_awaited_once()
+        assert response.status_code == 200, response.text
+        spools = response.json()
+        assert len(spools) == 3
+        assert len({row["id"] for row in spools}) == 3
+        assert len(list(await db_session.scalars(select(Spool)))) == 3
+        skus = list(await db_session.scalars(select(FilamentSkuSettings)))
+        assert len(skus) == 1
+        assert {row["material_number"] for row in spools} == {skus[0].material_number}
+        assert skus[0].material_number
+        assert all(row["k_profiles"] == [] for row in spools)
 
     @pytest.mark.asyncio
-    async def test_single_quantity_creates_one_spool(self):
-        """Bulk create with quantity=1 should create exactly one spool."""
-        from backend.app.api.routes.inventory import bulk_create_spools
-
-        data = SpoolBulkCreate(
-            spool=SpoolCreate(material="PETG"),
-            quantity=1,
+    async def test_single_quantity_creates_one_spool(self, async_client):
+        response = await async_client.post(
+            "/api/v1/inventory/spools/bulk",
+            json={"spool": {"material": "PETG"}, "quantity": 1},
         )
-
-        db = AsyncMock()
-        added_objects = []
-        db.add = lambda obj: added_objects.append(obj)
-
-        mock_result = MagicMock()
-        mock_spools = [_make_mock_spool(1)]
-        mock_result.scalars.return_value.all.return_value = mock_spools
-        db.execute = AsyncMock(return_value=mock_result)
-
-        result = await bulk_create_spools(data=data, db=db, _=None)
-
-        assert len(result) == 1
-        assert len(added_objects) == 1
+        assert response.status_code == 200, response.text
+        assert len(response.json()) == 1
+        assert response.json()[0]["material"] == "PETG"
 
     @pytest.mark.asyncio
-    async def test_all_spools_have_same_fields(self):
-        """All created spools should have identical field values."""
-        from backend.app.api.routes.inventory import bulk_create_spools
-
-        data = SpoolBulkCreate(
-            spool=SpoolCreate(
-                material="ABS",
-                brand="Bambu Lab",
-                color_name="Black",
-                rgba="000000FF",
-                label_weight=750,
-            ),
-            quantity=3,
+    async def test_all_spools_have_same_fields(self, async_client):
+        expected = {
+            "material": "ABS",
+            "brand": "Bambu Lab",
+            "color_name": "Black",
+            "rgba": "000000FF",
+            "label_weight": 750,
+        }
+        response = await async_client.post(
+            "/api/v1/inventory/spools/bulk",
+            json={"spool": expected, "quantity": 3},
         )
-
-        db = AsyncMock()
-        added_objects = []
-        db.add = lambda obj: added_objects.append(obj)
-
-        mock_result = MagicMock()
-        mock_spools = [_make_mock_spool(i + 1) for i in range(3)]
-        mock_result.scalars.return_value.all.return_value = mock_spools
-        db.execute = AsyncMock(return_value=mock_result)
-
-        await bulk_create_spools(data=data, db=db, _=None)
-
-        # All added Spool objects should have the same material/brand/color
-        for spool_obj in added_objects:
-            assert spool_obj.material == "ABS"
-            assert spool_obj.brand == "Bambu Lab"
-            assert spool_obj.color_name == "Black"
-            assert spool_obj.label_weight == 750
+        assert response.status_code == 200, response.text
+        assert len(response.json()) == 3
+        for spool in response.json():
+            assert all(spool[field] == value for field, value in expected.items())

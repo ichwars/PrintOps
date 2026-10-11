@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module'
+import { readdirSync, readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
@@ -93,6 +95,46 @@ function emitLocaleAssetManifest(): Plugin {
   }
 }
 
+// pdf.js keeps these out of its bundle and fetches them at runtime (#2976):
+// CJK text needs the CMaps, non-embedded fonts the standard font files, and
+// JPEG2000/JBIG2 images and ICC colour the wasm decoders. Published under the
+// bundle's own assets directory so the existing /assets mount serves them —
+// PdfPreviewModal builds the matching URLs from its PDFJS_ASSET_BASE.
+const PDFJS_RUNTIME_DIRS = ['cmaps', 'iccs', 'standard_fonts', 'wasm']
+const PDFJS_RUNTIME_PREFIX = 'assets/pdfjs'
+
+/** Publish pdf.js's runtime data directories next to the bundle. */
+function pdfjsRuntimeAssets(): Plugin {
+  const require = createRequire(__filename)
+  const packageDir = path.dirname(require.resolve('pdfjs-dist/package.json'))
+  // Published path -> file on disk. Built once, and used as an allowlist by
+  // the dev-server handler so no request can escape the package directory.
+  const files = new Map<string, string>()
+  for (const dir of PDFJS_RUNTIME_DIRS) {
+    for (const entry of readdirSync(path.join(packageDir, dir), { withFileTypes: true })) {
+      if (!entry.isFile()) continue
+      files.set(`${PDFJS_RUNTIME_PREFIX}/${dir}/${entry.name}`, path.join(packageDir, dir, entry.name))
+    }
+  }
+
+  return {
+    name: 'printops:pdfjs-runtime-assets',
+    generateBundle() {
+      for (const [fileName, source] of files) {
+        this.emitFile({ type: 'asset', fileName, source: readFileSync(source) })
+      }
+    },
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const source = files.get((req.url ?? '').split('?')[0].replace(/^\//, ''))
+        if (!source) return next()
+        res.setHeader('Content-Type', source.endsWith('.wasm') ? 'application/wasm' : source.endsWith('.js') ? 'application/javascript' : 'application/octet-stream')
+        res.end(readFileSync(source))
+      })
+    },
+  }
+}
+
 export default defineConfig({
   // Default base ('/') emits absolute asset URLs (/assets/...). Required so
   // deep SPA routes (camera popup at /camera/<id>, /projects/<id>, kiosk
@@ -103,7 +145,7 @@ export default defineConfig({
   // fix for subpath reverse proxies (#1195, wontfix) is reverted — that
   // audience uses NPM + Cloudflare Tunnel at a real domain per the
   // documented workaround, which doesn't depend on this setting.
-  plugins: [react(), serveGcodeViewer(), emitLocaleAssetManifest(), browserBaseline()],
+  plugins: [react(), pdfjsRuntimeAssets(), serveGcodeViewer(), emitLocaleAssetManifest(), browserBaseline()],
   build: {
     target: ['chrome111', 'edge111', 'firefox114', 'safari16', 'ios16'],
     outDir: '../static',

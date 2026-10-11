@@ -5,13 +5,18 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.core.config import settings
+from backend.app.models.archive import PrintArchive
 from backend.app.models.library import LibraryFile, LibraryFolder
 from backend.app.models.print_queue import PrintQueueItem
+from backend.app.utils.library_paths import move_library_photos, remove_library_photos_dir
 from backend.app.utils.local_time import utcnow_naive
+from backend.app.utils.safe_path import assert_under, safe_join_under
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +104,7 @@ async def prepare_folder_hard_delete(db: AsyncSession, folder_id: int, *, delete
         ).all()
         for file_id, file_path, thumbnail_path, is_external in rows:
             file_ids.append(file_id)
+            remove_library_photos_dir(file_id)
             if not delete_managed_files or is_external:
                 continue
             for path in (file_path, thumbnail_path):
@@ -171,6 +177,21 @@ async def consume_transient_library_source(
     archive_id: int,
 ) -> None:
     """Detach all queue rows before deleting a consumed transient source."""
+    archive = await db.get(PrintArchive, archive_id)
+    if archive is not None:
+        archive.notes = library_file.notes
+        archive.external_url = library_file.external_url
+        if library_file.photos:
+            archive_path = Path(archive.file_path)
+            if archive_path.is_absolute():
+                archive_path = assert_under(settings.base_dir, archive_path, http=False)
+            else:
+                archive_path = safe_join_under(settings.base_dir, str(archive_path), http=False)
+            photos_dir = safe_join_under(archive_path.parent, "photos", http=False)
+            archive.photos = [
+                *(archive.photos or []),
+                *move_library_photos(library_file.id, library_file.photos, photos_dir),
+            ]
     item.library_file_id = None
     await repoint_siblings_at_archive(
         db,

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # ============ Folder Schemas ============
 
@@ -115,6 +115,31 @@ class FileCreate(BaseModel):
     project_id: int | None = None
 
 
+class SpreadsheetSheetPreview(BaseModel):
+    """Bounded, literal cell values for one spreadsheet tab."""
+
+    name: str = Field(..., max_length=2000)
+    rows: list[list[str]] = Field(..., max_length=500)
+    totalRows: int = Field(..., ge=0)
+    totalCols: int = Field(..., ge=0)
+
+
+class SpreadsheetPreviewResponse(BaseModel):
+    sheets: list[SpreadsheetSheetPreview] = Field(..., max_length=20)
+    truncated: bool
+
+
+class CombineItem(BaseModel):
+    file_id: int = Field(..., gt=0, strict=True)
+    copies: int = Field(1, ge=1, le=100, strict=True)
+
+
+class CombineFilesRequest(BaseModel):
+    items: list[CombineItem] = Field(..., min_length=1, max_length=100)
+    filename: str = Field(..., min_length=1, max_length=255)
+    folder_id: int | None = None
+
+
 class FileUpdate(BaseModel):
     """Schema for updating a file."""
 
@@ -122,6 +147,22 @@ class FileUpdate(BaseModel):
     folder_id: int | None = None
     project_id: int | None = None
     notes: str | None = None
+    external_url: str | None = Field(None, max_length=500)
+
+    @field_validator("external_url")
+    @classmethod
+    def validate_external_url(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        value = value.strip()
+        from urllib.parse import urlsplit
+
+        parsed = urlsplit(value)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+            raise ValueError("External link must be an HTTP or HTTPS URL without credentials")
+        if any(ord(character) < 32 for character in value):
+            raise ValueError("External link contains control characters")
+        return value
 
 
 class FileDuplicate(BaseModel):
@@ -157,6 +198,10 @@ class FileResponse(BaseModel):
     last_printed_at: datetime | None
 
     notes: str | None
+    external_url: str | None = None
+    photos: list[str] = []
+    source_type: str | None = None
+    source_url: str | None = None
 
     # Duplicate detection
     duplicates: list[FileDuplicate] | None = None
@@ -325,6 +370,8 @@ class AddToQueueRequest(BaseModel):
     """Schema for adding library files to the print queue."""
 
     file_ids: list[int] = Field(..., min_length=1)
+    printer_id: int | None = None
+    target_model: str | None = None
 
 
 class AddToQueueResult(BaseModel):

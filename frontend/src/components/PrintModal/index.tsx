@@ -134,6 +134,8 @@ export function PrintModal({
         layer_inspect: queueItem.layer_inspect ?? DEFAULT_PRINT_OPTIONS.layer_inspect,
         timelapse: queueItem.timelapse ?? DEFAULT_PRINT_OPTIONS.timelapse,
         nozzle_offset_cali: queueItem.nozzle_offset_cali ?? DEFAULT_PRINT_OPTIONS.nozzle_offset_cali,
+        confirm_outcome: queueItem.confirm_outcome ?? false,
+        expected_parts: queueItem.expected_parts ?? null,
         preheat_override: queueItem.preheat_override ?? DEFAULT_PRINT_OPTIONS.preheat_override,
         preheat_chamber_target_override: queueItem.preheat_chamber_target_override ?? DEFAULT_PRINT_OPTIONS.preheat_chamber_target_override,
       };
@@ -271,7 +273,8 @@ export function PrintModal({
   useEffect(() => {
     if (!settings || printDefaultsApplied.current || mode === 'edit-queue-item') return;
     printDefaultsApplied.current = true;
-    setPrintOptions({
+    setPrintOptions((current) => ({
+      ...current,
       bed_levelling: settings.default_bed_levelling ?? DEFAULT_PRINT_OPTIONS.bed_levelling,
       flow_cali: settings.default_flow_cali ?? DEFAULT_PRINT_OPTIONS.flow_cali,
       vibration_cali: settings.default_vibration_cali ?? DEFAULT_PRINT_OPTIONS.vibration_cali,
@@ -280,7 +283,7 @@ export function PrintModal({
       nozzle_offset_cali: settings.default_nozzle_offset_cali ?? DEFAULT_PRINT_OPTIONS.nozzle_offset_cali,
       preheat_override: DEFAULT_PRINT_OPTIONS.preheat_override,
       preheat_chamber_target_override: DEFAULT_PRINT_OPTIONS.preheat_chamber_target_override,
-    });
+    }));
   }, [settings, mode]);
 
   // Sync stagger defaults from settings once available
@@ -851,19 +854,12 @@ export function PrintModal({
       }
     }
 
-    const asapInsertionCounts = new Map<string, number>();
-
-    const applyAsapInsertion = (
-      queueData: PrintQueueItemCreate,
-      printerId: number | null,
-      itemCount = 1,
-    ) => {
+    let asapInserted = 0;
+    const applyAsapInsertion = (queueData: PrintQueueItemCreate, itemCount = 1) => {
       if (scheduleOptions.scheduleType !== 'asap') return;
-      const scopeKey = printerId !== null ? `printer:${printerId}` : 'unassigned';
-      const insertPosition = (asapInsertionCounts.get(scopeKey) ?? 0) + 1;
       queueData.insert_at_top = true;
-      queueData.insert_position = insertPosition;
-      asapInsertionCounts.set(scopeKey, insertPosition + itemCount - 1);
+      queueData.insert_position = asapInserted + 1;
+      asapInserted += itemCount;
     };
 
     // Common queue data for create and edit modes
@@ -927,7 +923,7 @@ export function PrintModal({
             const queueData = getQueueData(null, plateId);
             const plateQuantity = quantityForPlate(plateId);
             if (plateQuantity > 1) queueData.quantity = plateQuantity;
-            applyAsapInsertion(queueData, null, plateQuantity);
+            applyAsapInsertion(queueData, plateQuantity);
             await addToQueueMutation.mutateAsync(queueData);
           }
           results.success++;
@@ -983,7 +979,7 @@ export function PrintModal({
               const queueData = getQueueData(printerId, plateId);
               const plateQuantity = quantityForPlate(plateId);
               if (plateQuantity > 1) queueData.quantity = plateQuantity;
-              applyAsapInsertion(queueData, printerId, plateQuantity);
+              applyAsapInsertion(queueData, plateQuantity);
               // Apply stagger offset for groups after the first
               if (useStagger) {
                 const groupIndex = Math.floor(i / scheduleOptions.staggerGroupSize);
@@ -1076,7 +1072,7 @@ export function PrintModal({
   // global field is hidden (#342) — the reporter's case is "plate 1 once,
   // plate 2 twice", which one shared number cannot express. Single-plate
   // files, and edit mode, keep the single field exactly as before.
-  const usePerPlateQuantities = mode === 'create' && isMultiPlate && plates.length > 1;
+  const usePerPlateQuantities = mode === 'create' && !isCrossModel && isMultiPlate && plates.length > 1;
 
   /** Runs to queue for one plate. `null` = the single-plate / whole-file case. */
   const quantityForPlate = (plateIndex: number | null): number => {

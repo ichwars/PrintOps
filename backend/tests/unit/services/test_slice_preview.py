@@ -254,3 +254,68 @@ class TestGetPreviewFilaments:
         assert len(slice_preview._preview_cache) == _PREVIEW_CACHE_MAX
         # Lock dict is also pruned (no leak): same size as cache.
         assert len(slice_preview._preview_locks) == _PREVIEW_CACHE_MAX
+
+
+@pytest.mark.parametrize("kind", ["archive", "library"])
+async def test_preview_sanitizes_the_3mf_sent_over_the_sidecar_boundary(kind):
+    import json
+    from email import policy
+    from email.parser import BytesParser
+
+    import httpx
+
+    from backend.app.services import slicer_api
+
+    source = io.BytesIO()
+    with zipfile.ZipFile(source, "w") as archive:
+        archive.writestr(
+            "Metadata/project_settings.config",
+            json.dumps(
+                {
+                    "wall_filament": "0",
+                    "solid_infill_filament": 0,
+                    "sparse_infill_filament": "0",
+                    "raft_first_layer_expansion": "-1",
+                    "support_filament": "0",
+                    "support_interface_filament": "0",
+                    "layer_height": "0.2",
+                    "z_offset": "-1",
+                }
+            ),
+        )
+        archive.writestr("Metadata/model_settings.config", b"model settings preserved")
+        archive.writestr("3D/3dmodel.model", b"geometry preserved")
+    observed = []
+
+    def sidecar(request):
+        headers = f"Content-Type: {request.headers['content-type']}\r\nMIME-Version: 1.0\r\n\r\n".encode()
+        message = BytesParser(policy=policy.default).parsebytes(headers + request.content)
+        model = next(part for part in message.iter_parts() if part.get_filename())
+        with zipfile.ZipFile(io.BytesIO(model.get_payload(decode=True))) as archive:
+            observed.append(json.loads(archive.read("Metadata/project_settings.config")))
+            assert archive.read("Metadata/model_settings.config") == b"model settings preserved"
+            assert archive.read("3D/3dmodel.model") == b"geometry preserved"
+        return httpx.Response(200, content=_make_sliced_3mf(1, [{"id": "2", "type": "PLA", "color": "#FF0000"}]))
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(sidecar)) as client:
+        slicer_api.set_shared_http_client(client)
+        try:
+            result = await get_preview_filaments(
+                kind=kind,
+                source_id=500,
+                plate_id=1,
+                file_bytes=source.getvalue(),
+                file_name="makerworld.3mf",
+                api_url="http://sidecar",
+            )
+        finally:
+            slicer_api.set_shared_http_client(None)
+    assert result is not None and result[0]["slot_id"] == 2
+    assert observed == [
+        {
+            "support_filament": "0",
+            "support_interface_filament": "0",
+            "layer_height": "0.2",
+            "z_offset": "-1",
+        }
+    ]

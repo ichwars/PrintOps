@@ -26,6 +26,26 @@
 
 export type SlicerType = 'bambu_studio' | 'orcaslicer';
 
+/** Desktop URI imports have stricter format support than local File > Import. */
+const DESKTOP_FORMATS: Record<SlicerType, readonly string[]> = {
+  bambu_studio: ['3mf'],
+  orcaslicer: ['3mf', 'stl', 'step', 'stp'],
+};
+
+export function resolveDesktopSlicer(openInSlicer?: SlicerType | null, preferred?: SlicerType): SlicerType {
+  return openInSlicer ?? preferred ?? 'bambu_studio';
+}
+
+export function isSliceableFileType(fileType: string | null | undefined, slicer: SlicerType): boolean {
+  return (DESKTOP_FORMATS[slicer] ?? DESKTOP_FORMATS.bambu_studio).includes((fileType ?? '').toLowerCase());
+}
+
+export function isSliceableFilename(filename: string, slicer: SlicerType): boolean {
+  const lower = filename.toLowerCase();
+  return !lower.endsWith('.gcode.3mf') && !lower.endsWith('.gcode')
+    && (DESKTOP_FORMATS[slicer] ?? DESKTOP_FORMATS.bambu_studio).some(ext => lower.endsWith(`.${ext}`));
+}
+
 type Platform = 'windows' | 'macos' | 'linux' | 'unknown';
 
 /**

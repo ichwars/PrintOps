@@ -126,6 +126,7 @@ export function SpoolFormModal({
   const [errors, setErrors] = useState<Partial<Record<keyof SpoolFormData, string>>>({});
   const [activeTab, setActiveTab] = useState<TabId>('filament');
   const [weightTouched, setWeightTouched] = useState(false);
+  const [coreWeightTouched, setCoreWeightTouched] = useState(false);
   const [locationIdTouched, setLocationIdTouched] = useState(false);
   const [quickAdd, setQuickAdd] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -442,7 +443,7 @@ export function SpoolFormModal({
           extra_colors: spool.extra_colors || '',
           effect_type: spool.effect_type || '',
           label_weight: spool.label_weight || 1000,
-          core_weight: spool.core_weight || 250,
+          core_weight: spool.core_weight ?? 250,
           core_weight_catalog_id: spool.core_weight_catalog_id ?? null,
           weight_used: isCopying ? 0 : spool.weight_used || 0,
           slicer_filament: spool.slicer_filament || '',
@@ -477,6 +478,7 @@ export function SpoolFormModal({
       setErrors({});
       setActiveTab('filament');
       setWeightTouched(false);
+      setCoreWeightTouched(false);
       setLocationIdTouched(false);
       setProcurementOffers([]);
       setProcurementTouched(false);
@@ -534,6 +536,7 @@ export function SpoolFormModal({
         : {}),
     }));
     if (key === 'weight_used') setWeightTouched(true);
+    if (key === 'core_weight') setCoreWeightTouched(true);
     if (key === 'location_id') setLocationIdTouched(true);
     if (errors[key]) {
       setErrors(prev => ({ ...prev, [key]: undefined }));
@@ -713,6 +716,18 @@ export function SpoolFormModal({
         showToast(t('inventory.tagClearFailed'), 'error');
       }
     },
+  });
+
+  const clearTrayUuidMutation = useMutation({
+    mutationFn: () => spoolmanMode
+      ? api.updateSpoolmanInventorySpool(spool!.id, { tray_uuid: null })
+      : api.updateSpool(spool!.id, { tray_uuid: null }),
+    onSuccess: async () => {
+      await refreshSpoolQueries();
+      showToast(t('inventory.trayUuidCleared', 'Tray UUID cleared'), 'success');
+      onClose();
+    },
+    onError: () => showToast(t('inventory.tagClearFailed'), 'error'),
   });
 
   // Fetch assignment for this spool (to show Unassign button). In Spoolman mode
@@ -895,7 +910,10 @@ export function SpoolFormModal({
       extra_colors: formData.extra_colors || null,
       effect_type: formData.effect_type || null,
       label_weight: formData.label_weight,
-      ...(spoolmanMode ? {} : { core_weight: formData.core_weight, core_weight_catalog_id: formData.core_weight_catalog_id }),
+      ...(spoolmanMode
+        ? (coreWeightTouched || (isCopying && spool?.core_weight_is_inherited === false)
+          ? { core_weight: formData.core_weight } : {})
+        : { core_weight: formData.core_weight, core_weight_catalog_id: formData.core_weight_catalog_id }),
       slicer_filament: formData.slicer_filament || null,
       slicer_filament_name: presetName,
       nozzle_temp_min: null,
@@ -928,7 +946,7 @@ export function SpoolFormModal({
     }
   };
 
-  const isPending = createMutation.isPending || bulkCreateMutation.isPending || updateMutation.isPending || deleteTagMutation.isPending || unassignMutation.isPending || isSavingProcurement;
+  const isPending = createMutation.isPending || bulkCreateMutation.isPending || updateMutation.isPending || deleteTagMutation.isPending || clearTrayUuidMutation.isPending || unassignMutation.isPending || isSavingProcurement;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -1196,10 +1214,15 @@ export function SpoolFormModal({
               <Button
                 variant="secondary"
                 onClick={() => deleteTagMutation.mutate()}
-                disabled={isPending || !spool?.tag_uid}
+                disabled={isPending || !(spool?.tag_uid || spool?.tray_uuid)}
               >
                 <Tag className="w-4 h-4" />
                 {t('inventory.clearRfid', 'Clear RFID Tag')}
+              </Button>
+              <Button variant="secondary" onClick={() => clearTrayUuidMutation.mutate()}
+                disabled={isPending || !spool?.tray_uuid}>
+                <Tag className="w-4 h-4" />
+                {t('inventory.clearTrayUuid', 'Clear Tray UUID')}
               </Button>
               <Button
                 variant="secondary"

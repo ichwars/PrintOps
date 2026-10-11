@@ -558,3 +558,9 @@ class EncryptionStatusResponse(BaseModel):
     # B2: number of rows skipped during the last legacy re-encryption migration.
     # Filled from backend.app.core.database.get_migration_error_count().
     migration_error_count: int = 0
+
+
+class MediaTokenResponse(BaseModel):
+    """Reusable, identified credential for browser media URLs."""
+
+    token: str

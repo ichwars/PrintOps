@@ -293,6 +293,14 @@ export function useWebSocket() {
         break;
       }
 
+      case 'print_confirm_request':
+        debouncedInvalidate('archives');
+        debouncedInvalidate('batches');
+        if (message.data && Number.isSafeInteger(message.data.archive_id)) {
+          window.dispatchEvent(new CustomEvent('printops:confirm-outcome', { detail: message.data }));
+        }
+        break;
+
       case 'print_complete':
         // Don't invalidate printerStatus here - it causes re-render cascade and browser freeze
         // The printer_status websocket messages will naturally update the status

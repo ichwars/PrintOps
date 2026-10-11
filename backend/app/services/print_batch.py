@@ -31,6 +31,7 @@ from sqlalchemy.orm import selectinload
 from backend.app.models.print_batch import PrintBatch, PrintBatchPlate
 from backend.app.models.print_log import PrintLogEntry
 from backend.app.models.print_queue import PrintQueueItem, PrintQueueVariant
+from backend.app.services.queue_position import next_queue_position
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,8 @@ CLONED_SETTING_COLUMNS = (
     "timelapse",
     "use_ams",
     "nozzle_offset_cali",
+    "confirm_outcome",
+    "expected_parts",
     "preheat_override",
     "preheat_chamber_target_override",
     "skip_filament_check",
@@ -130,6 +133,10 @@ class PlateProgress:
     pending: int = 0
     printing: int = 0
     completed: int = 0
+    unconfirmed: int = 0
+    rejected: int = 0
+    good_quantity: int = 0
+    reject_quantity: int = 0
     failed: int = 0
     cancelled: int = 0
     skipped: int = 0
@@ -141,8 +148,14 @@ class PlateProgress:
     has_source: bool = False
 
     @property
+    def accepted(self) -> int:
+        # Runs and parts are different units. Any rejection requires a replacement
+        # run, while its accepted PARTS remain visible in the production counters.
+        return max(0, self.completed - self.unconfirmed - self.rejected)
+
+    @property
     def dispatched(self) -> int:
-        return self.pending + self.printing + self.completed
+        return self.pending + self.printing + self.accepted + self.unconfirmed
 
     @property
     def remaining(self) -> int:
@@ -193,6 +206,26 @@ class BatchProgress:
     @property
     def completed(self) -> int:
         return self._sum("completed")
+
+    @property
+    def accepted(self) -> int:
+        return self._sum("accepted")
+
+    @property
+    def unconfirmed(self) -> int:
+        return self._sum("unconfirmed")
+
+    @property
+    def rejected(self) -> int:
+        return self._sum("rejected")
+
+    @property
+    def good_quantity(self) -> int:
+        return self._sum("good_quantity")
+
+    @property
+    def reject_quantity(self) -> int:
+        return self._sum("reject_quantity")
 
     @property
     def failed(self) -> int:
@@ -247,7 +280,13 @@ class BatchProgress:
         items, so cancelling the lot leaves a target of zero that trivially
         satisfies ``remaining == 0``.
         """
-        return self.target > 0 and self.remaining == 0 and self.pending == 0 and self.printing == 0
+        return (
+            self.target > 0
+            and self.remaining == 0
+            and self.pending == 0
+            and self.printing == 0
+            and self.unconfirmed == 0
+        )
 
 
 async def load_progress(db: AsyncSession, batch: PrintBatch) -> BatchProgress:
@@ -343,6 +382,39 @@ async def load_progress(db: AsyncSession, batch: PrintBatch) -> BatchProgress:
         else:
             logger.debug("Batch %s: ignoring queue item status %r in progress roll-up", batch.id, status)
         plate.print_time_seconds += int(time_sum or 0)
+
+    latest_log_id = (
+        select(func.max(PrintLogEntry.id))
+        .where(PrintLogEntry.queue_item_id == PrintQueueItem.id)
+        .correlate(PrintQueueItem)
+        .scalar_subquery()
+    )
+    quality_rows = (
+        await db.execute(
+            select(
+                PrintQueueItem.plate_id,
+                PrintQueueItem.confirm_outcome,
+                PrintLogEntry.confirm_requested,
+                PrintLogEntry.good_quantity,
+                PrintLogEntry.reject_quantity,
+            )
+            .outerjoin(PrintLogEntry, PrintLogEntry.id == latest_log_id)
+            .where(PrintQueueItem.batch_id == batch.id, PrintQueueItem.status == "completed")
+        )
+    ).all()
+    for plate_id, required, requested, good, reject in quality_rows:
+        plate = by_plate.get(None if whole_job_target else plate_id)
+        if plate is None:
+            continue
+        if good is not None:
+            plate.good_quantity += good
+            plate.reject_quantity += reject or 0
+            if reject:
+                plate.rejected += 1
+        elif requested or (requested is None and required):
+            # Reserve this run until inspected, including the short gap before
+            # the completion callback has written its independent log entry.
+            plate.unconfirmed += 1
 
     for plate_id, (cost_sum, gram_sum) in costs.items():
         plate = by_plate.get(plate_id)
@@ -534,31 +606,8 @@ async def delete_or_retain_queue_item(db: AsyncSession, item: PrintQueueItem) ->
 
 
 async def _next_position(db: AsyncSession, printer_id: int | None) -> int:
-    """Next free queue position in the scope a clone will land in.
-
-    Positions are per-queue, not global: one sequence per printer plus one
-    shared sequence for unassigned / model-based items, matching the scope the
-    add-to-queue route uses. Taking a global MAX here would drop every clone
-    at the end of whichever printer's queue happens to be longest and scramble
-    the order the user sees.
-    """
-    # Same advisory lock the add-to-queue route takes (#1625-followup): two
-    # concurrent inserts into an empty scope would otherwise both read
-    # MAX(position) as 0 and land on position 1. SQLite serialises writes
-    # implicitly and needs no equivalent.
-    bind = db.get_bind()
-    if bind.dialect.name == "postgresql":
-        await db.execute(
-            text("SELECT pg_advisory_xact_lock(1625, :k)"), {"k": printer_id if printer_id is not None else 0}
-        )
-
-    scope = PrintQueueItem.printer_id == printer_id if printer_id is not None else PrintQueueItem.printer_id.is_(None)
-    max_pos = (
-        await db.execute(
-            select(func.max(PrintQueueItem.position)).where(scope).where(PrintQueueItem.status == "pending")
-        )
-    ).scalar() or 0
-    return max_pos + 1
+    """Compatibility helper: clones append to the shared pending queue."""
+    return await next_queue_position(db)
 
 
 def _clone_queue_item(source: PrintQueueItem, *, position: int, created_by_id: int | None) -> PrintQueueItem:

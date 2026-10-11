@@ -14,7 +14,9 @@ from typing import Any
 from typing_extensions import TypedDict
 
 from backend.app.api.routes._url_safety import assert_safe_lan_service_url
+from backend.app.services.spoolman import BAMBU_WEIGHT_USED_BASELINE_KEY
 from backend.app.services.spoolman_costs import cost_per_kg_from_spoolman_full_price
+from backend.app.services.spoolman_weights import spoolman_net_weight, spoolman_price_weight, spoolman_tare
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,7 @@ class MappedSpoolFields(TypedDict):
     rgba: str | None
     label_weight: int | None
     core_weight: int | None
+    core_weight_is_inherited: bool
     core_weight_catalog_id: None
     weight_used: float | None
     weight_used_baseline: float | None
@@ -149,6 +152,23 @@ def _extract_extra_str(extra: dict, key: str) -> str:
     return decoded if isinstance(decoded, str) else ""
 
 
+def _extract_extra_float(extra: dict, key: str) -> float | None:
+    """Read finite numbers from either Spoolman JSON text or legacy numeric extras."""
+    value = extra.get(key)
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (ValueError, TypeError):
+            return None
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
 def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
     """Convert a raw Spoolman spool dict to the InventorySpool-compatible format.
 
@@ -209,7 +229,7 @@ def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
     color_hex: str = raw_color if _COLOR_HEX_RE.match(raw_color) else "808080"
     rgba: str = color_hex + "FF"
 
-    label_weight: int = _safe_int(filament.get("weight"), 1000)
+    label_weight: int = _safe_int(spoolman_net_weight(spool), 1000)
     real_used_weight: float = _safe_float(spool.get("used_weight"), 0.0)
     # Parity with internal mode (#1390): the InventorySpool shape lets the
     # frontend compute `remaining = label_weight - weight_used` and
@@ -220,14 +240,16 @@ def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
     # When remaining_weight is unset (legacy spools, or filament linked but
     # never primed), fall back to the old behaviour: weight_used =
     # used_weight, baseline = 0.
+    stored_baseline = max(0.0, _extract_extra_float(extra, BAMBU_WEIGHT_USED_BASELINE_KEY) or 0.0)
     remaining_raw = spool.get("remaining_weight")
     if remaining_raw is not None:
         remaining_weight: float = _safe_float(remaining_raw, 0.0)
         used_weight: float = max(0.0, float(label_weight) - remaining_weight)
-        weight_used_baseline: float = max(0.0, used_weight - real_used_weight)
+        weight_used_baseline: float = max(0.0, used_weight - real_used_weight + stored_baseline)
     else:
         used_weight = real_used_weight
-        weight_used_baseline = 0.0
+        weight_used_baseline = stored_baseline
+    weight_used_baseline = min(weight_used_baseline, used_weight)
 
     # Archived state – Spoolman uses a boolean ``archived`` field
     archived: bool = spool.get("archived", False)
@@ -274,9 +296,8 @@ def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
         "rgba": rgba,
         "brand": vendor.get("name") or None,
         "label_weight": label_weight,
-        "core_weight": _safe_int(
-            spool.get("spool_weight") if spool.get("spool_weight") is not None else filament.get("spool_weight"), 250
-        ),
+        "core_weight": _safe_int(spoolman_tare(spool)[0], 250),
+        "core_weight_is_inherited": spool.get("spool_weight") is None,
         "core_weight_catalog_id": None,
         "weight_used": used_weight,
         "weight_used_baseline": weight_used_baseline,
@@ -306,7 +327,7 @@ def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
         "created_at": created_at,
         # Spoolman has no updated_at field; use registered timestamp as best available proxy
         "updated_at": created_at,
-        "cost_per_kg": cost_per_kg_from_spoolman_full_price(spool.get("price"), filament.get("weight")),
+        "cost_per_kg": cost_per_kg_from_spoolman_full_price(spool.get("price"), spoolman_price_weight(spool)),
         "storage_location": spool.get("location") or None,
         "location_id": None,
         "k_profiles": [],

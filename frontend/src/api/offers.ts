@@ -71,6 +71,7 @@ export const offersApi = {
 export const ordersApi = {
   list: () => request<CustomerOrder[]>('/orders'),
   get: (id: number) => request<CustomerOrder>(`/orders/${id}`),
+  getProduction: (id: number) => request<{ good_quantity: number; reject_quantity: number; unconfirmed_runs: number }>(`/orders/${id}/production`),
   cancel: (id: number, idempotencyKey: string) => request<CustomerOrder>(`/orders/${id}/cancel`, { method: 'POST', body: JSON.stringify({ idempotency_key: idempotencyKey }) }),
   issueSmallPart: (id: number, allocationId: number, quantity: string, idempotencyKey: string) => request<CustomerOrder>(`/orders/${id}/small-parts/${allocationId}/issue`, { method: 'POST', body: JSON.stringify({ quantity, idempotency_key: idempotencyKey }) }),
   reconcileFilament: (id: number, allocationId: number, quantity: string, idempotencyKey: string) => request<CustomerOrder>(`/orders/${id}/filament/${allocationId}/reconcile`, { method: 'POST', body: JSON.stringify({ quantity, idempotency_key: idempotencyKey }) }),

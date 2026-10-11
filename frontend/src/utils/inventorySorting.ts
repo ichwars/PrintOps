@@ -20,6 +20,7 @@ const columnSortValues: Record<string, (spool: InventorySpool, assignmentMap: Re
   encode_time: (s) => s.encode_time || '',
   last_used_time: (s) => s.last_used || '',
   material: (s) => (s.material || '').toLowerCase(),
+  material_number: (s) => s.material_number || '',
   subtype: (s) => (s.subtype || '').toLowerCase(),
   color_name: (s) => (s.color_name || '').toLowerCase(),
   brand: (s) => (s.brand || '').toLowerCase(),
@@ -62,7 +63,9 @@ export function sortInventorySpools(spools: InventorySpool[], state: SortState, 
     if (state.column === 'rgba') result = compareInventoryColors(left, right);
     else {
       const a = columnSortValues[state.column](left, assignments), b = columnSortValues[state.column](right, assignments);
-      result = a < b ? -1 : a > b ? 1 : 0;
+      result = state.column === 'material_number'
+        ? String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
+        : a < b ? -1 : a > b ? 1 : 0;
     }
     return state.direction === 'asc' ? result : -result;
   });

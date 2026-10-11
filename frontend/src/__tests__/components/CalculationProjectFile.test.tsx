@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { calculationsApi, type CalculationProjectPlate, type CalculationVariant } from '../../api/calculations';
-import { setStreamToken } from '../../api/client';
+import { setMediaToken } from '../../api/client';
 import { ProjectFileSection } from '../../components/orders/calculation/ProjectFileSection';
 import { ProjectPlateGrid } from '../../components/orders/calculation/ProjectPlateGrid';
 import { VariantStrip } from '../../components/orders/calculation/VariantStrip';
@@ -34,7 +34,7 @@ const plate = (id: number): CalculationProjectPlate => ({
 
 describe('calculation project-file controls', () => {
   afterEach(() => {
-    setStreamToken(null);
+    setMediaToken(null);
     vi.restoreAllMocks();
   });
 
@@ -100,8 +100,8 @@ describe('calculation project-file controls', () => {
     expect(onFocusChange).toHaveBeenCalledWith(2);
   });
 
-  it('adds the stream token to project plate thumbnail URLs', () => {
-    setStreamToken('preview-token');
+  it('adds the media token to project plate thumbnail URLs', () => {
+    setMediaToken('preview-token');
     render(<ProjectPlateGrid plates={[{ ...plate(1), thumbnail_url: '/api/v1/calculations/project-files/7/plates/11/thumbnail' }]} selectedIds={new Set([1])} focusedId={1} locale="de-DE" onSelectionChange={vi.fn()} onFocusChange={vi.fn()} />);
 
     const image = document.querySelector<HTMLImageElement>('img');

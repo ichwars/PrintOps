@@ -47,6 +47,7 @@
     "micromark-extension-gfm-strikethrough": "^2.1.0",
     "micromark-extension-gfm-table": "^2.1.1",
     "micromark-extension-gfm-task-list-item": "^2.1.0",
+    "occt-import-js": "0.0.23",
     "pdfjs-dist": "6.2.108",
     "qrcode.react": "^4.2.0",
     "react": "19.2.8",

@@ -19,7 +19,7 @@ import {
   authToken,
   parseContentDispositionFilename,
   request,
-  withStreamToken,
+  withMediaToken,
 } from './core';
 
 export const archivesPrintLogMethods = {
@@ -45,6 +45,16 @@ export const archivesPrintLogMethods = {
   },
 
   getArchive: (id: number) => request<Archive>(`/archives/${id}`),
+
+  confirmOutcome: (id: number, data: { run_id: number; good_quantity: number; reject_quantity: number; failure_reason?: string }) =>
+    request<{ run_id: number; user_verdict: string; good_quantity: number; reject_quantity: number }>(`/archives/${id}/outcome`, {
+      method: 'POST', body: JSON.stringify(data),
+    }),
+
+  confirmRunOutcome: (id: number, runId: number, data: { run_id: number; good_quantity: number; reject_quantity: number; failure_reason?: string }) =>
+    request<{ run_id: number; user_verdict: string; good_quantity: number; reject_quantity: number }>(`/archives/${id}/runs/${runId}/outcome`, {
+      method: 'POST', body: JSON.stringify(data),
+    }),
 
   getArchiveRuns: (id: number) => request<PrintLogResponse>(`/archives/${id}/runs`),
 
@@ -269,10 +279,10 @@ export const archivesPrintLogMethods = {
       method: 'POST',
     }),
 
-  getArchiveThumbnail: (id: number) => withStreamToken(`${API_BASE}/archives/${id}/thumbnail?v=${Date.now()}`),
+  getArchiveThumbnail: (id: number) => withMediaToken(`${API_BASE}/archives/${id}/thumbnail?v=${Date.now()}`),
 
   getArchivePlateThumbnail: (id: number, plateIndex: number) =>
-    withStreamToken(`${API_BASE}/archives/${id}/plate-thumbnail/${plateIndex}`),
+    withMediaToken(`${API_BASE}/archives/${id}/plate-thumbnail/${plateIndex}`),
 
   getArchiveDownload: (id: number) => `${API_BASE}/archives/${id}/download`,
 
@@ -301,9 +311,9 @@ export const archivesPrintLogMethods = {
 
   getArchiveGcode: (id: number) => `${API_BASE}/archives/${id}/gcode`,
 
-  getArchivePlatePreview: (id: number) => withStreamToken(`${API_BASE}/archives/${id}/plate-preview`),
+  getArchivePlatePreview: (id: number) => withMediaToken(`${API_BASE}/archives/${id}/plate-preview`),
 
-  getArchiveTimelapse: (id: number) => withStreamToken(`${API_BASE}/archives/${id}/timelapse?v=${Date.now()}`),
+  getArchiveTimelapse: (id: number) => withMediaToken(`${API_BASE}/archives/${id}/timelapse?v=${Date.now()}`),
 
   scanArchiveTimelapse: (id: number) =>
     request<{
@@ -405,7 +415,7 @@ export const archivesPrintLogMethods = {
 
   // Photos
   getArchivePhotoUrl: (archiveId: number, filename: string) =>
-    withStreamToken(`${API_BASE}/archives/${archiveId}/photos/${encodeURIComponent(filename)}`),
+    withMediaToken(`${API_BASE}/archives/${archiveId}/photos/${encodeURIComponent(filename)}`),
 
   uploadArchivePhoto: async (archiveId: number, file: File): Promise<{ status: string; filename: string; photos: string[] }> => {
     const formData = new FormData();
@@ -549,7 +559,7 @@ export const archivesPrintLogMethods = {
 
   // QR Code
   getArchiveQRCodeUrl: (archiveId: number, size = 200) =>
-    withStreamToken(`${API_BASE}/archives/${archiveId}/qrcode?size=${size}`),
+    withMediaToken(`${API_BASE}/archives/${archiveId}/qrcode?size=${size}`),
 
   getArchiveCapabilities: (id: number) =>
     request<{
@@ -600,7 +610,7 @@ export const archivesPrintLogMethods = {
     }),
 
   getArchiveProjectImageUrl: (archiveId: number, imagePath: string) =>
-    withStreamToken(`${API_BASE}/archives/${archiveId}/project-image/${encodeURIComponent(imagePath)}`),
+    withMediaToken(`${API_BASE}/archives/${archiveId}/project-image/${encodeURIComponent(imagePath)}`),
 
   getArchiveForSlicer: (id: number, filename: string) => {
     const safe = filename.replace(/[/\\?#]/g, '_');
@@ -695,6 +705,8 @@ export const archivesPrintLogMethods = {
     dateTo?: string;
     limit?: number;
     offset?: number;
+    sortBy?: string;
+    sortDir?: "asc" | "desc";
   }) => {
     const searchParams = new URLSearchParams();
     if (params?.search) searchParams.set('search', params.search);
@@ -705,10 +717,12 @@ export const archivesPrintLogMethods = {
     if (params?.dateTo) searchParams.set('date_to', params.dateTo);
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.offset !== undefined) searchParams.set('offset', String(params.offset));
+    if (params?.sortBy) searchParams.set("sort_by", params.sortBy);
+    if (params?.sortDir) searchParams.set("sort_dir", params.sortDir);
     return request<PrintLogResponse>(`/print-log/?${searchParams}`);
   },
 
-  getPrintLogThumbnail: (id: number) => withStreamToken(`${API_BASE}/print-log/${id}/thumbnail`),
+  getPrintLogThumbnail: (id: number) => withMediaToken(`${API_BASE}/print-log/${id}/thumbnail`),
 
   clearPrintLog: () =>
     request<{ deleted: number }>('/print-log/', { method: 'DELETE' }),

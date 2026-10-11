@@ -1,3 +1,4 @@
+import type { LabelExportOptions } from "./client";
 import { getAuthToken, request } from './client';
 import type { ProcurementOffer } from './procurement';
 
@@ -233,7 +234,7 @@ export const smallPartsApi = {
   importCsvPreview: (file: File) => uploadSmallPartsCsv<SmallPartCsvImportPreview>(file, true),
   importCsv: (file: File) => uploadSmallPartsCsv<SmallPartCsvImportResult>(file, false),
   exportCsv: downloadSmallPartsCsv,
-  printLabels: async (data: { small_part_ids: number[]; template: string; monochrome?: boolean; start_position?: number }): Promise<Blob> => {
+  printLabels: async (data: { small_part_ids: number[]; template: string; monochrome?: boolean; start_position?: number } & LabelExportOptions): Promise<Blob> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const token = getAuthToken();
     if (token) headers.Authorization = `Bearer ${token}`;

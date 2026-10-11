@@ -199,3 +199,42 @@ class TestDefensiveFallbacks:
             zf.writestr("Metadata/project_settings.config", "[]")
         original = buf.getvalue()
         assert _sanitize_project_settings_sentinels(original) is original
+
+
+@pytest.mark.parametrize("key", ["wall_filament", "sparse_infill_filament", "solid_infill_filament"])
+@pytest.mark.parametrize("value", ["0", 0])
+def test_removes_active_filament_zero_sentinel(key, value):
+    original = _make_3mf(settings={key: value, "support_filament": "0", "support_interface_filament": "0"})
+    config = _read_settings(_sanitize_project_settings_sentinels(original))
+    assert key not in config
+    assert config == {"support_filament": "0", "support_interface_filament": "0"}
+
+
+@pytest.mark.parametrize("key", ["raft_first_layer_expansion", "tree_support_wall_count", "prime_tower_brim_width"])
+def test_removes_integer_inherit_marker(key):
+    original = _make_3mf(settings={key: -1, "z_offset": -1})
+    assert _read_settings(_sanitize_project_settings_sentinels(original)) == {"z_offset": -1}
+
+
+@pytest.mark.parametrize("value", [False, True, "-1", -1, ["0"], "0.0", 0.0, "1", 1])
+def test_leaves_other_filament_index_values_unchanged(value):
+    original = _make_3mf(settings={"wall_filament": value})
+    assert _sanitize_project_settings_sentinels(original) is original
+
+
+def test_sentinel_buckets_preserve_valid_zero_support_and_raft_settings():
+    original = _make_3mf(
+        settings={
+            "wall_filament": "-1",
+            "raft_first_layer_expansion": "0",
+            "support_filament": 0,
+            "support_interface_filament": "0",
+            "solid_infill_filament": "0",
+        }
+    )
+    assert _read_settings(_sanitize_project_settings_sentinels(original)) == {
+        "wall_filament": "-1",
+        "raft_first_layer_expansion": "0",
+        "support_filament": 0,
+        "support_interface_filament": "0",
+    }

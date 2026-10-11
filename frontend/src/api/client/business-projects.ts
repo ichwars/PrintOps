@@ -38,7 +38,7 @@ import {
   authToken,
   parseContentDispositionFilename,
   request,
-  withStreamToken,
+  withMediaToken,
 } from './core';
 
 export const businessProjectsMethods = {
@@ -124,7 +124,7 @@ export const businessProjectsMethods = {
     request<void>(`/business-profiles/${id}/logo?version=${version}`, { method: 'DELETE' }),
 
   getBusinessProfileLogoUrl: (id: number, logoVersion: number) =>
-    withStreamToken(`${API_BASE}/business-profiles/${id}/logo?v=${logoVersion}`),
+    `${API_BASE}/business-profiles/${id}/logo?v=${logoVersion}`,
 
   getBusinessProfileLogoBlob: async (id: number, logoVersion: number): Promise<Blob> => {
     const headers: Record<string, string> = {};
@@ -253,9 +253,9 @@ export const businessProjectsMethods = {
 
   // #1155: Cover image
   // Browsers can't attach `Authorization: Bearer ...` to `<img src>`, so we
-  // append the stream-token query string the same way archive thumbnails do.
-  getProjectCoverImageUrl: (projectId: number) =>
-    withStreamToken(`${API_BASE}/projects/${projectId}/cover-image`),
+  // append the media-token query string the same way archive thumbnails do.
+  getProjectCoverImageUrl: (projectId: number, version?: number) =>
+    withMediaToken(`${API_BASE}/projects/${projectId}/cover-image${version !== undefined ? `?v=${version}` : ''}`),
 
   uploadProjectCoverImage: async (
     projectId: number,

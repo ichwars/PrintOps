@@ -3,17 +3,21 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, nullslast, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import (
-    RequireCameraStreamTokenIfAuthEnabled,
     RequirePermissionIfAuthEnabled,
+    check_printer_access,
+    require_media_token_ownership,
     require_ownership_permission,
+    resolve_optional_api_key,
+    user_can_access_printer,
 )
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
+from backend.app.models.api_key import APIKey
 from backend.app.models.print_log import PrintLogEntry
 from backend.app.models.user import User
 from backend.app.schemas.print_log import PrintLogEntrySchema, PrintLogEntryUpdate, PrintLogResponse
@@ -21,6 +25,22 @@ from backend.app.schemas.print_log import PrintLogEntrySchema, PrintLogEntryUpda
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/print-log", tags=["print-log"])
+
+
+_SORTABLE_COLUMNS = {
+    "date": func.coalesce(PrintLogEntry.started_at, PrintLogEntry.created_at),
+    "print_name": PrintLogEntry.print_name,
+    "printer": PrintLogEntry.printer_name,
+    "user": PrintLogEntry.created_by_username,
+    "status": PrintLogEntry.status,
+    "duration": PrintLogEntry.duration_seconds,
+    "completed_at": PrintLogEntry.completed_at,
+    "filament": PrintLogEntry.filament_type,
+    "filament_used": PrintLogEntry.filament_used_grams,
+    "cost": PrintLogEntry.cost,
+    "energy": PrintLogEntry.energy_kwh,
+    "energy_cost": PrintLogEntry.energy_cost,
+}
 
 
 @router.get("/", response_model=PrintLogResponse)
@@ -33,6 +53,8 @@ async def get_print_log(
     date_to: datetime | None = None,
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    sort_by: str = Query(default="date"),
+    sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
     db: AsyncSession = Depends(get_db),
     auth_result: tuple[User | None, bool] = Depends(
         require_ownership_permission(
@@ -73,36 +95,16 @@ async def get_print_log(
     total = total_result.scalar() or 0
 
     # Get paginated results
-    query = query.order_by(PrintLogEntry.created_at.desc()).offset(offset).limit(limit)
+    column = _SORTABLE_COLUMNS.get(sort_by)
+    if column is None:
+        raise HTTPException(400, f"Cannot sort by {sort_by!r}")
+    ordering = column.asc() if sort_dir == "asc" else column.desc()
+    query = query.order_by(nullslast(ordering), PrintLogEntry.id.desc()).offset(offset).limit(limit)
     result = await db.execute(query)
     entries = result.scalars().all()
 
     return PrintLogResponse(
-        items=[
-            PrintLogEntrySchema(
-                id=e.id,
-                archive_id=e.archive_id,
-                print_name=e.print_name,
-                printer_name=e.printer_name,
-                printer_id=e.printer_id,
-                status=e.status,
-                started_at=e.started_at,
-                completed_at=e.completed_at,
-                duration_seconds=e.duration_seconds,
-                filament_type=e.filament_type,
-                filament_color=e.filament_color,
-                filament_used_grams=e.filament_used_grams,
-                # failure_reason was silently dropped by the GET serialiser
-                # before #1687 part 4 — without it the Print Log table couldn't
-                # surface what the Failure Analysis widget already groups by.
-                failure_reason=e.failure_reason,
-                thumbnail_path=e.thumbnail_path,
-                created_by_id=e.created_by_id,
-                created_by_username=e.created_by_username,
-                created_at=e.created_at,
-            )
-            for e in entries
-        ],
+        items=[PrintLogEntrySchema.model_validate(e) for e in entries],
         total=total,
     )
 
@@ -111,11 +113,14 @@ async def get_print_log(
 async def get_print_log_thumbnail(
     entry_id: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get the thumbnail for a print log entry.
 
-    Requires a stream token query param (?token=xxx) when auth is enabled.
+    Requires a media token query param (?token=xxx) when auth is enabled.
 
     Self-heals stale entries: when thumbnail_path points to a file that no
     longer exists on disk (archive was deleted, or print failed before the
@@ -124,9 +129,18 @@ async def get_print_log_thumbnail(
     gated on entry.thumbnail_path being truthy, so the next fetch of the
     log list will simply not request this thumbnail again.
     """
+    user, can_read_all = auth_result
     entry = await db.get(PrintLogEntry, entry_id)
     if not entry or not entry.thumbnail_path:
         raise HTTPException(404, "Thumbnail not found")
+
+    if not can_read_all and (user is None or entry.created_by_id != user.id):
+        raise HTTPException(404, "Thumbnail not found")
+    if not user_can_access_printer(user, entry.printer_id):
+        raise HTTPException(404, "Thumbnail not found")
+
+    if api_key is not None:
+        check_printer_access(api_key, entry.printer_id)
 
     thumb_path = settings.base_dir / entry.thumbnail_path
     if not thumb_path.exists():
@@ -137,7 +151,7 @@ async def get_print_log_thumbnail(
     return FileResponse(
         path=thumb_path,
         media_type="image/png",
-        headers={"Cache-Control": "public, max-age=86400"},
+        headers={"Cache-Control": "private, no-cache, must-revalidate"},
     )
 
 
@@ -285,22 +299,4 @@ async def update_print_log_entry(
         entry.status,
     )
 
-    return PrintLogEntrySchema(
-        id=entry.id,
-        archive_id=entry.archive_id,
-        print_name=entry.print_name,
-        printer_name=entry.printer_name,
-        printer_id=entry.printer_id,
-        status=entry.status,
-        started_at=entry.started_at,
-        completed_at=entry.completed_at,
-        duration_seconds=entry.duration_seconds,
-        filament_type=entry.filament_type,
-        filament_color=entry.filament_color,
-        filament_used_grams=entry.filament_used_grams,
-        failure_reason=entry.failure_reason,
-        thumbnail_path=entry.thumbnail_path,
-        created_by_id=entry.created_by_id,
-        created_by_username=entry.created_by_username,
-        created_at=entry.created_at,
-    )
+    return PrintLogEntrySchema.model_validate(entry)

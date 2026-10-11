@@ -214,6 +214,11 @@ export interface LibraryFileDuplicate {
   created_at: string;
 }
 
+export interface LibrarySpreadsheetPreview {
+  sheets: Array<{ name: string; rows: string[][]; totalRows: number; totalCols: number }>;
+  truncated: boolean;
+}
+
 export interface LibraryFile {
   id: number;
   folder_id: number | null;
@@ -231,6 +236,10 @@ export interface LibraryFile {
   print_count: number;
   last_printed_at: string | null;
   notes: string | null;
+  external_url?: string | null;
+  photos?: string[];
+  source_type?: string | null;
+  source_url?: string | null;
   duplicates: LibraryFileDuplicate[] | null;
   duplicate_count: number;
   // User tracking (Issue #206)
@@ -313,6 +322,7 @@ export interface LibraryFileUpdate {
   folder_id?: number | null;
   project_id?: number | null;
   notes?: string | null;
+  external_url?: string | null;
 }
 
 // Library trash (#1008)
@@ -421,6 +431,12 @@ export interface BatchThumbnailResponse {
 }
 
 // Library Queue types
+export interface AddToQueueRequest {
+  file_ids: number[];
+  printer_id?: number | null;
+  target_model?: string | null;
+}
+
 export interface AddToQueueResult {
   file_id: number;
   filename: string;

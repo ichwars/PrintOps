@@ -99,7 +99,6 @@ const [statusControlMenu, setStatusControlMenu] = useState<string | null>(null);
 
 const [bedJogStep, setBedJogStep] = useState<number>(10);
 
-const [showNotHomedModal, setShowNotHomedModal] = useState<null | { distance: number }>(null);
 
 const [showResumeConfirm, setShowResumeConfirm] = useState(false);
 
@@ -941,8 +940,8 @@ const airductMutation = useMutation({
   });
 
 const bedJogMutation = useMutation({
-    mutationFn: ({ distance, force }: { distance: number; force?: boolean }) =>
-      api.bedJog(printer.id, distance, force ?? false),
+    mutationFn: ({ distance }: { distance: number }) =>
+      api.bedJog(printer.id, distance),
     onError: (error: Error) =>
       showToast(error.message || t('printers.toast.failedToSendCommand'), 'error'),
   });
@@ -964,11 +963,6 @@ const extruderJogMutation = useMutation({
 const homeAxesMutation = useMutation({
     mutationFn: (axes: 'z' | 'xy' | 'all') => api.homeAxes(printer.id, axes),
     onSuccess: () => {
-      // Flip the session-scoped "warned" flag so the next bed-jog click doesn't re-prompt
-      // the not-homed modal. The flag is the same one "Move anyway" sets; after a successful
-      // auto-home request the printer is (or will shortly be) in a known-homed state, so
-      // prompting again in the same session is noise — #1052 follow-up.
-      try { sessionStorage.setItem(`printops.bedJog.warned.${printer.id}`, '1'); } catch { /* ignore */ }
       showToast(t('printers.bedJog.homingStarted'));
     },
     onError: (error: Error) =>
@@ -1421,7 +1415,7 @@ const footerIconButtonClass = '!h-8 !min-h-8 !w-8 !px-0 !py-0';
     setShowStopConfirm, showPauseConfirm, setShowPauseConfirm, showSpeedMenu,
     setShowSpeedMenu, showAirductMenu, setShowAirductMenu, showBedJogMenu,
     setShowBedJogMenu, statusControlMenu, setStatusControlMenu, bedJogStep,
-    setBedJogStep, showNotHomedModal, setShowNotHomedModal, showResumeConfirm,
+    setBedJogStep, showResumeConfirm,
     setShowResumeConfirm, showSkipObjectsModal, setShowSkipObjectsModal, showUploadForPrint,
     setShowUploadForPrint, showPrinterInfo, setShowPrinterInfo, showDiagnostic,
     setShowDiagnostic, closePrinterInfo, printAfterUpload, setPrintAfterUpload,

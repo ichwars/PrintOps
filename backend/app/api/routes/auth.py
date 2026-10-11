@@ -25,6 +25,7 @@ from backend.app.core.auth import (
     authenticate_user,
     authenticate_user_by_email,
     create_access_token,
+    create_media_token,
     create_websocket_token,
     get_current_active_user,
     get_password_hash,
@@ -32,6 +33,7 @@ from backend.app.core.auth import (
     get_user_by_username,
     invalidate_auth_enabled_cache,
     is_jti_revoked,
+    require_auth_if_enabled,
     resolve_session_max_minutes,
     revoke_jti,
     security,
@@ -54,6 +56,7 @@ from backend.app.schemas.auth import (
     LDAPSearchResultResponse,
     LoginRequest,
     LoginResponse,
+    MediaTokenResponse,
     ResetPasswordRequest,
     ResetPasswordResponse,
     SetupRequest,
@@ -606,6 +609,21 @@ async def mint_websocket_token(
     principal = current_user or api_key_cloud_owner
     username = principal.username if principal is not None else None
     return {"token": await create_websocket_token(username)}
+
+
+@router.post("/media-token", response_model=MediaTokenResponse)
+async def mint_media_token(
+    current_user: User | None = Depends(require_auth_if_enabled),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mint URL credentials; each media route checks current permissions and ownership.
+
+    API keys use media routes with their usual headers, so their scope flags
+    cannot be exchanged for a user's unrestricted media identity.
+    """
+    if current_user is None and await is_auth_enabled(db):
+        raise HTTPException(403, "Media tokens require a user session; API keys must use request headers")
+    return MediaTokenResponse(token=await create_media_token(current_user.username if current_user else None))
 
 
 @router.get("/me", response_model=UserResponse)

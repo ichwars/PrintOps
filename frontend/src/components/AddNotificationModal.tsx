@@ -5,7 +5,7 @@ import { X, Save, Loader2, Send, CheckCircle, XCircle } from 'lucide-react';
 import { api } from '../api/client';
 import type { NotificationProvider, NotificationProviderCreate, NotificationProviderUpdate, ProviderType } from '../api/client';
 import { Button } from './Button';
-import { LegacySelect, NumberField, TextField , TimeField} from './ui';
+import { Checkbox, LegacySelect, NumberField, TextField , TimeField} from './ui';
 import { Toggle } from './Toggle';
 
 interface AddNotificationModalProps {
@@ -31,8 +31,11 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
   const [dailyDigestEnabled, setDailyDigestEnabled] = useState(provider?.daily_digest_enabled || false);
   const [dailyDigestTime, setDailyDigestTime] = useState(provider?.daily_digest_time || '08:00');
 
+  const [attachPhoto, setAttachPhoto] = useState(provider?.attach_photo ?? true);
+
   // Event toggles
   const [onPrintStart, setOnPrintStart] = useState(provider?.on_print_start ?? false);
+  const [onPrintConfirmRequest, setOnPrintConfirmRequest] = useState(provider?.on_print_confirm_request ?? true);
   const [onPrintComplete, setOnPrintComplete] = useState(provider?.on_print_complete ?? true);
   const [onPrintFailed, setOnPrintFailed] = useState(provider?.on_print_failed ?? true);
   const [onPrintStopped, setOnPrintStopped] = useState(provider?.on_print_stopped ?? true);
@@ -164,6 +167,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
       provider_type: providerType,
       config: finalConfig,
       printer_id: printerId,
+      attach_photo: attachPhoto,
       quiet_hours_enabled: quietHoursEnabled,
       quiet_hours_start: quietHoursEnabled ? quietHoursStart : null,
       quiet_hours_end: quietHoursEnabled ? quietHoursEnd : null,
@@ -173,6 +177,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
       // Event toggles
       on_print_start: onPrintStart,
       on_print_complete: onPrintComplete,
+      on_print_confirm_request: onPrintConfirmRequest,
       on_print_failed: onPrintFailed,
       on_print_stopped: onPrintStopped,
       on_print_progress: onPrintProgress,
@@ -518,6 +523,18 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
             )}
           </div>
 
+          <Checkbox label={t('productionQuality.title')} checked={onPrintConfirmRequest} onCheckedChange={setOnPrintConfirmRequest} />
+
+          {providerType !== 'callmebot' && (
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm text-white">{t('notifications.attachPhoto')}</p>
+                <p className="text-xs text-bambu-gray">{t('notifications.attachPhotoHint')}</p>
+              </div>
+              <Toggle ariaLabel={t('notifications.attachPhoto')} checked={attachPhoto} onChange={setAttachPhoto} />
+            </div>
+          )}
+
           {/* Daily Digest */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -656,6 +673,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
             {providerType === 'ntfy' && (() => {
               const enabledEvents: Array<{ key: string; label: string }> = [];
               if (onPrintStart) enabledEvents.push({ key: 'on_print_start', label: t('notifications.start') });
+              if (onPrintConfirmRequest) enabledEvents.push({ key: 'on_print_confirm_request', label: t('productionQuality.title') });
               if (onPrintComplete) enabledEvents.push({ key: 'on_print_complete', label: t('notifications.complete') });
               if (onPrintFailed) enabledEvents.push({ key: 'on_print_failed', label: t('notifications.failed') });
               if (onPrintStopped) enabledEvents.push({ key: 'on_print_stopped', label: t('notifications.stopped') });

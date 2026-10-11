@@ -5,8 +5,9 @@ import { X, ExternalLink, Box, Code2, Cog, Loader2, Layers, Check, Maximize2, Mi
 import { ModelViewer } from './ModelViewer';
 import { GcodeViewer } from './GcodeViewer';
 import { Button } from './Button';
-import { api, withStreamToken } from '../api/client';
-import { openInSlicer, type SlicerType } from '../utils/slicer';
+import { api, withMediaToken } from '../api/client';
+import { openInSlicer, isSliceableFileType, resolveDesktopSlicer, type SlicerType } from '../utils/slicer';
+import { ActionMenu } from './ui/ActionMenu';
 import { isServerSliceableFileType } from '../utils/sliceFormats';
 import type { ArchivePlatesResponse, LibraryFilePlatesResponse, PlateMetadata } from '../types/plates';
 
@@ -18,6 +19,7 @@ interface ModelViewerModalProps {
   title: string;
   fileType?: string;
   onClose: () => void;
+  onSnapshot?: (blob: Blob) => void;
   // When set and `settings.use_slicer_api` is on, the header's slicer button
   // becomes "Slice" and calls this instead of opening BambuStudio / Orca
   // externally — so the preview modal's slice action matches the file row's
@@ -33,7 +35,7 @@ interface Capabilities {
   filament_colors: string[];
 }
 
-export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, onClose, onSliceWithPrintOps }: ModelViewerModalProps) {
+export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, onClose, onSliceWithPrintOps, onSnapshot }: ModelViewerModalProps) {
   const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
@@ -41,7 +43,7 @@ export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, on
   // user hasn't explicitly chosen a different desktop slicer (#1329). This
   // variable is only used for URI-handoff; sidecar slicing keeps using
   // preferred_slicer directly.
-  const preferredSlicer: SlicerType = settings?.open_in_slicer || settings?.preferred_slicer || 'bambu_studio';
+  const preferredSlicer: SlicerType = resolveDesktopSlicer(settings?.open_in_slicer, settings?.preferred_slicer);
   const isLibrary = libraryFileId != null;
   const [activeTab, setActiveTab] = useState<ViewTab | null>(null);
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
@@ -82,7 +84,7 @@ export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, on
       // upload path tags it `3mf`, so we accept both shapes here for
       // the 3D-tab + g-code-tab gating (#1543).
       const isThreeMfFamily = normalizedType === '3mf' || normalizedType === 'gcode.3mf';
-      const hasModel = isThreeMfFamily || normalizedType === 'stl';
+      const hasModel = isThreeMfFamily || ['stl', 'step', 'stp'].includes(normalizedType);
       const hasGcode = isThreeMfFamily || normalizedType === 'gcode';
       setCapabilities({
         has_model: hasModel,
@@ -282,7 +284,10 @@ export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, on
     };
   }, [isDraggingDivider, dividerHeight, minPlateHeight, minViewerPx, minViewerRatio]);
 
-  const canOpenInSlicer = isLibrary ? (fileType || '').toLowerCase() === '3mf' : true;
+  const availableSlicers = (['bambu_studio', 'orcaslicer'] as SlicerType[])
+    .filter(slicer => !isLibrary || isSliceableFileType(fileType, slicer));
+  const primarySlicer = availableSlicers.includes(preferredSlicer) ? preferredSlicer : availableSlicers[0];
+  const canOpenInSlicer = Boolean(primarySlicer);
 
   // When the user has the in-app Slicer API enabled (Settings → Workflow →
   // Slicer → Use Slicer API), library-mode previews route the header's slicer
@@ -296,27 +301,27 @@ export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, on
     isLibrary && settings?.use_slicer_api && onSliceWithPrintOps && sliceableType,
   );
 
-  const handleOpenInSlicer = async () => {
-    if (!canOpenInSlicer) return;
+  const handleOpenInSlicer = async (slicer: SlicerType | undefined = primarySlicer) => {
+    if (!slicer || !availableSlicers.includes(slicer)) return;
     const filename = title || 'model';
     try {
       if (isLibrary) {
         const { token } = await api.createLibrarySlicerToken(libraryFileId!);
         const path = api.getLibrarySlicerDownloadUrl(libraryFileId!, token, filename);
-        openInSlicer(`${window.location.origin}${path}`, preferredSlicer);
+        openInSlicer(`${window.location.origin}${path}`, slicer);
       } else {
         const { token } = await api.createArchiveSlicerToken(archiveId!);
         const path = api.getArchiveSlicerDownloadUrl(archiveId!, token, filename);
-        openInSlicer(`${window.location.origin}${path}`, preferredSlicer);
+        openInSlicer(`${window.location.origin}${path}`, slicer);
       }
     } catch {
       // Fallback to direct URL (works when auth is disabled)
       if (isLibrary) {
         const downloadUrl = `${window.location.origin}${api.getLibraryFileDownloadUrl(libraryFileId!)}`;
-        openInSlicer(downloadUrl, preferredSlicer);
+        openInSlicer(downloadUrl, slicer);
       } else {
         const downloadUrl = `${window.location.origin}${api.getArchiveForSlicer(archiveId!, filename)}`;
-        openInSlicer(downloadUrl, preferredSlicer);
+        openInSlicer(downloadUrl, slicer);
       }
     }
   };
@@ -349,10 +354,23 @@ export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, on
                 {t('slice.action')}
               </Button>
             ) : (
-              <Button variant="secondary" size="sm" onClick={handleOpenInSlicer} disabled={!canOpenInSlicer}>
-                <ExternalLink className="w-4 h-4" />
-                {t('modelViewer.openInSlicer')}
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button variant="secondary" size="sm" onClick={() => void handleOpenInSlicer()} disabled={!canOpenInSlicer}>
+                  <ExternalLink className="w-4 h-4" />
+                  {t('modelViewer.openInSlicer')}
+                  {primarySlicer && primarySlicer !== preferredSlicer && ' (OrcaSlicer)'}
+                </Button>
+                {availableSlicers.length > 1 && (
+                  <ActionMenu label={t('modelViewer.openInSlicer')}>
+                    {(close) => availableSlicers.filter(slicer => slicer !== primarySlicer).map(slicer => (
+                      <button key={slicer} role="menuitem" className="px-3 py-2 text-sm text-white"
+                        onClick={() => { close(); void handleOpenInSlicer(slicer); }}>
+                        {slicer === 'orcaslicer' ? 'OrcaSlicer' : 'Bambu Studio'}
+                      </button>
+                    ))}
+                  </ActionMenu>
+                )}
+              </div>
             )}
             <Button
               variant="secondary"
@@ -477,7 +495,7 @@ export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, on
                           >
                             {plate.has_thumbnail && plate.thumbnail_url ? (
                               <img
-                                src={withStreamToken(plate.thumbnail_url)}
+                                src={withMediaToken(plate.thumbnail_url)}
                                 alt={`Plate ${plate.index}`}
                                 className={`${splitFullscreen ? 'w-8 h-8' : 'w-10 h-10'} rounded object-cover bg-bambu-dark-tertiary`}
                               />
@@ -635,6 +653,7 @@ export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, on
                         ? api.getSource3mfDownloadUrl(archiveId!)
                         : api.getArchiveDownload(archiveId!))}
                     fileType={fileType}
+                    onSnapshot={onSnapshot}
                     buildVolume={capabilities.build_volume}
                     filamentColors={capabilities.filament_colors}
                     selectedPlateId={selectedPlateId}

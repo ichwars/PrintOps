@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { render } from '../utils';
 import { ModelViewerModal } from '../../components/ModelViewerModal';
-import { setStreamToken } from '../../api/client';
+import { setMediaToken } from '../../api/client';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
 
@@ -35,6 +35,14 @@ const mockCapabilities = {
   build_volume: { x: 256, y: 256, z: 256 },
   filament_colors: ['#00ae42'],
 };
+
+it.each(['stl', 'step', 'stp'])('offers OrcaSlicer for a desktop %s handoff', async (fileType) => {
+  server.use(http.get('/api/v1/settings/', () => HttpResponse.json({
+    use_slicer_api: false, open_in_slicer: 'orcaslicer', preferred_slicer: 'bambu_studio',
+  })));
+  render(<ModelViewerModal libraryFileId={7} title={`part.${fileType}`} fileType={fileType} onClose={() => {}} />);
+  await waitFor(() => expect(screen.getByRole('button', { name: /Open in Slicer/ })).toBeEnabled());
+});
 
 const mockPlatesResponse = {
   is_multi_plate: true,
@@ -86,7 +94,7 @@ describe('ModelViewerModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    setStreamToken(null);
+    setMediaToken(null);
     server.use(
       http.get('/api/v1/archives/:id/capabilities', () => {
         return HttpResponse.json(mockCapabilities);
@@ -387,8 +395,8 @@ describe('ModelViewerModal', () => {
       });
     });
 
-    it('appends the camera stream token to plate thumbnail URLs', async () => {
-      setStreamToken('tok-2661');
+    it('appends the media token to plate thumbnail URLs', async () => {
+      setMediaToken('tok-2661');
 
       render(
         <ModelViewerModal
@@ -506,7 +514,7 @@ describe('ModelViewerModal', () => {
       });
     });
 
-    it('disables Open in Slicer for non-3mf library files', async () => {
+    it('names OrcaSlicer when the configured Bambu handler cannot open an STL', async () => {
       render(
         <ModelViewerModal
           libraryFileId={1}
@@ -517,8 +525,8 @@ describe('ModelViewerModal', () => {
       );
 
       await waitFor(() => {
-        const slicerButton = screen.getByText('Open in Slicer').closest('button');
-        expect(slicerButton).toBeDisabled();
+        const slicerButton = screen.getByRole('button', { name: 'Open in Slicer (OrcaSlicer)' });
+        expect(slicerButton).toBeEnabled();
       });
     });
   });

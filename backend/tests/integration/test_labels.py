@@ -261,3 +261,181 @@ class TestValidation:
             },
         )
         assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_png_exports_one_image_or_ordered_zip(async_client, spool_factory):
+    import io
+    import zipfile
+
+    from PIL import Image
+
+    first, second = await spool_factory(), await spool_factory()
+    response = await async_client.post(
+        "/api/v1/inventory/labels",
+        json={
+            "spool_ids": [second.id, first.id],
+            "template": "box_40x30",
+            "format": "png",
+            "dpi": 203,
+            "fields": ["spool_id", "qr", "weight"],
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/zip"
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        assert archive.namelist() == ["label-1.png", "label-2.png"]
+        with Image.open(io.BytesIO(archive.read("label-1.png"))) as image:
+            assert image.width == 320
+            assert round(image.info["dpi"][0]) == 203
+    response = await async_client.post(
+        "/api/v1/inventory/labels",
+        json={
+            "spool_ids": [first.id],
+            "template": "box_40x30",
+            "format": "png",
+            "dpi": 600,
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_sheet_preview_renders_one_cell_and_validates_fields(async_client, spool_factory):
+    import io
+
+    from PIL import Image
+
+    spool = await spool_factory()
+    response = await async_client.post(
+        "/api/v1/inventory/labels/preview",
+        json={
+            "spool_ids": [spool.id],
+            "template": "avery_l7160",
+            "fields": [],
+            "dpi": 203,
+            "start_position": 21,
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    with Image.open(io.BytesIO(response.content)) as image:
+        assert image.width in (507, 508)
+        assert image.height in (304, 305)
+    for override in ({"fields": ["unsafe"]}, {"dpi": 1200}, {"format": "html"}):
+        response = await async_client.post(
+            "/api/v1/inventory/labels/preview",
+            json={
+                "spool_ids": [spool.id],
+                "template": "box_40x30",
+                **override,
+            },
+        )
+        assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("backend", ["inventory", "spoolman"])
+async def test_material_number_labels_use_existing_shared_sku_without_allocating(
+    async_client, db_session, spool_factory, backend
+):
+    from contextlib import closing
+
+    import pypdfium2 as pdfium
+    from sqlalchemy import select
+
+    from backend.app.models.filament_sku_settings import FilamentSkuSettings
+    from backend.app.models.settings import Settings
+    from backend.app.models.warehouse_number_sequence import WarehouseNumberSequence
+
+    sku = FilamentSkuSettings(
+        material="PLA", subtype="Basic", brand="Polymaker", color_name="Orange", material_number="MAT-00444"
+    )
+    db_session.add(sku)
+    await db_session.commit()
+    if backend == "inventory":
+        spool = await spool_factory(color_name="Orange")
+        spool_id = spool.id
+        request_context = patch("backend.app.api.routes.labels.get_spoolman_client", new_callable=AsyncMock)
+    else:
+        spool_id = 77
+        remote = {
+            "id": spool_id,
+            "extra": {"bambu_color_name": '"Orange"'},
+            "filament": {
+                "material": "PLA",
+                "name": "PLA Basic",
+                "weight": 1000,
+                "color_hex": "FF8800",
+                "vendor": {"name": "Polymaker"},
+            },
+        }
+        db_session.add(Settings(key="spoolman_enabled", value="true"))
+        await db_session.commit()
+        client = MagicMock(is_connected=True)
+        client.get_spools = AsyncMock(return_value=[remote])
+        request_context = patch(
+            "backend.app.api.routes.labels.get_spoolman_client", new_callable=AsyncMock, return_value=client
+        )
+    before = list((await db_session.scalars(select(WarehouseNumberSequence))).all())
+    with request_context:
+        response = await async_client.post(
+            f"/api/v1/{backend}/labels",
+            json={
+                "spool_ids": [spool_id],
+                "template": "ams_holder_75x55",
+                "fields": ["material_number"],
+            },
+        )
+    assert response.status_code == 200, response.text
+    with (
+        pdfium.PdfDocument(response.content) as document,
+        closing(document[0]) as page,
+        closing(page.get_textpage()) as text,
+    ):
+        assert "MAT-00444" in text.get_text_range()
+    assert list((await db_session.scalars(select(WarehouseNumberSequence))).all()) == before
+    assert list((await db_session.scalars(select(FilamentSkuSettings))).all()) == [sku]
+
+
+@pytest.mark.asyncio
+async def test_spoolman_label_uses_actual_spool_size_after_native_weight_mapping(async_client, db_session):
+    from contextlib import closing
+
+    import pypdfium2 as pdfium
+
+    from backend.app.models.settings import Settings
+
+    db_session.add(Settings(key="spoolman_enabled", value="true"))
+    await db_session.commit()
+    remote = {
+        "id": 77,
+        "initial_weight": 250,
+        "remaining_weight": 100,
+        "registered": "2026-10-01T09:00:00Z",
+        "comment": "Sample spool",
+        "filament": {"material": "PLA", "name": "PLA Basic", "weight": 1000, "color_hex": "FF8800"},
+    }
+    client = MagicMock(is_connected=True)
+    client.get_spools = AsyncMock(return_value=[remote])
+    client.update_spool = AsyncMock()
+    with patch("backend.app.api.routes.labels.get_spoolman_client", new_callable=AsyncMock, return_value=client):
+        response = await async_client.post(
+            "/api/v1/spoolman/labels",
+            json={"spool_ids": [77], "template": "ams_holder_75x55", "fields": ["weight", "note", "added"]},
+        )
+    assert response.status_code == 200, response.text
+    with (
+        pdfium.PdfDocument(response.content) as document,
+        closing(document[0]) as page,
+        closing(page.get_textpage()) as text,
+    ):
+        printed = text.get_text_range()
+    assert "250 g" in printed
+    assert "1000 g" not in printed
+    assert "Sample spool" in printed
+    assert "2026-10-01" in printed
+    client.update_spool.assert_not_awaited()

@@ -211,7 +211,8 @@ class HMSErrorResponse(BaseModel):
     code: str
     attr: int = 0  # Attribute value for constructing wiki URL
     module: int
-    severity: int  # 1=fatal, 2=serious, 3=common, 4=info
+    severity: int  # 1=error, 2=warning, 3=notice, 0=invalid
+    description: str | None = None  # Manufacturer text; no text is distinct from a guessed message.
     actions: list[str] = []  # List of user-facing action keys (e.g. "CHECK_FILAMENT")
     job_id: str | None = None  # Optional job ID for actions that require it (e.g. "CHECK_ASSISTANT")
     # Canonical hex identifier the firmware uses to match HMS-related commands.
@@ -221,6 +222,23 @@ class HMSErrorResponse(BaseModel):
     # truncated short_code that historically caused silent command rejection
     # (#1830, H2D wrong-plate verification).
     full_code: str = ""
+
+
+def hms_error_responses(errors: list | None) -> list[HMSErrorResponse]:
+    """Use the same live fault contract in printer and API-key status views."""
+    return [
+        HMSErrorResponse(
+            code=e.code,
+            attr=e.attr,
+            module=e.module,
+            severity=e.severity,
+            description=e.description,
+            actions=e.actions,
+            job_id=e.job_id,
+            full_code=e.full_code,
+        )
+        for e in (errors or [])
+    ]
 
 
 class AMSTray(BaseModel):

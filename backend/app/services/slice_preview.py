@@ -29,6 +29,7 @@ from io import BytesIO
 
 import defusedxml.ElementTree as ET
 
+from backend.app.services.slicer_3mf_convert import sanitize_project_settings_sentinels
 from backend.app.services.slicer_api import (
     SlicerApiError,
     SlicerApiService,
@@ -75,6 +76,8 @@ async def get_preview_filaments(
     back to whatever heuristic it has (typically the project_filaments +
     painted-face approach in ``threemf_tools``).
     """
+    # Cache identity follows the source, while deterministic sanitization only
+    # changes the bytes sent to the sidecar.
     h = _content_hash(file_bytes)
     key: _PreviewCacheKey = (kind, source_id, plate_id, h)
     cached = _preview_cache.get(key)
@@ -94,7 +97,7 @@ async def get_preview_filaments(
         try:
             async with SlicerApiService(base_url=api_url) as svc:
                 result = await svc.slice_without_profiles(
-                    model_bytes=file_bytes,
+                    model_bytes=sanitize_project_settings_sentinels(file_bytes),
                     model_filename=file_name,
                     plate=plate_id,
                     export_3mf=True,

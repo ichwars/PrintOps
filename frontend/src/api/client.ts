@@ -2,12 +2,17 @@ export {
   ApiError,
   getAuthToken,
   getStreamToken,
+  getMediaToken,
+  getAuthSessionId,
+  subscribeAuthSession,
   getTokenExpiry,
   getTokenPersistence,
   request,
   setAuthToken,
   setStreamToken,
+  setMediaToken,
   withStreamToken,
+  withMediaToken,
 } from './client/core';
 export type { ApiValidationIssue, TokenPersistence } from './client/core';
 export type * from './client/types';

@@ -16,6 +16,17 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from backend.app.core.auth_media import (
+    _user_from_media_token as _user_from_media_token,
+    create_media_token as create_media_token,
+    require_camera_stream_token_if_auth_enabled as require_camera_stream_token_if_auth_enabled,
+    require_camwall_token_if_auth_enabled as require_camwall_token_if_auth_enabled,
+    require_media_token_ownership as require_media_token_ownership,
+    require_media_token_permission as require_media_token_permission,
+    require_media_token_printer_permission as require_media_token_printer_permission,
+    require_overlay_token_if_auth_enabled as require_overlay_token_if_auth_enabled,
+    verify_media_token as verify_media_token,
+)
 from backend.app.core.database import async_session, get_db
 from backend.app.core.permissions import Permission
 from backend.app.models.api_key import APIKey
@@ -587,8 +598,10 @@ async def create_slicer_download_token(resource_type: str, resource_id: int) -> 
     return token
 
 
-async def verify_slicer_download_token(token: str, resource_type: str, resource_id: int) -> bool:
-    """Verify and atomically consume a slicer download token.
+async def verify_slicer_download_token(
+    token: str, resource_type: str, resource_id: int, *, single_use: bool = True
+) -> bool:
+    """Verify a resource-bound download token; consume it by default.
 
     Returns True only if the token is valid, unexpired, and bound to the given resource.
     DELETE...RETURNING ensures the token is single-use even under concurrent requests.
@@ -601,6 +614,18 @@ async def verify_slicer_download_token(token: str, resource_type: str, resource_
     expected_key = f"{resource_type}:{resource_id}"
     now = datetime.now(timezone.utc)
     async with async_session() as db:
+        if not single_use:
+            # Protocol handlers retry and resume downloads. Keep the same
+            # resource binding and five-minute expiry on every redemption.
+            result = await db.execute(
+                select(AuthEphemeralToken.id).where(
+                    AuthEphemeralToken.token == token,
+                    AuthEphemeralToken.token_type == TokenType.SLICER_DOWNLOAD,
+                    AuthEphemeralToken.nonce == expected_key,
+                    AuthEphemeralToken.expires_at > now,
+                )
+            )
+            return result.scalar_one_or_none() is not None
         result = await db.execute(
             delete(AuthEphemeralToken)
             .where(
@@ -758,6 +783,11 @@ async def verify_overlay_token(token: str) -> bool:
 
         record = await verify_long_lived(db, token, scope="overlay")
         return record is not None
+
+
+# Browser media credentials carry a user identity so resource read permissions
+# and ownership can be checked independently of the anonymous camera tokens.
+MEDIA_TOKEN_EXPIRE_MINUTES = 60
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -1761,63 +1791,10 @@ def RequireAnyPermissionIfAuthEnabled(*permissions: str | Permission):
     return Depends(require_any_permission_if_auth_enabled(*permissions))
 
 
-def require_camera_stream_token_if_auth_enabled():
-    """Dependency that validates a camera stream token query param when auth is enabled.
-
-    Used for camera stream/snapshot endpoints that are loaded via <img> tags
-    which cannot send Authorization headers. The frontend obtains a token from
-    POST /printers/camera/stream-token and appends it as ?token=xxx.
-    """
-
-    async def checker(token: str | None = None) -> None:
-        async with async_session() as db:
-            if not await is_auth_enabled(db):
-                return  # Auth disabled, allow access
-        if not token or not await verify_camera_stream_token(token):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Valid camera stream token required. Obtain one from POST /api/v1/printers/camera/stream-token",
-            )
-
-    return checker
-
-
 RequireCameraStreamTokenIfAuthEnabled = Depends(require_camera_stream_token_if_auth_enabled())
 
 
-def require_camwall_token_if_auth_enabled():
-    """Dependency that validates a Cam Wall token query param when auth is enabled."""
-
-    async def checker(token: str | None = None) -> None:
-        async with async_session() as db:
-            if not await is_auth_enabled(db):
-                return
-        if not token or not await verify_camwall_token(token):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Valid Cam Wall token required. Create one under Settings > API Keys with the 'Cam Wall' scope.",
-            )
-
-    return checker
-
-
 RequireCamWallTokenIfAuthEnabled = Depends(require_camwall_token_if_auth_enabled())
-
-
-def require_overlay_token_if_auth_enabled():
-    """Dependency that validates a streaming-overlay token query param when auth is enabled."""
-
-    async def checker(token: str | None = None) -> None:
-        async with async_session() as db:
-            if not await is_auth_enabled(db):
-                return
-        if not token or not await verify_overlay_token(token):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Valid streaming overlay token required. Create one under Settings > API Keys with the 'Overlay' scope.",
-            )
-
-    return checker
 
 
 RequireOverlayTokenIfAuthEnabled = Depends(require_overlay_token_if_auth_enabled())

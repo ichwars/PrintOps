@@ -157,8 +157,11 @@ def store_profile_table(state, profiles, response_nozzle):
 
 def apply_rfid_calibration(client, profiles, state, model, printer_id, ams_id, tray_id, filament_id, current_index):
     """Apply the same scoped selection on RFID assignment and drift correction."""
+    from backend.app.services.kprofile_drift import default_chosen
     from backend.app.utils.filament_ids import normalize_slicer_filament
 
+    if default_chosen(printer_id, ams_id, tray_id):
+        return
     context, stored, live = resolve_spool_calibration(profiles, state, model, printer_id, ams_id, tray_id)
     if context is None:
         return

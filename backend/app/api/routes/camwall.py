@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.core.auth import RequireCamWallTokenIfAuthEnabled
 from backend.app.core.database import get_db
 from backend.app.models.printer import Printer
+from backend.app.schemas.printer import hms_error_responses
 from backend.app.services.printer_manager import printer_manager
 
 router = APIRouter(prefix="/camwall", tags=["camwall"])
@@ -44,16 +45,7 @@ async def list_camwall_printers(
                     "remaining_time": state.remaining_time,
                     "layer_num": state.layer_num,
                     "total_layers": state.total_layers,
-                    "hms_errors": [
-                        {
-                            "code": error.code,
-                            "attr": error.attr,
-                            "module": error.module,
-                            "severity": error.severity,
-                            "actions": error.actions or [],
-                        }
-                        for error in (state.hms_errors or [])
-                    ],
+                    "hms_errors": [error.model_dump() for error in hms_error_responses(state.hms_errors)],
                 }
             )
         payload.append(entry)

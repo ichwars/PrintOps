@@ -11,6 +11,7 @@ import {
   Upload, Download, CircleDollarSign,
 } from 'lucide-react';
 import { ForecastPanel } from '../components/ForecastPanel';
+import { EmptyFilterState } from './inventory/EmptyFilterState';
 import { api, spoolbuddyApi, ApiError } from '../api/client';
 import type { InventorySpool, SpoolCatalogEntry } from '../api/client';
 import { Button } from '../components/Button';
@@ -68,7 +69,7 @@ function spoolGroupKey(s: InventorySpool): string {
   // Include extra_colors + effect_type so the "Group similar" toggle does
   // not collapse two spools that share the base colour but differ on
   // gradient stops or visual effect (#1154).
-  return `${s.material}|${s.subtype || ''}|${s.brand || ''}|${s.color_name || ''}|${s.rgba || ''}|${s.extra_colors || ''}|${s.effect_type || ''}|${s.label_weight}`;
+  return `${s.material_number || ''}|${s.material}|${s.subtype || ''}|${s.brand || ''}|${s.color_name || ''}|${s.rgba || ''}|${s.extra_colors || ''}|${s.effect_type || ''}|${s.label_weight}`;
 }
 
 // Column definitions for the inventory table
@@ -81,6 +82,7 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'last_used_time', label: 'Last Used', visible: false },
   { id: 'rgba', label: 'Color', visible: true },
   { id: 'material', label: 'Material', visible: true },
+  { id: 'material_number', label: 'Material number', visible: true },
   { id: 'subtype', label: 'Subtype', visible: true },
   { id: 'color_name', label: 'Color Name', visible: false },
   { id: 'brand', label: 'Brand', visible: true },
@@ -179,6 +181,7 @@ const columnHeaders: Record<string, (t: TFn) => string> = {
   last_used_time: (t) => t('orders.runtimeInterface.inventoryColumns.lastUsed'),
   rgba: (t) => t('inventory.color'),
   material: (t) => t('inventory.material'),
+  material_number: (t) => t('inventory.materialNumber'),
   subtype: (t) => t('inventory.subtype'),
   color_name: (t) => t('inventory.colorName'),
   brand: (t) => t('inventory.brand'),
@@ -231,6 +234,9 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
   ),
   material: ({ spool }) => (
     <span className="text-sm text-white">{spool.material}</span>
+  ),
+  material_number: ({ spool }) => (
+    <span className="text-sm font-mono text-bambu-gray">{spool.material_number || '-'}</span>
   ),
   subtype: ({ spool }) => (
     <span className="text-sm text-bambu-gray">{spool.subtype || '-'}</span>
@@ -1407,7 +1413,9 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
               <span className="text-xs text-bambu-gray font-medium uppercase tracking-wide">{t('inventory.totalInventory')}</span>
             </div>
             <div className="text-xl font-bold text-white">{formatWeight(stats.totalWeight, true)}</div>
-            <div className="text-xs text-bambu-gray mt-1">{stats.totalSpools} {stats.totalSpools !== 1 ? t('inventory.spools') : t('inventory.spool')}</div>
+            <div className="text-xs text-bambu-gray mt-1">{stats.totalSpools} {stats.totalSpools !== 1 ? t('inventory.spools') : t('inventory.spool')}
+              {' · '}{new Set(spools?.filter(s => !s.archived_at && s.material_number).map(s => s.material_number)).size} {t('inventory.materialNumber')}
+            </div>
           </div>
 
           {/* Inventory Value */}
@@ -1871,6 +1879,10 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
         <div className="sticky top-2 z-10 mb-4 flex items-center gap-2 px-3 py-2 bg-bambu-green/10 border border-bambu-green/30 rounded-lg backdrop-blur-sm">
           <span className="text-sm text-bambu-green font-medium">
             {t('inventory.bulk.selectionCount', { count: selectedIds.size })}
+            <span className="ml-3 text-xs text-bambu-gray">
+              {t('inventory.materialNumber')}: {new Set(spools?.filter(s => selectedIds.has(s.id) && s.material_number).map(s => s.material_number)).size}
+              {' · '}{Math.round(spools?.filter(s => selectedIds.has(s.id)).reduce((sum, s) => sum + Math.max(0, s.label_weight - s.weight_used), 0) ?? 0)}g
+            </span>
           </span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <Button size="sm" variant="secondary" onClick={() => setBulkEditOpen(true)}>
@@ -1966,6 +1978,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                             <div>
                               <h3 className="font-semibold text-white">{rep.material}{rep.subtype ? ` ${rep.subtype}` : ''}</h3>
                               <p className="text-sm text-bambu-gray">{rep.brand || '-'}</p>
+                              {rep.material_number && <p className="text-xs font-mono text-bambu-gray">{rep.material_number}</p>}
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -2523,6 +2536,7 @@ function SpoolCard({
               {spool.material}{spool.subtype ? ` ${spool.subtype}` : ''}
             </h3>
             <p className="text-sm text-bambu-gray">{spool.brand || '-'}</p>
+            {spool.material_number && <p className="text-xs font-mono text-bambu-gray">{spool.material_number}</p>}
           </div>
           <div className="flex items-center gap-1">
             {onPrintLabel && (
@@ -2799,55 +2813,5 @@ function SpoolTableGroup({
         );
       })}
     </>
-  );
-}
-
-/* Empty state matching SpoolBuddy's design */
-function EmptyFilterState({
-  hasFilters,
-  onAddSpool,
-  t,
-}: {
-  hasFilters: boolean;
-  onAddSpool: () => void;
-  t: (key: string) => string;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 px-4">
-      <div className="relative mb-6">
-        <div className="absolute inset-0 -m-4 bg-bambu-green/5 rounded-full blur-2xl" />
-        <div className="relative flex items-center justify-center w-24 h-24 rounded-2xl bg-gradient-to-br from-bambu-dark-secondary to-bambu-dark-tertiary border border-bambu-dark-tertiary shadow-lg">
-          <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-bambu-green/30" />
-          <div className="absolute -bottom-2 -left-2 w-2 h-2 rounded-full bg-bambu-green/20" />
-          {hasFilters ? (
-            <Search className="w-10 h-10 text-bambu-gray/40" strokeWidth={1.5} />
-          ) : (
-            <div className="relative">
-              <div className="w-14 h-14 rounded-full border-4 border-bambu-gray/20 flex items-center justify-center">
-                <div className="w-6 h-6 rounded-full bg-bambu-gray/10 border-2 border-bambu-gray/20" />
-              </div>
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-bambu-green flex items-center justify-center shadow-md">
-                <span className="text-white text-lg font-bold leading-none">+</span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-      <h3 className="text-lg font-semibold text-white mb-2 text-center">
-        {hasFilters ? t('inventory.noSpoolsMatch') : t('inventory.noSpools').split('.')[0]}
-      </h3>
-      <p className="text-sm text-bambu-gray text-center max-w-sm mb-6">
-        {hasFilters
-          ? t('inventory.noSpoolsMatchDesc')
-          : t('inventory.noSpools')
-        }
-      </p>
-      {!hasFilters && (
-        <Button onClick={onAddSpool}>
-          <Package className="w-4 h-4" />
-          {t('inventory.addSpool')}
-        </Button>
-      )}
-    </div>
   );
 }

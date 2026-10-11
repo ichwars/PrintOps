@@ -205,7 +205,8 @@ export interface HMSError {
   code: string;
   attr: number;  // Attribute value for constructing wiki URL
   module: number;
-  severity: number;  // 1=fatal, 2=serious, 3=common, 4=info
+  severity: number;  // 1=error (stopped), 2=warning (paused), 3=notice, 0=invalid
+  description?: string | null;  // Manufacturer text; null means no published text.
   actions?: string[];  // List of user-facing action keys (e.g. "CHECK_FILAMENT")
   job_id?: string;  // Optional job ID for actions that require it (e.g. "CHECK_ASSISTANT")
   // Canonical hex identifier the firmware matches against — 8 chars for

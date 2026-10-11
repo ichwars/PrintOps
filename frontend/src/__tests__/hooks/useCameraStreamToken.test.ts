@@ -1,6 +1,6 @@
 /**
  * Unit tests for rewriteMediaSrcWithToken — the DOM walker that retrofits a
- * camera stream token onto <img>/<video> src URLs that rendered before the
+ * media token onto <img>/<video> src URLs that rendered before the
  * token arrived (regression guard for the post-login blank-thumbnails bug).
  */
 
@@ -73,9 +73,9 @@ describe('rewriteMediaSrcWithToken', () => {
   });
 
   it('updates <video> elements as well', () => {
-    const v = addVideo('/api/v1/printers/7/camera/stream?fps=10');
+    const v = addVideo('/api/v1/archives/7/timelapse?fps=10');
     rewriteMediaSrcWithToken(root, 'abc123');
-    expect(v.getAttribute('src')).toBe('/api/v1/printers/7/camera/stream?fps=10&token=abc123');
+    expect(v.getAttribute('src')).toBe('/api/v1/archives/7/timelapse?fps=10&token=abc123');
   });
 
   it('url-encodes tokens containing special characters', () => {
@@ -83,4 +83,30 @@ describe('rewriteMediaSrcWithToken', () => {
     rewriteMediaSrcWithToken(root, 'a b/c=d');
     expect(img.getAttribute('src')).toBe('/api/v1/library/files/42/thumbnail?token=a%20b%2Fc%3Dd');
   });
+  it('keeps media credentials off cameras, foreign origins and unrelated API paths', () => {
+    const camera = addImg('/api/v1/printers/1/camera/snapshot?token=CAMERA');
+    const foreign = addImg('https://other.example/api/v1/library/files/1/thumbnail');
+    const unrelated = addImg('/api/v1/auth/me');
+    expect(rewriteMediaSrcWithToken(root, 'MEDIA')).toBe(0);
+    expect(camera.getAttribute('src')).toBe('/api/v1/printers/1/camera/snapshot?token=CAMERA');
+    expect(foreign.getAttribute('src')).toBe('https://other.example/api/v1/library/files/1/thumbnail');
+    expect(unrelated.getAttribute('src')).toBe('/api/v1/auth/me');
+  });
+
+  it('keeps camera credentials off thumbnails', () => {
+    const media = addImg('/api/v1/library/files/1/thumbnail?token=MEDIA');
+    const camera = addVideo('/api/v1/printers/1/camera/stream');
+    expect(rewriteMediaSrcWithToken(root, 'CAMERA', 'camera')).toBe(1);
+    expect(media.getAttribute('src')).toBe('/api/v1/library/files/1/thumbnail?token=MEDIA');
+    expect(camera.getAttribute('src')).toBe('/api/v1/printers/1/camera/stream?token=CAMERA');
+  });
+
+  it('updates new result-photo URLs while keeping other origins untouched', () => {
+    const photo = addImg('/api/v1/library/files/42/photos/result.jpg?token=OLD');
+    const foreign = addImg('https://other.example/api/v1/library/files/42/photos/result.jpg');
+    expect(rewriteMediaSrcWithToken(root, 'NEW')).toBe(1);
+    expect(photo.getAttribute('src')).toBe('/api/v1/library/files/42/photos/result.jpg?token=NEW');
+    expect(foreign.getAttribute('src')).not.toContain('token=');
+  });
+
 });

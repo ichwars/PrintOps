@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from backend.app.services.color_catalog_lookup import CatalogColor
 from backend.app.services.spoolman import AMSTray, SpoolmanClient, init_spoolman_client
 
 
@@ -767,7 +768,7 @@ class TestFindOrCreateFilament:
             patch.object(client, "get_external_filaments", AsyncMock()) as mock_external,
             patch.object(client, "create_filament", AsyncMock()) as mock_create,
         ):
-            result = await client._find_or_create_filament(tray_pla_black)
+            result = await client._find_or_create_filament(tray_pla_black, CatalogColor("Black"))
 
         assert result is existing
         mock_external.assert_not_called()
@@ -812,12 +813,12 @@ class TestFindOrCreateFilament:
             patch.object(client, "get_external_filaments", AsyncMock(return_value=external)),
             patch.object(client, "create_filament", AsyncMock(return_value={"id": 99})) as mock_create,
         ):
-            await client._find_or_create_filament(tray_pla_black)
+            await client._find_or_create_filament(tray_pla_black, CatalogColor("Black"))
 
         mock_create.assert_called_once()
         kwargs = mock_create.call_args.kwargs
         # The Bambu Lab entry must win — not 3DJAKE / 3DXTECH which sort earlier.
-        assert kwargs["name"] == "Black"
+        assert kwargs["name"] == "PLA Basic"
         assert kwargs["density"] == 1.26
 
     @pytest.mark.asyncio
@@ -851,7 +852,7 @@ class TestFindOrCreateFilament:
             patch.object(client, "get_external_filaments", AsyncMock(return_value=external)),
             patch.object(client, "create_filament", AsyncMock(return_value={"id": 99})) as mock_create,
         ):
-            await client._find_or_create_filament(tray_pla_black)
+            await client._find_or_create_filament(tray_pla_black, CatalogColor("Black"))
 
         mock_create.assert_called_once()
         kwargs = mock_create.call_args.kwargs
@@ -881,7 +882,7 @@ class TestFindOrCreateFilament:
             patch.object(client, "get_external_filaments", AsyncMock(return_value=external)),
             patch.object(client, "create_filament", AsyncMock(return_value={"id": 99})) as mock_create,
         ):
-            await client._find_or_create_filament(tray_pla_black)
+            await client._find_or_create_filament(tray_pla_black, CatalogColor("Black"))
 
         mock_create.assert_called_once()
         kwargs = mock_create.call_args.kwargs
@@ -912,10 +913,10 @@ class TestFindOrCreateFilament:
             patch.object(client, "get_external_filaments", AsyncMock(return_value=external)),
             patch.object(client, "create_filament", AsyncMock(return_value={"id": 99})) as mock_create,
         ):
-            await client._find_or_create_filament(tray_pla_black)
+            await client._find_or_create_filament(tray_pla_black, CatalogColor("Black"))
 
         mock_create.assert_called_once()
-        assert mock_create.call_args.kwargs["name"] == "Black"
+        assert mock_create.call_args.kwargs["name"] == "PLA Basic"
 
     @pytest.mark.asyncio
     async def test_external_density_propagates_to_create_filament(self, client, tray_pla_black):
@@ -940,7 +941,7 @@ class TestFindOrCreateFilament:
             patch.object(client, "get_external_filaments", AsyncMock(return_value=external)),
             patch.object(client, "create_filament", AsyncMock(return_value={"id": 99})) as mock_create,
         ):
-            await client._find_or_create_filament(tray_pla_black)
+            await client._find_or_create_filament(tray_pla_black, CatalogColor("Black"))
 
         mock_create.assert_called_once()
         assert mock_create.call_args.kwargs["density"] == 1.31

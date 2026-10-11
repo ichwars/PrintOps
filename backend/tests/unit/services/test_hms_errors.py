@@ -12,8 +12,8 @@ class TestHMSErrorDescriptions:
 
     def test_dictionary_has_expected_count(self):
         """Verify we have the expected number of error codes."""
-        # Should have 853 error codes from the frontend
-        assert len(HMS_ERROR_DESCRIPTIONS) == 853
+        # The current manufacturer catalogue extends the former 853 legacy codes.
+        assert len(HMS_ERROR_DESCRIPTIONS) > 853
 
     def test_all_keys_are_valid_format(self):
         """Verify all keys follow the XXXX_YYYY format."""

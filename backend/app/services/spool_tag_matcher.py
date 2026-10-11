@@ -203,6 +203,9 @@ async def create_spool_from_tray(db: AsyncSession, tray_data: dict) -> Spool:
     spool.k_profiles = []
     spool.assignments = []
     db.add(spool)
+    from backend.app.services.filament_sku_identity import ensure_sku
+
+    await ensure_sku(db, spool)
     await db.flush()
 
     logger.info(
@@ -506,6 +509,9 @@ async def auto_assign_spool(
     )
     db.add(assignment)
     await db.flush()
+    from backend.app.services import slot_unlink_grace
+
+    slot_unlink_grace.forget_slot(printer_id, ams_id, tray_id)
 
     # Apply K-profile via MQTT (if available)
     # NOTE: Do NOT send ams_set_filament_setting here. This function is only

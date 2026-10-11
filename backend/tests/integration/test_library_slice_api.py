@@ -807,6 +807,43 @@ class TestCrossClassSliceAllLoop:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_library_single_plate_slices_with_embedded_settings(
+        self, async_client: AsyncClient, db_session, slice_test_setup
+    ):
+        """The file viewer's 'as designed' option needs no process preset."""
+        tmp_path = slice_test_setup["tmp_path"]
+        source_path = tmp_path / "library" / "files" / "as-designed.3mf"
+        source_path.write_bytes(self._make_multi_plate_x1c_source(plate_count=1))
+        source = LibraryFile(
+            filename=source_path.name,
+            file_path=str(source_path.relative_to(tmp_path)),
+            file_type="3mf",
+            file_size=source_path.stat().st_size,
+        )
+        db_session.add(source)
+        await db_session.commit()
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if not _is_slice_post(request):
+                return httpx.Response(404)
+            return httpx.Response(
+                200,
+                content=self._make_single_plate_sliced_output(1),
+                headers={"x-print-time-seconds": "300", "x-filament-used-g": "2.0"},
+            )
+
+        _install_mock_sidecar(handler)
+        response = await async_client.post(
+            f"/api/v1/library/files/{source.id}/slice",
+            json={"use_embedded_settings": True, "plate": 1},
+        )
+        assert response.status_code == 202, response.text
+        final = await _wait_for_job(async_client, response.json()["job_id"])
+        assert final["status"] == "completed", final
+        assert final["result"]["used_embedded_settings"] is True
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_loops_per_plate_when_cross_class_with_plate_zero(
         self, async_client: AsyncClient, db_session, slice_test_setup, printer_factory, archive_factory, monkeypatch
     ):
@@ -1360,7 +1397,7 @@ class TestSliceArchiveResliceModel:
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(
                 status_code=200,
-                content=_make_sliced_3mf("C11"),  # X1C — same model as source
+                content=_make_sliced_3mf("BL-P001"),  # X1C — same model as source
                 headers={
                     "x-print-time-seconds": "600",
                     "x-filament-used-g": "5.0",
@@ -1976,3 +2013,69 @@ class TestNozzleClassGuard:
         if resp.status_code == 400:
             detail = resp.json().get("detail", "")
             assert "isn't supported" not in detail, f"guard still firing on preset path: {detail!r}"
+
+
+@pytest.mark.parametrize("fallback", [False, True])
+async def test_real_slice_and_retry_sanitize_project_indexes_before_sidecar_upload(
+    fallback, db_session, slice_test_setup
+):
+    from email import policy
+    from email.parser import BytesParser
+
+    from backend.app.api.routes.library import _run_slicer_with_fallback
+    from backend.app.schemas.slicer import SliceRequest
+
+    observed = []
+
+    def sidecar(request):
+        if not _is_slice_post(request):
+            return httpx.Response(200, json={})
+        headers = f"Content-Type: {request.headers['content-type']}\r\nMIME-Version: 1.0\r\n\r\n".encode()
+        message = BytesParser(policy=policy.default).parsebytes(headers + request.content)
+        model = next(
+            part for part in message.iter_parts() if part.get_param("name", header="content-disposition") == "file"
+        )
+        with zipfile.ZipFile(io.BytesIO(model.get_payload(decode=True))) as archive:
+            observed.append(json.loads(archive.read("Metadata/project_settings.config")))
+            assert archive.read("Metadata/model_settings.config") == b"<config><object id='1'/></config>"
+        if fallback and len(observed) == 1:
+            return httpx.Response(500, json={"message": "CLI crashed before slice completion"})
+        return httpx.Response(200, content=_make_3mf_with_settings())
+
+    _install_mock_sidecar(sidecar)
+    _, embedded = await _run_slicer_with_fallback(
+        db_session,
+        model_bytes=_make_3mf_with_settings(
+            {
+                "wall_filament": "0",
+                "sparse_infill_filament": 0,
+                "solid_infill_filament": "0",
+                "tree_support_wall_count": -1,
+                "support_filament": "0",
+                "support_interface_filament": "0",
+                "layer_height": "0.2",
+                "z_offset": "-1",
+            }
+        ),
+        model_filename="makerworld.3mf",
+        request=SliceRequest(
+            printer_preset_id=slice_test_setup["printer_id"],
+            process_preset_id=slice_test_setup["process_id"],
+            filament_preset_id=slice_test_setup["filament_id"],
+            plate=0,
+            export_3mf=True,
+        ),
+        current_user_id=None,
+    )
+    assert embedded is fallback
+    assert len(observed) == (2 if fallback else 1)
+    assert all(
+        config
+        == {
+            "support_filament": "0",
+            "support_interface_filament": "0",
+            "layer_height": "0.2",
+            "z_offset": "-1",
+        }
+        for config in observed
+    )

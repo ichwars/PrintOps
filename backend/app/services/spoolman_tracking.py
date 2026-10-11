@@ -197,30 +197,18 @@ def _resolve_global_tray_id(slot_id: int, slot_to_tray: list | None, ams_trays: 
     """Map a 1-based slot_id to a global_tray_id using optional custom mapping.
 
     Custom mapping: slot_to_tray[slot_id - 1] is used when >= 0.
-    A value of -1 in the custom mapping means the slicer routed this slot to
-    the external spool. BambuStudio converts virtual tray IDs (254/255) to -1
-    in the flat ams_mapping array before sending to the printer — see
-    start_print() in bambu_mqtt.py which documents this convention. We mirror
-    it here: when -1 is seen, look up the external spool's actual
-    global_tray_id (254/255) in ams_trays rather than falling through to the
-    position-based default (which would map slot_id=1 to the first AMS tray
-    and credit an unrelated spool — see #1276, regression of #853).
+    A value of -1 names an unfed slot. External wire entries are resolved
+    from ams_mapping2 at MQTT capture, preserving the correct nozzle.
     Position-based default: uses sorted ams_trays keys so external spools (ID 254/255)
     naturally follow standard AMS trays, matching the slicer's slot numbering.
     Final fallback: slot_id - 1 (legacy, works for pure AMS without external spools).
     """
-    if slot_to_tray and slot_id <= len(slot_to_tray):
+    if slot_to_tray and 0 < slot_id <= len(slot_to_tray):
         mapped_tray = slot_to_tray[slot_id - 1]
         if mapped_tray >= 0:
             return mapped_tray
-        if mapped_tray == -1 and ams_trays:
-            # -1 means external spool. 254 = VIRTUAL_TRAY_DEPUTY_ID (main on
-            # single-nozzle, left/deputy on H2D dual-nozzle); 255 =
-            # VIRTUAL_TRAY_MAIN_ID. Prefer 254 when both exist since that's
-            # what single-nozzle printers report via tray_now.
-            for ext_id in (254, 255):
-                if ext_id in ams_trays:
-                    return ext_id
+        if mapped_tray == -1:
+            return -1
     # Position-based default: sort available tray IDs so external spools (254/255)
     # come after standard AMS trays, matching the slicer's slot assignment order.
     if ams_trays:
@@ -923,6 +911,8 @@ async def _report_partial_usage(
     ams_trays = {int(k): v for k, v in (tracking.ams_trays or {}).items()}
     slot_to_tray = tracking.slot_to_tray
     tray_remain_start = tracking.tray_remain_start or {}
+    if slot_to_tray and all(tray == -1 for tray in slot_to_tray):
+        return
     if filament_usage and not slot_to_tray:
         slot_to_tray, mapping_source = _resolve_slot_to_tray_fallback(
             printer_id,
@@ -1124,6 +1114,13 @@ async def report_usage(printer_id: int, archive_id: int):
         # slot 1's grams to the segments where slot 2's tray was loaded and
         # vice versa. Multi-slot prints fall through to the existing
         # single-tray path (which uses the stable ``slot_to_tray`` mapping).
+        filament_usage = [
+            u
+            for u in filament_usage
+            if not (
+                slot_to_tray and 0 < u.get("slot_id", 0) <= len(slot_to_tray) and slot_to_tray[u["slot_id"] - 1] == -1
+            )
+        ]
         nonzero_slots = [u for u in filament_usage if u.get("used_g", 0) > 0]
         tray_changes: list[tuple[int, int]] = []
         _state = None
@@ -1236,7 +1233,7 @@ async def report_usage(printer_id: int, archive_id: int):
         # --- Path 2: AMS remain%-delta for slots 3MF didn't cover -------
         # Triggered for no-3MF "Untitled" prints (#1820) AND for partial
         # 3MF coverage (slots whose filament_id wasn't in slice_info).
-        if tray_remain_start:
+        if tray_remain_start and not (slot_to_tray and all(tray == -1 for tray in slot_to_tray)):
             from backend.app.services.printer_manager import printer_manager
 
             current = printer_manager.get_status(printer_id)
@@ -1374,8 +1371,10 @@ async def _report_remain_delta_for_slots(
         except Exception as exc:  # noqa: BLE001
             logger.debug("[SPOOLMAN] AMS%d-T%d: get_spool(%s) failed: %s", ams_id, tray_id, spool_id, exc)
             continue
+        from backend.app.services.spoolman_weights import spoolman_net_weight
+
+        ref_weight = spoolman_net_weight(spool)
         filament = spool.get("filament") or {}
-        ref_weight = filament.get("weight")
         if not ref_weight or ref_weight <= 0:
             logger.debug(
                 "[SPOOLMAN] AMS%d-T%d: spool %s has no filament.weight, skipping remain-delta",

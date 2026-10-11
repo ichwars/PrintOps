@@ -162,7 +162,8 @@ function BatchOrderCard({
   // that is the whole difference between an order and a grouping.
   const denominator = batch.has_targets ? batch.target_count : batch.completed_count + batch.pending_count
     + batch.printing_count + batch.failed_count;
-  const percent = denominator > 0 ? Math.round((batch.completed_count / denominator) * 100) : 0;
+  const acceptedRuns = batch.accepted_count ?? batch.completed_count;
+  const percent = denominator > 0 ? Math.round((acceptedRuns / denominator) * 100) : 0;
   const strandedCount = batch.has_targets ? batch.remaining_count - batch.dispatchable_count : 0;
   const dueDate = batch.due_date ? parseUTCDate(batch.due_date) : null;
   const isOverdue = dueDate != null && batch.status === 'active' && dueDate.getTime() < Date.now();
@@ -225,11 +226,14 @@ function BatchOrderCard({
           />
         </div>
         <span className="text-xs text-bambu-gray whitespace-nowrap tabular-nums">
-          {t('queue.batchProgress', { completed: batch.completed_count, total: denominator })}
+          {t('queue.batchProgress', { completed: acceptedRuns, total: denominator })}
         </span>
       </div>
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-bambu-gray mb-1">
+        {(batch.unconfirmed_count ?? 0) > 0 && <span>{t('productionQuality.awaitingRuns', { count: batch.unconfirmed_count })}</span>}
+        {(batch.rejected_count ?? 0) > 0 && <span>{t('productionQuality.rejectedRuns', { count: batch.rejected_count })}</span>}
+        {batch.good_quantity != null && <span>{t('productionQuality.partCounts', { good: batch.good_quantity, reject: batch.reject_quantity ?? 0 })}</span>}
         {batch.printing_count > 0 && <span>{t('queue.batchOrders.printing', { count: batch.printing_count })}</span>}
         {batch.pending_count > 0 && <span>{t('queue.batch.pendingCount', { count: batch.pending_count })}</span>}
         {batch.failed_count > 0 && (
@@ -319,7 +323,7 @@ function PlateRow({
       <span className="text-white min-w-0 truncate">{label}</span>
       <span className="text-bambu-gray tabular-nums">
         {t('queue.batchOrders.plateProgress', {
-          completed: plate.completed_count,
+          completed: plate.accepted_count ?? plate.completed_count,
           target: plate.quantity_target,
         })}
       </span>

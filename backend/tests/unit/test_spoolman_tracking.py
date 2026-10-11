@@ -79,9 +79,9 @@ class TestResolveGlobalTrayId:
         assert _resolve_global_tray_id(4, mapping) == 0
 
     def test_unmapped_slot(self):
-        """Slot with -1 in mapping uses default."""
+        """An explicitly unfed slot remains unfed."""
         mapping = [5, -1, 2, 0]
-        assert _resolve_global_tray_id(2, mapping) == 1  # default: slot 2 -> tray 1
+        assert _resolve_global_tray_id(2, mapping) == -1
 
     def test_slot_beyond_mapping(self):
         """Slot beyond mapping length uses default."""

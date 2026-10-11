@@ -2,6 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
 import { api } from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
+import { ConfirmOutcomeDialog } from './ConfirmOutcomeDialog';
+import { useState } from 'react';
 import { parseUTCDate } from '../utils/date';
 
 interface PrintLogTableProps {
@@ -24,6 +27,8 @@ function formatDate(isoString: string | null): string {
 
 export function PrintLogTable({ archiveId }: PrintLogTableProps) {
   const { t } = useTranslation();
+  const { canModify } = useAuth();
+  const [inspectRunId, setInspectRunId] = useState<number | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ['archive-runs', archiveId],
     queryFn: () => api.getArchiveRuns(archiveId),
@@ -56,6 +61,7 @@ export function PrintLogTable({ archiveId }: PrintLogTableProps) {
             <th className="text-right py-1.5 pr-2 font-medium">{t('archives.runLog.col.duration')}</th>
             <th className="text-right py-1.5 pr-2 font-medium">{t('archives.runLog.col.filament')}</th>
             <th className="text-right py-1.5 font-medium">{t('archives.runLog.col.cost')}</th>
+            <th className="text-right py-1.5 pl-2 font-medium">{t('productionQuality.title')}</th>
           </tr>
         </thead>
         <tbody>
@@ -93,11 +99,19 @@ export function PrintLogTable({ archiveId }: PrintLogTableProps) {
                 <td className="py-1.5 text-right text-bambu-gray-light">
                   {run.cost != null ? run.cost.toFixed(2) : '—'}
                 </td>
+                <td className="py-1.5 pl-2 text-right">
+                  {run.status === 'completed' && <button type="button" className="text-bambu-green hover:underline" onClick={() => setInspectRunId(run.id)}
+                    disabled={!canModify('archives', 'update', run.created_by_id)}>
+                    {run.good_quantity != null ? t('productionQuality.partCounts', { good: run.good_quantity, reject: run.reject_quantity ?? 0 })
+                      : t(run.confirm_requested ? 'productionQuality.pending' : 'productionQuality.inspect')}
+                  </button>}
+                </td>
               </tr>
             );
           })}
         </tbody>
       </table>
+      {inspectRunId !== null && <ConfirmOutcomeDialog archiveId={archiveId} runId={inspectRunId} onClose={() => setInspectRunId(null)} />}
     </div>
   );
 }

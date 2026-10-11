@@ -1,5 +1,6 @@
 """API routes for File Manager (Library) functionality."""
 
+import asyncio
 import base64
 import binascii
 import contextlib
@@ -17,26 +18,29 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse as FastAPIFileResponse
-from sqlalchemy import distinct, func, select
+from sqlalchemy import distinct, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.app.api.gcode_preview import gcode_preview_response
 from backend.app.api.routes.cloud import resolve_api_key_cloud_owner
+from backend.app.api.routes.library_variants import normalize_model_name, resolve_variant_model
+from backend.app.api.routes.print_queue import add_to_queue
 from backend.app.core.auth import (
-    RequireCameraStreamTokenIfAuthEnabled,
+    require_media_token_ownership,
     require_ownership_permission,
     require_permission_if_auth_enabled,
+    user_can_access_printer,
 )
 from backend.app.core.config import settings as app_settings
 from backend.app.core.database import async_session, get_db
 from backend.app.core.permissions import Permission
-from backend.app.core.tasks import spawn_background_task
+from backend.app.core.tasks import spawn_background_task as spawn_background_task
 from backend.app.models.archive import PrintArchive
 from backend.app.models.library import LibraryFile, LibraryFileTag, LibraryFolder
-from backend.app.models.print_queue import PrintQueueItem
+from backend.app.models.printer import Printer
 from backend.app.models.project import Project
-from backend.app.models.settings import Settings
+from backend.app.models.settings import Settings as Settings
 from backend.app.models.user import User
 from backend.app.schemas.library import (
     AddToQueueError,
@@ -48,6 +52,7 @@ from backend.app.schemas.library import (
     BatchThumbnailResult,
     BulkDeleteRequest,
     BulkDeleteResponse,
+    CombineFilesRequest,
     ExternalFolderCreate,
     FileDuplicate,
     FileListResponse,
@@ -60,13 +65,16 @@ from backend.app.schemas.library import (
     FolderResponse,
     FolderTreeItem,
     FolderUpdate,
+    SpreadsheetPreviewResponse,
     TagSummary,
     ZipExtractError,
     ZipExtractResponse,
     ZipExtractResult,
 )
+from backend.app.schemas.print_queue import PrintQueueItemCreate
 from backend.app.schemas.slicer import SliceRequest, SliceResponse
 from backend.app.services.archive import ThreeMFParser
+from backend.app.services.library_previews import generate_pdf_thumbnail
 from backend.app.services.library_queue_references import (
     folder_tree_file_ids,
     prepare_folder_hard_delete,
@@ -78,6 +86,10 @@ from backend.app.services.slice_formats import (
     unsliceable_detail,
 )
 from backend.app.services.slice_output_check import slicer_output_error
+from backend.app.services.slicer_3mf_convert import (
+    PROJECT_SETTINGS_INHERIT_KEYS,
+    sanitize_project_settings_sentinels as _sanitize_project_settings_sentinels,
+)
 from backend.app.services.slicer_profile_patch import (
     patch_filament_colours as _patch_filament_colours,
     patch_process_support_settings as _patch_process_support_settings,
@@ -96,6 +108,8 @@ from backend.app.utils.archive_budget import (
 )
 from backend.app.utils.filename import InvalidFilenameError, validate_print_filename
 from backend.app.utils.library_files import classify_file_type, is_sliced_file
+from backend.app.utils.library_paths import library_photos_dir, remove_library_photos_dir
+from backend.app.utils.safe_path import safe_join_under
 from backend.app.utils.threemf_tools import (
     extract_embedded_presets_from_3mf,
     extract_nozzle_mapping_from_3mf,
@@ -674,7 +688,7 @@ IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", "
 
 
 async def _backfill_external_stl_thumbnails(folder_ids: list[int]) -> None:
-    """Generate STL thumbnails for an external folder tree in the background.
+    """Generate STL/PDF thumbnails for an external folder tree in the background.
 
     Spawned via ``asyncio.create_task`` from ``scan_external_folder`` so the
     HTTP request can return as soon as the filesystem walk + folder/file rows
@@ -696,7 +710,7 @@ async def _backfill_external_stl_thumbnails(folder_ids: list[int]) -> None:
         result = await db.execute(
             LibraryFile.active().where(
                 LibraryFile.folder_id.in_(folder_ids),
-                LibraryFile.file_type == "stl",
+                LibraryFile.file_type.in_(("stl", "pdf")),
                 LibraryFile.thumbnail_path.is_(None),
             )
         )
@@ -704,7 +718,7 @@ async def _backfill_external_stl_thumbnails(folder_ids: list[int]) -> None:
         if not stl_files:
             return
         logger.info(
-            "Backfilling STL thumbnails: %d file(s) across %d folder(s)",
+            "Backfilling STL/PDF thumbnails: %d file(s) across %d folder(s)",
             len(stl_files),
             len(folder_ids),
         )
@@ -716,14 +730,18 @@ async def _backfill_external_stl_thumbnails(folder_ids: list[int]) -> None:
             # Bulk-uploaded ZIPs of stub STLs would otherwise trigger one
             # trimesh.load() call + one debug log line per stub.
             try:
-                if abs_path.stat().st_size < MIN_USABLE_STL_BYTES:
+                if stl_file.file_type == "stl" and abs_path.stat().st_size < MIN_USABLE_STL_BYTES:
                     continue
             except OSError:
                 continue
             try:
-                thumb_path = generate_stl_thumbnail(abs_path, thumbnails_dir)
+                thumb_path = (
+                    await asyncio.to_thread(generate_pdf_thumbnail, abs_path, thumbnails_dir)
+                    if stl_file.file_type == "pdf"
+                    else generate_stl_thumbnail(abs_path, thumbnails_dir)
+                )
             except Exception as exc:  # noqa: BLE001 — never let one bad STL kill the rest
-                logger.debug("STL thumbnail backfill skipped %s: %s", abs_path, exc)
+                logger.debug("STL/PDF thumbnail backfill skipped %s: %s", abs_path, exc)
                 continue
             if thumb_path:
                 stl_file.thumbnail_path = to_relative_path(Path(thumb_path))
@@ -1520,318 +1538,9 @@ async def scan_external_folder(
     _: User | None = Depends(require_permission_if_auth_enabled(Permission.LIBRARY_UPLOAD)),
 ):
     """Sync an external folder to the database without copying files."""
-    result = await db.execute(select(LibraryFolder).where(LibraryFolder.id == folder_id))
-    folder = result.scalar_one_or_none()
+    from backend.app.api.routes.library_external_scan import scan_external_folder as operation
 
-    if not folder:
-        raise HTTPException(status_code=404, detail="Folder not found")
-    if not folder.is_external or not folder.external_path:
-        raise HTTPException(status_code=400, detail="Not an external folder")
-
-    ext_path = Path(folder.external_path)
-    if not ext_path.exists() or not ext_path.is_dir():
-        raise HTTPException(status_code=400, detail=f"External path is not accessible: {folder.external_path}")
-
-    all_folder_ids = [folder_id]
-    child_result = await db.execute(
-        select(LibraryFolder).where(
-            LibraryFolder.is_external.is_(True),
-            LibraryFolder.parent_id.isnot(None),
-        )
-    )
-    all_child_folders = child_result.scalars().all()
-
-    parent_to_children: dict[int, list] = {}
-    for cf in all_child_folders:
-        parent_to_children.setdefault(cf.parent_id, []).append(cf)
-
-    queue = [folder_id]
-    while queue:
-        pid = queue.pop()
-        for child in parent_to_children.get(pid, []):
-            all_folder_ids.append(child.id)
-            queue.append(child.id)
-
-    existing_result = await db.execute(
-        LibraryFile.active().where(
-            LibraryFile.folder_id.in_(all_folder_ids),
-            LibraryFile.is_external.is_(True),
-        )
-    )
-    existing_files = {f.file_path: f for f in existing_result.scalars().all()}
-    repair_key = f"_backfill_132_external_folder_{folder_id}"
-    external_types_repaired = (
-        await db.execute(select(Settings.id).where(Settings.key == repair_key))
-    ).scalar_one_or_none() is not None
-
-    folder_cache: dict[str, int] = {"": folder_id}
-    for fid in all_folder_ids:
-        if fid == folder_id:
-            continue
-        # Find the child folder object
-        for cf in all_child_folders:
-            if cf.id == fid and cf.external_path:
-                try:
-                    rel = Path(cf.external_path).relative_to(ext_path).as_posix()
-                    if rel != ".":
-                        folder_cache[rel] = cf.id
-                except ValueError:
-                    pass
-
-    # Scan the directory
-    added = 0
-    removed = 0
-    found_paths: set[str] = set()
-    seen_rel_dirs: set[str] = set()
-    # Real on-disk mtime per visited folder id (#2680), applied after the walk.
-    folder_mtimes: dict[int, datetime] = {}
-
-    for dirpath, dirnames, filenames in os.walk(ext_path):
-        # Filter hidden directories unless configured
-        if not folder.external_show_hidden:
-            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
-
-        rel_dir = Path(dirpath).relative_to(ext_path).as_posix()
-        if rel_dir == ".":
-            rel_dir = ""
-        seen_rel_dirs.add(rel_dir)
-
-        # Resolve or create subfolder chain for this directory
-        if rel_dir and rel_dir not in folder_cache:
-            parts = Path(rel_dir).parts
-            current_path = ""
-            current_parent = folder_id
-            for part in parts:
-                current_path = f"{current_path}/{part}".lstrip("/")
-                if current_path in folder_cache:
-                    current_parent = folder_cache[current_path]
-                else:
-                    existing_sub = await db.execute(
-                        select(LibraryFolder).where(
-                            LibraryFolder.name == part,
-                            LibraryFolder.parent_id == current_parent,
-                            LibraryFolder.is_external.is_(True),
-                        )
-                    )
-                    existing_folder = existing_sub.scalar_one_or_none()
-                    if existing_folder:
-                        current_parent = existing_folder.id
-                    else:
-                        new_folder = LibraryFolder(
-                            name=part,
-                            parent_id=current_parent,
-                            is_external=True,
-                            external_path=str(
-                                ext_path / current_path
-                            ),  # SEC-PATH-OK: current_path built from Path(rel_dir).parts of an os.walk descent under ext_path
-                            external_readonly=folder.external_readonly,
-                            external_show_hidden=folder.external_show_hidden,
-                        )
-                        db.add(new_folder)
-                        await db.flush()
-                        current_parent = new_folder.id
-                    folder_cache[current_path] = current_parent
-
-        target_folder_id = folder_cache.get(rel_dir, folder_id)
-
-        # Record this directory's own mtime (#2680). os.walk visits every
-        # directory once, so this covers the root external folder and every
-        # subfolder (existing or just created). Applied to the folder rows
-        # after the walk completes.
-        try:
-            folder_mtimes[target_folder_id] = _mtime_to_datetime(os.stat(dirpath).st_mtime)
-        except OSError:
-            pass
-
-        for filename in filenames:
-            # Skip hidden files unless configured
-            if not folder.external_show_hidden and filename.startswith("."):
-                continue
-
-            filepath = (
-                Path(dirpath) / filename
-            )  # SEC-PATH-OK: dirpath + filename from os.walk(ext_path); filesystem-discovered, not user input
-            ext = filepath.suffix.lower()
-
-            # Check for compound extensions like .gcode.3mf
-            if ext not in _SCANNABLE_EXTENSIONS:
-                # Check compound
-                compound = "".join(filepath.suffixes[-2:]).lower() if len(filepath.suffixes) >= 2 else ""
-                if compound not in _SCANNABLE_EXTENSIONS:
-                    continue
-
-            # Resolve symlinks and ensure still under external_path
-            try:
-                real_path = filepath.resolve()
-                real_path.relative_to(ext_path.resolve())
-            except (ValueError, OSError):
-                continue  # Symlink escapes the external dir
-
-            try:
-                stat = filepath.stat()
-            except OSError:
-                continue
-            fs_mtime = _mtime_to_datetime(stat.st_mtime)
-            file_path_str = str(filepath)
-            found_paths.add(file_path_str)
-
-            if file_path_str in existing_files:
-                tracked = existing_files[file_path_str]
-                changed = tracked.file_size != stat.st_size or tracked.fs_modified_at != fs_mtime
-                if not external_types_repaired or changed:
-                    tracked.file_type = classify_file_type(filename, filepath)
-                tracked.file_size = stat.st_size
-                if tracked.fs_modified_at != fs_mtime:
-                    tracked.fs_modified_at = fs_mtime
-                continue
-
-            file_type = classify_file_type(filename, filepath)
-
-            # Extract thumbnail for 3mf files (including .gcode.3mf sliced
-            # outputs — those are 3MF zips on disk and carry the same
-            # thumbnail Metadata/plate_1.png the parser reads). Pre-#1600
-            # the gate was `file_type == "3mf"` alone, so .gcode.3mf files
-            # in external folders silently got no thumbnail.
-            thumbnail_path = None
-            file_metadata = None
-            if file_type in ("3mf", "gcode.3mf"):
-                try:
-                    parser = ThreeMFParser(str(filepath))
-                    raw_metadata = parser.parse()
-                    if raw_metadata:
-                        # Extract thumbnail before cleaning metadata
-                        thumb_data = raw_metadata.get("_thumbnail_data")
-                        thumbnail_ext = raw_metadata.get("_thumbnail_ext", ".png")
-                        if thumb_data:
-                            thumb_dir = get_library_thumbnails_dir()
-                            thumb_filename = f"{uuid.uuid4().hex}{thumbnail_ext}"
-                            thumb_full = (
-                                thumb_dir / thumb_filename
-                            )  # SEC-PATH-OK: thumb_filename = uuid.uuid4().hex + thumbnail_ext
-                            thumb_full.write_bytes(thumb_data)
-                            thumbnail_path = to_relative_path(thumb_full)
-
-                        # Clean metadata - remove non-JSON-serializable data (bytes, etc.)
-                        def clean_metadata(obj):
-                            if isinstance(obj, dict):
-                                return {
-                                    k: clean_metadata(v)
-                                    for k, v in obj.items()
-                                    if not isinstance(v, bytes) and k not in ("_thumbnail_data", "_thumbnail_ext")
-                                }
-                            elif isinstance(obj, list):
-                                return [clean_metadata(i) for i in obj if not isinstance(i, bytes)]
-                            elif isinstance(obj, bytes):
-                                return None
-                            return obj
-
-                        file_metadata = clean_metadata(raw_metadata)
-                except Exception as e:
-                    logger.debug("Failed to extract metadata from external 3mf %s: %s", filepath, e)
-
-            # STL thumbnails are deferred to a background task spawned after
-            # the scan's db.commit() — see _backfill_external_stl_thumbnails.
-            # Doing them inline would block the HTTP request for minutes on a
-            # large NAS mount (#1299).
-
-            # Extract gcode thumbnail
-            if file_type == "gcode" and thumbnail_path is None:
-                thumb_data = extract_gcode_thumbnail(filepath)
-                if thumb_data:
-                    thumb_dir = get_library_thumbnails_dir()
-                    thumb_filename = f"{uuid.uuid4().hex}.png"
-                    thumb_full = thumb_dir / thumb_filename  # SEC-PATH-OK: thumb_filename = uuid.uuid4().hex + ".png"
-                    thumb_full.write_bytes(thumb_data)
-                    thumbnail_path = to_relative_path(thumb_full)
-
-            # Create thumbnail for image files
-            if ext.lower() in IMAGE_EXTENSIONS and thumbnail_path is None:
-                thumbnail_path_str = create_image_thumbnail(filepath, get_library_thumbnails_dir())
-                if thumbnail_path_str:
-                    thumbnail_path = to_relative_path(Path(thumbnail_path_str))
-
-            db_file = LibraryFile(
-                folder_id=target_folder_id,
-                is_external=True,
-                filename=filename,
-                file_path=file_path_str,
-                file_type=file_type,
-                file_size=stat.st_size,
-                file_hash=None,  # Skip hashing external files for performance
-                thumbnail_path=thumbnail_path,
-                file_metadata=_without_print_name(file_metadata),
-                fs_modified_at=fs_mtime,
-            )
-            db.add(db_file)
-            added += 1
-
-    # Remove DB entries for files that no longer exist on disk
-    for path_str, db_file in existing_files.items():
-        if path_str not in found_paths:
-            # Clean up thumbnail if we generated one
-            if db_file.thumbnail_path:
-                try:
-                    abs_thumb = to_absolute_path(db_file.thumbnail_path)
-                    if abs_thumb and abs_thumb.exists():
-                        abs_thumb.unlink()
-                except OSError:
-                    pass
-            await db.delete(db_file)
-            removed += 1
-
-    # Remove empty subfolders whose directories no longer exist on disk
-    # Process deepest-first by sorting on path depth (descending)
-    subfolder_entries = [(rel, fid) for rel, fid in folder_cache.items() if rel and fid != folder_id]
-    subfolder_entries.sort(key=lambda x: x[0].count("/"), reverse=True)
-    for rel_path, sub_fid in subfolder_entries:
-        if rel_path in seen_rel_dirs:
-            continue  # Directory still exists on disk
-        # Check if subfolder has any remaining files
-        file_count_result = await db.execute(
-            select(func.count(LibraryFile.id)).where(
-                LibraryFile.folder_id == sub_fid,
-                LibraryFile.deleted_at.is_(None),
-            )
-        )
-        if (file_count_result.scalar() or 0) == 0:
-            # Check if it has any remaining child folders
-            child_count_result = await db.execute(
-                select(func.count(LibraryFolder.id)).where(LibraryFolder.parent_id == sub_fid)
-            )
-            if (child_count_result.scalar() or 0) == 0:
-                sub_folder_result = await db.execute(select(LibraryFolder).where(LibraryFolder.id == sub_fid))
-                sub_folder_obj = sub_folder_result.scalar_one_or_none()
-                if sub_folder_obj:
-                    await db.delete(sub_folder_obj)
-                    folder_mtimes.pop(sub_fid, None)
-
-    # Persist each visited folder's real directory mtime (#2680). Fetched in one
-    # trip; folders deleted by the cleanup above were dropped from folder_mtimes.
-    if folder_mtimes:
-        folders_result = await db.execute(select(LibraryFolder).where(LibraryFolder.id.in_(list(folder_mtimes.keys()))))
-        for folder_obj in folders_result.scalars().all():
-            new_mtime = folder_mtimes.get(folder_obj.id)
-            if new_mtime is not None and folder_obj.fs_modified_at != new_mtime:
-                folder_obj.fs_modified_at = new_mtime
-
-    if not external_types_repaired:
-        db.add(Settings(key=repair_key, value="true"))
-    await db.commit()
-
-    # Spawn STL thumbnail backfill in the background — the scan endpoint
-    # returns immediately so the FE modal closes and subdirectories are
-    # visible right away; thumbnails fill in over the following seconds /
-    # minutes as the task processes each STL file. Survives FE refresh —
-    # the task lives in the FastAPI event loop, not the request scope.
-    # folder_cache.values() covers the root + every pre-existing subfolder
-    # + every subfolder created during this scan. all_folder_ids on its own
-    # would miss the newly-created ones (it's snapshotted before the walk).
-    spawn_background_task(
-        _backfill_external_stl_thumbnails(list(set(folder_cache.values()))),
-        name=f"stl-backfill-folder-{folder_id}",
-    )
-
-    return {"status": "success", "added": added, "removed": removed}
+    return await operation(folder_id, db)
 
 
 # ============ File Endpoints ============
@@ -2132,6 +1841,9 @@ async def upload_file(
             # For image files, create a thumbnail from the image itself
             thumbnail_path = create_image_thumbnail(file_path, thumbnails_dir)
 
+        elif ext == ".pdf":
+            thumbnail_path = await asyncio.to_thread(generate_pdf_thumbnail, file_path, thumbnails_dir)
+
         elif ext == ".stl":
             # Generate STL thumbnail if enabled. Same MIN_USABLE_STL_BYTES
             # pre-skip as extract_zip_file — stubs / placeholders below this
@@ -2405,6 +2117,9 @@ async def extract_zip_file(
                     elif ext.lower() in IMAGE_EXTENSIONS:
                         thumbnail_path = create_image_thumbnail(file_path, thumbnails_dir)
 
+                    elif ext == ".pdf":
+                        thumbnail_path = await asyncio.to_thread(generate_pdf_thumbnail, file_path, thumbnails_dir)
+
                     elif ext == ".stl":
                         # Generate STL thumbnail if enabled. Pre-skip files
                         # below MIN_USABLE_STL_BYTES — they can't contain
@@ -2479,7 +2194,7 @@ async def batch_generate_stl_thumbnails(
     db: AsyncSession = Depends(get_db),
     _: User | None = Depends(require_permission_if_auth_enabled(Permission.LIBRARY_UPDATE_ALL)),
 ):
-    """Generate thumbnails for STL files in batch.
+    """Generate thumbnails for STL and PDF files in batch.
 
     Note: Requires library:update_all permission since this is a batch operation
     that may affect files owned by different users.
@@ -2493,7 +2208,7 @@ async def batch_generate_stl_thumbnails(
     results: list[BatchThumbnailResult] = []
 
     # Build query based on request
-    query = LibraryFile.active().where(LibraryFile.file_type == "stl")
+    query = LibraryFile.active().where(LibraryFile.file_type.in_(("stl", "pdf")))
 
     if request.file_ids:
         # Specific files
@@ -2543,7 +2258,11 @@ async def batch_generate_stl_thumbnails(
             continue
 
         try:
-            thumbnail_path = generate_stl_thumbnail(file_path, thumbnails_dir)
+            thumbnail_path = (
+                await asyncio.to_thread(generate_pdf_thumbnail, file_path, thumbnails_dir)
+                if stl_file.file_type == "pdf"
+                else generate_stl_thumbnail(file_path, thumbnails_dir)
+            )
 
             if thumbnail_path:
                 # Update database with relative path
@@ -2593,6 +2312,21 @@ async def batch_generate_stl_thumbnails(
 # NOTE: These routes must be defined BEFORE /files/{file_id} to avoid path parameter conflicts
 
 
+@router.post("/files/combine", response_model=FileUploadResponse)
+async def combine_files(
+    request: CombineFilesRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_permission_if_auth_enabled(Permission.LIBRARY_UPLOAD)),
+    read_auth: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.LIBRARY_READ_ALL, Permission.LIBRARY_READ_OWN)
+    ),
+):
+    """Create one bounded source 3MF with shared meshes and positioned copies."""
+    from backend.app.api.routes.library_combine import combine_files as operation
+
+    return await operation(request, db, current_user, read_auth)
+
+
 @router.post("/files/add-to-queue", response_model=AddToQueueResponse)
 async def add_files_to_queue(
     request: AddToQueueRequest,
@@ -2602,33 +2336,51 @@ async def add_files_to_queue(
         require_ownership_permission(Permission.LIBRARY_READ_ALL, Permission.LIBRARY_READ_OWN)
     ),
 ):
-    """Add library files to the print queue.
+    """Queue printable library files, preserving partial-selection success.
 
-    Only files carrying printable G-code can be added to the queue.
-    The archive will be created automatically when the print starts.
+    Explicit targets apply to the batch. With no target, infer each file's
+    model when an accessible active printer exists; otherwise keep the legacy
+    unassigned item so the user can choose its printer later. A selection with
+    no valid files returns 400 with per-file reasons; partial success stays 200.
     """
     added: list[AddToQueueResult] = []
     errors: list[AddToQueueError] = []
-
     user, can_read_all = auth_result
-    # Get all requested files
-    result = await db.execute(LibraryFile.active().where(LibraryFile.id.in_(request.file_ids)))
-    files = {f.id: f for f in result.scalars().all()}
 
-    # Get max position for queue ordering
-    pos_result = await db.execute(select(func.coalesce(func.max(PrintQueueItem.position), 0)))
-    max_position = pos_result.scalar() or 0
+    target_model = normalize_model_name(request.target_model)
+    if request.printer_id is not None and request.target_model is not None:
+        raise HTTPException(400, "Cannot specify both printer_id and target_model")
+    if request.target_model is not None and not target_model:
+        raise HTTPException(400, "A target model must not be empty")
+    if request.printer_id is not None:
+        printer = (await db.execute(select(Printer).where(Printer.id == request.printer_id))).scalar_one_or_none()
+        if printer is None:
+            raise HTTPException(400, "Printer not found")
+        if not user_can_access_printer(queue_authority, printer.id):
+            raise HTTPException(404, "Printer not found")
+
+    active_models: set[str] = set()
+    if request.printer_id is None:
+        active_printers = (await db.execute(select(Printer).where(Printer.is_active.is_(True)))).scalars().all()
+        active_models = {
+            model
+            for printer in active_printers
+            if user_can_access_printer(queue_authority, printer.id)
+            if (model := normalize_model_name(printer.model))
+        }
+        if target_model and target_model not in active_models:
+            raise HTTPException(400, f"No active printers for model: {target_model}")
+
+    result = await db.execute(LibraryFile.active().where(LibraryFile.id.in_(request.file_ids)))
+    files = {file.id: file for file in result.scalars().all()}
 
     for file_id in request.file_ids:
-        lib_file = files.get(file_id)
-
         try:
-            lib_file = _ensure_library_file_visible(lib_file, user, can_read_all)
+            lib_file = _ensure_library_file_visible(files.get(file_id), user, can_read_all)
         except HTTPException:
             errors.append(AddToQueueError(file_id=file_id, filename="(not found)", error="File not found"))
             continue
 
-        # Validate file is sliced
         if not is_sliced_file(lib_file.filename, lib_file.file_type):
             errors.append(
                 AddToQueueError(
@@ -2640,41 +2392,46 @@ async def add_files_to_queue(
             continue
 
         try:
-            # Verify file exists on disk
-            file_path = Path(app_settings.base_dir) / lib_file.file_path
+            # Use the library's existing relative-path guard, including legacy
+            # absolute paths for external folders. Directories are not files.
+            file_path = to_absolute_path(lib_file.file_path)
+            if file_path is None or not file_path.is_file():
+                raise HTTPException(400, "File not found on disk")
+            if not os.access(file_path, os.R_OK):
+                raise HTTPException(400, "File is not readable on disk")
 
-            if not file_path.exists():
-                errors.append(
-                    AddToQueueError(file_id=file_id, filename=lib_file.filename, error="File not found on disk")
-                )
-                continue
+            item_target_model = target_model
+            if request.printer_id is None and item_target_model is None:
+                inferred = resolve_variant_model(lib_file)
+                item_target_model = inferred if inferred in active_models else None
 
-            # Create queue item referencing library file (archive created at print start)
-            max_position += 1
-            queue_item = PrintQueueItem(
-                printer_id=None,  # Unassigned
-                library_file_id=file_id,
-                position=max_position,
-                status="pending",
-                created_by_id=user.id if user else None,
+            # The normal queue API owns filename/model checks, filament
+            # requirements, attribution and queue ordering for every insert.
+            queue_item = await add_to_queue(
+                PrintQueueItemCreate(
+                    printer_id=request.printer_id,
+                    target_model=item_target_model,
+                    library_file_id=file_id,
+                    project_id=lib_file.project_id,
+                ),
+                db=db,
+                current_user=queue_authority,
             )
-            db.add(queue_item)
-
-            await db.flush()  # Get queue_item.id
-
-            added.append(
-                AddToQueueResult(
-                    file_id=file_id,
-                    filename=lib_file.filename,
-                    queue_item_id=queue_item.id,
-                )
-            )
-
-        except Exception as e:
+            added.append(AddToQueueResult(file_id=file_id, filename=lib_file.filename, queue_item_id=queue_item.id))
+        except HTTPException as exc:
+            errors.append(AddToQueueError(file_id=file_id, filename=lib_file.filename, error=str(exc.detail)))
+        except Exception as exc:
             logger.exception("Error adding file %s to queue", file_id)
-            errors.append(AddToQueueError(file_id=file_id, filename=lib_file.filename, error=str(e)))
+            errors.append(AddToQueueError(file_id=file_id, filename=lib_file.filename, error=str(exc)))
 
-    await db.commit()
+    if not added:
+        raise HTTPException(
+            400,
+            detail={
+                "message": "No files could be added to the queue.",
+                "errors": [error.model_dump() for error in errors],
+            },
+        )
 
     return AddToQueueResponse(added=added, errors=errors)
 
@@ -2955,13 +2712,16 @@ async def get_library_file_plate_thumbnail(
     file_id: int,
     plate_index: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.LIBRARY_READ_ALL, Permission.LIBRARY_READ_OWN)
+    ),
 ):
     """Get the thumbnail image for a specific plate from a library file."""
+    user, can_read_all = auth_result
     from starlette.responses import Response
 
     result = await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))
-    lib_file = result.scalar_one_or_none()
+    lib_file = _ensure_library_file_visible(result.scalar_one_or_none(), user, can_read_all)
 
     if not lib_file:
         raise HTTPException(status_code=404, detail="File not found")
@@ -3266,84 +3026,8 @@ def _strip_3mf_embedded_settings(zip_bytes: bytes) -> bytes:
     return result
 
 
-# Keys in ``Metadata/project_settings.config`` that BambuStudio writes ``"-1"``
-# to when the user wants the value inherited from the parent process preset.
-# The CLI's ``StaticPrintConfig`` validator runs against the embedded settings
-# *before* ``--load-settings`` overrides apply, so a sentinel ``"-1"`` trips
-# the field's lower-bound range check and the CLI exits non-zero before our
-# profile triplet is ever consulted (#1201 — MakerWorld P2S models).
-#
-# Allowlisted (rather than "strip every '-1' value") because some fields
-# legitimately accept negative numbers (z_offset, translation values, etc.)
-# and a blanket strip would silently corrupt those.
-#
-# Add new entries here as more reports surface — the slicer's error message
-# names the offending field directly (`<field>: -1 not in range [...]`).
-_PROJECT_SETTINGS_SENTINEL_KEYS = frozenset(
-    {
-        # Reported in #1201 (MakerWorld P2S 3MFs).
-        "raft_first_layer_expansion",
-        "tree_support_wall_count",
-        # Cited in the strip-experiment comment block above as a known sentinel
-        # case from earlier reports.
-        "prime_tower_brim_width",
-    }
-)
-
-
-def _sanitize_project_settings_sentinels(zip_bytes: bytes) -> bytes:
-    """Strip ``"-1"`` inherit-from-parent sentinels from the 3MF's
-    ``Metadata/project_settings.config`` so the slicer CLI's range validator
-    accepts the file (#1201).
-
-    Removes only allowlisted keys (see ``_PROJECT_SETTINGS_SENTINEL_KEYS``)
-    when their value is exactly ``"-1"``. The rest of the config — and every
-    other entry in the zip — is preserved byte-for-byte. Unlike the earlier
-    full-strip experiment (see ``_strip_3mf_embedded_settings`` and the
-    cautionary comment in ``_run_slicer_with_fallback``) this leaves
-    ``StaticPrintConfig`` initialisation intact: the file is still present,
-    still parses, and the slicer falls back to the supplied
-    ``--load-settings`` value for the removed key.
-
-    Returns the original bytes unchanged when no sanitisation is needed
-    (input isn't a valid zip, no ``project_settings.config``, no allowlisted
-    sentinels present, or any other parse failure) so the caller can pass
-    the result on without further checks.
-    """
-    from io import BytesIO
-
-    try:
-        with zipfile.ZipFile(BytesIO(zip_bytes), "r") as zin:
-            validate_zip_archive(zin)
-            if "Metadata/project_settings.config" not in zin.namelist():
-                return zip_bytes
-            try:
-                config = read_json_member(zin, "Metadata/project_settings.config")
-            except (ArchiveBudgetError, ValueError, UnicodeDecodeError):
-                return zip_bytes
-            if not isinstance(config, dict):
-                return zip_bytes
-            removed = [key for key in _PROJECT_SETTINGS_SENTINEL_KEYS if config.get(key) == "-1"]
-            if not removed:
-                return zip_bytes
-            for key in removed:
-                config.pop(key, None)
-            patched = json.dumps(config)
-            logger.info(
-                "3MF sanitiser: removed sentinel '-1' for keys %s — slicer will use --load-settings defaults",
-                sorted(removed),
-            )
-            dst = BytesIO()
-            with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
-                for item in zin.infolist():
-                    if item.filename == "Metadata/project_settings.config":
-                        zout.writestr(item, patched)
-                    else:
-                        zout.writestr(item, read_zip_member(zin, item))
-            result = dst.getvalue()
-            return result if len(result) <= MAX_UPLOAD_BYTES else zip_bytes
-    except (ArchiveBudgetError, zipfile.BadZipFile, OSError):
-        return zip_bytes
+# Preserve the existing private import used by downstream tests/forks.
+_PROJECT_SETTINGS_SENTINEL_KEYS = PROJECT_SETTINGS_INHERIT_KEYS
 
 
 def _patch_process_bed_type(process_json: str, bed_type: str) -> str:
@@ -3535,7 +3219,7 @@ async def _run_slicer_with_fallback(
     # the embedded plate / model definitions remain intact.
     primary_bytes = model_bytes
     if is_3mf:
-        # Strip "-1" inherit-from-parent sentinels from
+        # Strip known inherit/active-filament index markers from
         # Metadata/project_settings.config so the CLI's StaticPrintConfig
         # range validator accepts the file (#1201). Surgical — keeps the
         # config present, just removes the offending keys; the supplied
@@ -3629,7 +3313,7 @@ async def _run_slicer_with_fallback(
             primary_bytes,
             request.plate or 1,
             filament_jsons,
-            process_profile_json=presets["process"],
+            process_profile_json=presets.get("process"),
         )
 
     # Arrange slice-all loop (#1493): when the user asks for ``plate=0``
@@ -3968,7 +3652,7 @@ async def slice_and_persist(
     # inject server-side so the library card has a thumbnail. Best-effort:
     # no-op when the slicer did embed thumbs (desktop Studio path), and
     # falls through to the unmodified bytes on any render error.
-    result = result._replace(content=inject_plate_thumbnails_if_missing(result.content))
+    result = result._replace(content=await asyncio.to_thread(inject_plate_thumbnails_if_missing, result.content))
     out_path.write_bytes(result.content)
 
     # Extract thumbnail from the produced 3MF so the library card shows a
@@ -4099,7 +3783,7 @@ async def slice_and_persist_as_archive(
     # in headless --export-3mf, so the produced 3MF often has no thumbnail
     # at all. Server-side render fills the gap; no-op when the slicer did
     # embed (desktop Studio path) and best-effort on any render error.
-    result = result._replace(content=inject_plate_thumbnails_if_missing(result.content))
+    result = result._replace(content=await asyncio.to_thread(inject_plate_thumbnails_if_missing, result.content))
     out_path.write_bytes(result.content)
 
     # Extract a thumbnail for the new archive card. Priority order:
@@ -4365,6 +4049,185 @@ async def print_library_file(
 # ============ File Detail Endpoints ============
 
 
+@router.get("/files/{file_id}/spreadsheet-preview", response_model=SpreadsheetPreviewResponse)
+async def get_spreadsheet_preview(
+    file_id: int,
+    db: AsyncSession = Depends(get_db),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.LIBRARY_READ_ALL, Permission.LIBRARY_READ_OWN)
+    ),
+):
+    from backend.app.services.library_previews import spreadsheet_preview
+
+    user, can_read_all = auth_result
+    file = _ensure_library_file_visible(
+        (await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))).scalar_one_or_none(),
+        user,
+        can_read_all,
+    )
+    path = _resolve_source_disk_path(file)
+    if path is None or not path.is_file():
+        raise HTTPException(404, "File not found on disk")
+    if file.file_type not in ("csv", "xlsx", "ods"):
+        raise HTTPException(400, "Preview supports CSV, XLSX and ODS")
+    try:
+        return await asyncio.to_thread(spreadsheet_preview, path, file.file_type)
+    except ArchiveBudgetError as exc:
+        raise HTTPException(413, str(exc)) from exc
+    except Exception as exc:
+        logger.debug("Spreadsheet preview rejected file %s: %s", file.id, type(exc).__name__)
+        raise HTTPException(400, "Document cannot be previewed") from exc
+
+
+@router.post("/files/{file_id}/preview-thumbnail")
+async def store_preview_thumbnail(
+    file_id: int,
+    thumbnail: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.LIBRARY_UPDATE_ALL, Permission.LIBRARY_UPDATE_OWN)
+    ),
+):
+    user, can_modify_all = auth_result
+    row = _ensure_library_file_visible(
+        (await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))).scalar_one_or_none(),
+        user,
+        can_modify_all,
+    )
+    if row.file_type not in {"step", "stp", "pdf", "csv", "xlsx", "ods"}:
+        raise HTTPException(400, "File type does not accept preview thumbnails")
+    if row.thumbnail_path:
+        return {"stored": False}
+    try:
+        content = await read_upload_limited(thumbnail, max_bytes=2 * 1024 * 1024)
+    except ArchiveBudgetError as exc:
+        raise HTTPException(413, str(exc)) from exc
+    from PIL import Image, UnidentifiedImageError
+
+    try:
+        with Image.open(BytesIO(content)) as image:
+            if image.format != "PNG" or image.width * image.height > 4_000_000:
+                raise ValueError("Invalid preview dimensions")
+            image.load()
+            image.thumbnail((256, 256), Image.Resampling.LANCZOS)
+            output = BytesIO()
+            image.save(output, "PNG")
+    except (UnidentifiedImageError, ValueError, OSError, Image.DecompressionBombError) as exc:
+        raise HTTPException(400, "Thumbnail must be a bounded PNG") from exc
+    path = get_library_thumbnails_dir() / f"{uuid.uuid4().hex}.png"
+    path.write_bytes(output.getvalue())
+    try:
+        # Concurrent previews may finish together; keep the first result and
+        # remove the losing file. A trash/move cannot resurrect a deleted row.
+        result = await db.execute(
+            update(LibraryFile)
+            .where(LibraryFile.id == file_id, LibraryFile.deleted_at.is_(None), LibraryFile.thumbnail_path.is_(None))
+            .values(thumbnail_path=to_relative_path(path))
+        )
+        stored = bool(result.rowcount)
+        await db.commit()
+        if not stored:
+            path.unlink(missing_ok=True)
+        return {"stored": stored}
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+
+
+@router.post("/files/{file_id}/photos")
+async def upload_library_photo(
+    file_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.LIBRARY_UPDATE_ALL, Permission.LIBRARY_UPDATE_OWN)
+    ),
+):
+    user, can_modify_all = auth_result
+    row = _ensure_library_file_visible(
+        (await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))).scalar_one_or_none(),
+        user,
+        can_modify_all,
+    )
+    if len(row.photos or []) >= 20:
+        raise HTTPException(400, "A file can have at most 20 photos")
+    extension = Path(file.filename or "").suffix.lower()
+    allowed = {".png": "PNG", ".jpg": "JPEG", ".jpeg": "JPEG", ".webp": "WEBP"}
+    if extension not in allowed:
+        raise HTTPException(400, "Photo must be PNG, JPEG or WebP")
+    try:
+        content = await read_upload_limited(file, max_bytes=10 * 1024 * 1024)
+    except ArchiveBudgetError as exc:
+        raise HTTPException(413, str(exc)) from exc
+    from PIL import Image, UnidentifiedImageError
+
+    try:
+        with Image.open(BytesIO(content)) as image:
+            if image.format != allowed[extension] or image.width * image.height > 25_000_000:
+                raise ValueError("Invalid photo format or dimensions")
+            image.verify()
+    except (UnidentifiedImageError, ValueError, OSError, Image.DecompressionBombError) as exc:
+        raise HTTPException(400, "Photo must contain a valid bounded raster image") from exc
+    name = f"{uuid.uuid4().hex}{extension}"
+    directory = library_photos_dir(row.id)
+    directory.mkdir(parents=True, exist_ok=True)
+    path = safe_join_under(directory, name)
+    path.write_bytes(content)
+    row.photos = [*(row.photos or []), name]
+    try:
+        await db.commit()
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+    return {"status": "uploaded", "filename": name, "photos": row.photos}
+
+
+@router.get("/files/{file_id}/photos/{filename}")
+async def get_library_photo(
+    file_id: int,
+    filename: str,
+    db: AsyncSession = Depends(get_db),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.LIBRARY_READ_ALL, Permission.LIBRARY_READ_OWN)
+    ),
+):
+    user, can_read_all = auth_result
+    row = _ensure_library_file_visible(
+        (await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))).scalar_one_or_none(),
+        user,
+        can_read_all,
+    )
+    if filename not in (row.photos or []):
+        raise HTTPException(404, "Photo not found")
+    path = safe_join_under(library_photos_dir(row.id), filename)
+    if not path.is_file():
+        raise HTTPException(404, "Photo not found")
+    return FastAPIFileResponse(path, headers={"X-Content-Type-Options": "nosniff"})
+
+
+@router.delete("/files/{file_id}/photos/{filename}")
+async def delete_library_photo(
+    file_id: int,
+    filename: str,
+    db: AsyncSession = Depends(get_db),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.LIBRARY_UPDATE_ALL, Permission.LIBRARY_UPDATE_OWN)
+    ),
+):
+    user, can_modify_all = auth_result
+    row = _ensure_library_file_visible(
+        (await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))).scalar_one_or_none(),
+        user,
+        can_modify_all,
+    )
+    if filename not in (row.photos or []):
+        raise HTTPException(404, "Photo not found")
+    safe_join_under(library_photos_dir(row.id), filename).unlink(missing_ok=True)
+    row.photos = [name for name in row.photos if name != filename]
+    await db.commit()
+    return {"status": "deleted", "photos": row.photos}
+
+
 @router.get("/files/{file_id}", response_model=FileResponseSchema)
 async def get_file(
     file_id: int,
@@ -4447,6 +4310,10 @@ async def get_file(
         print_count=file.print_count,
         last_printed_at=file.last_printed_at,
         notes=file.notes,
+        external_url=file.external_url,
+        photos=list(file.photos or []),
+        source_type=file.source_type,
+        source_url=file.source_url,
         duplicates=duplicates if duplicates else None,
         duplicate_count=duplicate_count,
         created_by_id=file.created_by_id,
@@ -4521,6 +4388,9 @@ async def update_file(
     if data.notes is not None:
         file.notes = data.notes if data.notes else None
 
+    if "external_url" in data.model_fields_set:
+        file.external_url = data.external_url
+
     await db.commit()
     await db.refresh(file)
 
@@ -4576,6 +4446,7 @@ async def delete_file(
 
         await delete_dependent_variants(db, [file.id])
         await db.delete(file)
+        remove_library_photos_dir(file.id)
         await db.commit()
         return {"status": "success", "message": "File deleted", "trashed": False}
 
@@ -4651,12 +4522,12 @@ async def download_library_file_for_slicer(
     """Download a library file using a slicer download token.
 
     Token-authenticated (no auth headers needed). The token is short-lived
-    and single-use, created by POST /files/{file_id}/slicer-token.
+    and reusable within its TTL, created by POST /files/{file_id}/slicer-token.
     Filename is at the end of the URL so slicers can detect the file format.
     """
     from backend.app.core.auth import verify_slicer_download_token
 
-    if not await verify_slicer_download_token(token, "library", file_id):
+    if not await verify_slicer_download_token(token, "library", file_id, single_use=False):
         raise HTTPException(status_code=403, detail="Invalid or expired download token")
 
     result = await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))
@@ -4679,11 +4550,14 @@ async def download_library_file_for_slicer(
 async def get_thumbnail(
     file_id: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.LIBRARY_READ_ALL, Permission.LIBRARY_READ_OWN)
+    ),
 ):
     """Get a file's thumbnail."""
+    user, can_read_all = auth_result
     result = await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))
-    file = result.scalar_one_or_none()
+    file = _ensure_library_file_visible(result.scalar_one_or_none(), user, can_read_all)
 
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
@@ -4897,6 +4771,7 @@ async def bulk_delete(
         hard_deleted_ids = [file.id for file in hard_deleted]
         await release_queue_references(db, hard_deleted_ids)
         for file in hard_deleted:
+            remove_library_photos_dir(file.id)
             await db.delete(file)
 
     # Delete folders (cascade will handle contents)

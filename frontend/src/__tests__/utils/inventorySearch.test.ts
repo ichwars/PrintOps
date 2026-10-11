@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { spoolMatchesQuery, filterSpoolsByQuery } from '../../utils/inventorySearch';
+import { sortInventorySpools } from '../../utils/inventorySorting';
 import type { InventorySpool } from '../../api/client';
 
 function makeSpool(overrides: Partial<InventorySpool> = {}): InventorySpool {
@@ -39,6 +40,11 @@ function makeSpool(overrides: Partial<InventorySpool> = {}): InventorySpool {
 }
 
 describe('spoolMatchesQuery', () => {
+  it('finds canonical material numbers and sorts embedded digits naturally', () => {
+    const spools = [makeSpool({ id: 1, material_number: 'MAT-10' }), makeSpool({ id: 2, material_number: 'MAT-2' })];
+    expect(filterSpoolsByQuery(spools, 'mat-2').map(s => s.id)).toEqual([2]);
+    expect(sortInventorySpools(spools, { column: 'material_number', direction: 'asc' }, {}).map(s => s.id)).toEqual([2, 1]);
+  });
   it('returns true for empty query', () => {
     expect(spoolMatchesQuery(makeSpool(), '')).toBe(true);
   });

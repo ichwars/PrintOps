@@ -578,6 +578,7 @@ export const handlers = [
     HttpResponse.json({ openapi: '3.0.0', info: { title: 'PrintOps', version: '0.1.5' }, paths: {} })
   ),
   http.post('/api/v1/cloud/filament-info', () => HttpResponse.json({ filaments: [] })),
+  http.post('/api/v1/auth/media-token', () => HttpResponse.json({ token: 'test-media-token' })),
   http.post('/api/v1/printers/camera/stream-token', () =>
     HttpResponse.json({ token: 'test-token', expires_at: '2099-01-01T00:00:00Z' })
   ),

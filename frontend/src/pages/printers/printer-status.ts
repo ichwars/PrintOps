@@ -98,12 +98,16 @@ export function mapModelCode(ssdpModel: string | null): string {
     // A2 Series
     'N9': 'A2L',
     // P Series
-    'C11': 'P1S',
-    'C12': 'P1P',
-    'C13': 'P2S',
+    'C11': 'P1P',
+    'C12': 'P1S',
+    'C13': 'X1E',
+    'N7': 'P2S',
     // A1 Series
     'N2S': 'A1',
     'N1': 'A1 Mini',
+    'A04': 'A1 Mini',
+    'A11': 'A1',
+    'A12': 'A1 Mini',
     // Direct matches
     'X1C': 'X1C',
     'X1': 'X1',

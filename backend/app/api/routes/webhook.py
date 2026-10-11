@@ -11,7 +11,9 @@ from backend.app.models.api_key import APIKey
 from backend.app.models.archive import PrintArchive
 from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.printer import Printer
+from backend.app.schemas.printer import HMSErrorResponse, hms_error_responses
 from backend.app.services.printer_manager import printer_manager
+from backend.app.services.queue_position import next_queue_position
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +42,17 @@ class QueueAddResponse(BaseModel):
 class PrinterStatusResponse(BaseModel):
     id: int
     name: str
+    serial_number: str
     connected: bool
     state: str | None
     current_print: str | None
     progress: float | None
     remaining_time: int | None
+    remaining_seconds: int | None = None
+    layer_num: int | None = None
+    total_layers: int | None = None
+    subtask_id: str | None = None
+    hms_errors: list[HMSErrorResponse] = []
 
 
 class QueueStatusResponse(BaseModel):
@@ -53,6 +61,13 @@ class QueueStatusResponse(BaseModel):
     pending: int
     printing: int
     items: list[dict]
+
+
+def _job_id(subtask_id) -> str | None:
+    if subtask_id is None:
+        return None
+    value = str(subtask_id).strip()
+    return None if value in ("", "0") else value
 
 
 # Webhook endpoints
@@ -83,18 +98,7 @@ async def webhook_add_to_queue(
     if not printer:
         raise HTTPException(status_code=404, detail="Printer not found")
 
-    # Get next position
-    result = await db.execute(
-        select(PrintQueueItem.position)
-        .where(
-            PrintQueueItem.printer_id == data.printer_id,
-            PrintQueueItem.status == "pending",
-        )
-        .order_by(PrintQueueItem.position.desc())
-        .limit(1)
-    )
-    max_position = result.scalar()
-    next_position = (max_position or 0) + 1
+    next_position = await next_queue_position(db)
 
     # Parse scheduled time if provided
     scheduled_time = None
@@ -268,14 +272,31 @@ async def webhook_get_printer_status(
     # attribute access, not dict lookup. The previous `.get(...)` calls raised
     # AttributeError and surfaced as a generic 500 for any printer that
     # actually had a status row (#1584).
+    if status is None:
+        return PrinterStatusResponse(
+            id=printer.id,
+            name=printer.name,
+            serial_number=printer.serial_number,
+            connected=False,
+            state=None,
+            current_print=None,
+            progress=None,
+            remaining_time=None,
+        )
     return PrinterStatusResponse(
         id=printer.id,
         name=printer.name,
-        connected=status.connected if status else False,
-        state=status.state if status else None,
-        current_print=status.current_print if status else None,
-        progress=status.progress if status else None,
-        remaining_time=status.remaining_time if status else None,
+        serial_number=printer.serial_number,
+        connected=status.connected,
+        state=status.state,
+        current_print=status.current_print,
+        progress=status.progress,
+        remaining_time=status.remaining_time,
+        remaining_seconds=status.remaining_time * 60 if status.remaining_time is not None else None,
+        layer_num=status.layer_num,
+        total_layers=status.total_layers,
+        subtask_id=_job_id(status.subtask_id),
+        hms_errors=hms_error_responses(status.hms_errors),
     )
 
 

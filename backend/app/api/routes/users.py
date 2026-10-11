@@ -24,6 +24,7 @@ from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.models.api_key import APIKey
 from backend.app.models.archive import PrintArchive
+from backend.app.models.auth_ephemeral import AuthEphemeralToken, TokenType
 from backend.app.models.group import Group
 from backend.app.models.library import LibraryFile
 from backend.app.models.long_lived_token import LongLivedToken
@@ -463,6 +464,15 @@ async def delete_user(
     await db.execute(delete(UserTOTP).where(UserTOTP.user_id == user_id))
     await db.execute(delete(UserOTPCode).where(UserOTPCode.user_id == user_id))
     await db.execute(delete(LongLivedToken).where(LongLivedToken.user_id == user_id))
+
+    # SQLite can reuse a deleted user id; discard the user's media credentials
+    # before deletion so recreating the username cannot revive them.
+    await db.execute(
+        delete(AuthEphemeralToken).where(
+            AuthEphemeralToken.username == user.username,
+            AuthEphemeralToken.token_type == TokenType.MEDIA,
+        )
+    )
 
     await db.delete(user)
     await db.commit()

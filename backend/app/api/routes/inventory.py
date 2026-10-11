@@ -50,6 +50,7 @@ from backend.app.schemas.warehouse_number_sequence import (
     WarehouseNumberSequenceUpdate,
 )
 from backend.app.services import warehouse_number_sequence as warehouse_number_sequence_service
+from backend.app.services.filament_sku_identity import enrich_material_numbers, ensure_sku
 from backend.app.services.location_service import (
     DUPLICATE_LOCATION_NAME,
     assign_location_name,
@@ -72,6 +73,7 @@ from backend.app.services.spool_csv import (
 )
 from backend.app.services.spool_filament_presets import resolve_spool_preset
 from backend.app.services.spoolman import SpoolmanClient, get_spoolman_client, init_spoolman_client
+from backend.app.services.tag_conflict import tag_conflict
 from backend.app.utils.filament_ids import (
     GENERIC_FILAMENT_IDS,
     filament_id_to_setting_id,
@@ -1103,7 +1105,9 @@ async def list_spools(
         query = query.where(Spool.archived_at.is_(None))
     query = query.order_by(Spool.material, Spool.brand, Spool.color_name)
     result = await db.execute(query)
-    return list(result.scalars().all())
+    spools = list(result.scalars().all())
+    await enrich_material_numbers(db, spools)
+    return spools
 
 
 # ── CSV import / export (#1576) ──────────────────────────────────────────────
@@ -1178,6 +1182,7 @@ async def import_spools_csv(
     for row in preview.rows:
         if row.status == "valid" and row.spool is not None:
             db.add(Spool(**row.spool))
+            await ensure_sku(db, row.spool)
             created += 1
 
     if created:
@@ -1230,6 +1235,7 @@ async def get_spool_by_tag(
         result = await db.execute(base_query.where(func.upper(column) == value).order_by(Spool.id))
         spool = result.scalars().first()
         if spool:
+            await enrich_material_numbers(db, [spool])
             return spool
 
     raise HTTPException(404, "Spool not found")
@@ -1246,6 +1252,7 @@ async def get_spool(
     spool = result.scalar_one_or_none()
     if not spool:
         raise HTTPException(404, "Spool not found")
+    await enrich_material_numbers(db, [spool])
     return spool
 
 
@@ -1262,11 +1269,14 @@ async def create_spool(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     spool = Spool(**payload)
     db.add(spool)
+    await ensure_sku(db, spool)
     await db.commit()
     await db.refresh(spool)
     result = await db.execute(select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id == spool.id))
     await ws_manager.broadcast({"type": "inventory_changed"})
-    return result.scalar_one()
+    response = result.scalar_one()
+    await enrich_material_numbers(db, [response])
+    return response
 
 
 @router.post("/spools/bulk", response_model=list[SpoolResponse])
@@ -1286,11 +1296,14 @@ async def bulk_create_spools(
         spool = Spool(**payload)
         db.add(spool)
         spools.append(spool)
+    await ensure_sku(db, spools[0])
     await db.commit()
     ids = [s.id for s in spools]
     result = await db.execute(select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id.in_(ids)))
     await ws_manager.broadcast({"type": "inventory_changed"})
-    return list(result.scalars().all())
+    response = list(result.scalars().all())
+    await enrich_material_numbers(db, response)
+    return response
 
 
 @router.patch("/spools/{spool_id}", response_model=SpoolResponse)
@@ -1317,11 +1330,14 @@ async def update_spool(
 
     for field, value in update_data.items():
         setattr(spool, field, value)
+    await ensure_sku(db, spool)
 
     await db.commit()
     result = await db.execute(select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id == spool_id))
     await ws_manager.broadcast({"type": "inventory_changed"})
-    return result.scalar_one()
+    response = result.scalar_one()
+    await enrich_material_numbers(db, [response])
+    return response
 
 
 @router.delete("/spools/{spool_id}")
@@ -1522,6 +1538,7 @@ async def bulk_update_spools(
     for sid, spool in spools.items():
         for field, value in prepared.items():
             setattr(spool, field, value)
+        await ensure_sku(db, spool)
         updated_ids.append(sid)
     await db.commit()
     if updated_ids:
@@ -1760,9 +1777,11 @@ async def assign_spool(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Assign a spool to an AMS slot and auto-configure via MQTT."""
+    # 1. Validate spool exists and is not archived
+    from backend.app.services import slot_unlink_grace
+    from backend.app.services.ams_slot_presence import spool_present
     from backend.app.services.printer_manager import printer_manager
 
-    # 1. Validate spool exists and is not archived
     result = await db.execute(select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id == data.spool_id))
     spool = result.scalar_one_or_none()
     if not spool:
@@ -1771,16 +1790,13 @@ async def assign_spool(
         raise HTTPException(400, "Cannot assign an archived spool")
 
     # 2. Get current AMS tray state for fingerprint + existing filament ID.
-    # tray_state: Bambu firmware reports 11=loaded, 9=empty, 10=spool present
-    # but filament not in feeder. Captured here so the empty-slot heuristic
-    # below can prefer it over tray_type — a manual "Reset slot" clears
-    # tray_type to "" while leaving state at 11 (filament still physically
-    # present), which would otherwise mislead the heuristic into the
-    # pending-config branch and skip MQTT forever (#1228 follow-up).
+    # Physical presence overrides firmware-specific or cached tray states.
+    # When the bit is absent, retain the existing state fallback.
     fingerprint_color = None
     fingerprint_type = None
     current_tray_info_idx = ""
     tray_state: int | None = None
+    slot_presence: bool | None = None
     state = printer_manager.get_status(data.printer_id)
     if state and state.raw_data:
         if data.ams_id == 255:
@@ -1789,6 +1805,7 @@ async def assign_spool(
             ext_id = data.tray_id + 254  # 0→254, 1→255
             for vt in vt_tray:
                 if isinstance(vt, dict) and int(vt.get("id", 254)) == ext_id:
+                    slot_presence = spool_present(vt)
                     fingerprint_color = vt.get("tray_color", "")
                     fingerprint_type = vt.get("tray_type", "")
                     current_tray_info_idx = vt.get("tray_info_idx", "")
@@ -1811,6 +1828,7 @@ async def assign_spool(
                 data.tray_id,
             )
             if tray:
+                slot_presence = spool_present(tray)
                 fingerprint_color = tray.get("tray_color", "")
                 fingerprint_type = tray.get("tray_type", "")
                 current_tray_info_idx = tray.get("tray_info_idx", "")
@@ -1842,41 +1860,12 @@ async def assign_spool(
     db.add(assignment)
     await db.commit()
     await db.refresh(assignment)
+    slot_unlink_grace.forget_slot(data.printer_id, data.ams_id, data.tray_id)
 
-    # 4. Auto-configure AMS slot via MQTT.
-    #
-    # Only suppress the publish when the firmware's *explicit* empty signal
-    # (state ∈ {9, 10}) is set — "no spool" / "spool present but no feed".
-    # Every other state, including state=3 (the default idle on A1 Mini BMCU /
-    # P1S Standard AMS for both loaded and unconfigured slots) and missing
-    # state (older firmwares), is treated as the user's assertion that a
-    # spool is in the slot and we attempt the MQTT push.
-    #
-    # The pre-existing "skip when slot looks empty" guard read state=3 +
-    # tray_type="" as "empty" and skipped MQTT. On these firmwares that
-    # combination is the post-"Reset Slot" state with the spool still
-    # physically inserted — there is NO AMS signal that distinguishes it
-    # from a truly-empty slot, so the guard created a deadlock: MQTT never
-    # fired, the AMS never reported any change (because nothing changed
-    # physically), and on_ams_change replay therefore never re-fired the
-    # config either. Reporter (#1322 follow-up by @RosdasHH) verified
-    # empirically that removing the guard makes the slot configure
-    # correctly because Bambu firmware DOES accept the push for a
-    # physically-loaded slot, even when tray_type is "" and state is 3.
-    #
-    # Trade-off for the truly-empty slot case: firmware drops the push
-    # silently (per Bambu's documented behavior), the SpoolAssignment row
-    # still has empty fingerprint_type because nothing in the assign path
-    # updates that column, and on_ams_change at main.py:1031-1054 still
-    # fires the deferred config when a spool eventually appears. So the
-    # SpoolBuddy weigh-then-assign-before-insert workflow continues to
-    # work — just without the optimization of skipping a no-op MQTT call.
-    #
-    # state ∈ {9, 10} stays as an explicit short-circuit so we don't churn
-    # a doomed MQTT push when the firmware has positively confirmed "no
-    # spool" — and to keep the on_ams_change replay path as the single
-    # source of truth for those slots.
-    slot_is_definitely_empty = tray_state == 9 or tray_state == 10
+    # 4. Auto-configure AMS slot via MQTT. A positive presence bit overrules
+    # stale states 9/10 (including AMS-HT). A false bit does not introduce a
+    # new suppression rule: firmware can harmlessly drop a push to an empty slot.
+    slot_is_definitely_empty = slot_presence is not True and tray_state in (9, 10)
     configured = False
     if not slot_is_definitely_empty:
         try:
@@ -2019,14 +2008,17 @@ async def link_tag_to_spool(
     # Check for conflicts: tag already linked to another active spool
     if normalized_tag_uid:
         conflict = await db.execute(
-            select(Spool).where(
+            select(Spool)
+            .where(
                 func.upper(Spool.tag_uid) == normalized_tag_uid,
                 Spool.id != spool_id,
                 Spool.archived_at.is_(None),
             )
+            .order_by(Spool.id)
+            .limit(1)
         )
-        if conflict.scalar_one_or_none():
-            raise HTTPException(409, "Tag UID already linked to another active spool")
+        if holder := conflict.scalar_one_or_none():
+            raise tag_conflict(holder.id, "tag_uid")
         # Auto-clear from archived spools (tag recycling)
         archived_with_tag = await db.execute(
             select(Spool).where(
@@ -2040,14 +2032,17 @@ async def link_tag_to_spool(
 
     if normalized_tray_uuid:
         conflict = await db.execute(
-            select(Spool).where(
+            select(Spool)
+            .where(
                 func.upper(Spool.tray_uuid) == normalized_tray_uuid,
                 Spool.id != spool_id,
                 Spool.archived_at.is_(None),
             )
+            .order_by(Spool.id)
+            .limit(1)
         )
-        if conflict.scalar_one_or_none():
-            raise HTTPException(409, "Tray UUID already linked to another active spool")
+        if holder := conflict.scalar_one_or_none():
+            raise tag_conflict(holder.id, "tray_uuid")
         archived_with_uuid = await db.execute(
             select(Spool).where(
                 func.upper(Spool.tray_uuid) == normalized_tray_uuid,
@@ -2252,6 +2247,7 @@ def _find_tray_in_ams_data(ams_data: list, ams_id: int, tray_id: int) -> dict | 
 class FilamentSkuSettingsResponse(BaseModel):
     id: int
     material: str
+    material_number: str | None = None
     subtype: str | None
     brand: str | None
     color_name: str | None
@@ -2267,6 +2263,7 @@ class FilamentSkuSettingsResponse(BaseModel):
 
 class FilamentSkuSettingsUpsert(BaseModel):
     material: str
+    material_number: str | None = Field(None, min_length=1, max_length=120)
     subtype: str | None = None
     brand: str | None = None
     color_name: str | None = None
@@ -2283,12 +2280,9 @@ async def list_sku_settings(
     _: User | None = RequireAnyPermissionIfAuthEnabled(Permission.INVENTORY_READ, Permission.INVENTORY_FORECAST_READ),
 ):
     """List all filament SKU reorder settings."""
-    from backend.app.models.filament_sku_settings import FilamentSkuSettings
+    from backend.app.services.filament_sku_identity import canonical_sku_settings
 
-    result = await db.execute(
-        select(FilamentSkuSettings).order_by(FilamentSkuSettings.material, FilamentSkuSettings.brand)
-    )
-    return list(result.scalars().all())
+    return list((await canonical_sku_settings(db)).values())
 
 
 @router.post("/sku-settings", response_model=FilamentSkuSettingsResponse)
@@ -2300,40 +2294,23 @@ async def upsert_sku_settings(
     ),
 ):
     """Create or update reorder settings for a filament SKU (material/subtype/brand)."""
-    from backend.app.models.filament_sku_settings import FilamentSkuSettings
     from backend.app.models.procurement import Supplier
 
     if data.default_supplier_id is not None and await db.get(Supplier, data.default_supplier_id) is None:
         raise HTTPException(status_code=422, detail="Default supplier was not found")
 
-    result = await db.execute(
-        select(FilamentSkuSettings).where(
-            FilamentSkuSettings.material == data.material,
-            FilamentSkuSettings.subtype == data.subtype,
-            FilamentSkuSettings.brand == data.brand,
-            FilamentSkuSettings.color_name == data.color_name,
-        )
-    )
-    row = result.scalar_one_or_none()
-    if row:
-        row.default_supplier_id = data.default_supplier_id
-        row.lead_time_days = data.lead_time_days
-        row.safety_margin_value = data.safety_margin_value
-        row.safety_margin_unit = data.safety_margin_unit
-        row.alerts_snoozed = data.alerts_snoozed
-    else:
-        row = FilamentSkuSettings(
-            material=data.material,
-            subtype=data.subtype,
-            brand=data.brand,
-            color_name=data.color_name,
-            default_supplier_id=data.default_supplier_id,
-            lead_time_days=data.lead_time_days,
-            safety_margin_value=data.safety_margin_value,
-            safety_margin_unit=data.safety_margin_unit,
-            alerts_snoozed=data.alerts_snoozed,
-        )
-        db.add(row)
+    try:
+        row = await ensure_sku(db, data, material_number=data.material_number.strip() if data.material_number else None)
+    except ValueError as exc:
+        raise HTTPException(409, detail=str(exc)) from exc
+    for field in (
+        "default_supplier_id",
+        "lead_time_days",
+        "safety_margin_value",
+        "safety_margin_unit",
+        "alerts_snoozed",
+    ):
+        setattr(row, field, getattr(data, field))
     await db.commit()
     await db.refresh(row)
     return row

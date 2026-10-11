@@ -1,0 +1,15 @@
+PrintOps STEP preview uses occt-import-js 0.0.23 (LGPL-2.1), by Viktor Kovacs.
+Package: https://www.npmjs.com/package/occt-import-js/v/0.0.23
+Exact package source: https://github.com/kovacsv/occt-import-js/tree/c2148e54b456b571238d35cac037d304053d64b2
+Source and rebuild instructions: https://github.com/kovacsv/occt-import-js
+Native OpenCascade sources: https://github.com/kovacsv/occt-import-js/tree/main/tools
+Original package license and notices are retained in this directory:
+  occt-import-js-LICENSE.txt
+  occt-import-js-NOTICE-LICENSE.txt
+  OpenCascade-NOTICE-LICENSE.txt
+
+The packaged JavaScript and WASM asset are distributed at the pinned package
+version. Before instantiation, PrintOps lowers the expected WASM memory section
+maximum from 32768 to 4096 pages (256 MiB). Other sections are preserved. See
+frontend/src/utils/wasmMemory.ts and its native growth regression in PrintOps.
+The worker is terminated after 30 seconds and on preview cancellation.

@@ -169,7 +169,6 @@ export const SPOOLMAN_LINKED_FIELDS = new Set<keyof SpoolFormData>([
   'brand',
   'rgba',
   'color_name',
-  'label_weight',
 ]);
 
 // Validation result

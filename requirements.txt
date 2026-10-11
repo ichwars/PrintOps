@@ -79,6 +79,8 @@ pillow>=12.2.0
 
 # PDF generation (spool label printing — #809)
 reportlab>=4.0.0
+# PDF label PNG export and bounded Library previews
+pypdfium2==5.14.0
 
 # Commercial document rendering. These exact versions form part of the
 # immutable render receipt stored with issued PDFs; do not loosen them without

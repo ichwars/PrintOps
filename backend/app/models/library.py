@@ -124,6 +124,8 @@ class LibraryFile(Base):
 
     # User notes
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    external_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    photos: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
     # Provenance — when the file was imported from an external source (e.g.
     # MakerWorld), ``source_type`` identifies the source and ``source_url`` is

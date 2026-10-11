@@ -1,3 +1,5 @@
+import { LabelContentOptions } from "./LabelContentOptions";
+import { DEFAULT_FIELDS, readLabelPreferences } from "../utils/labelPreferences";
 import { smallPartsText } from './warehouse/smallPartsCopy';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -220,7 +222,11 @@ export function LabelTemplatePickerModal({
   const [search, setSearch] = useState('');
   const [materialFilter, setMaterialFilter] = useState<string>('');
   const [sortMode, setSortMode] = useState<SortMode>('id');
-  const [monochrome, setMonochrome] = useState(false);
+  const preferenceKey = `printops-labels-${resourceType}`;
+  const [preferences, setPreferences] = useState(() => readLabelPreferences(preferenceKey));
+  const monochrome = preferences.monochrome;
+  function setMonochrome(value: boolean) { setPreferences(previous => ({ ...previous, monochrome: value })); }
+  useEffect(() => { if (isOpen) { try { localStorage.setItem(preferenceKey, JSON.stringify(preferences)); } catch { /* storage may be disabled */ } } }, [preferences, preferenceKey, isOpen]);
   const [startPositions, setStartPositions] = useState<Record<string, string>>({});
 
   const availableItems = useMemo(
@@ -238,7 +244,7 @@ export function LabelTemplatePickerModal({
       setSearch('');
       setMaterialFilter('');
       setSortMode('id');
-      setMonochrome(false);
+      setPreferences(readLabelPreferences(preferenceKey));
       setStartPositions({});
       setPending(null);
     }
@@ -325,7 +331,11 @@ export function LabelTemplatePickerModal({
     // we send IDs. Use the sorted list so a "by colour" sort flows through to
     // the PDF instead of being clobbered by an ascending-ID re-sort.
     const ids = sortedItems.filter((s) => selectedIds.has(s.id)).map((s) => s.id);
-    const options = { template, monochrome, ...(startPosition !== 1 ? { start_position: startPosition } : {}) };
+    const defaults = preferences.fields.length === DEFAULT_FIELDS.length && DEFAULT_FIELDS.every(field => preferences.fields.includes(field));
+    const options = { template, monochrome, ...(startPosition !== 1 ? { start_position: startPosition } : {}),
+      ...(!defaults ? { fields: preferences.fields } : {}),
+      ...(preferences.format === 'png' ? { format: preferences.format, dpi: preferences.dpi } : {}),
+    };
     setPending(template);
     try {
       const blob = resourceType === 'material'
@@ -333,7 +343,15 @@ export function LabelTemplatePickerModal({
         : spoolmanMode
           ? await api.printSpoolmanSpoolLabels({ spool_ids: ids, ...options })
           : await api.printSpoolLabels({ spool_ids: ids, ...options });
-      openBlobInNewTab(blob);
+      if (blob.type === 'application/pdf') openBlobInNewTab(blob);
+      else {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `printops-labels-${template}.${blob.type === 'application/zip' ? 'zip' : 'png'}`;
+        document.body.appendChild(anchor); anchor.click(); anchor.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
       onClose();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -548,6 +566,9 @@ export function LabelTemplatePickerModal({
             </span>
           </label>
         </div>
+
+        <LabelContentOptions source={resourceType === 'material' ? 'small-parts' : spoolmanMode ? 'spoolman' : 'inventory'}
+          id={sortedItems.find(item => selectedIds.has(item.id))?.id} preferences={preferences} onChange={setPreferences} />
 
         {/* Templates — 2x2 grid on >= sm so all 4 plus the Cancel footer fit
             inside max-h-[90vh] even when browser chrome eats into the viewport

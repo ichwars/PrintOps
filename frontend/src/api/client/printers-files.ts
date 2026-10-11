@@ -13,7 +13,7 @@ import {
   authToken,
   parseContentDispositionFilename,
   request,
-  withStreamToken,
+  withMediaToken,
 } from './core';
 
 export const printersFilesMethods = {
@@ -143,12 +143,14 @@ export const printersFilesMethods = {
       method: 'POST',
     }),
 
-  // Bed (Z-axis) jog
-  bedJog: (printerId: number, distance: number, force: boolean = false) =>
-    request<{ success: boolean; message: string }>(
-      `/printers/${printerId}/bed-jog?distance=${distance}&force=${force}`,
+  // Signed nozzle-bed gap on every model. Legacy force argument is ignored.
+  bedJog: (printerId: number, distance: number, force: boolean = false) => {
+    void force;
+    return request<{ success: boolean; message: string }>(
+      `/printers/${printerId}/bed-jog?distance=${distance}`,
       { method: 'POST' }
-    ),
+    );
+  },
 
   xyJog: (printerId: number, x: number, y: number) =>
     request<{ success: boolean; message: string }>(
@@ -316,7 +318,7 @@ export const printersFilesMethods = {
     }>(`/printers/${printerId}/files/plates?path=${encodeURIComponent(path)}`),
 
   getPrinterFilePlateThumbnail: (printerId: number, plateIndex: number, path: string) =>
-    withStreamToken(`${API_BASE}/printers/${printerId}/files/plate-thumbnail/${plateIndex}?path=${encodeURIComponent(path)}`),
+    withMediaToken(`${API_BASE}/printers/${printerId}/files/plate-thumbnail/${plateIndex}?path=${encodeURIComponent(path)}`),
 
   // Downloads a single printer file (e.g. a multi-hundred-MB printer log).
   // Returns a download_id up front (before the fetch resolves) so the

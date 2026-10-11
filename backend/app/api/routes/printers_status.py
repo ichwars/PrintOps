@@ -17,13 +17,13 @@ from backend.app.models.user import User
 from backend.app.schemas.printer import (
     DiagnosticRequest,
     FilaSwitchResponse,
-    HMSErrorResponse,
     NozzleInfoResponse,
     NozzleRackSlot,
     PrinterControlConnection,
     PrinterDiagnosticResult,
     PrinterStatus,
     PrintOptionsResponse,
+    hms_error_responses,
 )
 from backend.app.services.printer_diagnostic import run_connection_diagnostic
 from backend.app.services.printer_manager import (
@@ -94,18 +94,7 @@ async def get_printer_status(
         cover_url = f"/api/v1/printers/{printer_id}/cover"
 
     # Convert HMS errors to response format
-    hms_errors = [
-        HMSErrorResponse(
-            code=e.code,
-            attr=e.attr,
-            module=e.module,
-            severity=e.severity,
-            actions=e.actions,
-            job_id=e.job_id,
-            full_code=e.full_code,
-        )
-        for e in (state.hms_errors or [])
-    ]
+    hms_errors = hms_error_responses(state.hms_errors)
 
     # Parse AMS data from raw_data
     ams_units = []

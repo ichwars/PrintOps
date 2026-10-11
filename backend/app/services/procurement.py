@@ -132,24 +132,15 @@ async def resolve_resource(
             small_part=small_part,
         )
 
-    statement = select(FilamentSkuSettings).where(
-        FilamentSkuSettings.material == resource.material,
-        FilamentSkuSettings.subtype == resource.subtype,
-        FilamentSkuSettings.brand == resource.brand,
-        FilamentSkuSettings.color_name == resource.color_name,
-    )
-    settings = await session.scalar(statement)
-    if settings is None:
-        if not create_filament:
-            return None
-        settings = FilamentSkuSettings(
-            material=resource.material,
-            subtype=resource.subtype,
-            brand=resource.brand,
-            color_name=resource.color_name,
-        )
-        session.add(settings)
-        await session.flush()
+    from backend.app.services.filament_sku_identity import lookup_sku
+
+    settings = await lookup_sku(session, resource)
+    if settings is None and not create_filament:
+        return None
+    if create_filament:
+        from backend.app.services.filament_sku_identity import ensure_sku
+
+        settings = await ensure_sku(session, resource)
     return ResolvedResource(
         resource_key=f"filament:{settings.id}",
         small_part_id=None,
@@ -170,6 +161,16 @@ async def list_offers(
     return await _offers_for_resource(session, resolved.resource_key, active=active)
 
 
+async def _resource_alias_keys(session: AsyncSession, resource_key: str) -> list[str]:
+    if resource_key.startswith("filament:"):
+        from backend.app.services.filament_sku_identity import sku_alias_ids
+
+        row = await session.get(FilamentSkuSettings, int(resource_key.split(":", 1)[1]))
+        if row is not None:
+            return [f"filament:{row_id}" for row_id in await sku_alias_ids(session, row)]
+    return [resource_key]
+
+
 async def _offers_for_resource(
     session: AsyncSession,
     resource_key: str,
@@ -181,7 +182,7 @@ async def _offers_for_resource(
             select(ProcurementOffer, Supplier)
             .join(Supplier, Supplier.id == ProcurementOffer.supplier_id)
             .where(
-                ProcurementOffer.resource_key == resource_key,
+                ProcurementOffer.resource_key.in_(await _resource_alias_keys(session, resource_key)),
                 ProcurementOffer.is_active == active,
             )
             .order_by(ProcurementOffer.is_preferred.desc(), Supplier.name_key, ProcurementOffer.id)
@@ -230,7 +231,9 @@ async def replace_offers(
     existing = (
         list(
             await session.scalars(
-                select(ProcurementOffer).where(ProcurementOffer.resource_key == resolved.resource_key)
+                select(ProcurementOffer).where(
+                    ProcurementOffer.resource_key.in_(await _resource_alias_keys(session, resolved.resource_key))
+                )
             )
         )
         if resolved is not None

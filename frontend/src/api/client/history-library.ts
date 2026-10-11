@@ -1,6 +1,7 @@
 import type { SliceJobProgress, SystemHealthResult } from './types';
 import type {
   AMSHistoryResponse,
+  AddToQueueRequest,
   AddToQueueResponse,
   BatchThumbnailResponse,
   ExternalFolderCreate,
@@ -13,6 +14,7 @@ import type {
   LibraryFolderTree,
   LibraryFolderUpdate,
   LibraryPurgePreview,
+  LibrarySpreadsheetPreview,
   LibraryStats,
   LibraryTag,
   LibraryTagBulkAssignResult,
@@ -31,7 +33,7 @@ import {
   buildSlicerUrlFilename,
   parseContentDispositionFilename,
   request,
-  withStreamToken,
+  withMediaToken,
 } from './core';
 
 export const historyLibraryMethods = {
@@ -163,6 +165,27 @@ export const historyLibraryMethods = {
 
   getLibraryFile: (id: number) => request<LibraryFile>(`/library/files/${id}`),
 
+  combineLibraryFiles: (items: Array<{ file_id: number; copies: number }>, filename: string, folderId: number | null) =>
+    request<LibraryFileUploadResponse>('/library/files/combine', {
+      method: 'POST', body: JSON.stringify({ items, filename, folder_id: folderId }),
+    }),
+
+  getLibraryFilePhotoUrl: (id: number, filename: string) =>
+    withMediaToken(`${API_BASE}/library/files/${id}/photos/${encodeURIComponent(filename)}`),
+
+  uploadLibraryFilePhoto: async (id: number, file: File): Promise<{ filename: string; photos: string[] }> => {
+    const body = new FormData();
+    body.append('file', file);
+    const response = await fetch(`${API_BASE}/library/files/${id}/photos`, {
+      method: 'POST', body, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    });
+    if (!response.ok) throw new Error(`Photo upload failed: ${response.status}`);
+    return response.json();
+  },
+
+  deleteLibraryFilePhoto: (id: number, filename: string) =>
+    request<{ photos: string[] }>(`/library/files/${id}/photos/${encodeURIComponent(filename)}`, { method: 'DELETE' }),
+
   uploadLibraryFile: async (
     file: File,
     folderId?: number | null,
@@ -260,6 +283,13 @@ export const historyLibraryMethods = {
       body: JSON.stringify(body),
     }),
 
+  uploadLibraryPreviewThumbnail: (id: number, thumbnail: Blob) => {
+    const form = new FormData(); form.append('thumbnail', thumbnail, 'preview.png');
+    return request<{ stored: boolean }>(`/library/files/${id}/preview-thumbnail`, { method: 'POST', body: form });
+  },
+  getLibrarySpreadsheetPreview: (id: number, signal?: AbortSignal) =>
+    request<LibrarySpreadsheetPreview>(
+      `/library/files/${id}/spreadsheet-preview`, { signal }),
   getLibraryFileDownloadUrl: (id: number) => `${API_BASE}/library/files/${id}/download`,
 
   createLibrarySlicerToken: (fileId: number) =>
@@ -291,10 +321,10 @@ export const historyLibraryMethods = {
     window.URL.revokeObjectURL(url);
   },
 
-  getLibraryFileThumbnailUrl: (id: number) => withStreamToken(`${API_BASE}/library/files/${id}/thumbnail`),
+  getLibraryFileThumbnailUrl: (id: number) => withMediaToken(`${API_BASE}/library/files/${id}/thumbnail`),
 
   getLibraryFilePlateThumbnail: (id: number, plateIndex: number) =>
-    withStreamToken(`${API_BASE}/library/files/${id}/plate-thumbnail/${plateIndex}`),
+    withMediaToken(`${API_BASE}/library/files/${id}/plate-thumbnail/${plateIndex}`),
 
   getLibraryFileGcodeUrl: (id: number) => `${API_BASE}/library/files/${id}/gcode`,
 
@@ -322,10 +352,10 @@ export const historyLibraryMethods = {
       body: JSON.stringify(options),
     }),
 
-  addLibraryFilesToQueue: (fileIds: number[]) =>
+  addLibraryFilesToQueue: (fileIds: number[], target?: Omit<AddToQueueRequest, 'file_ids'>) =>
     request<AddToQueueResponse>('/library/files/add-to-queue', {
       method: 'POST',
-      body: JSON.stringify({ file_ids: fileIds }),
+      body: JSON.stringify({ file_ids: fileIds, ...target }),
     }),
 
   createVariantGroup: (

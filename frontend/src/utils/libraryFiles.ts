@@ -1,4 +1,5 @@
 import { isServerSliceableFilename } from './sliceFormats';
+import { isSliceableFilename, type SlicerType } from './slicer';
 
 type LibraryFileClassification = {
   filename: string;
@@ -21,4 +22,8 @@ export function isSlicedLibraryFile(file: LibraryFileClassification): boolean {
 /** Return whether a library file can be sent to the slicer. */
 export function isSliceableLibraryFile(file: LibraryFileClassification): boolean {
   return !isSlicedLibraryFile(file) && isServerSliceableFilename(file.filename);
+}
+
+export function isDesktopSliceableLibraryFile(file: LibraryFileClassification, slicer: SlicerType): boolean {
+  return !isSlicedLibraryFile(file) && isSliceableFilename(file.filename, slicer);
 }

@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router';
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { SpoolBuddyOutletContext } from '../../components/spoolbuddy/SpoolBuddyLayout';
-import { api, type InventorySpool, type Printer, type PrinterStatus } from '../../api/client';
+import { api, ApiError, type InventorySpool, type Printer, type PrinterStatus } from '../../api/client';
 import type { MatchedSpool } from '../../hooks/useSpoolBuddyState';
 import { useToast } from '../../contexts/ToastContext';
 import { SpoolIcon } from '../../components/spoolbuddy/SpoolIcon';
@@ -375,7 +375,12 @@ export function SpoolBuddyDashboard() {
       refetchSpools();
     } catch (e) {
       console.error('Failed to link tag:', e);
-      showToast(t('spoolman.linkFailed'), 'error');
+      if (e instanceof ApiError && e.status === 409 && e.code === 'tag_already_linked'
+        && typeof e.detail?.spool_id === 'number') {
+        showToast(t('inventory.tagAlreadyLinked', 'Tag is already linked to spool {{id}}', { id: e.detail.spool_id }), 'error');
+      } else {
+        showToast(t('spoolman.linkFailed'), 'error');
+      }
     } finally {
       setShowLinkModal(false);
     }

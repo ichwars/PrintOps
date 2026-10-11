@@ -172,7 +172,14 @@ async def _dispatch_library_item(ctx, *, archive_failure=False, unlink_side_effe
         patch.object(scheduler_module.settings, "base_dir", ctx.base_dir),
         patch("backend.app.services.archive.ArchiveService.archive_print", new=archive_print),
         patch("backend.app.services.print_scheduler.printer_manager.is_connected", MagicMock(return_value=True)),
-        patch("backend.app.services.print_scheduler.printer_manager.get_status", MagicMock(return_value=None)),
+        patch(
+            "backend.app.services.print_scheduler.printer_manager.get_status",
+            MagicMock(return_value=getattr(ctx, "status", None)),
+        ),
+        patch(
+            "backend.app.services.print_scheduler.printer_manager.get_client",
+            MagicMock(return_value=getattr(ctx, "mqtt", None)),
+        ),
         patch("backend.app.services.print_scheduler.printer_manager.start_print", ctx.start_print),
         patch("backend.app.services.print_scheduler.printer_manager.set_awaiting_plate_clear", MagicMock()),
         patch(
@@ -181,7 +188,10 @@ async def _dispatch_library_item(ctx, *, archive_failure=False, unlink_side_effe
         patch("backend.app.services.print_scheduler.delete_file_async", AsyncMock(return_value=True)),
         patch("backend.app.services.print_scheduler.upload_file_async", ctx.upload),
         patch("backend.app.services.print_scheduler.cache_3mf_download", MagicMock()),
-        patch("backend.app.services.print_scheduler.spawn_background_task", MagicMock()),
+        patch(
+            "backend.app.services.print_scheduler.spawn_background_task",
+            MagicMock(side_effect=lambda coro, **_kwargs: coro.close()),
+        ),
         patch("backend.app.services.notification_service.notification_service.on_queue_job_started", AsyncMock()),
         patch("backend.app.services.notification_service.notification_service.on_queue_job_failed", AsyncMock()),
         patch("backend.app.services.mqtt_relay.mqtt_relay.on_queue_job_started", AsyncMock()),
@@ -200,6 +210,7 @@ async def _dispatch_library_item(ctx, *, archive_failure=False, unlink_side_effe
         async with ctx.session_maker() as db:
             item = await db.get(PrintQueueItem, ctx.queue_item_id)
             await scheduler._start_print(db, item)
+    return scheduler
 
 
 async def _queue_snapshot(ctx):
@@ -306,7 +317,7 @@ async def test_existing_archive_plate_metadata_commits_before_preheat(queue_fact
 
 
 @pytest.mark.asyncio
-async def test_upload_failure_surfaces_recorded_network_cause(queue_factory):
+async def test_upload_failure_surfaces_recorded_network_cause(queue_factory, caplog):
     from backend.app.services.bambu_ftp import FtpFailure, FtpFailureKind
 
     ctx = await queue_factory(cleanup=False)
@@ -316,12 +327,43 @@ async def test_upload_failure_surfaces_recorded_network_cause(queue_factory):
         return False
 
     ctx.upload.side_effect = fail_upload
-    await _dispatch_library_item(ctx)
+    scheduler = await _dispatch_library_item(ctx)
+
+    item, library_file, archive = await _queue_snapshot(ctx)
+    assert item.status == "pending"
+    assert item.error_message is None
+    assert item.completed_at is None
+    assert item.dispatch_attempts == 0
+    assert item.printer_id == ctx.printer_id
+    assert ctx.printer_id in scheduler._upload_backoff
+    assert "network" in caplog.text
+    assert "retrying printer 1 in 300s" in caplog.text
+    assert "Check that its SD card" not in caplog.text
+    ctx.start_print.assert_not_called()
+    assert library_file is not None
+    assert archive is not None
+
+
+@pytest.mark.asyncio
+async def test_persistent_storage_upload_failure_remains_terminal(queue_factory):
+    from backend.app.services.bambu_ftp import FtpFailure, FtpFailureKind
+
+    ctx = await queue_factory(cleanup=False)
+
+    async def fail_upload(*args, failure, **kwargs):
+        failure.failure = FtpFailure(FtpFailureKind.STORAGE, "SD card is full")
+        return False
+
+    ctx.upload.side_effect = fail_upload
+    scheduler = await _dispatch_library_item(ctx)
 
     item, library_file, archive = await _queue_snapshot(ctx)
     assert item.status == "failed"
-    assert "network" in item.error_message
-    assert "Check that its SD card" not in item.error_message
+    assert item.completed_at is not None
+    assert "SD card" in item.error_message
+    assert item.dispatch_attempts == 0
+    assert ctx.printer_id not in scheduler._upload_backoff
+    ctx.start_print.assert_not_called()
     assert library_file is not None
     assert archive is not None
 

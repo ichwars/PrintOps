@@ -8,6 +8,11 @@ from sqlalchemy.orm import DeclarativeBase
 
 from backend.app.core.active_print_migrations import migrate_active_print_spoolman
 from backend.app.core.archive_metadata_migration import repair_archive_plate_metadata
+from backend.app.core.commerce_schema_migrations import (
+    migrate_commercial_settings,
+    migrate_production_quality,
+    migrate_rename_user_print_template_names,
+)
 from backend.app.core.config import settings
 from backend.app.core.db_dialect import is_already_applied as _is_already_applied, is_sqlite, postgres_connect_args
 from backend.app.core.library_migrations import reclassify_sliced_3mf_library_files
@@ -309,6 +314,11 @@ async def init_db():
     # avoid SQLite "database is locked" contention on the WAL writer.
     await _migrate_encrypt_legacy_secrets()
     await _migrate_default_document_layouts()
+    from backend.app.services.filament_sku_identity import backfill_material_numbers
+
+    async with async_session() as session:
+        await backfill_material_numbers(session)
+        await session.commit()
 
     # Seed default notification templates
     await seed_notification_templates()
@@ -502,7 +512,9 @@ async def _api_keys_column_exists(conn, column_name: str) -> bool:
         result = await conn.execute(text("PRAGMA table_info(api_keys)"))
         return any(row[1] == column_name for row in result)
     result = await conn.execute(
-        text("SELECT 1 FROM information_schema.columns WHERE table_name = 'api_keys' AND column_name = :col"),
+        text(
+            "SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('api_keys') AND attname = :col AND NOT attisdropped"
+        ),
         {"col": column_name},
     )
     return result.scalar_one_or_none() is not None
@@ -778,6 +790,7 @@ async def run_migrations(conn):
     await migrate_document_layout_schema(conn)
     await migrate_number_sequence_monthly_reset_policy(conn, _safe_execute)
     await _migrate_document_payments(conn)
+    await _migrate_notification_photo_options(conn)
     await _safe_execute(
         conn,
         "ALTER TABLE small_parts ADD COLUMN default_consumption_reason VARCHAR(120) NOT NULL DEFAULT 'Produktion'",
@@ -2552,6 +2565,8 @@ async def run_migrations(conn):
     # as the library grows.
     await _safe_execute(conn, "ALTER TABLE library_files ADD COLUMN source_type VARCHAR(32)")
     await _safe_execute(conn, "ALTER TABLE library_files ADD COLUMN source_url VARCHAR(512)")
+    await _safe_execute(conn, "ALTER TABLE library_files ADD COLUMN external_url VARCHAR(500)")
+    await _safe_execute(conn, "ALTER TABLE library_files ADD COLUMN photos JSON")
     await _safe_execute(
         conn,
         "CREATE INDEX IF NOT EXISTS ix_library_files_source_url ON library_files(source_url)",
@@ -2944,6 +2959,21 @@ async def run_migrations(conn):
                 )
                 await conn.execute(text("DROP TABLE filament_sku_settings"))
                 await conn.execute(text("ALTER TABLE filament_sku_settings_uqfix RENAME TO filament_sku_settings"))
+        await _safe_execute(conn, "ALTER TABLE filament_sku_settings ADD COLUMN material_number VARCHAR(120)")
+        await conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_filament_material_number "
+                "ON filament_sku_settings(material_number)"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_numbered_filament_group "
+                "ON filament_sku_settings(trim(material), trim(COALESCE(subtype, '')), "
+                "trim(COALESCE(brand, '')), trim(COALESCE(color_name, ''))) "
+                "WHERE material_number IS NOT NULL"
+            )
+        )
         await _safe_execute(
             conn,
             """CREATE TABLE IF NOT EXISTS filament_shopping_list (
@@ -3013,6 +3043,23 @@ async def run_migrations(conn):
         await _safe_execute(
             conn,
             "ALTER TABLE filament_sku_settings ADD COLUMN IF NOT EXISTS default_supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL",
+        )
+        await _safe_execute(
+            conn, "ALTER TABLE filament_sku_settings ADD COLUMN IF NOT EXISTS material_number VARCHAR(120)"
+        )
+        await conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_filament_material_number "
+                "ON filament_sku_settings(material_number)"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_numbered_filament_group "
+                "ON filament_sku_settings(trim(material), trim(COALESCE(subtype, '')), "
+                "trim(COALESCE(brand, '')), trim(COALESCE(color_name, ''))) "
+                "WHERE material_number IS NOT NULL"
+            )
         )
         # Widen UNIQUE (material, subtype, brand) → (material, subtype, brand, color_name).
         # The original constraint was declared with name="uq_filament_sku" in the
@@ -3428,60 +3475,7 @@ async def run_migrations(conn):
     # that accepts a file but never starts cannot re-upload forever.
     await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN dispatch_attempts INTEGER DEFAULT 0")
 
-    # Migration: business-profile document, tax, and payment settings.
-    await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN tax_mode VARCHAR(16) DEFAULT 'standard'")
-    await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN default_tax_rate NUMERIC(5, 2) DEFAULT 0")
-    boolean_false = "0" if is_sqlite() else "false"
-    boolean_true = "1" if is_sqlite() else "true"
-    await _safe_execute(
-        conn,
-        f"ALTER TABLE business_profiles ADD COLUMN cash_accounting BOOLEAN DEFAULT {boolean_false}",
-    )
-    await _safe_execute(
-        conn,
-        f"ALTER TABLE business_profiles ADD COLUMN input_tax_deductible BOOLEAN DEFAULT {boolean_true}",
-    )
-    await _safe_execute(
-        conn,
-        f"ALTER TABLE business_profiles ADD COLUMN show_offer_qr BOOLEAN DEFAULT {boolean_false}",
-    )
-    await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN paypal_me_url VARCHAR(500)")
-    await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN logo_media_type VARCHAR(32)")
-    await _safe_execute(conn, "ALTER TABLE business_profiles ADD COLUMN logo_version INTEGER")
-    # Migration: Complete the calculation request and commercial context.
-    await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN project_id INTEGER REFERENCES projects(id)")
-    await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN request_kind VARCHAR(24) DEFAULT 'single'")
-    await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN quantity INTEGER DEFAULT 1")
-    await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN position_description TEXT")
-    await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN special_terms TEXT")
-    if is_sqlite():
-        await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN commercial_overrides JSON DEFAULT '{}'")
-    else:
-        await _safe_execute(conn, "ALTER TABLE calculations ADD COLUMN commercial_overrides JSON DEFAULT '{}'::json")
-    if is_sqlite():
-        profile_defaults_sql = (
-            "UPDATE business_profiles SET "
-            "tax_mode = COALESCE(tax_mode, 'standard'), "
-            "default_tax_rate = CASE WHEN country_code = 'DE' THEN 19.00 ELSE 0.00 END, "
-            "cash_accounting = COALESCE(cash_accounting, 0), "
-            "input_tax_deductible = COALESCE(input_tax_deductible, 1), "
-            "show_offer_qr = COALESCE(show_offer_qr, 0) "
-            "WHERE default_tax_rate IS NULL OR tax_mode IS NULL "
-            "OR cash_accounting IS NULL OR input_tax_deductible IS NULL OR show_offer_qr IS NULL"
-        )
-    else:
-        profile_defaults_sql = (
-            "UPDATE business_profiles SET "
-            "tax_mode = COALESCE(tax_mode, 'standard'), "
-            "default_tax_rate = CASE WHEN country_code = 'DE' THEN 19.00 ELSE 0.00 END, "
-            "cash_accounting = COALESCE(cash_accounting, false), "
-            "input_tax_deductible = COALESCE(input_tax_deductible, true), "
-            "show_offer_qr = COALESCE(show_offer_qr, false) "
-            "WHERE default_tax_rate IS NULL OR tax_mode IS NULL "
-            "OR cash_accounting IS NULL OR input_tax_deductible IS NULL OR show_offer_qr IS NULL"
-        )
-    async with conn.begin_nested():
-        await conn.execute(text(profile_defaults_sql))
+    await migrate_commercial_settings(conn, _safe_execute, is_sqlite)
 
     # Migration: Add is_autologin column to oidc_providers (#1589). Postgres
     # rejects ``DEFAULT 0`` for BOOLEAN columns.
@@ -3598,6 +3592,7 @@ async def _migrate_document_payments(conn) -> None:
         "CREATE INDEX IF NOT EXISTS ix_library_files_variant_group_id ON library_files (variant_group_id)",
     )
     await _migrate_backfill_variant_groups(conn)
+    await _migrate_production_quality(conn)
 
     # Migration: Home Assistant sensor alerts (#1148). The printer_ha_sensors
     # table itself is new, so create_all() builds it; only the provider opt-in
@@ -3613,6 +3608,17 @@ async def _migrate_document_payments(conn) -> None:
         conn,
         "ALTER TABLE printer_ha_sensors ADD COLUMN failure_strategy VARCHAR(16) DEFAULT 'auto'",
     )
+
+
+async def _migrate_notification_photo_options(conn) -> None:
+    # TRUE works for both dialects and preserves existing provider attachments.
+    await _safe_execute(
+        conn, "ALTER TABLE notification_providers ADD COLUMN attach_photo BOOLEAN NOT NULL DEFAULT TRUE"
+    )
+
+
+async def _migrate_production_quality(conn) -> None:
+    await migrate_production_quality(conn, _safe_execute, is_sqlite)
 
 
 async def _migrate_backfill_variant_groups(conn) -> None:
@@ -3704,34 +3710,8 @@ async def _migrate_backfill_variant_groups(conn) -> None:
                 )
 
 
-_USER_PRINT_TEMPLATE_RENAMES: tuple[tuple[str, str, str], ...] = (
-    ("user_print_start", "User Print Started", "User Print Started Email"),
-    ("user_print_complete", "User Print Completed", "User Print Completed Email"),
-    ("user_print_failed", "User Print Failed", "User Print Failed Email"),
-    ("user_print_stopped", "User Print Stopped", "User Print Stopped Email"),
-)
-
-
 async def _migrate_rename_user_print_template_names(conn) -> None:
-    """Append " Email" to the four ``user_print_*`` notification template names (#1792).
-
-    The provider-level "Print Completed" and the per-user "User Print Completed"
-    rows were visually indistinguishable in the Message Templates list because
-    the seed name lacked the suffix that the EVENT_NAMES display map in
-    routes/notification_templates.py already uses ("User Print Completed Email").
-
-    Renames only rows where ``name`` is still the old default — admins who
-    renamed the template themselves keep their custom name. Standard SQL
-    UPDATE works on both SQLite and Postgres.
-    """
-    from sqlalchemy import text
-
-    async with conn.begin_nested():
-        for event_type, old_name, new_name in _USER_PRINT_TEMPLATE_RENAMES:
-            await conn.execute(
-                text("UPDATE notification_templates SET name = :new WHERE event_type = :et AND name = :old"),
-                {"new": new_name, "et": event_type, "old": old_name},
-            )
+    await migrate_rename_user_print_template_names(conn)
 
 
 async def seed_notification_templates():

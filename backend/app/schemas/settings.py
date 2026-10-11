@@ -1,7 +1,7 @@
 import json
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 LAN_SERVICE_URL_SETTINGS = ("ha_url", "obico_ml_url", "orcaslicer_api_url", "bambu_studio_api_url")
 
@@ -499,6 +499,8 @@ class AppSettings(BaseModel):
 
 class AppSettingsUpdate(BaseModel):
     """Schema for updating settings (all fields optional)."""
+
+    model_config = ConfigDict(allow_inf_nan=False)
 
     auto_archive: bool | None = None
     save_thumbnails: bool | None = None

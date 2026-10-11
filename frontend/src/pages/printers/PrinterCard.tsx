@@ -5,7 +5,7 @@ import { Link, Unlink, Signal, Clock, MoreVertical, Trash2, RefreshCw, RotateCw,
 import { formatDateOnly, formatETA, formatDuration } from '../../utils/date';
 import { Card, CardContent } from '../../components/Card';
 import { Button } from '../../components/Button';
-import { filterKnownHMSErrors } from '../../components/HMSErrorModal';
+import { filterKnownHMSErrors, isSevereHMSError } from '../../components/HMSErrorModal';
 import { PrinterQueueWidget } from '../../components/PrinterQueueWidget';
 import { PrinterHASensorRow } from '../../components/PrinterHASensorRow';
 import type { HeaterSensorKind } from '../../api/client';
@@ -15,6 +15,7 @@ import { PlateClearedIcon } from '../../components/icons/PlateClearedIcon';
 import { SkipObjectsIcon } from '../../components/SkipObjectsModal';
 import { getAmsLabel, getGlobalTrayId, getFillBarColor, getSpoolmanFillLevel, getFallbackSpoolTag, isBambuLabSpool } from '../../utils/amsHelpers';
 import { getPrinterImage, getWifiStrength } from '../../utils/printer';
+import { isBedSlinger } from '../../utils/bedSlinger';
 import { PRINTER_CONTROL_CAPABILITIES, isCloudControlCandidate, isCloudControlUncertain, isPrintOpsCloudControlImplemented, type PrinterControlAction } from '../../utils/printerControlCapabilities';
 import { FilamentSlotCircle } from '../../components/FilamentSlotCircle';
 import { getColorName } from '../../utils/colors';
@@ -51,7 +52,7 @@ export function PrinterCard(props: PrinterCardProps) {
     setShowHMSModal, setAmsBackupModalOpen, setShowStopConfirm, setShowPauseConfirm,
     showSpeedMenu, setShowSpeedMenu, showAirductMenu, setShowAirductMenu,
     showBedJogMenu, setShowBedJogMenu, statusControlMenu, setStatusControlMenu,
-    bedJogStep, setBedJogStep, setShowNotHomedModal, setShowResumeConfirm,
+    bedJogStep, setBedJogStep, setShowResumeConfirm,
     setShowSkipObjectsModal, setShowUploadForPrint, setShowPrinterInfo, setShowDiagnostic,
     dryingPopoverAmsId, setDryingPopoverAmsId, setDryingPopoverModuleType, setDryingFilament,
     setDryingTemp, setDryingDuration, setDryingRotateTray, setDryingPopoverPos,
@@ -357,7 +358,7 @@ return (
                     {/* Connection indicator dot for compact mode */}
                     {viewMode === 'compact' && (() => {
                       const hmsErrors = status?.connected && status.hms_errors ? filterKnownHMSErrors(status.hms_errors) : [];
-                      const hasSevere = hmsErrors.some(e => e.severity <= 2);
+                      const hasSevere = hmsErrors.some(isSevereHMSError);
                       const hasWarning = hmsErrors.length > 0;
                       const pipColor = !status?.connected
                         ? 'bg-status-error'
@@ -539,7 +540,7 @@ return (
                     onClick={() => setShowHMSModal(true)}
                     className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity ${
                       knownErrors.length > 0
-                        ? knownErrors.some(e => e.severity <= 2)
+                        ? knownErrors.some(isSevereHMSError)
                           ? 'bg-status-error/20 text-status-error'
                           : 'bg-status-warning/20 text-status-warning'
                         : 'bg-status-ok/20 text-status-ok'
@@ -1367,20 +1368,12 @@ return (
                       {(() => {
                         const canControl = canUsePrinterControl;
                         const disabled = isPrinting || !canControl;
-                        const bambuIsPlateBelow = true; // positive Z moves plate away from nozzle
+                        const zMovesToolhead = isBedSlinger(printer.model);
                         const jogButtonClass = 'flex h-8 w-8 items-center justify-center rounded bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 transition-colors hover:bg-indigo-200 dark:hover:bg-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-50';
-                        const requestZJog = (direction: 1 | -1) => {
-                          const signed = direction * bedJogStep * (bambuIsPlateBelow ? 1 : -1);
-                          const warnedKey = `printops.bedJog.warned.${printer.id}`;
-                          const warned = (() => {
-                            try { return sessionStorage.getItem(warnedKey) === '1'; }
-                            catch { return false; }
-                          })();
-                          if (warned) {
-                            bedJogMutation.mutate({ distance: signed, force: true });
-                          } else {
-                            setShowNotHomedModal({ distance: signed });
-                          }
+                        const requestZJog = (arrow: 'up' | 'down') => {
+                          // Z always means nozzle-bed gap. The arrows name the part that moves.
+                          const opensGap = zMovesToolhead ? arrow === 'up' : arrow === 'down';
+                          bedJogMutation.mutate({ distance: opensGap ? bedJogStep : -bedJogStep });
                         };
                         const requestXyJog = (x: number, y: number) => {
                           xyJogMutation.mutate({ x, y });
@@ -1408,6 +1401,9 @@ return (
                                 <div className="absolute bottom-full left-0 mb-1 z-50 flex w-[216px] flex-col overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-2xl">
                                   <div className="shrink-0 px-3 py-2.5 text-center text-sm font-medium text-white">
                                     {t('printers.bedJog.title')}
+                                  </div>
+                                  <div role="alert" className="mx-2 mb-2 rounded-lg bg-amber-500/10 px-2.5 py-2 text-xs leading-relaxed text-amber-700 dark:text-amber-400">
+                                    {t('printers.bedJog.limitWarning')}
                                   </div>
                                   <div className="h-px bg-bambu-dark-tertiary" />
                                   <div className="flex justify-center px-3 py-2.5">
@@ -1463,10 +1459,10 @@ return (
                                     </div>
                                     <div className="flex flex-col items-center gap-1">
                                       <button
-                                        onClick={() => requestZJog(-1)}
+                                        onClick={() => requestZJog('up')}
                                         disabled={bedJogMutation.isPending}
                                         className={jogButtonClass}
-                                        aria-label={t('printers.bedJog.up')}
+                                        aria-label={t(zMovesToolhead ? 'printers.bedJog.toolheadUp' : 'printers.bedJog.up')}
                                       >
                                         <ArrowUp className="w-4 h-4" />
                                       </button>
@@ -1474,10 +1470,10 @@ return (
                                         <Layers className="w-4 h-4" />
                                       </div>
                                       <button
-                                        onClick={() => requestZJog(1)}
+                                        onClick={() => requestZJog('down')}
                                         disabled={bedJogMutation.isPending}
                                         className={jogButtonClass}
-                                        aria-label={t('printers.bedJog.down')}
+                                        aria-label={t(zMovesToolhead ? 'printers.bedJog.toolheadDown' : 'printers.bedJog.down')}
                                       >
                                         <ArrowDown className="w-4 h-4" />
                                       </button>

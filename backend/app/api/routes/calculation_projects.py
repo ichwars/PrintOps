@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.app.api.routes.settings import get_setting
-from backend.app.core.auth import RequireCameraStreamTokenIfAuthEnabled, RequirePermissionIfAuthEnabled
+from backend.app.core.auth import RequirePermissionIfAuthEnabled, require_media_token_permission
 from backend.app.core.config import settings as app_settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
@@ -28,6 +28,7 @@ from backend.app.schemas.calculation_project import (
 from backend.app.services.calculation_estimator import BoundsMm, EstimatorSettings, PlateGeometry, estimate_plate
 from backend.app.services.calculation_project import InvalidProjectFile, analyze_project_file
 from backend.app.services.calculation_slicing import build_cache_key
+from backend.app.services.slicer_3mf_convert import sanitize_project_settings_sentinels
 from backend.app.services.slicer_api import SlicerApiError, SlicerApiService
 from backend.app.utils.archive_budget import ArchiveBudgetError, read_upload_limited
 
@@ -202,7 +203,7 @@ async def get_project_plate_thumbnail(
     file_id: int,
     plate_id: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    _: User | None = Depends(require_media_token_permission(Permission.CALCULATIONS_READ)),
 ):
     plate = await db.scalar(
         select(CalculationProjectPlate).where(
@@ -238,7 +239,17 @@ async def slice_project_plates(
         configured = await get_setting(db, "bambu_studio_api_url")
         api_url = (configured or app_settings.bambu_studio_api_url).strip()
     source = (Path(app_settings.base_dir) / project_file.stored_path).resolve()
-    model_bytes = source.read_bytes()
+    try:
+        with source.open("rb") as model_file:
+            model_bytes = await read_upload_limited(UploadFile(file=model_file))
+    except ArchiveBudgetError as exc:
+        raise HTTPException(
+            status.HTTP_413_CONTENT_TOO_LARGE,
+            detail={"code": "project_file_too_large", "message": str(exc)},
+        ) from exc
+    # Keep persisted bytes and the original SHA-256 cache identity unchanged;
+    # normalize only the bounded copy forwarded to the embedded-settings CLI.
+    model_bytes = await asyncio.to_thread(sanitize_project_settings_sentinels, model_bytes)
     results: list[tuple[CalculationSliceResult, int]] = []
     for plate in selected:
         profile_snapshot = {

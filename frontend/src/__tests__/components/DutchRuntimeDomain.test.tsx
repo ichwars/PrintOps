@@ -4,6 +4,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ordersApi, type CustomerOrder } from '../../api/offers';
 import { readinessFindingText } from '../../components/settings/documents/readinessMessages';
 import { LexwarePreviewValue } from '../../components/settings/lexware/LexwarePreviewValue';
@@ -56,16 +57,20 @@ describe('Dutch commerce runtime', () => {
   it('renders the Dutch order overview and reservations and submits the original issue command', async () => {
     vi.spyOn(ordersApi, 'list').mockResolvedValue([order]);
     vi.spyOn(ordersApi, 'get').mockResolvedValue(order);
+    const production = vi.spyOn(ordersApi, 'getProduction').mockResolvedValue({ good_quantity: 4, reject_quantity: 1, unconfirmed_runs: 1 });
     const issue = vi.spyOn(ordersApi, 'issueSmallPart').mockResolvedValue(order);
     const user = userEvent.setup();
-    render(<MemoryRouter initialEntries={['/orders']}><Routes>
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    render(<QueryClientProvider client={queryClient}><MemoryRouter initialEntries={['/orders']}><Routes>
       <Route path="/orders" element={<OrdersOverviewPage />} />
       <Route path="/orders/:id" element={<OrderDetailPage />} />
-    </Routes></MemoryRouter>);
+    </Routes></MemoryRouter></QueryClientProvider>);
     expect(await screen.findByText('ORD-9')).toBeInTheDocument();
     expect(screen.getByText('Geaccepteerde offertes, projecten en gereserveerde voorraad.')).toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: 'Openen' }));
     expect(await screen.findByRole('heading', { name: 'Reserveringen' })).toBeInTheDocument();
+    await waitFor(() => expect(production).toHaveBeenCalledWith(9));
+    expect(await screen.findByText(i18n.t('productionQuality.partCounts', { good: 4, reject: 1 }), { exact: false })).toBeInTheDocument();
     expect(screen.getByText('Materiaal #4')).toBeInTheDocument();
     expect(screen.getByText(/Resterend: 10 C62/)).toBeInTheDocument();
     await user.type(screen.getByRole('spinbutton', { name: 'Hoeveelheid' }), '3');

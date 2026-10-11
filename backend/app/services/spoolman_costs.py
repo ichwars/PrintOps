@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import math
 
+from backend.app.services.spoolman_weights import spoolman_net_weight
+
 SPOOLMAN_COST_SOURCE_KEY = "cost_source"
 SPOOLMAN_COST_SOURCE = "spoolman"
 
@@ -60,9 +62,10 @@ def spoolman_usage_cost(spool: dict | None, grams_used) -> float | None:
         return None
 
     price = positive_finite_number(spool.get("price"))
+    weight = positive_finite_number(spoolman_net_weight(spool))
     if price is None:
         price = positive_finite_number(filament.get("price"))
-    weight = positive_finite_number(filament.get("weight"))
+        weight = positive_finite_number(filament.get("weight"))
     if price is None or weight is None:
         return None
 

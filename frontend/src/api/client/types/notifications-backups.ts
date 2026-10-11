@@ -9,6 +9,8 @@ export interface NotificationProvider {
   config: Record<string, unknown>;
   // Print lifecycle events
   on_print_start: boolean;
+  on_print_confirm_request?: boolean;
+  attach_photo?: boolean;
   on_print_complete: boolean;
   on_print_failed: boolean;
   on_print_stopped: boolean;
@@ -70,6 +72,8 @@ export interface NotificationProviderCreate {
   config: Record<string, unknown>;
   // Print lifecycle events
   on_print_start?: boolean;
+  on_print_confirm_request?: boolean;
+  attach_photo?: boolean;
   on_print_complete?: boolean;
   on_print_failed?: boolean;
   on_print_stopped?: boolean;
@@ -124,6 +128,8 @@ export interface NotificationProviderUpdate {
   config?: Record<string, unknown>;
   // Print lifecycle events
   on_print_start?: boolean;
+  on_print_confirm_request?: boolean;
+  attach_photo?: boolean;
   on_print_complete?: boolean;
   on_print_failed?: boolean;
   on_print_stopped?: boolean;

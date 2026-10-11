@@ -30,8 +30,11 @@ class NotificationProviderBase(BaseModel):
     enabled: bool = Field(default=True, description="Whether notifications are enabled")
     config: dict[str, Any] = Field(..., description="Provider-specific configuration")
 
+    attach_photo: bool = True
+
     # Event triggers - print lifecycle
     on_print_start: bool = Field(default=False, description="Notify on print start")
+    on_print_confirm_request: bool = True
     on_print_complete: bool = Field(default=True, description="Notify on print complete")
     on_print_failed: bool = Field(default=True, description="Notify on print failed")
     on_print_stopped: bool = Field(default=True, description="Notify when print is stopped/cancelled")
@@ -50,6 +53,10 @@ class NotificationProviderBase(BaseModel):
     )
     on_filament_low: bool = Field(default=False, description="Notify when filament is running low")
     on_maintenance_due: bool = Field(default=False, description="Notify when maintenance is due")
+
+    # Event triggers - inventory stock alerts
+    on_stock_reorder_alert: bool = Field(default=False, description="Notify when stock reaches the reorder point")
+    on_stock_break_alert: bool = Field(default=False, description="Notify when stock will run out before replenishment")
 
     # Event triggers - AMS environmental alarms (regular AMS)
     on_ams_humidity_high: bool = Field(default=False, description="Notify when AMS humidity exceeds threshold")
@@ -126,10 +133,12 @@ class NotificationProviderUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     provider_type: ProviderType | None = None
     enabled: bool | None = None
+    attach_photo: bool | None = None
     config: dict[str, Any] | None = None
 
     # Event triggers - print lifecycle
     on_print_start: bool | None = None
+    on_print_confirm_request: bool | None = None
     on_print_complete: bool | None = None
     on_print_failed: bool | None = None
     on_print_stopped: bool | None = None
@@ -142,6 +151,8 @@ class NotificationProviderUpdate(BaseModel):
     on_ai_failure_detection: bool | None = None
     on_filament_low: bool | None = None
     on_maintenance_due: bool | None = None
+    on_stock_reorder_alert: bool | None = None
+    on_stock_break_alert: bool | None = None
 
     # Event triggers - AMS environmental alarms (regular AMS)
     on_ams_humidity_high: bool | None = None

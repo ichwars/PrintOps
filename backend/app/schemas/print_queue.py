@@ -69,6 +69,8 @@ class PrintQueueItemCreate(BaseModel):
     # matches BambuStudio's default; the MQTT layer ignores the flag on
     # single-nozzle printers so the wire value stays "skip" there.
     nozzle_offset_cali: bool = True
+    confirm_outcome: bool = False
+    expected_parts: int | None = Field(default=None, ge=1, le=1000000, strict=True)
     # Preheat / heat-soak per-item override (#1468). 'inherit' uses the global
     # preheat_enabled setting; 'on' / 'off' force the decision. The chamber
     # target falls through: this override → max(filament-map[loaded tray]) → 0.
@@ -115,6 +117,8 @@ class PrintQueueItemUpdate(BaseModel):
     timelapse: bool | None = None
     use_ams: bool | None = None
     nozzle_offset_cali: bool | None = None
+    confirm_outcome: bool | None = None
+    expected_parts: int | None = Field(default=None, ge=1, le=1000000, strict=True)
     preheat_override: Literal["inherit", "on", "off"] | None = None
     preheat_chamber_target_override: int | None = Field(default=None, ge=0, le=60)
     # Auto-print G-code injection
@@ -167,6 +171,8 @@ class PrintQueueItemResponse(BaseModel):
     timelapse: bool = False
     use_ams: bool = True
     nozzle_offset_cali: bool = True
+    confirm_outcome: bool = False
+    expected_parts: int | None = Field(default=None, ge=1, le=1000000, strict=True)
     preheat_override: Literal["inherit", "on", "off"] = "inherit"
     preheat_chamber_target_override: int | None = None
     status: Literal["pending", "printing", "completed", "failed", "skipped", "cancelled"]
@@ -243,18 +249,9 @@ class PrintQueueReorder(BaseModel):
         """Reject reorder requests with duplicate positions in the payload
         (#1625-followup).
 
-        The /reorder route is the drag-drop renumber path on the queue UI;
-        a well-behaved client sends a contiguous renumbering of a single
-        printer's pending queue. A buggy client that sends two items at
-        the same position would leave the queue in an inconsistent state
-        (scheduler's ORDER BY (printer_id, position) ties get broken by
-        physical row order). Fail closed at the schema boundary so the
-        bug is caught before any DB mutation.
-
-        Uniqueness is enforced WITHIN THE PAYLOAD only — cross-printer
-        reorders that intentionally share positions across different
-        printer queues are a non-goal of the drag-drop UI, so this is the
-        right scope.
+        The /reorder route renumbers pending items in global queue order.
+        Duplicate positions make dispatch order ambiguous, so reject them
+        before mutation. Partial payloads remain supported.
         """
         positions = [it.position for it in self.items]
         if len(positions) != len(set(positions)):
@@ -367,6 +364,12 @@ class PrintBatchUngroupResponse(BaseModel):
 class PrintBatchPlateProgress(BaseModel):
     """Per-plate progress within a batch."""
 
+    accepted_count: int = 0
+    unconfirmed_count: int = 0
+    rejected_count: int = 0
+    good_quantity: int = 0
+    reject_quantity: int = 0
+
     plate_id: int | None = None
     plate_name: str | None = None
     quantity_target: int = 0
@@ -389,6 +392,12 @@ class PrintBatchPlateProgress(BaseModel):
 
 class PrintBatchResponse(BaseModel):
     """Response for a print batch with progress stats."""
+
+    accepted_count: int = 0
+    unconfirmed_count: int = 0
+    rejected_count: int = 0
+    good_quantity: int = 0
+    reject_quantity: int = 0
 
     id: int
     name: str

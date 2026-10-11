@@ -1,11 +1,20 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class PrintLogEntrySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: int
     archive_id: int | None = None
+    project_id: int | None = None
+    quantity: int = 1
+    confirm_requested: bool = False
+    user_verdict: str | None = None
+    good_quantity: int | None = None
+    reject_quantity: int | None = None
+    user_verdict_source: str | None = None
+    user_verdict_at: datetime | None = None
     print_name: str | None = None
     printer_name: str | None = None
     printer_id: int | None = None

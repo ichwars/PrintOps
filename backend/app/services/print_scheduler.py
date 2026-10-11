@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import time
+import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,8 +26,10 @@ from backend.app.models.smart_plug import SmartPlug
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.services.archive_plate_metadata import refresh_archive_plate_metadata
+from backend.app.services.automatic_drying_dispatch import check_auto_drying
 from backend.app.services.automatic_drying_state import start_drying, stop_drying, sync_drying_state
 from backend.app.services.bambu_ftp import (
+    FtpFailureKind,
     FtpFailureReport,
     UploadCancelled,
     cache_3mf_download,
@@ -38,6 +41,7 @@ from backend.app.services.bambu_ftp import (
 )
 from backend.app.services.drying_ownership import claim_queue_item, reserved_printers
 from backend.app.services.filament_deficit import compute_deficit_for_queue_item
+from backend.app.services.filament_low_monitor import FilamentLowMonitor
 from backend.app.services.ha_sensor_manager import ha_sensor_manager
 from backend.app.services.library_queue_references import (
     consume_transient_library_source,
@@ -61,8 +65,11 @@ from backend.app.services.smart_plug_selection import (
     pick_power_plug as select_power_plug,
     plugs_for_printer,
 )
+from backend.app.services.spoolman_sku_reconciliation import SpoolmanSkuReconciler
+from backend.app.services.stock_alert_monitor import StockAlertMonitor
 from backend.app.utils.filename import derive_remote_filename
 from backend.app.utils.printer_models import is_gcode_compatible, normalize_printer_model
+from backend.app.utils.threemf_tools import default_plate_number
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +82,37 @@ logger = logging.getLogger(__name__)
 # sub-200 ms files.
 _DISPATCH_PROGRESS_BYTE_STEP = 256 * 1024
 _DISPATCH_PROGRESS_MIN_INTERVAL_SECS = 0.2
+
+_UPLOAD_REQUEUE_KINDS = frozenset(
+    {FtpFailureKind.HANDSHAKE, FtpFailureKind.COOLOFF, FtpFailureKind.TIMEOUT, FtpFailureKind.NETWORK}
+)
+UPLOAD_FAILURE_BACKOFF_SECONDS = 300
+UPLOAD_FAILURE_BACKOFF_MAX_SECONDS = 3600
+
+
+def _upload_backoff_seconds(refusals: int) -> int:
+    # Clamp the exponent before computing it, even during very long outages.
+    return min(UPLOAD_FAILURE_BACKOFF_SECONDS * 2 ** min(max(refusals - 1, 0), 4), UPLOAD_FAILURE_BACKOFF_MAX_SECONDS)
+
+
+def _effective_plate_id(explicit_plate_id: int | None, file_path: Path) -> int:
+    """Resolve one plate for injection, usage registration and dispatch.
+
+    A positive explicit selection wins even if absent from the archive;
+    redirecting it would print an unrequested model. Unset/non-positive IDs
+    use the archive's default G-code number because a lone exported plate can
+    retain e.g. ``plate_2.gcode``. Unreadable or unnumbered files retain the
+    existing plate-1 fallback.
+    """
+    if explicit_plate_id is not None and explicit_plate_id > 0:
+        return explicit_plate_id
+    try:
+        with zipfile.ZipFile(file_path) as zf:
+            resolved = default_plate_number(zf.namelist())
+    except (OSError, zipfile.BadZipFile) as exc:
+        logger.warning("Dispatch plate: cannot read %s (%s); falling back to plate 1", file_path, exc)
+        return 1
+    return resolved if resolved is not None else 1
 
 
 class _UploadProgressBridge:
@@ -305,6 +343,16 @@ def _mapping_is_all_unresolved(mapping: list | None) -> bool:
     return all(slot is None or (isinstance(slot, int) and slot < 0) for slot in mapping)
 
 
+def _could_take_printer(item: PrintQueueItem, printer_id: int, printer_model: str | None) -> bool:
+    if item.printer_id is not None:
+        return item.printer_id == printer_id
+    if not printer_model:
+        return False
+    wanted = (normalize_printer_model(printer_model) or printer_model).lower()
+    models = [v.target_model for v in item.variants] if item.variants else [item.target_model]
+    return any(model and (normalize_printer_model(model) or model).lower() == wanted for model in models)
+
+
 class PrintScheduler:
     """Background scheduler that processes the print queue."""
 
@@ -327,6 +375,9 @@ class PrintScheduler:
         self._fast_check_interval = 3  # seconds after productive queue passes
         self._power_on_wait_time = 180  # seconds to wait for printer after power on (3 min)
         self._power_on_check_interval = 10  # seconds between connection checks
+        self._upload_backoff: dict[int, float] = {}
+        self._upload_refusals: dict[int, int] = {}
+        self._upload_refusal_notified: set[int] = set()
         # Track which printers are currently auto-drying (printer_id -> start timestamp)
         self._drying_in_progress: dict[int, float] = {}
         # Defensive in-memory dispatch hold (#1157): a printer that just received
@@ -353,31 +404,67 @@ class PrintScheduler:
         self._inflight: dict[int, tuple[asyncio.Task, int | None]] = {}
         self._stranded_print_recovery = StrandedPrintRecovery()
         self._keep_warm = QueueKeepWarm()
+        self._external_skus = SpoolmanSkuReconciler()
+        self._stock_alerts = StockAlertMonitor()
+        self._filament_low = FilamentLowMonitor()
+        self._inventory_alert_task: asyncio.Task | None = None
+        self._inventory_alerts_stopped = False
 
     async def run(self):
         """Main loop - check queue every interval."""
         self._running = True
+        self._inventory_alerts_stopped = False
         logger.info("Print scheduler started")
 
         await preheat_ownership.recover(printer_manager)
         await self._clear_stale_dispatch_claims()
 
-        while self._running:
-            dispatched = False
-            try:
-                await self._stranded_print_recovery.tick()
-                await scheduled_drying.tick()
-                dispatched = await self.check_queue()
-            except Exception as e:
-                logger.error("Scheduler error: %s", e)
+        try:
+            while self._running:
+                dispatched = False
+                try:
+                    await self._stranded_print_recovery.tick()
+                    await scheduled_drying.tick()
+                    dispatched = await self.check_queue()
+                except Exception as e:
+                    logger.error("Scheduler error: %s", e)
 
-            await asyncio.sleep(self._fast_check_interval if dispatched else self._check_interval)
+                await asyncio.sleep(self._fast_check_interval if dispatched else self._check_interval)
+        finally:
+            await self.close_inventory_alerts()
 
     def stop(self):
         """Stop the scheduler."""
         self._running = False
+        self._inventory_alerts_stopped = True
+        if self._inventory_alert_task is not None:
+            self._inventory_alert_task.cancel()
         preheat_ownership.stop()
         logger.info("Print scheduler stopped")
+
+    def _schedule_inventory_alerts(self) -> None:
+        if self._inventory_alerts_stopped:
+            return
+        if self._inventory_alert_task is not None and not self._inventory_alert_task.done():
+            return
+        self._inventory_alert_task = spawn_background_task(
+            self._check_inventory_alerts(async_session), name="inventory-alerts"
+        )
+
+    async def _check_inventory_alerts(self, session_factory) -> None:
+        async with session_factory() as db:
+            await self._external_skus.tick(db)
+            await self._stock_alerts.tick(db)
+            await self._filament_low.tick(db)
+
+    async def close_inventory_alerts(self) -> None:
+        """Cancel and drain the owned alert pass before closing database/HTTP clients."""
+        self._inventory_alerts_stopped = True
+        task = self._inventory_alert_task
+        if task is not None:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            self._inventory_alert_task = None
 
     async def _clear_stale_dispatch_claims(self) -> None:
         await clear_stale_dispatch_claims(async_session)
@@ -410,10 +497,9 @@ class PrintScheduler:
         # Check if shortest-job-first scheduling is enabled
         sjf_enabled = await self._get_bool_setting(db, "queue_shortest_first")
 
-        # Get all pending items, ordered by printer and position (or SJF order)
+        # Get all pending items in global position or shortest-job-first order
         if sjf_enabled:
-            # SJF: group by printer (and target_model for model-based jobs),
-            # then items already jumped get top priority (starvation guard),
+            # SJF: items already jumped get top priority (starvation guard),
             # then sort by print_time ascending. Items with no print time go last.
             result = await db.execute(
                 select(PrintQueueItem)
@@ -425,11 +511,10 @@ class PrintScheduler:
                 .where(PrintQueueItem.status == "pending")
                 .where(PrintQueueItem.dispatching_at.is_(None))
                 .order_by(
-                    PrintQueueItem.printer_id,
-                    PrintQueueItem.target_model,
                     PrintQueueItem.been_jumped.desc(),
                     PrintQueueItem.print_time_seconds.asc().nullslast(),
                     PrintQueueItem.position,
+                    PrintQueueItem.id,
                 )
             )
         else:
@@ -442,7 +527,7 @@ class PrintScheduler:
                 )
                 .where(PrintQueueItem.status == "pending")
                 .where(PrintQueueItem.dispatching_at.is_(None))
-                .order_by(PrintQueueItem.printer_id, PrintQueueItem.position)
+                .order_by(PrintQueueItem.position, PrintQueueItem.id)
             )
         items = list(result.scalars().all())
 
@@ -459,12 +544,48 @@ class PrintScheduler:
         except Exception as exc:
             logger.warning("Keep-warm pass failed, continuing queue dispatch: %s", exc)
 
+    async def _busy_printers_for_pass(self, db) -> set[int]:
+        # Seed busy_printers with printers that already have an item in 'printing'
+        # status. _is_printer_idle() alone is not sufficient as a dispatch gate —
+        # on H2D / P1 series the MQTT state transition from IDLE to RUNNING can
+        # lag several seconds behind the print command, so the next check_queue
+        # tick still sees IDLE and would double-dispatch onto the same printer.
+        # Without this guard, two pending items targeting the same printer
+        # (e.g. a batch with quantity>1) both end up in 'printing' status —
+        # surfaced via the "BUG: Multiple queue items" warning in on_print_complete.
+        busy_result = await db.execute(
+            select(PrintQueueItem.printer_id)
+            .where(PrintQueueItem.status == "printing")
+            .where(PrintQueueItem.printer_id.is_not(None))
+        )
+        busy_printers: set[int] = {pid for (pid,) in busy_result.all() if pid is not None}
+
+        busy_printers.update(await reserved_printers(db))
+        # Defense-in-depth (#1157): augment busy_printers with any printer
+        # still in its post-dispatch hold window. Empirically, the DB seed
+        # above can miss in-flight items in a multi-plate batch — same-file
+        # plates were being dispatched 30 s apart while the H2D was still
+        # digesting the first project_file. The hold is keyed in-memory and
+        # released by the watchdog on the success path, so it adds a layer
+        # that doesn't depend on DB row visibility or completion-callback
+        # timing.
+        for held_printer_id in list(self._dispatch_holds.keys()):
+            if self._printer_in_dispatch_hold(held_printer_id):
+                busy_printers.add(held_printer_id)
+
+        for _task, inflight_printer_id in self._inflight.values():
+            if inflight_printer_id is not None:
+                busy_printers.add(inflight_printer_id)
+
+        return busy_printers
+
     async def check_queue(self) -> bool:
         """Check for prints ready to start.
 
         Returns True while this pass launched or is still tracking uploads so
         the run loop can refill the upload pool promptly.
         """
+        self._schedule_inventory_alerts()
         async with async_session() as db:
             items, sjf_enabled = await self._pending_queue_items(db)
 
@@ -492,37 +613,17 @@ class PrintScheduler:
                 [(i.id, i.printer_id, i.archive_id, i.library_file_id) for i in items],
             )
 
-            # Seed busy_printers with printers that already have an item in 'printing'
-            # status. _is_printer_idle() alone is not sufficient as a dispatch gate —
-            # on H2D / P1 series the MQTT state transition from IDLE to RUNNING can
-            # lag several seconds behind the print command, so the next check_queue
-            # tick still sees IDLE and would double-dispatch onto the same printer.
-            # Without this guard, two pending items targeting the same printer
-            # (e.g. a batch with quantity>1) both end up in 'printing' status —
-            # surfaced via the "BUG: Multiple queue items" warning in on_print_complete.
-            busy_result = await db.execute(
-                select(PrintQueueItem.printer_id)
-                .where(PrintQueueItem.status == "printing")
-                .where(PrintQueueItem.printer_id.is_not(None))
-            )
-            busy_printers: set[int] = {pid for (pid,) in busy_result.all() if pid is not None}
+            busy_printers = await self._busy_printers_for_pass(db)
 
-            busy_printers.update(await reserved_printers(db))
-            # Defense-in-depth (#1157): augment busy_printers with any printer
-            # still in its post-dispatch hold window. Empirically, the DB seed
-            # above can miss in-flight items in a multi-plate batch — same-file
-            # plates were being dispatched 30 s apart while the H2D was still
-            # digesting the first project_file. The hold is keyed in-memory and
-            # released by the watchdog on the success path, so it adds a layer
-            # that doesn't depend on DB row visibility or completion-callback
-            # timing.
-            for held_printer_id in list(self._dispatch_holds.keys()):
-                if self._printer_in_dispatch_hold(held_printer_id):
-                    busy_printers.add(held_printer_id)
-
-            for _task, inflight_printer_id in self._inflight.values():
-                if inflight_printer_id is not None:
-                    busy_printers.add(inflight_printer_id)
+            now_mono = time.monotonic()
+            upload_held: dict[int, str] = {}
+            for printer_id, retry_at in list(self._upload_backoff.items()):
+                if now_mono >= retry_at:
+                    del self._upload_backoff[printer_id]
+                else:
+                    printer = await self._get_printer(db, printer_id)
+                    label = printer.name if printer else f"Printer {printer_id}"
+                    upload_held[printer_id] = f"{label} is not accepting files — PrintOps will retry automatically"
 
             # Printers held by a Home Assistant sensor interlock (#1148) — an
             # enclosure door left open, say. The fixed-printer branch turns
@@ -586,6 +687,21 @@ class PrintScheduler:
                     continue
 
                 if item.printer_id:
+                    upload_reason = upload_held.get(item.printer_id)
+                    if upload_reason:
+                        if item.waiting_reason != upload_reason:
+                            item.waiting_reason = upload_reason
+                            await db.commit()
+                        if item.printer_id not in self._upload_refusal_notified:
+                            self._upload_refusal_notified.add(item.printer_id)
+                            await notification_service.on_queue_job_waiting(
+                                job_name=await self._get_job_name(db, item),
+                                target_model=item.target_model,
+                                waiting_reason=upload_reason,
+                                db=db,
+                            )
+                        skip_reasons["upload_backoff"] = skip_reasons.get("upload_backoff", 0) + 1
+                        continue
                     # Held by a sensor interlock (#1148). Checked before the
                     # busy_printers test that would otherwise swallow it
                     # silently — "waiting for a printer" and "waiting for you
@@ -710,11 +826,13 @@ class PrintScheduler:
 
                     # SJF starvation guard: mark items that were jumped
                     if sjf_enabled and item.print_time_seconds is not None:
+                        printer = await self._get_printer(db, item.printer_id)
                         for other in items:
                             if (
                                 other.id != item.id
+                                and other.id not in dispatch_ids
                                 and other.status == "pending"
-                                and other.printer_id == item.printer_id
+                                and _could_take_printer(other, item.printer_id, printer.model if printer else None)
                                 and not other.been_jumped
                                 and other.position < item.position
                                 and (
@@ -795,7 +913,7 @@ class PrintScheduler:
                             # Sensor-held printers are unavailable to the
                             # matcher but stay out of busy_printers itself
                             # (#1148) — see where `interlocked` is built.
-                            busy_printers | interlocked.keys(),
+                            busy_printers | interlocked.keys() | upload_held.keys(),
                             effective_types,
                             item.target_location,
                             filament_overrides=filament_overrides,
@@ -891,10 +1009,9 @@ class PrintScheduler:
                             for other in items:
                                 if (
                                     other.id != item.id
+                                    and other.id not in dispatch_ids
                                     and other.status == "pending"
-                                    and other.printer_id is None
-                                    and other.target_model
-                                    and other.target_model.upper() == item.target_model.upper()
+                                    and _could_take_printer(other, printer_id, printer.model if printer else None)
                                     and not other.been_jumped
                                     and other.position < item.position
                                     and (
@@ -923,7 +1040,7 @@ class PrintScheduler:
                         awaiting,
                     )
 
-            await self._refresh_keep_warm(db, items, dispatch_ids, interlocked, require_plate_clear)
+            await self._refresh_keep_warm(db, items, dispatch_ids, {**interlocked, **upload_held}, require_plate_clear)
             upload_limit = max(1, await self._get_int_setting(db, "queue_max_concurrent_uploads", default=4))
             await db.commit()
 
@@ -2195,230 +2312,20 @@ class PrintScheduler:
         *,
         require_plate_clear: bool = True,
     ):
-        """Start drying on idle printers based on humidity.
-
-        Three modes (can all be enabled independently):
-        - queue_drying_enabled: Dry between scheduled queue prints
-        - ambient_drying_enabled: Dry any idle printer when humidity is high, regardless of queue
-        - print_drying_enabled: Also evaluate printers that are currently printing,
-          when model+firmware supports "Print While Drying" (gated by
-          supports_drying_while_printing). Drying temperature is capped at
-          max(40, preset_temp - 5) to protect spools mid-print.
-        """
-        queue_drying_enabled = await self._get_bool_setting(db, "queue_drying_enabled")
-        ambient_drying_enabled = await self._get_bool_setting(db, "ambient_drying_enabled")
-        print_drying_enabled = await self._get_bool_setting(db, "print_drying_enabled")
-        if not queue_drying_enabled and not ambient_drying_enabled:
-            # Stop active drying on all printers if both features disabled
-            if self._drying_in_progress:
-                for pid in list(self._drying_in_progress):
-                    logger.info("Auto-drying: printer %d — stopping, auto-drying disabled", pid)
-                    await self._stop_drying(pid)
-            return
-
-        # Update drying state from printer status (handles backend restart)
-        self._sync_drying_state()
-
-        # Find printers with scheduled items (for queue drying mode)
-        printers_with_scheduled: set[int] = set()
-        printers_with_items: set[int] = set()
-        for item in queue_items:
-            if item.printer_id:
-                printers_with_items.add(item.printer_id)
-                if item.scheduled_time and not item.manual_start:
-                    printers_with_scheduled.add(item.printer_id)
-
-        # If only queue mode is on and no printers have scheduled items, stop drying
-        # (but skip this short-circuit when print_drying_enabled is on — busy printers
-        # may still be eligible for mid-print drying regardless of queue state).
-        if not ambient_drying_enabled and not printers_with_scheduled and not print_drying_enabled:
-            for pid in list(self._drying_in_progress):
-                logger.info("Auto-drying: printer %d — stopping, no scheduled prints in queue", pid)
-                await self._stop_drying(pid)
-            return
-
-        # Get humidity threshold (global fallback)
-        result = await db.execute(select(Settings).where(Settings.key == "ams_humidity_fair"))
-        setting = result.scalar_one_or_none()
-        global_humidity_threshold = int(setting.value) if setting else 60
-
-        # Per-filament humidity threshold overrides (#1605). Empty → fall back
-        # to the global threshold for every AMS unit.
-        per_type_thresholds = await self._get_humidity_thresholds(db)
-
-        # Get drying presets
-        presets = await self._get_drying_presets(db)
-
-        # Determine if drying should be skipped for printers with pending items
-        block_for_drying = await self._get_bool_setting(db, "queue_drying_block")
-
-        # Get all active printers
-        scheduled_owners = await reserved_printers(db)
-        all_printers = await db.execute(select(Printer).where(Printer.is_active.is_(True)))
-        for printer in all_printers.scalars():
-            pid = printer.id
-            if pid in scheduled_owners:
-                continue
-
-            # Resolve model+firmware up front — needed to decide whether this printer
-            # qualifies for mid-print drying (busy printer on capable hardware).
-            state = printer_manager.get_status(pid)
-            if not state:
-                logger.debug("Auto-drying: printer %d skipped — no state", pid)
-                continue
-            model = printer_manager.get_model(pid)
-            firmware = state.firmware_version
-
-            mid_print = (
-                pid in busy_printers and print_drying_enabled and supports_drying_while_printing(model, firmware)
-            )
-
-            if pid in busy_printers and not mid_print:
-                logger.debug("Auto-drying: printer %d skipped — busy", pid)
-                continue
-
-            if not mid_print:
-                # In queue-only mode, only dry printers that have scheduled prints
-                if not ambient_drying_enabled and pid not in printers_with_scheduled:
-                    if self._drying_in_progress.get(pid):
-                        logger.info("Auto-drying: printer %d — stopping, no scheduled prints for this printer", pid)
-                        await self._stop_drying(pid)
-                    logger.debug("Auto-drying: printer %d skipped — no scheduled prints", pid)
-                    continue
-                # When block mode is on, don't START new drying on printers with pending items.
-                # But allow already-drying printers through so humidity auto-stop logic still runs.
-                if block_for_drying and pid in printers_with_items and not self._drying_in_progress.get(pid):
-                    logger.debug("Auto-drying: printer %d skipped — has pending items (block mode)", pid)
-                    continue
-            if not printer_manager.is_connected(pid):
-                logger.debug("Auto-drying: printer %d skipped — not connected", pid)
-                continue
-            if not mid_print and not self._is_printer_idle(pid, require_plate_clear):
-                logger.debug("Auto-drying: printer %d skipped — not idle", pid)
-                continue
-
-            # Check drying capability. For mid-print path, supports_drying_while_printing
-            # was already verified when computing mid_print above.
-            if not mid_print and not supports_drying(model, firmware):
-                logger.debug("Auto-drying: printer %d skipped — model %s does not support drying", pid, model)
-                continue
-
-            # Check each AMS unit from raw_data
-            ams_list = state.raw_data.get("ams", [])
-            logger.debug("Auto-drying: printer %d — checking %d AMS units", pid, len(ams_list))
-            for ams_data in ams_list:
-                module_type = str(ams_data.get("module_type") or "")
-                ams_id = int(ams_data.get("id", 0))
-                # Only n3f/n3s support drying
-                if module_type not in ("n3f", "n3s"):
-                    logger.debug("Auto-drying: printer %d AMS %d skipped — module_type=%s", pid, ams_id, module_type)
-                    continue
-
-                # Resolve per-filament humidity threshold for this AMS unit (#1605).
-                # Most-restrictive of all loaded tray types; falls back to the
-                # global threshold when no overrides are configured.
-                trays = ams_data.get("tray", []) or []
-                humidity_threshold = self.resolve_humidity_threshold(
-                    trays, per_type_thresholds, global_humidity_threshold
-                )
-
-                dry_time = int(ams_data.get("dry_time") or 0)
-
-                # Read humidity — prefer humidity_raw (actual %) over humidity (index 1-5)
-                humidity = None
-                h_raw = ams_data.get("humidity_raw")
-                if h_raw is not None:
-                    try:
-                        humidity = int(h_raw)
-                    except (ValueError, TypeError):
-                        pass
-                if humidity is None:
-                    h_idx = ams_data.get("humidity")
-                    if h_idx is not None:
-                        try:
-                            humidity = int(h_idx)
-                        except (ValueError, TypeError):
-                            pass
-                # Already drying — let it run to its configured duration (#1892).
-                #
-                # We deliberately do NOT stop drying from a humidity re-check here.
-                # Relative humidity drops steeply in heated air, so the AMS sensor
-                # reads ~15-20% within minutes of the dryer starting even while the
-                # filament is still saturated. A humidity-based early-stop therefore
-                # always fires at the minimum-time floor, truncating both user-started
-                # manual cycles and PrintOps's own preset-duration dries to ~30 min.
-                # The firmware stops when the configured duration elapses; scheduling
-                # stops (print takes priority, queue no longer needs drying) are
-                # handled separately via _stop_drying().
-                if dry_time > 0:
-                    if pid not in self._drying_in_progress:
-                        # Drying we didn't start (manual or from before restart) —
-                        # track it so scheduling stops still apply; never auto-stop it.
-                        self._drying_in_progress[pid] = time.monotonic()
-                    logger.debug(
-                        "Auto-drying: printer %d AMS %d — drying (%dm left, humidity %s%%), letting it run",
-                        pid,
-                        ams_id,
-                        dry_time,
-                        humidity,
-                    )
-                    continue
-
-                # Humidity below threshold — no need to start drying
-                if humidity is None or humidity <= humidity_threshold:
-                    logger.debug(
-                        "Auto-drying: printer %d AMS %d skipped — humidity %s <= threshold %d",
-                        pid,
-                        ams_id,
-                        humidity,
-                        humidity_threshold,
-                    )
-                    continue
-
-                # Check cannot-dry reasons (power constraints etc.)
-                sf_reasons = ams_data.get("dry_sf_reason", [])
-                if sf_reasons:
-                    logger.debug(
-                        "Auto-drying: printer %d AMS %d skipped — cannot dry reasons: %s",
-                        pid,
-                        ams_id,
-                        sf_reasons,
-                    )
-                    continue
-
-                # Get conservative drying params for mixed filaments
-                params = self._get_conservative_drying_params(trays, module_type, presets)
-                if not params:
-                    logger.debug(
-                        "Auto-drying: printer %d AMS %d skipped — no drying-eligible filaments in trays", pid, ams_id
-                    )
-                    continue
-
-                temp, duration_hours, filament_type = params
-
-                # Mid-print drying: cap drying temperature to protect spools (Bambu warns
-                # "drying temperature must not exceed the filament's softening temperature"
-                # for Print While Drying). Floor at 40 degC — below that the dryer is
-                # ineffective and firmware will reject anyway.
-                if mid_print:
-                    temp = max(40, temp - 5)
-
-                # Start drying
-                logger.info(
-                    "Auto-drying: printer %d AMS %d — humidity %d%% > threshold %d%%, "
-                    "starting %s drying at %d°C for %dh%s",
-                    pid,
-                    ams_id,
-                    humidity,
-                    humidity_threshold,
-                    filament_type,
-                    temp,
-                    duration_hours,
-                    " (mid-print)" if mid_print else "",
-                )
-                success = await start_drying(db, printer_manager, pid, ams_id, temp, duration_hours, filament_type)
-                if success:
-                    self._drying_in_progress[pid] = time.monotonic()
+        await check_auto_drying(
+            self,
+            db,
+            queue_items,
+            busy_printers,
+            require_plate_clear=require_plate_clear,
+            printer_manager=printer_manager,
+            reserved_printers=reserved_printers,
+            supports_drying=supports_drying,
+            supports_drying_while_printing=supports_drying_while_printing,
+            start_drying=start_drying,
+            time=time,
+            logger=logger,
+        )
 
     def _sync_drying_state(self):
         sync_drying_state(self._drying_in_progress, printer_manager)
@@ -2820,6 +2727,12 @@ class PrintScheduler:
             await self._power_off_if_needed(db, item)
             return
 
+        if archive:
+            from backend.app.services.print_confirmation import initialize_queue_outcome
+
+            await initialize_queue_outcome(db, item, archive)
+            await db.commit()
+
         # Check file exists on disk
         if not file_path.exists():
             item.status = "failed"
@@ -2835,6 +2748,30 @@ class PrintScheduler:
             await db.commit()
 
         return printer, archive, library_file, file_path, filename, cleanup_disk_paths
+
+    async def _requeue_after_upload_refused(self, db, item, printer, error_msg, toast_uid):
+        # Keep the assigned printer: persisted AMS mappings belong to its trays.
+        # The caller refreshed status, so never overwrite a concurrent cancel.
+        refusals = self._upload_refusals.get(printer.id, 0) + 1
+        self._upload_refusals[printer.id] = refusals
+        delay = _upload_backoff_seconds(refusals)
+        self._upload_backoff[printer.id] = time.monotonic() + delay
+        if item.error_message:
+            item.error_message = None
+            await db.commit()
+        logger.warning(
+            "Queue item %s: upload refused (%s); retained, retrying printer %s in %ss",
+            item.id,
+            error_msg,
+            printer.id,
+            delay,
+        )
+        try:
+            await ws_manager.send_queue_item_failed(
+                user_id=toast_uid, queue_item_id=item.id, printer_id=item.printer_id, reason="upload_failed"
+            )
+        except Exception:
+            pass
 
     async def _upload_print_file(self, db, item, printer, file_path, filename, injected_path):
         # Upload to root directory (not /cache/) - the start_print command references
@@ -2933,6 +2870,10 @@ class PrintScheduler:
             if item.status != "pending":
                 return  # A concurrent cancellation/removal also owns the failure outcome.
             error_msg = upload_error or describe_upload_failure(upload_failure.failure)
+            failure = upload_failure.failure
+            if upload_error is None and failure is not None and failure.kind in _UPLOAD_REQUEUE_KINDS:
+                await self._requeue_after_upload_refused(db, item, printer, error_msg, toast_uid)
+                return
             item.status = "failed"
             item.error_message = error_msg
             item.completed_at = datetime.now(timezone.utc)
@@ -2962,9 +2903,12 @@ class PrintScheduler:
             await self._power_off_if_needed(db, item)
             return
 
+        self._upload_backoff.pop(printer.id, None)
+        self._upload_refusals.pop(printer.id, None)
+        self._upload_refusal_notified.discard(printer.id)
         return remote_filename, remote_path, ftp_timeout, toast_uid
 
-    async def _inject_dispatch_gcode(self, db, item, printer, file_path):
+    async def _inject_dispatch_gcode(self, db, item, printer, file_path, effective_plate_id):
         # G-code injection for auto-print systems (#422)
         injected_path = None
         if item.gcode_injection:
@@ -2979,7 +2923,7 @@ class PrintScheduler:
                         from backend.app.utils.threemf_tools import inject_gcode_into_3mf
 
                         injected_path = inject_gcode_into_3mf(
-                            file_path, item.plate_id or 1, start_gc or None, end_gc or None
+                            file_path, effective_plate_id, start_gc or None, end_gc or None
                         )
                         if injected_path:
                             file_path = injected_path
@@ -2998,6 +2942,18 @@ class PrintScheduler:
             return
         async with preheat_ownership.dispatch(item, printer_manager, db):
             await self._start_print_owned(db, item)
+
+    @staticmethod
+    def _parse_dispatch_mapping(item):
+        # Parse AMS mapping if stored
+        ams_mapping = None
+        if item.ams_mapping:
+            try:
+                ams_mapping = json.loads(item.ams_mapping)
+            except json.JSONDecodeError:
+                logger.warning("Queue item %s: Invalid AMS mapping JSON, ignoring", item.id)
+
+        return ams_mapping
 
     async def _start_print_owned(self, db: AsyncSession, item: PrintQueueItem):
         """Upload file and start print for a queue item.
@@ -3019,19 +2975,16 @@ class PrintScheduler:
         await self._preheat_and_soak(db, item, printer, archive)
         preheat_ownership.release_skipped_preheat()
 
-        file_path, injected_path = await self._inject_dispatch_gcode(db, item, printer, file_path)
+        # Resolve against the original file before injection/upload replaces or
+        # removes the temporary path. All dispatch consumers share this ID.
+        effective_plate_id = _effective_plate_id(item.plate_id, file_path)
+        file_path, injected_path = await self._inject_dispatch_gcode(db, item, printer, file_path, effective_plate_id)
         uploaded = await self._upload_print_file(db, item, printer, file_path, filename, injected_path)
         if uploaded is None:
             return
         remote_filename, remote_path, ftp_timeout, toast_uid = uploaded
 
-        # Parse AMS mapping if stored
-        ams_mapping = None
-        if item.ams_mapping:
-            try:
-                ams_mapping = json.loads(item.ams_mapping)
-            except json.JSONDecodeError:
-                logger.warning("Queue item %s: Invalid AMS mapping JSON, ignoring", item.id)
+        ams_mapping = self._parse_dispatch_mapping(item)
 
         # Register as expected print so we don't create a duplicate archive
         # Only applicable for archive-based prints
@@ -3044,7 +2997,7 @@ class PrintScheduler:
                 archive.id,
                 ams_mapping=ams_mapping,
                 created_by_id=item.created_by_id,
-                plate_id=item.plate_id,
+                plate_id=effective_plate_id,
             )
 
         # Propagate the queue item's owner into printer_manager so the
@@ -3053,6 +3006,17 @@ class PrintScheduler:
         # items) or when the user clicks the manual-start button.
         await self._propagate_owner_to_printer_manager(db, item)
         require_plate_clear = await self._get_bool_setting(db, "require_plate_clear", default=False)
+
+        # K recovery may yield to a user cancellation. Keep it before the
+        # pending-to-printing CAS so that cancellation wins before MQTT send.
+        from backend.app.services import kprofile_drift
+
+        try:
+            await kprofile_drift.reapply_lost_kprofiles(
+                item.printer_id, kprofile_drift.dispatch_trays(ams_mapping, item.use_ams), throttle=False
+            )
+        except Exception:
+            logger.exception("Queue item %s: K-profile recovery before dispatch failed", item.id)
 
         # Persist "printing" before MQTT to prevent phantom retries after a crash.
         # The CAS also lets a concurrent cancellation win before printer dispatch (#1853).
@@ -3142,7 +3106,7 @@ class PrintScheduler:
         started = printer_manager.start_print(
             item.printer_id,
             remote_filename,
-            plate_id=item.plate_id or 1,
+            plate_id=effective_plate_id,
             ams_mapping=ams_mapping,
             bed_levelling=item.bed_levelling,
             flow_cali=item.flow_cali,

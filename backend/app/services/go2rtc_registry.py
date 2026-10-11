@@ -38,14 +38,17 @@ _GRACE_SECONDS = 5.0
 
 
 class _Registration:
-    __slots__ = ("go2rtc_name", "local_server", "refcount", "grace_task", "registered_at")
+    __slots__ = ("go2rtc_name", "local_server", "refcount", "grace_task", "registered_at", "source_urls")
 
-    def __init__(self, go2rtc_name: str, local_server: asyncio.Server | None) -> None:
+    def __init__(
+        self, go2rtc_name: str, local_server: asyncio.Server | None, source_urls: list[str] | None = None
+    ) -> None:
         self.go2rtc_name = go2rtc_name
         self.local_server = local_server
         self.refcount = 0
         self.grace_task: asyncio.Task | None = None
         self.registered_at = time.time()
+        self.source_urls = list(source_urls or [])
 
 
 _registrations: dict[int, _Registration] = {}
@@ -126,7 +129,7 @@ async def acquire(printer_id: int, source: CameraSource) -> str:
                 registered = await go2rtc_client.ensure_stream_multi(go2rtc_name, result.go2rtc_sources)
                 if not registered:
                     raise RuntimeError("go2rtc unavailable")
-                new_reg = _Registration(go2rtc_name, result.local_server)
+                new_reg = _Registration(go2rtc_name, result.local_server, result.go2rtc_sources)
                 new_reg.refcount = 1
                 _registrations[printer_id] = new_reg
                 transferred = True
@@ -139,6 +142,24 @@ async def acquire(printer_id: int, source: CameraSource) -> str:
         if not transferred:
             await _close_local_server(result.local_server)
         raise
+
+
+async def restart(printer_id: int) -> bool:
+    """Restart the shared producer without changing reference/relay ownership.
+
+    Reconnecting only the MJPEG consumer can leave go2rtc's ffmpeg derivative
+    repeating its last frame. Reuse the registered URLs and existing relay;
+    active MJPEG viewers remain attached to their fan-out generator.
+    """
+    async with _lock:
+        reg = _registrations.get(printer_id)
+        if reg is None or not reg.source_urls:
+            return False
+        await go2rtc_client.remove_stream(reg.go2rtc_name)
+        restored = await go2rtc_client.ensure_stream_multi(reg.go2rtc_name, reg.source_urls)
+        if restored:
+            reg.registered_at = time.time()
+        return restored
 
 
 async def release(printer_id: int) -> None:

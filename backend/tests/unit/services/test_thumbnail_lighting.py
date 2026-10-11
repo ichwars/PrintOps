@@ -34,14 +34,13 @@ def test_cube_has_three_visible_surface_tones_in_library_and_plate(tmp_path):
 
 
 def test_degenerate_facets_keep_the_unlit_fallback():
-    import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
     from backend.app.services.plate_thumbnail import _render_at_size
 
     triangles = np.zeros((2, 3, 3))
     assert thumbnail_shading(triangles) == {}
-    assert _render_at_size(triangles, 128, plt, Poly3DCollection).startswith(b"\x89PNG")
+    assert _render_at_size(triangles, 128, Poly3DCollection).startswith(b"\x89PNG")
 
 
 def test_broken_winding_is_repaired_without_losing_the_thumbnail(tmp_path):

@@ -1,8 +1,8 @@
 """Per-slice 3MF input normalisation for the slicer pipeline.
 
-This module currently exposes one helper, :func:`substitute_unused_plate_filaments`,
-which rewrites the user's filament list so unused-slot entries don't trip
-BambuStudio's loaded-filament temperature validator. The original goal of
+The shared project-setting sanitizer removes known inherit/index markers before
+preview and real slices. :func:`substitute_unused_plate_filaments` rewrites unused
+filament slots so they don't trip BambuStudio's temperature validator. The original goal of
 this module — a two-pass cross-nozzle-class config-splice (#1493) — was
 replaced by a simpler approach: forwarding the sidecar's existing
 ``--arrange`` flag (see ``slicer_api.SlicerApiService.slice_with_profiles``
@@ -35,6 +35,73 @@ logger = logging.getLogger(__name__)
 _PROJECT_SETTINGS_PATH = "Metadata/project_settings.config"
 _MODEL_SETTINGS_PATH = "Metadata/model_settings.config"
 _SLICE_INFO_PATH = "Metadata/slice_info.config"
+
+
+# Marker meanings are field-specific. Zero is a valid current-extruder setting
+# for support/interface fields; only wall/infill indexes need compatibility
+# cleanup for OrcaSlicer versions using the older one-based index scheme.
+PROJECT_SETTINGS_SENTINELS = {
+    "raft_first_layer_expansion": "-1",
+    "tree_support_wall_count": "-1",
+    "prime_tower_brim_width": "-1",
+    "wall_filament": "0",
+    "sparse_infill_filament": "0",
+    "solid_infill_filament": "0",
+}
+PROJECT_SETTINGS_INHERIT_KEYS = frozenset(key for key, marker in PROJECT_SETTINGS_SENTINELS.items() if marker == "-1")
+
+
+def _is_project_setting_sentinel(value: object, marker: str) -> bool:
+    # bool is an int subclass: False must not be interpreted as an index zero.
+    return not isinstance(value, bool) and isinstance(value, (str, int)) and str(value) == marker
+
+
+def sanitize_project_settings_sentinels(zip_bytes: bytes) -> bytes:
+    """Remove only a known key's exact inherit/active-filament marker.
+
+    Keep valid support/interface index zero ("current extruder"), real negative
+    offsets and explicit index assignments. The original archive/member/JSON
+    budgets apply both to parsing settings and copying unaffected entries.
+    Invalid inputs or unchanged settings preserve the input bytes verbatim.
+    """
+    if len(zip_bytes) > MAX_UPLOAD_BYTES:
+        return zip_bytes
+    try:
+        with zipfile.ZipFile(BytesIO(zip_bytes), "r") as zin:
+            validate_zip_archive(zin)
+            if _PROJECT_SETTINGS_PATH not in zin.namelist():
+                return zip_bytes
+            try:
+                config = read_json_member(zin, _PROJECT_SETTINGS_PATH)
+            except (ArchiveBudgetError, ValueError, UnicodeDecodeError):
+                return zip_bytes
+            if not isinstance(config, dict):
+                return zip_bytes
+            removed = {
+                key: marker
+                for key, marker in PROJECT_SETTINGS_SENTINELS.items()
+                if _is_project_setting_sentinel(config.get(key), marker)
+            }
+            if not removed:
+                return zip_bytes
+            for key in removed:
+                config.pop(key, None)
+            patched = json.dumps(config)
+            logger.info(
+                "3MF sanitiser: removed known setting markers %s — slicer will use its defaults",
+                sorted(f"{key}={marker}" for key, marker in removed.items()),
+            )
+            dst = BytesIO()
+            with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
+                for item in zin.infolist():
+                    if item.filename == _PROJECT_SETTINGS_PATH:
+                        zout.writestr(item, patched)
+                    else:
+                        zout.writestr(item, read_zip_member(zin, item))
+            result = dst.getvalue()
+            return result if len(result) <= MAX_UPLOAD_BYTES else zip_bytes
+    except (ArchiveBudgetError, zipfile.BadZipFile, OSError):
+        return zip_bytes
 
 
 def count_plates_in_3mf(zip_bytes: bytes) -> int:

@@ -17,6 +17,7 @@ from backend.app.schemas.warehouse_article import (
     WarehouseBalance,
     WarehouseLocationBalance,
 )
+from backend.app.services import warehouse_number_sequence as numbers
 from backend.app.services.small_parts import get_balance as material_balance
 
 ZERO = Decimal("0")
@@ -73,6 +74,12 @@ def check_precision(quantity: Decimal, unit: SmallPartUnit):
 
 
 async def validate_article(session: AsyncSession, data: WarehouseArticleCreate, article_id: int | None = None):
+    try:
+        await numbers.assert_material_number_available(
+            session, data.sku, exclude_article_id=article_id, exclude_small_part_id=data.small_part_id, lock=False
+        )
+    except ValueError as exc:
+        raise WarehouseError("material_number_conflict", str(exc)) from exc
     # Serialize catalog deletion/precision changes with new article references.
     await session.execute(
         update(SmallPartUnit).where(SmallPartUnit.code == data.unit_code).values(code=SmallPartUnit.code)
@@ -120,6 +127,7 @@ async def validate_article(session: AsyncSession, data: WarehouseArticleCreate, 
 
 
 async def create_article(session: AsyncSession, data: WarehouseArticleCreate) -> WarehouseArticle:
+    await numbers.lock_material_numbers(session)
     await validate_article(session, data)
     article = WarehouseArticle(**data.model_dump())
     session.add(article)
@@ -128,6 +136,8 @@ async def create_article(session: AsyncSession, data: WarehouseArticleCreate) ->
 
 
 async def update_article(session: AsyncSession, article_id: int, data: WarehouseArticleUpdate) -> WarehouseArticle:
+    # Always take the shared namespace writer before article/material row locks.
+    await numbers.lock_material_numbers(session)
     article = await load_article(session, article_id, lock=True)
     if article.small_part_id is not None:
         await session.execute(

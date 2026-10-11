@@ -1,12 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useSyncExternalStore, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, AlertTriangle, Camera, Maximize, Minimize, WifiOff, ZoomIn, ZoomOut, Stethoscope, Thermometer } from 'lucide-react';
-import { api, getAuthToken, getStreamToken, withStreamToken } from '../api/client';
+import { api, getAuthSessionId, subscribeAuthSession, getAuthToken, getStreamToken, withStreamToken } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useStreamTokenSync } from '../hooks/useCameraStreamToken';
 import { useCameraStream } from '../hooks/useCameraStream';
 import { ChamberLight } from '../components/icons/ChamberLight';
 import { SkipObjectsModal, SkipObjectsIcon } from '../components/SkipObjectsModal';
@@ -22,7 +21,7 @@ export function CameraPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const { hasPermission, authEnabled, user } = useAuth();
+  const { hasPermission, authEnabled, user, loading: authLoading } = useAuth();
   const { printerId } = useParams<{ printerId: string }>();
   const id = parseInt(printerId || '0', 10);
   const [searchParams] = useSearchParams();
@@ -37,11 +36,11 @@ export function CameraPage() {
   // Subscribe to the stream-token query so this page re-renders once the token
   // arrives. useStreamTokenSync (mounted in App) already owns the fetch; this
   // useQuery call dedupes via the shared key and just reads the cached value.
-  useStreamTokenSync();
+  const sessionId = useSyncExternalStore(subscribeAuthSession, getAuthSessionId);
   const { data: streamTokenData } = useQuery({
-    queryKey: ['camera-stream-token', user?.id ?? null],
+    queryKey: ['camera-stream-token', user?.id ?? null, sessionId],
     queryFn: () => api.getCameraStreamToken(),
-    enabled: authEnabled ? !!user : true,
+    enabled: !authLoading && (!authEnabled || (!!user && hasPermission('camera:view'))),
     staleTime: 50 * 60 * 1000,
   });
   const streamTokenValue = streamTokenData?.token ?? getStreamToken();

@@ -17,11 +17,13 @@ from backend.app.core.auth import (
     RequirePermissionIfAuthEnabled,
     allowed_printer_ids_for_user,
     require_ownership_permission,
+    resolve_optional_api_key,
     user_can_access_printer,
 )
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
+from backend.app.models.api_key import APIKey
 from backend.app.models.archive import PrintArchive
 from backend.app.models.library import LibraryFile
 from backend.app.models.print_batch import PrintBatch, PrintBatchPlate
@@ -57,6 +59,7 @@ from backend.app.services.print_batch import (
     load_progress,
     refresh_batch_status,
 )
+from backend.app.services.queue_position import lock_queue_positions, reorder_queue_positions
 from backend.app.utils.printer_models import is_gcode_compatible
 from backend.app.utils.threemf_tools import (
     extract_bed_type_from_3mf,
@@ -369,6 +372,8 @@ def _enrich_response(item: PrintQueueItem) -> PrintQueueItemResponse:
         "timelapse": item.timelapse,
         "use_ams": item.use_ams,
         "nozzle_offset_cali": item.nozzle_offset_cali,
+        "confirm_outcome": item.confirm_outcome,
+        "expected_parts": item.expected_parts,
         "preheat_override": item.preheat_override,
         "preheat_chamber_target_override": item.preheat_chamber_target_override,
         "status": item.status,
@@ -498,7 +503,7 @@ async def list_queue(
             # Cross-model candidates (#671) and their files, for the card label.
             selectinload(PrintQueueItem.variants).selectinload(PrintQueueVariant.library_file),
         )
-        .order_by(PrintQueueItem.printer_id.nulls_first(), PrintQueueItem.position)
+        .order_by(PrintQueueItem.position, PrintQueueItem.id)
     )
     if user is not None and not can_read_all:
         query = query.where(PrintQueueItem.created_by_id == user.id)
@@ -791,14 +796,14 @@ async def add_to_queue(
     # Extract filament types for model-based assignment (used by scheduler for validation)
     required_filament_types = None
     file_path = None
-    if target_model_norm:
-        # Get file path from archive or library file
-        if archive:
-            file_path = settings.base_dir / archive.file_path
-        elif library_file:
-            lib_path = Path(library_file.file_path)
-            file_path = lib_path if lib_path.is_absolute() else settings.base_dir / library_file.file_path
+    # Both concrete-printer and model jobs need the source for plate filtering.
+    if archive:
+        file_path = settings.base_dir / archive.file_path
+    elif library_file:
+        lib_path = Path(library_file.file_path)
+        file_path = lib_path if lib_path.is_absolute() else settings.base_dir / library_file.file_path
 
+    if target_model_norm:
         if file_path and file_path.exists():
             filament_types = _extract_filament_types_from_3mf(file_path, data.plate_id)
             if filament_types:
@@ -807,7 +812,7 @@ async def add_to_queue(
 
     # If filament overrides are provided, update required_filament_types to match override types
     filament_overrides_json = None
-    if data.filament_overrides and target_model_norm:
+    if data.filament_overrides:
         plate_overrides = overrides_for_plate(data.filament_overrides, file_path, data.plate_id)
         if plate_overrides:
             filament_overrides_json = json.dumps(plate_overrides)
@@ -870,42 +875,9 @@ async def add_to_queue(
         await db.flush()  # Get batch.id before creating items
         batch_id = batch.id
 
-    # Get queue scope for this printer (or for unassigned/model-based items).
-    if data.printer_id is not None:
-        queue_scope = (
-            PrintQueueItem.printer_id == data.printer_id,
-            PrintQueueItem.status == "pending",
-        )
-    else:
-        # For unassigned/model-based items, scope across all unassigned.
-        queue_scope = (
-            PrintQueueItem.printer_id.is_(None),
-            PrintQueueItem.status == "pending",
-        )
-
-    # Serialize concurrent queue inserts to the same scope (#1625-followup).
-    # The race: two concurrent ASAP inserts both compute MAX(position) before
-    # either commits; in an empty scope, both INSERT at position 1 (duplicate).
-    # In a non-empty scope, Postgres's row-level locks on the UPDATE shift
-    # serialize naturally, but the empty-scope path has no rows to lock.
-    # A transaction-scoped advisory lock keyed on the printer_id closes that
-    # window; the lock is released automatically at commit/rollback. Different
-    # printers don't contend. SQLite serializes writes implicitly so this is a
-    # no-op there.
-    #
-    # Dialect is checked against the actual session binding, NOT the
-    # `is_sqlite()` helper, because the test fixture overrides `get_db` with a
-    # SQLite engine while `settings.database_url` still points at Postgres
-    # (the helper reads settings). Inspecting the connection directly is the
-    # right shape for any code that mutates SQL based on the live dialect.
-    from sqlalchemy import text
-
-    bind = db.get_bind()
-    if bind.dialect.name == "postgresql":
-        scope_key = data.printer_id if data.printer_id is not None else 0
-        # 1625 namespaces the lock so it can't collide with other advisory
-        # locks elsewhere in the codebase.
-        await db.execute(text("SELECT pg_advisory_xact_lock(1625, :k)"), {"k": scope_key})
+    # The UI reorders one list, so every producer shares its sequence.
+    queue_scope = (PrintQueueItem.status == "pending",)
+    await lock_queue_positions(db)
 
     insert_position = max(1, data.insert_position or 1)
     if data.insert_at_top or data.insert_position is not None:
@@ -976,6 +948,8 @@ async def add_to_queue(
             timelapse=data.timelapse,
             use_ams=data.use_ams,
             nozzle_offset_cali=data.nozzle_offset_cali,
+            confirm_outcome=data.confirm_outcome,
+            expected_parts=data.expected_parts,
             preheat_override=data.preheat_override,
             preheat_chamber_target_override=data.preheat_chamber_target_override,
             gcode_injection=data.gcode_injection,
@@ -1567,6 +1541,11 @@ async def _build_batch_response(
         pending_count=progress.pending,
         printing_count=progress.printing,
         completed_count=progress.completed,
+        accepted_count=progress.accepted,
+        unconfirmed_count=progress.unconfirmed,
+        rejected_count=progress.rejected,
+        good_quantity=progress.good_quantity,
+        reject_quantity=progress.reject_quantity,
         failed_count=progress.failed,
         cancelled_count=progress.cancelled,
         skipped_count=progress.skipped,
@@ -1588,6 +1567,11 @@ async def _build_batch_response(
                 pending_count=plate.pending,
                 printing_count=plate.printing,
                 completed_count=plate.completed,
+                accepted_count=plate.accepted,
+                unconfirmed_count=plate.unconfirmed,
+                rejected_count=plate.rejected,
+                good_quantity=plate.good_quantity,
+                reject_quantity=plate.reject_quantity,
                 failed_count=plate.failed,
                 cancelled_count=plate.cancelled,
                 skipped_count=plate.skipped,
@@ -1841,13 +1825,10 @@ async def reorder_queue(
     data: PrintQueueReorder,
     db: AsyncSession = Depends(get_db),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.QUEUE_UPDATE_ALL),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
-    """Bulk update positions for queue items."""
-    for reorder_item in data.items:
-        result = await db.execute(select(PrintQueueItem).where(PrintQueueItem.id == reorder_item.id))
-        item = result.scalar_one_or_none()
-        if item and item.status == "pending" and user_can_access_printer(current_user, item.printer_id):
-            item.position = reorder_item.position
+    """Merge a visible subset's order into its existing global queue slots."""
+    await reorder_queue_positions(db, data.items, current_user, api_key)
 
     await db.commit()
     logger.info("Reordered %s queue items", len(data.items))

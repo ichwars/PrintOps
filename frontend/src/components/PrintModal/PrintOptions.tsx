@@ -28,6 +28,7 @@ export function PrintOptionsPanel({
   // Labels/descriptions reuse the settings.default* namespace — identical strings,
   // already translated across all locales. Only nozzle_offset_cali is new (#1682).
   const printOptionsConfig: OptionConfig[] = [
+    { key: 'confirm_outcome', label: t('productionQuality.ask'), desc: t('productionQuality.askDescription') },
     { key: 'bed_levelling', label: t('settings.defaultBedLevelling'), desc: t('settings.defaultBedLevellingDesc') },
     { key: 'flow_cali', label: t('settings.defaultFlowCali'), desc: t('settings.defaultFlowCaliDesc') },
     { key: 'vibration_cali', label: t('settings.defaultVibrationCali'), desc: t('settings.defaultVibrationCaliDesc') },
@@ -102,6 +103,14 @@ export function PrintOptionsPanel({
               </div>
             </label>
           ))}
+
+          <label className="flex items-center justify-between gap-3 text-sm text-white">
+            <span>{t('productionQuality.expectedParts')}<span className="block text-xs text-bambu-gray">{t('productionQuality.expectedPartsDescription')}</span></span>
+            <NumberField aria-label={t('productionQuality.expectedParts')} min="1" step="1"
+              value={options.expected_parts == null ? '' : String(options.expected_parts)}
+              onValueChange={(raw) => onChange({ ...options, expected_parts: raw === '' ? null : Number(raw) })}
+              className="w-24 rounded border border-bambu-dark-tertiary bg-bambu-dark px-2 py-1" />
+          </label>
 
           {/* Preheat / heat-soak per-item override (#1468). Defaults to
               'inherit' which means the global Settings → Workflow toggle

@@ -142,7 +142,7 @@ describe('PrintModal cross-model mode', () => {
     expect(screen.queryByText('Filament Mapping')).not.toBeInTheDocument();
   });
 
-  it('creates a targeted batch when queueing multiple cross-model copies', async () => {
+  it.each([false, true])('keeps one cross-model quantity when first candidate multi-plate=%s', async (multiPlate) => {
     type BatchBody = { plates?: Array<{ plate_id: number | null; quantity_target: number }> };
     type QueueBody = { batch_id?: number; quantity?: number };
     let batchBody: BatchBody | null = null;
@@ -158,8 +158,13 @@ describe('PrintModal cross-model mode', () => {
       }),
     );
 
+    if (multiPlate) server.use(http.get('/api/v1/library/files/:id/plates', ({ params }) => HttpResponse.json({
+      file_id: Number(params.id), filename: 'x', is_multi_plate: true,
+      plates: [1, 2].map(index => ({ index, name: `Plate ${index}`, objects: [], filaments: [], has_thumbnail: false })),
+    })));
     renderCrossModel();
     await screen.findByText('x1c.gcode.3mf');
+    if (multiPlate) await screen.findByText('Plate 2');
     fireEvent.change(screen.getByLabelText(/^Quantity$/i), { target: { value: '2' } });
     fireEvent.click(document.querySelector('button[type="submit"]') as HTMLElement);
 

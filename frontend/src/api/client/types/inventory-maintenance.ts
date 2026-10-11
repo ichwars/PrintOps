@@ -69,6 +69,7 @@ export type SpoolLabelTemplate =
 export interface InventorySpool {
   id: number;
   material: string;
+  material_number?: string | null;
   subtype: string | null;
   color_name: string | null;
   // True when color_name was synthesised from subtype because Spoolman has no
@@ -84,6 +85,7 @@ export interface InventorySpool {
   brand: string | null;
   label_weight: number;
   core_weight: number;
+  core_weight_is_inherited?: boolean;
   core_weight_catalog_id: number | null;
   weight_used: number;
   // Anchor for the resettable "Total Consumed" display (#1390). The
@@ -225,6 +227,7 @@ export interface SpoolAssignment {
 export interface FilamentSkuSettings {
   id: number;
   material: string;
+  material_number?: string | null;
   subtype: string | null;
   brand: string | null;
   color_name: string | null;
@@ -386,3 +389,6 @@ export interface ExternalLinkUpdate {
   icon?: string;
   open_in_new_tab?: boolean;
 }
+
+export type LabelField = "brand" | "material" | "hex" | "name" | "location" | "material_number" | "temps" | "weight" | "note" | "added" | "qr" | "spool_id";
+export interface LabelExportOptions { fields?: LabelField[]; format?: "pdf" | "png"; dpi?: 203 | 300 | 600; }

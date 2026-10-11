@@ -1,118 +1,110 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, setStreamToken, getStreamToken, withStreamToken } from '../api/client';
+import { api, getAuthSessionId, subscribeAuthSession, setStreamToken, getStreamToken, withStreamToken, setMediaToken, getMediaToken } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 
-/**
- * Walks the DOM and updates every <img>/<video> pointing at /api/v1/ so its
- * src carries the current stream token. Exported for unit testing; called
- * from useStreamTokenSync when the token arrives after first render.
- */
-export function rewriteMediaSrcWithToken(root: ParentNode, token: string): number {
+type TokenKind = 'media' | 'camera';
+
+const mediaPaths = [
+  /^\/api\/v1\/library\/files\/\d+\/(?:thumbnail|plate-thumbnail\/\d+|photos\/[^/]+)$/,
+  /^\/api\/v1\/archives\/\d+\/(?:thumbnail|plate-thumbnail\/\d+|plate-preview|timelapse|photos\/.+|qrcode|project-image\/.+)$/,
+  /^\/api\/v1\/print-log\/\d+\/thumbnail$/,
+  /^\/api\/v1\/projects\/\d+\/cover-image$/,
+  /^\/api\/v1\/calculations\/project-files\/\d+\/plates\/\d+\/thumbnail$/,
+  /^\/api\/v1\/external-links\/\d+\/icon$/,
+  /^\/api\/v1\/printers\/\d+\/(?:cover|files\/plate-thumbnail\/\d+)$/,
+];
+
+function tokenKindForUrl(src: string): TokenKind | null {
+  let url: URL;
+  try { url = new URL(src, window.location.origin); } catch { return null; }
+  // Never put credentials on another origin or unrelated API routes.
+  if (url.origin !== window.location.origin) return null;
+  if (/^\/api\/v1\/printers\/\d+\/camera\//.test(url.pathname)) return 'camera';
+  if (mediaPaths.some((pattern) => pattern.test(url.pathname))) return 'media';
+  return null;
+}
+
+/** Retrofit only local media URLs belonging to this credential type. */
+export function rewriteMediaSrcWithToken(root: ParentNode, token: string, kind: TokenKind = 'media'): number {
   const tokenParam = `token=${encodeURIComponent(token)}`;
   let updated = 0;
-  root
-    .querySelectorAll<HTMLImageElement | HTMLVideoElement>(
-      'img[src*="/api/v1/"], video[src*="/api/v1/"]'
-    )
-    .forEach((el) => {
-      const src = el.getAttribute('src') || '';
-      if (src.includes(tokenParam)) return;
-      const withoutToken = src.replace(/([?&])token=[^&]*(&|$)/, (_m, pre, post) =>
-        post === '&' ? pre : pre === '?' ? '' : ''
-      );
-      const sep = withoutToken.includes('?') ? '&' : '?';
-      el.src = `${withoutToken}${sep}${tokenParam}`;
-      updated += 1;
-    });
+  root.querySelectorAll<HTMLImageElement | HTMLVideoElement>('img[src*="/api/v1/"], video[src*="/api/v1/"]').forEach((el) => {
+    const src = el.getAttribute('src') || '';
+    if (tokenKindForUrl(src) !== kind) return;
+    const url = new URL(src, window.location.origin);
+    if (url.searchParams.get('token') === token) return;
+    const withoutToken = src.replace(/([?&])token=[^&#]*(&|(?=#)|$)/, (_m, pre, post) => post === '&' ? pre : '');
+    const hashIndex = withoutToken.indexOf('#');
+    const base = hashIndex < 0 ? withoutToken : withoutToken.slice(0, hashIndex);
+    const hash = hashIndex < 0 ? '' : withoutToken.slice(hashIndex);
+    el.src = `${base}${base.includes('?') ? '&' : '?'}${tokenParam}${hash}`;
+    updated += 1;
+  });
   return updated;
 }
 
-/**
- * Fetches and caches a stream token for <img>/<video> src URLs.
- * Stores the token globally via setStreamToken() so URL generators
- * in client.ts can use withStreamToken() automatically.
- *
- * Also listens for global image load errors on token-protected URLs
- * and automatically refreshes the token (e.g., after backend restart
- * invalidates in-memory tokens).
- *
- * Mount this hook once near the app root (e.g., in App.tsx or a layout component).
- * Components that need token-protected URLs can import withStreamToken directly.
- */
+/** Share one identified media token and, when permitted, one camera token. */
 export function useStreamTokenSync() {
-  const { authEnabled, user, loading: authLoading } = useAuth();
+  const { authEnabled, user, loading: authLoading, hasPermission } = useAuth();
+  const sessionId = useSyncExternalStore(subscribeAuthSession, getAuthSessionId);
   const queryClient = useQueryClient();
-  const refreshingRef = useRef(false);
-
-  // Key the token by user id so a login/logout invalidates the cache
-  // automatically — otherwise a failed anonymous fetch on the login page
-  // would be cached and never retried after sign-in.
-  //
-  // Race-aware gate (same shape as ColorCatalogProvider): wait for
-  // ``checkAuthStatus`` to finish before deciding whether to fetch.
-  // The previous form ``authEnabled ? !!user : true`` evaluated to
-  // ``true`` on first render because ``authEnabled`` defaults to false,
-  // firing a 401 POST on the login page before AuthContext had a chance
-  // to settle on ``authEnabled=true, user=null``.
-  const { data } = useQuery({
-    queryKey: ['camera-stream-token', user?.id ?? null],
-    queryFn: () => api.getCameraStreamToken(),
-    enabled: !authLoading && (!authEnabled || user !== null),
-    staleTime: 50 * 60 * 1000, // refresh at 50 min (tokens expire at 60)
-    refetchInterval: 50 * 60 * 1000,
-  });
+  const refreshingRef = useRef(new Set<TokenKind>());
+  const enabled = !authLoading && (!authEnabled || user !== null);
+  const canViewCamera = !authEnabled || hasPermission('camera:view');
+  const mediaKey = ['media-token', user?.id ?? null, sessionId];
+  const cameraKey = ['camera-stream-token', user?.id ?? null, sessionId];
+  const common = { staleTime: 50 * 60 * 1000, refetchInterval: 50 * 60 * 1000 };
+  const media = useQuery({ queryKey: mediaKey, queryFn: () => api.getMediaToken(), enabled, ...common });
+  const camera = useQuery({ queryKey: cameraKey, queryFn: () => api.getCameraStreamToken(), enabled: enabled && canViewCamera, ...common });
 
   useEffect(() => {
-    const newToken = data?.token ?? null;
-    setStreamToken(newToken);
+    const token = enabled && getAuthSessionId() === sessionId ? media.data?.token ?? null : null;
+    setMediaToken(token);
+    if (token) rewriteMediaSrcWithToken(document, token, 'media');
+    return () => setMediaToken(null);
+  }, [media.data?.token, enabled, sessionId]);
 
-    // Images/videos that rendered before the token arrived have src URLs
-    // without ?token=…; update them in place so they reload with auth.
-    if (newToken) {
-      rewriteMediaSrcWithToken(document, newToken);
-    }
-
+  useEffect(() => {
+    const token = enabled && canViewCamera && getAuthSessionId() === sessionId ? camera.data?.token ?? null : null;
+    setStreamToken(token);
+    if (token) rewriteMediaSrcWithToken(document, token, 'camera');
     return () => setStreamToken(null);
-  }, [data?.token]);
+  }, [camera.data?.token, enabled, canViewCamera, sessionId]);
 
-  // Listen for image/video load errors on token-protected URLs.
-  // When the backend restarts, in-memory stream tokens are lost and all
-  // thumbnail/stream requests return 401. This handler detects that and
-  // forces a token refresh so images recover without a page reload.
+  // Remove previous sessions, including pending results that could otherwise
+  // be cached until the same account signs in again.
   useEffect(() => {
-    if (!authEnabled) return;
+    queryClient.removeQueries({ predicate: (query) =>
+      ['media-token', 'camera-stream-token'].includes(String(query.queryKey[0])) && query.queryKey[2] !== sessionId,
+    });
+  }, [queryClient, sessionId]);
 
+  useEffect(() => {
+    if (!authEnabled || !enabled) return;
+    const timers = new Set<ReturnType<typeof setTimeout>>();
+    const refreshing = refreshingRef.current;
     const handleError = (event: Event) => {
       const el = event.target;
       if (!(el instanceof HTMLImageElement || el instanceof HTMLVideoElement)) return;
-
-      const src = el.src || '';
-      const token = getStreamToken();
-      if (!token || !src.includes(`token=${encodeURIComponent(token)}`)) return;
-
-      // This image/video used our stream token and failed — token likely invalid
-      if (refreshingRef.current) return;
-      refreshingRef.current = true;
-
-      queryClient.invalidateQueries({ queryKey: ['camera-stream-token'] });
-
-      // Reset after a delay so future errors can trigger another refresh
-      setTimeout(() => {
-        refreshingRef.current = false;
-      }, 5000);
+      const kind = tokenKindForUrl(el.src);
+      if (!kind) return;
+      const token = kind === 'camera' ? getStreamToken() : getMediaToken();
+      if (!token || new URL(el.src).searchParams.get('token') !== token || refreshing.has(kind)) return;
+      refreshing.add(kind);
+      queryClient.invalidateQueries({ queryKey: [kind === 'camera' ? 'camera-stream-token' : 'media-token', user?.id ?? null, sessionId], exact: true });
+      const timer = setTimeout(() => { refreshing.delete(kind); timers.delete(timer); }, 5000);
+      timers.add(timer);
     };
-
-    // Use capture phase to catch errors before they're swallowed
     document.addEventListener('error', handleError, true);
-    return () => document.removeEventListener('error', handleError, true);
-  }, [authEnabled, queryClient]);
+    return () => {
+      document.removeEventListener('error', handleError, true);
+      timers.forEach(clearTimeout);
+      refreshing.clear();
+    };
+  }, [authEnabled, enabled, queryClient, user?.id, sessionId]);
 }
 
-/**
- * Hook for components that need to wrap URLs with the stream token.
- * Returns a withToken function that appends ?token=xxx when auth is enabled.
- */
 export function useCameraStreamToken() {
   return { withToken: withStreamToken };
 }

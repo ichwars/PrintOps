@@ -48,6 +48,7 @@ from backend.app.models.spoolman_k_profile import SpoolmanKProfile
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.models.user import User
 from backend.app.schemas.spoolman import SpoolmanFilamentPatch, SpoolmanSlotAssignmentEnriched
+from backend.app.services.filament_sku_identity import enrich_material_numbers, ensure_sku
 from backend.app.services.location_service import (
     enrich_spool_dicts_with_location_id,
     maybe_sync_spoolman_locations,
@@ -69,6 +70,8 @@ from backend.app.services.spoolman import (
 )
 from backend.app.services.spoolman_costs import spoolman_full_price_from_cost_per_kg
 from backend.app.services.spoolman_tracking import get_fallback_spool_tag_for_slot
+from backend.app.services.spoolman_weights import spoolman_price_weight, spoolman_tare
+from backend.app.services.tag_conflict import tag_conflict
 from backend.app.utils.filament_ids import (
     filament_id_to_setting_id,
     normalize_slicer_filament,
@@ -489,6 +492,7 @@ async def list_spools(
             m["k_profiles"] = kp_by_spool.get(m["id"], [])
 
     await enrich_spool_dicts_with_location_id(db, mapped)
+    await enrich_material_numbers(db, mapped)
     return mapped
 
 
@@ -511,6 +515,7 @@ async def get_spool(
     kp_result = await db.execute(select(SpoolmanKProfile).where(SpoolmanKProfile.spoolman_spool_id == spool_id))
     mapped["k_profiles"] = [_k_profile_to_dict(kp) for kp in kp_result.scalars().all()]
     await enrich_spool_dicts_with_location_id(db, [mapped])
+    await enrich_material_numbers(db, [mapped])
     return mapped
 
 
@@ -566,6 +571,8 @@ async def create_spool(
                 remaining_weight=remaining,
                 comment=data.note or None,
                 location=storage_location or None,
+                initial_weight=data.label_weight,
+                spool_weight=data.core_weight if "core_weight" in data.model_fields_set else None,
             )
     except HTTPException as exc:
         if exc.status_code == 404 and data.spoolman_filament_id is not None:
@@ -607,6 +614,9 @@ async def create_spool(
                 )
 
     result = _map_spoolman_spool(spool)
+    await ensure_sku(db, result)
+    await db.commit()
+    await enrich_material_numbers(db, [result])
     await ws_manager.broadcast({"type": "inventory_changed"})
     if price_warnings:
         return JSONResponse(status_code=207, content={**result, "warnings": price_warnings})
@@ -655,6 +665,8 @@ async def bulk_create_spools(
                 remaining_weight=remaining,
                 comment=data.note or None,
                 location=storage_location or None,
+                initial_weight=data.label_weight,
+                spool_weight=data.core_weight if "core_weight" in data.model_fields_set else None,
             )
         except (SpoolmanUnavailableError, SpoolmanClientError, SpoolmanNotFoundError) as exc:
             logger.warning("Bulk spool creation: one spool failed: %s", exc)
@@ -677,6 +689,10 @@ async def bulk_create_spools(
     if not created:
         raise HTTPException(status_code=500, detail="Failed to create any spools in Spoolman")
 
+    for mapped in created:
+        await ensure_sku(db, mapped)
+    await db.commit()
+    await enrich_material_numbers(db, created)
     await ws_manager.broadcast({"type": "inventory_changed"})
 
     if len(created) < payload.quantity:
@@ -731,7 +747,7 @@ async def update_spool(
         color_name = cur_filament.get("color_name") or None
     cur_color = (cur_filament.get("color_hex") or "808080").upper().removeprefix("#")
     rgba = data.rgba if data.rgba is not None else (cur_color + "FF")
-    label_weight = data.label_weight if data.label_weight is not None else int(cur_filament.get("weight") or 1000)
+    label_weight = data.label_weight if data.label_weight is not None else spoolman_price_weight(current)
     # Default weight_used from the synthetic mapping (label - remaining) so an
     # edit that doesn't touch the weight field preserves Spoolman's real
     # remaining_weight after a "Reset usage to 0" — the previous code read
@@ -773,14 +789,12 @@ async def update_spool(
     desired_name = f"{material} {subtype}".strip() if subtype else material
     cur_color_norm = (cur_filament.get("color_hex") or "").upper()[:6]
     cur_vendor_name = (cur_vendor.get("name") or "").strip()
-    cur_weight_int = int(cur_filament.get("weight") or 0)
     metadata_unchanged = (
         cur_filament_id
         and (cur_filament.get("name") or "").strip() == desired_name
         and (cur_filament.get("material") or "").upper() == material.upper()
         and cur_color_norm == color_hex.upper()
         and cur_vendor_name.lower() == ((brand or "").strip().lower())
-        and cur_weight_int == int(label_weight)
     )
 
     if metadata_unchanged:
@@ -798,7 +812,6 @@ async def update_spool(
                 "name": desired_name,
                 "material": material,
                 "color_hex": color_hex,
-                "weight": float(label_weight),
             }
             if brand:
                 vendor_id = await client.find_or_create_vendor(brand)
@@ -822,15 +835,15 @@ async def update_spool(
     if not filament_id:
         raise HTTPException(status_code=500, detail="Failed to find or create filament in Spoolman")
 
-    remaining = max(0.0, label_weight - weight_used)
+    remaining = (
+        max(0.0, label_weight - weight_used)
+        if data.weight_used is not None or cur_remaining_raw is None
+        else _safe_float(cur_remaining_raw, 0.0)
+    )
 
     # Tag removal: clear only the "tag" key so other custom Spoolman extra fields
     # set outside PrintOps are preserved.
-    tag_nulled = (
-        ("tag_uid" in data.model_fields_set or "tray_uuid" in data.model_fields_set)
-        and _tag_cleared(data.tag_uid)
-        and _tag_cleared(data.tray_uuid)
-    )
+    tag_nulled = bool({"tag_uid", "tray_uuid"} & data.model_fields_set)
 
     # Serialise tag-clear + PATCH under the per-spool extra lock to prevent a
     # concurrent merge_spool_extra call (e.g. NFC write-back) from overwriting
@@ -846,7 +859,15 @@ async def update_spool(
             async with _translate_spoolman_errors():
                 fresh = await client.get_spool(spool_id)
             cur_extra = dict(fresh.get("extra") or {})
-            cur_extra["tag"] = json.dumps("")
+            mapped_tags = _map_spoolman_spool(fresh)
+            # The legacy tag_uid=null action clears the RFID association;
+            # tray_uuid=null alone is the independent UUID-only action.
+            remaining_uuid = None if {"tag_uid", "tray_uuid"} & data.model_fields_set else mapped_tags["tray_uuid"]
+            remaining_uid = None if "tag_uid" in data.model_fields_set else mapped_tags["tag_uid"]
+            cur_extra["tag"] = json.dumps(remaining_uuid or remaining_uid or "")
+            for field_name, value in (("bambu_tray_uuid", remaining_uuid), ("bambu_tag_uid", remaining_uid)):
+                if field_name in cur_extra:
+                    cur_extra[field_name] = json.dumps(value or "")
             extra: dict | None = cur_extra
         else:
             extra = None
@@ -861,6 +882,8 @@ async def update_spool(
                 extra=extra,
                 location=storage_location or None,
                 clear_location=storage_location_changed and not storage_location,
+                initial_weight=data.label_weight,
+                spool_weight=data.core_weight,
             )
 
     # Persist BambuStudio slicer preset AND color_name under spool.extra.
@@ -893,8 +916,12 @@ async def update_spool(
         async with _translate_spoolman_errors():
             updated = await client.merge_spool_extra(spool_id, new_extra)
 
+    result = _map_spoolman_spool(updated)
+    await ensure_sku(db, result)
+    await db.commit()
+    await enrich_material_numbers(db, [result])
     await ws_manager.broadcast({"type": "inventory_changed"})
-    return _map_spoolman_spool(updated)
+    return result
 
 
 @router.delete("/spools/{spool_id}")
@@ -957,18 +984,14 @@ async def reset_spool_consumed_counter(
 ) -> dict:
     """Zero the displayed "Total Consumed" counter for a Spoolman spool.
 
-    Spoolman doesn't have a native "baseline" field, so the implementation
-    reaches for the closest equivalent: PATCH `used_weight=0` upstream.
-    The read mapping in ``_map_spoolman_spool`` then derives PrintOps's
-    `weight_used = label - remaining_weight` and `baseline = weight_used -
-    real_used_weight`, so the Inventory page's `weight_used - baseline`
-    display lands at 0 while remaining (= label - weight_used) is preserved
-    — parity with the internal-mode endpoint (#1390, see also
+    The baseline lives in spool.extra. Native used, remaining and initial
+    weights remain unchanged, while the Inventory page's displayed consumed
+    counter reads zero. This matches the internal-mode endpoint (see also
     ``backend/app/api/routes/inventory.py::reset_spool_consumed_counter``).
     """
     client = await _get_client(db)
     async with _translate_spoolman_errors():
-        spool = await client.reset_spool_usage(spool_id)
+        spool = await client.reset_spool_consumed_counter(spool_id)
     try:
         mapped = _map_spoolman_spool(spool)
     except ValueError as exc:
@@ -1157,7 +1180,7 @@ async def bulk_reset_spool_consumed_counter(
     for spool_id in spool_ids:
         try:
             async with _translate_spoolman_errors():
-                await client.reset_spool_usage(spool_id)
+                await client.reset_spool_consumed_counter(spool_id)
             reset_count += 1
         except HTTPException as exc:
             logger.warning("Spoolman reset-consumed-counter failed for spool %s: %s", spool_id, exc.detail)
@@ -1184,17 +1207,13 @@ async def sync_spool_weight(
     async with _translate_spoolman_errors():
         current = await client.get_spool(spool_id)
 
-    cur_filament = current.get("filament") or {}
-    spool_tare = current.get("spool_weight")
-    raw_tare = spool_tare if spool_tare is not None else cur_filament.get("spool_weight")
-    core_weight = _safe_float(raw_tare, 250.0)
+    core_weight, _ = spoolman_tare(current)
     remaining = max(0.0, data.weight_grams - core_weight)
 
     async with _translate_spoolman_errors():
         updated = await client.update_spool_full(spool_id=spool_id, remaining_weight=remaining)
 
-    upd_filament = updated.get("filament") or {}
-    label_weight = _safe_int(upd_filament.get("weight"), 1000)
+    label_weight = spoolman_price_weight(updated)
     weight_used = max(0.0, label_weight - remaining)
     await ws_manager.broadcast({"type": "inventory_changed"})
     return {"status": "ok", "weight_used": weight_used}
@@ -1225,15 +1244,13 @@ async def link_tag_to_spoolman_spool(
         # Duplicate check: scan all spools for the same tag on a different spool.
         async with _translate_spoolman_errors():
             all_spools = await client.get_all_spools()
-        for s in all_spools:
+        for s in sorted(all_spools, key=lambda item: int(item.get("id") or 0)):
             s_extra = s.get("extra") or {}
-            if s.get("id") != spool_id and any(
-                _extra_string_value(s_extra, field_name) == tag for field_name in BAMBU_TAG_EXTRA_FIELDS
-            ):
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Tag is already assigned to spool {s['id']}",
-                )
+            if s.get("id") == spool_id or s.get("archived"):
+                continue
+            for request_field, value in (("tray_uuid", tray_uuid), ("tag_uid", tag_uid)):
+                if value and any(_extra_string_value(s_extra, key) == value for key in BAMBU_TAG_EXTRA_FIELDS):
+                    raise tag_conflict(s["id"], request_field)
 
         # Re-fetch inside the lock so cur_extra reflects any concurrent update.
         async with _translate_spoolman_errors():
@@ -1384,7 +1401,7 @@ async def sync_spoolman_ams_weights(
             skipped += 1
             continue
 
-        label_weight = _safe_int((spool_dict.get("filament") or {}).get("weight"), 1000)
+        label_weight = spoolman_price_weight(spool_dict)
         if label_weight <= 0:
             logger.debug("Spoolman AMS sync: spool %d has no label_weight, skipping", assignment.spoolman_spool_id)
             skipped += 1
@@ -1525,6 +1542,9 @@ async def assign_spoolman_slot(
             },
         )
         await db.commit()
+        from backend.app.services import slot_unlink_grace
+
+        slot_unlink_grace.forget_slot(body.printer_id, body.ams_id, body.tray_id)
     except Exception as exc:
         await db.rollback()
         logger.error("Failed to persist slot assignment: %s", exc)
@@ -1911,6 +1931,8 @@ async def patch_spoolman_filament(
         if affected_spools:
             if body.keep_existing_spools:
                 old_weight = _safe_optional_float(current.get("spool_weight"))
+                if old_weight is None:
+                    old_weight = _safe_optional_float((current.get("vendor") or {}).get("empty_spool_weight"))
                 if old_weight is not None:
                     spools_to_fix = [s for s in affected_spools if s.get("spool_weight") is None]
                     if spools_to_fix:

@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,10 +37,12 @@ def _provider_to_dict(provider: NotificationProvider) -> dict:
         "name": provider.name,
         "provider_type": provider.provider_type,
         "enabled": provider.enabled,
+        "attach_photo": provider.attach_photo is not False,
         "config": json.loads(provider.config) if isinstance(provider.config, str) else provider.config,
         # Print lifecycle events
         "on_print_start": provider.on_print_start,
         "on_print_complete": provider.on_print_complete,
+        "on_print_confirm_request": bool(provider.on_print_confirm_request),
         "on_print_failed": provider.on_print_failed,
         "on_print_stopped": provider.on_print_stopped,
         "on_print_progress": provider.on_print_progress,
@@ -50,6 +53,10 @@ def _provider_to_dict(provider: NotificationProvider) -> dict:
         "on_ai_failure_detection": provider.on_ai_failure_detection,
         "on_filament_low": provider.on_filament_low,
         "on_maintenance_due": provider.on_maintenance_due,
+        "on_stock_reorder_alert": provider.on_stock_reorder_alert,
+        "on_stock_break_alert": provider.on_stock_break_alert,
+        "on_storage_sensor_alert": provider.on_storage_sensor_alert,
+        "on_ha_sensor_alert": provider.on_ha_sensor_alert,
         # AMS environmental alarms (regular AMS)
         "on_ams_humidity_high": provider.on_ams_humidity_high,
         "on_ams_temperature_high": provider.on_ams_temperature_high,
@@ -92,6 +99,26 @@ def _provider_to_dict(provider: NotificationProvider) -> dict:
 # Provider List/Create Routes (no path parameters)
 
 
+@router.get("/photos/{token}")
+async def get_notification_photo(token: str, db: AsyncSession = Depends(get_db)):
+    """Only an unexpired capability bound to this immutable image can read it."""
+    from backend.app.services.notification_photos import resolve_notification_photo
+
+    data = await resolve_notification_photo(db, token)
+    if data is None:
+        raise HTTPException(404, "Notification photo not found")
+    return Response(
+        data,
+        media_type="image/jpeg",
+        headers={
+            "Cache-Control": "no-store",
+            "Referrer-Policy": "no-referrer",
+            "X-Robots-Tag": "noindex, nofollow",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 @router.get("/", response_model=list[NotificationProviderResponse])
 async def list_notification_providers(
     db: AsyncSession = Depends(get_db),
@@ -115,10 +142,12 @@ async def create_notification_provider(
         name=provider_data.name,
         provider_type=provider_data.provider_type.value,
         enabled=provider_data.enabled,
+        attach_photo=provider_data.attach_photo,
         config=json.dumps(provider_data.config),
         # Print lifecycle events
         on_print_start=provider_data.on_print_start,
         on_print_complete=provider_data.on_print_complete,
+        on_print_confirm_request=provider_data.on_print_confirm_request,
         on_print_failed=provider_data.on_print_failed,
         on_print_stopped=provider_data.on_print_stopped,
         on_print_progress=provider_data.on_print_progress,
@@ -129,6 +158,10 @@ async def create_notification_provider(
         on_ai_failure_detection=provider_data.on_ai_failure_detection,
         on_filament_low=provider_data.on_filament_low,
         on_maintenance_due=provider_data.on_maintenance_due,
+        on_stock_reorder_alert=provider_data.on_stock_reorder_alert,
+        on_stock_break_alert=provider_data.on_stock_break_alert,
+        on_storage_sensor_alert=provider_data.on_storage_sensor_alert,
+        on_ha_sensor_alert=provider_data.on_ha_sensor_alert,
         # AMS environmental alarms (regular AMS)
         on_ams_humidity_high=provider_data.on_ams_humidity_high,
         on_ams_temperature_high=provider_data.on_ams_temperature_high,

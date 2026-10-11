@@ -10,22 +10,31 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse, Response
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case as case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.gcode_preview import gcode_preview_response
+from backend.app.api.routes.archives_runs import (
+    _load_run_aggregates as _load_run_aggregates,
+    archive_to_response as archive_to_response,
+    compute_time_accuracy as compute_time_accuracy,
+)
 from backend.app.core.auth import (
-    RequireCameraStreamTokenIfAuthEnabled,
     RequirePermissionIfAuthEnabled,
     allowed_printer_ids_for_user,
+    check_printer_access,
+    require_media_token_ownership,
     require_ownership_permission,
+    resolve_optional_api_key,
     user_can_access_printer,
 )
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
+from backend.app.models.api_key import APIKey
 from backend.app.models.archive import PrintArchive
 from backend.app.models.filament import Filament
+from backend.app.models.print_log import PrintLogEntry as PrintLogEntry
 from backend.app.models.spool_usage_history import SpoolUsageHistory
 from backend.app.models.user import User
 from backend.app.schemas.archive import (
@@ -34,6 +43,7 @@ from backend.app.schemas.archive import (
     ArchiveSlim,
     ArchiveStats,
     ArchiveUpdate,
+    OutcomeConfirmation,
 )
 from backend.app.schemas.print_log import PrintLogResponse
 from backend.app.schemas.slicer import SliceRequest
@@ -56,6 +66,50 @@ from backend.app.utils.threemf_tools import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/archives", tags=["archives"])
+
+
+@router.post("/{archive_id}/runs/{run_id}/outcome")
+@router.post("/{archive_id}/outcome")
+async def confirm_production_outcome(
+    archive_id: int,
+    outcome: OutcomeConfirmation,
+    run_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN)
+    ),
+):
+    """Inspect or correct the current run with normal ownership and printer scopes."""
+    from backend.app.api.routes.archives_runs import confirm_production_outcome as confirm
+
+    return await confirm(archive_id, outcome, run_id, db, api_key, auth_result)
+
+
+@router.get("/outcome-link/{token}/{verdict}")
+async def production_outcome_link_page(
+    request: Request,
+    token: str,
+    verdict: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Read-only landing page; unfurlers never record an inspection through GET."""
+    from backend.app.api.routes.archives_runs import production_outcome_link_page as confirm
+
+    return await confirm(request, token, verdict, db)
+
+
+@router.post("/outcome-link/{token}/{verdict}")
+async def confirm_production_outcome_link(
+    request: Request,
+    token: str,
+    verdict: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """An expiring capability can answer just this run, once, with no other authority."""
+    from backend.app.api.routes.archives_runs import confirm_production_outcome_link as confirm
+
+    return await confirm(request, token, verdict, db)
 
 
 def _safe_filename(filename: str) -> str:
@@ -300,164 +354,6 @@ async def _energy_history_points(
         )
         for bucket_start, values in sorted(buckets.items(), key=lambda item: item[0])
     ]
-
-
-def compute_time_accuracy(archive: PrintArchive, run_aggregate: dict | None = None) -> dict:
-    """Compute actual print time and accuracy for an archive.
-
-    Returns dict with actual_time_seconds and time_accuracy.
-    time_accuracy = (estimated / actual) * 100
-    - 100% = perfect estimate
-    - >100% = print was faster than estimated
-    - <100% = print took longer than estimated
-
-    When ``run_aggregate`` indicates the archive has more than one logged
-    run (multi-plate file printed plate-by-plate, or reprints), both
-    fields are suppressed: ``archive.started_at / completed_at`` reflect
-    the LATEST run only, while ``archive.print_time_seconds`` is the
-    whole-file estimate (post-#1593 the parser sums across plates), so
-    comparing the two describes different scopes. The card-rendering
-    frontend falls through to ``archive.print_time_seconds`` for the
-    time display and hides the badge when ``time_accuracy`` is null —
-    that's the desired "show estimate, no badge" presentation for
-    multi-run archives (#1608). Single-run archives keep the original
-    badge behaviour verbatim.
-    """
-    result: dict[str, int | float | None] = {"actual_time_seconds": None, "time_accuracy": None}
-
-    # Multi-run archives: the per-run actual (started_at..completed_at on
-    # the archive row) is incommensurable with the whole-file estimate.
-    # Both fields are cleared so the card shows estimate + no badge.
-    if run_aggregate and (run_aggregate.get("run_count") or 0) > 1:
-        return result
-
-    if archive.started_at and archive.completed_at and archive.status == "completed":
-        actual_seconds = int((archive.completed_at - archive.started_at).total_seconds())
-        if actual_seconds > 0:
-            result["actual_time_seconds"] = actual_seconds
-
-            if archive.print_time_seconds and archive.print_time_seconds > 0:
-                # Calculate accuracy as percentage
-                accuracy = (archive.print_time_seconds / actual_seconds) * 100
-                # Sanity check: skip unreasonable values (e.g., manually changed status)
-                # Valid range: 5% to 500% (print took 20x longer to 5x faster than estimated)
-                if 5 <= accuracy <= 500:
-                    result["time_accuracy"] = round(accuracy, 1)
-
-    return result
-
-
-async def _load_run_aggregates(db: AsyncSession, archive_ids: list[int]) -> dict[int, dict]:
-    """Batch-load per-archive run aggregates from PrintLogEntry.
-
-    Returns ``{archive_id: {run_count, last_run_at, total_filament_actual_grams,
-    successful_run_count, failed_run_count}}``. Archives with no logged runs are
-    absent from the map; callers should treat that as zero/none.
-    """
-    from backend.app.models.print_log import PrintLogEntry
-
-    if not archive_ids:
-        return {}
-    rows = await db.execute(
-        select(
-            PrintLogEntry.archive_id,
-            func.count(PrintLogEntry.id).label("run_count"),
-            func.max(PrintLogEntry.started_at).label("last_run_at"),
-            func.coalesce(func.sum(PrintLogEntry.filament_used_grams), 0).label("total_filament"),
-            func.sum(case((PrintLogEntry.status == "completed", 1), else_=0)).label("successful"),
-            func.sum(case((PrintLogEntry.status == "failed", 1), else_=0)).label("failed"),
-        )
-        .where(PrintLogEntry.archive_id.in_(archive_ids))
-        .group_by(PrintLogEntry.archive_id)
-    )
-    aggregates: dict[int, dict] = {}
-    for archive_id, run_count, last_run_at, total_filament, successful, failed in rows.all():
-        aggregates[archive_id] = {
-            "run_count": int(run_count or 0),
-            "last_run_at": last_run_at,
-            "total_filament_actual_grams": float(total_filament) if total_filament else None,
-            "successful_run_count": int(successful or 0),
-            "failed_run_count": int(failed or 0),
-        }
-    return aggregates
-
-
-def archive_to_response(
-    archive: PrintArchive,
-    duplicates: list[dict] | None = None,
-    duplicate_count: int = 0,
-    duplicate_sequence: int = 0,
-    original_archive_id: int | None = None,
-    run_aggregate: dict | None = None,
-) -> dict:
-    """Convert archive model to response dict with computed fields."""
-    data = {
-        "id": archive.id,
-        "printer_id": archive.printer_id,
-        "project_id": archive.project_id,
-        "project_name": archive.project.name if archive.project else None,
-        "filename": archive.filename,
-        "file_path": archive.file_path,
-        "file_size": archive.file_size,
-        "content_hash": archive.content_hash,
-        "thumbnail_path": archive.thumbnail_path,
-        "timelapse_path": archive.timelapse_path,
-        "source_3mf_path": archive.source_3mf_path,
-        "f3d_path": archive.f3d_path,
-        "duplicates": duplicates,
-        "duplicate_count": duplicate_count if duplicates is None else len(duplicates),
-        "duplicate_sequence": duplicate_sequence,
-        "original_archive_id": original_archive_id,
-        "print_name": archive.print_name,
-        "plate_id": archive.plate_id,
-        "print_time_seconds": archive.print_time_seconds,
-        "filament_used_grams": archive.filament_used_grams,
-        "filament_type": archive.filament_type,
-        "filament_color": archive.filament_color,
-        "layer_height": archive.layer_height,
-        "total_layers": archive.total_layers,
-        "nozzle_diameter": archive.nozzle_diameter,
-        "bed_temperature": archive.bed_temperature,
-        "bed_type": archive.bed_type,
-        "nozzle_temperature": archive.nozzle_temperature,
-        "sliced_for_model": archive.sliced_for_model,
-        "status": archive.status,
-        "started_at": archive.started_at,
-        "completed_at": archive.completed_at,
-        "extra_data": archive.extra_data,
-        "makerworld_url": archive.makerworld_url,
-        "designer": archive.designer,
-        "external_url": archive.external_url,
-        "is_favorite": archive.is_favorite,
-        "tags": archive.tags,
-        "notes": archive.notes,
-        "cost": archive.cost,
-        "photos": archive.photos,
-        "failure_reason": archive.failure_reason,
-        "quantity": archive.quantity,
-        "energy_kwh": archive.energy_kwh,
-        "energy_cost": archive.energy_cost,
-        "created_at": archive.created_at,
-        # User tracking (Issue #206)
-        "created_by_id": archive.created_by_id,
-        "created_by_username": archive.created_by.username if archive.created_by else None,
-    }
-
-    # Add computed time accuracy fields. ``run_aggregate`` lets
-    # ``compute_time_accuracy`` suppress the badge for multi-run archives
-    # where the per-run actual / whole-file estimate scopes don't match
-    # (#1608).
-    accuracy_data = compute_time_accuracy(archive, run_aggregate)
-    data.update(accuracy_data)
-
-    if run_aggregate:
-        data["run_count"] = run_aggregate.get("run_count", 0)
-        data["last_run_at"] = run_aggregate.get("last_run_at")
-        data["total_filament_actual_grams"] = run_aggregate.get("total_filament_actual_grams")
-        data["successful_run_count"] = run_aggregate.get("successful_run_count", 0)
-        data["failed_run_count"] = run_aggregate.get("failed_run_count", 0)
-
-    return data
 
 
 def _apply_scanned_metadata(archive: PrintArchive, metadata: dict) -> None:
@@ -1211,6 +1107,19 @@ async def get_archive_stats(
     if printer_scope is not None:
         base_conditions.append(printer_scope)
 
+    quality = (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(PrintLogEntry.good_quantity), 0),
+                func.coalesce(func.sum(PrintLogEntry.reject_quantity), 0),
+                func.count(PrintLogEntry.id).filter(
+                    PrintLogEntry.confirm_requested.is_(True), PrintLogEntry.good_quantity.is_(None)
+                ),
+            ).where(PrintLogEntry.status == "completed", *base_conditions)
+        )
+    ).one()
+    good_parts, rejected_parts, unconfirmed_runs = map(int, quality)
+
     # Total counts (one row per print event).
     total_result = await db.execute(select(func.count(PrintLogEntry.id)).where(*base_conditions))
     total_prints = total_result.scalar() or 0
@@ -1381,6 +1290,12 @@ async def get_archive_stats(
         energy_source = "print_logs"
 
     return ArchiveStats(
+        confirmed_good_quantity=good_parts,
+        confirmed_reject_quantity=rejected_parts,
+        unconfirmed_prints=unconfirmed_runs,
+        yield_percent=round(100 * good_parts / (good_parts + rejected_parts), 1)
+        if good_parts + rejected_parts
+        else None,
         total_prints=total_prints,
         successful_prints=successful_prints,
         failed_prints=failed_prints,
@@ -2259,17 +2174,17 @@ async def download_archive_for_slicer(
     """Download 3MF file using a slicer download token.
 
     Token-authenticated (no auth headers needed). The token is short-lived
-    and single-use, created by POST /{archive_id}/slicer-token.
+    and reusable within its TTL, created by POST /{archive_id}/slicer-token.
     Filename is at the end of the URL so slicers can detect the file format.
     """
     from backend.app.core.auth import verify_slicer_download_token
 
-    if not await verify_slicer_download_token(token, "archive", archive_id):
+    if not await verify_slicer_download_token(token, "archive", archive_id, single_use=False):
         raise HTTPException(403, "Invalid or expired download token")
 
     service = ArchiveService(db)
     archive = await service.get_archive(archive_id)
-    if not archive:
+    if not archive or archive.deleted_at is not None:
         raise HTTPException(404, "Archive not found")
 
     file_path = settings.base_dir / archive.file_path
@@ -2287,14 +2202,20 @@ async def download_archive_for_slicer(
 async def get_thumbnail(
     archive_id: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get the thumbnail image.
 
-    Requires a stream token query param (?token=xxx) when auth is enabled.
+    Requires a media token query param (?token=xxx) when auth is enabled.
     """
+    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = await service.get_archive(archive_id)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    if api_key is not None:
+        check_printer_access(api_key, archive.printer_id)
     if not archive or not archive.thumbnail_path:
         raise HTTPException(404, "Thumbnail not found")
 
@@ -2319,14 +2240,20 @@ async def get_thumbnail(
 async def get_timelapse(
     archive_id: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get the timelapse video.
 
-    Requires a stream token query param (?token=xxx) when auth is enabled.
+    Requires a media token query param (?token=xxx) when auth is enabled.
     """
+    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = await service.get_archive(archive_id)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    if api_key is not None:
+        check_printer_access(api_key, archive.printer_id)
     if not archive or not archive.timelapse_path:
         raise HTTPException(404, "Timelapse not found")
 
@@ -2931,14 +2858,20 @@ async def get_photo(
     archive_id: int,
     filename: str,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get a specific photo.
 
-    Requires a stream token query param (?token=xxx) when auth is enabled.
+    Requires a media token query param (?token=xxx) when auth is enabled.
     """
+    user, can_read_all = auth_result
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = result.scalar_one_or_none()
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_read_all)
+    if api_key is not None:
+        check_printer_access(api_key, archive.printer_id)
     if not archive:
         raise HTTPException(404, "Archive not found")
 
@@ -3015,12 +2948,16 @@ async def get_qrcode(
     request: Request,
     size: int = 200,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Generate a QR code that links to this archive.
 
-    Requires a stream token query param (?token=xxx) when auth is enabled.
+    Requires a media token query param (?token=xxx) when auth is enabled.
     """
+    user, can_read_all = auth_result
     try:
         import qrcode
         from PIL import Image as PILImage
@@ -3028,7 +2965,9 @@ async def get_qrcode(
         raise HTTPException(500, "QR code generation not available - qrcode package not installed")
 
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = result.scalar_one_or_none()
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_read_all)
+    if api_key is not None:
+        check_printer_access(api_key, archive.printer_id)
     if not archive:
         raise HTTPException(404, "Archive not found")
 
@@ -3324,17 +3263,23 @@ async def get_gcode(
 async def get_plate_preview(
     archive_id: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get the plate preview image from the 3MF file.
 
     Returns the slicer-generated plate thumbnail which shows the model
     with correct colors and positioning.
 
-    Requires a stream token query param (?token=xxx) when auth is enabled.
+    Requires a media token query param (?token=xxx) when auth is enabled.
     """
+    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = await service.get_archive(archive_id)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    if api_key is not None:
+        check_printer_access(api_key, archive.printer_id)
     if not archive:
         raise HTTPException(404, "Archive not found")
 
@@ -3819,14 +3764,20 @@ async def get_plate_thumbnail(
     archive_id: int,
     plate_index: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get the thumbnail image for a specific plate.
 
-    Requires a stream token query param (?token=xxx) when auth is enabled.
+    Requires a media token query param (?token=xxx) when auth is enabled.
     """
+    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = await service.get_archive(archive_id)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    if api_key is not None:
+        check_printer_access(api_key, archive.printer_id)
     if not archive:
         raise HTTPException(404, "Archive not found")
 
@@ -4241,16 +4192,22 @@ async def get_project_image(
     archive_id: int,
     image_path: str,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get an image from the 3MF project page.
 
-    Requires a stream token query param (?token=xxx) when auth is enabled.
+    Requires a media token query param (?token=xxx) when auth is enabled.
     """
+    user, can_read_all = auth_result
     from backend.app.services.archive import ProjectPageParser
 
     service = ArchiveService(db)
-    archive = await service.get_archive(archive_id)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    if api_key is not None:
+        check_printer_access(api_key, archive.printer_id)
     if not archive:
         raise HTTPException(404, "Archive not found")
 
@@ -4470,16 +4427,16 @@ async def download_source_3mf_for_slicer_with_token(
     """Download source 3MF using a slicer download token.
 
     Token-authenticated (no auth headers needed). The token is short-lived
-    and single-use, created by POST /{archive_id}/source-slicer-token.
+    and reusable within its TTL, created by POST /{archive_id}/source-slicer-token.
     """
     from backend.app.core.auth import verify_slicer_download_token
 
-    if not await verify_slicer_download_token(token, "source", archive_id):
+    if not await verify_slicer_download_token(token, "source", archive_id, single_use=False):
         raise HTTPException(403, "Invalid or expired download token")
 
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
     archive = result.scalar_one_or_none()
-    if not archive:
+    if not archive or archive.deleted_at is not None:
         raise HTTPException(404, "Archive not found")
 
     if not archive.source_3mf_path:

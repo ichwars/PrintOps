@@ -8,6 +8,7 @@ import uuid
 from collections import deque
 from collections.abc import AsyncGenerator
 from io import BytesIO
+from time import monotonic
 
 import httpx
 import websockets
@@ -48,6 +49,7 @@ from backend.app.services.camera_fanout import (
 )
 from backend.app.services.camera_profiles import get_camera_profile
 from backend.app.services.camera_source import BambuRtspSource, CameraSource, ExternalRtspSource, get_camera_source
+from backend.app.services.frozen_frame_watchdog import FrozenFrameWatchdog
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/printers", tags=["camera"])
@@ -379,6 +381,7 @@ async def generate_go2rtc_mjpeg_stream(
     reconnect_count = 0
     got_any_frames = False
     mjpeg_endpoint = go2rtc_client.mjpeg_url(go2rtc_name)
+    frozen_watchdog = FrozenFrameWatchdog()
 
     try:
         while reconnect_count <= profile.rtsp_reconnect_max:
@@ -400,6 +403,8 @@ async def generate_go2rtc_mjpeg_stream(
 
             buffer = b""
             black_frame_streak = 0
+            frozen_watchdog.begin_session()
+            restart_source = False
             stream_ended = False
             client_gone = False
 
@@ -469,6 +474,15 @@ async def generate_go2rtc_mjpeg_stream(
                                     b"Content-Length: " + str(len(frame)).encode() + b"\r\n"
                                     b"\r\n" + frame + b"\r\n"
                                 )
+                                if frozen_watchdog.observe(frame, monotonic()):
+                                    logger.warning(
+                                        "Camera picture unchanged for %s (stream_id=%s); restarting shared source",
+                                        ip_address,
+                                        stream_id,
+                                    )
+                                    restart_source = True
+                                    stream_ended = True
+                                    break
                             if stream_ended or client_gone:
                                 break
 
@@ -501,7 +515,15 @@ async def generate_go2rtc_mjpeg_stream(
                 pass  # fall through to normal reconnect accounting below
 
             if stream_ended:
-                reconnect_count += 1
+                if restart_source:
+                    if await go2rtc_registry.restart(printer_id):
+                        # Valid frames were received; periodic still-scene
+                        # checks must not exhaust the transport retry budget.
+                        reconnect_count = 1
+                    else:
+                        reconnect_count += 1
+                else:
+                    reconnect_count += 1
                 continue
 
             # Normal exit (shouldn't reach here, but be safe)

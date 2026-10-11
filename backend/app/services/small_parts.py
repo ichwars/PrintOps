@@ -155,6 +155,13 @@ async def update_small_part(
     data: SmallPartUpdate,
 ) -> SmallPart:
     changes = data.model_dump(exclude_unset=True)
+    if changes.get("sku"):
+        from backend.app.services.warehouse_number_sequence import assert_material_number_available
+
+        try:
+            await assert_material_number_available(session, changes["sku"], exclude_small_part_id=part.id)
+        except ValueError as exc:
+            raise SmallPartUnitChangeNotAllowed(str(exc)) from exc
     requested_unit = changes.get("unit_code")
     if requested_unit is not None and requested_unit != part.unit_code:
         ledger_count = await session.scalar(
