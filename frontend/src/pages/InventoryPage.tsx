@@ -1621,7 +1621,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
           )}
           {/* Table / Cards toggle */}
           <div className="flex bg-bambu-dark-primary border border-bambu-dark-tertiary rounded-lg overflow-hidden">
-            <button
+            <button aria-label={t('inventory.table')}
               onClick={() => setViewMode('table')}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors ${
                 viewMode === 'table'
@@ -1632,7 +1632,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
               <TableProperties className="w-4 h-4" />
               <span className="hidden sm:inline">{t('inventory.table')}</span>
             </button>
-            <button
+            <button aria-label={t('inventory.cards')}
               onClick={() => setViewMode('cards')}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors ${
                 viewMode === 'cards'
