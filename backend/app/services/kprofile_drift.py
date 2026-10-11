@@ -179,6 +179,23 @@ def needs_check(printer_id: int, state) -> bool:
     return found
 
 
+def _tray_identity(tray: dict) -> tuple[str, ...]:
+    """Snapshot identity before awaits, including firmware dictionaries updated in place."""
+    return tuple(
+        str(tray.get(field) or "").strip().upper()
+        for field in ("tray_type", "tray_color", "tag_uid", "tray_uuid", "tray_info_idx")
+    )
+
+
+async def _assignment_identity(db, printer_id, ams_id, tray_id, spoolman_mode):
+    table = SpoolmanSlotAssignment if spoolman_mode else SpoolAssignment
+    spool_id = table.spoolman_spool_id if spoolman_mode else table.spool_id
+    result = await db.execute(select(table.id, spool_id).where(
+        table.printer_id == printer_id, table.ams_id == ams_id, table.tray_id == tray_id,
+    ))
+    return result.one_or_none()
+
+
 async def _slot_profiles(db, printer_id, ams_id, tray_id, tray, spoolman_mode):
     if spoolman_mode:
         assignment = await db.scalar(
@@ -253,7 +270,11 @@ async def reapply_lost_kprofiles(
                         continue
                     watch = _watches.setdefault(key, _SlotWatch())
                     watch.next_check = now + RETRY_INTERVAL_S
+                    identity = _tray_identity(tray)
+                    assignment = await _assignment_identity(db, printer_id, ams_id, tray_id, mode)
                     profiles = await _slot_profiles(db, printer_id, ams_id, tray_id, tray, mode)
+                    if assignment is None or assignment != await _assignment_identity(db, printer_id, ams_id, tray_id, mode):
+                        continue
                     context, stored, live = resolve_spool_calibration(
                         profiles, state, printer_manager.get_model(printer_id), printer_id, ams_id, tray_id
                     )
@@ -273,7 +294,12 @@ async def reapply_lost_kprofiles(
                     # selection may have arrived while the profile was loaded.
                     latest = printer_manager.get_status(printer_id)
                     latest_tray = next((t for a, s, _, t in _loaded_trays(latest) if (a, s) == (ams_id, tray_id)), None)
-                    if not _idle(latest) or latest_tray is None or not _settle(key, latest_tray):
+                    if (
+                        not _idle(latest)
+                        or latest_tray is None
+                        or _tray_identity(latest_tray) != identity
+                        or not _settle(key, latest_tray)
+                    ):
                         continue
                     current_context, current_stored, current_live = resolve_spool_calibration(
                         profiles, latest, printer_manager.get_model(printer_id), printer_id, ams_id, tray_id

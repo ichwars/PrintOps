@@ -401,3 +401,50 @@ async def test_restart_waits_for_fresh_nozzle_and_table_then_recovers(recovery, 
     now[0] += 31
     await push()
     assert [command["cali_idx"] for command in selections(mqtt)] == [7]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("spoolman", [False, True])
+@pytest.mark.parametrize("field", ["tray_type", "tray_color", "tag_uid", "tray_uuid", "tray_info_idx", "assignment"])
+async def test_identity_change_during_profile_read_cannot_select_previous_spool_profile(
+    recovery, db_session, monkeypatch, spoolman, field
+):
+    from backend.app.services import kprofile_drift
+
+    printer, _, assignment_id, mqtt, _ = recovery
+    if spoolman:
+        db_session.add_all([
+            Settings(key="spoolman_enabled", value="true"),
+            SpoolmanSlotAssignment(printer_id=printer.id, ams_id=0, tray_id=0, spoolman_spool_id=42),
+            SpoolmanKProfile(printer_id=printer.id, spoolman_spool_id=42, extruder=0, nozzle_diameter="0.4", cali_idx=7, k_value=0.025),
+        ])
+        await db_session.commit()
+    tray = mqtt.state.raw_data["ams"][0]["tray"][0]
+    tray["cali_idx"] = -1
+    original = kprofile_drift._slot_profiles
+
+    async def read_then_change(*args, **kwargs):
+        profiles = await original(*args, **kwargs)
+        if field == "assignment":
+            if spoolman:
+                assignment = await db_session.scalar(select(SpoolmanSlotAssignment).where(
+                    SpoolmanSlotAssignment.printer_id == printer.id,
+                ))
+                assignment.spoolman_spool_id = 99
+            else:
+                replacement = Spool(material="PLA", rgba="FF0000FF")
+                db_session.add(replacement)
+                await db_session.flush()
+                assignment = await db_session.get(SpoolAssignment, assignment_id)
+                assignment.spool_id = replacement.id
+            await db_session.commit()
+        else:
+            tray[field] = {
+                "tray_type": "PETG", "tray_color": "000000FF", "tag_uid": "04AABBCC",
+                "tray_uuid": "A" * 32, "tray_info_idx": "GFG00",
+            }[field]
+        return profiles
+
+    monkeypatch.setattr(kprofile_drift, "_slot_profiles", read_then_change)
+    assert await kprofile_drift.reapply_lost_kprofiles(printer.id, throttle=False) == 0
+    assert selections(mqtt) == []
