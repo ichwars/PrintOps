@@ -16,6 +16,7 @@ from backend.app.models.library import LibraryFile, LibraryFolder
 from backend.app.models.print_queue import PrintQueueItem
 from backend.app.utils.library_paths import move_library_photos, remove_library_photos_dir
 from backend.app.utils.local_time import utcnow_naive
+from backend.app.utils.safe_path import assert_under, safe_join_under
 
 logger = logging.getLogger(__name__)
 
@@ -182,11 +183,14 @@ async def consume_transient_library_source(
         archive.external_url = library_file.external_url
         if library_file.photos:
             archive_path = Path(archive.file_path)
-            if not archive_path.is_absolute():
-                archive_path = settings.base_dir / archive_path
+            if archive_path.is_absolute():
+                archive_path = assert_under(settings.base_dir, archive_path, http=False)
+            else:
+                archive_path = safe_join_under(settings.base_dir, str(archive_path), http=False)
+            photos_dir = safe_join_under(archive_path.parent, "photos", http=False)
             archive.photos = [
                 *(archive.photos or []),
-                *move_library_photos(library_file.id, library_file.photos, archive_path.parent / "photos"),
+                *move_library_photos(library_file.id, library_file.photos, photos_dir),
             ]
     item.library_file_id = None
     await repoint_siblings_at_archive(
