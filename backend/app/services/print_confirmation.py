@@ -182,8 +182,10 @@ def token_digest(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-async def issue_confirmation_token(db: AsyncSession, archive: PrintArchive) -> str | None:
+async def issue_confirmation_token(db: AsyncSession, archive: PrintArchive, *, run_id: int | None = None) -> str | None:
     run = await latest_run(db, archive.id)
+    if run_id is not None and (run is None or run.id != run_id):
+        return None
     if not run or not run.confirm_requested or run.good_quantity is not None or not run_matches_archive(run, archive):
         return None
     if run.confirm_token_hash is not None and run.confirm_token_expires_at is not None:
@@ -234,30 +236,65 @@ async def confirmed_production(db: AsyncSession, project_id: int, *, printer_ids
     return {"good_quantity": int(good), "reject_quantity": int(reject), "unconfirmed_runs": int(pending)}
 
 
-async def dispatch_outcome_confirmation(db: AsyncSession, archive_id: int, printer_id: int, printer_name: str) -> bool:
-    """Issue a new run's operator prompt after its independent log is committed."""
-    from backend.app.api.routes.settings import get_setting
+async def send_outcome_confirmation_hint(db: AsyncSession, archive_id: int, run_id: int, printer_id: int) -> bool:
+    """Ask the owner about this completed run, even while its archive is reused.
+
+    This carries no capability. The dialog's historical-run endpoint still
+    checks current ownership, printer scope, and update permission on submit.
+    """
+    from backend.app.core.auth import is_auth_enabled, user_can_access_printer
     from backend.app.core.websocket import ws_manager
+    from backend.app.models.user import User
+
+    archive = await db.get(PrintArchive, archive_id, populate_existing=True)
+    run = await db.get(PrintLogEntry, run_id)
+    if (
+        archive is None or archive.deleted_at is not None or run is None or run.archive_id != archive_id
+        or run.printer_id != printer_id or run.status != "completed" or not run.confirm_requested
+        or run.good_quantity is not None
+    ):
+        return False
+    if await is_auth_enabled(db):
+        # Ownerless prints remain available to authorized admins through the
+        # archive UI; never fan their private metadata out to every connection.
+        if archive.created_by_id is None:
+            return False
+        owner = await db.get(User, archive.created_by_id)
+        if (
+            owner is None or not owner.is_active or not user_can_access_printer(owner, printer_id)
+            or not user_can_access_printer(owner, archive.printer_id)
+        ):
+            return False
+    await ws_manager.broadcast_to_user(archive.created_by_id, {
+        "type": "print_confirm_request", "printer_id": printer_id,
+        "data": {"archive_id": archive_id, "run_id": run.id,
+                 "print_name": run.print_name or archive.print_name or archive.filename},
+    })
+    return True
+
+
+async def dispatch_outcome_confirmation(
+    db: AsyncSession, archive_id: int, printer_id: int, printer_name: str,
+    *, run_id: int | None = None, notify_user: bool = True,
+) -> bool:
+    """Issue strict current-run provider actions; callers can send the UI hint early."""
+    from backend.app.api.routes.settings import get_setting
     from backend.app.services.notification_service import notification_service
 
-    async with outcome_lock(db, archive_id):
-        archive = await db.get(PrintArchive, archive_id)
+    async with outcome_lock(db, archive_id, run_id):
+        # Provider awaits may leave this session holding the previous mirror.
+        archive = await db.get(PrintArchive, archive_id, populate_existing=True)
         if archive is None:
             return False
-        token = await issue_confirmation_token(db, archive)
+        token = await issue_confirmation_token(db, archive, run_id=run_id)
         if token is None:
             return False
-        await db.commit()
         run = await latest_run(db, archive_id)
-        payload = {"archive_id": archive_id, "run_id": run.id, "print_name": archive.print_name or archive.filename}
-    from backend.app.core.auth import is_auth_enabled
-
-    # User-specific hints contain no capability. Ownerless prints in an
-    # authenticated deployment remain inspectable by admins in the archive UI.
-    if archive.created_by_id is not None or not await is_auth_enabled(db):
-        await ws_manager.broadcast_to_user(
-            archive.created_by_id, {"type": "print_confirm_request", "printer_id": printer_id, "data": payload}
-        )
+        payload = {"archive_id": archive_id, "run_id": run.id,
+                   "print_name": run.print_name or archive.print_name or archive.filename}
+        await db.commit()
+    if notify_user:
+        await send_outcome_confirmation_hint(db, archive_id, payload["run_id"], printer_id)
     base = (await get_setting(db, "external_url") or "").rstrip("/")
     urls = {}
     if base.startswith(("https://", "http://")):

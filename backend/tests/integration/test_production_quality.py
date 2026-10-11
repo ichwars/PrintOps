@@ -515,3 +515,287 @@ async def test_confirmation_event_reaches_http_actions_and_records_success(db_se
     assert log.success is True
     assert log.event_type == "print_confirm_request"
     assert "capability" not in log.message
+
+
+@pytest.mark.parametrize("blocked_work,next_copy,start_before_hint", [
+    ("photo", True, False), ("provider", True, False), ("photo", False, False), ("photo", True, True),
+])
+async def test_completed_run_hint_survives_next_copy_during_finish_work(
+    async_client, quality_run, db_session, test_engine, monkeypatch, blocked_work, next_copy, start_before_hint
+):
+    """Catch a prompt deferred behind camera/provider work or rebound to the next run."""
+    import asyncio
+    import json
+    from datetime import datetime, timedelta
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    import httpx
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    from backend.app import main
+    from backend.app.core.auth import create_access_token, get_password_hash
+    from backend.app.core.websocket import ws_manager
+    from backend.app.models.commerce import CustomerOrder
+    from backend.app.models.group import Group
+    from backend.app.models.notification import NotificationProvider
+    from backend.app.models.printer import Printer
+    from backend.app.models.settings import Settings
+    from backend.app.models.small_part import SmallPartLedgerEntry
+    from backend.app.models.stock_reservation import StockReservationCommand
+    from backend.app.models.user import User
+    from backend.app.services import active_print_provenance, usage_tracker
+    from backend.app.services.bambu_ftp import DeleteResult
+    from backend.app.services.notification_service import notification_service
+    from backend.app.services.print_confirmation import issue_confirmation_token
+    from backend.tests.integration.test_order_reservation_lifecycle import _accepted_order
+
+    order_data, _, spool = await _accepted_order(async_client, db_session)
+    order = await db_session.get(CustomerOrder, order_data["id"])
+    archive, batch, item, fixture_run = quality_run
+    await db_session.delete(fixture_run)
+    owner = User(username="prompt-owner", password_hash=get_password_hash("QualityPass1!"), groups=[
+        Group(name="Prompt operators", permissions=["archives:update_own", "archives:read_own"])
+    ])
+    db_session.add(owner)
+    await db_session.flush()
+    archive.status = item.status = "printing"
+    archive.started_at = datetime.now() - timedelta(minutes=5)
+    archive.created_by_id = owner.id
+    archive.project_id = item.project_id = order.project_id
+    batch.quantity = 2
+    plate = await db_session.scalar(select(PrintBatchPlate).where(PrintBatchPlate.batch_id == batch.id))
+    plate.quantity_target = 2
+    next_item = PrintQueueItem(archive_id=archive.id, printer_id=archive.printer_id,
+                              batch_id=batch.id, project_id=order.project_id, status="pending",
+                              confirm_outcome=True, expected_parts=4, position=2)
+    db_session.add_all([next_item, Settings(key="auth_enabled", value="true"),
+                       Settings(key="external_url", value="https://printops.example"),
+                       NotificationProvider(name="Completion and quality", provider_type="ntfy",
+                           config='{"server":"https://ntfy.sh","topic":"quality"}',
+                           on_print_complete=True, on_print_confirm_request=True, on_queue_completed=False)])
+    await db_session.commit()
+    printer = await db_session.get(Printer, archive.printer_id)
+    printer.external_camera_enabled = False
+    printer.plate_detection_enabled = False
+    await db_session.commit()
+
+    raced_token = []
+
+    class StartNextCopyAfterLogCommit(AsyncSession):
+        async def commit(self):
+            finished = next((row for row in self.identity_map.values() if isinstance(row, PrintLogEntry)), None)
+            await super().commit()
+            if finished is not None and start_before_hint and not raced_token:
+                mirror = await self.get(PrintArchive, archive.id)
+                raced_token.append(await issue_confirmation_token(self, mirror))
+                await super().commit()
+                queued = await self.get(PrintQueueItem, next_item.id)
+                queued.status = "printing"
+                await super().commit()
+                main._expected_prints[(printer.id, archive.filename)] = archive.id
+                await main.on_print_start(printer.id, {"filename": archive.filename,
+                                                      "raw_data": {"subtask_id": "copy-two"}})
+
+    sessions = async_sessionmaker(test_engine, class_=StartNextCopyAfterLogCommit, expire_on_commit=False)
+    monkeypatch.setattr(main, "async_session", sessions)
+    monkeypatch.setattr(active_print_provenance, "async_session", sessions)
+    monkeypatch.setattr(usage_tracker, "_active_sessions", {})
+    monkeypatch.setattr(main, "_last_progress_milestone", {})
+    monkeypatch.setattr(main, "_first_layer_notified", {})
+    monkeypatch.setattr(main, "_bed_cool_waiters", {})
+    monkeypatch.setattr(main, "_active_prints", {(printer.id, archive.filename): archive.id})
+    monkeypatch.setattr(main, "_expected_prints", {})
+    monkeypatch.setattr(main, "_stage22_finish_in_flight", {})
+    monkeypatch.setattr(main, "_stage22_finish_frames", {})
+    monkeypatch.setattr(main.printer_manager, "get_printer", lambda _id: printer)
+    monkeypatch.setattr(main.printer_manager, "get_status", lambda _id: None)
+    monkeypatch.setattr(main.printer_manager, "get_client", lambda _id: None)
+    monkeypatch.setattr(main.printer_manager, "get_current_print_user", lambda _id: None)
+    monkeypatch.setattr(main.printer_manager, "set_awaiting_plate_clear", lambda *_args: None)
+    for method in ("on_print_complete", "on_print_start", "on_archive_updated", "on_queue_job_completed"):
+        monkeypatch.setattr(main.mqtt_relay, method, AsyncMock())
+    monkeypatch.setattr("backend.app.services.bambu_ftp.delete_file_async", AsyncMock(return_value=DeleteResult.NOT_FOUND))
+    monkeypatch.setattr(main, "_capture_timelapse_baseline_at_start", AsyncMock())
+    monkeypatch.setattr(main, "ensure_default_types", AsyncMock())
+    monkeypatch.setattr(main, "_get_printer_maintenance_internal", AsyncMock(return_value=SimpleNamespace(maintenance_items=[])))
+    monkeypatch.setattr("backend.app.api.routes.camera.get_buffered_frame", lambda _id: None)
+    monkeypatch.setattr("backend.app.api.routes.camera.is_stream_active", lambda _id: False)
+
+    sockets = [SimpleNamespace(state=SimpleNamespace(printops_principal_user_id=uid), send_text=AsyncMock())
+               for uid in (owner.id, owner.id + 100, None)]
+    monkeypatch.setattr(ws_manager, "active_connections", sockets)
+    blocked, release = asyncio.Event(), asyncio.Event()
+
+    async def photo(**_kwargs):
+        if blocked_work == "photo":
+            blocked.set()
+            await release.wait()
+        return None
+
+    monkeypatch.setattr("backend.app.services.camera.capture_finish_photo", photo)
+    monkeypatch.setattr("backend.app.services.camera.capture_camera_frame_bytes", AsyncMock(return_value=None))
+    provider_requests = []
+
+    async def transport(request):
+        provider_requests.append(request)
+        if blocked_work == "provider" and "Actions" not in request.headers:
+            blocked.set()
+            await release.wait()
+        return httpx.Response(200, json={"id": "notification"})
+
+    tasks = []
+    original_spawn = main.spawn_background_task
+
+    def spawn(coro, *, name):
+        task = original_spawn(coro, name=name)
+        tasks.append(task)
+        return task
+
+    monkeypatch.setattr(main, "spawn_background_task", spawn)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as provider_client:
+        monkeypatch.setattr(notification_service, "_get_client", AsyncMock(return_value=provider_client))
+        try:
+            await main.on_print_complete(printer.id, {"status": "completed", "filename": archive.filename,
+                                                     "progress": 100, "timelapse_was_active": False})
+            await asyncio.wait_for(blocked.wait(), timeout=3)
+            await db_session.refresh(archive)
+            completed_run = await db_session.scalar(select(PrintLogEntry).where(PrintLogEntry.archive_id == archive.id))
+            assert completed_run is not None and completed_run.status == "completed"
+            assert completed_run.queue_item_id == item.id
+            early_hints = [json.loads(call.args[0]) for call in sockets[0].send_text.call_args_list
+                           if json.loads(call.args[0]).get("type") == "print_confirm_request"]
+            assert len(early_hints) == 1, "hint must be sent while optional finish work is still blocked"
+            assert early_hints[0]["data"]["run_id"] == completed_run.id
+            if not next_copy:
+                release.set()
+                await asyncio.wait_for(asyncio.gather(*tasks), timeout=5)
+                actions = [request.headers["Actions"] for request in provider_requests if "Actions" in request.headers]
+                assert len(actions) == 1, "still-current run must reach actual provider actions"
+                token = actions[0].split("outcome-link/")[1].split("/")[0]
+                assert (await async_client.post(f"/api/v1/archives/outcome-link/{token}/good")).status_code == 200
+                await db_session.refresh(completed_run)
+                assert (completed_run.good_quantity, completed_run.reject_quantity) == (4, 0)
+                hints = [json.loads(call.args[0]) for call in sockets[0].send_text.call_args_list
+                         if json.loads(call.args[0]).get("type") == "print_confirm_request"]
+                assert len(hints) == 1, "provider dispatch must not repeat the early UI hint"
+                return
+            # This old capability must remain unusable after the archive is reused.
+            if start_before_hint:
+                old_token = raced_token[0]
+            else:
+                old_token = (await issue_confirmation_token(db_session, archive)
+                             if blocked_work == "photo" else None)
+                await db_session.commit()
+                next_item.status = "printing"
+                await db_session.commit()
+                main._expected_prints[(printer.id, archive.filename)] = archive.id
+                await main.on_print_start(printer.id, {"filename": archive.filename,
+                                                      "raw_data": {"subtask_id": "copy-two"}})
+            if blocked_work == "photo":
+                assert old_token
+            await db_session.refresh(archive)
+            active_started_at = archive.started_at
+            assert archive.status == "printing"
+            release.set()
+            await asyncio.wait_for(asyncio.gather(*tasks), timeout=5)
+            hints = [json.loads(call.args[0]) for call in sockets[0].send_text.call_args_list
+                     if json.loads(call.args[0]).get("type") == "print_confirm_request"]
+            assert len(hints) == 1, "completed run's hint must precede optional camera/provider awaits"
+            assert hints[0]["printer_id"] == printer.id
+            assert hints[0]["data"]["run_id"] == completed_run.id
+            if old_token:
+                assert old_token not in str(hints)
+            for other in sockets[1:]:
+                assert not any(json.loads(call.args[0]).get("type") == "print_confirm_request"
+                               for call in other.send_text.call_args_list)
+            assert not any("Actions" in request.headers for request in provider_requests), "no stale external capability"
+            if old_token:
+                assert (await async_client.post(f"/api/v1/archives/outcome-link/{old_token}/good")).status_code == 404
+
+            order_before = (order.status, dict(order.accepted_snapshot))
+            await db_session.refresh(spool)
+            weight_before = spool.weight_used
+            ledger_before = await db_session.scalar(select(func.count(SmallPartLedgerEntry.id)))
+            commands_before = await db_session.scalar(select(func.count(StockReservationCommand.id)))
+            headers = {"Authorization": "Bearer " + create_access_token({"sub": owner.username})}
+            response = await async_client.post(f"/api/v1/archives/{archive.id}/runs/{completed_run.id}/outcome",
+                json={"run_id": completed_run.id, "good_quantity": 3, "reject_quantity": 1}, headers=headers)
+            assert response.status_code == 200, response.text
+            for row in (archive, completed_run, next_item, batch, plate, spool, order):
+                await db_session.refresh(row)
+            assert (completed_run.good_quantity, completed_run.reject_quantity) == (3, 1)
+            assert (archive.status, archive.started_at, archive.good_quantity, archive.reject_quantity) == (
+                "printing", active_started_at, None, None)
+            assert next_item.status == "printing"
+            assert (batch.quantity, plate.quantity_target) == (2, 2)
+            assert (order.status, order.accepted_snapshot) == order_before
+            assert spool.weight_used == weight_before
+            assert await db_session.scalar(select(func.count(SmallPartLedgerEntry.id))) == ledger_before
+            assert await db_session.scalar(select(func.count(StockReservationCommand.id))) == commands_before
+        finally:
+            release.set()
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def test_delayed_prompt_cannot_issue_actions_for_a_later_completed_run(quality_run, db_session):
+    """An old callback must not silently prompt whichever copy is newest now."""
+    from datetime import datetime, timedelta
+
+    from backend.app.services.print_confirmation import dispatch_outcome_confirmation
+
+    archive, _, _, previous = quality_run
+    next_start = datetime.now() + timedelta(minutes=1)
+    archive.started_at = next_start
+    later = PrintLogEntry(archive_id=archive.id, printer_id=archive.printer_id,
+                         status="completed", started_at=next_start, quantity=4, confirm_requested=True)
+    db_session.add(later)
+    await db_session.commit()
+    assert await dispatch_outcome_confirmation(
+        db_session, archive.id, archive.printer_id, "Printer", run_id=previous.id, notify_user=False,
+    ) is False
+    await db_session.refresh(later)
+    assert later.confirm_token_hash is None, "old callbacks must not mint a capability for a later copy"
+
+
+@pytest.mark.parametrize("blocked", [False, "printer", "current-printer", "ownerless", "inactive", "deleted", "answered", "wrong-printer"])
+async def test_historical_quality_hint_keeps_owner_and_printer_guards(
+    quality_run, db_session, printer_factory, monkeypatch, blocked
+):
+    import json
+    from datetime import datetime
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from backend.app.core.websocket import ws_manager
+    from backend.app.models.settings import Settings
+    from backend.app.models.user import User
+    from backend.app.services.print_confirmation import send_outcome_confirmation_hint
+
+    archive, _, _, run = quality_run
+    owner = User(username="hint-owner", allowed_printer_ids=[archive.printer_id + 100] if blocked == "printer" else [archive.printer_id],
+                 is_active=blocked != "inactive")
+    db_session.add_all([owner, Settings(key="auth_enabled", value="true")])
+    await db_session.flush()
+    archive.created_by_id = None if blocked == "ownerless" else owner.id
+    archive.status = "printing"
+    if blocked == "current-printer":
+        archive.printer_id = (await printer_factory()).id
+    if blocked == "deleted":
+        archive.deleted_at = datetime.now()
+    if blocked == "answered":
+        run.good_quantity, run.reject_quantity, run.user_verdict = 4, 0, "good"
+    await db_session.commit()
+    socket = SimpleNamespace(state=SimpleNamespace(printops_principal_user_id=owner.id), send_text=AsyncMock())
+    monkeypatch.setattr(ws_manager, "active_connections", [socket])
+    assert await send_outcome_confirmation_hint(
+        db_session, archive.id, run.id, run.printer_id + (1 if blocked == "wrong-printer" else 0),
+    ) is (not blocked)
+    hints = [json.loads(call.args[0]) for call in socket.send_text.call_args_list]
+    assert len(hints) == (0 if blocked else 1)
+    if hints:
+        assert hints[0]["data"]["run_id"] == run.id
+        assert run.confirm_token_hash is None, "a historical hint must never issue a public capability"

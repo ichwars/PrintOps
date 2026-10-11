@@ -4501,6 +4501,7 @@ async def on_print_complete(printer_id: int, data: dict):
     log_timing("Archive status update")
 
     # Write independent print log entry (separate table, never touches archives)
+    completed_run_id = None
     try:
         async with async_session() as db:
             from backend.app.models.archive import PrintArchive
@@ -4539,7 +4540,7 @@ async def on_print_complete(printer_id: int, data: dict):
                 # tracked-spool sum is closer to what THIS run actually cost.
                 _run_cost = resolve_print_log_cost(spoolman_run_cost, usage_results, _run_status, archive.cost)
 
-                await write_log_entry(
+                run = await write_log_entry(
                     db,
                     archive_id=archive.id,
                     # Captured by _update_queue_status above; None for
@@ -4563,6 +4564,17 @@ async def on_print_complete(printer_id: int, data: dict):
                     reconciled=bool(data.get("_reconciled")),
                 )
                 await db.commit()
+                completed_run_id = run.id
+                if _run_status == "completed":
+                    from backend.app.services.print_confirmation import send_outcome_confirmation_hint
+
+                    try:
+                        # The next batch copy may reuse this archive during any
+                        # later await. Ask about the committed run before photos
+                        # or provider I/O, with no public capability in the hint.
+                        await send_outcome_confirmation_hint(db, archive_id, completed_run_id, printer_id)
+                    except Exception:
+                        logger.warning("[OUTCOME] Could not hint inspection for run %s", completed_run_id, exc_info=True)
                 # The earlier queue-status refresh precedes the log write. Refresh
                 # again with the run now present, so production stays awaiting
                 # inspection instead of being prematurely marked complete.
@@ -4925,11 +4937,13 @@ async def on_print_complete(printer_id: int, data: dict):
                     printer_id, printer_name, print_status, data, db, archive_data=archive_data
                 )
 
-                if print_status == "completed" and archive_id:
+                if print_status == "completed" and completed_run_id is not None:
                     from backend.app.services.print_confirmation import dispatch_outcome_confirmation
 
                     try:
-                        await dispatch_outcome_confirmation(db, archive_id, printer_id, printer_name)
+                        await dispatch_outcome_confirmation(
+                            db, archive_id, printer_id, printer_name, run_id=completed_run_id, notify_user=False
+                        )
                     except Exception:
                         # Inspection remains available in the archive UI. An
                         # optional prompt must not interrupt existing user emails.
