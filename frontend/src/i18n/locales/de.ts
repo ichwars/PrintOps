@@ -3347,6 +3347,14 @@ export default {
       hasTimelapse: 'Hat Zeitraffer',
     },
     log: {
+      filamentUsed: 'Filamentverbrauch',
+      cost: 'Kosten',
+      energy: 'Energie',
+      energyCost: 'Energiekosten',
+      completedAt: 'Beendet',
+      columns: 'Spalten',
+      sortBy: 'Nach {{column}} sortieren',
+
       date: 'Datum',
       printName: 'Druckname',
       printer: 'Drucker',

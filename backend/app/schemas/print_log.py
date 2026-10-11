@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class PrintLogEntrySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: int
     archive_id: int | None = None
     project_id: int | None = None

@@ -3309,6 +3309,14 @@ export default {
       hasTimelapse: 'Zaman atlamalı videosu var',
     },
     log: {
+      filamentUsed: 'Kullanılan filament',
+      cost: 'Maliyet',
+      energy: 'Enerji',
+      energyCost: 'Enerji maliyeti',
+      completedAt: 'Bitti',
+      columns: 'Sütunlar',
+      sortBy: '{{column}} ölçütüne göre sırala',
+
       date: 'Tarih',
       printName: 'Baskı Adı',
       printer: 'Yazıcı',

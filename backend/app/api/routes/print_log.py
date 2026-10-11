@@ -3,7 +3,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, nullslast, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import (
@@ -27,6 +27,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/print-log", tags=["print-log"])
 
 
+_SORTABLE_COLUMNS = {
+    "date": func.coalesce(PrintLogEntry.started_at, PrintLogEntry.created_at),
+    "print_name": PrintLogEntry.print_name,
+    "printer": PrintLogEntry.printer_name,
+    "user": PrintLogEntry.created_by_username,
+    "status": PrintLogEntry.status,
+    "duration": PrintLogEntry.duration_seconds,
+    "completed_at": PrintLogEntry.completed_at,
+    "filament": PrintLogEntry.filament_type,
+    "filament_used": PrintLogEntry.filament_used_grams,
+    "cost": PrintLogEntry.cost,
+    "energy": PrintLogEntry.energy_kwh,
+    "energy_cost": PrintLogEntry.energy_cost,
+}
+
+
 @router.get("/", response_model=PrintLogResponse)
 async def get_print_log(
     search: str | None = None,
@@ -37,6 +53,8 @@ async def get_print_log(
     date_to: datetime | None = None,
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    sort_by: str = Query(default="date"),
+    sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
     db: AsyncSession = Depends(get_db),
     auth_result: tuple[User | None, bool] = Depends(
         require_ownership_permission(
@@ -77,44 +95,16 @@ async def get_print_log(
     total = total_result.scalar() or 0
 
     # Get paginated results
-    query = query.order_by(PrintLogEntry.created_at.desc()).offset(offset).limit(limit)
+    column = _SORTABLE_COLUMNS.get(sort_by)
+    if column is None:
+        raise HTTPException(400, f"Cannot sort by {sort_by!r}")
+    ordering = column.asc() if sort_dir == "asc" else column.desc()
+    query = query.order_by(nullslast(ordering), PrintLogEntry.id.desc()).offset(offset).limit(limit)
     result = await db.execute(query)
     entries = result.scalars().all()
 
     return PrintLogResponse(
-        items=[
-            PrintLogEntrySchema(
-                id=e.id,
-                project_id=e.project_id,
-                quantity=e.quantity,
-                confirm_requested=bool(e.confirm_requested),
-                user_verdict=e.user_verdict,
-                good_quantity=e.good_quantity,
-                reject_quantity=e.reject_quantity,
-                user_verdict_source=e.user_verdict_source,
-                user_verdict_at=e.user_verdict_at,
-                archive_id=e.archive_id,
-                print_name=e.print_name,
-                printer_name=e.printer_name,
-                printer_id=e.printer_id,
-                status=e.status,
-                started_at=e.started_at,
-                completed_at=e.completed_at,
-                duration_seconds=e.duration_seconds,
-                filament_type=e.filament_type,
-                filament_color=e.filament_color,
-                filament_used_grams=e.filament_used_grams,
-                # failure_reason was silently dropped by the GET serialiser
-                # before #1687 part 4 — without it the Print Log table couldn't
-                # surface what the Failure Analysis widget already groups by.
-                failure_reason=e.failure_reason,
-                thumbnail_path=e.thumbnail_path,
-                created_by_id=e.created_by_id,
-                created_by_username=e.created_by_username,
-                created_at=e.created_at,
-            )
-            for e in entries
-        ],
+        items=[PrintLogEntrySchema.model_validate(e) for e in entries],
         total=total,
     )
 
@@ -309,30 +299,4 @@ async def update_print_log_entry(
         entry.status,
     )
 
-    return PrintLogEntrySchema(
-        id=entry.id,
-        project_id=entry.project_id,
-        quantity=entry.quantity,
-        confirm_requested=bool(entry.confirm_requested),
-        user_verdict=entry.user_verdict,
-        good_quantity=entry.good_quantity,
-        reject_quantity=entry.reject_quantity,
-        user_verdict_source=entry.user_verdict_source,
-        user_verdict_at=entry.user_verdict_at,
-        archive_id=entry.archive_id,
-        print_name=entry.print_name,
-        printer_name=entry.printer_name,
-        printer_id=entry.printer_id,
-        status=entry.status,
-        started_at=entry.started_at,
-        completed_at=entry.completed_at,
-        duration_seconds=entry.duration_seconds,
-        filament_type=entry.filament_type,
-        filament_color=entry.filament_color,
-        filament_used_grams=entry.filament_used_grams,
-        failure_reason=entry.failure_reason,
-        thumbnail_path=entry.thumbnail_path,
-        created_by_id=entry.created_by_id,
-        created_by_username=entry.created_by_username,
-        created_at=entry.created_at,
-    )
+    return PrintLogEntrySchema.model_validate(entry)

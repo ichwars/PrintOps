@@ -3310,6 +3310,14 @@ export default {
       hasTimelapse: '有延时摄影',
     },
     log: {
+      filamentUsed: '耗材用量',
+      cost: '成本',
+      energy: '电量',
+      energyCost: '电费',
+      completedAt: '完成时间',
+      columns: '列',
+      sortBy: '按{{column}}排序',
+
       date: '日期',
       printName: '打印名称',
       printer: '打印机',

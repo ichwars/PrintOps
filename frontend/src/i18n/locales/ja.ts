@@ -3309,6 +3309,14 @@ export default {
       hasTimelapse: 'タイムラプスあり',
     },
     log: {
+      filamentUsed: '使用フィラメント量',
+      cost: 'コスト',
+      energy: '電力量',
+      energyCost: '電力コスト',
+      completedAt: '終了',
+      columns: '列',
+      sortBy: '{{column}} で並べ替え',
+
       date: '日時',
       printName: '印刷名',
       printer: 'プリンター',

@@ -3316,6 +3316,14 @@ export default {
       hasTimelapse: 'Tiene time-lapse',
     },
     log: {
+      filamentUsed: 'Filamento usado',
+      cost: 'Coste',
+      energy: 'Energía',
+      energyCost: 'Coste de energía',
+      completedAt: 'Finalizado',
+      columns: 'Columnas',
+      sortBy: 'Ordenar por {{column}}',
+
       date: 'Fecha',
       printName: 'Nombre de la impresión',
       printer: 'Impresora',

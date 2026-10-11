@@ -705,6 +705,8 @@ export const archivesPrintLogMethods = {
     dateTo?: string;
     limit?: number;
     offset?: number;
+    sortBy?: string;
+    sortDir?: "asc" | "desc";
   }) => {
     const searchParams = new URLSearchParams();
     if (params?.search) searchParams.set('search', params.search);
@@ -715,6 +717,8 @@ export const archivesPrintLogMethods = {
     if (params?.dateTo) searchParams.set('date_to', params.dateTo);
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.offset !== undefined) searchParams.set('offset', String(params.offset));
+    if (params?.sortBy) searchParams.set("sort_by", params.sortBy);
+    if (params?.sortDir) searchParams.set("sort_dir", params.sortDir);
     return request<PrintLogResponse>(`/print-log/?${searchParams}`);
   },
 

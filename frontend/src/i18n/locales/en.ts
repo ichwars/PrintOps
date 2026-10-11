@@ -3351,6 +3351,14 @@ export default {
       hasTimelapse: 'Has timelapse',
     },
     log: {
+      filamentUsed: 'Filament Used',
+      cost: 'Cost',
+      energy: 'Energy',
+      energyCost: 'Energy Cost',
+      completedAt: 'Finished',
+      columns: 'Columns',
+      sortBy: 'Sort by {{column}}',
+
       date: 'Date',
       printName: 'Print Name',
       printer: 'Printer',

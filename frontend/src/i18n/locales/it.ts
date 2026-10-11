@@ -3310,6 +3310,14 @@ export default {
       hasTimelapse: 'Ha timelapse',
     },
     log: {
+      filamentUsed: 'Filamento usato',
+      cost: 'Costo',
+      energy: 'Energia',
+      energyCost: 'Costo energia',
+      completedAt: 'Completato',
+      columns: 'Colonne',
+      sortBy: 'Ordina per {{column}}',
+
       date: 'Data',
       printName: 'Nome stampa',
       printer: 'Stampante',

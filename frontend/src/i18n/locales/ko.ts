@@ -3245,6 +3245,14 @@ export default {
       hasTimelapse: '타임랩스 있음'
     },
     log: {
+      filamentUsed: '사용 필라멘트량',
+      cost: '비용',
+      energy: '전력량',
+      energyCost: '전력 비용',
+      completedAt: '완료',
+      columns: '열',
+      sortBy: '{{column}} 기준 정렬',
+
       date: '날짜',
       printName: '인쇄 이름',
       printer: '프린터',
