@@ -717,7 +717,7 @@ async def _import_sqlite_to_postgres(sqlite_path: Path, postgres_url: str):
     """
     import sqlite3
 
-    from sqlalchemy import text
+    from sqlalchemy import MetaData, text
 
     from backend.app.core.database import Base, _create_engine
 
@@ -737,7 +737,9 @@ async def _import_sqlite_to_postgres(sqlite_path: Path, postgres_url: str):
         src_tables = {row["name"] for row in cursor.fetchall()}
 
         # Get Postgres tables from our ORM models
-        metadata = Base.metadata
+        metadata = MetaData(naming_convention=Base.metadata.naming_convention)
+        for table in Base.metadata.tables.values():
+            table.to_metadata(metadata)
         pg_tables = set(metadata.tables.keys())
 
         # Only import tables that exist in both source and destination
