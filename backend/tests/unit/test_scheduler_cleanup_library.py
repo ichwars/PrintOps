@@ -207,6 +207,7 @@ async def _dispatch_library_item(ctx, *, archive_failure=False, unlink_side_effe
         async with ctx.session_maker() as db:
             item = await db.get(PrintQueueItem, ctx.queue_item_id)
             await scheduler._start_print(db, item)
+    return scheduler
 
 
 async def _queue_snapshot(ctx):
@@ -323,14 +324,43 @@ async def test_upload_failure_surfaces_recorded_network_cause(queue_factory, cap
         return False
 
     ctx.upload.side_effect = fail_upload
-    await _dispatch_library_item(ctx)
+    scheduler = await _dispatch_library_item(ctx)
 
     item, library_file, archive = await _queue_snapshot(ctx)
     assert item.status == "pending"
     assert item.error_message is None
+    assert item.completed_at is None
+    assert item.dispatch_attempts == 0
+    assert item.printer_id == ctx.printer_id
+    assert ctx.printer_id in scheduler._upload_backoff
     assert "network" in caplog.text
     assert "retrying printer 1 in 300s" in caplog.text
     assert "Check that its SD card" not in caplog.text
+    ctx.start_print.assert_not_called()
+    assert library_file is not None
+    assert archive is not None
+
+
+@pytest.mark.asyncio
+async def test_persistent_storage_upload_failure_remains_terminal(queue_factory):
+    from backend.app.services.bambu_ftp import FtpFailure, FtpFailureKind
+
+    ctx = await queue_factory(cleanup=False)
+
+    async def fail_upload(*args, failure, **kwargs):
+        failure.failure = FtpFailure(FtpFailureKind.STORAGE, "SD card is full")
+        return False
+
+    ctx.upload.side_effect = fail_upload
+    scheduler = await _dispatch_library_item(ctx)
+
+    item, library_file, archive = await _queue_snapshot(ctx)
+    assert item.status == "failed"
+    assert item.completed_at is not None
+    assert "SD card" in item.error_message
+    assert item.dispatch_attempts == 0
+    assert ctx.printer_id not in scheduler._upload_backoff
+    ctx.start_print.assert_not_called()
     assert library_file is not None
     assert archive is not None
 
