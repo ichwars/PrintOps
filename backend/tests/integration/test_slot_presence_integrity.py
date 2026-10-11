@@ -230,3 +230,49 @@ async def test_reassigning_same_spoolman_spool_discards_old_removal(
     assert response.status_code == 200, response.text
     now[0] += 120
     assert slot_unlink_grace.removal_confirmed(printer_id, ("spoolman", 0, 0, 42)) is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("external", [False, True])
+async def test_positive_presence_cancels_blank_metadata_removal_hold(slot_context, db_session, monkeypatch, external):
+    """A recovered presence bit proves occupancy even before metadata returns."""
+    from backend.app import main
+    from backend.app.services import slot_unlink_grace
+
+    printer_id, _, row_id, _, report = slot_context
+    table = SpoolAssignment
+    scope, spool_id = "inventory", (await db_session.get(SpoolAssignment, row_id)).spool_id
+    if external:
+        db_session.add_all([
+            Settings(key="spoolman_enabled", value="true"),
+            Settings(key="spoolman_sync_mode", value="auto"),
+            Settings(key="spoolman_url", value="http://spoolman.test"),
+        ])
+        row = SpoolmanSlotAssignment(printer_id=printer_id, ams_id=0, tray_id=0, spoolman_spool_id=42)
+        db_session.add(row)
+        await db_session.commit()
+        row_id, table, scope, spool_id = row.id, SpoolmanSlotAssignment, "spoolman", 42
+        client = SpoolmanClient("http://spoolman.test")
+        monkeypatch.setattr(client, "health_check", AsyncMock(return_value=True))
+        monkeypatch.setattr(client, "get_spools", AsyncMock(return_value=[]))
+        monkeypatch.setattr(main, "get_spoolman_client", AsyncMock(return_value=client))
+    now = [1000.0]
+    monkeypatch.setattr(slot_unlink_grace, "_now", lambda: now[0])
+    await report({"id": 0, "exists": False, "tray_type": "", "tray_color": ""})
+    now[0] += 60
+    await report({"id": 0, "exists": True, "tray_type": "", "tray_color": ""})
+    now[0] += 60
+    await main._recheck_held_unlinks(printer_id)
+    db_session.expunge_all()
+    assert await db_session.get(table, row_id) is not None
+    assert not slot_unlink_grace.is_held(printer_id, (scope, 0, 0, spool_id))
+    # A later genuine removal starts its own full grace interval.
+    await report({"id": 0, "exists": False, "tray_type": "", "tray_color": ""})
+    now[0] += 60
+    await main._recheck_held_unlinks(printer_id)
+    db_session.expunge_all()
+    assert await db_session.get(table, row_id) is not None
+    now[0] += 60
+    await main._recheck_held_unlinks(printer_id)
+    db_session.expunge_all()
+    assert await db_session.get(table, row_id) is None

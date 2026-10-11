@@ -30,7 +30,7 @@ async def expire_empty_slots(db, printer_id: int, ams_data: list, printing_now: 
         if (tray.get("tray_type") or "").strip() and (tray.get("tray_color") or "").strip():
             continue
         key = ("spoolman", row.ams_id, row.tray_id, row.spoolman_spool_id)
-        if spool_present(tray) is True and not slot_unlink_grace.is_held(printer_id, key):
+        if spool_present(tray) is True:
             continue
         if slot_unlink_grace.removal_confirmed(printer_id, key):
             expired.append((row.ams_id, row.tray_id))

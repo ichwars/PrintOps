@@ -235,3 +235,32 @@ async def test_happy_path_still_dispatches(queue_factory):
     assert started_at is not None
     ctx.upload.assert_awaited_once()
     ctx.start_print.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_cancel_while_restoring_kprofile_prevents_later_print_start(queue_factory):
+    """A user's successful cancel/stop during K recovery must win over MQTT start."""
+    from backend.app.api.routes.print_queue import cancel_queue_item, stop_queue_item
+
+    ctx = await queue_factory()
+
+    async def cancel_during_recovery(*args, **kwargs):
+        async with ctx.session_maker() as other_db:
+            row = await other_db.get(PrintQueueItem, ctx.queue_item_id)
+            # The UI chooses Stop after the row becomes printing; either
+            # successful action must prevent a subsequent project_file send.
+            action = stop_queue_item if row.status == "printing" else cancel_queue_item
+            await action(ctx.queue_item_id, db=other_db, auth_result=(None, True))
+
+    with (
+        patch("backend.app.services.kprofile_drift.reapply_lost_kprofiles", side_effect=cancel_during_recovery),
+        patch("backend.app.services.printer_manager.printer_manager.stop_print", return_value=True),
+        patch("backend.app.main.mark_printer_stopped_by_user"),
+    ):
+        await _dispatch(ctx)
+
+    ctx.start_print.assert_not_called()
+    assert (await _final_status(ctx))[0] == "cancelled"
+    # Abort cleans up the uploaded file and keeps the owned source available.
+    assert ctx.delete_file.await_count >= 1
+    assert ctx.archive_path.exists()

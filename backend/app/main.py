@@ -1604,9 +1604,7 @@ async def _unlink_stale_assignments(printer_id: int, ams_data: list, _print_acti
 
                     if not _colors_similar(cur_color, fp_color) or cur_type.upper() != fp_type.upper():
                         if not cur_color.strip() and not cur_type.strip():
-                            if _print_active or (
-                                present is True and not slot_unlink_grace.is_held(printer_id, hold_key)
-                            ):
+                            if _print_active or present is True:
                                 continue
                             if not slot_unlink_grace.removal_confirmed(printer_id, hold_key):
                                 held.add(hold_key)

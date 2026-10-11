@@ -71,12 +71,10 @@ def removal_confirmed(printer_id: int, key: tuple) -> bool:
 
 
 def is_held(printer_id: int, key: tuple) -> bool:
-    """Is a removal already being held for this slot?
+    """Is there fresh empty evidence for this assignment?
 
-    Lets a caller tell a spool swap from a spool the AMS merely cannot read.
-    A slot that reports occupied-but-blank is normally kept (#3100), but if it
-    was reported *empty* first, a spool came out and another went in -- that
-    keeps the hold running instead of cancelling it.
+    Positive presence cancels an empty hold even while metadata is blank.
+    A different spool requires concrete tag, colour or type evidence.
     """
     entry = _held.get((printer_id, *key))
     return entry is not None and _now() - entry[1] <= _STALE_AFTER
