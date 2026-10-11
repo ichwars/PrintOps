@@ -30,6 +30,7 @@ from backend.app.models.library import LibraryFile
 from backend.app.models.print_queue import PrintQueueVariant
 from backend.app.models.settings import Settings
 from backend.app.services.library_queue_references import release_queue_references
+from backend.app.utils.library_paths import remove_library_photos_dir
 
 logger = logging.getLogger(__name__)
 
@@ -365,6 +366,7 @@ class LibraryTrashService:
     @staticmethod
     def _unlink_on_disk(row: LibraryFile) -> None:
         """Best-effort cleanup of the file + thumbnail on disk."""
+        remove_library_photos_dir(row.id)
         for rel in (row.file_path, row.thumbnail_path):
             abs_path = _to_absolute_path(rel)
             if abs_path is None:

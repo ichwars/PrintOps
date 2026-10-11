@@ -43,6 +43,7 @@ import {
   Lock,
   FolderSymlink,
   Tag as TagIcon,
+  Info,
 } from 'lucide-react';
 import { api } from '../api/client';
 import type {
@@ -59,6 +60,7 @@ import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { PrintModal } from '../components/PrintModal';
 import { ModelViewerModal } from '../components/ModelViewerModal';
+import { LibraryFileDetailsModal } from '../components/LibraryFileDetailsModal';
 import { SliceModal } from '../components/SliceModal';
 import { RunWithPipelineModal } from '../components/RunWithPipelineModal';
 import { BulkTagsPickerModal } from '../components/BulkTagsPickerModal';
@@ -667,6 +669,7 @@ interface FileCardProps {
   onSelect: (id: number) => void;
   onDelete: (id: number) => void;
   onDownload: (id: number) => void;
+  onDetails: (file: LibraryFileListItem) => void;
   onPrint?: (file: LibraryFileListItem) => void;
   onSlice?: (file: LibraryFileListItem) => void;
   onRunPipeline?: (file: LibraryFileListItem) => void;
@@ -683,7 +686,7 @@ interface FileCardProps {
   t: TFunction;
 }
 
-function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onPrint, onSlice, onRunPipeline, useSlicerApi, onPreview3d, onRename, onGenerateThumbnail, onTagClick, thumbnailVersion, hasPermission, canModify, authEnabled, showModified, t }: FileCardProps) {
+function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onDetails, onPrint, onSlice, onRunPipeline, useSlicerApi, onPreview3d, onRename, onGenerateThumbnail, onTagClick, thumbnailVersion, hasPermission, canModify, authEnabled, showModified, t }: FileCardProps) {
   return (
     <div
       className={`group relative bg-bambu-dark-secondary rounded-lg border transition-all cursor-pointer overflow-hidden ${
@@ -864,6 +867,13 @@ function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onPrint, o
                 {t('common.download')}
               </button>
               {onRename && (
+                <button role="menuitem" title={t('fileManager.details.title')}
+                  className="w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 text-white hover:bg-bambu-dark"
+                  onClick={() => { close(); onDetails(file); }}>
+                  <Info className="w-3.5 h-3.5" />{t('fileManager.details.title')}
+                </button>
+              )}
+              {onRename && (
                 <button
                   role="menuitem"
                   className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
@@ -960,6 +970,7 @@ export function FileManagerPage() {
   const [renameItem, setRenameItem] = useState<{ type: 'file' | 'folder'; id: number; name: string } | null>(null);
   const [thumbnailVersions, setThumbnailVersions] = useState<Record<number, number>>({});
   const [viewerFile, setViewerFile] = useState<LibraryFileListItem | null>(null);
+  const [detailsFile, setDetailsFile] = useState<LibraryFileListItem | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
     return (localStorage.getItem('library-view-mode') as 'grid' | 'list') || 'grid';
   });
@@ -2328,6 +2339,7 @@ export function FileManagerPage() {
                     onSelect={handleFileSelect}
                     onDelete={(id) => setDeleteConfirm({ type: 'file', id })}
                     onDownload={handleDownload}
+                    onDetails={setDetailsFile}
                     onPrint={setPrintFile}
                     onSlice={setSliceFile}
                     onRunPipeline={setRunPipelineFile}
@@ -2565,6 +2577,10 @@ export function FileManagerPage() {
                           <Box className="w-4 h-4" />
                         </button>
                       )}
+                      <button title={t('fileManager.details.title')} onClick={() => setDetailsFile(file)}
+                        className="p-1.5 rounded text-bambu-gray hover:text-white hover:bg-bambu-dark">
+                        <Info className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => hasPermission('library:read') && handleDownload(file.id)}
                         className={`p-1.5 rounded transition-colors ${
@@ -2761,6 +2777,12 @@ export function FileManagerPage() {
           source={{ kind: 'libraryFile', id: runPipelineFile.id, filename: runPipelineFile.filename }}
           onClose={() => setRunPipelineFile(null)}
         />
+      )}
+
+      {detailsFile && (
+        <LibraryFileDetailsModal file={detailsFile}
+          canEdit={canModify('library', 'update', detailsFile.created_by_id)}
+          onClose={() => setDetailsFile(null)} />
       )}
 
       {viewerFile && (

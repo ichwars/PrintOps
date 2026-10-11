@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # ============ Folder Schemas ============
 
@@ -122,6 +122,22 @@ class FileUpdate(BaseModel):
     folder_id: int | None = None
     project_id: int | None = None
     notes: str | None = None
+    external_url: str | None = Field(None, max_length=500)
+
+    @field_validator("external_url")
+    @classmethod
+    def validate_external_url(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        value = value.strip()
+        from urllib.parse import urlsplit
+
+        parsed = urlsplit(value)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+            raise ValueError("External link must be an HTTP or HTTPS URL without credentials")
+        if any(ord(character) < 32 for character in value):
+            raise ValueError("External link contains control characters")
+        return value
 
 
 class FileDuplicate(BaseModel):
@@ -157,6 +173,10 @@ class FileResponse(BaseModel):
     last_printed_at: datetime | None
 
     notes: str | None
+    external_url: str | None = None
+    photos: list[str] = []
+    source_type: str | None = None
+    source_url: str | None = None
 
     # Duplicate detection
     duplicates: list[FileDuplicate] | None = None

@@ -6,7 +6,9 @@ import { Button } from './Button';
 import { ConfirmModal } from './ConfirmModal';
 
 interface PhotoGalleryModalProps {
-  archiveId: number;
+  archiveId?: number;
+  getPhotoUrl?: (filename: string) => string;
+  initialIndex?: number;
   archiveName: string;
   photos: string[];
   onClose: () => void;
@@ -15,17 +17,20 @@ interface PhotoGalleryModalProps {
 
 export function PhotoGalleryModal({
   archiveId,
+  getPhotoUrl,
+  initialIndex = 0,
   archiveName,
   photos,
   onClose,
   onDelete,
 }: PhotoGalleryModalProps) {
   const { t: translateInterface } = useTranslation();
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Keyboard navigation
   useEffect(() => {
+    if (showDeleteConfirm) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
       if (e.key === 'ArrowLeft') setCurrentIndex((i) => Math.max(0, i - 1));
@@ -33,7 +38,7 @@ export function PhotoGalleryModal({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, photos.length]);
+  }, [onClose, photos.length, showDeleteConfirm]);
 
   // Reset index if photos change
   useEffect(() => {
@@ -48,7 +53,8 @@ export function PhotoGalleryModal({
   }
 
   const currentPhoto = photos[currentIndex];
-  const photoUrl = api.getArchivePhotoUrl(archiveId, currentPhoto);
+  const resolvePhotoUrl = getPhotoUrl ?? ((filename: string) => api.getArchivePhotoUrl(archiveId!, filename));
+  const photoUrl = resolvePhotoUrl(currentPhoto);
 
   const handleDownload = () => {
     const link = document.createElement('a');
@@ -66,7 +72,7 @@ export function PhotoGalleryModal({
   return (
     <div
       className="fixed inset-0 bg-black/90 flex items-center justify-center z-50"
-      onClick={onClose}
+      onClick={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) onClose(); }}
     >
       <div
         className="relative w-full h-full flex flex-col"
@@ -144,7 +150,7 @@ export function PhotoGalleryModal({
                 }`}
               >
                 <img
-                  src={api.getArchivePhotoUrl(archiveId, photo)}
+                  src={resolvePhotoUrl(photo)}
                   alt={`Thumbnail ${index + 1}`}
                   className="w-full h-full object-cover"
                 />

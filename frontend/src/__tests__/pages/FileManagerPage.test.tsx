@@ -152,6 +152,16 @@ describe('FileManagerPage', () => {
   });
 
   describe('rendering', () => {
+    it('opens editable file details from the listing', async () => {
+      server.use(http.get('/api/v1/library/files/1', () => HttpResponse.json({
+        ...mockFiles[0], notes: 'Use textured plate', external_url: 'https://example.org/design', photos: [],
+      })));
+      render(<FileManagerPage />);
+      await userEvent.click(await screen.findByRole('button', { name: 'Actions: Benchy' }));
+      await userEvent.click((await screen.findAllByTitle('File details'))[0]);
+      expect(await screen.findByDisplayValue('Use textured plate')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('https://example.org/design')).toBeInTheDocument();
+    });
     it('renders the page title', async () => {
       render(<FileManagerPage />);
 

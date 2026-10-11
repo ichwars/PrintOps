@@ -164,6 +164,22 @@ export const historyLibraryMethods = {
 
   getLibraryFile: (id: number) => request<LibraryFile>(`/library/files/${id}`),
 
+  getLibraryFilePhotoUrl: (id: number, filename: string) =>
+    withMediaToken(`${API_BASE}/library/files/${id}/photos/${encodeURIComponent(filename)}`),
+
+  uploadLibraryFilePhoto: async (id: number, file: File): Promise<{ filename: string; photos: string[] }> => {
+    const body = new FormData();
+    body.append('file', file);
+    const response = await fetch(`${API_BASE}/library/files/${id}/photos`, {
+      method: 'POST', body, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    });
+    if (!response.ok) throw new Error(`Photo upload failed: ${response.status}`);
+    return response.json();
+  },
+
+  deleteLibraryFilePhoto: (id: number, filename: string) =>
+    request<{ photos: string[] }>(`/library/files/${id}/photos/${encodeURIComponent(filename)}`, { method: 'DELETE' }),
+
   uploadLibraryFile: async (
     file: File,
     folderId?: number | null,

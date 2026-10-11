@@ -231,6 +231,10 @@ export interface LibraryFile {
   print_count: number;
   last_printed_at: string | null;
   notes: string | null;
+  external_url?: string | null;
+  photos?: string[];
+  source_type?: string | null;
+  source_url?: string | null;
   duplicates: LibraryFileDuplicate[] | null;
   duplicate_count: number;
   // User tracking (Issue #206)
@@ -313,6 +317,7 @@ export interface LibraryFileUpdate {
   folder_id?: number | null;
   project_id?: number | null;
   notes?: string | null;
+  external_url?: string | null;
 }
 
 // Library trash (#1008)

@@ -105,6 +105,8 @@ from backend.app.utils.archive_budget import (
 )
 from backend.app.utils.filename import InvalidFilenameError, validate_print_filename
 from backend.app.utils.library_files import classify_file_type, is_sliced_file
+from backend.app.utils.library_paths import library_photos_dir, remove_library_photos_dir
+from backend.app.utils.safe_path import safe_join_under
 from backend.app.utils.threemf_tools import (
     extract_embedded_presets_from_3mf,
     extract_nozzle_mapping_from_3mf,
@@ -1786,6 +1788,7 @@ async def scan_external_folder(
                 except OSError:
                     pass
             await db.delete(db_file)
+            remove_library_photos_dir(db_file.id)
             removed += 1
 
     # Remove empty subfolders whose directories no longer exist on disk
@@ -4324,6 +4327,100 @@ async def print_library_file(
 # ============ File Detail Endpoints ============
 
 
+@router.post("/files/{file_id}/photos")
+async def upload_library_photo(
+    file_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.LIBRARY_UPDATE_ALL, Permission.LIBRARY_UPDATE_OWN)
+    ),
+):
+    user, can_modify_all = auth_result
+    row = _ensure_library_file_visible(
+        (await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))).scalar_one_or_none(),
+        user,
+        can_modify_all,
+    )
+    if len(row.photos or []) >= 20:
+        raise HTTPException(400, "A file can have at most 20 photos")
+    extension = Path(file.filename or "").suffix.lower()
+    allowed = {".png": "PNG", ".jpg": "JPEG", ".jpeg": "JPEG", ".webp": "WEBP"}
+    if extension not in allowed:
+        raise HTTPException(400, "Photo must be PNG, JPEG or WebP")
+    try:
+        content = await read_upload_limited(file, max_bytes=10 * 1024 * 1024)
+    except ArchiveBudgetError as exc:
+        raise HTTPException(413, str(exc)) from exc
+    from PIL import Image, UnidentifiedImageError
+
+    try:
+        with Image.open(BytesIO(content)) as image:
+            if image.format != allowed[extension] or image.width * image.height > 25_000_000:
+                raise ValueError("Invalid photo format or dimensions")
+            image.verify()
+    except (UnidentifiedImageError, ValueError, OSError, Image.DecompressionBombError) as exc:
+        raise HTTPException(400, "Photo must contain a valid bounded raster image") from exc
+    name = f"{uuid.uuid4().hex}{extension}"
+    directory = library_photos_dir(row.id)
+    directory.mkdir(parents=True, exist_ok=True)
+    path = safe_join_under(directory, name)
+    path.write_bytes(content)
+    row.photos = [*(row.photos or []), name]
+    try:
+        await db.commit()
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+    return {"status": "uploaded", "filename": name, "photos": row.photos}
+
+
+@router.get("/files/{file_id}/photos/{filename}")
+async def get_library_photo(
+    file_id: int,
+    filename: str,
+    db: AsyncSession = Depends(get_db),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(Permission.LIBRARY_READ_ALL, Permission.LIBRARY_READ_OWN)
+    ),
+):
+    user, can_read_all = auth_result
+    row = _ensure_library_file_visible(
+        (await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))).scalar_one_or_none(),
+        user,
+        can_read_all,
+    )
+    if filename not in (row.photos or []):
+        raise HTTPException(404, "Photo not found")
+    path = safe_join_under(library_photos_dir(row.id), filename)
+    if not path.is_file():
+        raise HTTPException(404, "Photo not found")
+    return FastAPIFileResponse(path, headers={"X-Content-Type-Options": "nosniff"})
+
+
+@router.delete("/files/{file_id}/photos/{filename}")
+async def delete_library_photo(
+    file_id: int,
+    filename: str,
+    db: AsyncSession = Depends(get_db),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(Permission.LIBRARY_UPDATE_ALL, Permission.LIBRARY_UPDATE_OWN)
+    ),
+):
+    user, can_modify_all = auth_result
+    row = _ensure_library_file_visible(
+        (await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))).scalar_one_or_none(),
+        user,
+        can_modify_all,
+    )
+    if filename not in (row.photos or []):
+        raise HTTPException(404, "Photo not found")
+    safe_join_under(library_photos_dir(row.id), filename).unlink(missing_ok=True)
+    row.photos = [name for name in row.photos if name != filename]
+    await db.commit()
+    return {"status": "deleted", "photos": row.photos}
+
+
 @router.get("/files/{file_id}", response_model=FileResponseSchema)
 async def get_file(
     file_id: int,
@@ -4406,6 +4503,10 @@ async def get_file(
         print_count=file.print_count,
         last_printed_at=file.last_printed_at,
         notes=file.notes,
+        external_url=file.external_url,
+        photos=list(file.photos or []),
+        source_type=file.source_type,
+        source_url=file.source_url,
         duplicates=duplicates if duplicates else None,
         duplicate_count=duplicate_count,
         created_by_id=file.created_by_id,
@@ -4480,6 +4581,9 @@ async def update_file(
     if data.notes is not None:
         file.notes = data.notes if data.notes else None
 
+    if "external_url" in data.model_fields_set:
+        file.external_url = data.external_url
+
     await db.commit()
     await db.refresh(file)
 
@@ -4535,6 +4639,7 @@ async def delete_file(
 
         await delete_dependent_variants(db, [file.id])
         await db.delete(file)
+        remove_library_photos_dir(file.id)
         await db.commit()
         return {"status": "success", "message": "File deleted", "trashed": False}
 
@@ -4859,6 +4964,7 @@ async def bulk_delete(
         hard_deleted_ids = [file.id for file in hard_deleted]
         await release_queue_references(db, hard_deleted_ids)
         for file in hard_deleted:
+            remove_library_photos_dir(file.id)
             await db.delete(file)
 
     # Delete folders (cascade will handle contents)
