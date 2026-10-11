@@ -350,7 +350,6 @@ function SortableQueueItem({
   etaNow?: number;
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
-  const { t: translateInterface } = useTranslation();
   // Fetch printer status every 30 seconds while printing to monitor progress
   const { data: status } = useQuery({
     queryKey: ['printerStatus', item.printer_id],
@@ -590,7 +589,7 @@ function SortableQueueItem({
                 className="text-bambu-green font-medium"
                 title={t('queue.time.etaIfStartedNow')}
               >
-                {translateInterface("printers.sort.eta")} {queueItemEta}
+                {t("printers.sort.eta")} {queueItemEta}
               </span>
             )}
             {item.filament_used_grams && (
@@ -687,7 +686,7 @@ function SortableQueueItem({
                         {formatDuration(remaining * 60)}
                       </span>
                       <span className="text-bambu-green font-medium" title={t('printers.estimatedCompletion')}>
-                        {translateInterface("printers.sort.eta")} {formatETA(remaining, timeFormat, t)}
+                        {t("printers.sort.eta")} {formatETA(remaining, timeFormat, t)}
                       </span>
                     </>
                   )}

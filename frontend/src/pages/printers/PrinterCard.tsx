@@ -1,6 +1,6 @@
 import { computePopoverPosition } from '../../utils/popoverPosition';
 import { buildPresetOptions } from '../../utils/temperatureFanPresets';
-import { Checkbox, Select } from '../../components/ui';
+import { Checkbox } from '../../components/ui';
 import { Link, Unlink, Signal, Clock, MoreVertical, Trash2, RefreshCw, RotateCw, HardDrive, AlertTriangle, Terminal, Zap, Wrench, ChevronDown, Pencil, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Layers, Video, Loader2, Square, Pause, Play, X, Fan, Wind, AirVent, Download, ScanSearch, CheckCircle, CheckSquare, User, Home, Printer as PrinterIcon, Info, Cable, Flame, Snowflake, Gauge, DoorOpen, DoorClosed, Move, LogIn, LogOut, Stethoscope, LineChart as LineChartIcon } from 'lucide-react';
 import { formatDateOnly, formatETA, formatDuration } from '../../utils/date';
 import { Card, CardContent } from '../../components/Card';
@@ -28,7 +28,9 @@ import type { PrinterCardProps } from './printer-card-types';
 import { usePrinterCardModel } from './usePrinterCardModel';
 import { PrinterCardOverlays } from './PrinterCardOverlays';
 import { AiDetectionBadge } from '../../components/AiDetectionBadge';
-import { useCameraViewPreference, type CameraViewPreference } from '../../hooks/useCameraViewPreference';
+import { useCameraViewPreference } from '../../hooks/useCameraViewPreference';
+import { CameraViewPreferenceSelect } from '../../components/CameraViewPreferenceSelect';
+import { openCameraWindow } from '../../utils/cameraWindow';
 
 export function PrinterCard(props: PrinterCardProps) {
   const cameraPreference = useCameraViewPreference(props.printer.id);
@@ -2920,27 +2922,7 @@ return (
                     if (cameraViewMode === 'embedded' && onOpenEmbeddedCamera) {
                       onOpenEmbeddedCamera(printer.id, printer.name);
                     } else {
-                      // Use saved window state or defaults
-                      const state = { width: 640, height: 400, left: undefined as number | undefined, top: undefined as number | undefined };
-                      try {
-                        const saved = JSON.parse(localStorage.getItem('cameraWindowState') ?? 'null');
-                        if (saved && typeof saved === 'object') {
-                          if (Number.isFinite(saved.width) && saved.width > 0) state.width = saved.width;
-                          if (Number.isFinite(saved.height) && saved.height > 0) state.height = saved.height;
-                          if (Number.isFinite(saved.left)) state.left = saved.left;
-                          if (Number.isFinite(saved.top)) state.top = saved.top;
-                        }
-                      } catch { /* Use the default popup size when storage is unavailable or malformed. */ }
-                      const features = [
-                        `width=${state.width}`,
-                        `height=${state.height}`,
-                        state.left !== undefined ? `left=${state.left}` : '',
-                        state.top !== undefined ? `top=${state.top}` : '',
-                        // No `noopener`: same-origin popup needs opener so the browser
-                        // copies sessionStorage (auth token) into the new window.
-                        'menubar=no,toolbar=no,location=no,status=no',
-                      ].filter(Boolean).join(',');
-                      window.open(`/camera/${printer.id}?view=${cameraPreference.mode}`, `camera-${printer.id}`, features);
+                      openCameraWindow(printer.id, cameraPreference.mode);
                     }
                   }}
                   disabled={!status?.connected || !hasPermission('camera:view') || !cameraPreference.ready}
@@ -2949,18 +2931,13 @@ return (
                 >
                   <Video className="w-4 h-4" />
                 </Button>
-                <Select<CameraViewPreference | 'default'>
+                <CameraViewPreferenceSelect
                   ariaLabel={`${t('camera.defaultView')} — ${printer.name}`}
-                  value={cameraPreference.preference ?? 'default'}
+                  preference={cameraPreference.preference}
                   disabled={!hasPermission('camera:view') || !cameraPreference.ready}
-                  onValueChange={(value) => cameraPreference.setPreference(value === 'default' ? null : value)}
+                  onPreferenceChange={cameraPreference.setPreference}
                   className="w-36 max-w-full min-w-0"
                   controlClassName="h-8 px-2 text-xs bg-bambu-dark-secondary"
-                  options={[
-                    { value: 'default', label: t('camera.defaultStream') },
-                    { value: 'stream', label: t('camera.stream') },
-                    { value: 'snapshot', label: t('camera.snapshot') },
-                  ]}
                 />
                 <Button
                   variant="secondary"

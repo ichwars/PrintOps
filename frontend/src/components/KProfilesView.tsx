@@ -1053,7 +1053,6 @@ export function KProfilesView() {
     if (!supportsFlowType) setFlowTypeFilter('all');
   }, [supportsFlowType]);
 
-
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

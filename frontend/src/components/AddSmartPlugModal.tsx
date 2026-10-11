@@ -13,7 +13,6 @@ interface AddSmartPlugModalProps {
 }
 
 export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
-  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const isEditing = !!plug;
@@ -1083,7 +1082,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                         type="text"
                         value={mqttEnergyTopic}
                         onChange={(e) => setMqttEnergyTopic(e.target.value)}
-                        placeholder={translateInterface("smartPlugs.addSmartPlug.placeholders.mqttSameAsPower")}
+                        placeholder={t("smartPlugs.addSmartPlug.placeholders.mqttSameAsPower")}
                         className="w-full px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                       />
                     </div>
@@ -1123,7 +1122,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                         type="text"
                         value={mqttStateTopic}
                         onChange={(e) => setMqttStateTopic(e.target.value)}
-                        placeholder={translateInterface("smartPlugs.addSmartPlug.placeholders.mqttSameAsPower")}
+                        placeholder={t("smartPlugs.addSmartPlug.placeholders.mqttSameAsPower")}
                         className="w-full px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                       />
                     </div>

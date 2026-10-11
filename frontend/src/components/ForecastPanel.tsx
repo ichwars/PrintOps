@@ -1331,7 +1331,6 @@ function SafetyMarginField({
   onEdit: () => void; onSave: () => void; onCancel: () => void; isPending: boolean;
   saveLabel?: string; cancelLabel?: string; safetyMarginLabel?: string;
 }) {
-  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const displayG = unit === 'g' ? value : (dailyRateG !== null ? Math.round(dailyRateG * value) : null);
   const hint = unit === 'days'
@@ -1358,7 +1357,7 @@ function SafetyMarginField({
           />
           {/* Unit toggle */}
           <div className="flex bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded overflow-hidden text-xs">
-            <button type="button" onClick={() => onUnitChange('days')} className={`px-2 py-1 transition-colors ${unit === 'days' ? 'bg-bambu-green text-white' : 'text-bambu-gray hover:text-white'}`}>{translateInterface("common.days")}</button>
+            <button type="button" onClick={() => onUnitChange('days')} className={`px-2 py-1 transition-colors ${unit === 'days' ? 'bg-bambu-green text-white' : 'text-bambu-gray hover:text-white'}`}>{t("common.days")}</button>
             <button type="button" onClick={() => onUnitChange('g')} className={`px-2 py-1 transition-colors ${unit === 'g' ? 'bg-bambu-green text-white' : 'text-bambu-gray hover:text-white'}`}>g</button>
           </div>
           <button type="submit" disabled={isPending} className="px-2 py-1 bg-bambu-green text-white text-xs rounded hover:bg-bambu-green/80 disabled:opacity-50">{saveLabel}</button>
@@ -1700,7 +1699,6 @@ function CartLogisticsRow({
   canWrite: boolean;
   onRemove: () => void;
 }) {
-  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const label = [item.brand, item.material, item.subtype, item.color_name].filter(Boolean).join(' ');
 
@@ -1760,7 +1758,7 @@ function CartLogisticsRow({
             : <Check className="w-4 h-4 text-bambu-green/60 flex-shrink-0" />
           }
           <span className="text-sm font-medium text-white truncate">{label}</span>
-          <span className="text-xs text-bambu-gray flex-shrink-0">{t('forecast.spoolCount', { count: item.quantity_spools })} {translateInterface("orders.runtimeInterface.ordered")}</span>
+          <span className="text-xs text-bambu-gray flex-shrink-0">{t('forecast.spoolCount', { count: item.quantity_spools })} {t("orders.runtimeInterface.ordered")}</span>
         </div>
         {canWrite && (
           <button onClick={onRemove} className="p-1 text-bambu-gray hover:text-red-600 dark:hover:text-red-400 transition-colors flex-shrink-0">

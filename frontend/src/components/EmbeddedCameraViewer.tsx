@@ -9,8 +9,8 @@ import { useCameraStream } from '../hooks/useCameraStream';
 import { ChamberLight } from './icons/ChamberLight';
 import { SkipObjectsModal, SkipObjectsIcon } from './SkipObjectsModal';
 import { CameraDiagnoseModal } from './CameraDiagnoseModal';
-import { useCameraViewPreference, type CameraViewPreference } from '../hooks/useCameraViewPreference';
-import { Select } from './ui';
+import { useCameraViewPreference } from '../hooks/useCameraViewPreference';
+import { CameraViewPreferenceSelect } from './CameraViewPreferenceSelect';
 
 interface EmbeddedCameraViewerProps {
   printerId: number;
@@ -713,18 +713,12 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
           onTouchEnd={handleTouchEnd}
           style={{ touchAction: 'none' }}
         >
-          <Select<CameraViewPreference | 'default'>
-            ariaLabel={t('camera.defaultView')}
-            value={preference ?? 'default'}
+          <CameraViewPreferenceSelect
+            preference={preference}
             disabled={!preferenceReady || !hasPermission('camera:view')}
-            onValueChange={(value) => setPreference(value === 'default' ? null : value)}
+            onPreferenceChange={setPreference}
             className="absolute top-2 right-2 z-20 w-36 max-w-full min-w-0 no-drag"
             controlClassName="h-8 px-2 text-xs"
-            options={[
-              { value: 'default', label: t('camera.defaultStream') },
-              { value: 'stream', label: t('camera.stream') },
-              { value: 'snapshot', label: t('camera.snapshot') },
-            ]}
           />
           {streamLoading && !isReconnecting && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">

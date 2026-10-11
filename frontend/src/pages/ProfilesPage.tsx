@@ -354,7 +354,6 @@ export function FilterDropdown({
 }
 
 // SCROLL TO TOP BUTTON
-
 function ScrollToTop() {
   const { t: translateInterface } = useTranslation();
   const [isVisible, setIsVisible] = useState(false);
@@ -691,7 +690,6 @@ function TemplatesModal({
   onApply: (template: CustomTemplate) => void;
   t: TFunction;
 }) {
-  const { t: translateInterface } = useTranslation();
   const { showToast } = useToast();
   const [templates, setTemplates] = useState<CustomTemplate[]>(loadCustomTemplates);
   const [filterType, setFilterType] = useState<'all' | 'filament' | 'print' | 'printer'>('all');
@@ -904,10 +902,10 @@ function TemplatesModal({
                         <div className="flex gap-2">
                           <Button size="sm" onClick={handleSaveEdit} disabled={!editName.trim()}>
                             <Save className="w-4 h-4" />
-                            {translateInterface("common.save")}
+                            {t("common.save")}
                           </Button>
                           <Button size="sm" variant="secondary" onClick={handleCancelEdit}>
-                            {translateInterface("common.cancel")}
+                            {t("common.cancel")}
                           </Button>
                         </div>
                       </div>

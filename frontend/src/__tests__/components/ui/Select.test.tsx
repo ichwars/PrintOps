@@ -1,11 +1,46 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useRef } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { useRef, useState } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FloatingLayer, LegacySelect, Select } from '../../../components/ui';
 
+let fullscreenElement: Element | null;
+let originalFullscreenDescriptor: PropertyDescriptor | undefined;
+beforeEach(() => {
+  fullscreenElement = null;
+  originalFullscreenDescriptor = Object.getOwnPropertyDescriptor(document, 'fullscreenElement');
+  Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => fullscreenElement });
+});
+afterEach(() => {
+  if (originalFullscreenDescriptor) Object.defineProperty(document, 'fullscreenElement', originalFullscreenDescriptor);
+  else Reflect.deleteProperty(document, 'fullscreenElement');
+});
+
 describe('FloatingLayer', () => {
+  it('portals inside an existing fullscreen root containing its anchor', () => {
+    const root = document.createElement('section');
+    document.body.appendChild(root);
+    fullscreenElement = root;
+    function Harness() {
+      const ref = useRef<HTMLButtonElement>(null);
+      return <><button ref={ref}>Anchor</button><FloatingLayer open anchorRef={ref} onDismiss={() => {}}>Fullscreen menu</FloatingLayer></>;
+    }
+    render(<Harness />, { container: root });
+    expect(screen.getByText('Fullscreen menu').parentElement).toBe(root);
+  });
+
+  it('keeps an external anchor portal in the body when another element is fullscreen', () => {
+    function Harness() {
+      const ref = useRef<HTMLButtonElement>(null);
+      return <><div data-testid="other-fullscreen-root" /><button ref={ref}>External anchor</button><FloatingLayer open anchorRef={ref} onDismiss={() => {}}>External menu</FloatingLayer></>;
+    }
+    render(<Harness />);
+    fullscreenElement = screen.getByTestId('other-fullscreen-root');
+    fireEvent(document, new Event('fullscreenchange'));
+    expect(screen.getByText('External menu').parentElement).toBe(document.body);
+  });
+
   it('portals a floating layer and dismisses outside pointer events', async () => {
     const onDismiss = vi.fn();
 
@@ -30,6 +65,43 @@ describe('FloatingLayer', () => {
 });
 
 describe('Select', () => {
+  function FullscreenSelectHarness() {
+    const [value, setValue] = useState('snapshot');
+    return <Select ariaLabel="Camera mode" value={value} onValueChange={setValue} options={[{ value: 'snapshot', label: 'Snapshot' }, { value: 'stream', label: 'Stream' }]} />;
+  }
+
+  it('opens and selects an option inside its fullscreen root', async () => {
+    const root = document.createElement('section');
+    document.body.appendChild(root);
+    fullscreenElement = root;
+    render(<FullscreenSelectHarness />, { container: root });
+    const user = userEvent.setup();
+    const control = screen.getByRole('combobox', { name: 'Camera mode' });
+    await user.click(control);
+    expect(screen.getByRole('listbox').parentElement?.parentElement).toBe(root);
+    await user.click(screen.getByRole('option', { name: 'Stream' }));
+    expect(control).toHaveAttribute('data-value', 'stream');
+    expect(control).toHaveFocus();
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  it('retargets an already-open list on fullscreen entry and exit and remains selectable', async () => {
+    render(<section data-testid="fullscreen-root"><FullscreenSelectHarness /></section>);
+    const user = userEvent.setup();
+    const control = screen.getByRole('combobox', { name: 'Camera mode' });
+    await user.click(control);
+    expect(screen.getByRole('listbox').parentElement?.parentElement).toBe(document.body);
+    fullscreenElement = screen.getByTestId('fullscreen-root');
+    fireEvent(document, new Event('fullscreenchange'));
+    expect(screen.getByRole('listbox').parentElement?.parentElement).toBe(fullscreenElement);
+    fullscreenElement = null;
+    fireEvent(document, new Event('fullscreenchange'));
+    expect(screen.getByRole('listbox').parentElement?.parentElement).toBe(document.body);
+    await user.click(screen.getByRole('option', { name: 'Stream' }));
+    expect(control).toHaveAttribute('data-value', 'stream');
+    expect(control).toHaveFocus();
+  });
+
   it('selects a numeric value with the keyboard and returns focus', async () => {
     const onValueChange = vi.fn();
     render(

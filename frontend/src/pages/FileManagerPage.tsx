@@ -684,7 +684,6 @@ interface FileCardProps {
 }
 
 function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onPrint, onSlice, onRunPipeline, useSlicerApi, onPreview3d, onRename, onGenerateThumbnail, onTagClick, thumbnailVersion, hasPermission, canModify, authEnabled, showModified, t }: FileCardProps) {
-  const { t: translateInterface } = useTranslation();
   return (
     <div
       className={`group relative bg-bambu-dark-secondary rounded-lg border transition-all cursor-pointer overflow-hidden ${
@@ -846,10 +845,10 @@ function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onPrint, o
                   }`}
                   onClick={() => { if (hasPermission('library:read')) { close(); onPreview3d(file); } }}
                   disabled={!hasPermission('library:read')}
-                  title={!hasPermission('library:read') ? translateInterface("orders.runtimeInterface.youDoNotHavePermissionToPreviewFiles") : undefined}
+                  title={!hasPermission('library:read') ? t("orders.runtimeInterface.youDoNotHavePermissionToPreviewFiles") : undefined}
                 >
                   <Box className="w-3.5 h-3.5" />
-                  {translateInterface("archives.menu.preview3d")}
+                  {t("archives.menu.preview3d")}
                 </button>
               )}
               <button
@@ -921,7 +920,6 @@ function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onPrint, o
 }
 
 export function FileManagerPage() {
-  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -2561,7 +2559,7 @@ export function FileManagerPage() {
                               ? 'hover:bg-bambu-dark text-bambu-gray hover:text-bambu-green'
                               : 'text-bambu-gray/50 cursor-not-allowed'
                           }`}
-                          title={hasPermission('library:read') ? translateInterface("archives.menu.preview3d") : translateInterface("orders.runtimeInterface.youDoNotHavePermissionToPreviewFiles")}
+                          title={hasPermission('library:read') ? t("archives.menu.preview3d") : t("orders.runtimeInterface.youDoNotHavePermissionToPreviewFiles")}
                           disabled={!hasPermission('library:read')}
                         >
                           <Box className="w-4 h-4" />

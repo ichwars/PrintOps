@@ -33,7 +33,7 @@ import {
   type FilamentSkuSettings,
   type InventorySpool,
 } from '../api/client';
-import { documentManagementApi, type CommercialDocument, type PaymentMethod } from '../api/documentManagement';
+import { documentManagementApi, type CommercialDocument } from '../api/documentManagement';
 import { offersApi, ordersApi, type CustomerOrder, type Offer, type StockReservation } from '../api/offers';
 import {
   procurementOffersApi,
@@ -47,28 +47,11 @@ import { Select } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { formatMoney } from '../utils/calculationFormatting';
-import i18n, { resolveSupportedLanguage } from '../i18n';
-
-// Read the current catalog when display labels are constructed. The page
-// subscribes through useTranslation to refresh helpers and localized rows.
-function dashboardText(key: string, values?: Record<string, string | number>) {
-  return i18n.t(`orders.runtimeDashboard.${key}`, {
-    ...values, lng: resolveSupportedLanguage(i18n.language || 'en'),
-  });
-}
-
-const dashboardPaymentMethod = (method: PaymentMethod) => dashboardText(`paymentMethods.${method}`);
-
-function dashboardEnergySource(source: string | null | undefined, fallback: string) {
-  if (!source) return fallback;
-  return ['smart_plug_live', 'smart_plug_snapshots', 'print_logs'].includes(source)
-    ? dashboardText(`energySources.${source}`)
-    : source;
-}
+import i18n from '../i18n';
+import { dashboardEnergySource, dashboardPaymentMethod, dashboardText, dateRangeOptions, isDateRangeValue, type DateRangeValue } from '../utils/businessDashboardDisplay';
 
 type DashboardTab = 'overview' | 'revenue' | 'margin' | 'inventory' | 'energy';
 type Tone = 'green' | 'blue' | 'amber' | 'red' | 'violet' | 'cyan' | 'neutral';
-type DateRangeValue = '7' | '30' | '90' | '365';
 
 type CostSlice = {
   label: string;
@@ -144,18 +127,8 @@ const tabs: Array<{ value: DashboardTab; label: string; icon: LucideIcon }> = [
   { value: 'energy', get label() { return dashboardText('energy'); }, icon: Zap },
 ];
 
-const dateRangeOptions: Array<{ value: DateRangeValue; days: number; label: string }> = [
-  { value: '7', days: 7, get label() { return dashboardText('last7Days'); } },
-  { value: '30', days: 30, get label() { return dashboardText('last30Days'); } },
-  { value: '90', days: 90, get label() { return dashboardText('last90Days'); } },
-  { value: '365', days: 365, get label() { return dashboardText('last12Months'); } },
-];
-
 const isDashboardTab = (value: string | null): value is DashboardTab =>
   tabs.some((tab) => tab.value === value);
-
-const isDateRangeValue = (value: string | null): value is DateRangeValue =>
-  dateRangeOptions.some((option) => option.value === value);
 
 const surface = {
   panel: 'rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4 shadow-sm',

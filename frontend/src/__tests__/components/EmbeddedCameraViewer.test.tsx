@@ -47,6 +47,35 @@ describe('EmbeddedCameraViewer camera defaults', () => {
     expect(localStorage.getItem('printops:camera-view:v1:http%3A%2F%2Flocalhost%3A3000:appliance:1')).toBeNull();
   });
 
+  it('keeps camera choices inside the actual viewer fullscreen element', async () => {
+    const originalFullscreenDescriptor = Object.getOwnPropertyDescriptor(document, 'fullscreenElement');
+    let fullscreenElement: Element | null = null;
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => fullscreenElement });
+    try {
+      render(<EmbeddedCameraViewer printerId={1} printerName="Workshop" onClose={() => {}} />);
+      await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot'));
+      const control = screen.getByRole('combobox', { name: 'Default camera view' });
+      const viewer = control.closest('div.fixed') as HTMLElement;
+      const requestFullscreen = vi.fn(() => {
+        fullscreenElement = viewer;
+        fireEvent(document, new Event('fullscreenchange'));
+        return Promise.resolve();
+      });
+      Object.defineProperty(viewer, 'requestFullscreen', { configurable: true, value: requestFullscreen });
+      fireEvent.click(screen.getByTitle('Fullscreen'));
+      expect(requestFullscreen).toHaveBeenCalledOnce();
+      expect(document.fullscreenElement).toBe(viewer);
+      fireEvent.click(control);
+      expect(screen.getByRole('listbox').parentElement?.parentElement).toBe(viewer);
+      fireEvent.click(screen.getByRole('option', { name: 'Stream' }));
+      expect(control).toHaveAttribute('data-value', 'stream');
+      await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/stream'));
+    } finally {
+      if (originalFullscreenDescriptor) Object.defineProperty(document, 'fullscreenElement', originalFullscreenDescriptor);
+      else Reflect.deleteProperty(document, 'fullscreenElement');
+    }
+  });
+
   it('keeps new and restored viewers inside a mobile viewport after resizing', async () => {
     vi.stubGlobal('innerWidth', 390);
     vi.stubGlobal('innerHeight', 844);

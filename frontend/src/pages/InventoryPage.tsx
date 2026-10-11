@@ -439,7 +439,6 @@ export default function InventoryPageRouter() {
 }
 
 function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spoolmanMode?: boolean; spoolmanModeReady?: boolean }) {
-  const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -2236,7 +2235,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                       onClick={() => setPageIndex(0)}
                       disabled={safePageIndex === 0}
                       className="p-1.5 rounded text-bambu-gray hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      title={translateInterface("orders.runtimeInterface.firstPage")}
+                      title={t("orders.runtimeInterface.firstPage")}
                     >
                       <ChevronsLeft className="w-4 h-4" />
                     </button>
@@ -2261,7 +2260,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                       onClick={() => setPageIndex(totalPages - 1)}
                       disabled={safePageIndex >= totalPages - 1}
                       className="p-1.5 rounded text-bambu-gray hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      title={translateInterface("orders.runtimeInterface.lastPage")}
+                      title={t("orders.runtimeInterface.lastPage")}
                     >
                       <ChevronsRight className="w-4 h-4" />
                     </button>
