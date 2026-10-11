@@ -190,9 +190,13 @@ def _tray_identity(tray: dict) -> tuple[str, ...]:
 async def _assignment_identity(db, printer_id, ams_id, tray_id, spoolman_mode):
     table = SpoolmanSlotAssignment if spoolman_mode else SpoolAssignment
     spool_id = table.spoolman_spool_id if spoolman_mode else table.spool_id
-    result = await db.execute(select(table.id, spool_id).where(
-        table.printer_id == printer_id, table.ams_id == ams_id, table.tray_id == tray_id,
-    ))
+    result = await db.execute(
+        select(table.id, spool_id).where(
+            table.printer_id == printer_id,
+            table.ams_id == ams_id,
+            table.tray_id == tray_id,
+        )
+    )
     return result.one_or_none()
 
 
@@ -273,7 +277,9 @@ async def reapply_lost_kprofiles(
                     identity = _tray_identity(tray)
                     assignment = await _assignment_identity(db, printer_id, ams_id, tray_id, mode)
                     profiles = await _slot_profiles(db, printer_id, ams_id, tray_id, tray, mode)
-                    if assignment is None or assignment != await _assignment_identity(db, printer_id, ams_id, tray_id, mode):
+                    if assignment is None or assignment != await _assignment_identity(
+                        db, printer_id, ams_id, tray_id, mode
+                    ):
                         continue
                     context, stored, live = resolve_spool_calibration(
                         profiles, state, printer_manager.get_model(printer_id), printer_id, ams_id, tray_id

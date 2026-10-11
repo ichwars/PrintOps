@@ -145,7 +145,10 @@ async def test_cross_model_slice_is_rejected_for_explicit_target(
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-@pytest.mark.parametrize("target,expected_model", [({}, "X1C"), ({"target_model": "C11"}, "P1P"), ({"target_model": "Bambu Lab X1 Carbon"}, "X1C")])
+@pytest.mark.parametrize(
+    "target,expected_model",
+    [({}, "X1C"), ({"target_model": "C11"}, "P1P"), ({"target_model": "Bambu Lab X1 Carbon"}, "X1C")],
+)
 async def test_active_model_is_inferred_or_normalized_with_filament_requirements(
     async_client: AsyncClient, db_session, printer_factory, library_file_factory, target, expected_model
 ):

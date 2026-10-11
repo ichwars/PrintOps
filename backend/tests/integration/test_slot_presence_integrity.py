@@ -243,11 +243,13 @@ async def test_positive_presence_cancels_blank_metadata_removal_hold(slot_contex
     table = SpoolAssignment
     scope, spool_id = "inventory", (await db_session.get(SpoolAssignment, row_id)).spool_id
     if external:
-        db_session.add_all([
-            Settings(key="spoolman_enabled", value="true"),
-            Settings(key="spoolman_sync_mode", value="auto"),
-            Settings(key="spoolman_url", value="http://spoolman.test"),
-        ])
+        db_session.add_all(
+            [
+                Settings(key="spoolman_enabled", value="true"),
+                Settings(key="spoolman_sync_mode", value="auto"),
+                Settings(key="spoolman_url", value="http://spoolman.test"),
+            ]
+        )
         row = SpoolmanSlotAssignment(printer_id=printer_id, ams_id=0, tray_id=0, spoolman_spool_id=42)
         db_session.add(row)
         await db_session.commit()

@@ -13,7 +13,9 @@ from backend.app.models.printer import Printer
 logger = logging.getLogger(__name__)
 
 
-async def execute_action(printer_id: int, action: str, task_name: str, score: float, frame: bytes | None = None) -> None:
+async def execute_action(
+    printer_id: int, action: str, task_name: str, score: float, frame: bytes | None = None
+) -> None:
     """Run the configured action for a detected print failure.
 
     action: 'notify' | 'pause' | 'pause_and_off'
@@ -63,7 +65,9 @@ async def _turn_off_linked_plugs(printer_id: int) -> None:
                 logger.error("Obico action: failed to turn off plug %s: %s", plug.name, e)
 
 
-async def _notify(printer_id: int, printer_name: str, task_name: str, score: float, action: str, frame: bytes | None = None) -> None:
+async def _notify(
+    printer_id: int, printer_name: str, task_name: str, score: float, action: str, frame: bytes | None = None
+) -> None:
     """Fire the AI Failure Detection notification (#1794).
 
     Routed to its own event in 0.2.5b1; previously rode the multiplexed

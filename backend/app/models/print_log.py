@@ -19,12 +19,14 @@ class PrintLogEntry(Base):
     """
 
     __tablename__ = "print_log_entries"
-    __table_args__ = (CheckConstraint(
-        "quantity >= 1 AND ((good_quantity IS NULL AND reject_quantity IS NULL) OR "
-        "(good_quantity IS NOT NULL AND reject_quantity IS NOT NULL AND "
-        "good_quantity >= 0 AND reject_quantity >= 0 AND good_quantity + reject_quantity = quantity))",
-        name="ck_print_log_quality_quantities",
-    ),)
+    __table_args__ = (
+        CheckConstraint(
+            "quantity >= 1 AND ((good_quantity IS NULL AND reject_quantity IS NULL) OR "
+            "(good_quantity IS NOT NULL AND reject_quantity IS NOT NULL AND "
+            "good_quantity >= 0 AND reject_quantity >= 0 AND good_quantity + reject_quantity = quantity))",
+            name="ck_print_log_quality_quantities",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     archive_id: Mapped[int | None] = mapped_column(

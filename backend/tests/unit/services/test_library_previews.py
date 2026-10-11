@@ -43,9 +43,7 @@ def test_xlsx_shared_strings_are_bounded_while_rows_are_projected(tmp_path):
             archive.writestr(name, content)
         archive.writestr(
             "xl/sharedStrings.xml",
-            f'<sst xmlns="{namespace}" count="20000" uniqueCount="1"><si><t>'
-            + "x" * 3000
-            + "</t></si></sst>",
+            f'<sst xmlns="{namespace}" count="20000" uniqueCount="1"><si><t>' + "x" * 3000 + "</t></si></sst>",
         )
     path = tmp_path / "shared.xlsx"
     path.write_bytes(result.getvalue())

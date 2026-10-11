@@ -55,7 +55,9 @@ async def order_production(
         order = await stock_reservations.get_order(db, order_id)
     except OrderDomainError as exc:
         _raise(exc)
-    return await confirmed_production(db, order.project_id, printer_ids=api_key.printer_ids if api_key else allowed_printer_ids_for_user(user))
+    return await confirmed_production(
+        db, order.project_id, printer_ids=api_key.printer_ids if api_key else allowed_printer_ids_for_user(user)
+    )
 
 
 @router.post("/{order_id}/cancel", response_model=OrderRead)

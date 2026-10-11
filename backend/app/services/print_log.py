@@ -58,8 +58,14 @@ async def write_log_entry(
     item = await db.get(PrintQueueItem, queue_item_id) if queue_item_id is not None else None
     entry = PrintLogEntry(
         archive_id=archive_id,
-        project_id=(item.project_id if item and item.project_id is not None else archive.project_id if archive else None),
-        quantity=max(1, item.expected_parts or 1) if item and item.expected_parts else max(1, archive.quantity or 1) if archive else 1,
+        project_id=(
+            item.project_id if item and item.project_id is not None else archive.project_id if archive else None
+        ),
+        quantity=max(1, item.expected_parts or 1)
+        if item and item.expected_parts
+        else max(1, archive.quantity or 1)
+        if archive
+        else 1,
         confirm_requested=bool(item.confirm_outcome if item else archive and archive.confirm_requested),
         queue_item_id=queue_item_id,
         print_name=print_name,

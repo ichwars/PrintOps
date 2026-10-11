@@ -47,6 +47,15 @@ async def _get_spoolman_slot_assignment(db: AsyncSession, printer_id: int, ams_i
     return result.scalar_one_or_none()
 
 
+def _global_tray_id(ams_id: int, tray_id: int) -> int:
+    """Convert regular, HT, and external slot addresses to calibration tray IDs."""
+    if ams_id <= 3:
+        return ams_id * 4 + tray_id
+    if 128 <= ams_id <= 135:
+        return (ams_id - 128) * 4 + tray_id
+    return tray_id
+
+
 @router.post("/{printer_id}/slots/{ams_id}/{tray_id}/configure")
 async def configure_ams_slot(
     printer_id: int,
@@ -243,12 +252,7 @@ async def configure_ams_slot(
     # hardcoded extruder_id=0 and nozzle_id=HS00.
     if k_value > 0 and cali_idx < 0:
         # Calculate global tray ID for extrusion_cali_set
-        if ams_id <= 3:
-            global_tray_id = ams_id * 4 + tray_id
-        elif ams_id >= 128 and ams_id <= 135:
-            global_tray_id = (ams_id - 128) * 4 + tray_id
-        else:
-            global_tray_id = tray_id
+        global_tray_id = _global_tray_id(ams_id, tray_id)
 
         client.extrusion_cali_set(
             tray_id=global_tray_id,

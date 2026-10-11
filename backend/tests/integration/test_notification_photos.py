@@ -561,29 +561,46 @@ async def test_finish_photo_opt_out_filters_link_template_payload_log_and_digest
     printer = await printer_factory()
     providers = [
         NotificationProvider(
-            name=name, provider_type="webhook", config='{"webhook_url":"https://hooks.example"}',
-            on_print_complete=True, attach_photo=attach,
-            daily_digest_enabled=True, daily_digest_time="12:00",
+            name=name,
+            provider_type="webhook",
+            config='{"webhook_url":"https://hooks.example"}',
+            on_print_complete=True,
+            attach_photo=attach,
+            daily_digest_enabled=True,
+            daily_digest_time="12:00",
         )
         for name, attach in [("Text only", False), ("Photo", True)]
     ]
-    db_session.add_all(providers + [NotificationTemplate(
-        event_type="print_complete", name="Finished", title_template="{printer}",
-        body_template="Finished {filename}: {finish_photo_url}",
-    )])
+    db_session.add_all(
+        providers
+        + [
+            NotificationTemplate(
+                event_type="print_complete",
+                name="Finished",
+                title_template="{printer}",
+                body_template="Finished {filename}: {finish_photo_url}",
+            )
+        ]
+    )
     await db_session.commit()
     url = "https://printops.example/api/v1/notifications/photos/" + "A" * 43
     requests = []
+
     def transport(request):
         requests.append(json.loads(request.content))
         return httpx.Response(200)
+
     service = NotificationService()
     digest = AsyncMock()
     monkeypatch.setattr(service, "_queue_for_digest", digest)
     async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
         monkeypatch.setattr(service, "_get_client", AsyncMock(return_value=client))
         await service.on_print_complete(
-            printer.id, printer.name, "completed", {"filename": "finish.3mf"}, db_session,
+            printer.id,
+            printer.name,
+            "completed",
+            {"filename": "finish.3mf"},
+            db_session,
             archive_data={"finish_photo_url": url, "image_data": jpeg},
         )
     assert len(requests) == 2

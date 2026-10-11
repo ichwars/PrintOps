@@ -344,6 +344,9 @@ async def render_spoolman_labels(
 
     deeplink_base = await _resolve_deeplink_base(request, db)
     material_numbers = await resolve_material_numbers(db, [_map_spoolman_spool(by_id[sid]) for sid in body.spool_ids])
-    data_list = [_spoolman_dict_to_label_data(by_id[sid], deeplink_base, material_number=material_numbers[sid]) for sid in body.spool_ids]
+    data_list = [
+        _spoolman_dict_to_label_data(by_id[sid], deeplink_base, material_number=material_numbers[sid])
+        for sid in body.spool_ids
+    ]
 
     return await _label_response(body, data_list, request, "printops-labels-spoolman")

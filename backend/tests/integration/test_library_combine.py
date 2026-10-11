@@ -107,6 +107,7 @@ class TestCombineFiles:
         )
         assert response.status_code == 400
         assert "too large" in response.json()["detail"]
+
     @pytest.mark.asyncio
     @pytest.mark.integration
     async def test_combines_stls_into_new_3mf(self, async_client: AsyncClient, db_session):

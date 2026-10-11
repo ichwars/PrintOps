@@ -35,11 +35,18 @@ async def test_legacy_sqlite_upgrade_is_repeatable_and_guards_part_counts(monkey
                 )
             ).one()
             assert tuple(row) == (1, 0, None, None, None), "legacy completed runs must never become pending inspections"
-            await conn.execute(text("UPDATE print_log_entries SET confirm_prompted_at='2026-10-11 01:02:03' WHERE id=1"))
+            await conn.execute(
+                text("UPDATE print_log_entries SET confirm_prompted_at='2026-10-11 01:02:03' WHERE id=1")
+            )
             await database._migrate_production_quality(conn)
-            assert str((await conn.execute(text(
-                "SELECT confirm_prompted_at FROM print_log_entries WHERE id=1"
-            ))).scalar_one()) == "2026-10-11 01:02:03", "restart must retain the independent prompt claim"
+            assert (
+                str(
+                    (
+                        await conn.execute(text("SELECT confirm_prompted_at FROM print_log_entries WHERE id=1"))
+                    ).scalar_one()
+                )
+                == "2026-10-11 01:02:03"
+            ), "restart must retain the independent prompt claim"
             await conn.execute(
                 text("UPDATE print_log_entries SET quantity=4,good_quantity=3,reject_quantity=1 WHERE id=1")
             )
@@ -109,11 +116,18 @@ async def test_real_postgresql_legacy_upgrade_constraints_and_repeatability(monk
                 )
             ).one()
             assert tuple(row) == (1, False, None, None, None)
-            await conn.execute(text("UPDATE print_log_entries SET confirm_prompted_at='2026-10-11 01:02:03' WHERE id=1"))
+            await conn.execute(
+                text("UPDATE print_log_entries SET confirm_prompted_at='2026-10-11 01:02:03' WHERE id=1")
+            )
             await database._migrate_production_quality(conn)
-            assert str((await conn.execute(text(
-                "SELECT confirm_prompted_at FROM print_log_entries WHERE id=1"
-            ))).scalar_one()) == "2026-10-11 01:02:03", "restart must retain the independent prompt claim"
+            assert (
+                str(
+                    (
+                        await conn.execute(text("SELECT confirm_prompted_at FROM print_log_entries WHERE id=1"))
+                    ).scalar_one()
+                )
+                == "2026-10-11 01:02:03"
+            ), "restart must retain the independent prompt claim"
             await conn.execute(
                 text(
                     "UPDATE print_log_entries SET quantity=4,good_quantity=3,reject_quantity=1,confirm_token_hash='hash' WHERE id=1"

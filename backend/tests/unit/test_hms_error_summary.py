@@ -55,9 +55,16 @@ def test_all_malformed_returns_none():
 
 
 def test_current_payload_uses_resolved_model_text_and_full_hms_code_without_neighbouring_short_lookup():
-    payload = [{"code":"0x10008", "attr":0x03000200, "full_code":"0300020000010008", "description":"Model-specific manufacturer text."}]
-    assert _format(payload) == '[0300-0200-0001-0008] Model-specific manufacturer text.'
-    payload[0]['full_code'] = '0300020000014000'
-    payload[0]['code'] = '0x14000'
-    payload[0]['description'] = None
-    assert _format(payload) == '[0300-0200-0001-4000]'
+    payload = [
+        {
+            "code": "0x10008",
+            "attr": 0x03000200,
+            "full_code": "0300020000010008",
+            "description": "Model-specific manufacturer text.",
+        }
+    ]
+    assert _format(payload) == "[0300-0200-0001-0008] Model-specific manufacturer text."
+    payload[0]["full_code"] = "0300020000014000"
+    payload[0]["code"] = "0x14000"
+    payload[0]["description"] = None
+    assert _format(payload) == "[0300-0200-0001-4000]"

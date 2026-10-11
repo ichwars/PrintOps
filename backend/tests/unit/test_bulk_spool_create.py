@@ -112,7 +112,8 @@ class TestBulkCreateEndpoint:
     @pytest.mark.asyncio
     async def test_single_quantity_creates_one_spool(self, async_client):
         response = await async_client.post(
-            "/api/v1/inventory/spools/bulk", json={"spool": {"material": "PETG"}, "quantity": 1},
+            "/api/v1/inventory/spools/bulk",
+            json={"spool": {"material": "PETG"}, "quantity": 1},
         )
         assert response.status_code == 200, response.text
         assert len(response.json()) == 1
@@ -120,9 +121,16 @@ class TestBulkCreateEndpoint:
 
     @pytest.mark.asyncio
     async def test_all_spools_have_same_fields(self, async_client):
-        expected = {"material": "ABS", "brand": "Bambu Lab", "color_name": "Black", "rgba": "000000FF", "label_weight": 750}
+        expected = {
+            "material": "ABS",
+            "brand": "Bambu Lab",
+            "color_name": "Black",
+            "rgba": "000000FF",
+            "label_weight": 750,
+        }
         response = await async_client.post(
-            "/api/v1/inventory/spools/bulk", json={"spool": expected, "quantity": 3},
+            "/api/v1/inventory/spools/bulk",
+            json={"spool": expected, "quantity": 3},
         )
         assert response.status_code == 200, response.text
         assert len(response.json()) == 3

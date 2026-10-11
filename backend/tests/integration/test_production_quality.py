@@ -517,9 +517,15 @@ async def test_confirmation_event_reaches_http_actions_and_records_success(db_se
     assert "capability" not in log.message
 
 
-@pytest.mark.parametrize("blocked_work,next_copy,start_before_hint", [
-    ("photo", True, False), ("provider", True, False), ("photo", False, False), ("photo", True, True),
-])
+@pytest.mark.parametrize(
+    "blocked_work,next_copy,start_before_hint",
+    [
+        ("photo", True, False),
+        ("provider", True, False),
+        ("photo", False, False),
+        ("photo", True, True),
+    ],
+)
 async def test_completed_run_hint_survives_next_copy_during_finish_work(
     async_client, quality_run, db_session, test_engine, monkeypatch, blocked_work, next_copy, start_before_hint
 ):
@@ -554,9 +560,11 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
     order = await db_session.get(CustomerOrder, order_data["id"])
     archive, batch, item, fixture_run = quality_run
     await db_session.delete(fixture_run)
-    owner = User(username="prompt-owner", password_hash=get_password_hash("QualityPass1!"), groups=[
-        Group(name="Prompt operators", permissions=["archives:update_own", "archives:read_own"])
-    ])
+    owner = User(
+        username="prompt-owner",
+        password_hash=get_password_hash("QualityPass1!"),
+        groups=[Group(name="Prompt operators", permissions=["archives:update_own", "archives:read_own"])],
+    )
     db_session.add(owner)
     await db_session.flush()
     archive.status = item.status = "printing"
@@ -566,14 +574,31 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
     batch.quantity = 2
     plate = await db_session.scalar(select(PrintBatchPlate).where(PrintBatchPlate.batch_id == batch.id))
     plate.quantity_target = 2
-    next_item = PrintQueueItem(archive_id=archive.id, printer_id=archive.printer_id,
-                              batch_id=batch.id, project_id=order.project_id, status="pending",
-                              confirm_outcome=True, expected_parts=4, position=2)
-    db_session.add_all([next_item, Settings(key="auth_enabled", value="true"),
-                       Settings(key="external_url", value="https://printops.example"),
-                       NotificationProvider(name="Completion and quality", provider_type="ntfy",
-                           config='{"server":"https://ntfy.sh","topic":"quality"}',
-                           on_print_complete=True, on_print_confirm_request=True, on_queue_completed=False)])
+    next_item = PrintQueueItem(
+        archive_id=archive.id,
+        printer_id=archive.printer_id,
+        batch_id=batch.id,
+        project_id=order.project_id,
+        status="pending",
+        confirm_outcome=True,
+        expected_parts=4,
+        position=2,
+    )
+    db_session.add_all(
+        [
+            next_item,
+            Settings(key="auth_enabled", value="true"),
+            Settings(key="external_url", value="https://printops.example"),
+            NotificationProvider(
+                name="Completion and quality",
+                provider_type="ntfy",
+                config='{"server":"https://ntfy.sh","topic":"quality"}',
+                on_print_complete=True,
+                on_print_confirm_request=True,
+                on_queue_completed=False,
+            ),
+        ]
+    )
     await db_session.commit()
     printer = await db_session.get(Printer, archive.printer_id)
     printer.external_camera_enabled = False
@@ -594,8 +619,9 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
                 queued.status = "printing"
                 await super().commit()
                 main._expected_prints[(printer.id, archive.filename)] = archive.id
-                await main.on_print_start(printer.id, {"filename": archive.filename,
-                                                      "raw_data": {"subtask_id": "copy-two"}})
+                await main.on_print_start(
+                    printer.id, {"filename": archive.filename, "raw_data": {"subtask_id": "copy-two"}}
+                )
 
     sessions = async_sessionmaker(test_engine, class_=StartNextCopyAfterLogCommit, expire_on_commit=False)
     monkeypatch.setattr(main, "async_session", sessions)
@@ -615,15 +641,21 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
     monkeypatch.setattr(main.printer_manager, "set_awaiting_plate_clear", lambda *_args: None)
     for method in ("on_print_complete", "on_print_start", "on_archive_updated", "on_queue_job_completed"):
         monkeypatch.setattr(main.mqtt_relay, method, AsyncMock())
-    monkeypatch.setattr("backend.app.services.bambu_ftp.delete_file_async", AsyncMock(return_value=DeleteResult.NOT_FOUND))
+    monkeypatch.setattr(
+        "backend.app.services.bambu_ftp.delete_file_async", AsyncMock(return_value=DeleteResult.NOT_FOUND)
+    )
     monkeypatch.setattr(main, "_capture_timelapse_baseline_at_start", AsyncMock())
     monkeypatch.setattr(main, "ensure_default_types", AsyncMock())
-    monkeypatch.setattr(main, "_get_printer_maintenance_internal", AsyncMock(return_value=SimpleNamespace(maintenance_items=[])))
+    monkeypatch.setattr(
+        main, "_get_printer_maintenance_internal", AsyncMock(return_value=SimpleNamespace(maintenance_items=[]))
+    )
     monkeypatch.setattr("backend.app.api.routes.camera.get_buffered_frame", lambda _id: None)
     monkeypatch.setattr("backend.app.api.routes.camera.is_stream_active", lambda _id: False)
 
-    sockets = [SimpleNamespace(state=SimpleNamespace(printops_principal_user_id=uid), send_text=AsyncMock())
-               for uid in (owner.id, owner.id + 100, None)]
+    sockets = [
+        SimpleNamespace(state=SimpleNamespace(printops_principal_user_id=uid), send_text=AsyncMock())
+        for uid in (owner.id, owner.id + 100, None)
+    ]
     monkeypatch.setattr(ws_manager, "active_connections", sockets)
     blocked, release = asyncio.Event(), asyncio.Event()
 
@@ -656,15 +688,20 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
     async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as provider_client:
         monkeypatch.setattr(notification_service, "_get_client", AsyncMock(return_value=provider_client))
         try:
-            await main.on_print_complete(printer.id, {"status": "completed", "filename": archive.filename,
-                                                     "progress": 100, "timelapse_was_active": False})
+            await main.on_print_complete(
+                printer.id,
+                {"status": "completed", "filename": archive.filename, "progress": 100, "timelapse_was_active": False},
+            )
             await asyncio.wait_for(blocked.wait(), timeout=3)
             await db_session.refresh(archive)
             completed_run = await db_session.scalar(select(PrintLogEntry).where(PrintLogEntry.archive_id == archive.id))
             assert completed_run is not None and completed_run.status == "completed"
             assert completed_run.queue_item_id == item.id
-            early_hints = [json.loads(call.args[0]) for call in sockets[0].send_text.call_args_list
-                           if json.loads(call.args[0]).get("type") == "print_confirm_request"]
+            early_hints = [
+                json.loads(call.args[0])
+                for call in sockets[0].send_text.call_args_list
+                if json.loads(call.args[0]).get("type") == "print_confirm_request"
+            ]
             assert len(early_hints) == 1, "hint must be sent while optional finish work is still blocked"
             assert early_hints[0]["data"]["run_id"] == completed_run.id
             if not next_copy:
@@ -676,22 +713,25 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
                 assert (await async_client.post(f"/api/v1/archives/outcome-link/{token}/good")).status_code == 200
                 await db_session.refresh(completed_run)
                 assert (completed_run.good_quantity, completed_run.reject_quantity) == (4, 0)
-                hints = [json.loads(call.args[0]) for call in sockets[0].send_text.call_args_list
-                         if json.loads(call.args[0]).get("type") == "print_confirm_request"]
+                hints = [
+                    json.loads(call.args[0])
+                    for call in sockets[0].send_text.call_args_list
+                    if json.loads(call.args[0]).get("type") == "print_confirm_request"
+                ]
                 assert len(hints) == 1, "provider dispatch must not repeat the early UI hint"
                 return
             # This old capability must remain unusable after the archive is reused.
             if start_before_hint:
                 old_token = raced_token[0]
             else:
-                old_token = (await issue_confirmation_token(db_session, archive)
-                             if blocked_work == "photo" else None)
+                old_token = await issue_confirmation_token(db_session, archive) if blocked_work == "photo" else None
                 await db_session.commit()
                 next_item.status = "printing"
                 await db_session.commit()
                 main._expected_prints[(printer.id, archive.filename)] = archive.id
-                await main.on_print_start(printer.id, {"filename": archive.filename,
-                                                      "raw_data": {"subtask_id": "copy-two"}})
+                await main.on_print_start(
+                    printer.id, {"filename": archive.filename, "raw_data": {"subtask_id": "copy-two"}}
+                )
             if blocked_work == "photo":
                 assert old_token
             await db_session.refresh(archive)
@@ -699,29 +739,47 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
             assert archive.status == "printing"
             release.set()
             await asyncio.wait_for(asyncio.gather(*tasks), timeout=5)
-            hints = [json.loads(call.args[0]) for call in sockets[0].send_text.call_args_list
-                     if json.loads(call.args[0]).get("type") == "print_confirm_request"]
+            hints = [
+                json.loads(call.args[0])
+                for call in sockets[0].send_text.call_args_list
+                if json.loads(call.args[0]).get("type") == "print_confirm_request"
+            ]
             assert len(hints) == 1, "completed run's hint must precede optional camera/provider awaits"
             assert hints[0]["printer_id"] == printer.id
             assert hints[0]["data"]["run_id"] == completed_run.id
             if old_token:
                 assert old_token not in str(hints)
             for other in sockets[1:]:
-                assert not any(json.loads(call.args[0]).get("type") == "print_confirm_request"
-                               for call in other.send_text.call_args_list)
-            assert not any("Actions" in request.headers for request in provider_requests), "no stale external capability"
+                assert not any(
+                    json.loads(call.args[0]).get("type") == "print_confirm_request"
+                    for call in other.send_text.call_args_list
+                )
+            assert not any("Actions" in request.headers for request in provider_requests), (
+                "no stale external capability"
+            )
             app_url = f"https://printops.example/archives?confirm={archive.id}&confirm_run={completed_run.id}"
             quality_requests = [request for request in provider_requests if app_url.encode() in request.content]
-            assert len(quality_requests) == 1, "historical run must still reach its configured external quality provider"
+            assert len(quality_requests) == 1, (
+                "historical run must still reach its configured external quality provider"
+            )
             assert b"outcome-link" not in quality_requests[0].content
-            prompt_log = await db_session.scalar(select(NotificationLog).where(
-                NotificationLog.event_type == "print_confirm_request"))
+            prompt_log = await db_session.scalar(
+                select(NotificationLog).where(NotificationLog.event_type == "print_confirm_request")
+            )
             assert prompt_log is not None and prompt_log.success is True
             from backend.app.services.print_confirmation import dispatch_outcome_confirmation
 
-            assert await dispatch_outcome_confirmation(
-                db_session, archive.id, printer.id, printer.name, run_id=completed_run.id, notify_user=False,
-            ) is False, "historical completion callbacks must deduplicate external prompts"
+            assert (
+                await dispatch_outcome_confirmation(
+                    db_session,
+                    archive.id,
+                    printer.id,
+                    printer.name,
+                    run_id=completed_run.id,
+                    notify_user=False,
+                )
+                is False
+            ), "historical completion callbacks must deduplicate external prompts"
             assert sum(app_url.encode() in request.content for request in provider_requests) == 1
             if old_token:
                 assert (await async_client.post(f"/api/v1/archives/outcome-link/{old_token}/good")).status_code == 404
@@ -732,14 +790,21 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
             ledger_before = await db_session.scalar(select(func.count(SmallPartLedgerEntry.id)))
             commands_before = await db_session.scalar(select(func.count(StockReservationCommand.id)))
             headers = {"Authorization": "Bearer " + create_access_token({"sub": owner.username})}
-            response = await async_client.post(f"/api/v1/archives/{archive.id}/runs/{completed_run.id}/outcome",
-                json={"run_id": completed_run.id, "good_quantity": 3, "reject_quantity": 1}, headers=headers)
+            response = await async_client.post(
+                f"/api/v1/archives/{archive.id}/runs/{completed_run.id}/outcome",
+                json={"run_id": completed_run.id, "good_quantity": 3, "reject_quantity": 1},
+                headers=headers,
+            )
             assert response.status_code == 200, response.text
             for row in (archive, completed_run, next_item, batch, plate, spool, order):
                 await db_session.refresh(row)
             assert (completed_run.good_quantity, completed_run.reject_quantity) == (3, 1)
             assert (archive.status, archive.started_at, archive.good_quantity, archive.reject_quantity) == (
-                "printing", active_started_at, None, None)
+                "printing",
+                active_started_at,
+                None,
+                None,
+            )
             assert next_item.status == "printing"
             assert (batch.quantity, plate.quantity_target) == (2, 2)
             assert (order.status, order.accepted_snapshot) == order_before
@@ -763,18 +828,34 @@ async def test_delayed_prompt_cannot_issue_actions_for_a_later_completed_run(qua
     archive, _, _, previous = quality_run
     next_start = datetime.now() + timedelta(minutes=1)
     archive.started_at = next_start
-    later = PrintLogEntry(archive_id=archive.id, printer_id=archive.printer_id,
-                         status="completed", started_at=next_start, quantity=4, confirm_requested=True)
+    later = PrintLogEntry(
+        archive_id=archive.id,
+        printer_id=archive.printer_id,
+        status="completed",
+        started_at=next_start,
+        quantity=4,
+        confirm_requested=True,
+    )
     db_session.add(later)
     await db_session.commit()
-    assert await dispatch_outcome_confirmation(
-        db_session, archive.id, archive.printer_id, "Printer", run_id=previous.id, notify_user=False,
-    ) is True
+    assert (
+        await dispatch_outcome_confirmation(
+            db_session,
+            archive.id,
+            archive.printer_id,
+            "Printer",
+            run_id=previous.id,
+            notify_user=False,
+        )
+        is True
+    )
     await db_session.refresh(later)
     assert later.confirm_token_hash is None, "old callbacks must not mint a capability for a later copy"
 
 
-@pytest.mark.parametrize("blocked", [False, "printer", "current-printer", "ownerless", "inactive", "deleted", "answered", "wrong-printer"])
+@pytest.mark.parametrize(
+    "blocked", [False, "printer", "current-printer", "ownerless", "inactive", "deleted", "answered", "wrong-printer"]
+)
 async def test_historical_quality_hint_keeps_owner_and_printer_guards(
     quality_run, db_session, printer_factory, monkeypatch, blocked
 ):
@@ -789,8 +870,11 @@ async def test_historical_quality_hint_keeps_owner_and_printer_guards(
     from backend.app.services.print_confirmation import send_outcome_confirmation_hint
 
     archive, _, _, run = quality_run
-    owner = User(username="hint-owner", allowed_printer_ids=[archive.printer_id + 100] if blocked == "printer" else [archive.printer_id],
-                 is_active=blocked != "inactive")
+    owner = User(
+        username="hint-owner",
+        allowed_printer_ids=[archive.printer_id + 100] if blocked == "printer" else [archive.printer_id],
+        is_active=blocked != "inactive",
+    )
     db_session.add_all([owner, Settings(key="auth_enabled", value="true")])
     await db_session.flush()
     archive.created_by_id = None if blocked == "ownerless" else owner.id
@@ -805,7 +889,10 @@ async def test_historical_quality_hint_keeps_owner_and_printer_guards(
     socket = SimpleNamespace(state=SimpleNamespace(printops_principal_user_id=owner.id), send_text=AsyncMock())
     monkeypatch.setattr(ws_manager, "active_connections", [socket])
     assert await send_outcome_confirmation_hint(
-        db_session, archive.id, run.id, run.printer_id + (1 if blocked == "wrong-printer" else 0),
+        db_session,
+        archive.id,
+        run.id,
+        run.printer_id + (1 if blocked == "wrong-printer" else 0),
     ) is (not blocked)
     hints = [json.loads(call.args[0]) for call in socket.send_text.call_args_list]
     assert len(hints) == (0 if blocked else 1)
@@ -830,9 +917,17 @@ async def test_historical_external_prompt_is_claimed_once_across_concurrent_sess
 
     archive, _, _, run = quality_run
     archive.status = "printing"
-    db_session.add_all([Settings(key="external_url", value="https://printops.example"),
-                       NotificationProvider(name="Quality", provider_type="ntfy",
-                           config='{"server":"https://ntfy.sh","topic":"quality"}', on_print_confirm_request=True)])
+    db_session.add_all(
+        [
+            Settings(key="external_url", value="https://printops.example"),
+            NotificationProvider(
+                name="Quality",
+                provider_type="ntfy",
+                config='{"server":"https://ntfy.sh","topic":"quality"}',
+                on_print_confirm_request=True,
+            ),
+        ]
+    )
     await db_session.commit()
     entered, release = asyncio.Event(), asyncio.Event()
     requests = []
@@ -848,7 +943,12 @@ async def test_historical_external_prompt_is_claimed_once_across_concurrent_sess
     async def dispatch():
         async with sessions() as db:
             return await dispatch_outcome_confirmation(
-                db, archive.id, archive.printer_id, "Printer", run_id=run.id, notify_user=False,
+                db,
+                archive.id,
+                archive.printer_id,
+                "Printer",
+                run_id=run.id,
+                notify_user=False,
             )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
@@ -867,15 +967,36 @@ async def test_historical_external_prompt_is_claimed_once_across_concurrent_sess
             await asyncio.gather(first, return_exceptions=True)
     assert len(requests) == 1
     assert "Actions" not in requests[0].headers
-    assert f"https://printops.example/archives?confirm={archive.id}&confirm_run={run.id}".encode() in requests[0].content
+    assert (
+        f"https://printops.example/archives?confirm={archive.id}&confirm_run={run.id}".encode() in requests[0].content
+    )
     await db_session.refresh(run)
     assert run.confirm_prompted_at is not None
     assert run.confirm_token_hash is None and run.confirm_token_expires_at is None and run.confirm_token_used_at is None
-    assert await db_session.scalar(select(func.count(NotificationLog.id)).where(
-        NotificationLog.event_type == "print_confirm_request", NotificationLog.success.is_(True))) == 1
+    assert (
+        await db_session.scalar(
+            select(func.count(NotificationLog.id)).where(
+                NotificationLog.event_type == "print_confirm_request", NotificationLog.success.is_(True)
+            )
+        )
+        == 1
+    )
 
 
-@pytest.mark.parametrize("blocked", ["unknown", "wrong-archive", "wrong-printer", "run-printer", "deleted", "answered", "failed", "opt-out", "active-token"])
+@pytest.mark.parametrize(
+    "blocked",
+    [
+        "unknown",
+        "wrong-archive",
+        "wrong-printer",
+        "run-printer",
+        "deleted",
+        "answered",
+        "failed",
+        "opt-out",
+        "active-token",
+    ],
+)
 async def test_external_historical_fallback_rejects_invalid_runs_and_preserves_active_buttons(
     quality_run, db_session, monkeypatch, blocked
 ):
@@ -918,8 +1039,14 @@ async def test_external_historical_fallback_rejects_invalid_runs_and_preserves_a
         run.status = "failed"
     elif blocked == "opt-out":
         run.confirm_requested = False
-    db_session.add(NotificationProvider(name="Quality", provider_type="ntfy",
-        config='{"server":"https://ntfy.sh","topic":"quality"}', on_print_confirm_request=True))
+    db_session.add(
+        NotificationProvider(
+            name="Quality",
+            provider_type="ntfy",
+            config='{"server":"https://ntfy.sh","topic":"quality"}',
+            on_print_confirm_request=True,
+        )
+    )
     await db_session.commit()
     requests = []
 
@@ -929,18 +1056,33 @@ async def test_external_historical_fallback_rejects_invalid_runs_and_preserves_a
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
         monkeypatch.setattr(notification_service, "_get_client", AsyncMock(return_value=client))
-        assert await dispatch_outcome_confirmation(
-            db_session, archive.id, printer_id, "Printer", run_id=run_id, notify_user=False,
-        ) is False
+        assert (
+            await dispatch_outcome_confirmation(
+                db_session,
+                archive.id,
+                printer_id,
+                "Printer",
+                run_id=run_id,
+                notify_user=False,
+            )
+            is False
+        )
     assert requests == []
     await db_session.refresh(run)
     assert run.confirm_prompted_at is None
     assert run.confirm_token_hash == (token_digest(existing_token) if existing_token else None)
 
 
-@pytest.mark.parametrize("changed_after_rollback,next_status", [
-    (None, "printing"), ("answered", "printing"), ("deleted", "printing"), ("duplicate", "printing"), (None, "completed"),
-])
+@pytest.mark.parametrize(
+    "changed_after_rollback,next_status",
+    [
+        (None, "printing"),
+        ("answered", "printing"),
+        ("deleted", "printing"),
+        ("duplicate", "printing"),
+        (None, "completed"),
+    ],
+)
 async def test_external_prompt_revalidates_after_next_copy_wins_the_current_claim(
     tmp_path, monkeypatch, changed_after_rollback, next_status
 ):
@@ -967,19 +1109,43 @@ async def test_external_prompt_revalidates_after_next_copy_wins_the_current_clai
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         async with sessions() as setup:
-            printer = Printer(name="Quality", serial_number="QUALITY-RACE", ip_address="127.0.0.1",
-                              access_code="fixture", model="X1C")
-            setup.add_all([printer, Settings(key="external_url", value="https://printops.example"),
-                           NotificationProvider(name="Quality", provider_type="ntfy",
-                               config='{"server":"https://ntfy.sh","topic":"quality"}', on_print_confirm_request=True)])
+            printer = Printer(
+                name="Quality", serial_number="QUALITY-RACE", ip_address="127.0.0.1", access_code="fixture", model="X1C"
+            )
+            setup.add_all(
+                [
+                    printer,
+                    Settings(key="external_url", value="https://printops.example"),
+                    NotificationProvider(
+                        name="Quality",
+                        provider_type="ntfy",
+                        config='{"server":"https://ntfy.sh","topic":"quality"}',
+                        on_print_confirm_request=True,
+                    ),
+                ]
+            )
             await setup.flush()
             start = datetime.now() - timedelta(minutes=5)
-            archive = PrintArchive(printer_id=printer.id, filename="parts.3mf", file_path="parts.3mf",
-                                   file_size=1, status="completed", started_at=start, quantity=4, confirm_requested=True)
+            archive = PrintArchive(
+                printer_id=printer.id,
+                filename="parts.3mf",
+                file_path="parts.3mf",
+                file_size=1,
+                status="completed",
+                started_at=start,
+                quantity=4,
+                confirm_requested=True,
+            )
             setup.add(archive)
             await setup.flush()
-            run = PrintLogEntry(archive_id=archive.id, printer_id=printer.id, status="completed",
-                                started_at=start, quantity=4, confirm_requested=True)
+            run = PrintLogEntry(
+                archive_id=archive.id,
+                printer_id=printer.id,
+                status="completed",
+                started_at=start,
+                quantity=4,
+                confirm_requested=True,
+            )
             setup.add(run)
             await setup.commit()
             archive_id, run_id, printer_id = archive.id, run.id, printer.id
@@ -994,12 +1160,20 @@ async def test_external_prompt_revalidates_after_next_copy_wins_the_current_clai
                 if changed_after_rollback:
                     async with sessions() as changed:
                         if changed_after_rollback == "deleted":
-                            await changed.execute(update(PrintArchive).where(PrintArchive.id == archive_id)
-                                                  .values(deleted_at=datetime.now()))
+                            await changed.execute(
+                                update(PrintArchive)
+                                .where(PrintArchive.id == archive_id)
+                                .values(deleted_at=datetime.now())
+                            )
                         else:
-                            values = ({"good_quantity": 4, "reject_quantity": 0, "user_verdict": "good"}
-                                      if changed_after_rollback == "answered" else {"confirm_prompted_at": datetime.now()})
-                            await changed.execute(update(PrintLogEntry).where(PrintLogEntry.id == run_id).values(**values))
+                            values = (
+                                {"good_quantity": 4, "reject_quantity": 0, "user_verdict": "good"}
+                                if changed_after_rollback == "answered"
+                                else {"confirm_prompted_at": datetime.now()}
+                            )
+                            await changed.execute(
+                                update(PrintLogEntry).where(PrintLogEntry.id == run_id).values(**values)
+                            )
                         await changed.commit()
 
         latest = confirmation.latest_run
@@ -1014,11 +1188,20 @@ async def test_external_prompt_revalidates_after_next_copy_wins_the_current_clai
                 # This commits between the current mirror read and token flush,
                 # just as the independent print-start callback can.
                 async with sessions() as next_db:
-                    await next_db.execute(update(PrintArchive).where(PrintArchive.id == archive_id)
-                                          .values(status=next_status, started_at=next_start))
+                    await next_db.execute(
+                        update(PrintArchive)
+                        .where(PrintArchive.id == archive_id)
+                        .values(status=next_status, started_at=next_start)
+                    )
                     if next_status == "completed":
-                        next_run = PrintLogEntry(archive_id=archive_id, printer_id=printer_id, status="completed",
-                                                started_at=next_start, quantity=4, confirm_requested=True)
+                        next_run = PrintLogEntry(
+                            archive_id=archive_id,
+                            printer_id=printer_id,
+                            status="completed",
+                            started_at=next_start,
+                            quantity=4,
+                            confirm_requested=True,
+                        )
                         next_db.add(next_run)
                     await next_db.commit()
                     if next_status == "completed":
@@ -1035,14 +1218,21 @@ async def test_external_prompt_revalidates_after_next_copy_wins_the_current_clai
         async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
             monkeypatch.setattr(notification_service, "_get_client", AsyncMock(return_value=client))
             async with RaceSession(engine, expire_on_commit=False) as db:
-                sent = await asyncio.wait_for(confirmation.dispatch_outcome_confirmation(
-                    db, archive_id, printer_id, "Quality", run_id=run_id, notify_user=False), timeout=5)
+                sent = await asyncio.wait_for(
+                    confirmation.dispatch_outcome_confirmation(
+                        db, archive_id, printer_id, "Quality", run_id=run_id, notify_user=False
+                    ),
+                    timeout=5,
+                )
         assert sent is (changed_after_rollback is None), "a lost current claim must revalidate the historical request"
         assert rolled_back, "the temporary public token must be rolled back before historical fallback"
         assert len(requests) == (1 if changed_after_rollback is None else 0)
         if requests:
             assert "Actions" not in requests[0].headers
-            assert f"https://printops.example/archives?confirm={archive_id}&confirm_run={run_id}".encode() in requests[0].content
+            assert (
+                f"https://printops.example/archives?confirm={archive_id}&confirm_run={run_id}".encode()
+                in requests[0].content
+            )
         async with sessions() as check:
             saved_run = await check.get(PrintLogEntry, run_id)
             saved_archive = await check.get(PrintArchive, archive_id)
@@ -1053,11 +1243,15 @@ async def test_external_prompt_revalidates_after_next_copy_wins_the_current_clai
                 saved_next_run = await check.get(PrintLogEntry, next_run_id)
                 assert saved_next_run.confirm_token_hash is None and saved_next_run.confirm_prompted_at is None
                 assert (saved_next_run.good_quantity, saved_next_run.reject_quantity) == (None, None)
-            assert await check.scalar(select(func.count(NotificationLog.id)).where(
-                NotificationLog.event_type == "print_confirm_request", NotificationLog.success.is_(True))) == len(requests)
+            assert await check.scalar(
+                select(func.count(NotificationLog.id)).where(
+                    NotificationLog.event_type == "print_confirm_request", NotificationLog.success.is_(True)
+                )
+            ) == len(requests)
             assert (saved_run.confirm_prompted_at is not None) is (changed_after_rollback in (None, "duplicate"))
             assert not await confirmation.dispatch_outcome_confirmation(
-                check, archive_id, printer_id, "Quality", run_id=run_id, notify_user=False)
+                check, archive_id, printer_id, "Quality", run_id=run_id, notify_user=False
+            )
         assert len(requests) == (1 if changed_after_rollback is None else 0)
     finally:
         await engine.dispose()

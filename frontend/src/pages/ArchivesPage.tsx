@@ -1,4 +1,6 @@
 import { ColumnConfigModal, type ColumnConfig } from '../components/ColumnConfigModal';
+import { ArchiveLogCell } from './archives/ArchiveLogCell';
+import { ArchivePaginationBar } from './archives/ArchivePaginationBar';
 import { DEFAULT_LOG_COLUMNS, LOG_COLUMN_LABEL_KEYS, SORTABLE_LOG_COLUMNS, loadLogColumnConfig,
   loadLogSort, saveLogSort, saveLogColumnConfig, type LogSortState } from '../utils/printLogColumns';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
@@ -52,8 +54,6 @@ import {
   FolderKanban,
   ChevronLeft,
   ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   Settings,
   User,
   Play,
@@ -2896,127 +2896,6 @@ export function ArchivesPage() {
     [],
   );
 
-  const renderLogCell = useCallback(
-    (colId: string, entry: PrintLogEntry) => {
-      switch (colId) {
-        case 'date':
-          return (
-            <span className="text-white whitespace-nowrap">
-              {formatDateTime(entry.started_at || entry.created_at, timeFormat)}
-            </span>
-          );
-        case 'completed_at':
-          return (
-            <span className="text-bambu-gray-light whitespace-nowrap">
-              {entry.completed_at ? formatDateTime(entry.completed_at, timeFormat) : '—'}
-            </span>
-          );
-        case 'print_name':
-          return (
-            <div className="flex items-center gap-2">
-              {entry.thumbnail_path && (
-                <img
-                  src={api.getPrintLogThumbnail(entry.id)}
-                  alt=""
-                  className="w-8 h-8 rounded object-cover flex-shrink-0"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                />
-              )}
-              <span className="text-white break-words" title={entry.print_name || ''}>
-                {entry.print_name || '—'}
-              </span>
-            </div>
-          );
-        case 'printer':
-          return <span className="text-bambu-gray-light">{entry.printer_name || '—'}</span>;
-        case 'user':
-          return <span className="text-bambu-gray-light">{entry.created_by_username || '—'}</span>;
-        case 'status':
-          return (
-            <>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                entry.status === 'completed' ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400' :
-                entry.status === 'failed' ? 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400' :
-                entry.status === 'stopped' ? 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400' :
-                entry.status === 'cancelled' ? 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400' :
-                entry.status === 'skipped' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400' :
-                'bg-gray-500/20 text-gray-400'
-              }`}>
-                {entry.status}
-              </span>
-              {entry.failure_reason && (
-                <span className="block text-[10px] text-bambu-gray mt-0.5">
-                  {t(`editArchive.failureReasons.${entry.failure_reason}`, { defaultValue: entry.failure_reason })}
-                </span>
-              )}
-            </>
-          );
-        case 'duration':
-          return (
-            <span className="text-bambu-gray-light whitespace-nowrap">
-              {entry.duration_seconds ? formatDuration(entry.duration_seconds) : '—'}
-            </span>
-          );
-        case 'filament':
-          return (
-            <div className="flex items-center gap-1.5">
-              {entry.filament_color && (
-                <div className="flex items-center gap-0.5 flex-wrap">
-                  {entry.filament_color.split(',').map((color, i) => {
-                    const trimmed = color.trim();
-                    return (
-                      <span
-                        key={i}
-                        className="w-3 h-3 rounded-full border border-black/20 flex-shrink-0"
-                        style={{ backgroundColor: trimmed.startsWith('#') ? trimmed : undefined }}
-                        title={trimmed}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-              <span className="text-bambu-gray-light text-xs">
-                {entry.filament_type || '—'}
-              </span>
-            </div>
-          );
-        case 'filament_used':
-          // Per-run actual, not the archive's estimate: partial prints are
-          // scaled to progress and multi-plate archives are scoped to the
-          // plate that printed. One decimal matches the per-archive log table.
-          return (
-            <span className="text-bambu-gray-light whitespace-nowrap tabular-nums">
-              {entry.filament_used_grams != null ? `${entry.filament_used_grams.toFixed(1)} g` : '—'}
-            </span>
-          );
-        case 'cost':
-          return (
-            <span className="text-bambu-gray-light whitespace-nowrap tabular-nums">
-              {entry.cost != null ? `${currency}${entry.cost.toFixed(2)}` : '—'}
-            </span>
-          );
-        case 'energy':
-          // Written by the energy background task after the row itself, so a
-          // just-finished print shows "—" for a moment. That is accurate: the
-          // measurement genuinely isn't in yet.
-          return (
-            <span className="text-bambu-gray-light whitespace-nowrap tabular-nums">
-              {entry.energy_kwh != null ? `${entry.energy_kwh.toFixed(2)} kWh` : '—'}
-            </span>
-          );
-        case 'energy_cost':
-          return (
-            <span className="text-bambu-gray-light whitespace-nowrap tabular-nums">
-              {entry.energy_cost != null ? `${currency}${entry.energy_cost.toFixed(2)}` : '—'}
-            </span>
-          );
-        default:
-          return null;
-      }
-    },
-    [currency, t, timeFormat],
-  );
-
   const bulkDeleteMutation = useMutation({
     mutationFn: async (ids: number[]) => {
       await Promise.all(ids.map((id) => api.deleteArchive(id)));
@@ -4181,7 +4060,7 @@ export function ArchivesPage() {
                               key={colId}
                               className={`px-4 py-3 ${LOG_NUMERIC_COLUMNS.has(colId) ? 'text-right' : ''}`}
                             >
-                              {renderLogCell(colId, entry)}
+                              <ArchiveLogCell colId={colId} entry={entry} currency={currency} timeFormat={timeFormat} t={t} />
                             </td>
                           ))}
                           <td className="px-4 py-3 text-right">
@@ -4456,83 +4335,6 @@ export function ArchivesPage() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-/* Pagination bar for archives grid/list views */
-function ArchivePaginationBar({
-  pageIndex, pageSize, totalRows, totalPages, onPageChange, onPageSizeChange, t,
-}: {
-  pageIndex: number;
-  pageSize: number;
-  totalRows: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-  onPageSizeChange: (size: number) => void;
-  t: (key: string) => string;
-}) {
-  const isShowAll = pageSize === -1;
-  if (totalPages <= 1 && !isShowAll) return null;
-  const effectiveSize = isShowAll ? totalRows || 1 : pageSize;
-  return (
-    <div className="flex items-center justify-between pt-2 text-sm">
-      <span className="text-bambu-gray">
-        {isShowAll
-          ? `${totalRows} ${t('archives.prints')}`
-          : <>{t('archives.pagination.showing')} {pageIndex * effectiveSize + 1} {t('archives.pagination.to')}{' '}
-              {Math.min((pageIndex + 1) * effectiveSize, totalRows)}{' '}
-              {t('archives.pagination.of')} {totalRows} {t('archives.prints')}</>
-        }
-      </span>
-      <div className="flex items-center gap-2">
-        <span className="text-bambu-gray">{t('archives.pagination.show')}</span>
-        <LegacySelect
-          value={pageSize}
-          onChange={(e) => onPageSizeChange(Number(e.target.value))}
-          className="px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:outline-none focus:border-bambu-green"
-        >
-          {[25, 50, 100, 200].map((n) => (
-            <option key={n} value={n}>{n}</option>
-          ))}
-          <option value={-1}>{t('archives.pagination.all')}</option>
-        </LegacySelect>
-        {!isShowAll && (
-          <>
-            <button
-              onClick={() => onPageChange(0)}
-              disabled={pageIndex === 0}
-              className="p-1.5 rounded text-bambu-gray hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronsLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => onPageChange(Math.max(0, pageIndex - 1))}
-              disabled={pageIndex === 0}
-              className="p-1.5 rounded text-bambu-gray hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="text-bambu-gray px-2 whitespace-nowrap">
-              {t('archives.pagination.page')} {pageIndex + 1} {t('archives.pagination.of')} {totalPages}
-            </span>
-            <button
-              onClick={() => onPageChange(Math.min(totalPages - 1, pageIndex + 1))}
-              disabled={pageIndex >= totalPages - 1}
-              className="p-1.5 rounded text-bambu-gray hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => onPageChange(totalPages - 1)}
-              disabled={pageIndex >= totalPages - 1}
-              className="p-1.5 rounded text-bambu-gray hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronsRight className="w-4 h-4" />
-            </button>
-          </>
-        )}
-      </div>
     </div>
   );
 }

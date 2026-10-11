@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.models.notification import NotificationDigestQueue, NotificationLog, NotificationProvider
 from backend.app.models.notification_template import NotificationTemplate
 from backend.app.services.notification_delivery import NotificationDelivery
+from backend.app.services.notification_queue_events import NotificationQueueEvents
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ def _opaque_http_failure(response: httpx.Response, *, label: str) -> str:
     return f"HTTP {response.status_code} from the configured {label} (see server logs at debug level for details)"
 
 
-class NotificationService:
+class NotificationService(NotificationQueueEvents):
     """Service for sending notifications through various providers."""
 
     def __init__(self):
@@ -422,7 +423,10 @@ class NotificationService:
                 return False, f"HTTP {response.status_code}: {response.text[:200]}"
 
     async def _send_telegram(
-        self, config: dict, message: str, image_data: bytes | None = None,
+        self,
+        config: dict,
+        message: str,
+        image_data: bytes | None = None,
         outcome_urls: dict[str, str] | None = None,
     ) -> tuple[bool, str]:
         """Send notification via Telegram bot."""
@@ -434,10 +438,14 @@ class NotificationService:
 
         keyboard = None
         if outcome_urls:
-            keyboard = {"inline_keyboard": [[
-                {"text": "Good parts", "url": outcome_urls["good"] + "?tap=1"},
-                {"text": "Reject parts", "url": outcome_urls["reject"] + "?tap=1"},
-            ]]}
+            keyboard = {
+                "inline_keyboard": [
+                    [
+                        {"text": "Good parts", "url": outcome_urls["good"] + "?tap=1"},
+                        {"text": "Reject parts", "url": outcome_urls["reject"] + "?tap=1"},
+                    ]
+                ]
+            }
 
         thread_id_raw = str(config.get("message_thread_id") or "").strip()
         message_thread_id: int | None = None
@@ -492,7 +500,9 @@ class NotificationService:
         else:
             return False, f"HTTP {response.status_code}: {response.text[:200]}"
 
-    async def _send_bark(self, config: dict, title: str, message: str, image_url: str | None = None) -> tuple[bool, str]:
+    async def _send_bark(
+        self, config: dict, title: str, message: str, image_url: str | None = None
+    ) -> tuple[bool, str]:
         """Send notification via Bark."""
         device_key = config.get("device_key", "").strip()
         server = (config.get("server") or "https://api.day.app").strip().rstrip("/")
@@ -900,19 +910,33 @@ class NotificationService:
         if getattr(provider, "attach_photo", True) is False:
             image_data, image_url = None, None
         # Internal action/image metadata does not enter generic webhook fields.
-        variables = {key: value for key, value in (variables or {}).items() if key not in {"_outcome_urls", "_notification_photo_url"}} or None
+        variables = {
+            key: value
+            for key, value in (variables or {}).items()
+            if key not in {"_outcome_urls", "_notification_photo_url"}
+        } or None
 
         try:
             if provider.provider_type == "callmebot":
                 return await self._send_callmebot(config, f"{title}\n{message}")
             elif provider.provider_type == "ntfy":
-                return await self._send_ntfy(config, title, message, image_data=image_data, event_type=event_type,
-                                             **({"outcome_urls": outcome_urls} if outcome_urls else {}))
+                return await self._send_ntfy(
+                    config,
+                    title,
+                    message,
+                    image_data=image_data,
+                    event_type=event_type,
+                    **({"outcome_urls": outcome_urls} if outcome_urls else {}),
+                )
             elif provider.provider_type == "pushover":
                 return await self._send_pushover(config, title, message, image_data=image_data)
             elif provider.provider_type == "telegram":
-                return await self._send_telegram(config, f"*{title}*\n{message}", image_data=image_data,
-                                                 **({"outcome_urls": outcome_urls} if outcome_urls else {}))
+                return await self._send_telegram(
+                    config,
+                    f"*{title}*\n{message}",
+                    image_data=image_data,
+                    **({"outcome_urls": outcome_urls} if outcome_urls else {}),
+                )
             elif provider.provider_type == "bark":
                 return await self._send_bark(config, title, message, **({"image_url": image_url} if image_url else {}))
             elif provider.provider_type == "email":
@@ -927,11 +951,18 @@ class NotificationService:
                 return await self._send_discord(config, title, message, image_data=image_data)
             elif provider.provider_type == "webhook":
                 return await self._send_webhook(
-                    config, title, message, image_data=image_data, event_type=event_type, variables=variables,
-                    **({"image_url": image_url} if image_url else {})
+                    config,
+                    title,
+                    message,
+                    image_data=image_data,
+                    event_type=event_type,
+                    variables=variables,
+                    **({"image_url": image_url} if image_url else {}),
                 )
             elif provider.provider_type == "homeassistant":
-                return await self._send_homeassistant(config, title, message, db=db, **({"image_url": image_url} if image_url else {}))
+                return await self._send_homeassistant(
+                    config, title, message, db=db, **({"image_url": image_url} if image_url else {})
+                )
             else:
                 return False, f"Unknown provider type: {provider.provider_type}"
         except Exception as e:
@@ -1023,9 +1054,14 @@ class NotificationService:
         the notification is ALSO queued for the daily digest summary.
         """
         variables = dict(variables or {})
-        if image_data and not variables.get("_notification_photo_url") and any(
-            provider.provider_type in {"homeassistant", "bark", "webhook"} and getattr(provider, "attach_photo", True) is not False
-            for provider in providers
+        if (
+            image_data
+            and not variables.get("_notification_photo_url")
+            and any(
+                provider.provider_type in {"homeassistant", "bark", "webhook"}
+                and getattr(provider, "attach_photo", True) is not False
+                for provider in providers
+            )
         ):
             try:
                 from backend.app.services.notification_photos import create_notification_photo_url
@@ -1041,11 +1077,19 @@ class NotificationService:
                 logger.warning("Could not publish notification image; sending available text/attachments")
         outcomes: dict[int, NotificationDelivery] = {}
         for provider in providers:
-            provider_title, provider_message, provider_variables = self._provider_photo_payload(provider, title, message, variables)
+            provider_title, provider_message, provider_variables = self._provider_photo_payload(
+                provider, title, message, variables
+            )
             try:
                 # Always send notification immediately
                 success, error = await self._send_to_provider(
-                    provider, provider_title, provider_message, db, image_data=image_data, event_type=event_type, variables=provider_variables
+                    provider,
+                    provider_title,
+                    provider_message,
+                    db,
+                    image_data=image_data,
+                    event_type=event_type,
+                    variables=provider_variables,
                 )
 
                 status = (
@@ -1294,15 +1338,26 @@ class NotificationService:
         )
 
     async def on_print_confirm_request(
-        self, printer_id: int, printer_name: str, db: AsyncSession, *,
-        print_name: str, confirm_url: str, outcome_urls: dict[str, str],
+        self,
+        printer_id: int,
+        printer_name: str,
+        db: AsyncSession,
+        *,
+        print_name: str,
+        confirm_url: str,
+        outcome_urls: dict[str, str],
     ):
         providers = await self._get_providers_for_event(db, "on_print_confirm_request", printer_id)
         title = "Confirm production quality"
         message = f"{printer_name}: {print_name}\nInspect good and rejected quantities: {confirm_url}"
         await self._send_to_providers(
-            providers, title, message, db, event_type="print_confirm_request",
-            printer_id=printer_id, printer_name=printer_name,
+            providers,
+            title,
+            message,
+            db,
+            event_type="print_confirm_request",
+            printer_id=printer_id,
+            printer_name=printer_name,
             variables={"confirm_url": confirm_url, "_outcome_urls": outcome_urls},
         )
 
@@ -1530,8 +1585,15 @@ class NotificationService:
 
         title, message = await self._build_message_from_template(db, "filament_low", variables)
         return await self._send_to_providers(
-            providers, title, message, db, "filament_low", printer_id, printer_name,
-            variables=variables, skip_digest_provider_ids=skip_digest_provider_ids
+            providers,
+            title,
+            message,
+            db,
+            "filament_low",
+            printer_id,
+            printer_name,
+            variables=variables,
+            skip_digest_provider_ids=skip_digest_provider_ids,
         )
 
     async def on_maintenance_due(
@@ -1923,240 +1985,6 @@ class NotificationService:
             logger.info("[EMAIL] User print email sent: event=%s → %s", event_type, user.email)
         except Exception as e:
             logger.warning("Failed to send user print email notification: %s", e, exc_info=True)
-
-    # ==================== Queue Notifications ====================
-
-    async def on_queue_job_added(
-        self,
-        job_name: str,
-        target: str,
-        db: AsyncSession,
-        printer_id: int | None = None,
-        printer_name: str | None = None,
-    ):
-        """Handle queue job added event."""
-        providers = await self._get_providers_for_event(db, "on_queue_job_added", printer_id)
-        if not providers:
-            return
-
-        variables = {
-            "job_name": job_name,
-            "target": target,  # e.g., "Printer1" or "Any X1C"
-            "printer": printer_name or target,
-        }
-
-        title, message = await self._build_message_from_template(db, "queue_job_added", variables)
-        await self._send_to_providers(
-            providers, title, message, db, "queue_job_added", printer_id, printer_name, variables=variables
-        )
-
-    async def on_queue_job_assigned(
-        self,
-        job_name: str,
-        printer_id: int,
-        printer_name: str,
-        target_model: str,
-        db: AsyncSession,
-    ):
-        """Handle model-based job assigned to printer event."""
-        providers = await self._get_providers_for_event(db, "on_queue_job_assigned", printer_id)
-        if not providers:
-            return
-
-        variables = {
-            "job_name": job_name,
-            "printer": printer_name,
-            "target_model": target_model,
-        }
-
-        title, message = await self._build_message_from_template(db, "queue_job_assigned", variables)
-        await self._send_to_providers(
-            providers, title, message, db, "queue_job_assigned", printer_id, printer_name, variables=variables
-        )
-
-    async def on_queue_job_started(
-        self,
-        job_name: str,
-        printer_id: int,
-        printer_name: str,
-        db: AsyncSession,
-        estimated_time: int | None = None,
-    ):
-        """Handle queue job started printing event."""
-        providers = await self._get_providers_for_event(db, "on_queue_job_started", printer_id)
-        if not providers:
-            return
-
-        eta_str = await self._format_eta(estimated_time, db)
-
-        variables = {
-            "job_name": job_name,
-            "printer": printer_name,
-            "estimated_time": self._format_duration(estimated_time),
-            "eta": eta_str,
-        }
-
-        title, message = await self._build_message_from_template(db, "queue_job_started", variables)
-        await self._send_to_providers(
-            providers, title, message, db, "queue_job_started", printer_id, printer_name, variables=variables
-        )
-
-    async def on_queue_job_waiting(
-        self,
-        job_name: str,
-        target_model: str,
-        waiting_reason: str,
-        db: AsyncSession,
-    ):
-        """Handle job waiting for filament event."""
-        providers = await self._get_providers_for_event(db, "on_queue_job_waiting", None)
-        if not providers:
-            return
-
-        variables = {
-            "job_name": job_name,
-            "target_model": target_model,
-            "waiting_reason": waiting_reason,
-        }
-
-        title, message = await self._build_message_from_template(db, "queue_job_waiting", variables)
-        await self._send_to_providers(providers, title, message, db, "queue_job_waiting", variables=variables)
-
-    async def on_queue_job_skipped(
-        self,
-        job_name: str,
-        printer_id: int,
-        printer_name: str,
-        reason: str,
-        db: AsyncSession,
-    ):
-        """Handle job skipped event (e.g., previous print failed)."""
-        providers = await self._get_providers_for_event(db, "on_queue_job_skipped", printer_id)
-        if not providers:
-            return
-
-        variables = {
-            "job_name": job_name,
-            "printer": printer_name,
-            "reason": reason,
-        }
-
-        title, message = await self._build_message_from_template(db, "queue_job_skipped", variables)
-        await self._send_to_providers(
-            providers, title, message, db, "queue_job_skipped", printer_id, printer_name, variables=variables
-        )
-
-    async def on_queue_job_failed(
-        self,
-        job_name: str,
-        printer_id: int | None,
-        printer_name: str | None,
-        reason: str,
-        db: AsyncSession,
-    ):
-        """Handle job failed to start event (upload error, etc.)."""
-        providers = await self._get_providers_for_event(db, "on_queue_job_failed", printer_id)
-        if not providers:
-            return
-
-        variables = {
-            "job_name": job_name,
-            "printer": printer_name or "Unknown",
-            "reason": reason,
-        }
-
-        title, message = await self._build_message_from_template(db, "queue_job_failed", variables)
-        await self._send_to_providers(
-            providers, title, message, db, "queue_job_failed", printer_id, printer_name, variables=variables
-        )
-
-    async def on_queue_completed(
-        self,
-        completed_count: int,
-        db: AsyncSession,
-    ):
-        """Handle all queue jobs completed event."""
-        providers = await self._get_providers_for_event(db, "on_queue_completed", None)
-        if not providers:
-            return
-
-        variables = {
-            "completed_count": str(completed_count),
-        }
-
-        title, message = await self._build_message_from_template(db, "queue_completed", variables)
-        await self._send_to_providers(providers, title, message, db, "queue_completed", variables=variables)
-
-    # ==================== Inventory Stock Alerts ====================
-
-    async def on_stock_reorder_alert(
-        self,
-        material: str,
-        brand: str | None,
-        stock_g: float,
-        rate_g_day: float,
-        days_left: int,
-        db: AsyncSession,
-        skip_break_subscribers: bool = False,
-        provider_ids: set[int] | None = None,
-        skip_digest_provider_ids: set[int] | None = None,
-    ) -> dict[int, NotificationDelivery]:
-        """Fire when an inventory SKU reaches its reorder point."""
-        providers = await self._get_providers_for_event(db, "on_stock_reorder_alert", None)
-        if skip_break_subscribers:
-            providers = [provider for provider in providers if not provider.on_stock_break_alert]
-        if provider_ids is not None:
-            providers = [provider for provider in providers if provider.id in provider_ids]
-        if not providers:
-            return {}
-
-        variables = {
-            "material": material,
-            "brand": brand or "",
-            "stock_g": f"{stock_g:.0f}",
-            "rate_g_day": f"{rate_g_day:.1f}",
-            "days_left": str(days_left),
-        }
-
-        title, message = await self._build_message_from_template(db, "stock_reorder_alert", variables)
-        return await self._send_to_providers(
-            providers, title, message, db, "stock_reorder_alert",
-            variables=variables, skip_digest_provider_ids=skip_digest_provider_ids
-        )
-
-    async def on_stock_break_alert(
-        self,
-        material: str,
-        brand: str | None,
-        stock_g: float,
-        rate_g_day: float,
-        days_left: int,
-        lead_time_days: int,
-        db: AsyncSession,
-        provider_ids: set[int] | None = None,
-        skip_digest_provider_ids: set[int] | None = None,
-    ) -> dict[int, NotificationDelivery]:
-        """Fire when a stock break is detected (stock runs out before lead time)."""
-        providers = await self._get_providers_for_event(db, "on_stock_break_alert", None)
-        if provider_ids is not None:
-            providers = [provider for provider in providers if provider.id in provider_ids]
-        if not providers:
-            return {}
-
-        variables = {
-            "material": material,
-            "brand": brand or "",
-            "stock_g": f"{stock_g:.0f}",
-            "rate_g_day": f"{rate_g_day:.1f}",
-            "days_left": str(days_left),
-            "lead_time_days": str(lead_time_days),
-        }
-
-        title, message = await self._build_message_from_template(db, "stock_break_alert", variables)
-        return await self._send_to_providers(
-            providers, title, message, db, "stock_break_alert",
-            variables=variables, skip_digest_provider_ids=skip_digest_provider_ids
-        )
 
     async def _queue_for_digest(
         self,

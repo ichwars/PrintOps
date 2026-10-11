@@ -73,7 +73,7 @@ Die 1.332 Upstream-Commits sind eine Git-Abstammungsdifferenz. Eine angepasste �
 
 ## Gesamtprüfung und Grenzen
 
-Der endgültige Code wurde auf `0b348dc54` geprüft. Die fokussierten Zahlen in der Matrix stammen aus verschiedenen Zwischenständen und dürfen nicht zu einer Gesamtzahl addiert werden.
+Die vollständige Prüfung der fachlichen Umsetzung erfolgte auf `0b348dc54`. Die anschließende Integration in den eigenen `main` wird in [PR #198](https://github.com/ichwars/PrintOps/pull/198) geprüft. Die fokussierten Zahlen in der Matrix stammen aus verschiedenen Zwischenständen und dürfen nicht zu einer Gesamtzahl addiert werden. Eine [Bedienanleitung für die neuen Funktionen](upstream-features-guide.md) ergänzt diesen technischen Bericht.
 
 | Prüfung | Ergebnis |
 | --- | --- |

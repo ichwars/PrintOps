@@ -351,7 +351,9 @@ async def test_material_number_labels_use_existing_shared_sku_without_allocating
     from backend.app.models.settings import Settings
     from backend.app.models.warehouse_number_sequence import WarehouseNumberSequence
 
-    sku = FilamentSkuSettings(material="PLA", subtype="Basic", brand="Polymaker", color_name="Orange", material_number="MAT-00444")
+    sku = FilamentSkuSettings(
+        material="PLA", subtype="Basic", brand="Polymaker", color_name="Orange", material_number="MAT-00444"
+    )
     db_session.add(sku)
     await db_session.commit()
     if backend == "inventory":
@@ -360,21 +362,40 @@ async def test_material_number_labels_use_existing_shared_sku_without_allocating
         request_context = patch("backend.app.api.routes.labels.get_spoolman_client", new_callable=AsyncMock)
     else:
         spool_id = 77
-        remote = {"id": spool_id, "extra": {"bambu_color_name": '\"Orange\"'}, "filament": {
-            "material": "PLA", "name": "PLA Basic", "weight": 1000, "color_hex": "FF8800", "vendor": {"name": "Polymaker"},
-        }}
+        remote = {
+            "id": spool_id,
+            "extra": {"bambu_color_name": '"Orange"'},
+            "filament": {
+                "material": "PLA",
+                "name": "PLA Basic",
+                "weight": 1000,
+                "color_hex": "FF8800",
+                "vendor": {"name": "Polymaker"},
+            },
+        }
         db_session.add(Settings(key="spoolman_enabled", value="true"))
         await db_session.commit()
         client = MagicMock(is_connected=True)
         client.get_spools = AsyncMock(return_value=[remote])
-        request_context = patch("backend.app.api.routes.labels.get_spoolman_client", new_callable=AsyncMock, return_value=client)
+        request_context = patch(
+            "backend.app.api.routes.labels.get_spoolman_client", new_callable=AsyncMock, return_value=client
+        )
     before = list((await db_session.scalars(select(WarehouseNumberSequence))).all())
     with request_context:
-        response = await async_client.post(f"/api/v1/{backend}/labels", json={
-            "spool_ids": [spool_id], "template": "ams_holder_75x55", "fields": ["material_number"],
-        })
+        response = await async_client.post(
+            f"/api/v1/{backend}/labels",
+            json={
+                "spool_ids": [spool_id],
+                "template": "ams_holder_75x55",
+                "fields": ["material_number"],
+            },
+        )
     assert response.status_code == 200, response.text
-    with pdfium.PdfDocument(response.content) as document, closing(document[0]) as page, closing(page.get_textpage()) as text:
+    with (
+        pdfium.PdfDocument(response.content) as document,
+        closing(document[0]) as page,
+        closing(page.get_textpage()) as text,
+    ):
         assert "MAT-00444" in text.get_text_range()
     assert list((await db_session.scalars(select(WarehouseNumberSequence))).all()) == before
     assert list((await db_session.scalars(select(FilamentSkuSettings))).all()) == [sku]
@@ -407,7 +428,11 @@ async def test_spoolman_label_uses_actual_spool_size_after_native_weight_mapping
             json={"spool_ids": [77], "template": "ams_holder_75x55", "fields": ["weight", "note", "added"]},
         )
     assert response.status_code == 200, response.text
-    with pdfium.PdfDocument(response.content) as document, closing(document[0]) as page, closing(page.get_textpage()) as text:
+    with (
+        pdfium.PdfDocument(response.content) as document,
+        closing(document[0]) as page,
+        closing(page.get_textpage()) as text,
+    ):
         printed = text.get_text_range()
     assert "250 g" in printed
     assert "1000 g" not in printed

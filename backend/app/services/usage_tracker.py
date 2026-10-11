@@ -1298,6 +1298,34 @@ async def _notify_unassigned_trays(printer_id: int, missing: list[int]) -> None:
         await notify_missing_spool_assignments_on_print_complete(printer_id, missing, notification_db, logger)
 
 
+async def _resolve_usage_source(printer_id, archive_id, db, ams_mapping, threemf_path, plate_id):
+    from pathlib import Path
+
+    from backend.app.core.config import settings as app_settings
+    from backend.app.models.archive import PrintArchive
+
+    file_path: Path | None = threemf_path
+    archive: PrintArchive | None = None
+    if file_path is None and archive_id:
+        archive, file_path = await _resolve_archive_3mf(archive_id, db, app_settings.base_dir, plate_id, ams_mapping)
+        if archive is None:
+            return None
+
+    if file_path is None:
+        logger.info("[UsageTracker] 3MF: no file available for archive %s, skipping", archive_id)
+        return None
+
+    queue_item, plate_id = await _load_dispatch_context(db, printer_id, archive_id, archive, plate_id, not ams_mapping)
+    filament_usage, plate_id = _extract_plate_usage(file_path, plate_id)
+    if not filament_usage:
+        logger.info("[UsageTracker] 3MF: no filament usage data in %s", file_path)
+        return None
+
+    logger.info("[UsageTracker] 3MF: archive %s, plate_id=%s, filament_usage=%s", archive_id, plate_id, filament_usage)
+
+    return file_path, archive, queue_item, filament_usage, plate_id
+
+
 async def _track_from_3mf(
     printer_id: int,
     archive_id: int | None,
@@ -1339,29 +1367,10 @@ async def _track_from_3mf(
     5. Position-based default using sorted available tray IDs (handles external spools)
     6. Default mapping: slot_id - 1 = global_tray_id (last resort)
     """
-    from pathlib import Path
-
-    from backend.app.core.config import settings as app_settings
-    from backend.app.models.archive import PrintArchive
-
-    file_path: Path | None = threemf_path
-    archive: PrintArchive | None = None
-    if file_path is None and archive_id:
-        archive, file_path = await _resolve_archive_3mf(archive_id, db, app_settings.base_dir, plate_id, ams_mapping)
-        if archive is None:
-            return []
-
-    if file_path is None:
-        logger.info("[UsageTracker] 3MF: no file available for archive %s, skipping", archive_id)
+    source = await _resolve_usage_source(printer_id, archive_id, db, ams_mapping, threemf_path, plate_id)
+    if source is None:
         return []
-
-    queue_item, plate_id = await _load_dispatch_context(db, printer_id, archive_id, archive, plate_id, not ams_mapping)
-    filament_usage, plate_id = _extract_plate_usage(file_path, plate_id)
-    if not filament_usage:
-        logger.info("[UsageTracker] 3MF: no filament usage data in %s", file_path)
-        return []
-
-    logger.info("[UsageTracker] 3MF: archive %s, plate_id=%s, filament_usage=%s", archive_id, plate_id, filament_usage)
+    file_path, archive, queue_item, filament_usage, plate_id = source
 
     # --- Resolve slot-to-tray mapping ---
     mapping_source = None

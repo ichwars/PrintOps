@@ -104,9 +104,13 @@ async def get_notification_photo(token: str, db: AsyncSession = Depends(get_db))
     if data is None:
         raise HTTPException(404, "Notification photo not found")
     return Response(
-        data, media_type="image/jpeg", headers={
-            "Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
-            "X-Robots-Tag": "noindex, nofollow", "X-Content-Type-Options": "nosniff",
+        data,
+        media_type="image/jpeg",
+        headers={
+            "Cache-Control": "no-store",
+            "Referrer-Policy": "no-referrer",
+            "X-Robots-Tag": "noindex, nofollow",
+            "X-Content-Type-Options": "nosniff",
         },
     )
 

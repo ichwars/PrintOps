@@ -347,7 +347,9 @@ class ObicoDetectionService:
             self._action_fired[printer_id] = True
             await self._dispatch_action(printer_id, settings["action"], task_name, score, frame)
 
-    async def _dispatch_action(self, printer_id: int, action: str, task_name: str, score: float, frame: bytes | None = None):
+    async def _dispatch_action(
+        self, printer_id: int, action: str, task_name: str, score: float, frame: bytes | None = None
+    ):
         from backend.app.services.obico_actions import execute_action
 
         logger.warning(

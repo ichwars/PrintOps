@@ -413,11 +413,20 @@ async def test_identity_change_during_profile_read_cannot_select_previous_spool_
 
     printer, _, assignment_id, mqtt, _ = recovery
     if spoolman:
-        db_session.add_all([
-            Settings(key="spoolman_enabled", value="true"),
-            SpoolmanSlotAssignment(printer_id=printer.id, ams_id=0, tray_id=0, spoolman_spool_id=42),
-            SpoolmanKProfile(printer_id=printer.id, spoolman_spool_id=42, extruder=0, nozzle_diameter="0.4", cali_idx=7, k_value=0.025),
-        ])
+        db_session.add_all(
+            [
+                Settings(key="spoolman_enabled", value="true"),
+                SpoolmanSlotAssignment(printer_id=printer.id, ams_id=0, tray_id=0, spoolman_spool_id=42),
+                SpoolmanKProfile(
+                    printer_id=printer.id,
+                    spoolman_spool_id=42,
+                    extruder=0,
+                    nozzle_diameter="0.4",
+                    cali_idx=7,
+                    k_value=0.025,
+                ),
+            ]
+        )
         await db_session.commit()
     tray = mqtt.state.raw_data["ams"][0]["tray"][0]
     tray["cali_idx"] = -1
@@ -427,9 +436,11 @@ async def test_identity_change_during_profile_read_cannot_select_previous_spool_
         profiles = await original(*args, **kwargs)
         if field == "assignment":
             if spoolman:
-                assignment = await db_session.scalar(select(SpoolmanSlotAssignment).where(
-                    SpoolmanSlotAssignment.printer_id == printer.id,
-                ))
+                assignment = await db_session.scalar(
+                    select(SpoolmanSlotAssignment).where(
+                        SpoolmanSlotAssignment.printer_id == printer.id,
+                    )
+                )
                 assignment.spoolman_spool_id = 99
             else:
                 replacement = Spool(material="PLA", rgba="FF0000FF")
@@ -440,8 +451,11 @@ async def test_identity_change_during_profile_read_cannot_select_previous_spool_
             await db_session.commit()
         else:
             tray[field] = {
-                "tray_type": "PETG", "tray_color": "000000FF", "tag_uid": "04AABBCC",
-                "tray_uuid": "A" * 32, "tray_info_idx": "GFG00",
+                "tray_type": "PETG",
+                "tray_color": "000000FF",
+                "tag_uid": "04AABBCC",
+                "tray_uuid": "A" * 32,
+                "tray_info_idx": "GFG00",
             }[field]
         return profiles
 

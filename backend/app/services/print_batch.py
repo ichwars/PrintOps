@@ -280,7 +280,13 @@ class BatchProgress:
         items, so cancelling the lot leaves a target of zero that trivially
         satisfies ``remaining == 0``.
         """
-        return self.target > 0 and self.remaining == 0 and self.pending == 0 and self.printing == 0 and self.unconfirmed == 0
+        return (
+            self.target > 0
+            and self.remaining == 0
+            and self.pending == 0
+            and self.printing == 0
+            and self.unconfirmed == 0
+        )
 
 
 async def load_progress(db: AsyncSession, batch: PrintBatch) -> BatchProgress:
@@ -378,14 +384,24 @@ async def load_progress(db: AsyncSession, batch: PrintBatch) -> BatchProgress:
         plate.print_time_seconds += int(time_sum or 0)
 
     latest_log_id = (
-        select(func.max(PrintLogEntry.id)).where(PrintLogEntry.queue_item_id == PrintQueueItem.id).correlate(PrintQueueItem).scalar_subquery()
+        select(func.max(PrintLogEntry.id))
+        .where(PrintLogEntry.queue_item_id == PrintQueueItem.id)
+        .correlate(PrintQueueItem)
+        .scalar_subquery()
     )
-    quality_rows = (await db.execute(
-        select(PrintQueueItem.plate_id, PrintQueueItem.confirm_outcome,
-               PrintLogEntry.confirm_requested, PrintLogEntry.good_quantity, PrintLogEntry.reject_quantity)
-        .outerjoin(PrintLogEntry, PrintLogEntry.id == latest_log_id)
-        .where(PrintQueueItem.batch_id == batch.id, PrintQueueItem.status == "completed")
-    )).all()
+    quality_rows = (
+        await db.execute(
+            select(
+                PrintQueueItem.plate_id,
+                PrintQueueItem.confirm_outcome,
+                PrintLogEntry.confirm_requested,
+                PrintLogEntry.good_quantity,
+                PrintLogEntry.reject_quantity,
+            )
+            .outerjoin(PrintLogEntry, PrintLogEntry.id == latest_log_id)
+            .where(PrintQueueItem.batch_id == batch.id, PrintQueueItem.status == "completed")
+        )
+    ).all()
     for plate_id, required, requested, good, reject in quality_rows:
         plate = by_plate.get(None if whole_job_target else plate_id)
         if plate is None:
