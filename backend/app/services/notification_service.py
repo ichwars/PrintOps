@@ -864,6 +864,18 @@ class NotificationService:
         else:
             return False, _opaque_http_failure(response, label="Home Assistant endpoint")
 
+    @staticmethod
+    def _provider_photo_payload(provider, title: str, message: str, variables: dict | None):
+        """Apply one provider's preference before transport, logs or digest fan-out."""
+        variables = dict(variables or {})
+        if getattr(provider, "attach_photo", True) is False:
+            for field in ("finish_photo_url", "_notification_photo_url"):
+                url = variables.pop(field, None)
+                if isinstance(url, str) and url:
+                    title = title.replace(url, "")
+                    message = message.replace(url, "")
+        return title, message, variables
+
     async def _send_to_provider(
         self,
         provider: NotificationProvider,
@@ -880,6 +892,7 @@ class NotificationService:
             logger.info("Skipping notification to %s - quiet hours active", provider.name)
             return True, "Skipped - quiet hours"
 
+        title, message, variables = self._provider_photo_payload(provider, title, message, variables)
         config = json.loads(provider.config) if isinstance(provider.config, str) else provider.config
         outcome_urls = (variables or {}).get("_outcome_urls")
         image_url = (variables or {}).get("_notification_photo_url")
@@ -1025,10 +1038,11 @@ class NotificationService:
                     await db.refresh(provider)
                 logger.warning("Could not publish notification image; sending available text/attachments")
         for provider in providers:
+            provider_title, provider_message, provider_variables = self._provider_photo_payload(provider, title, message, variables)
             try:
                 # Always send notification immediately
                 success, error = await self._send_to_provider(
-                    provider, title, message, db, image_data=image_data, event_type=event_type, variables=variables
+                    provider, provider_title, provider_message, db, image_data=image_data, event_type=event_type, variables=provider_variables
                 )
 
                 # Also queue for digest if enabled (digest is a summary, not a queue)
@@ -1036,8 +1050,8 @@ class NotificationService:
                     await self._queue_for_digest(
                         provider=provider,
                         event_type=event_type,
-                        title=title,
-                        message=message,
+                        title=provider_title,
+                        message=provider_message,
                         db=db,
                         printer_id=printer_id,
                         printer_name=printer_name,
@@ -1047,8 +1061,8 @@ class NotificationService:
                     db=db,
                     provider_id=provider.id,
                     event_type=event_type,
-                    title=title,
-                    message=message,
+                    title=provider_title,
+                    message=provider_message,
                     success=success,
                     error_message=error if not success else None,
                     printer_id=printer_id,
@@ -1065,8 +1079,8 @@ class NotificationService:
                     db=db,
                     provider_id=provider.id,
                     event_type=event_type,
-                    title=title,
-                    message=message,
+                    title=provider_title,
+                    message=provider_message,
                     success=False,
                     error_message=str(e),
                     printer_id=printer_id,

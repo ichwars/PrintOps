@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 type TokenKind = 'media' | 'camera';
 
 const mediaPaths = [
-  /^\/api\/v1\/library\/files\/\d+\/(?:thumbnail|plate-thumbnail\/\d+)$/,
+  /^\/api\/v1\/library\/files\/\d+\/(?:thumbnail|plate-thumbnail\/\d+|photos\/[^/]+)$/,
   /^\/api\/v1\/archives\/\d+\/(?:thumbnail|plate-thumbnail\/\d+|plate-preview|timelapse|photos\/.+|qrcode|project-image\/.+)$/,
   /^\/api\/v1\/print-log\/\d+\/thumbnail$/,
   /^\/api\/v1\/projects\/\d+\/cover-image$/,

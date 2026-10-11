@@ -101,4 +101,12 @@ describe('rewriteMediaSrcWithToken', () => {
     expect(camera.getAttribute('src')).toBe('/api/v1/printers/1/camera/stream?token=CAMERA');
   });
 
+  it('updates new result-photo URLs while keeping other origins untouched', () => {
+    const photo = addImg('/api/v1/library/files/42/photos/result.jpg?token=OLD');
+    const foreign = addImg('https://other.example/api/v1/library/files/42/photos/result.jpg');
+    expect(rewriteMediaSrcWithToken(root, 'NEW')).toBe(1);
+    expect(photo.getAttribute('src')).toBe('/api/v1/library/files/42/photos/result.jpg?token=NEW');
+    expect(foreign.getAttribute('src')).not.toContain('token=');
+  });
+
 });

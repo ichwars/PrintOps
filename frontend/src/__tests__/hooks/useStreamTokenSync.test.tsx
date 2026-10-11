@@ -167,3 +167,25 @@ describe('pending media requests', () => {
     expect(getMediaToken()).toBe('current-user-media');
   });
 });
+
+
+it('renews a stale result-photo token after an image load error', async () => {
+  const photo = document.createElement('img');
+  photo.src = '/api/v1/library/files/42/photos/result.jpg';
+  document.body.appendChild(photo);
+  try {
+    renderHook(() => useStreamTokenSync(), { wrapper: wrapper() });
+    await waitFor(() => expect(getMediaToken()).toBe('media-tok'));
+    await waitFor(() => expect(photo.src).toContain('token=media-tok'));
+    server.use(http.post('*/api/v1/auth/media-token', () => {
+      mediaMints += 1;
+      return HttpResponse.json({ token: 'new-photo-token' });
+    }));
+    photo.dispatchEvent(new Event('error'));
+    await waitFor(() => expect(getMediaToken()).toBe('new-photo-token'));
+    await waitFor(() => expect(photo.src).toContain('token=new-photo-token'));
+    expect(cameraMints).toBe(0);
+  } finally {
+    photo.remove();
+  }
+});
