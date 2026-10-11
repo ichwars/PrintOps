@@ -12,8 +12,10 @@ scan jumps straight back into PrintOps at that spool's row.
 
 from __future__ import annotations
 
+import asyncio
 import io
 import logging
+import zipfile
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -30,7 +32,16 @@ from backend.app.core.permissions import Permission
 from backend.app.models.small_part import SmallPart
 from backend.app.models.spool import Spool
 from backend.app.models.user import User
-from backend.app.services.label_renderer import LabelData, TemplateName, render_labels, validate_start_position
+from backend.app.services.label_renderer import (
+    DEFAULT_LABEL_FIELDS,
+    LabelData,
+    LabelField,
+    TemplateName,
+    pdf_to_pngs,
+    render_label_preview_pdf,
+    render_labels,
+    validate_start_position,
+)
 from backend.app.services.spoolman import get_spoolman_client
 from backend.app.utils.http import build_content_disposition
 
@@ -64,6 +75,9 @@ class LabelRenderOptions(BaseModel):
     # Black-and-white thermal printers: drop the colour swatch (prints as a
     # muddy grey block) and widen the text column instead (#1870).
     monochrome: bool = False
+    fields: list[LabelField] | None = Field(default=None, max_length=12)
+    format: Literal["pdf", "png"] = "pdf"
+    dpi: Literal[203, 300, 600] = 300
     start_position: int = Field(default=1, ge=1, le=30, strict=True)
 
     @model_validator(mode="after")
@@ -112,6 +126,11 @@ def _spool_to_label_data(spool: Spool, deeplink_base: str) -> LabelData:
         extra_colors=_split_extra_colors(spool.extra_colors),
         storage_location=getattr(spool, "storage_location", None),
         deeplink_url=f"{deeplink_base}/inventory?spool={spool.id}",
+        nozzle_temp_min=spool.nozzle_temp_min,
+        nozzle_temp_max=spool.nozzle_temp_max,
+        label_weight=spool.label_weight,
+        note=spool.note,
+        added=spool.created_at.date() if spool.created_at else None,
     )
 
 
@@ -146,6 +165,9 @@ def _spoolman_dict_to_label_data(s: dict, deeplink_base: str) -> LabelData:
         extra_colors=extra,
         storage_location=s.get("location"),
         deeplink_url=f"{deeplink_base}/inventory?spool={int(s.get('id', 0))}",
+        label_weight=s.get("initial_weight") or filament.get("weight"),
+        note=s.get("comment"),
+        nozzle_temp_min=filament.get("settings_extruder_temp"),
     )
 
 
@@ -162,6 +184,7 @@ def _small_part_to_label_data(part: SmallPart, deeplink_base: str) -> LabelData:
         extra_colors=None,
         storage_location=storage_location,
         deeplink_url=f"{deeplink_base}/warehouse/parts?part={part.id}",
+        material_number=part.sku,
     )
 
 
@@ -179,6 +202,48 @@ def _stream_pdf(pdf: bytes, filename: str) -> StreamingResponse:
     )
 
 
+async def _label_response(
+    body: LabelRenderOptions, data_list: list[LabelData], request: Request, prefix: str
+) -> StreamingResponse:
+    fields = DEFAULT_LABEL_FIELDS if body.fields is None else frozenset(body.fields)
+    preview = request.url.path.endswith("/preview")
+
+    def render():
+        if preview:
+            pdf = render_label_preview_pdf(body.template, data_list[0], monochrome=body.monochrome, fields=fields)
+            return pdf_to_pngs(pdf, body.dpi)[0], "image/png", f"{prefix}-preview.png"
+        pdf = render_labels(
+            body.template, data_list, monochrome=body.monochrome, start_position=body.start_position, fields=fields
+        )
+        if body.format == "pdf":
+            return pdf, "application/pdf", f"{prefix}-{body.template}.pdf"
+        pngs = pdf_to_pngs(pdf, body.dpi)
+        if len(pngs) == 1:
+            return pngs[0], "image/png", f"{prefix}-{body.template}.png"
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_STORED) as archive:
+            for index, png in enumerate(pngs, 1):
+                archive.writestr(f"label-{index}.png", png)
+        return output.getvalue(), "application/zip", f"{prefix}-{body.template}.zip"
+
+    try:
+        payload, media_type, filename = await asyncio.to_thread(render)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return StreamingResponse(
+        io.BytesIO(payload),
+        media_type=media_type,
+        headers={
+            "Content-Disposition": build_content_disposition(
+                filename, disposition="inline" if media_type == "application/pdf" else "attachment"
+            ),
+            "Content-Length": str(len(payload)),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@router.post("/inventory/labels/preview")
 @router.post("/inventory/labels")
 async def render_local_inventory_labels(
     body: LabelRequest,
@@ -204,11 +269,10 @@ async def render_local_inventory_labels(
     deeplink_base = await _resolve_deeplink_base(request, db)
     data_list = [_spool_to_label_data(s, deeplink_base) for s in ordered]
 
-    pdf = render_labels(body.template, data_list, monochrome=body.monochrome, start_position=body.start_position)
-    filename = f"printops-labels-{body.template}.pdf"
-    return _stream_pdf(pdf, filename)
+    return await _label_response(body, data_list, request, "printops-labels")
 
 
+@router.post("/small-parts/labels/preview")
 @router.post("/small-parts/labels")
 async def render_small_part_labels(
     body: SmallPartLabelRequest,
@@ -237,11 +301,10 @@ async def render_small_part_labels(
     deeplink_base = await _resolve_deeplink_base(request, db)
     data_list = [_small_part_to_label_data(part, deeplink_base) for part in ordered]
 
-    pdf = render_labels(body.template, data_list, monochrome=body.monochrome, start_position=body.start_position)
-    filename = f"printops-material-labels-{body.template}.pdf"
-    return _stream_pdf(pdf, filename)
+    return await _label_response(body, data_list, request, "printops-material-labels")
 
 
+@router.post("/spoolman/labels/preview")
 @router.post("/spoolman/labels")
 async def render_spoolman_labels(
     body: LabelRequest,
@@ -281,6 +344,4 @@ async def render_spoolman_labels(
     deeplink_base = await _resolve_deeplink_base(request, db)
     data_list = [_spoolman_dict_to_label_data(by_id[sid], deeplink_base) for sid in body.spool_ids]
 
-    pdf = render_labels(body.template, data_list, monochrome=body.monochrome, start_position=body.start_position)
-    filename = f"printops-labels-spoolman-{body.template}.pdf"
-    return _stream_pdf(pdf, filename)
+    return await _label_response(body, data_list, request, "printops-labels-spoolman")

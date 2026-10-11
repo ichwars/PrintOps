@@ -261,3 +261,77 @@ class TestValidation:
             },
         )
         assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_png_exports_one_image_or_ordered_zip(async_client, spool_factory):
+    import io
+    import zipfile
+
+    from PIL import Image
+
+    first, second = await spool_factory(), await spool_factory()
+    response = await async_client.post(
+        "/api/v1/inventory/labels",
+        json={
+            "spool_ids": [second.id, first.id],
+            "template": "box_40x30",
+            "format": "png",
+            "dpi": 203,
+            "fields": ["spool_id", "qr", "weight"],
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/zip"
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        assert archive.namelist() == ["label-1.png", "label-2.png"]
+        with Image.open(io.BytesIO(archive.read("label-1.png"))) as image:
+            assert image.width == 320
+            assert round(image.info["dpi"][0]) == 203
+    response = await async_client.post(
+        "/api/v1/inventory/labels",
+        json={
+            "spool_ids": [first.id],
+            "template": "box_40x30",
+            "format": "png",
+            "dpi": 600,
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_sheet_preview_renders_one_cell_and_validates_fields(async_client, spool_factory):
+    import io
+
+    from PIL import Image
+
+    spool = await spool_factory()
+    response = await async_client.post(
+        "/api/v1/inventory/labels/preview",
+        json={
+            "spool_ids": [spool.id],
+            "template": "avery_l7160",
+            "fields": [],
+            "dpi": 203,
+            "start_position": 21,
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    with Image.open(io.BytesIO(response.content)) as image:
+        assert image.width in (507, 508)
+        assert image.height in (304, 305)
+    for override in ({"fields": ["unsafe"]}, {"dpi": 1200}, {"format": "html"}):
+        response = await async_client.post(
+            "/api/v1/inventory/labels/preview",
+            json={
+                "spool_ids": [spool.id],
+                "template": "box_40x30",
+                **override,
+            },
+        )
+        assert response.status_code == 422

@@ -34,6 +34,7 @@ import type {
   SpoolKProfileInput,
   SpoolFilamentPreset,
   SpoolLabelTemplate,
+  LabelExportOptions,
   SpoolUsageRecord,
   SpoolmanBulkCreateResult,
   StorageLocation,
@@ -204,7 +205,18 @@ export const inventoryMaintenanceMethods = {
   // ── Spool label printing (#809) ──────────────────────────────────────────
   // Both endpoints return application/pdf. Frontend opens the resulting Blob
   // in a new tab so the user can print or save from the browser's PDF viewer.
-  printSpoolLabels: async (data: { spool_ids: number[]; template: SpoolLabelTemplate; monochrome?: boolean; start_position?: number }): Promise<Blob> => {
+  previewLabels: async (source: 'inventory' | 'spoolman' | 'small-parts', data: object): Promise<Blob> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (authToken) headers.Authorization = `Bearer ${authToken}`;
+    const response = await fetch(`${API_BASE}/${source}/labels/preview`, { method: 'POST', headers, body: JSON.stringify(data) });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(typeof error.detail === 'string' ? error.detail : `HTTP ${response.status}`);
+    }
+    return response.blob();
+  },
+
+  printSpoolLabels: async (data: { spool_ids: number[]; template: SpoolLabelTemplate; monochrome?: boolean; start_position?: number } & LabelExportOptions): Promise<Blob> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
     const response = await fetch(`${API_BASE}/inventory/labels`, {
@@ -219,7 +231,7 @@ export const inventoryMaintenanceMethods = {
     return response.blob();
   },
 
-  printSpoolmanSpoolLabels: async (data: { spool_ids: number[]; template: SpoolLabelTemplate; monochrome?: boolean; start_position?: number }): Promise<Blob> => {
+  printSpoolmanSpoolLabels: async (data: { spool_ids: number[]; template: SpoolLabelTemplate; monochrome?: boolean; start_position?: number } & LabelExportOptions): Promise<Blob> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
     const response = await fetch(`${API_BASE}/spoolman/labels`, {

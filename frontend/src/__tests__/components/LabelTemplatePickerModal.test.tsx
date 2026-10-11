@@ -8,6 +8,7 @@ import { smallPartsApi } from '../../api/smallParts';
 vi.mock('../../api/client', () => ({
   api: {
     printSpoolLabels: vi.fn(),
+    previewLabels: vi.fn().mockResolvedValue(new Blob(["png"], { type: "image/png" })),
     printSpoolmanSpoolLabels: vi.fn(),
     getSettings: vi.fn().mockResolvedValue({}),
     getAuthStatus: vi.fn().mockResolvedValue({ auth_enabled: false }),
@@ -36,6 +37,7 @@ const MATERIALS = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   vi.mocked(api.getSettings).mockResolvedValue({} as never);
   vi.mocked(api.getAuthStatus).mockResolvedValue({ auth_enabled: false } as never);
   Object.defineProperty(window.URL, 'createObjectURL', {
@@ -215,7 +217,7 @@ describe('LabelTemplatePickerModal', () => {
     );
     // Two AMS holder variants exist (#1426). Both must be disabled when no
     // spools are selected — the empty-selection guard is global, not per-template.
-    const amsButtons = screen.getAllByText(/AMS holder/i).map((el) => el.closest('button'));
+    const amsButtons = screen.getAllByRole("button", { name: /AMS holder/i });
     expect(amsButtons).toHaveLength(2);
     for (const btn of amsButtons) {
       expect(btn).toBeDisabled();
@@ -238,7 +240,7 @@ describe('LabelTemplatePickerModal', () => {
     fireEvent.click(screen.getByText(/Blue · Sunlu/));  // uncheck spool 2
     // Two "Box label …" templates exist now (40×30 and 62×29) — pin the
     // specific one we want to send so the assertion below stays meaningful.
-    fireEvent.click(screen.getByText(/Box label \(62 × 29 mm\)/i));
+    fireEvent.click(screen.getByRole("button", { name: /Box label \(62 × 29 mm\)/i }));
 
     await waitFor(() => {
       expect(api.printSpoolLabels).toHaveBeenCalledWith({
@@ -264,7 +266,7 @@ describe('LabelTemplatePickerModal', () => {
 
     // Pick the larger AMS holder variant explicitly (#1426: two AMS templates
      // exist now — pin which one the test sends so the assertion stays meaningful).
-    fireEvent.click(screen.getByText(/AMS holder — large \(75 × 55 mm\)/i));
+    fireEvent.click(screen.getByRole("button", { name: /AMS holder — large \(75 × 55 mm\)/i }));
 
     await waitFor(() => {
       expect(api.printSpoolmanSpoolLabels).toHaveBeenCalledWith({
@@ -345,10 +347,10 @@ describe('LabelTemplatePickerModal', () => {
 
     // All six templates must be in the DOM (#1426 added two AMS variants).
     // Use the dimension suffix to disambiguate same-family entries.
-    expect(screen.getByText(/AMS holder — small \(74 × 33 mm\)/i)).toBeInTheDocument();
-    expect(screen.getByText(/AMS holder — large \(75 × 55 mm\)/i)).toBeInTheDocument();
-    expect(screen.getByText(/Box label \(40 × 30 mm\)/i)).toBeInTheDocument();
-    expect(screen.getByText(/Box label \(62 × 29 mm\)/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /AMS holder — small \(74 × 33 mm\)/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /AMS holder — large \(75 × 55 mm\)/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Box label \(40 × 30 mm\)/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Box label \(62 × 29 mm\)/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Avery L7160/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Avery 5160/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Cancel/i })).toBeInTheDocument();
@@ -388,7 +390,7 @@ describe('LabelTemplatePickerModal', () => {
 
     // Default is ID-sorted; flip to colour.
     fireEvent.click(screen.getByRole('button', { name: 'By colour' }));
-    fireEvent.click(screen.getByText(/Box label \(62 × 29 mm\)/i));
+    fireEvent.click(screen.getByRole("button", { name: /Box label \(62 × 29 mm\)/i }));
 
     await waitFor(() => {
       // Expected colour-sort order for the SPOOLS fixture:
@@ -419,7 +421,7 @@ describe('LabelTemplatePickerModal', () => {
       />,
     );
 
-    fireEvent.click(screen.getByText(/Box label \(40 × 30 mm\)/i));
+    fireEvent.click(screen.getByRole("button", { name: /Box label \(40 × 30 mm\)/i }));
 
     await waitFor(() => {
       expect(api.printSpoolLabels).toHaveBeenCalledWith({
@@ -443,7 +445,7 @@ describe('LabelTemplatePickerModal', () => {
     );
 
     fireEvent.click(screen.getByText(/black & white printer/i));
-    fireEvent.click(screen.getByText(/Box label \(40 × 30 mm\)/i));
+    fireEvent.click(screen.getByRole("button", { name: /Box label \(40 × 30 mm\)/i }));
 
     await waitFor(() => {
       expect(api.printSpoolLabels).toHaveBeenCalledWith({
@@ -468,7 +470,7 @@ describe('LabelTemplatePickerModal', () => {
 
     expect(screen.getByText('Print material labels')).toBeInTheDocument();
     expect(screen.getByText(/M3 Gewindeeinsatz/)).toBeInTheDocument();
-    fireEvent.click(screen.getByText(/Box label \(62 × 29 mm\)/i));
+    fireEvent.click(screen.getByRole("button", { name: /Box label \(62 × 29 mm\)/i }));
 
     await waitFor(() => {
       expect(smallPartsApi.printLabels).toHaveBeenCalledWith({
@@ -479,4 +481,28 @@ describe('LabelTemplatePickerModal', () => {
     });
     expect(api.printSpoolLabels).not.toHaveBeenCalled();
   });
+});
+
+it('exports selected fields as a 600 dpi PNG while preserving material sheet positions', async () => {
+  vi.mocked(smallPartsApi.printLabels).mockResolvedValue(new Blob(['png'], { type: 'image/png' }));
+  render(<LabelTemplatePickerModal isOpen onClose={vi.fn()} availableMaterials={MATERIALS}
+    initialSelectedIds={[7]} resourceType="material" />);
+  fireEvent.click(screen.getByRole('checkbox', { name: /Brand/i }));
+  fireEvent.change(screen.getByRole('combobox', { name: /Output/i }), { target: { value: 'png' } });
+  fireEvent.change(screen.getByRole('combobox', { name: /Resolution/i }), { target: { value: '600' } });
+  fireEvent.change(screen.getByRole('spinbutton', { name: /Start position.*L7160/i }), { target: { value: '21' } });
+  fireEvent.click(screen.getByRole('button', { name: /Avery L7160/i }));
+  await waitFor(() => expect(smallPartsApi.printLabels).toHaveBeenCalledWith(expect.objectContaining({
+    small_part_ids: [7], template: 'avery_l7160', start_position: 21, format: 'png', dpi: 600,
+    fields: expect.not.arrayContaining(['brand']),
+  })));
+});
+
+it('requests an authenticated preview for one selected resource with the chosen fields', async () => {
+  render(<LabelTemplatePickerModal isOpen onClose={vi.fn()} availableSpools={SPOOLS} initialSelectedIds={[2, 1]} />);
+  fireEvent.click(screen.getByRole('checkbox', { name: /Brand/i }));
+  await waitFor(() => expect(api.previewLabels).toHaveBeenCalledWith('inventory', expect.objectContaining({
+    spool_ids: [1], template: 'box_40x30', fields: expect.not.arrayContaining(['brand']),
+  })));
+  await waitFor(() => expect(screen.getByRole('img', { name: /Label preview/i })).toHaveAttribute('src', 'blob:mock'));
 });

@@ -386,3 +386,6 @@ export interface ExternalLinkUpdate {
   icon?: string;
   open_in_new_tab?: boolean;
 }
+
+export type LabelField = "brand" | "material" | "hex" | "name" | "location" | "material_number" | "temps" | "weight" | "note" | "added" | "qr" | "spool_id";
+export interface LabelExportOptions { fields?: LabelField[]; format?: "pdf" | "png"; dpi?: 203 | 300 | 600; }
