@@ -911,6 +911,8 @@ async def _report_partial_usage(
     ams_trays = {int(k): v for k, v in (tracking.ams_trays or {}).items()}
     slot_to_tray = tracking.slot_to_tray
     tray_remain_start = tracking.tray_remain_start or {}
+    if slot_to_tray and all(tray == -1 for tray in slot_to_tray):
+        return
     if filament_usage and not slot_to_tray:
         slot_to_tray, mapping_source = _resolve_slot_to_tray_fallback(
             printer_id,
@@ -1112,6 +1114,13 @@ async def report_usage(printer_id: int, archive_id: int):
         # slot 1's grams to the segments where slot 2's tray was loaded and
         # vice versa. Multi-slot prints fall through to the existing
         # single-tray path (which uses the stable ``slot_to_tray`` mapping).
+        filament_usage = [
+            u
+            for u in filament_usage
+            if not (
+                slot_to_tray and 0 < u.get("slot_id", 0) <= len(slot_to_tray) and slot_to_tray[u["slot_id"] - 1] == -1
+            )
+        ]
         nonzero_slots = [u for u in filament_usage if u.get("used_g", 0) > 0]
         tray_changes: list[tuple[int, int]] = []
         _state = None
@@ -1224,7 +1233,7 @@ async def report_usage(printer_id: int, archive_id: int):
         # --- Path 2: AMS remain%-delta for slots 3MF didn't cover -------
         # Triggered for no-3MF "Untitled" prints (#1820) AND for partial
         # 3MF coverage (slots whose filament_id wasn't in slice_info).
-        if tray_remain_start:
+        if tray_remain_start and not (slot_to_tray and all(tray == -1 for tray in slot_to_tray)):
             from backend.app.services.printer_manager import printer_manager
 
             current = printer_manager.get_status(printer_id)

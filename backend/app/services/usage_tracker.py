@@ -830,7 +830,7 @@ async def on_print_complete(
         results.extend(threemf_results)
 
     # --- Path 2 (FALLBACK): AMS remain% delta (only for trays not handled by 3MF) ---
-    if session and session.tray_remain_start:
+    if session and session.tray_remain_start and not (ams_mapping and all(tray == -1 for tray in ams_mapping)):
         state = printer_manager.get_status(printer_id)
         if state and state.raw_data:
             ams_raw = state.raw_data.get("ams", [])
@@ -1502,6 +1502,9 @@ async def _track_from_3mf(
         used_g = usage.get("used_g", 0)
         if used_g <= 0:
             continue
+        if slot_to_tray and 0 < slot_id <= len(slot_to_tray) and slot_to_tray[slot_id - 1] == -1:
+            # An explicitly unfed slot cannot be resurrected by tray splitting.
+            continue
 
         # --- Mid-print tray switch: split weight across trays ---
         # Split math is shared with the Spoolman writer via
@@ -1658,9 +1661,6 @@ async def _track_from_3mf(
                 mapped = slot_to_tray[slot_id - 1]
                 if isinstance(mapped, int) and mapped >= 0:
                     global_tray_id = mapped
-                elif mapped == -1:
-                    # Explicitly unfed slots must never reach the positional fallback.
-                    continue
             # Position-based default: sort available tray IDs so external spools (254/255)
             # naturally follow standard AMS trays, matching slicer slot numbering.
             #
