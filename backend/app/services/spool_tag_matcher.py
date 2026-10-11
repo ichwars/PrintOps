@@ -515,66 +515,19 @@ async def auto_assign_spool(
     try:
         client = printer_manager.get_client(printer_id)
         if client:
-            # Apply K-profile if available
-            nozzle_diameter = "0.4"
-            if state and state.nozzles:
-                nd = state.nozzles[0].nozzle_diameter
-                if nd:
-                    nozzle_diameter = nd
+            from backend.app.services.calibration_context import apply_rfid_calibration
 
-            matching_kp = None
-            for kp in spool.k_profiles:
-                if kp.printer_id == printer_id and kp.nozzle_diameter == nozzle_diameter:
-                    matching_kp = kp
-                    break
-
-            if matching_kp and matching_kp.cali_idx is not None:
-                # The filament_id in extrusion_cali_sel must match the filament preset
-                # under which the K-profile was calibrated. Use spool.slicer_filament
-                # (the preset assigned in inventory), falling back to tray's RFID value.
-                cali_filament_id = spool.slicer_filament or tray_info_idx or ""
-                client.extrusion_cali_sel(
-                    ams_id=ams_id,
-                    tray_id=tray_id,
-                    cali_idx=matching_kp.cali_idx,
-                    filament_id=cali_filament_id,
-                    nozzle_diameter=nozzle_diameter,
-                )
-
-                # NOTE: Do NOT send extrusion_cali_set here. extrusion_cali_sel already
-                # selected the correct profile by cali_idx. Sending extrusion_cali_set
-                # with the same cali_idx would MODIFY the existing profile's metadata
-                # (extruder_id, nozzle_id, name), corrupting it.
-
-                logger.info(
-                    "Applied K-profile cali_idx=%d for spool %d on printer %d AMS%d-T%d",
-                    matching_kp.cali_idx,
-                    spool.id,
-                    printer_id,
-                    ams_id,
-                    tray_id,
-                )
-            elif tray is not None:
-                # No stored K-profile: fall back to the slot's current live cali_idx
-                # so the printer keeps its existing calibration selection.
-                live_cali_idx = tray.get("cali_idx")
-                if live_cali_idx is not None and live_cali_idx >= 0:
-                    cali_filament_id = spool.slicer_filament or tray_info_idx or ""
-                    client.extrusion_cali_sel(
-                        ams_id=ams_id,
-                        tray_id=tray_id,
-                        cali_idx=live_cali_idx,
-                        filament_id=cali_filament_id,
-                        nozzle_diameter=nozzle_diameter,
-                    )
-                    logger.info(
-                        "No stored K-profile for spool %d on printer %d AMS%d-T%d — preserved live cali_idx=%d",
-                        spool.id,
-                        printer_id,
-                        ams_id,
-                        tray_id,
-                        live_cali_idx,
-                    )
+            apply_rfid_calibration(
+                client,
+                spool.k_profiles,
+                state,
+                printer_manager.get_model(printer_id),
+                printer_id,
+                ams_id,
+                tray_id,
+                spool.slicer_filament or tray_info_idx or "",
+                tray.get("cali_idx") if tray else None,
+            )
 
             logger.info(
                 "Auto-assigned spool %d to printer %d AMS%d-T%d (RFID match)",

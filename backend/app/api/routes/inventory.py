@@ -222,46 +222,12 @@ async def apply_spool_to_slot_via_mqtt(
     if spool.nozzle_temp_max is not None:
         temp_max = spool.nozzle_temp_max
 
-    nozzle_diameter = "0.4"
-    if state and state.nozzles:
-        nd = state.nozzles[0].nozzle_diameter
-        if nd:
-            nozzle_diameter = nd
+    from backend.app.services.calibration_context import resolve_spool_calibration
 
-    slot_extruder = None
-    if state and state.ams_extruder_map:
-        if ams_id == 255:
-            slot_extruder = 1 - tray_id  # ext-L (tray 0) → extruder 1, ext-R (tray 1) → extruder 0
-        else:
-            slot_extruder = state.ams_extruder_map.get(str(ams_id))
-
-    # Prefer exact extruder match, fall back to extruder-agnostic kp for the
-    # same nozzle. Hard-skipping on mismatch silently drops valid stored
-    # profiles when the AMS-extruder mapping has shifted.
-    exact_kp = None
-    fallback_kp = None
-    for kp in spool.k_profiles:
-        if kp.printer_id != printer_id or kp.nozzle_diameter != nozzle_diameter:
-            continue
-        if slot_extruder is not None and kp.extruder is not None and kp.extruder == slot_extruder:
-            exact_kp = kp
-            break
-        if fallback_kp is None:
-            fallback_kp = kp
-    matching_kp = exact_kp or fallback_kp
-
-    # Resolve the printer-side calibration entry by looking up the cali_idx
-    # in state.kprofiles. The printer keys its calibration table by
-    # (filament_id, cali_idx) — for the cali_idx to stick, the slot's
-    # filament_id must match the kp's. PFUS-prefix cloud user presets are
-    # rejected by the slicer in tray_info_idx; the printer-reported
-    # filament_id is typically a P-prefix local preset which is valid.
-    printer_kp = None
-    if matching_kp and matching_kp.cali_idx is not None and state and getattr(state, "kprofiles", None):
-        for pkp in state.kprofiles:
-            if pkp.slot_id == matching_kp.cali_idx and pkp.nozzle_diameter == nozzle_diameter:
-                printer_kp = pkp
-                break
+    context, matching_kp, printer_kp = resolve_spool_calibration(
+        spool.k_profiles, state, printer_manager.get_model(printer_id), printer_id, ams_id, tray_id
+    )
+    nozzle_diameter = context.diameter if context else ""
 
     effective_tray_info_idx = tray_info_idx
     effective_setting_id = setting_id
@@ -311,7 +277,7 @@ async def apply_spool_to_slot_via_mqtt(
             filament_id=cali_filament_id,
             nozzle_diameter=nozzle_diameter,
         )
-    else:
+    elif context is not None:
         # No stored K-profile for this spool — always reset the slot to Default
         # K (cali_idx=-1). The live cali_idx on the slot belongs to whatever
         # filament was there before, so preserving it would apply the wrong

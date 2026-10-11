@@ -34,17 +34,24 @@ def parse_kprofile_entries(
     log_errors: bool,
 ) -> list[KProfile]:
     """Parse an extrusion_cali_get response using its envelope nozzle size."""
+    from backend.app.services.calibration_context import diameter, flow_type
+
     profiles: list[KProfile] = []
     for index, filament in enumerate(filaments):
         if not isinstance(filament, dict):
             continue
         try:
+            size = diameter(filament.get("nozzle_diameter") or response_nozzle)
+            nozzle_id = filament.get("nozzle_id")
+            id_size = diameter(nozzle_id.partition("-")[2]) if flow_type(nozzle_id) and "-" in nozzle_id else None
+            if size is None or (response_nozzle and size != diameter(response_nozzle)) or (id_size and id_size != size):
+                continue
             profiles.append(
                 KProfile(
                     slot_id=filament.get("cali_idx", index),
                     extruder_id=int(filament.get("extruder_id", 0)),
                     nozzle_id=str(filament.get("nozzle_id", "")),
-                    nozzle_diameter=str(filament.get("nozzle_diameter") or response_nozzle or "0.4"),
+                    nozzle_diameter=size,
                     filament_id=str(filament.get("filament_id", "")),
                     name=str(filament.get("name", "")),
                     k_value=str(filament.get("k_value", "0.000000")),
@@ -103,3 +110,31 @@ async def await_cali_ack(
         timeout,
     )
     return (True, "no acknowledgement from printer")
+
+
+def handle_kprofile_response(client, data):
+    """Correlate the existing diameter query and update only its cache scope."""
+    from backend.app.services.calibration_context import store_profile_table
+
+    filaments = data.get("filaments", [])
+    if not isinstance(filaments, list):
+        return
+    response_nozzle = data.get("nozzle_diameter")
+    pending = dict(client._pending_kprofile_requests)
+    request = pending.get(str(data.get("sequence_id", "")))
+    if request is None and pending:
+        request = next((r for r in pending.values() if r["nozzle"] == response_nozzle and r["profiles"] is None), None)
+    if request is None and pending:
+        return
+    if request is not None and response_nozzle is not None and str(response_nozzle) != request["nozzle"]:
+        return
+    nozzle = response_nozzle or (request["nozzle"] if request is not None else None)
+    profiles = parse_kprofile_entries(filaments, nozzle, log_errors=request is not None)
+    store_profile_table(client.state, profiles, nozzle)
+    if request is not None:
+        request["profiles"] = profiles
+        event = request["event"]
+        if client._loop and client._loop.is_running():
+            client._loop.call_soon_threadsafe(event.set)
+        else:
+            event.set()

@@ -52,6 +52,9 @@ def _make_mock_status(ams_data=None, vt_tray=None, nozzles=None, ams_extruder_ma
     status.raw_data = raw
     status.nozzles = nozzles or [MagicMock(nozzle_diameter="0.4")]
     status.ams_extruder_map = ams_extruder_map
+    status.nozzle_rack = []
+    status.kprofile_diameters = set()
+    status.kprofiles = []
     return status
 
 
@@ -83,6 +86,7 @@ class TestAssignSpoolTrayInfoIdx:
         status = _make_mock_status(ams_data=[{"id": 2, "tray": [{"id": 3, "tray_info_idx": "", "tray_type": "PLA"}]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -114,6 +118,7 @@ class TestAssignSpoolTrayInfoIdx:
         )
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -146,6 +151,7 @@ class TestAssignSpoolTrayInfoIdx:
         )
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -172,6 +178,7 @@ class TestAssignSpoolTrayInfoIdx:
         status = _make_mock_status(ams_data=[{"id": 0, "tray": [{"id": 0, "tray_type": "PLA"}]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -198,6 +205,7 @@ class TestAssignSpoolTrayInfoIdx:
         status = _make_mock_status(ams_data=[{"id": 0, "tray": [{"id": 0, "tray_type": "ABS"}]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -230,6 +238,7 @@ class TestAssignSpoolTrayInfoIdx:
         )
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -264,6 +273,7 @@ class TestAssignSpoolTrayInfoIdx:
         )
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -295,6 +305,7 @@ class TestAssignSpoolTrayInfoIdx:
         )
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -327,6 +338,7 @@ class TestAssignSpoolTrayInfoIdx:
         )
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -366,6 +378,7 @@ class TestAssignSpoolPresetMapping:
         status = _make_mock_status(ams_data=[{"id": 0, "tray": [{"id": 1, "tray_type": "PLA"}]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -422,6 +435,7 @@ class TestAssignSpoolPresetMapping:
         status = _make_mock_status(ams_data=[{"id": 0, "tray": [{"id": 2, "tray_type": "PLA"}]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -465,6 +479,7 @@ class TestAssignSpoolPresetMapping:
         status = _make_mock_status(ams_data=[{"id": 0, "tray": [{"id": 0, "tray_type": "PLA"}]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -512,6 +527,7 @@ class TestAssignSpoolLiveCaliIdx:
         status = _make_mock_status(ams_data=[{"id": 0, "tray": [tray_data]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -547,6 +563,7 @@ class TestAssignSpoolLiveCaliIdx:
         status = _make_mock_status(ams_data=[{"id": 0, "tray": [tray_data]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -582,6 +599,7 @@ class TestAssignSpoolLiveCaliIdx:
         status = _make_mock_status(ams_data=[{"id": 0, "tray": [tray_data]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -625,6 +643,7 @@ class TestAssignSpoolEmptySlotPreConfig:
         status = _make_mock_status(ams_data=[{"id": 2, "tray": [{"id": 3, "tray_type": ""}]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -685,6 +704,7 @@ class TestAssignSpoolEmptySlotPreConfig:
         )
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -921,6 +941,7 @@ class TestAssignSpoolEmptyDetection:
         status = _make_mock_status(ams_data=[{"id": 2, "tray": [tray_data]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -955,6 +976,7 @@ class TestAssignSpoolEmptyDetection:
         status = _make_mock_status(ams_data=[{"id": 2, "tray": [tray_data]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -988,6 +1010,7 @@ class TestAssignSpoolEmptyDetection:
         status = _make_mock_status(ams_data=[{"id": 2, "tray": [tray_data]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -1026,6 +1049,7 @@ class TestAssignSpoolEmptyDetection:
         status = _make_mock_status(ams_data=[{"id": 2, "tray": [tray_data]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -1061,6 +1085,7 @@ class TestAssignSpoolEmptyDetection:
         status = _make_mock_status(ams_data=[{"id": 2, "tray": [tray_data]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -1102,6 +1127,7 @@ class TestAssignSpoolEmptyDetection:
         status = _make_mock_status(ams_data=[{"id": 2, "tray": [tray_data]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -1134,6 +1160,7 @@ class TestAssignSpoolEmptyDetection:
         status = _make_mock_status(ams_data=[], vt_tray=vt_data)
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -1180,6 +1207,7 @@ class TestAssignSpoolPfcnCloudPreset:
         status = _make_mock_status(ams_data=[{"id": 2, "tray": [{"id": 3, "tray_info_idx": "", "tray_type": "PLA"}]}])
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -1214,6 +1242,7 @@ class TestAssignSpoolPfcnCloudPreset:
         )
 
         with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
@@ -1267,6 +1296,7 @@ class TestAssignSpoolPfcnCloudPreset:
             patch("backend.app.services.printer_manager.printer_manager") as mock_pm,
             patch("backend.app.api.routes.cloud.build_authenticated_cloud", new=fake_build_cloud),
         ):
+            mock_pm.get_model.return_value = "P2S"
             mock_pm.get_client.return_value = mock_client
             mock_pm.get_status.return_value = status
 
