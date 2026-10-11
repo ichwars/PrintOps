@@ -251,9 +251,10 @@ class PreheatOwnership:
                 if state is not None and getattr(state, "state", None) in _ACTIVE:
                     self.forget(lease)
                     return
+                published_before_read = lease.published
                 try:
                     status = await self.item_status(lease)
-                    ended = status not in ("pending", "printing") or (lease.published and status == "pending")
+                    ended = status not in ("pending", "printing") or (published_before_read and status == "pending")
                 except Exception as exc:
                     logger.warning("Cannot verify preheat queue item %s: %s", lease.item_id, exc)
                     ended = False

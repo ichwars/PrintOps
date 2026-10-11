@@ -216,7 +216,8 @@ async def test_cancel_during_upload_preserves_cancellation_and_rolls_back(queue_
             await db.commit()
         return upload_result
 
-    await dispatch(ctx, upload_effect=cancel)
+    # Exercise the post-upload CAS; watchdog cancellation has separate coverage.
+    await dispatch(ctx, upload_effect=cancel, poll_seconds=60)
     async with ctx.session_maker() as db:
         assert (await db.get(PrintQueueItem, ctx.queue_item_id)).status == "cancelled"
     ctx.pm.start_print.assert_not_called()
@@ -338,3 +339,29 @@ async def test_queue_removed_during_soak_stops_heat(queue_factory):
         await asyncio.wait_for(task, 1)
     ctx.pm.start_print.assert_not_called()
     ctx.client.set_bed_temperature.assert_called_with(0)
+
+
+@pytest.mark.asyncio
+async def test_watchdog_cancel_during_blocked_upload_stops_owned_heat(queue_factory):
+    ctx = await queue_factory()
+    uploading = asyncio.Event()
+    never_finish = asyncio.Event()
+
+    async def blocked_upload(*args, **kwargs):
+        uploading.set()
+        await never_finish.wait()
+        return True
+
+    task = asyncio.create_task(dispatch(ctx, upload_effect=blocked_upload, poll_seconds=0.001))
+    await asyncio.wait_for(uploading.wait(), 1)
+    async with ctx.session_maker() as db:
+        item = await db.get(PrintQueueItem, ctx.queue_item_id)
+        item.status = "cancelled"
+        await db.commit()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, 1)
+    async with ctx.session_maker() as db:
+        assert (await db.get(PrintQueueItem, ctx.queue_item_id)).status == "cancelled"
+    ctx.pm.start_print.assert_not_called()
+    ctx.client.set_bed_temperature.assert_called_with(0)
+    assert not ctx.owner.blocks_power_off(ctx.printer_id)
