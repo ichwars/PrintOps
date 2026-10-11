@@ -6713,13 +6713,13 @@ export function SettingsPage() {
                   <p className="text-white">{t('settings.userHasCreated')}</p>
                   <ul className="list-disc list-inside text-bambu-gray space-y-1">
                     {deleteUserItemCounts.archives > 0 && (
-                      <li>{deleteUserItemCounts.archives} {t("orders.runtimeInterface.archive")}{deleteUserItemCounts.archives !== 1 ? 's' : ''}</li>
+                      <li>{t('orders.runtimeInterface.archiveCount', { count: deleteUserItemCounts.archives })}</li>
                     )}
                     {deleteUserItemCounts.queue_items > 0 && (
-                      <li>{deleteUserItemCounts.queue_items} {t("orders.runtimeInterface.queueItem")}{deleteUserItemCounts.queue_items !== 1 ? 's' : ''}</li>
+                      <li>{t('orders.runtimeInterface.queueItemCount', { count: deleteUserItemCounts.queue_items })}</li>
                     )}
                     {deleteUserItemCounts.library_files > 0 && (
-                      <li>{deleteUserItemCounts.library_files} {t("orders.runtimeInterface.libraryFile")}{deleteUserItemCounts.library_files !== 1 ? 's' : ''}</li>
+                      <li>{t('orders.runtimeInterface.libraryFileCount', { count: deleteUserItemCounts.library_files })}</li>
                     )}
                   </ul>
                   <p className="text-bambu-gray text-sm">{t('settings.userItemsQuestion')}</p>

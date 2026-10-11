@@ -1,4 +1,5 @@
-import { smallPartsText as text, useSmallPartsText, smallPartsLocale } from '../components/warehouse/smallPartsCopy';
+import { smallPartsText as text, smallPartsLocale } from '../components/warehouse/smallPartsCopy';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -378,7 +379,7 @@ function MaterialForecast({ items }: { items: SmallPart[] }) {
 }
 
 export function SmallPartsPage() {
-  useSmallPartsText();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [targetPartId, setTargetPartId] = useState(() => Number(new URLSearchParams(window.location.search).get('part') ?? 0));
   const [query, setQuery] = useState('');
@@ -387,6 +388,11 @@ export function SmallPartsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [sortState, setSortState] = useState<SortState>(loadSortState);
   const [columnConfig, setColumnConfig] = useState<ColumnConfig[]>(loadColumnConfig);
+  const localizedDefaultColumns = useMemo(() => DEFAULT_COLUMNS.map(column => ({ ...column, label: t(`orders.runtimeDomain.smallParts.${column.label}`) })), [t]);
+  const localizedColumns = useMemo(() => {
+    const labels = new Map(localizedDefaultColumns.map(column => [column.id, column.label]));
+    return columnConfig.map(column => ({ ...column, label: labels.get(column.id) ?? column.label }));
+  }, [columnConfig, localizedDefaultColumns]);
   const [showColumnModal, setShowColumnModal] = useState(false);
   const [locationsModalOpen, setLocationsModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -681,8 +687,8 @@ export function SmallPartsPage() {
       <ColumnConfigModal
         isOpen={showColumnModal}
         onClose={() => setShowColumnModal(false)}
-        columns={columnConfig.map((column) => ({ ...column, label: text(DEFAULT_COLUMNS.find((item) => item.id === column.id)?.label ?? column.id) }))}
-        defaultColumns={DEFAULT_COLUMNS.map((column) => ({ ...column, label: text(column.label) }))}
+        columns={localizedColumns}
+        defaultColumns={localizedDefaultColumns}
         onSave={saveColumns}
       />
       {locationsModalOpen && (

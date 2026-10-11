@@ -1,6 +1,6 @@
 import i18n from '../../i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -58,11 +58,11 @@ const part = {
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(
+  return { queryClient, ...render(
     <QueryClientProvider client={queryClient}>
       <SmallPartsPage />
     </QueryClientProvider>,
-  );
+  ) };
 }
 
 beforeEach(async () => { await i18n.changeLanguage('de'); });
@@ -146,6 +146,39 @@ describe('SmallPartsPage', () => {
 
     await user.click(screen.getByRole('button', { name: /Karten/ }));
     expect(screen.getByText('42 Stück verfügbar')).toBeInTheDocument();
+  });
+
+  it('preserves a material column draft during a background catalog refresh and language change', async () => {
+    const savedColumns = new Map<string, string>();
+    vi.mocked(localStorage.getItem).mockImplementation(key => savedColumns.get(key) ?? null);
+    vi.mocked(localStorage.setItem).mockImplementation((key, value) => { savedColumns.set(key, value); });
+    try {
+      server.use(http.get('/api/v1/small-parts', () => HttpResponse.json({ items: [part], total: 1, limit: 50, offset: 0 })));
+      const user = userEvent.setup();
+      const { queryClient } = renderPage();
+      await screen.findByRole('cell', { name: 'M3-INSERT' });
+      await user.click(screen.getByRole('button', { name: 'Spalten' }));
+      const modal = screen.getByRole('heading', { name: 'Spalten konfigurieren' }).closest('.card-shadow') as HTMLElement;
+      const name = within(modal).getByText('Bezeichnung').closest('[draggable="true"]') as HTMLElement;
+      await user.click(within(name).getByTitle('Spalte ausblenden'));
+      await user.click(within(name).getByTitle('Nach oben'));
+      const order = () => Array.from(modal.querySelectorAll('[draggable="true"] span')).map(element => element.textContent);
+      const draftOrder = order();
+      act(() => queryClient.setQueryData(['small-parts', 'all'], [{ ...part, name: 'Updated material name' }]));
+      await screen.findByRole('cell', { name: 'Updated material name' });
+      expect(within(name).getByTitle('Spalte einblenden')).toBeInTheDocument();
+      expect(order()).toEqual(draftOrder);
+      await act(() => i18n.changeLanguage('nl'));
+      const translatedName = within(modal).getByText('Naam').closest('[draggable="true"]') as HTMLElement;
+      expect(within(translatedName).getByTitle('Kolom tonen')).toBeInTheDocument();
+      expect(Array.from(modal.querySelectorAll('[draggable="true"]')).indexOf(translatedName)).toBe(draftOrder.indexOf('Bezeichnung'));
+      await user.click(within(modal).getByRole('button', { name: 'Wijzigingen toepassen' }));
+      const applied = JSON.parse(savedColumns.get('printops-material-columns')!);
+      expect(applied[0]).toMatchObject({ id: 'name', visible: false });
+    } finally {
+      vi.mocked(localStorage.getItem).mockReset();
+      vi.mocked(localStorage.setItem).mockReset();
+    }
   });
 
   it('imports material from CSV after preview confirmation', async () => {

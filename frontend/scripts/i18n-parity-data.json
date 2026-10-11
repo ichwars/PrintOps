@@ -15,7 +15,8 @@
       "Runtime commerce inherited English: exact keys only; Dutch and German are excluded.",
       "End runtime commerce inherited English.",
       "Previously missing literal-default keys: exact older-locale inherited displays.",
-      "End literal-default inherited displays."
+      "End literal-default inherited displays.",
+      "Delete-user count phrases retain the existing English display in the older nine locales only; German and Dutch have complete native singular/plural translations."
     ],
     "translatorNotes": [
       "Per-(locale, value) allow-list for strings that are a real word/term in",
@@ -2799,7 +2800,11 @@
     "system.totalArchives",
     "system.totalFilament",
     "system.totalPrintTime",
-    "system.usage"
+    "system.usage",
+    "orders.runtimeInterface.queueItemCount_one",
+    "orders.runtimeInterface.queueItemCount_other",
+    "orders.runtimeInterface.libraryFileCount_one",
+    "orders.runtimeInterface.libraryFileCount_other"
   ],
   "identicalToEnglishAllowed": {
     "de": [

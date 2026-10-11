@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { render } from '../utils';
 import { server } from '../mocks/server';
 import InventoryPageRouter from '../../pages/InventoryPage';
 import i18n from '../../i18n';
+import { defaultInventoryFilters } from '../../utils/inventoryFilterPreferences';
 
 const saved = new Map<string, string>();
 const originalURL = window.location.href;
@@ -40,6 +42,95 @@ afterEach(async () => {
 });
 
 describe('inventory filter preferences', () => {
+  const scope = 'printops-inventory-filters:v1:local:appliance';
+  function saveOrdinaryFilters() {
+    saved.set(scope, JSON.stringify({ version: 1, filters: { ...defaultInventoryFilters, search: 'AlphaBrand' } }));
+  }
+
+  it.each(['?focus=unknown', '?location_id=abc', '?spool=0', '?focus=&location_id=0&spool=-2'])(
+    'keeps ordinary filters and persists later edits for invalid URL overrides: %s', async (query) => {
+      saveOrdinaryFilters();
+      window.history.replaceState({}, '', `/inventory${query}`);
+      const user = userEvent.setup();
+      const first = render(<InventoryPageRouter />);
+      await screen.findByRole('table');
+      expect(screen.getByPlaceholderText(/search/i)).toHaveValue('AlphaBrand');
+      expect(screen.queryByText('BetaBrand')).not.toBeInTheDocument();
+      await user.clear(screen.getByPlaceholderText(/search/i));
+      await user.type(screen.getByPlaceholderText(/search/i), 'BetaBrand');
+      await waitFor(() => expect(JSON.parse(saved.get(scope)!).filters.search).toBe('BetaBrand'));
+      first.unmount();
+      window.history.replaceState({}, '', '/inventory');
+      render(<InventoryPageRouter />);
+      await screen.findByRole('table');
+      expect(screen.getByPlaceholderText(/search/i)).toHaveValue('BetaBrand');
+    },
+  );
+
+  it.each(['?focus=missing-cost', '?location_id=__none__', '?focus=missing-cost&location_id=abc'])(
+    'gives a valid override precedence and keeps later edits transient: %s', async (query) => {
+      saveOrdinaryFilters();
+      window.history.replaceState({}, '', `/inventory${query}`);
+      const user = userEvent.setup();
+      const first = render(<InventoryPageRouter />);
+      await screen.findByRole('table');
+      expect(screen.getByPlaceholderText(/search/i)).toHaveValue('');
+      expect(screen.getByText('BetaBrand')).toBeInTheDocument();
+      await user.type(screen.getByPlaceholderText(/search/i), 'BetaBrand');
+      expect(JSON.parse(saved.get(scope)!).filters.search).toBe('AlphaBrand');
+      first.unmount();
+      window.history.replaceState({}, '', '/inventory');
+      render(<InventoryPageRouter />);
+      await screen.findByRole('table');
+      expect(screen.getByPlaceholderText(/search/i)).toHaveValue('AlphaBrand');
+    },
+  );
+
+  it('keeps Dutch labels when resetting the actual inventory column configuration', async () => {
+    await i18n.changeLanguage('nl');
+    const user = userEvent.setup();
+    render(<InventoryPageRouter />);
+    await screen.findByRole('table');
+    await user.click(screen.getByRole('button', { name: 'Kolommen' }));
+    const modal = screen.getByRole('heading', { name: 'Kolommen configureren' }).closest('.card-shadow') as HTMLElement;
+    await user.click(within(modal).getByRole('button', { name: 'Resetten' }));
+    expect(within(modal).getByText('Toegevoegd')).toBeInTheDocument();
+    expect(within(modal).getByText('Locatie')).toBeInTheDocument();
+    expect(within(modal).queryByText('Added')).not.toBeInTheDocument();
+    await user.click(within(modal).getByRole('button', { name: 'Wijzigingen toepassen' }));
+    expect(screen.getByRole('columnheader', { name: /Toegevoegd/ })).toBeInTheDocument();
+  });
+
+  it('preserves unsaved inventory column visibility and order through a query update and language change', async () => {
+    let queryClient!: QueryClient;
+    function PageWithQueryContext() {
+      queryClient = useQueryClient();
+      return <InventoryPageRouter />;
+    }
+    const user = userEvent.setup();
+    render(<PageWithQueryContext />);
+    await screen.findByRole('table');
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    const modal = screen.getByRole('heading', { name: 'Configure Columns' }).closest('.card-shadow') as HTMLElement;
+    const brand = within(modal).getByText('Brand').closest('[draggable="true"]') as HTMLElement;
+    await user.click(within(brand).getByTitle('Hide column'));
+    await user.click(within(brand).getByTitle('Move up'));
+    const order = () => Array.from(modal.querySelectorAll('[draggable="true"] span')).map(element => element.textContent);
+    const draftOrder = order();
+    act(() => queryClient.setQueryData(['inventory-spools'], spools.map(spool => ({ ...spool, brand: `${spool.brand} Updated` }))));
+    await screen.findByText('AlphaBrand Updated');
+    expect(within(brand).getByTitle('Show column')).toBeInTheDocument();
+    expect(order()).toEqual(draftOrder);
+    await act(() => i18n.changeLanguage('nl'));
+    const translatedBrand = within(modal).getByText('Merk').closest('[draggable="true"]') as HTMLElement;
+    expect(within(translatedBrand).getByTitle('Kolom tonen')).toBeInTheDocument();
+    expect(Array.from(modal.querySelectorAll('[draggable="true"]')).indexOf(translatedBrand)).toBe(draftOrder.indexOf('Brand'));
+    await user.click(within(modal).getByRole('button', { name: 'Wijzigingen toepassen' }));
+    const applied = JSON.parse(saved.get('printops-inventory-columns')!);
+    expect(applied.find((column: { id: string }) => column.id === 'brand').visible).toBe(false);
+    expect(applied.findIndex((column: { id: string }) => column.id === 'brand')).toBe(draftOrder.indexOf('Brand'));
+  });
+
   it('renders Dutch inventory column labels with the actual table', async () => {
     await i18n.changeLanguage('nl');
     render(<InventoryPageRouter />);

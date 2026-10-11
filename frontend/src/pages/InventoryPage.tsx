@@ -28,6 +28,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { resolveSpoolColorName } from '../utils/colors';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { useInventoryFilters } from '../hooks/useInventoryFilters';
+import { parseInventoryURLFilters } from '../utils/inventoryURLFilters';
 import { formatDateInput, parseUTCDate, type DateFormat } from '../utils/date';
 import { formatSlotLabel } from '../utils/amsHelpers';
 import { filterSpoolsByQuery } from '../utils/inventorySearch';
@@ -46,7 +47,6 @@ import {
   tableHeaderRowClass,
 } from '../components/ui/tableStyles';
 
-type InventoryFocusFilter = 'low-stock' | 'missing-cost' | 'missing-location' | 'used';
 type ViewMode = 'table' | 'cards' | 'forecast';
 
 type DisplayItem =
@@ -131,10 +131,6 @@ function saveColumnConfig(config: ColumnConfig[]) {
   } catch {
     // Ignore errors
   }
-}
-
-function isInventoryFocusFilter(value: string | null): value is InventoryFocusFilter {
-  return value === 'low-stock' || value === 'missing-cost' || value === 'missing-location' || value === 'used';
 }
 
 function formatWeight(g: number, useKg = false): string {
@@ -445,6 +441,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const { hasPermission, loading: authLoading } = useAuth();
   const canViewForecast = !authLoading && hasPermission('inventory:forecast_read');
   const [searchParams, setSearchParams] = useSearchParams();
+  const { focusFilter, storageLocationFilter, deepLinkSpoolId, hasURLOverride } = parseInventoryURLFilters(searchParams);
   const [formModal, setFormModal] = useState<{ spool?: InventorySpool | null; mode: SpoolFormMode } | null>(null);
   const deepLinkHandled = useRef(false);
   const [confirmAction, setConfirmAction] = useState<
@@ -461,7 +458,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
 
   // Filter state
   const { filters, setFilter, resetFilters, beginTransientView } = useInventoryFilters(
-    spoolmanMode, ['focus', 'location_id', 'spool'].some(key => searchParams.has(key)),
+    spoolmanMode, hasURLOverride,
   );
   const { archiveFilter, usageFilter, materialFilter, brandFilter, categoryFilter, spoolFilter, stockFilter, search } = filters;
   const setArchiveFilter = (value: typeof archiveFilter) => setFilter('archiveFilter', value);
@@ -475,6 +472,8 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [sortState, setSortState] = useState<SortState>(loadSortState);
   const [columnConfig, setColumnConfig] = useState<ColumnConfig[]>(loadColumnConfig);
+  const localizedColumns = useMemo(() => columnConfig.map(column => ({ ...column, label: columnHeaders[column.id]?.(t) ?? column.label })), [columnConfig, t]);
+  const localizedDefaultColumns = useMemo(() => DEFAULT_COLUMNS.map(column => ({ ...column, label: columnHeaders[column.id]?.(t) ?? column.label })), [t]);
   const [showColumnModal, setShowColumnModal] = useState(false);
   const [groupSimilar, setGroupSimilar] = useState(() => {
     try {
@@ -482,8 +481,6 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     } catch { return false; }
   });
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const rawFocusParam = searchParams.get('focus');
-  const focusFilter = isInventoryFocusFilter(rawFocusParam) ? rawFocusParam : null;
 
   // Bulk-selection state for batch actions on the spool list (#1795).
   // Cleared when the user switches filter/tab/page because cross-page selection
@@ -564,26 +561,9 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     queryFn: api.getLocations,
   });
 
-  // Deep-link / filter: ?location_id=<id> or ?location_id=__none__
-  const _rawLocationParam = searchParams.get('location_id');
-  const storageLocationFilter =
-    _rawLocationParam === '__none__'
-      ? '__none__'
-      : _rawLocationParam && /^\d+$/.test(_rawLocationParam) && Number(_rawLocationParam) > 0
-        ? _rawLocationParam
-        : '';
-
   // Deep-link: open edit modal for ?spool=<id>
   // Prefer the already-loaded spool list (no extra API call); fall back to a
   // targeted fetch for the rare case where the full list hasn't arrived yet.
-  const _rawSpoolParam = searchParams.get('spool');
-  // Only accept strings of digits representing a positive integer — guards against
-  // NaN (Number('abc')), 0, negatives, and floats like '1.5' that would produce
-  // an invalid path parameter and trigger unnecessary 422 responses from the API.
-  const deepLinkSpoolId =
-    _rawSpoolParam && /^\d+$/.test(_rawSpoolParam) && Number(_rawSpoolParam) > 0
-      ? Number(_rawSpoolParam)
-      : null;
   const deepLinkInList = spools?.find((s) => s.id === deepLinkSpoolId) ?? null;
 
   const clearDeepLinkParam = useCallback(() => {
@@ -2332,8 +2312,8 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
       <ColumnConfigModal
         isOpen={showColumnModal}
         onClose={() => setShowColumnModal(false)}
-        columns={columnConfig.map(column => ({ ...column, label: columnHeaders[column.id]?.(t) ?? column.label }))}
-        defaultColumns={DEFAULT_COLUMNS}
+        columns={localizedColumns}
+        defaultColumns={localizedDefaultColumns}
         onSave={handleColumnConfigSave}
       />
 
