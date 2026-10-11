@@ -34,6 +34,7 @@ import {
   invalidateSpoolAndLocationQueries,
 } from '../utils/inventoryQueries';
 import { aggregateGroupSpool } from '../utils/inventoryGrouping';
+import { isSortableInventoryColumn, sortInventorySpools, type LocationDisplay, type SortState } from '../utils/inventorySorting';
 import { Checkbox, LegacySelect, TextField } from '../components/ui';
 import {
   tableHeaderActionCellClass,
@@ -47,8 +48,6 @@ type ArchiveFilter = 'active' | 'archived';
 type UsageFilter = 'all' | 'used' | 'new' | 'lowstock';
 type InventoryFocusFilter = 'low-stock' | 'missing-cost' | 'missing-location' | 'used';
 type ViewMode = 'table' | 'cards' | 'forecast';
-type SortDirection = 'asc' | 'desc';
-type SortState = { column: string; direction: SortDirection } | null;
 
 type DisplayItem =
   | { type: 'single'; spool: InventorySpool }
@@ -163,17 +162,6 @@ function formatInventoryDate(dateStr: string | null, dateFormat: DateFormat = 's
   if (!date) return '-';
   return formatDateInput(date, dateFormat);
 }
-
-// Slim shape for the LOCATION column — only the fields actually rendered.
-// Sourced from either local SpoolAssignment (lokal) or SpoolmanSlotAssignment
-// (Spoolman mode), so we can't reuse SpoolAssignment without dummy values.
-type LocationDisplay = {
-  printer_id: number;
-  printer_name: string | null;
-  ams_id: number;
-  tray_id: number;
-  ams_label: string | null;
-};
 
 type CellCtx = {
   spool: InventorySpool;
@@ -413,44 +401,6 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
         )}
       </div>
     );
-  },
-};
-
-// Sort value extractors — return a comparable value for each sortable column
-const columnSortValues: Record<string, (spool: InventorySpool, assignmentMap: Record<number, LocationDisplay>) => string | number> = {
-  id: (s) => s.id,
-  added_time: (s) => s.created_at || '',
-  encode_time: (s) => s.encode_time || '',
-  last_used_time: (s) => s.last_used || '',
-  material: (s) => (s.material || '').toLowerCase(),
-  subtype: (s) => (s.subtype || '').toLowerCase(),
-  color_name: (s) => (s.color_name || '').toLowerCase(),
-  brand: (s) => (s.brand || '').toLowerCase(),
-  slicer_filament: (s) => (s.slicer_filament_name || s.slicer_filament || '').toLowerCase(),
-  location: (s, am) => {
-    const a = am[s.id];
-    if (!a) return '';
-    const isExt = a.ams_id === 254 || a.ams_id === 255;
-    const isHt = !isExt && a.ams_id >= 128;
-    const label = a.ams_label ? ` (${a.ams_label})` : '';
-    return `${a.printer_name || ''} ${formatSlotLabel(a.ams_id, a.tray_id, isHt, isExt)}${label}`;
-  },
-  storage_location: (s) => (s.storage_location || '').toLowerCase(),
-  label_weight: (s) => s.label_weight,
-  net: (s) => Math.max(0, s.label_weight - s.weight_used),
-  gross: (s) => Math.max(0, s.label_weight - s.weight_used) + s.core_weight,
-  used: (s) => s.weight_used,
-  remaining: (s) => s.label_weight > 0 ? Math.max(0, s.label_weight - s.weight_used) / s.label_weight : 0,
-  note: (s) => (s.note || '').toLowerCase(),
-  data_origin: (s) => (s.data_origin || '').toLowerCase(),
-  tag_type: (s) => (s.tag_type || '').toLowerCase(),
-  stock: (s) => s.slicer_filament ? 1 : 0,
-  spool_name: (s) => s.core_weight_catalog_id ?? 0,
-  cost_per_kg: (s) => s.cost_per_kg ?? 0,
-  weight_check: (s) => {
-    if (s.last_scale_weight == null) return -1;
-    const expectedGross = Math.max(0, s.label_weight - s.weight_used) + s.core_weight;
-    return Math.abs(s.last_scale_weight - expectedGross);
   },
 };
 
@@ -1291,7 +1241,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   );
 
   const handleSort = (colId: string) => {
-    if (!columnSortValues[colId]) return; // Not sortable
+    if (!isSortableInventoryColumn(colId)) return;
     setSortState((prev) => {
       let next: SortState;
       if (prev?.column === colId) {
@@ -1307,19 +1257,10 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   };
 
   // Sort filtered spools
-  const sortedSpools = useMemo(() => {
-    if (!sortState) return filteredSpools;
-    const extractor = columnSortValues[sortState.column];
-    if (!extractor) return filteredSpools;
-    const sorted = [...filteredSpools].sort((a, b) => {
-      const va = extractor(a, assignmentMap);
-      const vb = extractor(b, assignmentMap);
-      if (va < vb) return sortState.direction === 'asc' ? -1 : 1;
-      if (va > vb) return sortState.direction === 'asc' ? 1 : -1;
-      return 0;
-    });
-    return sorted;
-  }, [filteredSpools, sortState, assignmentMap]);
+  const sortedSpools = useMemo(
+    () => sortInventorySpools(filteredSpools, sortState, assignmentMap),
+    [filteredSpools, sortState, assignmentMap]
+  );
 
   // Group similar spools when toggle is active
   const displayItems = useMemo((): DisplayItem[] => {
@@ -1662,6 +1603,21 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
               <Group className="w-4 h-4" />
               <span className="hidden sm:inline">{t('inventory.groupSimilar')}</span>
             </button>
+          )}
+          {viewMode !== 'forecast' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="max-[768px]:min-w-11"
+              aria-label={`${t('inventory.sortByColor')}${sortState?.column === 'rgba' ? `: ${t(sortState.direction === 'asc' ? 'common.ascending' : 'common.descending')}` : ''}`}
+              aria-pressed={sortState?.column === 'rgba'}
+              onClick={() => handleSort('rgba')}
+            >
+              {sortState?.column === 'rgba'
+                ? sortState.direction === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                : <ArrowUpDown className="w-4 h-4" />}
+              <span className="hidden sm:inline">{t('inventory.color')}</span>
+            </Button>
           )}
           {/* Table / Cards toggle */}
           <div className="flex bg-bambu-dark-primary border border-bambu-dark-tertiary rounded-lg overflow-hidden">
@@ -2142,7 +2098,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                       />
                     </th>
                     {visibleColumns.map((colId) => {
-                      const sortable = !!columnSortValues[colId];
+                      const sortable = isSortableInventoryColumn(colId);
                       const isActive = sortState?.column === colId;
                       return (
                         <th
@@ -2150,9 +2106,9 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                           className={`${tableHeaderCellClass} select-none ${colId === 'remaining' ? 'min-w-[150px]' : ''} ${
                             sortable ? 'cursor-pointer transition-colors hover:text-bambu-green' : ''
                           } ${isActive ? '!text-bambu-green' : ''}`}
-                          onClick={sortable ? () => handleSort(colId) : undefined}
+                          aria-sort={sortable ? isActive ? sortState.direction === 'asc' ? 'ascending' : 'descending' : 'none' : undefined}
                         >
-                          <span className="inline-flex items-center gap-1">
+                          {sortable ? <Button variant="unstyled" onClick={() => handleSort(colId)} className="inline-flex min-h-11 min-w-11 items-center gap-1">
                             {columnHeaders[colId]?.(t) ?? colId}
                             {sortable && (
                               isActive
@@ -2161,7 +2117,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                                   : <ArrowDown className="w-3 h-3" />
                                 : <ArrowUpDown className="w-3 h-3 opacity-30" />
                             )}
-                          </span>
+                          </Button> : columnHeaders[colId]?.(t) ?? colId}
                         </th>
                       );
                     })}

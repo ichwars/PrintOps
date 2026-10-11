@@ -5000,6 +5000,7 @@ export default {
     used: 'Used',
     new: 'New',
     clearFilters: 'Clear filters',
+    sortByColor: "Sort by actual color",
     table: 'Table',
     cards: 'Cards',
     net: 'Net',

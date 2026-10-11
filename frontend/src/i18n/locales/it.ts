@@ -4907,6 +4907,7 @@ useEmbeddedHint: 'Esegue lo slicing come impostato dal designer (pareti, riempim
     used: 'Usato',
     new: 'Nuovo',
     clearFilters: 'Cancella filtri',
+    sortByColor: "Ordina per colore reale",
     table: 'Tabella',
     cards: 'Schede',
     net: 'Netto',

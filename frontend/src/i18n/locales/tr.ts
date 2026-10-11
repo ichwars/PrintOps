@@ -4901,6 +4901,7 @@ useEmbeddedHint: 'Yukarıdaki profiller yerine tasarımcının ayarlarıyla (duv
     used: 'Kullanılmış',
     new: 'Yeni',
     clearFilters: 'Filtreleri temizle',
+    sortByColor: "Gerçek renge göre sırala",
     table: 'Tablo',
     cards: 'Kartlar',
     net: 'Net',
