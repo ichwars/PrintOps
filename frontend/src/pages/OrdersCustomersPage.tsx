@@ -79,12 +79,14 @@ export function OrdersCustomersPage() {
   }, [activeProfiles, profileId, selectedProfileId]);
 
   useEffect(() => {
+    const nextSearch = searchInput.trim();
+    if (nextSearch === search) return;
     const timer = window.setTimeout(() => {
-      setSearch(searchInput.trim());
+      setSearch(nextSearch);
       setOffset(0);
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [searchInput]);
+  }, [searchInput, search]);
 
   const queryKey = ['customers', selectedProfileId, search, status, kind, limit, offset] as const;
   const customersQuery = useQuery({
