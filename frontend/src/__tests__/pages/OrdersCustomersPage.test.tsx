@@ -45,6 +45,13 @@ function listResponse(items: readonly object[] = [listCustomer], overrides: Reco
   return { items, total: items.length, limit: 25, offset: 0, ...overrides };
 }
 
+async function flushCustomerPage(range: string) {
+  await vi.waitFor(async () => {
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(screen.getByText(range)).toBeInTheDocument();
+  }, { interval: 1 });
+}
+
 function useDefaultHandlers() {
   server.use(
     http.get('/api/v1/business-profiles/options', () => HttpResponse.json(profiles)),
@@ -175,6 +182,64 @@ describe('OrdersCustomersPage', () => {
     expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Next page' }));
     await screen.findByText('26-50 of 51', {}, { timeout: 5_000 });
+  });
+
+  it.each(['', '   '])('keeps a quick page change when the normalized search stays unchanged (%j)', async (searchInput) => {
+    server.use(http.get('/api/v1/customers/', ({ request }) => HttpResponse.json(listResponse([listCustomer], { total: 51, offset: Number(new URL(request.url).searchParams.get('offset') ?? 0) }))));
+    vi.useFakeTimers();
+    try {
+      render(<OrdersCustomersPage />);
+      await flushCustomerPage('1-25 of 51');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+      await flushCustomerPage('26-50 of 51');
+
+      fireEvent.change(screen.getByRole('searchbox', { name: 'Search customers' }), { target: { value: searchInput } });
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      expect(screen.getByText('26-50 of 51')).toBeInTheDocument();
+    } finally {
+      cleanup();
+      vi.useRealTimers();
+    }
+  });
+
+  it('debounces changed searches and clearing while ignoring surrounding whitespace', async () => {
+    const requests: Array<Record<string, string>> = [];
+    server.use(http.get('/api/v1/customers/', ({ request }) => {
+      const params = Object.fromEntries(new URL(request.url).searchParams);
+      requests.push(params);
+      return HttpResponse.json(listResponse([listCustomer], { total: 51, offset: Number(params.offset ?? 0) }));
+    }));
+    vi.useFakeTimers();
+    try {
+      render(<OrdersCustomersPage />);
+      await flushCustomerPage('1-25 of 51');
+      const searchbox = screen.getByRole('searchbox', { name: 'Search customers' });
+      fireEvent.change(searchbox, { target: { value: 'Ada' } });
+      await act(async () => { await vi.advanceTimersByTimeAsync(299); });
+      expect(requests.at(-1)?.search).toBeUndefined();
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+      await flushCustomerPage('1-25 of 51');
+      expect(requests.at(-1)).toMatchObject({ search: 'Ada', offset: '0' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+      await flushCustomerPage('26-50 of 51');
+      fireEvent.change(searchbox, { target: { value: ' Ada ' } });
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      expect(screen.getByText('26-50 of 51')).toBeInTheDocument();
+
+      fireEvent.change(searchbox, { target: { value: '' } });
+      await act(async () => { await vi.advanceTimersByTimeAsync(299); });
+      expect(screen.getByText('26-50 of 51')).toBeInTheDocument();
+      expect(requests.at(-1)).toMatchObject({ search: 'Ada', offset: '25' });
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+      await flushCustomerPage('1-25 of 51');
+      expect(requests.at(-1)?.search).toBeUndefined();
+      expect(requests.at(-1)?.offset).toBe('0');
+    } finally {
+      cleanup();
+      vi.useRealTimers();
+    }
   });
 
   it('keeps details usable for read-only users and shows every real aggregate', async () => {

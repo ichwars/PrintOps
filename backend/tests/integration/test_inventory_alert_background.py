@@ -19,7 +19,7 @@ from backend.tests.integration.test_stock_alert_producer import seed_stock
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("blocked_stage", ["forecast", "provider", "reconcile"])
-async def test_blocked_alert_transport_leaves_dispatch_fast_and_shutdown_drains_task(
+async def test_blocked_alert_transport_allows_dispatch_and_shutdown_drains_task(
     tmp_path, test_engine, monkeypatch, blocked_stage
 ):
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path}/alerts.db")
@@ -70,10 +70,13 @@ async def test_blocked_alert_transport_leaves_dispatch_fast_and_shutdown_drains_
         # First empty pass starts the alert transport; queue selection itself
         # must finish while that real HTTP request is still waiting.
         first_pass = asyncio.create_task(scheduler.check_queue())
-        await asyncio.wait_for(entered.wait(), timeout=2)
-        assert await asyncio.wait_for(asyncio.shield(first_pass), timeout=0.3) is False
+        await asyncio.wait_for(entered.wait(), timeout=5)
+        # The transport stays blocked until cleanup. These timeouts catch
+        # deadlocks, rather than benchmark real SQLite on a shared CI runner.
+        assert await asyncio.wait_for(asyncio.shield(first_pass), timeout=5) is False
         alert_task = scheduler._inventory_alert_task
         assert not alert_task.done()
+        assert not release.is_set() and not cancelled.is_set()
         async with sessions() as db:
             item = PrintQueueItem(printer_id=printer.id, status="pending", position=1)
             db.add(item)
@@ -90,9 +93,11 @@ async def test_blocked_alert_transport_leaves_dispatch_fast_and_shutdown_drains_
             "backend.app.services.print_scheduler.printer_manager.is_awaiting_plate_clear", lambda _id: False
         )
         monkeypatch.setattr(scheduler, "_launch_uploads", lambda ids, printers, limit: dispatched.extend(ids))
-        assert await asyncio.wait_for(scheduler.check_queue(), timeout=0.3) is True
+        assert await asyncio.wait_for(scheduler.check_queue(), timeout=5) is True
         assert dispatched == [item.id]
         assert scheduler._inventory_alert_task is alert_task
+        assert not alert_task.done()
+        assert not release.is_set() and not cancelled.is_set()
         assert len(reads) == 1
         scheduler.stop()
         await scheduler.close_inventory_alerts()
