@@ -6,9 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from backend.app.schemas.print_queue import UTCDatetime
 
-# RFC 7636: 43-128 chars from the unreserved set. The challenge is the
-# base64url SHA-256 of the verifier, so it is always exactly 43 chars.
-_PKCE_VERIFIER_PATTERN = r"^[A-Za-z0-9\-._~]{43,128}$"
+# The base64url SHA-256 challenge is always exactly 43 chars.
 _PKCE_CHALLENGE_PATTERN = r"^[A-Za-z0-9\-_]{43}$"
 
 
@@ -93,7 +91,9 @@ class ConnectTokenRequest(BaseModel):
     redirect_uri: str = Field(min_length=1, max_length=500)
     client_id: str = Field(min_length=1, max_length=64)
     client_secret: str = Field(min_length=1, max_length=128)
-    code_verifier: str = Field(pattern=_PKCE_VERIFIER_PATTERN)
+    # Bound request size here; check RFC 7636 syntax only after authenticating
+    # the client and consuming its code, so malformed verifiers spend the code.
+    code_verifier: str = Field(max_length=1024)
 
 
 class ConnectedUser(BaseModel):

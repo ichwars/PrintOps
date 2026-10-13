@@ -102,13 +102,16 @@ and permissions at exchange time. Renaming a user cannot transfer a code; even
 SQLite reuse of a deleted numeric user ID cannot revive the old identity.
 
 Codes are atomically single use, bound to the app, exact callback, current app
-configuration, nonreused user identity and S256 challenge. A syntactically valid
-exchange with the correct app secret spends the code even if its callback or PKCE
-verifier is wrong. Retry sign-in from the beginning after an exchange failure.
+configuration, nonreused user identity and S256 challenge. An exchange with the
+correct app secret spends that app’s code even if its callback or PKCE verifier
+is wrong, including a verifier with invalid length or characters. Retry sign-in
+from the beginning after an exchange failure.
 
 Errors use `detail.error` for `invalid_client` (401), `invalid_grant` (400), or
 `auth_disabled` (400). Consent returns 409 when authentication is disabled.
-Malformed input returns 422. Twenty failed exchanges per client or source IP in the
+Unparseable or oversized input returns 422; verifier request strings are bounded
+to 1024 characters, with RFC 7636 validation performed after code consumption.
+Twenty failed exchanges per client or source IP in the
 existing 15-minute window produce 429; failure events persist across workers and
 restarts. The existing event-counter limiter is a soft concurrency limit.
 

@@ -361,7 +361,6 @@ async def test_foreign_client_cannot_consume_code_and_old_secret_fails(connected
     other = await create(client)
     code = (await issue(client, app)).json()["code"]
     assert (await redeem(client, other, code)).status_code == 400
-    assert (await redeem(client, app, code, code_verifier="short")).status_code == 422
     assert (await redeem(client, app, code)).status_code == 200
     await client.post(f"{PREFIX}/apps/{app['id']}/rotate-secret", headers=headers())
     assert (await redeem(client, app, "unused")).status_code == 401
@@ -483,3 +482,38 @@ async def test_public_subject_survives_rename_but_not_deleted_id_reuse(connected
     second = (await redeem(client, app, (await issue(client, app)).json()["code"])).json()["user"]
     assert first["id"] == second["id"] and first["username"] == second["username"]
     assert first["sub"] != second["sub"]
+
+
+@pytest.mark.parametrize("verifier", ["short", "", "!" * 43, "é" * 43, "v" * 129])
+async def test_malformed_verifier_consumes_code_and_persists_failures(connected, verifier):
+    client, sessions = connected
+    app = await create(client)
+    code = (await issue(client, app)).json()["code"]
+    response = await redeem(client, app, code, code_verifier=verifier)
+    assert response.status_code == 400, response.text
+    assert response.json() == {"detail": {"error": "invalid_grant"}}
+    async with sessions() as db:
+        assert (await db.execute(select(AuthEphemeralToken))).scalars().all() == []
+        events = (await db.execute(select(AuthRateLimitEvent))).scalars().all()
+        assert sorted(event.event_type for event in events) == ["connect_token_client", "connect_token_ip"]
+    assert (await redeem(client, app, code)).status_code == 400
+    async with sessions() as db:
+        assert len((await db.execute(select(AuthRateLimitEvent))).scalars().all()) == 4
+
+
+async def test_malformed_verifier_does_not_consume_foreign_or_unauthenticated_code(connected):
+    client, _ = connected
+    app = await create(client)
+    other = await create(client)
+    code = (await issue(client, app)).json()["code"]
+    assert (await redeem(client, other, code, code_verifier="short")).status_code == 400
+    assert (await redeem(client, app, code, client_secret="incorrect", code_verifier="short")).status_code == 401
+    assert (await redeem(client, app, code)).status_code == 200
+
+
+async def test_verifier_request_input_is_bounded(connected):
+    client, _ = connected
+    app = await create(client)
+    code = (await issue(client, app)).json()["code"]
+    assert (await redeem(client, app, code, code_verifier="v" * 1025)).status_code == 422
+    assert (await redeem(client, app, code)).status_code == 200

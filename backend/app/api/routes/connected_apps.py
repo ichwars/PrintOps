@@ -3,6 +3,7 @@
 import base64
 import functools
 import hmac
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
@@ -261,6 +262,8 @@ async def exchange_code(
     )
     token = consumed.scalar_one_or_none()
     if token is None or token.expires_at.replace(tzinfo=timezone.utc) <= now:
+        raise await fail(400, "invalid_grant")
+    if re.fullmatch(r"[A-Za-z0-9\-._~]{43,128}", data.code_verifier) is None:
         raise await fail(400, "invalid_grant")
     challenge = base64.urlsafe_b64encode(bytes.fromhex(digest(data.code_verifier))).rstrip(b"=").decode()
     if (

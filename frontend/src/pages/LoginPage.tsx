@@ -39,6 +39,13 @@ function stashPostLoginRedirect(target: string): void {
   }
 }
 
+// Both automatic and manual OIDC leave the SPA and lose router state.
+function departForOIDC(authUrl: string, routerState: unknown): void {
+  const from = (routerState as { from?: { pathname?: string; search?: string } } | null)?.from;
+  if (from?.pathname) stashPostLoginRedirect(`${from.pathname}${from.search ?? ''}`);
+  window.location.href = authUrl;
+}
+
 function consumePostLoginRedirect(): string | null {
   try {
     const saved = sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY);
@@ -175,12 +182,12 @@ export function LoginPage() {
     );
     Promise.race([api.getOIDCAuthorizeUrl(providerId), timeoutPromise])
       .then((result) => {
-        window.location.href = (result as { auth_url: string }).auth_url;
+        departForOIDC((result as { auth_url: string }).auth_url, location.state);
       })
       .catch(() => {
         setAutologinFailed(true);
       });
-  }, [advancedAuthStatus, searchParams]);
+  }, [advancedAuthStatus, searchParams, location.state]);
 
   const localLoginEnabled = advancedAuthStatus?.local_login_enabled !== false;
   const showAutologinBanner = autologinFailed && advancedAuthStatus?.autologin_provider_id != null;
@@ -364,12 +371,8 @@ export function LoginPage() {
     onSuccess: (data) => {
       // Stash the post-login destination from router state so it survives the
       // provider round-trip (window.location.href kills React state). If the
-      // user landed on /login directly, fromState is absent and we don't stash.
-      const fromState = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
-      if (fromState?.pathname) {
-        stashPostLoginRedirect(`${fromState.pathname}${fromState.search ?? ''}`);
-      }
-      window.location.href = data.auth_url;
+      // user landed on /login directly, router state is absent and we don't stash.
+      departForOIDC(data.auth_url, location.state);
     },
     onError: (error: Error) => {
       showToast(error.message || t('login.oidcLoginFailed'), 'error');
