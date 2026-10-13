@@ -9031,6 +9031,7 @@ useEmbedded: 'Datei-eigene Einstellungen verwenden',
   // Configure AMS Slot Modal
   configureAmsSlot: {
     orcaFallback: {
+      no_generic_filament_id: 'Für {{material}} gibt es keine sichere generische Vorlage. Wähle ein Profil mit einer Filament-ID für den Drucker.',
       no_filament_id: 'Dieses Orca-Profil hat keine eigene Filament-ID, daher sieht OrcaSlicer diesen Slot als Generic {{material}}.',
       lookup_failed: 'Die Filament-ID dieses Profils konnte nicht aus der Orca Cloud gelesen werden, daher sieht OrcaSlicer diesen Slot als Generic {{material}}. Versuche es gleich noch einmal.',
       no_permission: 'Du hast keinen Zugriff auf die Orca Cloud, daher konnte die Filament-ID dieses Profils nicht gelesen werden. OrcaSlicer sieht diesen Slot als Generic {{material}}.',

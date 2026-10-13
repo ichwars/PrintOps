@@ -9083,6 +9083,7 @@ export default {
   // Configure AMS Slot Modal
   configureAmsSlot: {
     orcaFallback: {
+      no_generic_filament_id: 'Er bestaat geen veilige generieke voorinstelling voor {{material}}. Kies een profiel met een filament-ID voor de printer.',
       no_filament_id: 'Dit Orca-profiel heeft geen eigen filament-ID, dus OrcaSlicer ziet deze sleuf als Generic {{material}}.',
       lookup_failed: 'De filament-ID van dit profiel kon niet uit Orca Cloud worden gelezen, dus OrcaSlicer ziet deze sleuf als Generic {{material}}. Probeer het zo opnieuw.',
       no_permission: 'Je hebt geen toegang tot Orca Cloud, dus de filament-ID van dit profiel kon niet worden gelezen. OrcaSlicer ziet deze sleuf als Generic {{material}}.',

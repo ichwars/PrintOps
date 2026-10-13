@@ -84,6 +84,7 @@ RUN npm ci
 
 # Copy frontend source
 COPY frontend/ ./
+COPY backend/app/resources/filaments/generic_ids.json /app/backend/app/resources/filaments/generic_ids.json
 
 # Default command runs tests
 CMD ["npm", "test", "--", "--run"]

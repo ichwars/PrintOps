@@ -13,6 +13,7 @@ RUN --mount=type=cache,target=/root/.npm \
     npm ci
 
 COPY frontend/ ./
+COPY backend/app/resources/filaments/generic_ids.json /app/backend/app/resources/filaments/generic_ids.json
 RUN npm run build
 
 # Production image

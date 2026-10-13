@@ -73,6 +73,7 @@ async def resolve_slicer_filament(
     slicer_filament_name: str | None,
     material: str | None,
     orca_lookup_allowed: bool = True,
+    orca_generic_fallback: bool = True,
 ) -> tuple[str, str, str | None, str | None]:
     """Resolve a spool's slicer-preset reference to printer-side ids.
 
@@ -90,6 +91,8 @@ async def resolve_slicer_filament(
 
     ``orca_lookup_allowed`` carries the request cloud-scope fence; False
     selects the generic Orca fallback without reading any stored pairing.
+    Background callers disable ``orca_generic_fallback`` to preserve their
+    reported-tray fallback when no caller-owned lookup can resolve the profile.
 
     Returns the two preset IDs plus optional descriptive-name and protocol-type
     overrides supplied by the resolved slicer preset.
@@ -124,8 +127,10 @@ async def resolve_slicer_filament(
         setting_id = filament_id_to_setting_id(tray_info_idx) if tray_info_idx else ""
         sub_brand_override = found.name.split("@")[0].strip() if found.name else None
         type_override = found.filament_type
-        if not tray_info_idx:
+        if not tray_info_idx and orca_generic_fallback:
             tray_info_idx = _orca_generic_filament_id(type_override or material or "")
+            if not tray_info_idx:
+                raise ValueError(f"No safe generic filament ID for Orca material {type_override or material!r}")
     elif base_sf.startswith("GFS") or base_sf.startswith("PFUS") or base_sf.startswith("PFCN"):
         setting_id = base_sf
         try:

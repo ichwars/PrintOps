@@ -89,3 +89,21 @@ describe('slotPresetDescribesTray', () => {
     });
   });
 });
+
+it.each(['GFS97', 'GFS98', 'GFS99'])('rejects a migrated PLA mapping when the tray reports support filament %s', (tray) => {
+  expect(slotPresetDescribesTray('GFSA01_07', tray, null)).toBe(false);
+});
+
+it.each(['97', '98', '99'])('matches genuine support setting GFSS%s to its reported filament', (suffix) => {
+  expect(slotPresetDescribesTray(`GFSS${suffix}_07`, `GFS${suffix}`, null)).toBe(true);
+});
+
+it.each(['97', '98', '99'])('compares migrated support filament GFS%s to the reported filament', (suffix) => {
+  expect(slotPresetDescribesTray(`GFS${suffix}`, `GFS${suffix}`, null)).toBe(true);
+  expect(slotPresetDescribesTray(`GFS${suffix}`, 'GFL99', null)).toBe(false);
+  expect(slotPresetDescribesTray(`GFS${suffix}`, `GFS${suffix === '99' ? '98' : '99'}`, null)).toBe(false);
+});
+
+it('does not reinterpret a genuine cloud setting as a reported filament', () => {
+  expect(slotPresetDescribesTray('GFSA01', 'GFSB99', null)).toBe(true);
+});

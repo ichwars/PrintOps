@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.permissions import Permission
 from backend.app.models.user import User
+from backend.app.utils.generic_filament_catalog import GENERIC_FILAMENT_IDS as _ORCA_GENERIC_IDS
 
 logger = logging.getLogger(__name__)
 
@@ -189,29 +190,6 @@ def valid_filament_id(raw: object) -> str:
         return ""
     raw = raw.strip()
     return raw if len(raw) <= 32 and re.fullmatch(r"(?:GF[A-Za-z]\d+|P[0-9a-fA-F]+)", raw) else ""
-
-
-_ORCA_GENERIC_IDS = {
-    "PLA": "GFL99",
-    "PLA-CF": "GFL98",
-    "PLA SILK": "GFL96",
-    "PLA HIGH SPEED": "GFL95",
-    "PETG": "GFG99",
-    "PETG HF": "GFG96",
-    "PETG-CF": "GFG98",
-    "PCTG": "GFG97",
-    "ABS": "GFB99",
-    "ASA": "GFB98",
-    "PC": "GFC99",
-    "PA": "GFN99",
-    "PA-CF": "GFN98",
-    "NYLON": "GFN99",
-    "TPU": "GFU99",
-    "PVA": "GFS99",
-    "HIPS": "GFS98",
-    "PE": "GFP99",
-    "PP": "GFP97",
-}
 
 
 def _orca_generic_filament_id(material: str) -> str:

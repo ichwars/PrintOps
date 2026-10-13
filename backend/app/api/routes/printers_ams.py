@@ -101,12 +101,6 @@ async def configure_ams_slot(
     """
     logger = logging.getLogger(__name__)
     logger.info("[configure_ams_slot] printer_id=%s, ams_id=%s, tray_id=%s", printer_id, ams_id, tray_id)
-    logger.info(
-        f"[configure_ams_slot] tray_info_idx={tray_info_idx!r}, tray_type={tray_type!r}, tray_sub_brands={tray_sub_brands!r}"
-    )
-    logger.info(
-        f"[configure_ams_slot] setting_id={setting_id!r}, kprofile_filament_id={kprofile_filament_id!r}, kprofile_setting_id={kprofile_setting_id!r}"
-    )
     requested_tray_type = tray_type
     tray_type = printer_filament_type(requested_tray_type)
 
@@ -136,6 +130,15 @@ async def configure_ams_slot(
         if not tray_info_idx:
             orca_fallback_reason = found.reason or "no_filament_id"
             tray_info_idx = _orca_generic_filament_id(requested_tray_type)
+            if not tray_info_idx and not kprofile_filament_id:
+                raise HTTPException(
+                    422,
+                    detail={
+                        "code": "orca_no_generic_filament_id",
+                        "material": requested_tray_type,
+                        "message": f"No safe generic filament ID for {requested_tray_type}. Select a profile with a printer filament ID.",
+                    },
+                )
         logger.info(
             "Orca profile %r resolved to %r (%s)", orca_profile_id, tray_info_idx, found.source or orca_fallback_reason
         )
@@ -145,7 +148,6 @@ async def configure_ams_slot(
     effective_tray_info_idx = tray_info_idx
 
     if not tray_info_idx:
-        # No preset provided — try slot reuse or generic fallback
         current_tray_info_idx = ""
         current_tray_type = ""
         state = printer_manager.get_status(printer_id)
@@ -194,11 +196,9 @@ async def configure_ams_slot(
                 logger.info("[configure_ams_slot] Falling back to generic %r for material %r", generic, tray_type)
                 effective_tray_info_idx = generic
 
-    # Send filament setting + K-profile commands
     filament_id_for_kprofile = kprofile_filament_id if kprofile_filament_id else effective_tray_info_idx
 
     # Calibration and slot configuration must declare the same filament ID.
-    # An explicitly selected K profile supplies that context.
     effective_setting_id = setting_id
     realigned_to_kprofile = False
     if (

@@ -171,3 +171,6 @@ Filament-ID meldet. Alte Zuordnungen ohne aufgezeichnete ID bleiben lesbar.
 Eine erneute Konfiguration speichert die tatsächlich verwendete ID.
 
 Diese Erweiterung gehört zu [O02 / Issue #200](https://github.com/ichwars/PrintOps/issues/200).
+
+
+Bei einer Orca-Vorlage ohne Filament-ID verwenden die Slot-Konfiguration und die Kalibrierung dieselbe vollständige generische Filamentliste, einschließlich PPS-CF, PPA-CF/PPA-GF, BVOH, PHA und EVA. Die Warnung nennt das tatsächlich konfigurierte Material. Gibt es keine sichere generische ID, etwa für PEEK ohne eigene Drucker-ID, bleibt die Slot-Konfiguration unverändert und zeigt einen Fehler; Inventarzuweisungen bleiben ausstehend. RFID-Abgleich und spätere Einlegevorgänge behalten eine bereits vom Drucker gemeldete Filament-ID und deren Kalibrierung, ohne auf die Orca-Zugangsdaten anderer Benutzer zuzugreifen.

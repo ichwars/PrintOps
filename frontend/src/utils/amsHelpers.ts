@@ -525,6 +525,8 @@ export function slotPresetDescribesTray(
   const tray = (trayInfoIdx || '').split('_')[0].toUpperCase();
   const recorded = (presetTrayInfoIdx || '').split('_')[0].toUpperCase();
   if (recorded && tray) return recorded === tray;
-  if (!preset.startsWith('GFS') || !tray.startsWith('GF') || tray.startsWith('GFS')) return true;
-  return `GF${preset.slice(3)}` === tray;
+  if (!/^GF[A-Z]\d+$/.test(tray)) return true;
+  if (/^GFS[A-Z]\d+$/.test(preset)) return `GF${preset.slice(3)}` === tray;
+  if (/^GF[A-Z]\d+$/.test(preset)) return preset === tray;
+  return true;
 }

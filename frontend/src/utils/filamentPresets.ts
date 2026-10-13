@@ -10,6 +10,8 @@
 // compiled into the backend, so it is the only tier that can never be empty
 // and the only one that works with no cloud account and nothing imported.
 
+import genericCatalog from '../../../backend/app/resources/filaments/generic_ids.json';
+
 import type { BuiltinFilament, LocalPreset, OrcaProfileMeta, SlicerSetting } from '../api/client';
 import { parsePresetName, toFilamentId } from '../components/spool-form/utils';
 
@@ -45,16 +47,16 @@ export interface FilamentPresetSources {
  *  be filed under. Same table and same fallback chain as the AMS slot
  *  configure flow — the two must agree or a profile created here won't match
  *  the slot configured there. */
-const GENERIC_FILAMENT_IDS: Record<string, string> = {
-  'PLA': 'GFL99', 'PLA-CF': 'GFL98', 'PLA SILK': 'GFL96', 'PLA HIGH SPEED': 'GFL95',
-  'PETG': 'GFG99', 'PETG HF': 'GFG96', 'PETG-CF': 'GFG98', 'PCTG': 'GFG97',
-  'ABS': 'GFB99', 'ASA': 'GFB98',
-  'PC': 'GFC99',
-  'PA': 'GFN99', 'PA-CF': 'GFN98', 'NYLON': 'GFN99',
-  'TPU': 'GFU99',
-  'PVA': 'GFS99', 'HIPS': 'GFS98',
-  'PE': 'GFP99', 'PP': 'GFP97',
-};
+const GENERIC_FILAMENT_IDS: Record<string, string> = Object.fromEntries(
+  Object.entries(genericCatalog).map(([material, filamentId]) => [material.toUpperCase(), filamentId]),
+);
+GENERIC_FILAMENT_IDS.NYLON = GENERIC_FILAMENT_IDS.PA;
+
+/** Name of the generic actually sent, which may differ from a profile-name guess. */
+export function genericFilamentMaterialForId(filamentId: string): string {
+  return Object.entries(genericCatalog).find(([, id]) => id === filamentId)?.[0] || '';
+}
+
 
 /** Resolve a material string to a generic Bambu filament id, trying the exact
  *  spelling before progressively stripping the suffixes slicer presets add

@@ -10,6 +10,10 @@ The only difference for official Bambu filaments is an "S" inserted after "GF".
 User presets (starting with "P") use the same ID in both contexts.
 """
 
+import re
+
+from backend.app.utils.generic_filament_catalog import GENERIC_FILAMENT_IDS as GENERIC_FILAMENT_IDS
+
 MATERIAL_TEMPS: dict[str, tuple[int, int]] = {
     "PLA": (190, 230),
     "PETG": (220, 260),
@@ -22,23 +26,6 @@ MATERIAL_TEMPS: dict[str, tuple[int, int]] = {
     "PLA-CF": (210, 240),
     "PETG-CF": (240, 270),
     "PA-CF": (270, 300),
-}
-
-GENERIC_FILAMENT_IDS: dict[str, str] = {
-    "PLA": "GFL99",
-    "PETG": "GFG99",
-    "ABS": "GFB99",
-    "ASA": "GFB98",
-    "PC": "GFC99",
-    "PA": "GFN99",
-    "NYLON": "GFN99",
-    "TPU": "GFU99",
-    "PVA": "GFS99",
-    "HIPS": "GFS98",
-    "PLA-CF": "GFL98",
-    "PETG-CF": "GFG98",
-    "PA-CF": "GFN98",
-    "PETG HF": "GFG96",
 }
 
 
@@ -59,7 +46,7 @@ def filament_id_to_setting_id(filament_id: str) -> str:
     # Official Bambu presets: GFx## -> GFSx##
     if filament_id.startswith("GF") and len(filament_id) >= 4:
         # Already a setting_id (has S after GF)
-        if filament_id[2] == "S":
+        if re.fullmatch(r"GFS[A-Z]\d+(?:_\d+)?", filament_id):
             return filament_id
         return f"GFS{filament_id[2:]}"
 
@@ -81,7 +68,7 @@ def setting_id_to_filament_id(setting_id: str) -> str:
         return setting_id
 
     # Setting_id format: GFSx## -> GFx##  (remove the "S")
-    if setting_id.startswith("GFS") and len(setting_id) >= 5:
+    if re.fullmatch(r"GFS[A-Z]\d+(?:_\d+)?", setting_id):
         return f"GF{setting_id[3:]}"
 
     return setting_id

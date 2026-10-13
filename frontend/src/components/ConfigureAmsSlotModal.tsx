@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { X, Loader2, Settings2, CheckCircle2, RotateCcw } from 'lucide-react';
+import { genericFilamentIdForMaterial, genericFilamentMaterialForId } from '../utils/filamentPresets';
+
 import { api } from '../api/client';
 import type { KProfile } from '../api/client';
 import { matchesPrinterModelSuffix, presetCompatibility, buildCompatibilityIndex } from '../utils/slicerPrinterMatch';
@@ -454,33 +456,12 @@ export function ConfigureAmsSlotModal({
       // Prefer this over stored filament_type which may have been parsed with old logic.
       const parsedMat = parsed.material.toUpperCase();
 
-      // Generic Bambu filament-ID map used to derive a ``tray_info_idx`` for
-      // presets that don't carry a Bambu setting_id of their own (local
-      // imports and Orca Cloud sync both fall in this bucket). The printer's
-      // firmware needs SOMETHING in tray_info_idx to recognize the filament
-      // type for HMS / drying / colour-matching; the closest generic Bambu
-      // filament for the parsed material is the right choice.
-      const GENERIC_IDS: Record<string, string> = {
-        'PLA': 'GFL99', 'PLA-CF': 'GFL98', 'PLA SILK': 'GFL96', 'PLA HIGH SPEED': 'GFL95',
-        'PETG': 'GFG99', 'PETG HF': 'GFG96', 'PETG-CF': 'GFG98', 'PCTG': 'GFG97',
-        'ABS': 'GFB99', 'ASA': 'GFB98',
-        'PC': 'GFC99',
-        'PA': 'GFN99', 'PA-CF': 'GFN98', 'NYLON': 'GFN99',
-        'TPU': 'GFU99',
-        'PVA': 'GFS99', 'HIPS': 'GFS98',
-        'PE': 'GFP99', 'PP': 'GFP97',
-      };
-
       if (isLocal) {
         // Local presets have no Bambu Cloud setting_id, but need a valid
         // tray_info_idx for the printer to recognize the filament type.
         const material = (MATERIAL_TYPES.includes(parsedMat) ? parsedMat : localPreset?.filament_type || parsed.material || '').toUpperCase();
         // Try exact match first, then base material (strip suffixes like "-CF", "+", " HF")
-        trayInfoIdx = GENERIC_IDS[material]
-          || GENERIC_IDS[material.replace(/[-\s]?CF$/, '')]
-          || GENERIC_IDS[material.replace(/\+$/, '')]
-          || GENERIC_IDS[material.split(/[-\s]/)[0]]
-          || '';
+        trayInfoIdx = genericFilamentIdForMaterial(material);
         settingId = '';
       } else if (isOrca) {
         // The server resolves the profile's printer identity and reports fallback.
@@ -574,10 +555,16 @@ export function ConfigureAmsSlotModal({
         // Also pass the K value directly for extrusion_cali_set command
         k_value: kValue,
         orca_profile_id: isOrca ? orcaSettingId : undefined,
+      }).catch((error: unknown) => {
+        const apiError = error as { code?: string; detail?: { material?: string } };
+        if (apiError?.code === 'orca_no_generic_filament_id') {
+          throw new Error(t('configureAmsSlot.orcaFallback.no_generic_filament_id', { material: apiError.detail?.material || trayType }));
+        }
+        throw error;
       });
 
       if (isOrca && result.orca_fallback_reason) {
-        showToast(t(`configureAmsSlot.orcaFallback.${result.orca_fallback_reason}`, { material: trayType }), 'warning');
+        showToast(t(`configureAmsSlot.orcaFallback.${result.orca_fallback_reason}`, { material: genericFilamentMaterialForId(result.tray_info_idx) || trayType }), 'warning');
       }
 
       // Save the preset mapping so we can display the correct name in the UI

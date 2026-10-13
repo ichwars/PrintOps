@@ -95,7 +95,7 @@ FILE_ALLOWLIST = {
     "backend/tests/unit/services/test_virtual_printer.py": 4035,
     "frontend/src/__tests__/pages/SettingsPage.test.tsx": 2217,
     "frontend/src/components/AddSmartPlugModal.tsx": 1745,
-    "frontend/src/components/ConfigureAmsSlotModal.tsx": 1706,
+    "frontend/src/components/ConfigureAmsSlotModal.tsx": 1693,
     "frontend/src/components/ForecastPanel.tsx": 2007,
     "frontend/src/components/KProfilesView.tsx": 1720,
     "frontend/src/lib/orderMasterDataValidation.ts": 1733,

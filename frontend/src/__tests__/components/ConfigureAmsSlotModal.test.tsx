@@ -706,3 +706,35 @@ describe('ConfigureAmsSlotModal', () => {
 
 
 });
+
+describe('Orca safe generic reporting', () => {
+  const uuid = '34d8f588-860b-5be1-bcbe-c0d46d96324b';
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (api.getCloudSettings as ReturnType<typeof vi.fn>).mockResolvedValue({ filament: [] });
+    (api.getKProfiles as ReturnType<typeof vi.fn>).mockResolvedValue({ profiles: [] });
+    (api.getLocalPresets as ReturnType<typeof vi.fn>).mockResolvedValue({ filament: [] });
+    (api.getBuiltinFilaments as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (api.orcaCloudListProfiles as ReturnType<typeof vi.fn>).mockResolvedValue({
+      filament: [{ setting_id: uuid, name: 'Homebrew PLA @Orca', type: 'filament', is_custom: true }], printer: [], process: [],
+    });
+  });
+  it('reports the actual server generic material rather than the profile name guess', async () => {
+    (api.configureAmsSlot as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true, tray_info_idx: 'GFT98', orca_fallback_reason: 'no_filament_id' });
+    render(<ConfigureAmsSlotModal {...defaultProps} slotInfo={{ ...defaultProps.slotInfo, savedPresetId: uuid }} />);
+    await screen.findByText('Homebrew PLA @Orca');
+    fireEvent.click(screen.getByRole('button', { name: /Configure Slot/i }));
+    expect(await screen.findByText('This Orca profile has no filament ID of its own, so OrcaSlicer will see this slot as Generic PPS-CF.')).toBeInTheDocument();
+  });
+  it('shows a localized safe-material error and does not save or announce success', async () => {
+    (api.configureAmsSlot as ReturnType<typeof vi.fn>).mockRejectedValue(Object.assign(new Error('No generic identity'), {
+      code: 'orca_no_generic_filament_id', detail: { material: 'PEEK' },
+    }));
+    render(<ConfigureAmsSlotModal {...defaultProps} slotInfo={{ ...defaultProps.slotInfo, savedPresetId: uuid }} />);
+    await screen.findByText('Homebrew PLA @Orca');
+    fireEvent.click(screen.getByRole('button', { name: /Configure Slot/i }));
+    expect(await screen.findByText('No safe generic preset exists for PEEK. Select a profile with a printer filament ID.')).toBeInTheDocument();
+    expect(api.saveSlotPreset).not.toHaveBeenCalled();
+    expect(screen.queryByText('Slot Configured!')).not.toBeInTheDocument();
+  });
+});

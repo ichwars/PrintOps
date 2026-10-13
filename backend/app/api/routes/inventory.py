@@ -62,7 +62,7 @@ from backend.app.services.location_service import (
     protect_warehouse_location,
     rename_location as rename_location_record,
 )
-from backend.app.services.orca_filament_lookup import orca_cloud_caller
+from backend.app.services.orca_filament_lookup import _ORCA_PROFILE_ID, orca_cloud_caller
 from backend.app.services.order_errors import ResourceNotFoundError, VersionConflictError
 from backend.app.services.slicer_filament_resolver import resolve_slicer_filament
 from backend.app.services.spool_csv import (
@@ -163,6 +163,7 @@ async def apply_spool_to_slot_via_mqtt(
     current_tray_type: str = "",
     assignment: SpoolAssignment | None = None,
     orca_lookup_allowed: bool = True,
+    orca_generic_fallback: bool = True,
 ) -> bool:
     """Publish ams_filament_setting + extrusion_cali_sel for a spool on a slot.
 
@@ -186,8 +187,6 @@ async def apply_spool_to_slot_via_mqtt(
     tray_sub_brands = tray_sub_brand(spool.brand, spool.material, spool.subtype)
     tray_color = spool.rgba or "FFFFFFFF"
 
-    _generic_id_values = _GENERIC_ID_VALUES
-
     # Model overrides precede the legacy preset; NULL explicitly selects generic.
     tray_info_idx, setting_id, sub_brand_override, type_override = await resolve_slicer_filament(
         db=db,
@@ -196,6 +195,7 @@ async def apply_spool_to_slot_via_mqtt(
         slicer_filament_name=preset.slicer_filament_name,
         material=spool.material,
         orca_lookup_allowed=orca_lookup_allowed,
+        orca_generic_fallback=orca_generic_fallback,
     )
     if sub_brand_override:
         tray_sub_brands = sub_brand_override
@@ -206,7 +206,7 @@ async def apply_spool_to_slot_via_mqtt(
         if (
             not preset.configured
             and current_tray_info_idx
-            and current_tray_info_idx not in _generic_id_values
+            and current_tray_info_idx not in _GENERIC_ID_VALUES
             and not current_tray_info_idx.startswith("PFUS")
             and not current_tray_info_idx.startswith("PFCN")
             and not is_material_name(current_tray_info_idx)
@@ -217,7 +217,6 @@ async def apply_spool_to_slot_via_mqtt(
         elif tray_type:
             tray_info_idx = generic_filament_id(spool.material, tray_type)
 
-    # Avoid a half-configured slicer slot when a preset yields only a filament id.
     if tray_info_idx and not setting_id:
         setting_id = filament_id_to_setting_id(tray_info_idx)
 
@@ -252,6 +251,9 @@ async def apply_spool_to_slot_via_mqtt(
             effective_setting_id,
             "printer" if printer_kp else "stored",
         )
+
+    if not effective_tray_info_idx and _ORCA_PROFILE_ID.fullmatch((preset.slicer_filament or "").removeprefix("orca_")):
+        return False
 
     client.ams_set_filament_setting(
         ams_id=ams_id,
@@ -1742,7 +1744,6 @@ async def list_assignments(
                         continue
 
     all_serials = set(serial_map.values())
-    # Also include synthetic fallback keys for assignments without a known serial
     synthetic_keys: dict[str, tuple[int, int]] = {}
     for a in assignments:
         if (a.printer_id, a.ams_id) not in serial_map:
@@ -1887,7 +1888,6 @@ async def assign_spool(
             logger.warning("MQTT auto-configure failed for spool %d: %s", spool.id, e)
     pending_config = slot_is_definitely_empty or not configured
 
-    # Return assignment with spool data
     result = await db.execute(
         select(SpoolAssignment)
         .options(
