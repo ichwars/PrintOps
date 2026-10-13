@@ -101,3 +101,24 @@ async def test_negative_small_parts_stock_default_is_rejected(async_client: Asyn
 
     assert response.status_code == 422
     assert (await db_session.execute(select(Settings))).scalars().all() == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["put", "patch"])
+@pytest.mark.parametrize("value", [-1, 241, 1.5, None])
+async def test_sustained_humidity_rejects_invalid_duration(async_client, db_session, method, value):
+    response = await getattr(async_client, method)(
+        "/api/v1/settings/", json={"ambient_drying_sustained_minutes": value}
+    )
+    assert response.status_code == 422
+    assert (await db_session.execute(select(Settings))).scalars().all() == []
+
+
+@pytest.mark.asyncio
+async def test_sustained_humidity_default_and_integer_roundtrip(async_client):
+    assert (await async_client.get("/api/v1/settings/")).json()["ambient_drying_sustained_minutes"] == 0
+    for value in [240, 0, 12]:
+        response = await async_client.put("/api/v1/settings/", json={"ambient_drying_sustained_minutes": value})
+        assert response.status_code == 200
+        assert response.json()["ambient_drying_sustained_minutes"] == value
+        assert (await async_client.get("/api/v1/settings/")).json()["ambient_drying_sustained_minutes"] == value

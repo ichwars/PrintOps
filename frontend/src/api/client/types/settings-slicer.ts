@@ -30,6 +30,7 @@ export interface AppSettings {
   // Queue auto-drying settings
   queue_drying_enabled: boolean;  // Auto-dry AMS between queued prints
   queue_drying_block: boolean;  // Block queue until drying completes
+  ambient_drying_sustained_minutes?: number;
   ambient_drying_enabled: boolean;  // Auto-dry idle printers based on humidity regardless of queue
   print_drying_enabled: boolean;  // Continue drying while a print is running on capable hardware
   drying_presets: string;  // JSON blob of drying presets per filament type

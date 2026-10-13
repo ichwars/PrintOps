@@ -27,7 +27,7 @@ from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.services.archive_plate_metadata import refresh_archive_plate_metadata
 from backend.app.services.automatic_drying_dispatch import check_auto_drying
-from backend.app.services.automatic_drying_state import start_drying, stop_drying, sync_drying_state
+from backend.app.services.automatic_drying_state import init_drying_state, start_drying, stop_drying, sync_drying_state
 from backend.app.services.bambu_ftp import (
     FtpFailureKind,
     FtpFailureReport,
@@ -378,8 +378,7 @@ class PrintScheduler:
         self._upload_backoff: dict[int, float] = {}
         self._upload_refusals: dict[int, int] = {}
         self._upload_refusal_notified: set[int] = set()
-        # Track which printers are currently auto-drying (printer_id -> start timestamp)
-        self._drying_in_progress: dict[int, float] = {}
+        init_drying_state(self)
         # Defensive in-memory dispatch hold (#1157): a printer that just received
         # a project_file command must not get a second dispatch until either it
         # transitions out of pre_state OR the hard timeout expires. The H2D Pro
@@ -436,6 +435,7 @@ class PrintScheduler:
     def stop(self):
         """Stop the scheduler."""
         self._running = False
+        init_drying_state(self, reset=True)
         self._inventory_alerts_stopped = True
         if self._inventory_alert_task is not None:
             self._inventory_alert_task.cancel()
@@ -2328,10 +2328,10 @@ class PrintScheduler:
         )
 
     def _sync_drying_state(self):
-        sync_drying_state(self._drying_in_progress, printer_manager)
+        sync_drying_state(self._drying_in_progress, printer_manager, owner=self)
 
     async def _stop_drying(self, printer_id: int):
-        await stop_drying(self._drying_in_progress, printer_id, printer_manager, async_session)
+        await stop_drying(self._drying_in_progress, printer_id, printer_manager, async_session, owner=self)
 
     DEFAULT_PREHEAT_FILAMENT_TARGETS = DEFAULT_PREHEAT_FILAMENT_TARGETS
 

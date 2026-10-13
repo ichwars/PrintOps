@@ -47,6 +47,7 @@ import { OrderSettingsPanels } from '../components/settings/OrderSettingsPanels'
 import { CalculationSettings } from '../components/orders/calculation/CalculationSettings';
 import { SmallPartsSettings } from '../components/settings/SmallPartsSettings';
 import { WarehouseNumberSequenceSettings } from '../components/settings/WarehouseNumberSequenceSettings';
+import { AmbientDryingSettings } from '../components/settings/AmbientDryingSettings';
 import { DryingPresetsEditor } from '../components/settings/DryingPresetsEditor';
 import { ScheduledDryingSettings } from '../components/settings/ScheduledDryingSettings';
 import { ExternalCameraUrlField } from '../components/settings/CameraUrlBuilder';
@@ -1184,6 +1185,7 @@ export function SettingsPage() {
       (settings.queue_drying_enabled ?? false) !== (localSettings.queue_drying_enabled ?? false) ||
       (settings.queue_drying_block ?? false) !== (localSettings.queue_drying_block ?? false) ||
       (settings.ambient_drying_enabled ?? false) !== (localSettings.ambient_drying_enabled ?? false) ||
+      (settings.ambient_drying_sustained_minutes ?? 0) !== (localSettings.ambient_drying_sustained_minutes ?? 0) ||
       (settings.print_drying_enabled ?? false) !== (localSettings.print_drying_enabled ?? false) ||
       (settings.drying_presets ?? '') !== (localSettings.drying_presets ?? '') ||
       (settings.ams_humidity_thresholds ?? '') !== (localSettings.ams_humidity_thresholds ?? '') ||
@@ -1268,6 +1270,7 @@ export function SettingsPage() {
         queue_drying_enabled: localSettings!.queue_drying_enabled,
         queue_drying_block: localSettings!.queue_drying_block,
         ambient_drying_enabled: localSettings!.ambient_drying_enabled,
+        ambient_drying_sustained_minutes: localSettings!.ambient_drying_sustained_minutes ?? 0,
         print_drying_enabled: localSettings!.print_drying_enabled,
         drying_presets: localSettings!.drying_presets,
         ams_humidity_thresholds: localSettings!.ams_humidity_thresholds,
@@ -2545,22 +2548,12 @@ export function SettingsPage() {
             </label>
           </div>
         )}
-        <div className="flex items-center justify-between">
-          <div>
-            <label className="block text-sm text-white">
-              {t('settings.ambientDryingEnabled')}
-            </label>
-            <p className="text-xs text-bambu-gray mt-0.5">
-              {t('settings.ambientDryingEnabledDescription')}
-            </p>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <Switch
-              checked={localSettings.ambient_drying_enabled ?? false}
-              onChange={(e) => updateSetting('ambient_drying_enabled', e.target.checked)}
-            />
-          </label>
-        </div>
+        <AmbientDryingSettings
+          enabled={localSettings.ambient_drying_enabled ?? false}
+          minutes={localSettings.ambient_drying_sustained_minutes ?? 0}
+          onEnabledChange={(enabled) => updateSetting('ambient_drying_enabled', enabled)}
+          onMinutesChange={(minutes) => updateSetting('ambient_drying_sustained_minutes', minutes)}
+        />
         <div className="flex items-center justify-between">
           <div>
             <label className="block text-sm text-white">

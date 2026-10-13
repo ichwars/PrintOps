@@ -3,6 +3,8 @@
 import time
 from dataclasses import dataclass, field
 
+from backend.app.services.ambient_humidity import HumidityObservation, observe_ams_humidity
+
 
 @dataclass(frozen=True)
 class DryingObservation:
@@ -19,6 +21,8 @@ class DryingTelemetry:
     firmware_observed_at: float = 0
     units: dict[int, DryingObservation] = field(default_factory=dict)
     modules: dict[int, tuple[str, str]] = field(default_factory=dict)
+    humidity: dict[int, HumidityObservation] = field(default_factory=dict)
+    humidity_generation: object = field(default_factory=object)
 
 
 def invalidate_drying_availability(state) -> None:
@@ -47,6 +51,8 @@ def observe_version_info(state, data: dict) -> None:
             state.drying_telemetry.modules[int(identifier)] = (kind, version)
     if previous != state.drying_telemetry.modules:
         state.drying_telemetry.units.clear()
+        state.drying_telemetry.humidity.clear()
+        state.drying_telemetry.humidity_generation = object()
 
 
 def observe_printer_state(state, data: dict) -> None:
@@ -56,6 +62,7 @@ def observe_printer_state(state, data: dict) -> None:
 
 def observe_ams_drying(client, explicit_units, merged_units) -> None:
     """Observe only units with an explicit dry_time, before cached merges can mask absence."""
+    observe_ams_humidity(client.state, explicit_units)
     merged = {str(unit.get("id")): unit for unit in merged_units if isinstance(unit, dict)}
     for unit in explicit_units:
         if not isinstance(unit, dict) or "dry_time" not in unit:

@@ -247,3 +247,55 @@ leerer Freigabelisten. Ihre interne Migrationsmarkierung bleibt beim Zurücksetz
 der Einstellungen und in vollständigen Datenbanksicherungen erhalten. Gleichzeitige
 Freigabeänderungen und Druckerlöschungen werden innerhalb der Datenbank serialisiert;
 bei einem Sperrzeitlimit kann die Anfrage erneut gesendet werden.
+
+## Umgebungstrocknung erst bei anhaltend hoher Luftfeuchtigkeit
+
+Öffne **Einstellungen → Lager & Material → Filament** und aktiviere die
+Umgebungstrocknung. Das Feld **Anhaltend hohe Luftfeuchtigkeit (Minuten)**
+legt fest, wie lange die Feuchtigkeit über dem jeweils wirksamen AMS-Grenzwert
+liegen muss. Erlaubt sind ganze Zahlen von 0 bis 240. Der Standardwert 0 startet
+wie bisher sofort; beispielsweise 15 wartet auf 15 Minuten anhaltend hohe Werte.
+
+Jeder Drucker und jede AMS-Einheit sammelt die Zeit getrennt. Ein Wert am oder
+unter dem Grenzwert, ein Grenzwert- oder Materialwechsel, eine Unterbrechung der
+Verbindung und das Deaktivieren der Umgebungstrocknung starten die Wartezeit neu.
+Fehlende Sensorwerte zählen nicht als niedrige Feuchtigkeit und können keinen
+Start auslösen. Fehlen Beobachtungen länger als vier Scheduler-Intervalle
+(mindestens 120 Sekunden), beginnt die Wartezeit ebenfalls von vorn. Nach einem
+Neustart wird erneut gewartet. Eine gestartete oder bereits laufende Trocknung
+verbraucht die gesammelte Zeit; die eingestellte Trocknungsdauer läuft ohne
+vorzeitigen Feuchtigkeitsstopp weiter.
+
+Trocknung vor geplanten Warteschlangendrucken bleibt von dieser Wartezeit
+unabhängig. Ist ausschließlich Trocknung beim Drucken aktiv, startet sie weiterhin
+sofort auf geeigneter Hardware. Sind Umgebungstrocknung und Trocknung beim Drucken
+zusammen aktiv, gilt die Wartezeit auch während des Druckens; die reduzierte
+Trocknungstemperatur bleibt wirksam. Druckerreservierungen, freie Druckplatten,
+Druckerzustand, Firmware und Leistungsgrenzen bleiben Voraussetzung für einen
+Start. Manuell gestartete Zyklen werden nicht als automatische Zyklen übernommen
+und nicht von der automatischen Steuerung gestoppt.
+
+Zum Schutz manueller Trocknung erhält ein neu automatisch gestarteter Zyklus
+keine automatische Stop-Berechtigung. Eine erfolgreiche MQTT-Veröffentlichung,
+eine Bestätigung und später gemeldete Restzeit reichen nicht aus, um ihn von
+einem inzwischen manuell gestarteten Zyklus sicher zu unterscheiden. Auch eigene
+automatische Zyklen laufen deshalb bis zum Ende der Firmware-Dauer weiter:
+Das Deaktivieren der Automatik oder das Entfernen künftiger geplanter Drucke
+stoppt sie nicht. Explizite manuelle Bedienung und separat reservierte
+Trocknungspläne behalten ihre bisherigen Abläufe.
+
+Bei `queue_drying_block=false` kann ein Drucker im Zustand `PAUSE` dadurch bis zum
+Ende der Trocknung warten; die Automatik unterbricht diesen unklar zugeordneten
+Zyklus nicht mehr für einen Warteschlangendruck. Meldet der Drucker `IDLE`, kann
+die vorhandene Zustandsprüfung weiterhin einen Druckstart auswählen, ohne zuvor
+die Trocknung zu stoppen. Das beschreibt die Softwareentscheidung und garantiert
+keinen erfolgreichen physischen Druckstart während der Trocknung.
+
+Solange nach einer Startveröffentlichung noch kein laufender Zyklus gemeldet
+wurde, unterdrückt PrintOps weitere Startbefehle für dieselbe AMS-Einheit für
+vier Scheduler-Intervalle, mindestens 120 Sekunden. Während dieser begrenzten
+Unsicherheit bleibt auch das Warmhalten des Druckbetts gesperrt, selbst bei
+noch gemeldeter Restzeit 0. Positive Trocknungsrestzeit sperrt das Warmhalten
+weiterhin unabhängig davon. Nach Ablauf der Unsicherheit kann ein neuer Versuch
+folgen; Umgebungstrocknung mit Wartezeit benötigt dafür erneut frische Messungen
+über die volle eingestellte Dauer.

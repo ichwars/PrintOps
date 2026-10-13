@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.app.core.config import settings
 from backend.app.models.print_queue import PrintQueueItem
+from backend.app.services.automatic_drying_state import pending_reserved
 from backend.app.services.drying_ownership import has_drying_reservation, printer_operation
 from backend.app.services.preheat_chamber import derive_chamber_target, normalize_filament_type, observed_tray_materials
 from backend.app.services.preheat_ownership import PreheatLease, preheat_ownership
@@ -155,6 +156,8 @@ class QueueKeepWarm:
 
     @staticmethod
     def drying_reserved(scheduler, manager, printer_id) -> bool:
+        if pending_reserved(scheduler, manager, printer_id):
+            return True
         if printer_id in scheduler._drying_in_progress:
             return True
         state = manager.get_status(printer_id)
