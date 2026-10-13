@@ -40,8 +40,7 @@ async def check_auto_drying(
         result = await db.execute(select(Settings).where(Settings.key == "ambient_drying_sustained_minutes"))
         setting = result.scalar_one_or_none()
         sustained_minutes = int(setting.value) if setting else 0
-    if not ambient_drying_enabled:
-        self._ambient_humidity.streaks.clear()
+    self._ambient_humidity.configure(ambient_drying_enabled, sustained_minutes)
     if not queue_drying_enabled and not ambient_drying_enabled and not print_drying_enabled:
         # Stop our active drying when all automatic modes are disabled
         if self._drying_in_progress:
@@ -91,11 +90,12 @@ async def check_auto_drying(
     all_printers = await db.execute(select(Printer).where(Printer.is_active.is_(True)))
     printers = list(all_printers.scalars())
     active_ids = {printer.id for printer in printers}
-    tracked_ids = {key[0] for key in self._ambient_humidity.streaks | self._ambient_humidity.samples} | set(
-        self._drying_owned_ams
-    )
+    tracked_ids = {
+        key[0]
+        for key in self._ambient_humidity.streaks | self._ambient_humidity.samples | self._ambient_humidity.criteria
+    } | set(self._drying_owned_ams)
     for pid in tracked_ids - active_ids:
-        self._ambient_humidity.clear_printer(pid)
+        self._ambient_humidity.forget_printer(pid)
         self._drying_in_progress.pop(pid, None)
         self._drying_owned_ams.pop(pid, None)
     now = time.monotonic()

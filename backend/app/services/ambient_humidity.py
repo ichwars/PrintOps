@@ -66,14 +66,46 @@ class HumidityStreak:
 
 class AmbientHumidity:
     def __init__(self):
+        self.started_at = time.monotonic()
+        self.needs_resume = False
+        self.minutes = None
+        self.thresholds = None
         self.streaks: dict[tuple[int, int], HumidityStreak] = {}
         self.samples: dict[tuple[int, int], tuple[object, int]] = {}
+        self.criteria: dict[tuple[int, int], tuple | None] = {}
+        self.cutoffs: dict[tuple[int, int], float] = {}
+
+    def reset(self):
+        self.started_at = time.monotonic()
+        self.needs_resume = True
+        self.streaks.clear()
+        self.samples.clear()
+        self.criteria = dict.fromkeys(self.criteria)
+        self.cutoffs.clear()
+
+    def configure(self, enabled, minutes):
+        if not enabled or self.minutes is not None and self.minutes != minutes:
+            self.reset()
+        self.minutes = minutes
 
     def clear_printer(self, printer_id):
         self.streaks = {key: value for key, value in self.streaks.items() if key[0] != printer_id}
         self.samples = {key: value for key, value in self.samples.items() if key[0] != printer_id}
+        self.criteria = {key: None if key[0] == printer_id else value for key, value in self.criteria.items()}
+
+    def forget_printer(self, printer_id):
+        self.clear_printer(printer_id)
+        self.criteria = {key: value for key, value in self.criteria.items() if key[0] != printer_id}
+        self.cutoffs = {key: value for key, value in self.cutoffs.items() if key[0] != printer_id}
 
     def observe(self, printer_id, units, thresholds, fallback, resolve_threshold, minutes, now, max_gap, observations):
+        configuration = (fallback, tuple(sorted(thresholds.items())))
+        if self.thresholds is not None and self.thresholds != configuration:
+            self.started_at = now  # Unseen units cannot spend samples from the previous thresholds.
+        self.thresholds = configuration
+        if self.needs_resume:
+            self.started_at = now
+            self.needs_resume = False
         seen = set()
         ready = set()
         for unit in units:
@@ -91,11 +123,15 @@ class AmbientHumidity:
                 sample.generation if sample else None,
             )
             streak = self.streaks.get(key)
-            if streak and streak.criteria != criteria:
+            if key in self.criteria and self.criteria[key] != criteria:
                 self.streaks.pop(key, None)
                 streak = None
+                self.cutoffs[key] = now
+            self.criteria[key] = criteria
+            self.cutoffs.setdefault(key, self.started_at)
             if int(unit.get("dry_time") or 0) > 0 or unit.get("module_type") not in ("n3f", "n3s"):
                 self.streaks.pop(key, None)
+                self.criteria[key] = None
                 continue
             token = (sample.generation, sample.sequence) if sample else None
             previous = self.samples.get(key)
@@ -105,6 +141,9 @@ class AmbientHumidity:
             if fresh:
                 after = previous[1] if previous and previous[0] is sample.generation else 0
                 readings = [reading for reading in sample.history if reading[0] > after]
+                cutoff = self.cutoffs.get(key, self.started_at)
+                if cutoff is not None:
+                    readings = [reading for reading in readings if reading[2] is not None and reading[2] >= cutoff]
                 if not streak:
                     readings = readings[
                         -1:
@@ -137,4 +176,6 @@ class AmbientHumidity:
                 ready.add(ams_id)
         self.streaks = {key: value for key, value in self.streaks.items() if key[0] != printer_id or key in seen}
         self.samples = {key: value for key, value in self.samples.items() if key[0] != printer_id or key in seen}
+        self.criteria = {key: value for key, value in self.criteria.items() if key[0] != printer_id or key in seen}
+        self.cutoffs = {key: value for key, value in self.cutoffs.items() if key[0] != printer_id or key in seen}
         return ready
