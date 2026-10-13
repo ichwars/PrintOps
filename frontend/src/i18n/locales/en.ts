@@ -9080,6 +9080,12 @@ export default {
 
   // Configure AMS Slot Modal
   configureAmsSlot: {
+    orcaFallback: {
+      no_generic_filament_id: 'No safe generic preset exists for {{material}}. Select a profile with a printer filament ID.',
+      no_filament_id: 'This Orca profile has no filament ID of its own, so OrcaSlicer will see this slot as Generic {{material}}.',
+      lookup_failed: 'Couldn\'t read this profile\'s filament ID from Orca Cloud, so OrcaSlicer will see this slot as Generic {{material}}. Try again in a moment.',
+      no_permission: 'You don\'t have Orca Cloud access, so this profile\'s filament ID couldn\'t be read. OrcaSlicer will see this slot as Generic {{material}}.',
+    },
     title: 'Configure AMS Slot',
     slotConfigured: 'Slot Configured!',
     configuringSlot: 'Configuring slot:',

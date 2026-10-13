@@ -7,7 +7,7 @@ import type { SpoolBuddyOutletContext } from '../../components/spoolbuddy/SpoolB
 import { api } from '../../api/client';
 import { mapModelCode } from '../printers/printer-status';
 import type { PrinterStatus, AMSTray, SpoolAssignment } from '../../api/client';
-import { getGlobalTrayId, getFillBarColor, getSpoolmanFillLevel, getFallbackSpoolTag, formatSlotLabel, isBambuLabSpool } from '../../utils/amsHelpers';
+import { getGlobalTrayId, getFillBarColor, getSpoolmanFillLevel, getFallbackSpoolTag, formatSlotLabel, isBambuLabSpool, slotPresetDescribesTray } from '../../utils/amsHelpers';
 import { getSwatchStyle } from '../../utils/colors';
 import { AmsUnitCard, HumidityIndicator, TemperatureIndicator, NozzleBadge } from '../../components/spoolbuddy/AmsUnitCard';
 import type { AmsThresholds } from '../../components/spoolbuddy/AmsUnitCard';
@@ -362,7 +362,7 @@ export function SpoolBuddyAmsPage() {
 
   const handleAmsSlotClick = useCallback((amsId: number, trayId: number, tray: AMSTray | null) => {
     const globalTrayId = getGlobalTrayId(amsId, trayId, false);
-    const slotPreset = slotPresets?.[globalTrayId];
+    const slotPreset = slotPresetDescribesTray(slotPresets?.[globalTrayId]?.preset_id, tray?.tray_info_idx, slotPresets?.[globalTrayId]?.tray_info_idx) ? slotPresets?.[globalTrayId] : undefined;
     const mappedExtruderId = amsExtruderMap[String(amsId)];
     const normalizedId = amsId >= 128 ? amsId - 128 : amsId;
     const extruderId = mappedExtruderId !== undefined ? mappedExtruderId : normalizedId;
@@ -387,7 +387,7 @@ export function SpoolBuddyAmsPage() {
   const handleExtSlotClick = useCallback((extTray: AMSTray) => {
     const extTrayId = extTray.id ?? 254;
     const slotTrayId = extTrayId - 254;
-    const extSlotPreset = slotPresets?.[255 * 4 + slotTrayId];
+    const extSlotPreset = slotPresetDescribesTray(slotPresets?.[255 * 4 + slotTrayId]?.preset_id, extTray.tray_info_idx, slotPresets?.[255 * 4 + slotTrayId]?.tray_info_idx) ? slotPresets?.[255 * 4 + slotTrayId] : undefined;
     const slotData = {
       amsId: 255,
       trayId: slotTrayId,

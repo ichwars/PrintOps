@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +21,7 @@ from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.models.user import User
 from backend.app.services import slot_unlink_grace
 from backend.app.services.active_print_provenance import printer_is_printing
+from backend.app.services.orca_filament_lookup import orca_cloud_caller
 from backend.app.services.printer_manager import printer_manager
 from backend.app.services.spoolman import (
     SpoolmanClientError,
@@ -773,6 +774,7 @@ async def link_spool(
     request: LinkSpoolRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.FILAMENTS_UPDATE),
+    http_request: Request = None,
 ):
     """Link a Spoolman spool to an AMS tag by setting Spoolman extra.tag."""
     sm = await get_spoolman_settings(db)
@@ -909,9 +911,15 @@ async def link_spool(
                 from backend.app.services.spool_filament_presets import resolve_spool_preset
 
                 preset = await resolve_spool_preset(db, mapped, p_id, spoolman=True)
+                cloud_user, allowed = (
+                    await orca_cloud_caller(http_request, db, current_user)
+                    if http_request is not None
+                    else (current_user, True)
+                )
                 tray_info_idx, setting_id, label, material_override = await resolve_slicer_filament(
                     db=db,
-                    current_user=current_user,
+                    current_user=cloud_user,
+                    orca_lookup_allowed=allowed,
                     slicer_filament=preset.slicer_filament,
                     slicer_filament_name=preset.slicer_filament_name,
                     material=material,

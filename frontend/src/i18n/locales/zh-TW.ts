@@ -8981,6 +8981,12 @@ useEmbedded: '使用檔案內建設定',
 
   // Configure AMS Slot Modal
   configureAmsSlot: {
+    orcaFallback: {
+      no_generic_filament_id: '{{material}} 沒有安全的通用預設。請選擇具有印表機耗材 ID 的設定檔。',
+      no_filament_id: '此 Orca 設定檔沒有自己的線材 ID，因此 OrcaSlicer 會將此槽位識別為 Generic {{material}}。',
+      lookup_failed: '無法從 Orca Cloud 讀取此設定檔的線材 ID，因此 OrcaSlicer 會將此槽位識別為 Generic {{material}}。請稍後再試。',
+      no_permission: '你沒有 Orca Cloud 存取權限，因此無法讀取此設定檔的線材 ID。OrcaSlicer 會將此槽位識別為 Generic {{material}}。',
+    },
     title: '設定 AMS 槽位',
     slotConfigured: '槽位已設定！',
     configuringSlot: '正在設定槽位：',

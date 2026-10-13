@@ -9,6 +9,7 @@ from backend.app.models.printer import Printer
 from backend.app.models.spool import Spool
 from backend.app.models.spool_filament_preset import SpoolFilamentPreset, SpoolmanFilamentPreset
 from backend.app.schemas.spool_filament_preset import known_printer_model
+from backend.app.services.orca_filament_lookup import _ORCA_PROFILE_ID
 
 
 @dataclass(frozen=True)
@@ -54,12 +55,15 @@ async def apply_spool_rfid_calibration(db, client, spool, state, model, printer_
     filament_id, _, _, _ = await resolve_slicer_filament(
         db=db,
         current_user=None,
+        orca_generic_fallback=False,
         slicer_filament=preset.slicer_filament,
         slicer_filament_name=preset.slicer_filament_name,
         material=spool.material,
     )
     if not filament_id:
         filament_id = generic_filament_id(spool.material) if preset.configured else tray.get("tray_info_idx", "")
+    if not filament_id and _ORCA_PROFILE_ID.fullmatch((preset.slicer_filament or "").removeprefix("orca_")):
+        return
     apply_rfid_calibration(
         client, spool.k_profiles, state, model, printer_id, ams_id, tray_id, filament_id, tray.get("cali_idx")
     )
@@ -112,6 +116,7 @@ async def reconcile_spoolman_rfid_slot(**slot):
     filament_id, _, _, _ = await resolve_slicer_filament(
         db=db,
         current_user=None,
+        orca_generic_fallback=False,
         slicer_filament=preset.slicer_filament,
         slicer_filament_name=preset.slicer_filament_name,
         material=spool.get("material"),
@@ -119,6 +124,8 @@ async def reconcile_spoolman_rfid_slot(**slot):
     filament_id = filament_id or (
         generic_filament_id(spool.get("material")) if preset.configured else tray.get("tray_info_idx", "")
     )
+    if not filament_id and _ORCA_PROFILE_ID.fullmatch((preset.slicer_filament or "").removeprefix("orca_")):
+        return
     profiles = await db.scalars(select(SpoolmanKProfile).where(SpoolmanKProfile.spoolman_spool_id == spool["id"]))
     apply_rfid_calibration(
         client,

@@ -9008,6 +9008,12 @@ useEmbedded: 'Usar los ajustes integrados del archivo',
 
   // Configure AMS Slot Modal
   configureAmsSlot: {
+    orcaFallback: {
+      no_generic_filament_id: 'No existe un preajuste genérico seguro para {{material}}. Selecciona un perfil con un ID de filamento para la impresora.',
+      no_filament_id: 'Este perfil de Orca no tiene un ID de filamento propio, así que OrcaSlicer verá esta ranura como Generic {{material}}.',
+      lookup_failed: 'No se pudo leer el ID de filamento de este perfil desde Orca Cloud, así que OrcaSlicer verá esta ranura como Generic {{material}}. Inténtalo de nuevo en un momento.',
+      no_permission: 'No tienes acceso a Orca Cloud, así que no se pudo leer el ID de filamento de este perfil. OrcaSlicer verá esta ranura como Generic {{material}}.',
+    },
     title: 'Configurar la ranura del AMS',
     slotConfigured: '¡Ranura configurada!',
     configuringSlot: 'Configurando la ranura:',

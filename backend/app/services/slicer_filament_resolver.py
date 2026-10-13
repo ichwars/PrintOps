@@ -40,6 +40,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.user import User
+from backend.app.services.orca_filament_lookup import (
+    _ORCA_PROFILE_ID,
+    OrcaFilamentLookup,  # noqa: F401 - import compatibility
+    _orca_generic_filament_id,
+    lookup_orca_filament_id,
+)
 from backend.app.utils.filament_ids import (
     GENERIC_FILAMENT_IDS,
     filament_id_to_setting_id,
@@ -66,6 +72,8 @@ async def resolve_slicer_filament(
     slicer_filament: str | None,
     slicer_filament_name: str | None,
     material: str | None,
+    orca_lookup_allowed: bool = True,
+    orca_generic_fallback: bool = True,
 ) -> tuple[str, str, str | None, str | None]:
     """Resolve a spool's slicer-preset reference to printer-side ids.
 
@@ -80,6 +88,11 @@ async def resolve_slicer_filament(
 
     ``material``: spool material string for the local-preset fallback
     branch when the LocalPreset's setting JSON doesn't carry a filament_id.
+
+    ``orca_lookup_allowed`` carries the request cloud-scope fence; False
+    selects the generic Orca fallback without reading any stored pairing.
+    Background callers disable ``orca_generic_fallback`` to preserve their
+    reported-tray fallback when no caller-owned lookup can resolve the profile.
 
     Returns the two preset IDs plus optional descriptive-name and protocol-type
     overrides supplied by the resolved slicer preset.
@@ -103,7 +116,22 @@ async def resolve_slicer_filament(
     # All three need a cloud-detail lookup to extract the underlying
     # filament_id; without it the raw cloud id ends up in tray_info_idx
     # and the printer's calibration table can't resolve it.
-    if base_sf.startswith("GFS") or base_sf.startswith("PFUS") or base_sf.startswith("PFCN"):
+    orca_id = sf.removeprefix("orca_")
+    if _ORCA_PROFILE_ID.fullmatch(orca_id):
+        found = (
+            await lookup_orca_filament_id(db, current_user, orca_id)
+            if orca_lookup_allowed
+            else OrcaFilamentLookup(reason="no_permission")
+        )
+        tray_info_idx = found.filament_id
+        setting_id = filament_id_to_setting_id(tray_info_idx) if tray_info_idx else ""
+        sub_brand_override = found.name.split("@")[0].strip() if found.name else None
+        type_override = found.filament_type
+        if not tray_info_idx and orca_generic_fallback:
+            tray_info_idx = _orca_generic_filament_id(type_override or material or "")
+            if not tray_info_idx:
+                raise ValueError(f"No safe generic filament ID for Orca material {type_override or material!r}")
+    elif base_sf.startswith("GFS") or base_sf.startswith("PFUS") or base_sf.startswith("PFCN"):
         setting_id = base_sf
         try:
             from backend.app.api.routes.cloud import build_authenticated_cloud

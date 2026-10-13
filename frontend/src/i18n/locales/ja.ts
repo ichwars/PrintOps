@@ -8994,6 +8994,12 @@ useEmbedded: 'ファイル内蔵設定を使用',
 
   // Configure AMS Slot Modal
   configureAmsSlot: {
+    orcaFallback: {
+      no_generic_filament_id: '{{material}} に対応する安全な汎用プリセットがありません。プリンター用フィラメント ID を持つプロファイルを選択してください。',
+      no_filament_id: 'このOrcaプロファイルには独自のフィラメントIDがないため、OrcaSlicerではこのスロットがGeneric {{material}}として表示されます。',
+      lookup_failed: 'Orca CloudからこのプロファイルのフィラメントIDを読み取れなかったため、OrcaSlicerではこのスロットがGeneric {{material}}として表示されます。しばらくしてから再試行してください。',
+      no_permission: 'Orca Cloudへのアクセス権がないため、このプロファイルのフィラメントIDを読み取れませんでした。OrcaSlicerではこのスロットがGeneric {{material}}として表示されます。',
+    },
     title: 'AMSスロットの設定',
     slotConfigured: 'スロットを設定しました！',
     configuringSlot: 'スロットを設定中：',

@@ -2,11 +2,14 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { X, Loader2, Settings2, CheckCircle2, RotateCcw } from 'lucide-react';
+import { genericFilamentIdForMaterial, genericFilamentMaterialForId } from '../utils/filamentPresets';
+
 import { api } from '../api/client';
 import type { KProfile } from '../api/client';
 import { matchesPrinterModelSuffix, presetCompatibility, buildCompatibilityIndex } from '../utils/slicerPrinterMatch';
 import { toFilamentId, isGenericFilamentId } from './spool-form/utils';
 import { Button } from './Button';
+import { useToast } from '../contexts/ToastContext';
 import { getAmsLabel } from '../utils/amsHelpers';
 import { LegacySelect, TextField } from './ui';
 import { useCancellableTimeout } from '../hooks/useCancellableTimeout';
@@ -292,6 +295,8 @@ export function ConfigureAmsSlotModal({
   fullScreen,
 }: ConfigureAmsSlotModalProps) {
   const { t } = useTranslation();
+  const { showToast } = useToast();
+  const [openedPresetId, setOpenedPresetId] = useState('');
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
   const [selectedKProfile, setSelectedKProfile] = useState<KProfile | null>(null);
   const [colorHex, setColorHex] = useState<string>(''); // Just the 6-char hex, no alpha
@@ -451,45 +456,16 @@ export function ConfigureAmsSlotModal({
       // Prefer this over stored filament_type which may have been parsed with old logic.
       const parsedMat = parsed.material.toUpperCase();
 
-      // Generic Bambu filament-ID map used to derive a ``tray_info_idx`` for
-      // presets that don't carry a Bambu setting_id of their own (local
-      // imports and Orca Cloud sync both fall in this bucket). The printer's
-      // firmware needs SOMETHING in tray_info_idx to recognize the filament
-      // type for HMS / drying / colour-matching; the closest generic Bambu
-      // filament for the parsed material is the right choice.
-      const GENERIC_IDS: Record<string, string> = {
-        'PLA': 'GFL99', 'PLA-CF': 'GFL98', 'PLA SILK': 'GFL96', 'PLA HIGH SPEED': 'GFL95',
-        'PETG': 'GFG99', 'PETG HF': 'GFG96', 'PETG-CF': 'GFG98', 'PCTG': 'GFG97',
-        'ABS': 'GFB99', 'ASA': 'GFB98',
-        'PC': 'GFC99',
-        'PA': 'GFN99', 'PA-CF': 'GFN98', 'NYLON': 'GFN99',
-        'TPU': 'GFU99',
-        'PVA': 'GFS99', 'HIPS': 'GFS98',
-        'PE': 'GFP99', 'PP': 'GFP97',
-      };
-
       if (isLocal) {
         // Local presets have no Bambu Cloud setting_id, but need a valid
         // tray_info_idx for the printer to recognize the filament type.
         const material = (MATERIAL_TYPES.includes(parsedMat) ? parsedMat : localPreset?.filament_type || parsed.material || '').toUpperCase();
         // Try exact match first, then base material (strip suffixes like "-CF", "+", " HF")
-        trayInfoIdx = GENERIC_IDS[material]
-          || GENERIC_IDS[material.replace(/[-\s]?CF$/, '')]
-          || GENERIC_IDS[material.replace(/\+$/, '')]
-          || GENERIC_IDS[material.split(/[-\s]/)[0]]
-          || '';
+        trayInfoIdx = genericFilamentIdForMaterial(material);
         settingId = '';
       } else if (isOrca) {
-        // Orca Cloud presets have a UUID setting_id that Bambu printers can't
-        // resolve; treat them like local imports — derive a generic tray_info
-        // _idx from the parsed material, leave settingId empty so the slicer
-        // doesn't get a foreign cloud ID it can't look up.
-        const material = (MATERIAL_TYPES.includes(parsedMat) ? parsedMat : parsed.material || '').toUpperCase();
-        trayInfoIdx = GENERIC_IDS[material]
-          || GENERIC_IDS[material.replace(/[-\s]?CF$/, '')]
-          || GENERIC_IDS[material.replace(/\+$/, '')]
-          || GENERIC_IDS[material.split(/[-\s]/)[0]]
-          || '';
+        // The server resolves the profile's printer identity and reports fallback.
+        trayInfoIdx = '';
         settingId = '';
       } else if (isBuiltin) {
         // Built-in presets use the filament_id directly as tray_info_idx
@@ -578,10 +554,20 @@ export function ConfigureAmsSlotModal({
         kprofile_setting_id: selectedKProfile?.setting_id || undefined,
         // Also pass the K value directly for extrusion_cali_set command
         k_value: kValue,
+        orca_profile_id: isOrca ? orcaSettingId : undefined,
+      }).catch((error: unknown) => {
+        const apiError = error as { code?: string; detail?: { material?: string } };
+        if (apiError?.code === 'orca_no_generic_filament_id') {
+          throw new Error(t('configureAmsSlot.orcaFallback.no_generic_filament_id', { material: apiError.detail?.material || trayType }));
+        }
+        throw error;
       });
 
+      if (isOrca && result.orca_fallback_reason) {
+        showToast(t(`configureAmsSlot.orcaFallback.${result.orca_fallback_reason}`, { material: genericFilamentMaterialForId(result.tray_info_idx) || trayType }), 'warning');
+      }
+
       // Save the preset mapping so we can display the correct name in the UI
-      // This is needed because user presets use filament_id (e.g., P285e239) as tray_info_idx,
       // which can't be resolved to a name via the filamentInfo API
       const mappingPresetId = isLocal
         ? `local_${localId}`
@@ -598,7 +584,7 @@ export function ConfigureAmsSlotModal({
             ? 'orca_cloud'
             : 'cloud';
       try {
-        await api.saveSlotPreset(printerId, slotInfo.amsId, slotInfo.trayId, mappingPresetId, traySubBrands, mappingSource);
+        await api.saveSlotPreset(printerId, slotInfo.amsId, slotInfo.trayId, mappingPresetId, traySubBrands, mappingSource, result.tray_info_idx);
       } catch (e) {
         console.warn('Failed to save slot preset mapping:', e);
         // Don't fail the whole operation - slot was configured successfully
@@ -951,14 +937,11 @@ export function ConfigureAmsSlotModal({
 
     const result = Array.from(seen.values());
 
-    // Always include the slot's currently-active K-profile (by cali_idx / slot_id),
-    // even if its name and filament_id didn't match the selected preset (#1689).
-    // A spool assigned under "Generic PLA" can have a K-profile actively bound on
-    // the printer whose filament_id differs from "Generic PLA"; without this
-    // safety net the modal shows "not assigned, default 0.020" while the printer
-    // card's hover-card correctly shows the active profile.
+    // Retain active calibration only while configuring the slot's current preset.
+    const onSlotsOwnPreset = (!!openedPresetId && selectedPresetId === openedPresetId)
+      || (!!presetFid && presetFid === toFilamentId(slotInfo.trayInfoIdx));
     const activeIdx = slotInfo.caliIdx;
-    if (activeIdx != null && activeIdx > 0 && !result.some(p => p.slot_id === activeIdx)) {
+    if (onSlotsOwnPreset && activeIdx != null && activeIdx > 0 && !result.some(p => p.slot_id === activeIdx)) {
       const active = kprofilesData.profiles.find(
         p => p.slot_id === activeIdx
           && (slotInfo.extruderId === undefined || p.extruder_id === slotInfo.extruderId),
@@ -967,7 +950,7 @@ export function ConfigureAmsSlotModal({
     }
 
     return result;
-  }, [kprofilesData?.profiles, selectedPresetInfo, slotInfo.extruderId, slotInfo.caliIdx]);
+  }, [kprofilesData?.profiles, selectedPresetInfo, slotInfo.extruderId, slotInfo.caliIdx, openedPresetId, selectedPresetId, slotInfo.trayInfoIdx]);
 
   // Pre-select current profile when modal opens, reset when closes
   useEffect(() => {
@@ -975,6 +958,7 @@ export function ConfigureAmsSlotModal({
       // Pre-populate from saved preset mapping (most reliable)
       if (slotInfo.savedPresetId) {
         setSelectedPresetId(slotInfo.savedPresetId);
+        setOpenedPresetId(slotInfo.savedPresetId);
       } else if (slotInfo.trayInfoIdx && cloudSettings?.filament) {
         // Fallback: try to match by tray_info_idx in cloud presets
         // First try exact match on setting_id
@@ -989,6 +973,7 @@ export function ConfigureAmsSlotModal({
         }
         if (currentPreset) {
           setSelectedPresetId(currentPreset.setting_id);
+          setOpenedPresetId(currentPreset.setting_id);
         }
       } else if (slotInfo.trayInfoIdx && builtinFilaments?.length) {
         // Last resort: match trayInfoIdx against builtin presets
@@ -996,6 +981,7 @@ export function ConfigureAmsSlotModal({
         const match = builtinFilaments.find(bf => bf.filament_id === trayIdx);
         if (match) {
           setSelectedPresetId(`builtin_${match.filament_id}`);
+          setOpenedPresetId(`builtin_${match.filament_id}`);
         }
       }
 
@@ -1009,6 +995,7 @@ export function ConfigureAmsSlotModal({
     } else {
       // Reset when modal closes
       setSelectedPresetId('');
+      setOpenedPresetId('');
       setSelectedKProfile(null);
       setColorHex('');
       setColorInput('');

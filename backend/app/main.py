@@ -1557,7 +1557,6 @@ async def _unlink_stale_assignments(printer_id: int, ams_data: list, _print_acti
                     fp_color = assignment.fingerprint_color or ""
                     fp_type = assignment.fingerprint_type or ""
 
-                    # Retry a pre-assignment once the firmware sees a spool.
                     # Presence bits overrule cached empty states, including AMS-HT;
                     # retain the existing firmware fallback when no bit is present.
                     from backend.app.services.ams_slot_presence import spool_present
@@ -1574,6 +1573,7 @@ async def _unlink_stale_assignments(printer_id: int, ams_data: list, _print_acti
                             configured = await apply_spool_to_slot_via_mqtt(
                                 db=db,
                                 current_user=None,
+                                orca_generic_fallback=False,
                                 spool=assignment.spool,
                                 printer_id=printer_id,
                                 ams_id=assignment.ams_id,

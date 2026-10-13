@@ -352,3 +352,11 @@ describe('resolveFilamentId', () => {
     expect(fetchDetail).not.toHaveBeenCalled();
   });
 });
+
+it.each([
+  ['PPA-GF', 'GFN96'], ['PPA-CF', 'GFN97'], ['PP-GF', 'GFP95'], ['PP-CF', 'GFP96'],
+  ['PE-CF', 'GFP98'], ['PHA', 'GFR98'], ['EVA', 'GFR99'], ['BVOH', 'GFS97'],
+  ['PPS', 'GFT97'], ['PPS-CF', 'GFT98'], ['TPU for AMS', 'GFU98'],
+])('uses the specific built-in generic identity for %s', (material, expected) => {
+  expect(genericFilamentIdForMaterial(material)).toBe(expected);
+});

@@ -434,6 +434,7 @@ async def get_slot_presets(
             "tray_id": mapping.tray_id,
             "preset_id": mapping.preset_id,
             "preset_name": mapping.preset_name,
+            "tray_info_idx": mapping.tray_info_idx,
         }
         for mapping in mappings
     }
@@ -465,6 +466,7 @@ async def get_slot_preset(
         "tray_id": mapping.tray_id,
         "preset_id": mapping.preset_id,
         "preset_name": mapping.preset_name,
+        "tray_info_idx": mapping.tray_info_idx,
     }
 
 
@@ -476,10 +478,12 @@ async def save_slot_preset(
     preset_id: str,
     preset_name: str,
     preset_source: str = "cloud",
+    tray_info_idx: str | None = None,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_UPDATE),
     db: AsyncSession = Depends(get_db),
 ):
     """Save a preset mapping for a specific slot."""
+    tray_info_idx = tray_info_idx if tray_info_idx and len(tray_info_idx) <= 32 else None
     # Check printer exists
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
     if not result.scalar_one_or_none():
@@ -500,6 +504,7 @@ async def save_slot_preset(
         mapping.preset_id = preset_id
         mapping.preset_name = preset_name
         mapping.preset_source = preset_source
+        mapping.tray_info_idx = tray_info_idx
     else:
         # Create new
         mapping = SlotPresetMapping(
@@ -509,6 +514,7 @@ async def save_slot_preset(
             preset_id=preset_id,
             preset_name=preset_name,
             preset_source=preset_source,
+            tray_info_idx=tray_info_idx,
         )
         db.add(mapping)
 
@@ -520,6 +526,7 @@ async def save_slot_preset(
         "tray_id": mapping.tray_id,
         "preset_id": mapping.preset_id,
         "preset_name": mapping.preset_name,
+        "tray_info_idx": mapping.tray_info_idx,
         "preset_source": mapping.preset_source,
     }
 

@@ -8937,6 +8937,12 @@ useEmbeddedHint: 'Yukarıdaki profiller yerine tasarımcının ayarlarıyla (duv
 
   // AMS Yuva Yapılandırma Modali
   configureAmsSlot: {
+    orcaFallback: {
+      no_generic_filament_id: '{{material}} için güvenli bir genel ön ayar yok. Yazıcı filaman kimliği olan bir profil seçin.',
+      no_filament_id: 'Bu Orca profilinin kendine ait bir filament kimliği yok, bu yüzden OrcaSlicer bu yuvayı Generic {{material}} olarak görecek.',
+      lookup_failed: 'Bu profilin filament kimliği Orca Cloud\'dan okunamadı, bu yüzden OrcaSlicer bu yuvayı Generic {{material}} olarak görecek. Birazdan tekrar deneyin.',
+      no_permission: 'Orca Cloud erişiminiz yok, bu yüzden bu profilin filament kimliği okunamadı. OrcaSlicer bu yuvayı Generic {{material}} olarak görecek.',
+    },
     title: 'AMS Yuvasını Yapılandır',
     slotConfigured: 'Yuva Yapılandırıldı!',
     configuringSlot: 'Yuva yapılandırılıyor:',

@@ -13,7 +13,7 @@ import { FilamentHoverCard, EmptySlotHoverCard } from '../../components/Filament
 import { ChamberLight } from '../../components/icons/ChamberLight';
 import { PlateClearedIcon } from '../../components/icons/PlateClearedIcon';
 import { SkipObjectsIcon } from '../../components/SkipObjectsModal';
-import { getAmsLabel, getGlobalTrayId, getFillBarColor, getSpoolmanFillLevel, getFallbackSpoolTag, isBambuLabSpool } from '../../utils/amsHelpers';
+import { getAmsLabel, getGlobalTrayId, getFillBarColor, getSpoolmanFillLevel, getFallbackSpoolTag, isBambuLabSpool, slotPresetDescribesTray } from '../../utils/amsHelpers';
 import { getPrinterImage, getWifiStrength } from '../../utils/printer';
 import { isBedSlinger } from '../../utils/bedSlinger';
 import { PRINTER_CONTROL_CAPABILITIES, isCloudControlCandidate, isCloudControlUncertain, isPrintOpsCloudControlImplemented, type PrinterControlAction } from '../../utils/printerControlCapabilities';
@@ -1861,7 +1861,7 @@ return (
                                 // Get cloud preset info if available
                                 const cloudInfo = tray?.tray_info_idx ? filamentInfo?.[tray.tray_info_idx] : null;
                                 // Get saved slot preset mapping (for user-configured slots)
-                                const slotPreset = slotPresets?.[globalTrayId];
+                                const slotPreset = slotPresetDescribesTray(slotPresets?.[globalTrayId]?.preset_id, tray?.tray_info_idx, slotPresets?.[globalTrayId]?.tray_info_idx) ? slotPresets?.[globalTrayId] : undefined;
 
                                 // Fill level fallback chain: Spoolman → Inventory → AMS remain
                                 const trayTag = (tray?.tray_uuid || tray?.tag_uid || getFallbackSpoolTag(printer.serial_number, ams.id, slotIdx))?.toUpperCase();
@@ -2161,7 +2161,7 @@ return (
                       // Get cloud preset info if available
                       const cloudInfo = tray?.tray_info_idx ? filamentInfo?.[tray.tray_info_idx] : null;
                       // Get saved slot preset mapping (for user-configured slots)
-                      const slotPreset = slotPresets?.[globalTrayId];
+                      const slotPreset = slotPresetDescribesTray(slotPresets?.[globalTrayId]?.preset_id, tray?.tray_info_idx, slotPresets?.[globalTrayId]?.tray_info_idx) ? slotPresets?.[globalTrayId] : undefined;
                       const htSlotId = tray?.id ?? 0;
 
                         // Fill level fallback chain: Spoolman → Inventory → AMS remain
@@ -2572,7 +2572,7 @@ return (
                                 ? (extTrayId === 254 ? t('printers.extL') : t('printers.extR'))
                                 : '';
                               const extCloudInfo = extTray.tray_info_idx ? filamentInfo?.[extTray.tray_info_idx] : null;
-                              const extSlotPreset = slotPresets?.[255 * 4 + slotTrayId];
+                              const extSlotPreset = slotPresetDescribesTray(slotPresets?.[255 * 4 + slotTrayId]?.preset_id, extTray.tray_info_idx, slotPresets?.[255 * 4 + slotTrayId]?.tray_info_idx) ? slotPresets?.[255 * 4 + slotTrayId] : undefined;
 
                               const extTrayTag = (extTray.tray_uuid || extTray.tag_uid || getFallbackSpoolTag(printer.serial_number, 255, slotTrayId))?.toUpperCase();
                               const extLinkedSpool = extTrayTag ? linkedSpools?.[extTrayTag] : undefined;

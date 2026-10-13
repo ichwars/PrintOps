@@ -8683,6 +8683,12 @@ useEmbedded: '파일의 내장 설정 사용',
     }
   },
   configureAmsSlot: {
+    orcaFallback: {
+      no_generic_filament_id: '{{material}}에 사용할 안전한 일반 프리셋이 없습니다. 프린터용 필라멘트 ID가 있는 프로필을 선택하세요.',
+      no_filament_id: '이 Orca 프로필에는 자체 필라멘트 ID가 없어 OrcaSlicer에서 이 슬롯이 Generic {{material}}(으)로 표시됩니다.',
+      lookup_failed: 'Orca Cloud에서 이 프로필의 필라멘트 ID를 읽지 못해 OrcaSlicer에서 이 슬롯이 Generic {{material}}(으)로 표시됩니다. 잠시 후 다시 시도하세요.',
+      no_permission: 'Orca Cloud 접근 권한이 없어 이 프로필의 필라멘트 ID를 읽을 수 없었습니다. OrcaSlicer에서 이 슬롯이 Generic {{material}}(으)로 표시됩니다.',
+    },
     title: 'AMS 슬롯 구성',
     slotConfigured: '슬롯 구성됨!',
     configuringSlot: '슬롯 구성 중:',

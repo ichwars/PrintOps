@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timezone
 
 import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import delete, func, select
@@ -62,6 +62,7 @@ from backend.app.services.location_service import (
     protect_warehouse_location,
     rename_location as rename_location_record,
 )
+from backend.app.services.orca_filament_lookup import _ORCA_PROFILE_ID, orca_cloud_caller
 from backend.app.services.order_errors import ResourceNotFoundError, VersionConflictError
 from backend.app.services.slicer_filament_resolver import resolve_slicer_filament
 from backend.app.services.spool_csv import (
@@ -161,6 +162,8 @@ async def apply_spool_to_slot_via_mqtt(
     current_tray_info_idx: str = "",
     current_tray_type: str = "",
     assignment: SpoolAssignment | None = None,
+    orca_lookup_allowed: bool = True,
+    orca_generic_fallback: bool = True,
 ) -> bool:
     """Publish ams_filament_setting + extrusion_cali_sel for a spool on a slot.
 
@@ -184,8 +187,6 @@ async def apply_spool_to_slot_via_mqtt(
     tray_sub_brands = tray_sub_brand(spool.brand, spool.material, spool.subtype)
     tray_color = spool.rgba or "FFFFFFFF"
 
-    _generic_id_values = _GENERIC_ID_VALUES
-
     # Model overrides precede the legacy preset; NULL explicitly selects generic.
     tray_info_idx, setting_id, sub_brand_override, type_override = await resolve_slicer_filament(
         db=db,
@@ -193,6 +194,8 @@ async def apply_spool_to_slot_via_mqtt(
         slicer_filament=preset.slicer_filament,
         slicer_filament_name=preset.slicer_filament_name,
         material=spool.material,
+        orca_lookup_allowed=orca_lookup_allowed,
+        orca_generic_fallback=orca_generic_fallback,
     )
     if sub_brand_override:
         tray_sub_brands = sub_brand_override
@@ -203,7 +206,7 @@ async def apply_spool_to_slot_via_mqtt(
         if (
             not preset.configured
             and current_tray_info_idx
-            and current_tray_info_idx not in _generic_id_values
+            and current_tray_info_idx not in _GENERIC_ID_VALUES
             and not current_tray_info_idx.startswith("PFUS")
             and not current_tray_info_idx.startswith("PFCN")
             and not is_material_name(current_tray_info_idx)
@@ -214,7 +217,6 @@ async def apply_spool_to_slot_via_mqtt(
         elif tray_type:
             tray_info_idx = generic_filament_id(spool.material, tray_type)
 
-    # Avoid a half-configured slicer slot when a preset yields only a filament id.
     if tray_info_idx and not setting_id:
         setting_id = filament_id_to_setting_id(tray_info_idx)
 
@@ -249,6 +251,9 @@ async def apply_spool_to_slot_via_mqtt(
             effective_setting_id,
             "printer" if printer_kp else "stored",
         )
+
+    if not effective_tray_info_idx and _ORCA_PROFILE_ID.fullmatch((preset.slicer_filament or "").removeprefix("orca_")):
+        return False
 
     client.ams_set_filament_setting(
         ams_id=ams_id,
@@ -294,7 +299,6 @@ async def apply_spool_to_slot_via_mqtt(
             spool.id,
         )
 
-    # Keep the slot card's preferred preset mapping and assignment in sync.
     from backend.app.services.slot_preset_writer import upsert_slot_preset_for_spool
 
     if assignment is not None:
@@ -305,10 +309,10 @@ async def apply_spool_to_slot_via_mqtt(
         printer_id=printer_id,
         ams_id=ams_id,
         tray_id=tray_id,
-        tray_info_idx=tray_info_idx,
+        tray_info_idx=effective_tray_info_idx,
         tray_sub_brands=tray_sub_brands,
         tray_type=tray_type,
-        setting_id=setting_id,
+        setting_id=effective_setting_id,
     )
     logger.info(
         "Auto-configured AMS slot ams=%d tray=%d for spool %d on printer %d",
@@ -1739,9 +1743,7 @@ async def list_assignments(
                     except (ValueError, TypeError):
                         continue
 
-    # Fetch all relevant AMS labels keyed by serial number
     all_serials = set(serial_map.values())
-    # Also include synthetic fallback keys for assignments without a known serial
     synthetic_keys: dict[str, tuple[int, int]] = {}
     for a in assignments:
         if (a.printer_id, a.ams_id) not in serial_map:
@@ -1755,7 +1757,6 @@ async def list_assignments(
         for lbl in lbl_result.scalars().all():
             label_by_serial[lbl.ams_serial_number] = lbl.label
 
-    # Build response objects, attaching ams_label where available
     responses: list[SpoolAssignmentResponse] = []
     for a in assignments:
         resp = SpoolAssignmentResponse.model_validate(a)
@@ -1775,9 +1776,9 @@ async def assign_spool(
     data: SpoolAssignmentCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+    http_request: Request = None,
 ):
     """Assign a spool to an AMS slot and auto-configure via MQTT."""
-    # 1. Validate spool exists and is not archived
     from backend.app.services import slot_unlink_grace
     from backend.app.services.ams_slot_presence import spool_present
     from backend.app.services.printer_manager import printer_manager
@@ -1862,16 +1863,19 @@ async def assign_spool(
     await db.refresh(assignment)
     slot_unlink_grace.forget_slot(data.printer_id, data.ams_id, data.tray_id)
 
-    # 4. Auto-configure AMS slot via MQTT. A positive presence bit overrules
-    # stale states 9/10 (including AMS-HT). A false bit does not introduce a
-    # new suppression rule: firmware can harmlessly drop a push to an empty slot.
     slot_is_definitely_empty = slot_presence is not True and tray_state in (9, 10)
     configured = False
     if not slot_is_definitely_empty:
         try:
+            cloud_user, allowed = (
+                await orca_cloud_caller(http_request, db, current_user)
+                if http_request is not None
+                else (current_user, True)
+            )
             configured = await apply_spool_to_slot_via_mqtt(
                 db=db,
-                current_user=current_user,
+                current_user=cloud_user,
+                orca_lookup_allowed=allowed,
                 spool=spool,
                 printer_id=data.printer_id,
                 ams_id=data.ams_id,
@@ -1882,13 +1886,8 @@ async def assign_spool(
             )
         except Exception as e:
             logger.warning("MQTT auto-configure failed for spool %d: %s", spool.id, e)
-    # pending_config is the "config not landed yet" UI marker. True when the
-    # firmware said empty, OR when MQTT couldn't actually publish (printer
-    # offline, no client, transient failure). on_ams_change replay re-fires
-    # the config in either case once the AMS reports a non-empty fingerprint.
     pending_config = slot_is_definitely_empty or not configured
 
-    # Return assignment with spool data
     result = await db.execute(
         select(SpoolAssignment)
         .options(
