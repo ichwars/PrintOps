@@ -208,3 +208,34 @@ async def test_startup_legacy_empty_scope_is_compatible_only_once(async_client, 
         await init_db()
     await db_session.refresh(legacy)
     assert legacy.allowed_printer_ids == []
+
+
+async def test_settings_reset_preserves_deny_all_migration_history(
+    async_client, printer_factory, db_session, test_engine
+):
+    from backend.app.api.routes.auth import set_auth_enabled
+    from backend.app.api.routes.settings import DEFAULT_SETTINGS
+    from backend.app.core.database import init_db
+    from backend.app.models.settings import Settings
+
+    with patch("backend.app.core.database.engine", test_engine):
+        await init_db()
+    printer = await printer_factory()
+    uid, headers, params = await mint(async_client, [])
+    changed = await async_client.put("/api/v1/settings/", headers=headers, json={"currency": "JPY"})
+    assert changed.status_code == 200
+    reset = await async_client.post("/api/v1/settings/reset", headers=headers)
+    assert reset.status_code == 200
+    assert reset.json()["currency"] == DEFAULT_SETTINGS.currency
+    assert "migration_user_printer_scope_deny_all_v1" not in reset.json()
+    with patch("backend.app.core.database.engine", test_engine):
+        await init_db()
+    owner = await db_session.get(User, uid, populate_existing=True)
+    assert owner.allowed_printer_ids == []
+    marker = await db_session.scalar(select(Settings).where(Settings.key == "migration_user_printer_scope_deny_all_v1"))
+    assert marker is not None
+    # Public reset retains its established auth-off defaults. Restore auth in
+    # the isolated fixture to observe token authorization, without changing reset.
+    await set_auth_enabled(db_session, True)
+    await db_session.commit()
+    assert (await async_client.get(f"/api/v1/printers/{printer.id}/overlay-status", params=params)).status_code == 403

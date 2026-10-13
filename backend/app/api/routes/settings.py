@@ -17,6 +17,7 @@ from backend.app.core.auth import RequirePermissionIfAuthEnabled, caller_is_api_
 from backend.app.core.config import settings as app_settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
+from backend.app.core.user_printer_scope import USER_PRINTER_SCOPE_MIGRATION_KEY
 from backend.app.models.settings import Settings
 from backend.app.models.user import User
 from backend.app.schemas.settings import AppSettings, AppSettingsUpdate
@@ -307,8 +308,8 @@ async def reset_settings(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
 ):
     """Reset all settings to defaults."""
-    # Delete all settings
-    result = await db.execute(select(Settings))
+    # Reset public settings while preserving one-time authorization history.
+    result = await db.execute(select(Settings).where(Settings.key != USER_PRINTER_SCOPE_MIGRATION_KEY))
     for setting in result.scalars().all():
         await db.delete(setting)
 

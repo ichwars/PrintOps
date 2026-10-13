@@ -22,7 +22,7 @@ from backend.app.core.auth import (
 )
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
-from backend.app.core.user_printer_scope import validate_printer_grants
+from backend.app.core.user_printer_scope import prepare_printer_scope_write, validate_printer_grants
 from backend.app.models.api_key import APIKey
 from backend.app.models.archive import PrintArchive
 from backend.app.models.auth_ephemeral import AuthEphemeralToken, TokenType
@@ -106,6 +106,9 @@ async def create_user(
     import logging
 
     logger = logging.getLogger(__name__)
+
+    if user_data.allowed_printer_ids is not None:
+        await prepare_printer_scope_write(db)
 
     # Check if advanced auth is enabled
     result = await db.execute(select(Settings).where(Settings.key == "advanced_auth_enabled"))
@@ -225,6 +228,8 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
 ):
     """Update a user."""
+    if "allowed_printer_ids" in user_data.model_fields_set:
+        await prepare_printer_scope_write(db)
     result = await db.execute(select(User).where(User.id == user_id).options(selectinload(User.groups)))
     user = result.scalar_one_or_none()
     if not user:

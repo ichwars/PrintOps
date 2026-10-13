@@ -161,6 +161,8 @@ async def test_postgres_upgrade_is_idempotent_by_sql_construction():
 
     connection = MagicMock()
     connection.begin_nested = lambda: _AsyncContext()
+    connection.dialect.name = "postgresql"
+    connection.run_sync = AsyncMock(return_value={"allowed_printer_ids"})
     connection.execute = AsyncMock(return_value=MagicMock(fetchone=MagicMock(return_value=None)))
 
     with (

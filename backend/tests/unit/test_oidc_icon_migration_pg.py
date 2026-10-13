@@ -51,6 +51,8 @@ async def _capture_sql(is_sqlite_value: bool) -> list[str]:
 
     fake_conn = MagicMock()
     fake_conn.begin_nested = lambda: _AsyncCtxStub()
+    fake_conn.dialect.name = "sqlite" if is_sqlite_value else "postgresql"
+    fake_conn.run_sync = AsyncMock(return_value={"allowed_printer_ids"})
     fake_conn.execute = AsyncMock(return_value=MagicMock(fetchone=MagicMock(return_value=None)))
 
     with (

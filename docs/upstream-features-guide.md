@@ -243,4 +243,7 @@ Entfernen der letzten Freigabe bleiben keine Drucker erlaubt, auch nach Neustart
 oder Benutzerbearbeitung. Uneingeschränkten Zugriff stellt ein Administrator nur
 durch die ausdrückliche Auswahl „Alle Drucker“ wieder her. Eine einmalige
 Startmigration erhält die bisherige uneingeschränkte Bedeutung historischer
-leerer Freigabelisten.
+leerer Freigabelisten. Ihre interne Migrationsmarkierung bleibt beim Zurücksetzen
+der Einstellungen und in vollständigen Datenbanksicherungen erhalten. Gleichzeitige
+Freigabeänderungen und Druckerlöschungen werden innerhalb der Datenbank serialisiert;
+bei einem Sperrzeitlimit kann die Anfrage erneut gesendet werden.
