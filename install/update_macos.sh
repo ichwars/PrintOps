@@ -230,6 +230,8 @@ RUNTIME_BACKUP="$(mktemp -d "$INSTALL_DIR/runtime/.verapdf-backup.XXXXXX")"
   --backup-dir "$RUNTIME_BACKUP/verapdf"
 RUNTIME_UPDATED=1
 
+bash "$INSTALL_DIR/install/macos_python_signature.sh" macos "$INSTALL_DIR/venv/bin/python"
+
 log "Starting service: $SERVICE_NAME"
 launchctl load "$PLIST_PATH"
 SERVICE_STOPPED=0

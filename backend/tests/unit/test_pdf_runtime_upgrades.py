@@ -59,6 +59,9 @@ def test_native_updater_refreshes_runtime_and_rolls_it_back(tmp_path, script, fa
     install.mkdir()
     (install / ".git").mkdir()
     (install / "scripts").mkdir()
+    (install / "install").mkdir()
+    helper = vendor.REPO_ROOT / "install/macos_python_signature.sh"
+    (install / "install" / helper.name).write_bytes(helper.read_bytes())
     (install / "requirements.lock.txt").touch()
     _old_runtime(install)
     venv = install / "venv/bin"
@@ -84,7 +87,7 @@ if name in ("systemctl", "launchctl") and args[0] in ("start", "load"):
         marker.touch()
         sys.exit(1)
 """
-    for name in ("git", "systemctl", "launchctl", "curl"):
+    for name in ("git", "systemctl", "launchctl", "curl", "codesign"):
         path = tools / name
         path.write_text(stub)
         path.chmod(0o755)
