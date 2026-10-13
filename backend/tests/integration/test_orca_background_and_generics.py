@@ -249,6 +249,44 @@ async def test_unknown_orca_generic_never_sends_empty_or_borrows_previous_slot(
     client.extrusion_cali_sel.assert_not_called()
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kprofile_filament_id", ["GFL99", "P4d64437"])
+async def test_unknown_orca_generic_rejects_unverified_kprofile_identity_before_side_effects(
+    async_client, db_session, printer_factory, kprofile_filament_id
+):
+    printer = await printer_factory()
+    client = MagicMock()
+    with (
+        patch("backend.app.api.routes.printers.printer_manager") as pm,
+        patch(
+            "backend.app.api.routes.printers_ams.lookup_orca_filament_id",
+            AsyncMock(return_value=OrcaFilamentLookup(reason="no_filament_id", filament_type="PEEK")),
+        ),
+    ):
+        pm.get_client.return_value = client
+        response = await async_client.post(
+            f"/api/v1/printers/{printer.id}/slots/0/2/configure",
+            params={
+                "orca_profile_id": ORCA_ID,
+                "tray_info_idx": "",
+                "tray_type": "PEEK",
+                "tray_sub_brands": "PEEK",
+                "tray_color": "FF0000FF",
+                "nozzle_temp_min": 350,
+                "nozzle_temp_max": 400,
+                "kprofile_filament_id": kprofile_filament_id,
+            },
+        )
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"]["code"] == "orca_no_generic_filament_id"
+    pm.get_status.assert_not_called()
+    client.ams_set_filament_setting.assert_not_called()
+    client.extrusion_cali_sel.assert_not_called()
+    client.extrusion_cali_set.assert_not_called()
+    client.request_status_update.assert_not_called()
+    assert (await db_session.execute(select(SlotPresetMapping))).scalars().all() == []
+
+
 def test_generic_catalog_keeps_all_29_existing_builtin_entries():
     assert len(GENERIC_ROWS) == 29
     assert len({fid for _, fid in GENERIC_ROWS}) == 29

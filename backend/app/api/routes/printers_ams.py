@@ -130,7 +130,7 @@ async def configure_ams_slot(
         if not tray_info_idx:
             orca_fallback_reason = found.reason or "no_filament_id"
             tray_info_idx = _orca_generic_filament_id(requested_tray_type)
-            if not tray_info_idx and not kprofile_filament_id:
+            if not tray_info_idx:
                 raise HTTPException(
                     422,
                     detail={
