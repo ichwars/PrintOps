@@ -14,7 +14,8 @@ RUN --mount=type=cache,target=/root/.npm \
 
 COPY frontend/ ./
 COPY backend/app/resources/filaments/generic_ids.json /app/backend/app/resources/filaments/generic_ids.json
-RUN npm run build
+# Releases validate both referenced TypeScript projects before bundling.
+RUN npm run typecheck && npm run build
 
 # Production image
 FROM python:3.13-slim-trixie

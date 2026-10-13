@@ -10,7 +10,7 @@ Steps:
     2. Configure embedded Python (allow site-packages)
     3. Bootstrap pip into the embedded distribution
     4. Install ``requirements.lock.txt`` into the embedded Python
-    5. Build the React frontend (``frontend/npm run build``)
+    5. Typecheck and build the React frontend
     6. Stage backend source + frontend bundle
     7. Download NSSM
     8. Download ffmpeg static build for Windows
@@ -237,7 +237,7 @@ def install_requirements(python_dir: Path) -> None:
 
 
 def build_frontend() -> Path:
-    """Run ``npm ci && npm run build`` and return the build output path.
+    """Install dependencies, validate types, and return the frontend bundle path.
 
     Vite is configured with ``outDir: '../static'`` (see
     ``frontend/vite.config.ts``), so the bundle lands at ``<repo>/static/``
@@ -251,6 +251,8 @@ def build_frontend() -> Path:
     if not npm:
         raise RuntimeError("npm not found on PATH — install Node.js 22 LTS")
     subprocess.run([npm, "ci"], cwd=frontend, check=True, shell=False)
+    log("running npm run typecheck in frontend/")
+    subprocess.run([npm, "run", "typecheck"], cwd=frontend, check=True, shell=False)
     log("running npm run build in frontend/")
     subprocess.run([npm, "run", "build"], cwd=frontend, check=True, shell=False)
     if not dist.exists():

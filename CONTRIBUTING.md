@@ -205,8 +205,20 @@ cd frontend
 npm run lint
 
 # Type check
-npx tsc --noEmit
+npm run typecheck
 ```
+
+`npm run build` bundles the frontend with Vite and writes production assets to
+`static/`. It does not check TypeScript types. Run `npm run typecheck` before
+bundling changes you intend to ship; it checks both the app and Vite configuration
+through the root project references. Incremental results are stored under
+`frontend/node_modules/.tmp/` and can be removed when a clean check is needed.
+
+From the repository root, `./test_frontend.sh` runs typecheck, lint and tests
+sequentially and reports failure if any stage fails. The separate required CI
+typecheck job gates frontend tests and builds. Docker source builds also run
+`npm run typecheck` before bundling, including container releases. Windows
+installer packaging also validates types.
 
 ### Pre-commit Hooks
 
