@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { screen, waitFor, render as rtlRender } from '@testing-library/react';
+import { act, screen, waitFor, fireEvent, render as rtlRender } from '@testing-library/react';
 import { StreamOverlayPage } from '../../pages/StreamOverlayPage';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
@@ -104,6 +104,63 @@ describe('StreamOverlayPage', () => {
   afterEach(() => {
     document.title = originalTitle;
     vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  describe('optional scoped details', () => {
+    const narrow = {
+      ...mockStatusPrinting, model: 'H2D', camera_rotation: 0, time_format: '24h',
+      supports_chamber_sensor: true,
+      temperatures: { nozzle: 180, nozzle_target: 220, nozzle_2: 215, bed: 60, chamber: 35 },
+    };
+    beforeEach(() => {
+      server.use(http.get('/api/v1/printers/:id/overlay-status', () => HttpResponse.json(narrow)));
+    });
+    it('renders opt-in model and both nozzle readings using only the scoped endpoint', async () => {
+      const forbidden: string[] = [];
+      server.use(...['/api/v1/printers/:id', '/api/v1/printers/:id/status'].map(path =>
+        http.get(path, ({ request }) => { forbidden.push(request.url); return new HttpResponse(null, { status: 403 }); })),
+        http.post('/api/v1/auth/ws-token', ({ request }) => { forbidden.push(request.url); return new HttpResponse(null, { status: 403 }); }));
+      renderOverlayPage(1, '?token=bblt_fixture&show=model,temperatures');
+      expect(await screen.findByText('H2D')).toBeInTheDocument();
+      expect(screen.getByText('180°C → 220°C')).toBeInTheDocument();
+      expect(screen.getByText('215°C')).toBeInTheDocument();
+      expect(screen.getByText('35°C')).toBeInTheDocument();
+      expect(forbidden).toEqual([]);
+      expect(WebSocket).not.toHaveBeenCalled();
+    });
+    it('keeps new details and artwork off for existing URLs', async () => {
+      renderOverlayPage(1, '?token=bblt_fixture');
+      await screen.findByText('Benchy');
+      expect(screen.queryByText('H2D')).not.toBeInTheDocument();
+      expect(screen.queryByText(/°C/)).not.toBeInTheDocument();
+      expect(screen.queryByTestId('overlay-artwork')).not.toBeInTheDocument();
+    });
+    it('omits absent chamber capability and supports independent model/temperature toggles', async () => {
+      server.use(http.get('/api/v1/printers/:id/overlay-status', () => HttpResponse.json({ ...narrow, supports_chamber_sensor: false })));
+      renderOverlayPage(1, '?token=bblt_fixture&show=temperatures&artwork=portrait');
+      expect(await screen.findByText('215°C')).toBeInTheDocument();
+      expect(screen.queryByText('35°C')).not.toBeInTheDocument();
+      expect(screen.queryByText('H2D')).not.toBeInTheDocument();
+      expect(screen.getByTestId('overlay-artwork')).toHaveAttribute('data-layout', 'portrait');
+    });
+    it('recovers errors silently and stops after three unsuccessful reloads', async () => {
+      renderOverlayPage(1, '?token=bblt_fixture');
+      await screen.findByText('Benchy');
+      vi.useFakeTimers();
+      const firstSrc = screen.getByAltText('Camera stream').getAttribute('src');
+      for (const delay of [3000, 6000, 12000]) {
+        fireEvent.error(screen.getByAltText('Camera stream'));
+        await act(() => vi.advanceTimersByTimeAsync(delay));
+      }
+      const lastSrc = screen.getByAltText('Camera stream').getAttribute('src');
+      expect(lastSrc).not.toBe(firstSrc);
+      expect(lastSrc).toContain('token=bblt_fixture');
+      fireEvent.error(screen.getByAltText('Camera stream'));
+      await act(() => vi.advanceTimersByTimeAsync(120000));
+      expect(screen.getByAltText('Camera stream').getAttribute('src')).toBe(lastSrc);
+      vi.useRealTimers();
+    });
   });
 
   describe('rendering', () => {

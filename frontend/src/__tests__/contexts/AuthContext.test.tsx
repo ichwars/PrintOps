@@ -39,6 +39,36 @@ function createWrapper() {
 }
 
 describe('AuthContext', () => {
+  it.each(['/overlay/1', '/camera/1', '/camwall'])('preserves the streaming token on %s across bootstrap without importing login auth', async (path) => {
+    setAuthToken(null);
+    window.history.replaceState({}, '', `${path}?token=bblt_fixture&fps=20`);
+    server.use(http.get('/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })));
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    try {
+      expect(window.location.search).toBe('?token=bblt_fixture&fps=20');
+      expect(getAuthToken()).toBeNull();
+    } finally {
+      window.history.replaceState({}, '', '/');
+      setAuthToken(null);
+    }
+  });
+
+  it('retains the existing API-key bootstrap on ordinary app routes', async () => {
+    setAuthToken(null);
+    window.history.replaceState({}, '', '/dashboard?token=bb_fixture&tab=printers');
+    server.use(http.get('/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })));
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    try {
+      expect(window.location.search).toBe('?tab=printers');
+      expect(getAuthToken()).toBe('bb_fixture');
+    } finally {
+      window.history.replaceState({}, '', '/');
+      setAuthToken(null);
+    }
+  });
+
   describe('when auth is disabled', () => {
     beforeEach(() => {
       server.use(

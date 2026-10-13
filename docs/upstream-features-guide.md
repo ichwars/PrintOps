@@ -201,3 +201,33 @@ Sitzungen; deren Abmeldung wird dadurch nicht rückwirkend ausgelöst.
 Die [Integrationsanleitung für Entwickler](connected-applications.md) beschreibt
 PKCE, Statusprüfung und den einmaligen Code-Austausch. Die Begleit-Wiki war nicht
 verfügbar; die Anleitung bleibt daher im vorhandenen Dokumentationsverzeichnis.
+
+## O06: Streaming-Overlay und OBS-URL
+
+Unter **Einstellungen → Integrationen → API & Metriken → Kamera-API-Tokens**
+steht der Streaming-Overlay-Builder für Nutzer mit Drucker-Lesezugriff und
+Kameraberechtigung. Wähle Drucker, Schriftgröße, Bildrate und die gewünschten
+Felder. Modell und Temperaturen sowie die PrintOps-Gestaltung im Hoch- oder
+Querformat sind optional; bestehende Overlay-URLs behalten ihre Darstellung.
+Die Vorschau ist zunächst ausgeschaltet. Ein Klick startet sie, eine Änderung
+der Optionen schließt sie wieder. Kopiere die Overlay-URL über den Kopierbutton neben dem URL-Feld in eine
+OBS-Browserquelle. Der bestehende Kamera-Quell-URL-Builder bleibt separat.
+
+Erstelle zum Teilen einen langlebigen Token mit dem Geltungsbereich **Overlay**
+und füge ihn in das Tokenfeld ein. Anmeldetokens gehören nicht in diese URL.
+Bewahre die URL wie ein Zugangsdokument auf; der Token kann im selben Bereich
+widerrufen werden. Beim Neuladen bleibt der Streaming-Token in der URL, ohne
+zum PrintOps-Anmeldetoken zu werden. Ein Overlay-Token erhält ausschließlich
+Overlay-Daten für die aktuell für seinen Besitzer erlaubten Drucker; er öffnet
+keine vollständigen Drucker-, Einstellungs- oder globalen WebSocket-APIs.
+
+Die Temperaturanzeige zeigt vorhandene Istwerte für Druckbett, beide Düsen und
+bei entsprechend ausgestatteten Modellen die Kammer. Sollwerte erscheinen nur
+während des Aufheizens. Interne MQTT-Flags und Zeitstempel werden nicht geteilt.
+Ohne Sensorwerte bleibt die Temperaturzeile verborgen. Kameraabbrüche werden
+still mit begrenzten Wiederholungen behandelt. Da MJPEG-Bilder im Browser keine
+Frame-Zeit bereitstellen, erneuert eine 60-Sekunden-Verbindungsfrist auch stumme
+Verbindungen. Sie erneuert auch gesunde Kameraverbindungen alle 60 Sekunden.
+Die begrenzten Fehlerwiederholungen verhindern eine schnelle Endlosschleife.
+Nach drei erfolglosen Erneuerungen stoppt sie; ein erfolgreiches
+Laden setzt das Wiederholungsbudget zurück.

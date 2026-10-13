@@ -13,7 +13,7 @@ interface PrinterInfoModalProps {
   onClose: () => void;
 }
 
-function CopyButton({ value }: { value: string }) {
+export function CopyButton({ value }: { value: string }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
@@ -51,6 +51,7 @@ function CopyButton({ value }: { value: string }) {
 
   return (
     <button
+      type="button"
       onClick={handleCopy}
       className="ml-2 p-1 rounded hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors"
       title={copied ? t('printers.copied') : t('printers.copyToClipboard')}

@@ -1,26 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Layers, Clock, Timer, Printer } from 'lucide-react';
 import { api, ApiError, withStreamToken } from '../api/client';
+import { parseOverlayConfig, overlayReadings, type OverlaySize } from '../utils/streamOverlay';
+import { useOverlayCameraRecovery } from '../hooks/useOverlayCameraRecovery';
 import { formatDuration, formatETA, type TimeFormat } from '../utils/date';
 
 type TFunction = (key: string, options?: Record<string, unknown>) => string;
-
-type OverlaySize = 'small' | 'medium' | 'large';
-
-interface OverlayConfig {
-  size: OverlaySize;
-  fps: number;
-  showCamera: boolean;
-  showProgress: boolean;
-  showLayers: boolean;
-  showEta: boolean;
-  showFilename: boolean;
-  showStatus: boolean;
-  showPrinter: boolean;
-}
 
 function formatPrintName(name: string | null, gcodeFile: string | null | undefined, t: (key: string, fallback: string, opts?: Record<string, unknown>) => string): string {
   if (!name) return '';
@@ -30,30 +18,6 @@ function formatPrintName(name: string | null, gcodeFile: string | null | undefin
     return `${name} — ${t('printers.plateNumber', 'Plate {{number}}', { number: match[1] })}`;
   }
   return name;
-}
-
-function parseConfig(params: URLSearchParams): OverlayConfig {
-  const show = params.get('show')?.split(',') || ['progress', 'layers', 'eta', 'filename', 'status'];
-
-  // Parse FPS (default 15, max 30, min 1)
-  const fpsParam = parseInt(params.get('fps') || '15', 10);
-  const fps = Math.min(Math.max(isNaN(fpsParam) ? 15 : fpsParam, 1), 30);
-
-  // Parse camera toggle (default true, set camera=false to hide)
-  const cameraParam = params.get('camera');
-  const showCamera = cameraParam !== 'false' && cameraParam !== '0';
-
-  return {
-    size: (params.get('size') as OverlaySize) || 'medium',
-    fps,
-    showCamera,
-    showProgress: show.includes('progress'),
-    showLayers: show.includes('layers'),
-    showEta: show.includes('eta'),
-    showFilename: show.includes('filename'),
-    showStatus: show.includes('status'),
-    showPrinter: show.includes('printer'),
-  };
 }
 
 function getStatusText(status: { state: string | null; stg_cur_name?: string | null }, t: TFunction): string {
@@ -111,13 +75,14 @@ export function StreamOverlayPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const id = parseInt(printerId || '0', 10);
-  const [imageKey, setImageKey] = useState(Date.now());
 
-  const config = useMemo(() => parseConfig(searchParams), [searchParams]);
+  const config = useMemo(() => parseOverlayConfig(searchParams), [searchParams]);
   const sizes = getSizeClasses(config.size);
 
   const token = searchParams.get('token');
   const kiosk = token != null && token !== '';
+  const recovery = useOverlayCameraRecovery(config.showCamera && id > 0, `${id}:${token}:${config.fps}`);
+  const { imageKey } = recovery;
 
   const { data: overlay } = useQuery({
     queryKey: ['overlayStatus', id, token],
@@ -148,7 +113,7 @@ export function StreamOverlayPage() {
   const printer = useMemo(
     () =>
       kiosk
-        ? overlay && { name: overlay.name, camera_rotation: overlay.camera_rotation }
+        ? overlay && { name: overlay.name, camera_rotation: overlay.camera_rotation, model: overlay.model }
         : printerData,
     [kiosk, overlay, printerData],
   );
@@ -220,13 +185,6 @@ export function StreamOverlayPage() {
     };
   }, [printer, t]);
 
-  // Refresh stream on error
-  const handleStreamError = () => {
-    setTimeout(() => {
-      setImageKey(Date.now());
-    }, 3000);
-  };
-
   if (!id) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -250,8 +208,19 @@ export function StreamOverlayPage() {
     ? `${baseStreamUrl}&token=${encodeURIComponent(token)}`
     : withStreamToken(baseStreamUrl);
 
+  const readings = overlayReadings(status.temperatures, kiosk ? overlay?.supports_chamber_sensor === true : status.temperatures?.chamber != null);
+
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
+      {config.artwork !== 'none' && (
+        <div data-testid="overlay-artwork" data-layout={config.artwork} aria-hidden="true"
+          className="absolute inset-0 z-10 pointer-events-none border-8 border-bambu-green/40"
+          style={{ background: config.artwork === 'portrait'
+            ? 'linear-gradient(155deg, rgba(0,174,66,.28), transparent 40%, rgba(0,174,66,.15))'
+            : 'linear-gradient(100deg, rgba(0,174,66,.25), transparent 55%, rgba(0,174,66,.15))' }}>
+          <div className="absolute top-6 left-6 text-white/70 font-semibold tracking-widest text-sm">PrintOps</div>
+        </div>
+      )}
       {/* Camera feed - fullscreen background (optional) */}
       {config.showCamera && (
         <img
@@ -260,7 +229,8 @@ export function StreamOverlayPage() {
           alt={t('streamOverlay.cameraStream')}
           className="absolute inset-0 w-full h-full object-contain"
           style={printer?.camera_rotation ? { transform: `rotate(${printer.camera_rotation}deg)` } : undefined}
-          onError={handleStreamError}
+          onError={recovery.onError}
+          onLoad={recovery.onLoad}
         />
       )}
 
@@ -282,29 +252,43 @@ export function StreamOverlayPage() {
       <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/80 via-black/60 to-transparent">
         <div className={`${sizes.container}`}>
           {/* Printer name */}
-          {config.showPrinter && printer && (
+          {config.fields.includes('printer') && printer && (
             <div className={`flex items-center ${sizes.gap} mb-2`}>
               <Printer className={`${sizes.icon} text-white/70`} />
               <span className={`${sizes.text} text-white font-medium`}>{printer.name}</span>
             </div>
           )}
 
+          {config.fields.includes('model') && printer?.model && (
+            <div className={`${sizes.text} text-white/70 mb-2`}>{printer.model}</div>
+          )}
+          {config.fields.includes('temperatures') && readings.length > 0 && (
+            <div className={`flex flex-wrap ${sizes.gap} mb-2 ${sizes.text} text-white`}>
+              {readings.map(reading => (
+                <div key={reading.sensor} className="flex flex-wrap gap-x-2">
+                  <span className="text-white/70">{t(`streamOverlay.sensors.${reading.sensor}`)}</span>
+                  <span>{reading.actual}°C{reading.target != null && ` → ${reading.target}°C`}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Filename */}
-          {config.showFilename && status.current_print && (
+          {config.fields.includes('filename') && status.current_print && (
             <div className={`${sizes.textLarge} text-white font-semibold mb-2 truncate drop-shadow-md`}>
               {formatPrintName(status.current_print.replace(/\.gcode\.3mf$|\.3mf$|\.gcode$/i, ''), status.gcode_file, t)}
             </div>
           )}
 
           {/* Status text */}
-          {config.showStatus && (
+          {config.fields.includes('status') && (
             <div className={`${sizes.text} text-white/70 mb-2`}>
               {getStatusText(status, t)}
             </div>
           )}
 
           {/* Progress bar */}
-          {config.showProgress && isPrinting && (
+          {config.fields.includes('progress') && isPrinting && (
             <div className="mb-3">
               <div className={`flex items-center justify-between mb-1 ${sizes.text}`}>
                 <span className="text-white/70">{t('streamOverlay.progress')}</span>
@@ -320,10 +304,10 @@ export function StreamOverlayPage() {
           )}
 
           {/* Stats row */}
-          {isPrinting && (config.showLayers || config.showEta) && (
+          {isPrinting && (config.fields.includes('layers') || config.fields.includes('eta')) && (
             <div className={`flex items-center ${sizes.gap} flex-wrap`}>
               {/* Layers */}
-              {config.showLayers && status.layer_num != null && status.total_layers != null && status.total_layers > 0 && (
+              {config.fields.includes('layers') && status.layer_num != null && status.total_layers != null && status.total_layers > 0 && (
                 <div className={`flex items-center ${sizes.gap} text-white/70`}>
                   <Layers className={sizes.icon} />
                   <span className={sizes.text}>
@@ -335,7 +319,7 @@ export function StreamOverlayPage() {
               )}
 
               {/* Remaining time */}
-              {config.showEta && status.remaining_time != null && status.remaining_time > 0 && (
+              {config.fields.includes('eta') && status.remaining_time != null && status.remaining_time > 0 && (
                 <>
                   <div className={`flex items-center ${sizes.gap} text-white/70`}>
                     <Timer className={sizes.icon} />

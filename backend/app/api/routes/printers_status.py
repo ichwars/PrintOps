@@ -295,6 +295,30 @@ async def get_printer_status(
     )
 
 
+def overlay_temperatures(temperatures: dict | None, chamber_sensor: bool) -> dict[str, float]:
+    """Expose actual sensors and only active heating targets; never private MQTT state."""
+    import math
+
+    readings = temperatures or {}
+    result = {}
+    sensors = ("bed", "nozzle", "nozzle_2", "chamber") if chamber_sensor else ("bed", "nozzle", "nozzle_2")
+    for sensor in sensors:
+        actual = readings.get(sensor)
+        if isinstance(actual, bool) or not isinstance(actual, (int, float)) or not math.isfinite(actual):
+            continue
+        result[sensor] = actual
+        target = readings.get(f"{sensor}_target")
+        if (
+            isinstance(target, (int, float))
+            and not isinstance(target, bool)
+            and math.isfinite(target)
+            and target > actual + 1
+            and readings.get(f"{sensor}_heating") is not False
+        ):
+            result[f"{sensor}_target"] = target
+    return result
+
+
 @router.get("/{printer_id}/overlay-status")
 async def get_overlay_status(
     printer_id: int,
@@ -316,6 +340,9 @@ async def get_overlay_status(
             "id": printer_id,
             "name": printer.name,
             "camera_rotation": printer.camera_rotation or 0,
+            "model": printer.model,
+            "supports_chamber_sensor": supports_chamber_temp(printer.model),
+            "temperatures": {},
             "connected": False,
             "state": None,
             "current_print": None,
@@ -332,6 +359,9 @@ async def get_overlay_status(
         "id": printer_id,
         "name": printer.name,
         "camera_rotation": printer.camera_rotation or 0,
+        "model": printer.model,
+        "supports_chamber_sensor": supports_chamber_temp(printer.model),
+        "temperatures": overlay_temperatures(state.temperatures, supports_chamber_temp(printer.model)),
         "connected": state.connected,
         "state": state.state,
         "current_print": state.current_print,

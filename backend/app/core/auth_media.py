@@ -119,18 +119,21 @@ def require_camwall_token_if_auth_enabled():
 
 
 def require_overlay_token_if_auth_enabled():
-    """Dependency that validates a streaming-overlay token query param when auth is enabled."""
+    """Validate the overlay grant and its owner's current printer scope."""
     from backend.app.core import auth
 
-    async def checker(token: str | None = None) -> None:
+    async def checker(printer_id: int, token: str | None = None) -> None:
+        from backend.app.services.long_lived_tokens import verify_token
+
         async with auth.async_session() as db:
             if not await auth.is_auth_enabled(db):
                 return
-        if not token or not await auth.verify_overlay_token(token):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Valid streaming overlay token required. Create one under Settings > API Keys with the 'Overlay' scope.",
-            )
+            record = await verify_token(db, token or "", scope="overlay")
+            if record is None:
+                raise HTTPException(status_code=401, detail="Valid streaming overlay token required.")
+            owner = await db.get(User, record.user_id)
+            if owner is None or not auth.user_can_access_printer(owner, printer_id):
+                raise HTTPException(status_code=403, detail="Printer access denied.")
 
     return checker
 
