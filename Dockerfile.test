@@ -38,6 +38,7 @@ ENV WEASYPRINT_CLI=/usr/local/bin/weasyprint
 
 # Copy backend code
 COPY backend/ ./backend/
+COPY test_frontend.sh ./
 COPY scripts/generate_hms_catalog.py ./scripts/generate_hms_catalog.py
 COPY install/install.sh install/update.sh install/update_macos.sh install/macos_python_signature.sh ./install/
 COPY tools/check_dependency_boundaries.py ./tools/check_dependency_boundaries.py

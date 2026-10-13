@@ -61,8 +61,7 @@ repos:
         files: ^backend/app/
       - id: frontend-typecheck
         name: TypeScript type check
-        entry: bash -c 'cd frontend && npx tsc --noEmit'
+        entry: bash -c 'cd frontend && npm run typecheck'
         language: system
         pass_filenames: false
-        files: ^frontend/src/
-        types_or: [ts, tsx]
+        files: ^frontend/(src/|vite\.config\.ts$|tsconfig(?:\.[^/]+)?\.json$|package\.json$)

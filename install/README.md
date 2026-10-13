@@ -91,6 +91,21 @@ Installs PrintOps with Python virtual environment and optional systemd/launchd s
 # Skip service setup
 ./install.sh --no-service -y
 ```
+### Frontend builds on low-memory hosts
+
+Native installation, Linux/macOS update scripts and the in-app native updater
+use `npm run build` to bundle the frontend with Vite. This avoids running the
+TypeScript checker on the installation host. Install revisions that passed the
+required CI typecheck; when building local changes, run `npm run typecheck` in
+`frontend/` on a development machine before deploying them. A successful bundle
+alone does not validate types.
+
+Docker source builds, container releases and Windows installer packaging run
+typecheck before bundling. Pre-built container installations use those validated
+assets. Separating the
+checks removes the TypeScript step from native bundling, but this is not a
+measured guarantee that the current frontend will build within 2 GB of RAM.
+
 ### macOS Local Network access
 
 Native macOS installation and `install/update_macos.sh` inspect the Python
