@@ -4760,7 +4760,7 @@ export default {
     queueDryingEnabled: '自動乾燥を有効にする',
     queueDryingEnabledDescription: 'プリンターがアイドル状態で湿度がしきい値を超えた場合、AMS乾燥を自動的に開始',
     queueDryingBlock: '乾燥完了まで待機',
-    queueDryingBlockDescription: '乾燥が完了するまで印刷キューをブロックします。オフの場合、印刷が優先されます。',
+    queueDryingBlockDescription: "印刷がキューにある場合、新しい乾燥の開始を防ぎます。実行中の乾燥は自動停止されません。キュー内の印刷には、プリンターが待機状態を報告する必要があります。",
     ambientDryingEnabled: '常時乾燥',
     ambientDryingEnabledDescription: 'キューに関係なく、アイドル状態のプリンターで湿度がしきい値を超えた場合に自動的にフィラメントを乾燥。',
     ambientDryingSustainedMinutes: '高湿度の継続時間（分）',

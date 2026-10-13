@@ -4824,7 +4824,7 @@ export default {
     queueDryingEnabled: "Automatisch drogen inschakelen",
     queueDryingEnabledDescription: "Start AMS-drogen automatisch wanneer de printer inactief is en de luchtvochtigheid boven de drempel ligt",
     queueDryingBlock: "Wachten tot drogen is voltooid",
-    queueDryingBlockDescription: "Blokkeer de afdrukwachtrij tot het drogen is voltooid. Wanneer uitgeschakeld hebben afdrukken voorrang op drogen.",
+    queueDryingBlockDescription: "Voorkomt nieuwe droogcycli wanneer afdrukken in de wachtrij staan. Lopende cycli worden niet automatisch gestopt; afdrukken in de wachtrij vereisen nog steeds dat de printer een inactieve status meldt.",
     ambientDryingEnabled: "Drogen zonder wachtrij",
     ambientDryingEnabledDescription: "Droog filament automatisch op inactieve printers wanneer de luchtvochtigheid boven de drempel komt, ook zonder afdrukken in de wachtrij.",
     ambientDryingSustainedMinutes: 'Aanhoudend hoge luchtvochtigheid (minuten)',

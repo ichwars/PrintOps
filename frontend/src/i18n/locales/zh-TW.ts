@@ -4762,7 +4762,7 @@ export default {
     queueDryingEnabled: '啟用自動乾燥',
     queueDryingEnabledDescription: '當印表機空閒且濕度超過閾值時，自動啟動AMS乾燥',
     queueDryingBlock: '等待乾燥完成',
-    queueDryingBlockDescription: '阻止列印佇列直到乾燥完成。關閉時，列印優先於乾燥。',
+    queueDryingBlockDescription: "佇列中有列印工作時，阻止啟動新的乾燥。正在執行的乾燥不會自動停止；佇列中的列印仍需印表機回報閒置狀態。",
     ambientDryingEnabled: '環境乾燥',
     ambientDryingEnabledDescription: '當空閒印表機的濕度超過閾值時自動乾燥耗材，無需佇列列印。',
     ambientDryingSustainedMinutes: '持續高濕度（分鐘）',

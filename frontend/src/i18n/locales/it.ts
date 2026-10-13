@@ -4515,7 +4515,7 @@ export default {
     queueDryingEnabled: 'Abilita asciugatura automatica',
     queueDryingEnabledDescription: 'Avvia l\'asciugatura AMS automaticamente quando la stampante è inattiva e l\'umidità supera la soglia',
     queueDryingBlock: 'Attendi completamento asciugatura',
-    queueDryingBlockDescription: 'Blocca la coda di stampa fino al completamento dell\'asciugatura. Se disattivato, le stampe hanno priorità.',
+    queueDryingBlockDescription: "Impedisce di avviare una nuova asciugatura quando ci sono stampe in coda. I cicli in corso non vengono interrotti automaticamente; le stampe in coda richiedono comunque che la stampante risulti inattiva.",
     ambientDryingEnabled: 'Asciugatura ambientale',
     ambientDryingEnabledDescription: 'Asciuga automaticamente il filamento sulle stampanti inattive quando l\'umidità supera la soglia, anche senza stampe in coda.',
     ambientDryingSustainedMinutes: 'Umidità elevata persistente (minuti)',

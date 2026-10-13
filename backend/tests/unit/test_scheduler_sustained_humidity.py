@@ -1041,3 +1041,64 @@ async def test_mqtt_pending_window_begins_after_actual_publication(mqtt_rig):
     await tick(rig, 1)
     assert rig.manager.send_drying_command.call_count == 2
     assert rig.scheduler._drying_owned_ams == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid", [None, "bad", True, -1, 101, 75.5])
+@pytest.mark.parametrize("minutes", [1, 2])
+async def test_mqtt_invalid_then_high_between_polls_preserves_valid_receipt_continuity(mqtt_rig, invalid, minutes):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = str(minutes)
+    await tick(rig)
+    for pair in range(minutes):
+        rig.now[0] += 30
+        rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": invalid}]})
+        rig.now[0] += 30
+        rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+        await tick(rig)
+        if pair + 1 < minutes:
+            assert rig.scheduler._ambient_humidity.streaks[(1, 0)].since == 1000
+            assert rig.scheduler._ambient_humidity.streaks[(1, 0)].last_observation == 1060
+            rig.manager.send_drying_command.assert_not_called()
+    rig.manager.send_drying_command.assert_called_once_with(1, 0, 45, 12, mode=1, filament="PLA")
+    assert rig.scheduler._drying_owned_ams == {}
+
+
+@pytest.mark.asyncio
+async def test_mqtt_invalid_receipt_alone_never_makes_ready_or_refreshes_valid_time(mqtt_rig):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "1"
+    await tick(rig)
+    rig.now[0] += 60
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": None}]})
+    await tick(rig)
+    streak = rig.scheduler._ambient_humidity.streaks[(1, 0)]
+    assert streak.since == streak.last_observation == 1000
+    rig.manager.send_drying_command.assert_not_called()
+    rig.now[0] += 1
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig)
+    rig.manager.send_drying_command.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("break_reason", ["low", "overflow", "gap"])
+async def test_mqtt_invalid_history_keeps_true_continuity_breaks(mqtt_rig, break_reason):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "1"
+    await tick(rig)
+    rig.now[0] += 30
+    for _ in range(257 if break_reason == "overflow" else 1):
+        rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": None}]})
+    if break_reason == "low":
+        rig.now[0] += 15
+        rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 40}]})
+    rig.now[0] = 1121 if break_reason == "gap" else 1060
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig)
+    assert rig.scheduler._ambient_humidity.streaks[(1, 0)].since == rig.now[0]
+    rig.manager.send_drying_command.assert_not_called()
+    rig.now[0] += 60
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig)
+    rig.manager.send_drying_command.assert_called_once()

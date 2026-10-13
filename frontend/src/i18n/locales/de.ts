@@ -4803,7 +4803,7 @@ export default {
     queueDryingEnabled: 'Automatische Trocknung aktivieren',
     queueDryingEnabledDescription: 'AMS-Trocknung automatisch starten, wenn der Drucker im Leerlauf ist und die Feuchtigkeit über dem Schwellenwert liegt',
     queueDryingBlock: 'Auf Trocknung warten',
-    queueDryingBlockDescription: 'Druckwarteschlange blockieren, bis die Trocknung abgeschlossen ist. Wenn aus, haben Drucke Vorrang.',
+    queueDryingBlockDescription: "Verhindert neue Trocknung, wenn Drucke in der Warteschlange stehen. Laufende Zyklen werden nicht automatisch gestoppt; Warteschlangendrucke benötigen weiterhin einen als bereit gemeldeten Drucker.",
     ambientDryingEnabled: 'Umgebungstrocknung',
     ambientDryingEnabledDescription: 'Filament auf inaktiven Druckern automatisch trocknen, wenn die Luftfeuchtigkeit den Schwellenwert überschreitet — auch ohne Warteschlange.',
     ambientDryingSustainedMinutes: 'Anhaltend hohe Luftfeuchtigkeit (Minuten)',

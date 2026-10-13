@@ -99,7 +99,10 @@ class AppSettings(BaseModel):
     )
     queue_drying_block: bool = Field(
         default=False,
-        description="Block queue until drying completes (when disabled, prints take priority over drying)",
+        description=(
+            "Prevent new drying when prints are queued. Running cycles are not stopped automatically; "
+            "queued prints still require an idle printer."
+        ),
     )
     ambient_drying_enabled: bool = Field(
         default=False,

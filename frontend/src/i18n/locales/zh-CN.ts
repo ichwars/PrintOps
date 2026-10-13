@@ -4762,7 +4762,7 @@ export default {
     queueDryingEnabled: '启用自动干燥',
     queueDryingEnabledDescription: '当打印机空闲且湿度超过阈值时，自动启动AMS干燥',
     queueDryingBlock: '等待干燥完成',
-    queueDryingBlockDescription: '阻止打印队列直到干燥完成。关闭时，打印优先于干燥。',
+    queueDryingBlockDescription: "队列中有打印任务时，阻止启动新的干燥。正在运行的干燥不会自动停止；队列中的打印仍需打印机报告空闲状态。",
     ambientDryingEnabled: '环境干燥',
     ambientDryingEnabledDescription: '当空闲打印机的湿度超过阈值时自动干燥耗材，无需排队打印。',
     ambientDryingSustainedMinutes: '持续高湿度（分钟）',

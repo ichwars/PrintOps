@@ -4515,7 +4515,7 @@ export default {
     queueDryingEnabled: 'Ativar secagem automática',
     queueDryingEnabledDescription: 'Iniciar secagem AMS automaticamente quando a impressora estiver ociosa e a umidade estiver acima do limite',
     queueDryingBlock: 'Aguardar conclusão da secagem',
-    queueDryingBlockDescription: 'Bloquear a fila de impressão até a secagem terminar. Quando desativado, impressões têm prioridade.',
+    queueDryingBlockDescription: "Impede iniciar uma nova secagem quando há impressões na fila. Os ciclos em andamento não são interrompidos automaticamente; as impressões na fila ainda exigem que a impressora indique estar ociosa.",
     ambientDryingEnabled: 'Secagem ambiente',
     ambientDryingEnabledDescription: 'Secar automaticamente o filamento em impressoras ociosas quando a umidade exceder o limite, mesmo sem impressões na fila.',
     ambientDryingSustainedMinutes: 'Umidade alta persistente (minutos)',

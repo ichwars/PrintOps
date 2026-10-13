@@ -181,6 +181,7 @@ class AmbientHumidity:
             if fresh:
                 after = previous[1] if previous and previous[0] is sample.generation else 0
                 readings = [reading for reading in sample.history if reading[0] > after]
+                missing_history = bool(readings and readings[0][0] != after + 1)
                 cutoff = self.cutoffs.get(key, self.started_at)
                 if cutoff is not None:
                     readings = [reading for reading in readings if reading[2] is not None and reading[2] >= cutoff]
@@ -188,7 +189,7 @@ class AmbientHumidity:
                     readings = readings[
                         -1:
                     ]  # Begin after disable/reconnect/criteria resets, never replay earlier data.
-                if readings and readings[0][0] != after + 1:
+                if missing_history:
                     streak = None  # Missing history cannot prove uninterrupted humidity.
                     self.streaks.pop(key, None)
                     readings = readings[-1:]

@@ -4515,7 +4515,7 @@ export default {
     queueDryingEnabled: 'Activer le séchage automatique',
     queueDryingEnabledDescription: 'Démarrer le séchage AMS automatiquement lorsque l\'imprimante est inactive et l\'humidité dépasse le seuil',
     queueDryingBlock: 'Attendre la fin du séchage',
-    queueDryingBlockDescription: 'Bloquer la file d\'attente jusqu\'à la fin du séchage. Désactivé, les impressions sont prioritaires.',
+    queueDryingBlockDescription: "Empêche de lancer un nouveau séchage lorsque des impressions sont en attente. Les cycles en cours ne sont pas arrêtés automatiquement ; les impressions en attente nécessitent toujours que l’imprimante soit déclarée inactive.",
     ambientDryingEnabled: 'Séchage ambiant',
     ambientDryingEnabledDescription: 'Sécher automatiquement le filament sur les imprimantes inactives lorsque l\'humidité dépasse le seuil, même sans impressions en file.',
     ambientDryingSustainedMinutes: 'Humidité élevée persistante (minutes)',

@@ -4641,7 +4641,7 @@ export default {
     queueDryingEnabled: '자동 건조 활성화',
     queueDryingEnabledDescription: '프린터가 유휴 상태이고 습도가 임계값 초과 시 자동으로 AMS 건조 시작',
     queueDryingBlock: '건조 완료까지 대기',
-    queueDryingBlockDescription: '건조가 완료될 때까지 인쇄 대기열을 차단합니다. 끄면 인쇄가 건조보다 우선합니다.',
+    queueDryingBlockDescription: "인쇄 작업이 대기열에 있으면 새 건조를 시작하지 않습니다. 진행 중인 건조는 자동으로 중지되지 않으며, 대기열의 인쇄를 시작하려면 프린터가 유휴 상태를 보고해야 합니다.",
     ambientDryingEnabled: '주변 건조',
     ambientDryingEnabledDescription: '대기 중인 인쇄가 없어도 습도가 임계값을 초과하면 유휴 프린터에서 자동으로 필라멘트 건조',
     ambientDryingSustainedMinutes: '높은 습도 유지 시간(분)',

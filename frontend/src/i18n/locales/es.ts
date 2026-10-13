@@ -4770,7 +4770,7 @@ export default {
     queueDryingEnabled: 'Activar el secado automático',
     queueDryingEnabledDescription: 'Iniciar el secado del AMS automáticamente cuando la impresora está inactiva y la humedad supera el umbral',
     queueDryingBlock: 'Esperar a que termine el secado',
-    queueDryingBlockDescription: 'Bloquear la cola de impresión hasta que termine el secado. Cuando está desactivado, las impresiones tienen prioridad sobre el secado.',
+    queueDryingBlockDescription: "Evita iniciar un nuevo secado cuando hay impresiones en cola. Los ciclos en curso no se detienen automáticamente; las impresiones en cola siguen necesitando que la impresora indique que está inactiva.",
     ambientDryingEnabled: 'Secado ambiental',
     ambientDryingEnabledDescription: 'Secar automáticamente el filamento en impresoras inactivas cuando la humedad supera el umbral, incluso sin impresiones en cola.',
     ambientDryingSustainedMinutes: 'Humedad alta sostenida (minutos)',

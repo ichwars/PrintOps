@@ -4764,7 +4764,7 @@ export default {
     queueDryingEnabled: 'Otomatik kurutmayı etkinleştir',
     queueDryingEnabledDescription: 'Yazıcı boştayken ve nem eşiğin üzerindeyken AMS kurutmasını otomatik olarak başlat',
     queueDryingBlock: 'Kurutmanın tamamlanmasını bekle',
-    queueDryingBlockDescription: 'Kurutma bitene kadar baskı kuyruğunu engelle. Kapalıyken, baskılar kurutmadan önceliklidir.',
+    queueDryingBlockDescription: "Kuyrukta baskı varken yeni kurutmanın başlamasını önler. Devam eden döngüler otomatik olarak durdurulmaz; kuyruktaki baskılar için yazıcının boşta olduğunu bildirmesi gerekir.",
     ambientDryingEnabled: 'Ortam kurutma',
     ambientDryingEnabledDescription: 'Kuyrukta baskı olmasa bile, nem eşiği aştığında boşta yazıcılarda filamenti otomatik olarak kurut.',
     ambientDryingSustainedMinutes: 'Sürekli yüksek nem (dakika)',

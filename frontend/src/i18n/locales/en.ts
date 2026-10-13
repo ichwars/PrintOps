@@ -4822,7 +4822,7 @@ export default {
     queueDryingEnabled: 'Enable auto-drying',
     queueDryingEnabledDescription: 'Start AMS drying automatically when printer is idle and humidity is above threshold',
     queueDryingBlock: 'Wait for drying to complete',
-    queueDryingBlockDescription: 'Block the print queue until drying finishes. When off, prints take priority over drying.',
+    queueDryingBlockDescription: "Prevents new drying when prints are queued. Running cycles are not stopped automatically; queued prints still require the printer to report idle.",
     ambientDryingEnabled: 'Ambient drying',
     ambientDryingEnabledDescription: 'Automatically dry filament on idle printers when humidity exceeds threshold, even without queued prints.',
     ambientDryingSustainedMinutes: 'Sustained high humidity (minutes)',
