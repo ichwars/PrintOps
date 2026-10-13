@@ -4773,6 +4773,8 @@ export default {
     queueDryingBlockDescription: 'Bloquear la cola de impresión hasta que termine el secado. Cuando está desactivado, las impresiones tienen prioridad sobre el secado.',
     ambientDryingEnabled: 'Secado ambiental',
     ambientDryingEnabledDescription: 'Secar automáticamente el filamento en impresoras inactivas cuando la humedad supera el umbral, incluso sin impresiones en cola.',
+    ambientDryingSustainedMinutes: 'Humedad alta sostenida (minutos)',
+    ambientDryingSustainedDescription: 'Exige humedad alta continua durante 0–240 minutos. 0 inicia inmediatamente. Los plazos de secado de la cola y el secado solo durante la impresión no cambian.',
     printDryingEnabled: 'Continuar secado durante la impresión',
     printDryingEnabledDescription: 'Permite que el secado automático siga funcionando durante una impresión en hardware compatible (H2D, H2C, H2S, P2S, H2D Pro, X2D, X1C, A2L con firmware reciente). La temperatura de secado se limita automáticamente 5°C por debajo del preajuste en reposo para proteger las bobinas.',
     dryingPresets: 'Preajustes de secado',

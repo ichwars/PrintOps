@@ -4518,6 +4518,8 @@ export default {
     queueDryingBlockDescription: 'Bloquer la file d\'attente jusqu\'à la fin du séchage. Désactivé, les impressions sont prioritaires.',
     ambientDryingEnabled: 'Séchage ambiant',
     ambientDryingEnabledDescription: 'Sécher automatiquement le filament sur les imprimantes inactives lorsque l\'humidité dépasse le seuil, même sans impressions en file.',
+    ambientDryingSustainedMinutes: 'Humidité élevée persistante (minutes)',
+    ambientDryingSustainedDescription: 'Exige une humidité élevée continue pendant 0–240 minutes. 0 démarre immédiatement. Les échéances de séchage de la file et le séchage uniquement pendant l’impression restent inchangés.',
     printDryingEnabled: 'Séchage pendant l\'impression',
     printDryingEnabledDescription: 'Autorise le séchage automatique à continuer pendant une impression sur le matériel pris en charge (H2D, H2C, H2S, P2S, H2D Pro, X2D, X1C, A2L avec firmware récent). La température de séchage est automatiquement limitée à 5°C sous le préréglage en attente pour protéger les bobines.',
     dryingPresets: 'Préréglages de séchage',

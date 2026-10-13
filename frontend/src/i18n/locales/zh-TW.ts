@@ -4765,6 +4765,8 @@ export default {
     queueDryingBlockDescription: '阻止列印佇列直到乾燥完成。關閉時，列印優先於乾燥。',
     ambientDryingEnabled: '環境乾燥',
     ambientDryingEnabledDescription: '當空閒印表機的濕度超過閾值時自動乾燥耗材，無需佇列列印。',
+    ambientDryingSustainedMinutes: '持續高濕度（分鐘）',
+    ambientDryingSustainedDescription: '濕度必須連續偏高0–240分鐘。0表示立即啟動。佇列烘乾期限和僅列印時烘乾不受影響。',
     printDryingEnabled: '列印時繼續乾燥',
     printDryingEnabledDescription: '允許自動乾燥在支援的硬體（H2D、H2C、H2S、P2S、H2D Pro、X2D、X1C、A2L 最新韌體）列印過程中繼續執行。為保護料盤，乾燥溫度會自動比閒置時的預設低 5°C。',
     dryingPresets: '乾燥預設',

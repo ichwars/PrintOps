@@ -4765,6 +4765,8 @@ export default {
     queueDryingBlockDescription: '阻止打印队列直到干燥完成。关闭时，打印优先于干燥。',
     ambientDryingEnabled: '环境干燥',
     ambientDryingEnabledDescription: '当空闲打印机的湿度超过阈值时自动干燥耗材，无需排队打印。',
+    ambientDryingSustainedMinutes: '持续高湿度（分钟）',
+    ambientDryingSustainedDescription: '湿度必须连续偏高0–240分钟。0表示立即启动。队列烘干期限和仅打印时烘干不受影响。',
     printDryingEnabled: '打印时继续干燥',
     printDryingEnabledDescription: '允许自动干燥在支持的硬件（H2D、H2C、H2S、P2S、H2D Pro、X2D、X1C、A2L 最新固件）打印过程中继续运行。为保护料盘，干燥温度会自动比空闲时预设低 5°C。',
     dryingPresets: '干燥预设',

@@ -4,6 +4,7 @@ from sqlalchemy import select
 
 from backend.app.models.printer import Printer
 from backend.app.models.settings import Settings
+from backend.app.services.ambient_humidity import read_humidity
 
 
 async def check_auto_drying(
@@ -34,15 +35,22 @@ async def check_auto_drying(
     queue_drying_enabled = await self._get_bool_setting(db, "queue_drying_enabled")
     ambient_drying_enabled = await self._get_bool_setting(db, "ambient_drying_enabled")
     print_drying_enabled = await self._get_bool_setting(db, "print_drying_enabled")
-    if not queue_drying_enabled and not ambient_drying_enabled:
-        # Stop active drying on all printers if both features disabled
+    sustained_minutes = 0
+    if ambient_drying_enabled:
+        result = await db.execute(select(Settings).where(Settings.key == "ambient_drying_sustained_minutes"))
+        setting = result.scalar_one_or_none()
+        sustained_minutes = int(setting.value) if setting else 0
+    if not ambient_drying_enabled:
+        self._ambient_humidity.streaks.clear()
+    if not queue_drying_enabled and not ambient_drying_enabled and not print_drying_enabled:
+        # Stop our active drying when all automatic modes are disabled
         if self._drying_in_progress:
             for pid in list(self._drying_in_progress):
                 logger.info("Auto-drying: printer %d — stopping, auto-drying disabled", pid)
                 await self._stop_drying(pid)
         return
 
-    # Update drying state from printer status (handles backend restart)
+    # Reconcile only AMS cycles successfully started by this scheduler
     self._sync_drying_state()
 
     # Find printers with scheduled items (for queue drying mode)
@@ -81,17 +89,44 @@ async def check_auto_drying(
     # Get all active printers
     scheduled_owners = await reserved_printers(db)
     all_printers = await db.execute(select(Printer).where(Printer.is_active.is_(True)))
-    for printer in all_printers.scalars():
+    printers = list(all_printers.scalars())
+    active_ids = {printer.id for printer in printers}
+    tracked_ids = {key[0] for key in self._ambient_humidity.streaks} | set(self._drying_owned_ams)
+    for pid in tracked_ids - active_ids:
+        self._ambient_humidity.clear_printer(pid)
+        self._drying_in_progress.pop(pid, None)
+        self._drying_owned_ams.pop(pid, None)
+    now = time.monotonic()
+    for printer in printers:
         pid = printer.id
         if pid in scheduled_owners:
+            self._ambient_humidity.clear_printer(pid)
             continue
 
         # Resolve model+firmware up front — needed to decide whether this printer
         # qualifies for mid-print drying (busy printer on capable hardware).
         state = printer_manager.get_status(pid)
         if not state:
+            self._ambient_humidity.clear_printer(pid)
             logger.debug("Auto-drying: printer %d skipped — no state", pid)
             continue
+        if not printer_manager.is_connected(pid):
+            self._ambient_humidity.clear_printer(pid)
+            continue
+        ready_ams = (
+            self._ambient_humidity.observe(
+                pid,
+                state.raw_data.get("ams", []),
+                per_type_thresholds,
+                global_humidity_threshold,
+                self.resolve_humidity_threshold,
+                sustained_minutes,
+                now,
+                max(4 * self._check_interval, 120),
+            )
+            if ambient_drying_enabled
+            else set()
+        )
         model = printer_manager.get_model(pid)
         firmware = state.firmware_version
 
@@ -146,21 +181,7 @@ async def check_auto_drying(
 
             dry_time = int(ams_data.get("dry_time") or 0)
 
-            # Read humidity — prefer humidity_raw (actual %) over humidity (index 1-5)
-            humidity = None
-            h_raw = ams_data.get("humidity_raw")
-            if h_raw is not None:
-                try:
-                    humidity = int(h_raw)
-                except (ValueError, TypeError):
-                    pass
-            if humidity is None:
-                h_idx = ams_data.get("humidity")
-                if h_idx is not None:
-                    try:
-                        humidity = int(h_idx)
-                    except (ValueError, TypeError):
-                        pass
+            humidity = read_humidity(ams_data)
             # Already drying — let it run to its configured duration (#1892).
             #
             # We deliberately do NOT stop drying from a humidity re-check here.
@@ -173,10 +194,6 @@ async def check_auto_drying(
             # stops (print takes priority, queue no longer needs drying) are
             # handled separately via _stop_drying().
             if dry_time > 0:
-                if pid not in self._drying_in_progress:
-                    # Drying we didn't start (manual or from before restart) —
-                    # track it so scheduling stops still apply; never auto-stop it.
-                    self._drying_in_progress[pid] = time.monotonic()
                 logger.debug(
                     "Auto-drying: printer %d AMS %d — drying (%dm left, humidity %s%%), letting it run",
                     pid,
@@ -195,6 +212,10 @@ async def check_auto_drying(
                     humidity,
                     humidity_threshold,
                 )
+                continue
+
+            # Queue deadlines and print-only drying are exempt from ambient waiting.
+            if ambient_drying_enabled and pid not in printers_with_scheduled and ams_id not in ready_ams:
                 continue
 
             # Check cannot-dry reasons (power constraints etc.)
@@ -240,3 +261,5 @@ async def check_auto_drying(
             success = await start_drying(db, printer_manager, pid, ams_id, temp, duration_hours, filament_type)
             if success:
                 self._drying_in_progress[pid] = time.monotonic()
+                self._drying_owned_ams.setdefault(pid, set()).add(ams_id)
+                self._ambient_humidity.streaks.pop((pid, ams_id), None)

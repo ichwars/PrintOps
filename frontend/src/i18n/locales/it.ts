@@ -4518,6 +4518,8 @@ export default {
     queueDryingBlockDescription: 'Blocca la coda di stampa fino al completamento dell\'asciugatura. Se disattivato, le stampe hanno priorità.',
     ambientDryingEnabled: 'Asciugatura ambientale',
     ambientDryingEnabledDescription: 'Asciuga automaticamente il filamento sulle stampanti inattive quando l\'umidità supera la soglia, anche senza stampe in coda.',
+    ambientDryingSustainedMinutes: 'Umidità elevata persistente (minuti)',
+    ambientDryingSustainedDescription: 'Richiede umidità elevata continua per 0–240 minuti. 0 avvia subito. Le scadenze di asciugatura della coda e l’asciugatura solo durante la stampa restano invariate.',
     printDryingEnabled: 'Asciugatura durante la stampa',
     printDryingEnabledDescription: 'Consente all\'asciugatura automatica di continuare durante una stampa su hardware supportato (H2D, H2C, H2S, P2S, H2D Pro, X2D, X1C, A2L con firmware recente). La temperatura di asciugatura viene automaticamente limitata a 5°C sotto il preset di riposo per proteggere le bobine.',
     dryingPresets: 'Preset di asciugatura',

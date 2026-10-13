@@ -4763,6 +4763,8 @@ export default {
     queueDryingBlockDescription: '乾燥が完了するまで印刷キューをブロックします。オフの場合、印刷が優先されます。',
     ambientDryingEnabled: '常時乾燥',
     ambientDryingEnabledDescription: 'キューに関係なく、アイドル状態のプリンターで湿度がしきい値を超えた場合に自動的にフィラメントを乾燥。',
+    ambientDryingSustainedMinutes: '高湿度の継続時間（分）',
+    ambientDryingSustainedDescription: '高湿度が0～240分間続いた場合に開始します。0では即時に開始します。キュー乾燥の期限と印刷時のみの乾燥には影響しません。',
     printDryingEnabled: '印刷中も乾燥を継続',
     printDryingEnabledDescription: '対応ハードウェア（H2D、H2C、H2S、P2S、H2D Pro、X2D、X1C、A2L、最新ファームウェア）で印刷中も自動乾燥を継続します。スプール保護のため、乾燥温度はアイドル時のプリセットより自動的に5°C低く制限されます。',
     dryingPresets: '乾燥プリセット',

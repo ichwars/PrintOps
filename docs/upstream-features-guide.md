@@ -247,3 +247,30 @@ leerer Freigabelisten. Ihre interne Migrationsmarkierung bleibt beim Zurücksetz
 der Einstellungen und in vollständigen Datenbanksicherungen erhalten. Gleichzeitige
 Freigabeänderungen und Druckerlöschungen werden innerhalb der Datenbank serialisiert;
 bei einem Sperrzeitlimit kann die Anfrage erneut gesendet werden.
+
+## Umgebungstrocknung erst bei anhaltend hoher Luftfeuchtigkeit
+
+Öffne **Einstellungen → Lager & Material → Filament** und aktiviere die
+Umgebungstrocknung. Das Feld **Anhaltend hohe Luftfeuchtigkeit (Minuten)**
+legt fest, wie lange die Feuchtigkeit über dem jeweils wirksamen AMS-Grenzwert
+liegen muss. Erlaubt sind ganze Zahlen von 0 bis 240. Der Standardwert 0 startet
+wie bisher sofort; beispielsweise 15 wartet auf 15 Minuten anhaltend hohe Werte.
+
+Jeder Drucker und jede AMS-Einheit sammelt die Zeit getrennt. Ein Wert am oder
+unter dem Grenzwert, ein Grenzwert- oder Materialwechsel, eine Unterbrechung der
+Verbindung und das Deaktivieren der Umgebungstrocknung starten die Wartezeit neu.
+Fehlende Sensorwerte zählen nicht als niedrige Feuchtigkeit und können keinen
+Start auslösen. Fehlen Beobachtungen länger als vier Scheduler-Intervalle
+(mindestens 120 Sekunden), beginnt die Wartezeit ebenfalls von vorn. Nach einem
+Neustart wird erneut gewartet. Eine gestartete oder bereits laufende Trocknung
+verbraucht die gesammelte Zeit; die eingestellte Trocknungsdauer läuft ohne
+vorzeitigen Feuchtigkeitsstopp weiter.
+
+Trocknung vor geplanten Warteschlangendrucken bleibt von dieser Wartezeit
+unabhängig. Ist ausschließlich Trocknung beim Drucken aktiv, startet sie weiterhin
+sofort auf geeigneter Hardware. Sind Umgebungstrocknung und Trocknung beim Drucken
+zusammen aktiv, gilt die Wartezeit auch während des Druckens; die reduzierte
+Trocknungstemperatur bleibt wirksam. Druckerreservierungen, freie Druckplatten,
+Druckerzustand, Firmware und Leistungsgrenzen bleiben Voraussetzung für einen
+Start. Manuell gestartete Zyklen werden nicht als automatische Zyklen übernommen
+und nicht von der automatischen Steuerung gestoppt.

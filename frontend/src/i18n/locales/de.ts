@@ -4806,6 +4806,8 @@ export default {
     queueDryingBlockDescription: 'Druckwarteschlange blockieren, bis die Trocknung abgeschlossen ist. Wenn aus, haben Drucke Vorrang.',
     ambientDryingEnabled: 'Umgebungstrocknung',
     ambientDryingEnabledDescription: 'Filament auf inaktiven Druckern automatisch trocknen, wenn die Luftfeuchtigkeit den Schwellenwert überschreitet — auch ohne Warteschlange.',
+    ambientDryingSustainedMinutes: 'Anhaltend hohe Luftfeuchtigkeit (Minuten)',
+    ambientDryingSustainedDescription: 'Hohe Luftfeuchtigkeit muss 0–240 Minuten anhalten. 0 startet sofort. Trocknungsfristen der Warteschlange und reine Drucktrocknung bleiben unverändert.',
     printDryingEnabled: 'Trocknen während des Drucks',
     printDryingEnabledDescription: 'Automatische Trocknung auch während eines laufenden Drucks auf unterstützter Hardware (H2D, H2C, H2S, P2S, H2D Pro, X2D, X1C, A2L mit aktueller Firmware). Die Trocknungstemperatur wird zum Schutz der Spulen automatisch um 5°C unter dem Leerlaufwert begrenzt.',
     dryingPresets: 'Trocknungsvoreinstellungen',

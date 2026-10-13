@@ -4827,6 +4827,8 @@ export default {
     queueDryingBlockDescription: "Blokkeer de afdrukwachtrij tot het drogen is voltooid. Wanneer uitgeschakeld hebben afdrukken voorrang op drogen.",
     ambientDryingEnabled: "Drogen zonder wachtrij",
     ambientDryingEnabledDescription: "Droog filament automatisch op inactieve printers wanneer de luchtvochtigheid boven de drempel komt, ook zonder afdrukken in de wachtrij.",
+    ambientDryingSustainedMinutes: 'Aanhoudend hoge luchtvochtigheid (minuten)',
+    ambientDryingSustainedDescription: 'Vereist continu hoge luchtvochtigheid gedurende 0–240 minuten. 0 start onmiddellijk. Droogdeadlines in de wachtrij en drogen uitsluitend tijdens het printen blijven ongewijzigd.',
     printDryingEnabled: "Doorgaan met drogen tijdens afdrukken",
     printDryingEnabledDescription: "Sta toe dat automatisch drogen tijdens een afdruk blijft draaien op ondersteunde hardware (H2D, H2C, H2S, P2S, H2D Pro, X2D, X1C, A2L met recente firmware). De droogtemperatuur wordt automatisch begrensd op 5°C onder de inactieve preset om spoelen te beschermen.",
     dryingPresets: "Droogpresets",

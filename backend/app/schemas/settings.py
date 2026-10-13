@@ -105,6 +105,9 @@ class AppSettings(BaseModel):
         default=False,
         description="Automatically dry AMS filament on idle printers when humidity exceeds threshold, regardless of queue",
     )
+    ambient_drying_sustained_minutes: int = Field(
+        default=0, ge=0, le=240, description="Minutes of continuously high humidity required for ambient drying"
+    )
     print_drying_enabled: bool = Field(
         default=False,
         description=(
@@ -538,6 +541,7 @@ class AppSettingsUpdate(BaseModel):
     queue_drying_enabled: bool | None = None
     queue_drying_block: bool | None = None
     ambient_drying_enabled: bool | None = None
+    ambient_drying_sustained_minutes: int | None = Field(default=None, ge=0, le=240)
     print_drying_enabled: bool | None = None
     drying_presets: str | None = None
     ams_humidity_thresholds: str | None = None

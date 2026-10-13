@@ -4518,6 +4518,8 @@ export default {
     queueDryingBlockDescription: 'Bloquear a fila de impressão até a secagem terminar. Quando desativado, impressões têm prioridade.',
     ambientDryingEnabled: 'Secagem ambiente',
     ambientDryingEnabledDescription: 'Secar automaticamente o filamento em impressoras ociosas quando a umidade exceder o limite, mesmo sem impressões na fila.',
+    ambientDryingSustainedMinutes: 'Umidade alta persistente (minutos)',
+    ambientDryingSustainedDescription: 'Exige umidade alta contínua por 0–240 minutos. 0 inicia imediatamente. Os prazos de secagem da fila e a secagem apenas durante a impressão permanecem iguais.',
     printDryingEnabled: 'Continuar secagem durante a impressão',
     printDryingEnabledDescription: 'Permite que a secagem automática continue funcionando durante uma impressão em hardware compatível (H2D, H2C, H2S, P2S, H2D Pro, X2D, X1C, A2L com firmware recente). A temperatura de secagem é limitada automaticamente 5°C abaixo do valor de inatividade para proteger as bobinas.',
     dryingPresets: 'Predefinições de secagem',
