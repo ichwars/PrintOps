@@ -32,19 +32,26 @@ async def migrate_user_printer_scope(conn) -> None:
             )
 
 
-async def prepare_printer_scope_write(db: AsyncSession) -> None:
-    """Acquire SQLite writer exclusion before any grant validation/read snapshot.
-
-    PostgreSQL uses the ordered printer row locks in validation/deletion instead.
-    Call before route mutations and, for deletion, before the drying guard writes.
-    """
+async def restart_printer_scope_read(db: AsyncSession) -> bool:
+    """Release SQLite read snapshots before any scope/business writes or mutex."""
     if db.get_bind().dialect.name != "sqlite":
-        return
+        return False
     if db.new or db.dirty or db.deleted:
         raise RuntimeError("Printer scope write preparation must precede mutations")
     # A dependency may have established a real WAL read snapshot. Starting a
     # fresh transaction prevents SQLITE_BUSY_SNAPSHOT on read-to-write upgrade.
     await db.rollback()
+    return True
+
+
+async def prepare_printer_scope_write(db: AsyncSession) -> None:
+    """Acquire SQLite writer exclusion before user grant validation/reads.
+
+    PostgreSQL uses the ordered printer row locks in validation/deletion instead.
+    User grant writes do not acquire the local printer-operation mutex.
+    """
+    if not await restart_printer_scope_read(db):
+        return
     try:
         # Even a zero-row UPDATE obtains the cross-connection SQLite writer lock;
         # no printer values/timestamps change. It lasts until this write commits.
@@ -57,9 +64,14 @@ async def prepare_printer_scope_write(db: AsyncSession) -> None:
         raise
 
 
-async def printer_scope_write_db(db: AsyncSession = Depends(get_db)) -> AsyncSession:
-    """Prepare deletion before other dependencies obtain business write locks."""
-    await prepare_printer_scope_write(db)
+async def printer_scope_delete_db(db: AsyncSession = Depends(get_db)) -> AsyncSession:
+    """Reset deletion's read snapshot; let the guard acquire mutex then writer.
+
+    Acquiring a DB writer here would invert other controls' lock order and can
+    deadlock the guard's local printer mutex. The guard's first UPDATE supplies
+    cross-connection writer exclusion before DELETE validates/cleans grants.
+    """
+    await restart_printer_scope_read(db)
     return db
 
 

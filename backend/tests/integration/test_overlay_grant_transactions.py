@@ -75,7 +75,7 @@ def attempted(engine, label):
     def observe(conn, cursor, statement, parameters, context, executemany):
         if _operation.get() == label:
             connections.add(id(conn.connection.driver_connection))
-            if statement.startswith("UPDATE printers SET id = id WHERE 0") or statement.startswith("SELECT printers."):
+            if statement.startswith("UPDATE printers SET") or statement.startswith("SELECT printers."):
                 ready.set()
 
     event.listen(engine.sync_engine, "before_cursor_execute", observe)

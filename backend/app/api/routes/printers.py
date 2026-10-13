@@ -16,7 +16,7 @@ from backend.app.core.auth import (
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
-from backend.app.core.user_printer_scope import printer_scope_write_db
+from backend.app.core.user_printer_scope import printer_scope_delete_db
 from backend.app.models.printer import Printer
 from backend.app.models.user import User
 from backend.app.schemas.printer import (
@@ -290,7 +290,7 @@ async def delete_printer(
     printer_id: int,
     delete_archives: bool = True,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_DELETE),
-    db: AsyncSession = Depends(printer_scope_write_db),
+    db: AsyncSession = Depends(printer_scope_delete_db),
     _drying_guard=Depends(printer_operation_guard),
 ):
     """Delete a printer.
