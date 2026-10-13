@@ -199,6 +199,9 @@ jobs:
       - name: Run live PostgreSQL calibration context and restore tests
         run: python -m pytest backend/tests/postgres/test_issue_149_k_profile_contexts.py -q
 
+      - name: Connected-app deletion/exchange lock ordering
+        run: python -m pytest backend/tests/integration/test_connected_apps.py -q -k 'deletion_and_exchange'
+
   # ============================================================================
   # Frontend Checks
   # ============================================================================

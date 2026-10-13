@@ -437,14 +437,14 @@ export function Layout() {
       'orders-customers': 'customers:read',
       'orders-invoice': 'commercial_documents:read',
       'orders-lexware': 'commercial_documents:read',
-      settings: ['settings:read', 'accounting_integrations:manage'],
+      settings: ['settings:read', 'settings:update', 'accounting_integrations:manage'],
       'settings-general': 'settings:read',
       'settings-users-security': 'settings:read',
       'settings-printers-production': 'settings:read',
       'settings-projects-files': 'settings:read',
       'settings-warehouse-material': 'settings:read',
       'settings-orders-calculation': ['settings:read', 'accounting_integrations:manage'],
-      'settings-integrations': 'settings:read',
+      'settings-integrations': ['settings:read', 'settings:update'],
       'settings-operations': 'settings:read',
       // The user-email-preferences API requires notifications:user_email, so
       // gate the nav item on the same permission (both default groups —

@@ -1,6 +1,38 @@
 // Dutch translations adapted from maziggy/bambuddy (nl.ts blob f6b6c638913a21cbc3aa98dde755ffda6e64aa7b).
 // PrintOps-specific text and source changes translated for PrintOps.
 export default {
+  connectedApps: {
+    "title": "Gekoppelde toepassingen",
+    "description": "Registreer externe toepassingen waarin gebruikers met hun PrintOps-identiteit kunnen inloggen.",
+    "authDisabled": "Schakel authenticatie in om gekoppelde toepassingen te gebruiken.",
+    "signInTo": "Inloggen bij {{app}}",
+    "signedInAs": "Ingelogd als {{username}}",
+    "disclosure": "Deze toepassing ontvangt je gebruikers-ID, gebruikersnaam, e-mailadres, groepen en huidige rechten. Ook de beheerdersstatus wordt gedeeld.",
+    "noApiAccess": "Er wordt een momentopname van je identiteit gedeeld, zonder toegang tot de PrintOps-API of je inlogtoken.",
+    "callback": "Terugkeer-URL",
+    "allow": "Inloggen toestaan",
+    "deny": "Weigeren",
+    "invalidRequest": "Ongeldig verzoek. De toepassing of terugkeer-URL kon niet worden gecontroleerd.",
+    "requestFailed": "Het verzoek kon niet worden voltooid. Probeer het opnieuw.",
+    "credentials": "Toepassingsgegevens",
+    "secretOnce": "Bewaar dit geheim nu veilig. Het wordt alleen bij aanmaken of vernieuwen getoond.",
+    "clientId": "Client-ID",
+    "clientSecret": "Clientgeheim",
+    "copySecret": "Geheim kopiëren",
+    "copied": "Geheim gekopieerd.",
+    "copyFailed": "Kopiëren mislukt. Selecteer en kopieer het geheim handmatig.",
+    "name": "Toepassingsnaam",
+    "register": "Toepassing registreren",
+    "empty": "Geen toepassingen geregistreerd.",
+    "enabled": "Ingeschakeld",
+    "disabled": "Uitgeschakeld",
+    "enable": "Inschakelen",
+    "disable": "Uitschakelen",
+    "rotate": "Geheim vernieuwen",
+    "confirmTitle": "Wijziging bevestigen",
+    "confirmRotate": "Geheim voor {{app}} vervangen? Het oude geheim en openstaande codes werken dan niet meer.",
+    "confirmRemove": "{{app}} en opgeslagen toestemmingen verwijderen? Openstaande codes werken dan niet meer."
+  },
   productionQuality: {
     "title": "Productiekwaliteit bevestigen",
     "ask": "Om resultaatbevestiging vragen",

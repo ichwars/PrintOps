@@ -124,6 +124,8 @@ function WebSocketProvider({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+const ConnectAuthorizePage = lazy(() => import('./pages/ConnectAuthorizePage').then(m => ({ default: m.ConnectAuthorizePage })));
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { t: translateInterface } = useTranslation();
   const { authEnabled, loading, user } = useAuth();
@@ -170,8 +172,15 @@ function PermissionRoute({ permission, children }: { permission: string; childre
   return <>{children}</>;
 }
 
+const ConnectedAppsSettings = lazy(() => import('./components/ConnectedAppsSettings').then(m => ({ default: m.ConnectedAppsSettings })));
+
 function SettingsRoute() {
   const { authEnabled, hasPermission } = useAuth();
+  const { search } = useLocation();
+  if (authEnabled && !hasPermission('settings:read') && hasPermission('settings:update')
+      && (new URLSearchParams(search).get('tab') === 'integrations' || !hasPermission('accounting_integrations:manage'))) {
+    return <PermissionRoute permission="settings:update"><div className="min-w-0 p-4 md:p-8"><ConnectedAppsSettings /></div></PermissionRoute>;
+  }
   if (authEnabled && !hasPermission('settings:read') && hasPermission('accounting_integrations:manage')) {
     return <PermissionRoute permission="accounting_integrations:manage"><LexwareSettingsPage /></PermissionRoute>;
   }
@@ -225,6 +234,7 @@ function App() {
                 <Route path="/camera/:printerId" element={<CameraPage />} />
 
                 {/* Cam Wall page - standalone, supports token-authenticated kiosk mode */}
+                <Route path="/connect/authorize" element={<ProtectedRoute><ConnectAuthorizePage /></ProtectedRoute>} />
                 <Route path="/camwall" element={<CamWallPage />} />
 
                 {/* Stream overlay page - standalone for OBS/streaming embeds, no auth required */}

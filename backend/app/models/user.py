@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -24,6 +25,9 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    connected_identity: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, default=lambda: secrets.token_hex(16)
+    )
     username: Mapped[str] = mapped_column(String(100), unique=True, index=True)
     email: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)

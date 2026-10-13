@@ -53,6 +53,8 @@ _PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # ---- HTTP API: auth bootstrap (pre-credential or token-self-validated) ----
         # First-run setup — runs before any user exists. Idempotent once setup_completed is true.
         ("POST", "/api/v1/auth/setup"),
+        # Connected apps authenticate with the client secret and single-use PKCE code in JSON.
+        ("POST", "/api/v1/connect/token"),
         # Login itself — credentials in the request body ARE the auth.
         ("POST", "/api/v1/auth/login"),
         # Logout — clears server-side JTI revocation; degraded behaviour on bad token is acceptable.

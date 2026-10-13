@@ -13,6 +13,7 @@ import type { APIKey, AppSettings, AppSettingsUpdate, PrinterHASensor, SmartPlug
 import { Card, CardContent, CardDensityProvider, CardHeader } from '../components/Card';
 import { SlicerBundlesPanel } from '../components/SlicerBundlesPanel';
 import { SlicerPipelinesPanel } from '../components/SlicerPipelinesPanel';
+import { ConnectedAppsSettings } from '../components/ConnectedAppsSettings';
 import { CameraTokensSection } from './CameraTokensPage';
 import { Collapsible } from '../components/Collapsible';
 import {
@@ -155,6 +156,7 @@ registerSettingsSearch({ labelKey: 'settings.prometheusMetrics', tab: 'integrati
 registerSettingsSearch({ labelKey: 'settings.createNewApiKey', tab: 'integrations', integrationSubTab: 'api-metrics', keywords: 'api key create permission scope', anchor: 'card-createapi' });
 registerSettingsSearch({ labelKey: 'settings.webhookEndpoints', tab: 'integrations', integrationSubTab: 'webhooks', keywords: 'webhook endpoint post http', anchor: 'card-webhooks' });
 registerSettingsSearch({ labelKey: 'settings.apiBrowser', tab: 'integrations', integrationSubTab: 'api-metrics', keywords: 'api browser endpoint documentation test', anchor: 'card-apibrowser' });
+registerSettingsSearch({ labelKey: 'connectedApps.title', tab: 'integrations', integrationSubTab: 'api-metrics', keywords: 'connected applications login oauth identity', anchor: 'card-connected-apps' });
 registerSettingsSearch({ labelKey: 'cameraTokens.title', tab: 'integrations', integrationSubTab: 'api-metrics', keywords: 'camera token long-lived home assistant frigate kiosk stream', anchor: 'card-camera-tokens' });
 registerSettingsSearch({ labelKey: 'settings.tabs.virtualPrinter', tab: 'printers-production', printerProductionSubTab: 'devices', keywords: 'virtual printer proxy archive slicer bambustudio orcaslicer ip bind', anchor: 'card-vp' });
 registerSettingsSearch({ labelKey: 'settings.tabs.spoolbuddy', tab: 'warehouse-material', warehouseMaterialSubTab: 'spoolbuddy', keywords: 'spoolbuddy device scale nfc rfid kiosk unregister', anchor: 'card-spoolbuddy' });
@@ -194,7 +196,6 @@ registerSettingsSearch({ labelKey: 'backup.githubBackup', labelFallback: 'GitHub
 registerSettingsSearch({ labelKey: 'backup.history', labelFallback: 'Backup History', tab: 'operations', operationSubTab: 'backups', keywords: 'backup history log runs github commits', anchor: 'card-backup-history' });
 registerSettingsSearch({ labelKey: 'backup.localBackup', labelFallback: 'Local Backup', tab: 'operations', operationSubTab: 'backups', keywords: 'local backup download zip manual export', anchor: 'card-backup-local' });
 registerSettingsSearch({ labelKey: 'backup.scheduledBackup', labelFallback: 'Scheduled Backups', tab: 'operations', operationSubTab: 'backups', keywords: 'scheduled backup automatic hourly daily weekly retention local path', anchor: 'card-backup-scheduled' });
-
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -4766,8 +4767,7 @@ export function SettingsPage() {
             )}
 
             </>}
-
-            {/* Long-lived camera-stream tokens (#1108) */}
+            <ConnectedAppsSettings />
             <Card>
               <CardHeader>
                 <h3 className="text-base font-semibold text-white flex items-center gap-2" id="card-camera-tokens">

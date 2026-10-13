@@ -474,6 +474,9 @@ async def delete_user(
         )
     )
 
+    from backend.app.services.connected_apps import cleanup_user
+
+    await cleanup_user(db, user_id)
     await db.delete(user)
     await db.commit()
 

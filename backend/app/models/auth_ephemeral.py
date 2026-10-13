@@ -36,6 +36,7 @@ class TokenType(str, Enum):
     backward-compatible with existing rows.
     """
 
+    CONNECT_CODE = "connect_code"
     PRE_AUTH = "pre_auth"
     OIDC_STATE = "oidc_state"
     OIDC_EXCHANGE = "oidc_exchange"
@@ -53,6 +54,8 @@ class EventType(str, Enum):
     backward-compatible with existing rows.
     """
 
+    CONNECT_TOKEN_CLIENT = "connect_token_client"
+    CONNECT_TOKEN_IP = "connect_token_ip"
     TWO_FA_ATTEMPT = "2fa_attempt"
     EMAIL_SEND = "email_send"
     LOGIN_ATTEMPT = "login_attempt"
@@ -96,6 +99,37 @@ class AuthEphemeralToken(Base):
 
     # T1: Classmethod factories — enforce required fields per token type
     # and prevent accidentally leaving optional fields at their defaults.
+
+    @classmethod
+    def new_connect_code(
+        cls,
+        *,
+        code_hash: str,
+        username: str,
+        user_id: int,
+        identity_nonce: str,
+        app_id: int,
+        code_challenge: str,
+        configuration_digest: str,
+        expires_at: datetime,
+    ) -> AuthEphemeralToken:
+        """Identity exchange only: nonce=S256 challenge, challenge_id=user id + nonreused identity nonce.
+
+        code_verifier binds the exact callback AND current hashed client secret.
+        This generation binding rejects issuance from a stale app snapshot after
+        rotation, callback changes or disabling, even when cleanup already ran.
+        Other token purposes retain their existing field meanings.
+        """
+        return cls(
+            token=code_hash,
+            token_type=TokenType.CONNECT_CODE,
+            username=username,
+            provider_id=app_id,
+            nonce=code_challenge,
+            challenge_id=f"{user_id}:{identity_nonce}",
+            code_verifier=configuration_digest,
+            expires_at=expires_at,
+        )
 
     @classmethod
     def new_pre_auth(
