@@ -148,7 +148,17 @@ export interface CamWallPrinter {
   hms_errors: HMSError[];
 }
 
+export interface OverlayTemperatures {
+  bed?: number; bed_target?: number;
+  nozzle?: number; nozzle_target?: number;
+  nozzle_2?: number; nozzle_2_target?: number;
+  chamber?: number; chamber_target?: number;
+}
+
 export interface OverlayStatus {
+  model: string | null;
+  supports_chamber_sensor: boolean;
+  temperatures: OverlayTemperatures;
   id: number;
   name: string;
   camera_rotation: number;

@@ -22,6 +22,7 @@ from backend.app.core.auth import (
 )
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
+from backend.app.core.user_printer_scope import prepare_printer_scope_write, validate_printer_grants
 from backend.app.models.api_key import APIKey
 from backend.app.models.archive import PrintArchive
 from backend.app.models.auth_ephemeral import AuthEphemeralToken, TokenType
@@ -106,6 +107,9 @@ async def create_user(
 
     logger = logging.getLogger(__name__)
 
+    if user_data.allowed_printer_ids is not None:
+        await prepare_printer_scope_write(db)
+
     # Check if advanced auth is enabled
     result = await db.execute(select(Settings).where(Settings.key == "advanced_auth_enabled"))
     advanced_auth_setting = result.scalar_one_or_none()
@@ -152,13 +156,14 @@ async def create_user(
             )
         password = user_data.password
 
+    await validate_printer_grants(db, user_data.allowed_printer_ids)
     new_user = User(
         username=user_data.username,
         email=user_data.email,
         password_hash=get_password_hash(password),
         role=user_data.role,
         is_active=True,
-        allowed_printer_ids=user_data.allowed_printer_ids or None,
+        allowed_printer_ids=user_data.allowed_printer_ids,
     )
 
     # Handle group assignments
@@ -223,6 +228,8 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
 ):
     """Update a user."""
+    if "allowed_printer_ids" in user_data.model_fields_set:
+        await prepare_printer_scope_write(db)
     result = await db.execute(select(User).where(User.id == user_id).options(selectinload(User.groups)))
     user = result.scalar_one_or_none()
     if not user:
@@ -230,6 +237,10 @@ async def update_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
+
+    if "allowed_printer_ids" in user_data.model_fields_set:
+        # Lock printers before mutating/flushing the user, matching delete order.
+        await validate_printer_grants(db, user_data.allowed_printer_ids)
 
     # Prevent deactivating the last admin
     if user_data.is_active is False and user.is_admin:
@@ -306,7 +317,7 @@ async def update_user(
         user.is_active = user_data.is_active
 
     if "allowed_printer_ids" in user_data.model_fields_set:
-        user.allowed_printer_ids = user_data.allowed_printer_ids or None
+        user.allowed_printer_ids = user_data.allowed_printer_ids
 
     # Handle group assignments
     if user_data.group_ids is not None:

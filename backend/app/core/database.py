@@ -2320,14 +2320,6 @@ async def run_migrations(conn):
     # Migration: Add auth_source column to users for LDAP support (#794)
     await _safe_execute(conn, "ALTER TABLE users ADD COLUMN auth_source VARCHAR(20) DEFAULT 'local' NOT NULL")
 
-    # Migration: Add optional printer scope to users (#1727/#1620)
-    if is_sqlite():
-        await _safe_execute(conn, "ALTER TABLE users ADD COLUMN allowed_printer_ids JSON")
-        await _safe_execute(conn, "UPDATE users SET allowed_printer_ids = NULL WHERE allowed_printer_ids = '[]'")
-    else:
-        await _safe_execute(conn, "ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_printer_ids JSON")
-        await _safe_execute(conn, "UPDATE users SET allowed_printer_ids = NULL WHERE allowed_printer_ids::text = '[]'")
-
     # Migration: Make password_hash nullable for LDAP users (#794)
     # LDAP users have no local password — the column must allow NULL so auto-provisioning
     # doesn't hit a NOT NULL constraint failure on upgraded installs whose users table was
@@ -2742,6 +2734,11 @@ async def run_migrations(conn):
     async with conn.begin_nested():
         await conn.execute(text("DELETE FROM settings WHERE id NOT IN (SELECT MIN(id) FROM settings GROUP BY key)"))
     await _safe_execute(conn, "CREATE UNIQUE INDEX IF NOT EXISTS ix_settings_key ON settings(key)")
+
+    # Migration: Add user scope and normalize legacy [] only once.
+    from backend.app.core.user_printer_scope import migrate_user_printer_scope
+
+    await migrate_user_printer_scope(conn)
 
     # Migration: Normalise provider_email to lowercase (SEC-3).
     # Required for Entra ID where UPN/email claims may arrive in mixed case.

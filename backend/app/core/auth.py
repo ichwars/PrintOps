@@ -740,8 +740,8 @@ async def verify_websocket_token(token: str) -> str | None:
         return row.username or ""
 
 
-async def verify_camera_stream_token(token: str) -> bool:
-    """Verify a camera stream token is valid (reusable — does not consume it).
+async def camera_stream_token_status(token: str, printer_id: int | None = None) -> int:
+    """Return 200/401/403 for a reusable camera credential and trusted path ID.
 
     Tries the ephemeral 60-minute token first (the common, browser-bound case)
     and falls through to long-lived tokens (#1108) for HA / kiosk integrations
@@ -757,14 +757,27 @@ async def verify_camera_stream_token(token: str) -> bool:
             )
         )
         if result.scalar_one_or_none() is not None:
-            return True
+            return 200
 
         # Long-lived path. Imported lazily so the auth module stays importable
         # at startup before the long_lived_tokens model is registered.
         from backend.app.services.long_lived_tokens import STREAM_SCOPES, verify_token as verify_long_lived
 
         record = await verify_long_lived(db, token, scope=STREAM_SCOPES)
-        return record is not None
+        if record is None:
+            return 401
+        if record.scope == "overlay":
+            # Overlay shares require a trusted printer binding. Unbound transports
+            # (RTSP proxy) cannot safely authorize a later stream selection.
+            owner = await db.get(User, record.user_id)
+            if printer_id is None or owner is None or not user_can_access_printer(owner, printer_id):
+                return 403
+        return 200
+
+
+async def verify_camera_stream_token(token: str, printer_id: int | None = None) -> bool:
+    """Verify camera credentials; Overlay scope needs the trusted path printer."""
+    return await camera_stream_token_status(token, printer_id) == 200
 
 
 async def verify_camwall_token(token: str) -> bool:
@@ -1805,7 +1818,7 @@ def allowed_printer_ids_for_user(user: User | None) -> set[int] | None:
     if user is None:
         return None
     allowed = getattr(user, "allowed_printer_ids", None)
-    if not allowed:
+    if allowed is None:
         return None
     return {int(printer_id) for printer_id in allowed}
 

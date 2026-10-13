@@ -191,3 +191,36 @@ async def test_migration_is_noop_on_fresh_install(fresh_engine):
         await conn.execute(text("INSERT INTO settings (key, value) VALUES ('k', 'v1')"))
         with pytest.raises(IntegrityError):
             await conn.execute(text("INSERT INTO settings (key, value) VALUES ('k', 'v2')"))
+
+
+async def test_legacy_nonunique_settings_scope_conversion_runs_once(legacy_engine):
+    """Real legacy schema: dedupe/index must precede the one-time scope claim."""
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from backend.app.models.user import User
+
+    sessionmaker = async_sessionmaker(legacy_engine, expire_on_commit=False)
+    async with sessionmaker() as db:
+        legacy = User(username="legacy-scope", password_hash="unused", role="user", allowed_printer_ids=[])
+        db.add(legacy)
+        await db.commit()
+        user_id = legacy.id
+    async with legacy_engine.begin() as conn:
+        await conn.execute(
+            text("INSERT INTO settings (key, value) VALUES ('legacy-key', 'old'), ('legacy-key', 'new')")
+        )
+        await run_migrations(conn)
+        assert (
+            await conn.execute(text("SELECT allowed_printer_ids FROM users WHERE id=:id"), {"id": user_id})
+        ).scalar_one() is None
+        await conn.execute(text("UPDATE users SET allowed_printer_ids='[]' WHERE id=:id"), {"id": user_id})
+    async with legacy_engine.begin() as conn:
+        await run_migrations(conn)
+        assert (
+            await conn.execute(text("SELECT allowed_printer_ids FROM users WHERE id=:id"), {"id": user_id})
+        ).scalar_one() == "[]"
+        assert (
+            await conn.execute(
+                text("SELECT COUNT(*) FROM settings WHERE key='migration_user_printer_scope_deny_all_v1'")
+            )
+        ).scalar_one() == 1

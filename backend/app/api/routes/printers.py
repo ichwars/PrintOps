@@ -16,6 +16,7 @@ from backend.app.core.auth import (
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
+from backend.app.core.user_printer_scope import printer_scope_delete_db
 from backend.app.models.printer import Printer
 from backend.app.models.user import User
 from backend.app.schemas.printer import (
@@ -289,7 +290,7 @@ async def delete_printer(
     printer_id: int,
     delete_archives: bool = True,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_DELETE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(printer_scope_delete_db),
     _drying_guard=Depends(printer_operation_guard),
 ):
     """Delete a printer.
@@ -305,7 +306,7 @@ async def delete_printer(
     from backend.app.models.maintenance import MaintenanceHistory, PrinterMaintenance
     from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 
-    result = await db.execute(select(Printer).where(Printer.id == printer_id))
+    result = await db.execute(select(Printer).where(Printer.id == printer_id).with_for_update())
     printer = result.scalar_one_or_none()
     if not printer:
         raise HTTPException(404, "Printer not found")
@@ -337,6 +338,9 @@ async def delete_printer(
         )
         await db.execute(sql_delete(PrinterMaintenance).where(PrinterMaintenance.printer_id == printer_id))
 
+    from backend.app.core.user_printer_scope import remove_printer_grants
+
+    await remove_printer_grants(db, printer_id)
     await db.delete(printer)
     await db.commit()
 

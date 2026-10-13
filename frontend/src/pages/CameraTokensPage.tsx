@@ -15,6 +15,7 @@
  * The plaintext token is shown EXACTLY ONCE at create time inside a copy-
  * to-clipboard modal. Listings only ever show metadata.
  */
+import { StreamOverlayBuilder } from '../components/settings/StreamOverlayBuilder';
 import { Button, NumberField, Select, TextField } from '../components/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -388,7 +389,7 @@ function TokenTable({ tokens, showOwner, userIdToName, onRevoke, emptyMessage }:
  */
 export function CameraTokensSection() {
   const { t } = useTranslation();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, hasPermission } = useAuth();
   const { showToast } = useToast();
 
   const [myTokens, setMyTokens] = useState<LongLivedCameraToken[]>([]);
@@ -506,6 +507,8 @@ export function CameraTokensSection() {
           />
         </div>
       )}
+
+      {hasPermission('printers:read') && hasPermission('camera:view') && <StreamOverlayBuilder />}
 
       {justCreated && (
         <JustCreatedModal token={justCreated} onClose={() => setJustCreated(null)} />

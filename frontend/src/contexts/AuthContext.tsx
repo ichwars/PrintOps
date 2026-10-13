@@ -91,7 +91,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // token has been verified by the server (L-4: prevents session fixation
       // where an attacker-crafted URL immediately persists a forged/stolen token).
       const urlParams = new URLSearchParams(window.location.search);
-      const urlToken = urlParams.get('token');
+      const streamingRoute = /^\/(?:overlay\/\d+|camera\/\d+|camwall)\/?$/.test(window.location.pathname);
+      const urlToken = streamingRoute ? null : urlParams.get('token');
       if (urlToken) {
         setAuthToken(urlToken, 'session'); // session-only until server confirms it's valid
         urlParams.delete('token');

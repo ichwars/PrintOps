@@ -109,4 +109,12 @@ describe('rewriteMediaSrcWithToken', () => {
     expect(foreign.getAttribute('src')).not.toContain('token=');
   });
 
+  it('preserves explicit overlay camera credentials when a session token arrives', () => {
+    window.history.replaceState({}, '', '/overlay/1?token=bblt_fixture');
+    const camera = addImg('/api/v1/printers/1/camera/stream?token=bblt_fixture');
+    rewriteMediaSrcWithToken(root, 'SESSION', 'camera');
+    expect(camera.getAttribute('src')).toBe('/api/v1/printers/1/camera/stream?token=bblt_fixture');
+    window.history.replaceState({}, '', '/');
+  });
+
 });

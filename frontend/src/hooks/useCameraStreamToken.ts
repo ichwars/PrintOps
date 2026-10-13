@@ -27,12 +27,15 @@ function tokenKindForUrl(src: string): TokenKind | null {
 
 /** Retrofit only local media URLs belonging to this credential type. */
 export function rewriteMediaSrcWithToken(root: ParentNode, token: string, kind: TokenKind = 'media'): number {
+  const explicitStreamToken = /^\/(?:overlay\/\d+|camera\/\d+|camwall)\/?$/.test(window.location.pathname)
+    ? new URLSearchParams(window.location.search).get('token') : null;
   const tokenParam = `token=${encodeURIComponent(token)}`;
   let updated = 0;
   root.querySelectorAll<HTMLImageElement | HTMLVideoElement>('img[src*="/api/v1/"], video[src*="/api/v1/"]').forEach((el) => {
     const src = el.getAttribute('src') || '';
     if (tokenKindForUrl(src) !== kind) return;
     const url = new URL(src, window.location.origin);
+    if (kind === 'camera' && explicitStreamToken && url.searchParams.get('token') === explicitStreamToken) return;
     if (url.searchParams.get('token') === token) return;
     const withoutToken = src.replace(/([?&])token=[^&#]*(&|(?=#)|$)/, (_m, pre, post) => post === '&' ? pre : '');
     const hashIndex = withoutToken.indexOf('#');

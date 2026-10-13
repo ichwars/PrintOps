@@ -804,7 +804,7 @@ async def camera_mse_stream(
         await websocket.close(code=4401)
         return
 
-    if auth_required and (not token or not await verify_camera_stream_token(token)):
+    if auth_required and (not token or not await verify_camera_stream_token(token, printer_id=printer_id)):
         logger.info("Camera MSE connect refused: missing/invalid token (printer_id=%s)", printer_id)
         await websocket.close(code=4401)
         return
