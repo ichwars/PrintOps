@@ -192,8 +192,8 @@ export const queueProfilesNotificationsMethods = {
   getSlotPreset: (printerId: number, amsId: number, trayId: number) =>
     request<SlotPresetMapping | null>(`/printers/${printerId}/slot-presets/${amsId}/${trayId}`),
 
-  saveSlotPreset: (printerId: number, amsId: number, trayId: number, presetId: string, presetName: string, presetSource = 'cloud') =>
-    request<SlotPresetMapping>(`/printers/${printerId}/slot-presets/${amsId}/${trayId}?preset_id=${encodeURIComponent(presetId)}&preset_name=${encodeURIComponent(presetName)}&preset_source=${encodeURIComponent(presetSource)}`, {
+  saveSlotPreset: (printerId: number, amsId: number, trayId: number, presetId: string, presetName: string, presetSource = 'cloud', trayInfoIdx?: string) =>
+    request<SlotPresetMapping>(`/printers/${printerId}/slot-presets/${amsId}/${trayId}?preset_id=${encodeURIComponent(presetId)}&preset_name=${encodeURIComponent(presetName)}&preset_source=${encodeURIComponent(presetSource)}${trayInfoIdx ? `&tray_info_idx=${encodeURIComponent(trayInfoIdx)}` : ''}`, {
       method: 'PUT',
     }),
 
@@ -237,6 +237,7 @@ export const queueProfilesNotificationsMethods = {
       kprofile_filament_id?: string;
       kprofile_setting_id?: string;
       k_value?: number;
+      orca_profile_id?: string;
     }
   ) => {
     const params = new URLSearchParams({
@@ -261,7 +262,8 @@ export const queueProfilesNotificationsMethods = {
     if (config.k_value !== undefined && config.k_value > 0) {
       params.set('k_value', config.k_value.toString());
     }
-    return request<{ success: boolean; message: string }>(
+    if (config.orca_profile_id) params.set('orca_profile_id', config.orca_profile_id);
+    return request<{ success: boolean; message: string; tray_info_idx: string; orca_fallback_reason: '' | 'no_filament_id' | 'lookup_failed' | 'no_permission' }>(
       `/printers/${printerId}/slots/${amsId}/${trayId}/configure?${params}`,
       { method: 'POST' }
     );

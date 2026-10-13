@@ -513,3 +513,18 @@ export function computeBackupGroups(
     return a.members[0].globalTrayId - b.members[0].globalTrayId;
   });
 }
+
+
+/** Whether a saved slot label still describes the reported filament. */
+export function slotPresetDescribesTray(
+  presetId: string | null | undefined,
+  trayInfoIdx: string | null | undefined,
+  presetTrayInfoIdx?: string | null,
+): boolean {
+  const preset = (presetId || '').split('_')[0].toUpperCase();
+  const tray = (trayInfoIdx || '').split('_')[0].toUpperCase();
+  const recorded = (presetTrayInfoIdx || '').split('_')[0].toUpperCase();
+  if (recorded && tray) return recorded === tray;
+  if (!preset.startsWith('GFS') || !tray.startsWith('GF') || tray.startsWith('GFS')) return true;
+  return `GF${preset.slice(3)}` === tray;
+}

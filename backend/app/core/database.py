@@ -1711,7 +1711,7 @@ async def run_migrations(conn):
 
     await migrate_active_print_spoolman(conn, _safe_execute, is_sqlite(), logger)
 
-    # Migration: Add preset_source column to slot_preset_mappings for local preset support
+    await _migrate_slot_preset_identity(conn)
     try:
         async with conn.begin_nested():
             await conn.execute(
@@ -3594,12 +3594,8 @@ async def _migrate_document_payments(conn) -> None:
     await _migrate_backfill_variant_groups(conn)
     await _migrate_production_quality(conn)
 
-    # Migration: Home Assistant sensor alerts (#1148). The printer_ha_sensors
-    # table itself is new, so create_all() builds it; only the provider opt-in
-    # column needs adding to existing databases.
-    # DEFAULT FALSE, not DEFAULT 0: Postgres will not take an integer default
-    # for a boolean column, and _safe_execute swallows the DatatypeMismatchError
-    # SQLite also supports FALSE, so both database engines accept this migration.
+    # Home Assistant alert provider opt-ins (#1148).
+    # Both dialects accept FALSE for a boolean default.
     await _safe_execute(conn, "ALTER TABLE notification_providers ADD COLUMN on_ha_sensor_alert BOOLEAN DEFAULT FALSE")
     await _safe_execute(
         conn, "ALTER TABLE notification_providers ADD COLUMN on_storage_sensor_alert BOOLEAN DEFAULT FALSE"
@@ -3608,6 +3604,10 @@ async def _migrate_document_payments(conn) -> None:
         conn,
         "ALTER TABLE printer_ha_sensors ADD COLUMN failure_strategy VARCHAR(16) DEFAULT 'auto'",
     )
+
+
+async def _migrate_slot_preset_identity(conn) -> None:
+    await _safe_execute(conn, "ALTER TABLE slot_preset_mappings ADD COLUMN tray_info_idx VARCHAR(32)")
 
 
 async def _migrate_notification_photo_options(conn) -> None:

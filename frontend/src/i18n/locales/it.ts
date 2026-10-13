@@ -8982,6 +8982,11 @@ useEmbeddedHint: 'Esegue lo slicing come impostato dal designer (pareti, riempim
 
   // Configure AMS Slot Modal
   configureAmsSlot: {
+    orcaFallback: {
+      no_filament_id: 'Questo profilo Orca non ha un ID filamento proprio, quindi OrcaSlicer vedrà questo slot come Generic {{material}}.',
+      lookup_failed: 'Impossibile leggere l’ID filamento di questo profilo da Orca Cloud, quindi OrcaSlicer vedrà questo slot come Generic {{material}}. Riprova tra poco.',
+      no_permission: 'Non hai accesso a Orca Cloud, quindi non è stato possibile leggere l’ID filamento di questo profilo. OrcaSlicer vedrà questo slot come Generic {{material}}.',
+    },
     title: 'Configura Slot AMS',
     slotConfigured: 'Slot configurato!',
     configuringSlot: 'Configurazione slot:',

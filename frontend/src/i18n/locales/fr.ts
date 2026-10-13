@@ -8983,6 +8983,11 @@ useEmbeddedHint: 'Découpe comme le concepteur l\'a configuré (parois, rempliss
 
   // Configure AMS Slot Modal
   configureAmsSlot: {
+    orcaFallback: {
+      no_filament_id: 'Ce profil Orca n’a pas d’identifiant de filament propre : OrcaSlicer verra cet emplacement comme Generic {{material}}.',
+      lookup_failed: 'Impossible de lire l’identifiant de filament de ce profil depuis Orca Cloud : OrcaSlicer verra cet emplacement comme Generic {{material}}. Réessayez dans un instant.',
+      no_permission: 'Vous n’avez pas accès à Orca Cloud, l’identifiant de filament de ce profil n’a donc pas pu être lu. OrcaSlicer verra cet emplacement comme Generic {{material}}.',
+    },
     title: 'Configurer le slot AMS',
     slotConfigured: 'Slot configuré !',
     configuringSlot: 'Configuration du slot :',

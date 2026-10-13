@@ -40,6 +40,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.user import User
+from backend.app.services.orca_filament_lookup import (
+    _ORCA_PROFILE_ID,
+    OrcaFilamentLookup,  # noqa: F401 - import compatibility
+    _orca_generic_filament_id,
+    lookup_orca_filament_id,
+)
 from backend.app.utils.filament_ids import (
     GENERIC_FILAMENT_IDS,
     filament_id_to_setting_id,
@@ -103,7 +109,16 @@ async def resolve_slicer_filament(
     # All three need a cloud-detail lookup to extract the underlying
     # filament_id; without it the raw cloud id ends up in tray_info_idx
     # and the printer's calibration table can't resolve it.
-    if base_sf.startswith("GFS") or base_sf.startswith("PFUS") or base_sf.startswith("PFCN"):
+    orca_id = sf.removeprefix("orca_")
+    if _ORCA_PROFILE_ID.fullmatch(orca_id):
+        found = await lookup_orca_filament_id(db, current_user, orca_id)
+        tray_info_idx = found.filament_id
+        setting_id = filament_id_to_setting_id(tray_info_idx) if tray_info_idx else ""
+        sub_brand_override = found.name.split("@")[0].strip() if found.name else None
+        type_override = found.filament_type
+        if not tray_info_idx:
+            tray_info_idx = _orca_generic_filament_id(type_override or material or "")
+    elif base_sf.startswith("GFS") or base_sf.startswith("PFUS") or base_sf.startswith("PFCN"):
         setting_id = base_sf
         try:
             from backend.app.api.routes.cloud import build_authenticated_cloud

@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,11 +14,20 @@ from backend.app.models.ams_label import AmsLabel
 from backend.app.models.printer import Printer
 from backend.app.models.slot_preset import SlotPresetMapping
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
+from backend.app.models.user import User
 from backend.app.schemas.printer import (
     AmsLabelBody,
 )
 from backend.app.services.drying_ownership import printer_operation_guard
 from backend.app.services.inventory_mode import spoolman_owns_assignments
+from backend.app.services.orca_filament_lookup import (
+    _ORCA_PROFILE_ID,
+    OrcaFilamentLookup,
+    _orca_generic_filament_id,
+    lookup_orca_filament_id,
+    orca_cloud_caller,
+    valid_filament_id,
+)
 from backend.app.utils.filament_ids import GENERIC_FILAMENT_IDS, filament_id_to_setting_id
 from backend.app.utils.filament_types import generic_filament_id, is_material_name, printer_filament_type
 
@@ -61,6 +70,7 @@ async def configure_ams_slot(
     printer_id: int,
     ams_id: int,
     tray_id: int,
+    request: Request,
     tray_info_idx: str = Query(...),
     tray_type: str = Query(...),
     tray_sub_brands: str = Query(...),
@@ -73,8 +83,9 @@ async def configure_ams_slot(
     kprofile_filament_id: str = Query(""),
     kprofile_setting_id: str = Query(""),
     k_value: float = Query(0.0),
+    orca_profile_id: str = Query(""),
     db: AsyncSession = Depends(get_db),
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     _drying_guard=Depends(printer_operation_guard),
 ):
     """Configure an AMS slot with a specific filament setting and K profile.
@@ -83,21 +94,10 @@ async def configure_ams_slot(
     1. ams_filament_setting - sets filament type, color, temperature
     2. extrusion_cali_sel - sets the K profile (pressure advance value)
 
-    Args:
-        printer_id: Database ID of the printer
-        ams_id: AMS unit ID (0-3 for regular AMS, 128-135 for HT AMS)
-        tray_id: Tray ID within the AMS (0-3)
-        tray_info_idx: Filament ID short format (e.g., "GFL05") or user preset ID
-        tray_type: Filament type (e.g., "PLA", "PETG")
-        tray_sub_brands: Sub-brand/profile name (e.g., "PLA Basic", "PETG HF")
-        tray_color: Color in RRGGBBAA hex format (e.g., "FFFF00FF")
-        nozzle_temp_min: Minimum nozzle temperature
-        nozzle_temp_max: Maximum nozzle temperature
         cali_idx: K profile calibration index (-1 for default 0.020)
         nozzle_diameter: Nozzle diameter string (e.g., "0.4")
         setting_id: Full setting ID with version (e.g., "GFSL05_07") - optional
         kprofile_filament_id: K profile's filament_id for proper K profile linking
-        k_value: Direct K value to set (0.0 to skip direct K value setting)
     """
     logger = logging.getLogger(__name__)
     logger.info("[configure_ams_slot] printer_id=%s, ams_id=%s, tray_id=%s", printer_id, ams_id, tray_id)
@@ -114,12 +114,34 @@ async def configure_ams_slot(
     if not client:
         raise HTTPException(status_code=400, detail="Printer not connected")
 
-    # Resolve tray_info_idx for the MQTT command.
-    #   1. Use the provided tray_info_idx if set (including cloud-synced
-    #      custom presets like PFUS* / P*).
-    #   2. Reuse the slot's existing tray_info_idx if it's a specific
-    #      (non-generic) preset for the same material.
-    #   3. Fall back to a generic Bambu filament ID.
+    if orca_profile_id:
+        tray_info_idx = valid_filament_id(tray_info_idx)
+        kprofile_filament_id = valid_filament_id(kprofile_filament_id)
+        kprofile_setting_id = (
+            "" if _ORCA_PROFILE_ID.fullmatch(kprofile_setting_id.removeprefix("orca_")) else kprofile_setting_id
+        )
+        setting_id = "" if _ORCA_PROFILE_ID.fullmatch(setting_id.removeprefix("orca_")) else setting_id
+    orca_fallback_reason = ""
+    if orca_profile_id and not tray_info_idx:
+        owner, allowed = await orca_cloud_caller(request, db, current_user)
+        found = (
+            await lookup_orca_filament_id(db, owner, orca_profile_id)
+            if allowed
+            else OrcaFilamentLookup(reason="no_permission")
+        )
+        if found.filament_type:
+            requested_tray_type = found.filament_type
+            tray_type = printer_filament_type(requested_tray_type)
+        tray_info_idx = valid_filament_id(found.filament_id)
+        if not tray_info_idx:
+            orca_fallback_reason = found.reason or "no_filament_id"
+            tray_info_idx = _orca_generic_filament_id(requested_tray_type)
+        logger.info(
+            "Orca profile %r resolved to %r (%s)", orca_profile_id, tray_info_idx, found.source or orca_fallback_reason
+        )
+
+    # Provided identity, same-material slot reuse, then generic material fallback.
+    # Orca fallback skips slot reuse to avoid a previous spool's identity.
     effective_tray_info_idx = tray_info_idx
 
     if not tray_info_idx:
@@ -153,7 +175,8 @@ async def configure_ams_slot(
                     current_tray_type = cur_tray.get("tray_type", "")
 
         if (
-            current_tray_info_idx
+            not orca_profile_id
+            and current_tray_info_idx
             and current_tray_info_idx not in set(GENERIC_FILAMENT_IDS.values())
             and not is_material_name(current_tray_info_idx)
             and current_tray_type
@@ -174,28 +197,16 @@ async def configure_ams_slot(
     # Send filament setting + K-profile commands
     filament_id_for_kprofile = kprofile_filament_id if kprofile_filament_id else effective_tray_info_idx
 
-    # Realign the slot's filament context to the K-profile's calibration
-    # context. The printer's calibration table is keyed by (filament_id,
-    # cali_idx) — so for the cali_idx selected via extrusion_cali_sel to
-    # actually stick to the slot, ams_filament_setting must declare the
-    # slot under the SAME filament_id.
-    #
-    # Without this, configure_ams_slot would send:
-    #   ams_filament_setting → tray_info_idx=GFL99 (generic from material)
-    #   extrusion_cali_sel    → filament_id=P4d64437 (kp's preset)
-    # ...and the cali_idx would silently be dropped to default because the
-    # slot's filament context (GFL99) doesn't match the kp's (P4d64437).
-    #
-    # This realignment fires only when the kp is targeted at a different
-    # preset than the user's filament selection AND the kp's preset is a
-    # valid tray_info_idx (GF* official, P* local — not PFUS* cloud-user
-    # which the slicer rejects in tray_info_idx).
+    # Calibration and slot configuration must declare the same filament ID.
+    # An explicitly selected K profile supplies that context.
     effective_setting_id = setting_id
+    realigned_to_kprofile = False
     if (
         kprofile_filament_id
         and kprofile_filament_id != effective_tray_info_idx
         and not kprofile_filament_id.startswith("PFUS")
     ):
+        realigned_to_kprofile = True
         logger.info(
             "[configure_ams_slot] realigning slot filament context to kp: tray_info_idx %r → %r, setting_id %r → %r",
             effective_tray_info_idx,
@@ -210,11 +221,7 @@ async def configure_ams_slot(
     if effective_tray_info_idx and not effective_setting_id:
         effective_setting_id = filament_id_to_setting_id(effective_tray_info_idx)
 
-    # Always send ams_set_filament_setting — the user explicitly clicked
-    # "Configure Slot", so honor that.  Previous versions skipped this for
-    # RFID-tagged slots to preserve the slicer eye icon, but printers cache
-    # stale tag_uid/tray_uuid after a BL spool is removed, causing the check
-    # to false-positive on non-RFID slots and silently drop the command.
+    # Honor explicit configuration even when firmware retains stale RFID tags.
     success = client.ams_set_filament_setting(
         ams_id=ams_id,
         tray_id=tray_id,
@@ -404,6 +411,8 @@ async def configure_ams_slot(
 
     return {
         "success": True,
+        "tray_info_idx": effective_tray_info_idx,
+        "orca_fallback_reason": "" if realigned_to_kprofile else orca_fallback_reason,
         "message": f"Configured AMS {ams_id} tray {tray_id} with {tray_sub_brands}",
     }
 

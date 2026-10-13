@@ -25,6 +25,7 @@ class SlotPresetMapping(Base):
     preset_id: Mapped[str] = mapped_column(String(100))  # Cloud preset setting_id
     preset_name: Mapped[str] = mapped_column(String(200))  # Preset name for display
     preset_source: Mapped[str] = mapped_column(String(20), default="cloud")  # cloud or local
+    tray_info_idx: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

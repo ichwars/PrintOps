@@ -146,3 +146,28 @@ Die einzelnen Änderungen, ihre Grenzen und die softwareseitigen Prüfergebnisse
 stehen im [Umsetzungsbericht](upstream-implementation-2026-10-11.md). Die dort
 dokumentierten API-, MQTT- und Browserprüfungen ersetzen keine Abnahme eines
 physischen Druckers mit seiner konkreten Firmware.
+
+## Orca-Cloud-Filamente im AMS konfigurieren
+
+Verbinde dein Orca-Cloud-Konto und öffne auf der Druckerkarte oder in SpoolBuddy
+„Slot konfigurieren“. Wähle das Orca-Filament und ein dazu passendes K-Profil.
+PrintOps verwendet die eigene Filament-ID des Profils. Fehlt sie, sucht es in den
+übergeordneten Profilen und anschließend im bekannten Bambu-Katalog. So kann
+OrcaSlicer beim Synchronisieren der Filamente den passenden Preset erkennen.
+
+Wenn keine nutzbare ID gefunden wird, erhält der Slot das generische Filament
+für das Material. Ein Hinweis erklärt, ob die ID fehlt, die Cloud-Abfrage
+fehlgeschlagen ist oder die Orca-Berechtigung fehlt. Eine vorhandene
+Cloud-Verknüpfung wird durch diesen Hintergrundzugriff nicht gelöscht.
+
+Beim Wechsel auf ein anderes Filament wird das bisher aktive K-Profil nicht
+automatisch übernommen. Du kannst ein passendes Kalibrierungsprofil auswählen.
+Lokale und Spoolman-Spulen verwenden denselben Orca-ID-Abgleich; ihre bestehenden
+Material-, Bestands- und Trocknungsregeln gelten weiterhin.
+
+Änderst du den Slot später am Drucker oder in OrcaSlicers Device-Ansicht, blendet
+PrintOps einen gespeicherten Presetnamen aus, sobald der Drucker eine andere
+Filament-ID meldet. Alte Zuordnungen ohne aufgezeichnete ID bleiben lesbar.
+Eine erneute Konfiguration speichert die tatsächlich verwendete ID.
+
+Diese Erweiterung gehört zu [O02 / Issue #200](https://github.com/ichwars/PrintOps/issues/200).

@@ -115,6 +115,7 @@ async def test_spoolman_helper_uses_filament_name_and_tray_info_idx(db_session, 
     assert mapping.preset_id == "GFSA50"
     assert mapping.preset_name == "Bambu PLA-CF Burgundy Red"
     assert mapping.preset_source == "cloud"
+    assert mapping.tray_info_idx == "GFA50"
 
 
 @pytest.mark.asyncio
@@ -199,3 +200,22 @@ async def test_spoolman_helper_skips_when_tray_info_idx_unknown(db_session, prin
     )
     result = await db_session.execute(select(SlotPresetMapping).where(SlotPresetMapping.printer_id == printer.id))
     assert result.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_shared_mapping_identity_is_replaced_and_cleared(db_session, printer_factory):
+    printer = await printer_factory()
+    for preset_id, identity in [("orca_custom", "Pfc74047"), ("local_5", None)]:
+        await upsert_slot_preset(
+            db=db_session,
+            printer_id=printer.id,
+            ams_id=0,
+            tray_id=0,
+            preset_id=preset_id,
+            preset_name="Selected",
+            configured_tray_info_idx=identity,
+        )
+        mapping = (
+            await db_session.execute(select(SlotPresetMapping).where(SlotPresetMapping.printer_id == printer.id))
+        ).scalar_one()
+        assert mapping.tray_info_idx == identity

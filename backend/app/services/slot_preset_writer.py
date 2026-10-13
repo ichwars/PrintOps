@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.slot_preset import SlotPresetMapping
 from backend.app.models.spool import Spool
+from backend.app.services.orca_filament_lookup import _ORCA_PROFILE_ID
 from backend.app.services.spool_filament_presets import resolve_spool_preset
 from backend.app.utils.filament_ids import filament_id_to_setting_id
 
@@ -37,12 +38,16 @@ async def upsert_slot_preset(
     preset_id: str,
     preset_name: str,
     preset_source: str = "cloud",
+    configured_tray_info_idx: str | None = None,
 ) -> None:
     """Primitive upsert. No-op when ``preset_id`` is empty (the column is
     NOT NULL on the model, and an empty string isn't a useful key to
     overwrite by). Soft-fails on DB errors so a broken upsert never
     cascades into the surrounding spool-assign flow.
     """
+    configured_tray_info_idx = (
+        configured_tray_info_idx if configured_tray_info_idx and len(configured_tray_info_idx) <= 32 else None
+    )
     if not preset_id:
         return
     try:
@@ -58,6 +63,7 @@ async def upsert_slot_preset(
             mapping.preset_id = preset_id
             mapping.preset_name = preset_name
             mapping.preset_source = preset_source
+            mapping.tray_info_idx = configured_tray_info_idx
         else:
             mapping = SlotPresetMapping(
                 printer_id=printer_id,
@@ -66,6 +72,7 @@ async def upsert_slot_preset(
                 preset_id=preset_id,
                 preset_name=preset_name,
                 preset_source=preset_source,
+                tray_info_idx=configured_tray_info_idx,
             )
             db.add(mapping)
         await db.commit()
@@ -103,7 +110,9 @@ async def upsert_slot_preset_for_spool(
     preset_name = selected.slicer_filament_name or tray_sub_brands or tray_type
     preset_source = "cloud"
     sf = selected.slicer_filament or ""
-    if sf:
+    if _ORCA_PROFILE_ID.fullmatch(sf.removeprefix("orca_")):
+        preset_id, preset_source = f"orca_{sf.removeprefix('orca_')}", "orca_cloud"
+    elif sf:
         base_sf_mapping = sf.split("_")[0] if "_" in sf else sf
         try:
             int(base_sf_mapping)
@@ -122,6 +131,7 @@ async def upsert_slot_preset_for_spool(
         preset_id=preset_id,
         preset_name=preset_name,
         preset_source=preset_source,
+        configured_tray_info_idx=tray_info_idx,
     )
 
 
@@ -156,7 +166,9 @@ async def upsert_slot_preset_for_spoolman_spool(
     )
     sf = selected.slicer_filament or ""
     preset_source = "cloud"
-    if sf.isdecimal():
+    if _ORCA_PROFILE_ID.fullmatch(sf.removeprefix("orca_")):
+        preset_id, preset_source = f"orca_{sf.removeprefix('orca_')}", "orca_cloud"
+    elif sf.isdecimal():
         preset_id, preset_source = f"local_{sf}", "local"
     else:
         preset_id = filament_id_to_setting_id(tray_info_idx) if tray_info_idx else ""
@@ -169,4 +181,5 @@ async def upsert_slot_preset_for_spoolman_spool(
         preset_id=preset_id,
         preset_name=preset_name or "",
         preset_source=preset_source,
+        configured_tray_info_idx=tray_info_idx,
     )

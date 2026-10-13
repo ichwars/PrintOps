@@ -713,6 +713,7 @@ export interface SlotPresetMapping {
   tray_id: number;
   preset_id: string;
   preset_name: string;
+  tray_info_idx?: string | null;
 }
 
 // Filament types
