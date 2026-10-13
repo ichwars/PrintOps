@@ -625,3 +625,114 @@ async def test_mqtt_post_startup_sample_before_first_tick_counts_actual_receipt(
     rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
     await tick(rig)
     rig.manager.send_drying_command.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("transition", ["printer", "empty_registry", "ams", "empty_ams"])
+async def test_mqtt_inventory_reentry_rejects_retained_pre_entry_receipts(mqtt_rig, transition):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "1"
+    rig.now[0] += 5
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    retained = rig.states[1].raw_data["ams"]
+    if transition == "empty_registry":
+        rig.excluded.add(1)
+    elif transition == "empty_ams":
+        rig.states[1].raw_data["ams"] = []
+    await tick(rig, 5)
+    if transition in ("ams", "empty_ams"):
+        # The observed AMS inventory disappears while its explicit MQTT history remains.
+        rig.states[1].raw_data["ams"] = []
+    else:
+        rig.excluded.add(1)
+    await tick(rig, 10)
+    tracker = rig.scheduler._ambient_humidity
+    assert (1, 0) not in tracker.streaks | tracker.samples | tracker.criteria | tracker.cutoffs
+    if transition in ("printer", "empty_registry"):
+        assert tracker.active_printers == set()
+        assert tracker.printer_cutoffs == tracker.ams_members == {}
+        assert tracker.printer_resumes == set()
+    else:
+        assert tracker.ams_members == {1: set()}
+    if transition in ("ams", "empty_ams"):
+        rig.states[1].raw_data["ams"] = retained
+    else:
+        rig.excluded.remove(1)
+    await tick(rig, 30)
+    rig.manager.send_drying_command.assert_not_called()
+    assert (1, 0) not in tracker.streaks
+    assert tracker.active_printers == {1}
+    assert tracker.ams_members == {1: {0}}
+    if transition in ("printer", "empty_registry"):
+        assert tracker.printer_cutoffs == {1: 1050}
+    floor = tracker.cutoffs[(1, 0)]
+    for elapsed in (15, 45):
+        rig.now[0] += elapsed
+        rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+        await tick(rig)
+        rig.manager.send_drying_command.assert_not_called()
+        assert tracker.cutoffs[(1, 0)] == floor
+    rig.now[0] += 15
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig)
+    rig.manager.send_drying_command.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("clear", ["reserved", "missing_state", "disconnected"])
+async def test_mqtt_unseen_ams_after_printer_clear_uses_resume_receipt_floor(mqtt_rig, clear):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "1"
+    await tick(rig)
+    state = rig.states[1]
+    rig.now[0] += 20
+    if clear == "reserved":
+        rig.db.scalar.return_value = 1
+    elif clear == "missing_state":
+        rig.manager.get_status.side_effect = lambda pid: None
+    else:
+        rig.manager.is_connected.return_value = False
+    await tick(rig)
+    rig.now[0] += 10
+    rig.client._handle_ams_data({"ams": [unit(1)]})
+    rig.now[0] += 20
+    rig.db.scalar.return_value = None
+    rig.manager.get_status.side_effect = rig.states.get
+    rig.manager.is_connected.return_value = True
+    # Keep the first AMS low so only the previously unseen unit can start.
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 40}]})
+    await tick(rig)
+    assert state.drying_telemetry.humidity[1].observed_at == 1030
+    assert (1, 1) not in rig.scheduler._ambient_humidity.streaks
+    for elapsed in (15, 45):
+        rig.now[0] += elapsed
+        rig.client._handle_ams_data({"ams": [{"id": 1, "humidity_raw": 75}]})
+        await tick(rig)
+        rig.manager.send_drying_command.assert_not_called()
+    rig.now[0] += 15
+    rig.client._handle_ams_data({"ams": [{"id": 1, "humidity_raw": 75}]})
+    await tick(rig)
+    rig.manager.send_drying_command.assert_called_once()
+    assert rig.manager.send_drying_command.call_args.args[:2] == (1, 1)
+
+
+@pytest.mark.asyncio
+async def test_mqtt_other_material_threshold_change_preserves_unconsumed_low_history(mqtt_rig):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "1"
+    await tick(rig)
+    rig.now[0] += 30
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 40}]})
+    rig.now[0] += 15
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    rig.settings["ams_humidity_thresholds"] = '{"PETG": 70}'
+    await tick(rig, 5)
+    assert rig.scheduler._ambient_humidity.streaks[(1, 0)].since == 1045
+    rig.now[0] += 15
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig)
+    rig.manager.send_drying_command.assert_not_called()
+    rig.now[0] += 40
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig)
+    rig.manager.send_drying_command.assert_called_once()

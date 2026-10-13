@@ -90,6 +90,8 @@ async def check_auto_drying(
     all_printers = await db.execute(select(Printer).where(Printer.is_active.is_(True)))
     printers = list(all_printers.scalars())
     active_ids = {printer.id for printer in printers}
+    now = time.monotonic()
+    self._ambient_humidity.reconcile_printers(active_ids, now)
     tracked_ids = {
         key[0]
         for key in self._ambient_humidity.streaks | self._ambient_humidity.samples | self._ambient_humidity.criteria
@@ -98,7 +100,6 @@ async def check_auto_drying(
         self._ambient_humidity.forget_printer(pid)
         self._drying_in_progress.pop(pid, None)
         self._drying_owned_ams.pop(pid, None)
-    now = time.monotonic()
     for printer in printers:
         pid = printer.id
         if pid in scheduled_owners:

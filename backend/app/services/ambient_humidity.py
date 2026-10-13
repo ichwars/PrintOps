@@ -74,6 +74,10 @@ class AmbientHumidity:
         self.samples: dict[tuple[int, int], tuple[object, int]] = {}
         self.criteria: dict[tuple[int, int], tuple | None] = {}
         self.cutoffs: dict[tuple[int, int], float] = {}
+        self.active_printers: set[int] | None = None
+        self.printer_cutoffs: dict[int, float] = {}
+        self.printer_resumes: set[int] = set()
+        self.ams_members: dict[int, set[int]] = {}
 
     def reset(self):
         self.started_at = time.monotonic()
@@ -88,7 +92,19 @@ class AmbientHumidity:
             self.reset()
         self.minutes = minutes
 
+    def reconcile_printers(self, active_ids, now):
+        """Keep only current identities; later arrivals begin a new eligible period."""
+        previous = self.active_printers
+        for printer_id in active_ids:
+            if previous is not None and printer_id not in previous:
+                self.printer_cutoffs[printer_id] = now
+        for printer_id in set(self.printer_cutoffs) | set(self.ams_members) | self.printer_resumes:
+            if printer_id not in active_ids:
+                self.forget_printer(printer_id)
+        self.active_printers = set(active_ids)  # An empty first inventory still initializes it.
+
     def clear_printer(self, printer_id):
+        self.printer_resumes.add(printer_id)
         self.streaks = {key: value for key, value in self.streaks.items() if key[0] != printer_id}
         self.samples = {key: value for key, value in self.samples.items() if key[0] != printer_id}
         self.criteria = {key: None if key[0] == printer_id else value for key, value in self.criteria.items()}
@@ -97,6 +113,9 @@ class AmbientHumidity:
         self.clear_printer(printer_id)
         self.criteria = {key: value for key, value in self.criteria.items() if key[0] != printer_id}
         self.cutoffs = {key: value for key, value in self.cutoffs.items() if key[0] != printer_id}
+        self.printer_cutoffs.pop(printer_id, None)
+        self.printer_resumes.discard(printer_id)
+        self.ams_members.pop(printer_id, None)
 
     def observe(self, printer_id, units, thresholds, fallback, resolve_threshold, minutes, now, max_gap, observations):
         configuration = (fallback, tuple(sorted(thresholds.items())))
@@ -106,6 +125,16 @@ class AmbientHumidity:
         if self.needs_resume:
             self.started_at = now
             self.needs_resume = False
+        if printer_id in self.printer_resumes:
+            self.printer_cutoffs[printer_id] = now
+            self.printer_resumes.discard(printer_id)
+        printer_floor = max(self.started_at, self.printer_cutoffs.get(printer_id, self.started_at))
+        previous_members = self.ams_members.get(printer_id)
+        current_members = {int(unit.get("id", 0)) for unit in units}
+        if previous_members is not None:
+            for ams_id in current_members - previous_members:
+                self.cutoffs[(printer_id, ams_id)] = now
+        self.ams_members[printer_id] = current_members
         seen = set()
         ready = set()
         for unit in units:
@@ -128,7 +157,7 @@ class AmbientHumidity:
                 streak = None
                 self.cutoffs[key] = now
             self.criteria[key] = criteria
-            self.cutoffs.setdefault(key, self.started_at)
+            self.cutoffs.setdefault(key, printer_floor)
             if int(unit.get("dry_time") or 0) > 0 or unit.get("module_type") not in ("n3f", "n3s"):
                 self.streaks.pop(key, None)
                 self.criteria[key] = None
