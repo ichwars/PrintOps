@@ -252,6 +252,35 @@ def _stage_cli(archive: Path, destination: Path, expected_version: str, backup_d
     return destination / ("verapdf.bat" if os.name == "nt" else "verapdf")
 
 
+def _prepare_native_macos_python_signature(destination: Path, backup_dir: Path | None) -> None:
+    """Bootstrap old native updaters through the CLI they invoke after checkout."""
+    if sys.platform != "darwin" or backup_dir is None:
+        return
+    runtime = REPO_ROOT / "runtime"
+    if (
+        destination.resolve() != (runtime / "verapdf").resolve()
+        or backup_dir.name != "verapdf"
+        or backup_dir.parent.parent.resolve() != runtime.resolve()
+        or not backup_dir.parent.name.startswith(".verapdf-backup.")
+    ):
+        return
+    helper = REPO_ROOT / "install" / "macos_python_signature.sh"
+    guidance = "Rerun install/update_macos.sh from a compatible current branch to prepare Python Local Network access."
+    if not helper.is_file():
+        print(f"[PrintOps] WARNING: Python signing helper missing. {guidance}", file=sys.stderr)
+        return
+    try:
+        result = subprocess.run(
+            ["bash", str(helper), "macos", str(REPO_ROOT / "venv" / "bin" / "python")],
+            check=False,
+            timeout=30,
+        )
+        if result.returncode:
+            print(f"[PrintOps] WARNING: Python signature preparation failed. {guidance}", file=sys.stderr)
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"[PrintOps] WARNING: Python signature preparation failed: {exc}. {guidance}", file=sys.stderr)
+
+
 def main() -> int:
     if sys.platform == "darwin":
         os.environ["PATH"] = f"/opt/homebrew/bin:/usr/local/bin:{os.environ.get('PATH', '')}"
@@ -282,6 +311,7 @@ def main() -> int:
             print(f"verified veraPDF {verapdf['version']} ({archive.name})")
             return 0
         cli = _stage_cli(archive, args.destination, verapdf["version"], args.backup_dir)
+        _prepare_native_macos_python_signature(args.destination, args.backup_dir)
         print(f"staged verified veraPDF {verapdf['version']} CLI at {cli}")
         return 0
     except (OSError, subprocess.CalledProcessError, VendorError, zipfile.BadZipFile) as exc:

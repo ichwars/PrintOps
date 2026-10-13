@@ -100,6 +100,8 @@ are ad-hoc signed. Existing ad-hoc and Developer ID signatures stay intact so a
 working identity is preserved. An unknown signature-probe failure leaves the
 target unchanged. Every completed update rechecks the interpreter because a
 Homebrew Python upgrade can select a different executable.
+The first update from an older installation also prepares this identity after
+verified native PDF runtime staging, before the service restarts.
 
 Signing prepares an identity; it does not grant Local Network permission.
 Approve Python when macOS asks, or open **System Settings → Privacy & Security →
@@ -113,6 +115,9 @@ installation/update to continue. For a missing tool, install the Xcode command
 line tools with `xcode-select --install`, then rerun the updater. For other
 warnings, check the target's file permissions or code signature before retrying;
 do not force a replacement of an existing signature.
+Installing or updating an otherwise compatible older branch that has no signing
+helper continues with a warning. Choose a newer compatible branch and rerun the
+macOS updater when you need automatic Local Network identity preparation.
 
 For a native macOS installation at `~/printops`:
 
