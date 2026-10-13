@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from backend.app.models.printer import Printer
 from backend.app.models.settings import Settings
-from backend.app.services.ambient_humidity import read_humidity
+from backend.app.services.ambient_humidity import HumidityObservation, read_humidity
 
 
 async def check_auto_drying(
@@ -91,7 +91,9 @@ async def check_auto_drying(
     all_printers = await db.execute(select(Printer).where(Printer.is_active.is_(True)))
     printers = list(all_printers.scalars())
     active_ids = {printer.id for printer in printers}
-    tracked_ids = {key[0] for key in self._ambient_humidity.streaks} | set(self._drying_owned_ams)
+    tracked_ids = {key[0] for key in self._ambient_humidity.streaks | self._ambient_humidity.samples} | set(
+        self._drying_owned_ams
+    )
     for pid in tracked_ids - active_ids:
         self._ambient_humidity.clear_printer(pid)
         self._drying_in_progress.pop(pid, None)
@@ -123,8 +125,9 @@ async def check_auto_drying(
                 sustained_minutes,
                 now,
                 max(4 * self._check_interval, 120),
+                state.drying_telemetry.humidity,
             )
-            if ambient_drying_enabled
+            if ambient_drying_enabled and sustained_minutes > 0
             else set()
         )
         model = printer_manager.get_model(pid)
@@ -182,7 +185,12 @@ async def check_auto_drying(
 
             dry_time = int(ams_data.get("dry_time") or 0)
 
-            humidity = read_humidity(ams_data)
+            sample = state.drying_telemetry.humidity.get(ams_id)
+            humidity = (
+                sample.value
+                if ambient_drying_enabled and not queue_eligible and isinstance(sample, HumidityObservation)
+                else read_humidity(ams_data)
+            )
             # Already drying — let it run to its configured duration (#1892).
             #
             # We deliberately do NOT stop drying from a humidity re-check here.
@@ -216,7 +224,7 @@ async def check_auto_drying(
                 continue
 
             # Queue deadlines and print-only drying are exempt from ambient waiting.
-            if ambient_drying_enabled and not queue_eligible and ams_id not in ready_ams:
+            if ambient_drying_enabled and sustained_minutes > 0 and not queue_eligible and ams_id not in ready_ams:
                 continue
 
             # Check cannot-dry reasons (power constraints etc.)

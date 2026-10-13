@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from backend.app.services.ambient_humidity import observe_ams_humidity
 from backend.app.services.bambu_mqtt import PrinterState
 from backend.app.services.print_scheduler import PrintScheduler
 
@@ -62,6 +63,9 @@ def rig():
 
 async def tick(rig, seconds=0, queue=(), busy=()):
     rig.now[0] += seconds
+    if getattr(rig, "refresh", True):
+        for state in rig.states.values():
+            observe_ams_humidity(state, state.raw_data.get("ams", []))
     await rig.scheduler._check_auto_drying(rig.db, list(queue), set(busy))
 
 
@@ -343,3 +347,197 @@ async def test_print_only_mode_does_not_dry_idle_printer_with_scheduled_item(rig
     rig.manager.send_drying_command.assert_not_called()
     assert rig.scheduler._drying_in_progress == {}
     assert rig.scheduler._drying_owned_ams == {}
+
+
+@pytest.fixture
+def mqtt_rig(rig):
+    """Exercise production MQTT merging and publication with transport mocked."""
+    from backend.app.services.bambu_mqtt import BambuMQTTClient
+
+    client = BambuMQTTClient("192.0.2.1", "O07-TEST", "12345678", firmware_version="01.03.00.00")
+    client._client = MagicMock()
+    client._client.publish.return_value.rc = 0
+    rig.states[1] = client.state
+    rig.manager.send_drying_command.side_effect = lambda pid, *args, **kwargs: client.send_drying_command(
+        *args, **kwargs
+    )
+    rig.refresh = False
+    rig.client = client
+    client._handle_ams_data({"ams": [unit()]})
+    return rig
+
+
+@pytest.mark.asyncio
+async def test_mqtt_temperature_partials_cannot_manufacture_sustained_humidity(mqtt_rig):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "3"
+    await tick(rig)
+    for _ in range(6):
+        rig.now[0] += 30
+        rig.client._handle_ams_data({"ams": [{"id": 0, "temp": 30}]})
+        await tick(rig)
+    assert rig.states[1].raw_data["ams"][0]["humidity_raw"] == 75
+    rig.manager.send_drying_command.assert_not_called()
+    assert rig.scheduler._ambient_humidity.streaks == {}
+
+
+@pytest.mark.asyncio
+async def test_mqtt_fresh_samples_after_stale_gap_restart_full_wait(mqtt_rig):
+    rig = mqtt_rig
+    await tick(rig)
+    rig.now[0] += 121
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig)
+    for _ in range(2):
+        rig.now[0] += 60
+        rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+        await tick(rig)
+    rig.manager.send_drying_command.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid", [None, "bad", True, -1, 101, 75.5])
+async def test_mqtt_invalid_sensor_field_is_no_observation(mqtt_rig, invalid):
+    rig = mqtt_rig
+    await tick(rig)
+    rig.now[0] += 60
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig)
+    last_valid = rig.scheduler._ambient_humidity.streaks[(1, 0)].last_observation
+    rig.now[0] += 60
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": invalid}]})
+    await tick(rig)
+    rig.manager.send_drying_command.assert_not_called()
+    assert rig.scheduler._ambient_humidity.streaks[(1, 0)].last_observation == last_valid
+    assert rig.states[1].drying_telemetry.humidity[0].observed_at is None
+
+
+@pytest.mark.asyncio
+async def test_mqtt_fresh_fallback_sensor_overrides_cached_raw_sensor(mqtt_rig):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "0"
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 20}]})
+    await tick(rig)
+    rig.now[0] += 30
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity": 75}]})
+    await tick(rig)
+    assert rig.states[1].raw_data["ams"][0]["humidity_raw"] == 20
+    rig.manager.send_drying_command.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_mqtt_low_fallback_clears_streak_despite_cached_high_raw(mqtt_rig):
+    rig = mqtt_rig
+    await tick(rig)
+    rig.now[0] += 60
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity": 40}]})
+    await tick(rig)
+    assert rig.states[1].raw_data["ams"][0]["humidity_raw"] == 75
+    assert rig.scheduler._ambient_humidity.streaks == {}
+    rig.manager.send_drying_command.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_mqtt_other_ams_samples_do_not_refresh_target(mqtt_rig):
+    rig = mqtt_rig
+    await tick(rig)
+    rig.client._handle_ams_data({"ams": [unit(1)]})
+    for _ in range(4):
+        rig.now[0] += 60
+        rig.client._handle_ams_data({"ams": [{"id": 1, "humidity_raw": 75}]})
+        await tick(rig)
+    assert all(call.args[1] == 1 for call in rig.manager.send_drying_command.call_args_list)
+    assert rig.manager.send_drying_command.call_count == 1
+    assert (1, 0) not in rig.scheduler._ambient_humidity.streaks
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reset", ["reconnect", "inventory"])
+async def test_mqtt_generation_change_between_ticks_restarts_streak(mqtt_rig, reset):
+    rig = mqtt_rig
+    await tick(rig)
+    old = rig.states[1].drying_telemetry.humidity[0]
+    rig.now[0] += 60
+    if reset == "reconnect":
+        rig.client._last_message_time = 0
+        rig.client._on_disconnect(rig.client._client, None, rc=1)
+        rig.client._client.subscribe.return_value = (0, 1)
+        rig.client._on_connect(rig.client._client, None, {}, 0)
+    else:
+        rig.client._handle_version_info({"module": [{"name": "n3f/0", "sw_ver": "05.00.23.23"}]})
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    sample = rig.states[1].drying_telemetry.humidity[0]
+    assert sample.sequence == old.sequence == 1
+    assert sample.generation is not old.generation
+    await tick(rig)
+    for _ in range(2):
+        rig.now[0] += 60
+        rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+        await tick(rig)
+    rig.manager.send_drying_command.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_mqtt_zero_wait_retries_after_reservation_without_new_sample(mqtt_rig):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "0"
+    rig.db.scalar.return_value = 1
+    await tick(rig)
+    rig.manager.send_drying_command.assert_not_called()
+    rig.db.scalar.return_value = None
+    await tick(rig, 30)
+    rig.manager.send_drying_command.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_zero_wait_retains_legacy_cached_start_without_observation_metadata(rig):
+    rig.settings["ambient_drying_sustained_minutes"] = "0"
+    rig.refresh = False
+    await tick(rig)
+    rig.manager.send_drying_command.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_mqtt_low_sample_between_scheduler_polls_breaks_continuity(mqtt_rig):
+    rig = mqtt_rig
+    await tick(rig)
+    rig.now[0] += 60
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 40}]})
+    rig.now[0] += 30
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig)
+    rig.now[0] += 30
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig)
+    rig.manager.send_drying_command.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_mqtt_unconsumed_history_overflow_restarts_streak(mqtt_rig):
+    rig = mqtt_rig
+    await tick(rig)
+    rig.now[0] += 60
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 40}]})
+    rig.now[0] += 60
+    for _ in range(257):
+        rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    assert len(rig.states[1].drying_telemetry.humidity[0].history) == 256
+    await tick(rig)
+    rig.manager.send_drying_command.assert_not_called()
+    assert rig.scheduler._ambient_humidity.streaks[(1, 0)].since == rig.now[0]
+    for _ in range(2):
+        rig.now[0] += 60
+        rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+        await tick(rig)
+    rig.manager.send_drying_command.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_mqtt_continuous_fresh_samples_bridge_long_scheduler_poll(mqtt_rig):
+    rig = mqtt_rig
+    await tick(rig)
+    for _ in range(4):
+        rig.now[0] += 60
+        rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig)
+    rig.manager.send_drying_command.assert_called_once()
