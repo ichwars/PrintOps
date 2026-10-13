@@ -309,3 +309,37 @@ async def test_inactive_printer_cleans_ownership_without_command(rig):
     assert rig.scheduler._drying_owned_ams == {}
     assert rig.scheduler._drying_in_progress == {}
     rig.manager.send_drying_command.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("midprint", [False, True])
+async def test_disabled_queue_mode_keeps_ambient_wait_for_scheduled_printer(rig, midprint):
+    """O07-R1: a scheduled item cannot enable a disabled queue-drying exemption."""
+    rig.settings.update(
+        queue_drying_enabled="false",
+        ambient_drying_enabled="true",
+        ambient_drying_sustained_minutes="15",
+        print_drying_enabled="true" if midprint else "false",
+    )
+    scheduled = SimpleNamespace(printer_id=1, scheduled_time=object(), manual_start=False)
+    busy = [1] if midprint else []
+    await tick(rig, queue=[scheduled], busy=busy)
+    rig.manager.send_drying_command.assert_not_called()
+    assert rig.scheduler._drying_in_progress == {}
+    assert rig.scheduler._drying_owned_ams == {}
+    for _ in range(14):
+        await tick(rig, 60, queue=[scheduled], busy=busy)
+        rig.manager.send_drying_command.assert_not_called()
+    await tick(rig, 60, queue=[scheduled], busy=busy)
+    rig.manager.send_drying_command.assert_called_once_with(1, 0, 40 if midprint else 45, 12, mode=1, filament="PLA")
+
+
+@pytest.mark.asyncio
+async def test_print_only_mode_does_not_dry_idle_printer_with_scheduled_item(rig):
+    """O07-R2: print-only opt-in cannot start idle queue drying."""
+    rig.settings.update(queue_drying_enabled="false", ambient_drying_enabled="false", print_drying_enabled="true")
+    scheduled = SimpleNamespace(printer_id=1, scheduled_time=object(), manual_start=False)
+    await tick(rig, queue=[scheduled])
+    rig.manager.send_drying_command.assert_not_called()
+    assert rig.scheduler._drying_in_progress == {}
+    assert rig.scheduler._drying_owned_ams == {}

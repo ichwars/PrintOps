@@ -131,18 +131,19 @@ async def check_auto_drying(
         firmware = state.firmware_version
 
         mid_print = pid in busy_printers and print_drying_enabled and supports_drying_while_printing(model, firmware)
+        queue_eligible = queue_drying_enabled and pid in printers_with_scheduled
 
         if pid in busy_printers and not mid_print:
             logger.debug("Auto-drying: printer %d skipped — busy", pid)
             continue
 
         if not mid_print:
-            # In queue-only mode, only dry printers that have scheduled prints
-            if not ambient_drying_enabled and pid not in printers_with_scheduled:
+            # Idle starts require ambient mode or an enabled scheduled queue-drying mode.
+            if not ambient_drying_enabled and not queue_eligible:
                 if self._drying_in_progress.get(pid):
-                    logger.info("Auto-drying: printer %d — stopping, no scheduled prints for this printer", pid)
+                    logger.info("Auto-drying: printer %d — stopping, no enabled idle drying mode", pid)
                     await self._stop_drying(pid)
-                logger.debug("Auto-drying: printer %d skipped — no scheduled prints", pid)
+                logger.debug("Auto-drying: printer %d skipped — no enabled idle drying mode", pid)
                 continue
             # When block mode is on, don't START new drying on printers with pending items.
             # But allow already-drying printers through so humidity auto-stop logic still runs.
@@ -215,7 +216,7 @@ async def check_auto_drying(
                 continue
 
             # Queue deadlines and print-only drying are exempt from ambient waiting.
-            if ambient_drying_enabled and pid not in printers_with_scheduled and ams_id not in ready_ams:
+            if ambient_drying_enabled and not queue_eligible and ams_id not in ready_ams:
                 continue
 
             # Check cannot-dry reasons (power constraints etc.)
