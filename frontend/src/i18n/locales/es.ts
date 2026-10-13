@@ -5992,6 +5992,7 @@ export default {
       landscape: "Horizontal",
       fps: "Fotogramas por segundo",
       token: "Token de superposición (opcional)",
+      tokenRequired: "Token de superposición (obligatorio)",
       tokenHint: "Usa un token de larga duración de Overlay que empiece por bblt_. Los tokens de inicio de sesión no se pueden compartir aquí.",
       url: "URL de superposición",
       previewHint: "La vista previa solo se inicia al pulsar. Cambiar las opciones la cierra. Copia la URL en OBS.",

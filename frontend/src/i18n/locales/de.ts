@@ -6020,6 +6020,7 @@ export default {
       landscape: "Querformat",
       fps: "Bilder pro Sekunde",
       token: "Overlay-Token (optional)",
+      tokenRequired: "Overlay-Token (erforderlich)",
       tokenHint: "Verwende einen langlebigen Overlay-Token mit dem Präfix bblt_. Anmeldetoken können hier nicht geteilt werden.",
       url: "Overlay-URL",
       previewHint: "Die Vorschau startet erst nach einem Klick. Änderungen schließen sie. Kopiere die URL in OBS.",

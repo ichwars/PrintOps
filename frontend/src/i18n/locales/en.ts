@@ -6049,6 +6049,7 @@ export default {
       landscape: "Landscape",
       fps: "Frames per second",
       token: "Overlay token (optional)",
+      tokenRequired: "Overlay token (required)",
       tokenHint: "Use a long-lived Overlay token starting with bblt_. Login tokens cannot be shared here.",
       url: "Overlay URL",
       previewHint: "Preview stays off until you click. Changing options closes it. Select and copy the URL into OBS.",

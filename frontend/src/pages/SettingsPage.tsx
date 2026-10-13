@@ -945,7 +945,7 @@ export function SettingsPage() {
       email: userFormData.email || undefined,
       role: userFormData.role,
       group_ids: userFormData.group_ids.length > 0 ? userFormData.group_ids : undefined,
-      allowed_printer_ids: userFormData.allowed_printer_ids?.length ? userFormData.allowed_printer_ids : null,
+      allowed_printer_ids: userFormData.allowed_printer_ids ?? null,
     });
   };
 
@@ -974,7 +974,7 @@ export function SettingsPage() {
       email: userFormData.email || undefined,
       role: userFormData.role,
       group_ids: userFormData.group_ids,
-      allowed_printer_ids: userFormData.allowed_printer_ids?.length ? userFormData.allowed_printer_ids : null,
+      allowed_printer_ids: userFormData.allowed_printer_ids ?? null,
     };
     if (!updateData.password) {
       delete updateData.password;
@@ -6035,7 +6035,7 @@ export function SettingsPage() {
                                   </span>
                                 ))}
                                 <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-bambu-dark text-bambu-gray">
-                                  {userItem.allowed_printer_ids?.length
+                                  {userItem.allowed_printer_ids != null
                                     ? t('users.form.printerScopeCount', { count: userItem.allowed_printer_ids.length, defaultValue: `${userItem.allowed_printer_ids.length} printers` })
                                     : t('users.form.allPrinters', 'All printers')}
                                 </span>
@@ -6388,7 +6388,7 @@ export function SettingsPage() {
                   <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
                     <label className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer">
                       <Checkbox
-                        checked={!userFormData.allowed_printer_ids?.length}
+                        checked={userFormData.allowed_printer_ids == null}
                         onChange={clearUserPrinterScope}
                       />
                       <span className="text-sm text-white">{t('users.form.allPrinters', 'All printers')}</span>
@@ -6626,7 +6626,7 @@ export function SettingsPage() {
                   <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
                     <label className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer">
                       <Checkbox
-                        checked={!userFormData.allowed_printer_ids?.length}
+                        checked={userFormData.allowed_printer_ids == null}
                         onChange={clearUserPrinterScope}
                       />
                       <span className="text-sm text-white">{t('users.form.allPrinters', 'All printers')}</span>

@@ -6051,6 +6051,7 @@ export default {
       landscape: "Liggend",
       fps: "Beelden per seconde",
       token: "Overlaytoken (optioneel)",
+      tokenRequired: "Overlaytoken (verplicht)",
       tokenHint: "Gebruik een langdurig Overlaytoken dat begint met bblt_. Aanmeldtokens kunnen hier niet worden gedeeld.",
       url: "Overlay-URL",
       previewHint: "Het voorbeeld start pas na een klik. Wijzigingen sluiten het. Kopieer de URL naar OBS.",

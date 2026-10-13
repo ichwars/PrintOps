@@ -305,7 +305,7 @@ async def delete_printer(
     from backend.app.models.maintenance import MaintenanceHistory, PrinterMaintenance
     from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 
-    result = await db.execute(select(Printer).where(Printer.id == printer_id))
+    result = await db.execute(select(Printer).where(Printer.id == printer_id).with_for_update())
     printer = result.scalar_one_or_none()
     if not printer:
         raise HTTPException(404, "Printer not found")
@@ -337,6 +337,9 @@ async def delete_printer(
         )
         await db.execute(sql_delete(PrinterMaintenance).where(PrinterMaintenance.printer_id == printer_id))
 
+    from backend.app.core.user_printer_scope import remove_printer_grants
+
+    await remove_printer_grants(db, printer_id)
     await db.delete(printer)
     await db.commit()
 

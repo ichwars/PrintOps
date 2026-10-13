@@ -5971,6 +5971,7 @@ export default {
       landscape: "Paisagem",
       fps: "Quadros por segundo",
       token: "Token de sobreposição (opcional)",
+      tokenRequired: "Token de sobreposição (obrigatório)",
       tokenHint: "Use um token Overlay de longa duração que comece com bblt_. Tokens de login não podem ser compartilhados aqui.",
       url: "URL de sobreposição",
       previewHint: "A prévia só inicia após um clique. Alterar as opções a fecha. Copie a URL para o OBS.",

@@ -5971,6 +5971,7 @@ export default {
       landscape: "Orizzontale",
       fps: "Fotogrammi al secondo",
       token: "Token sovrimpressione (facoltativo)",
+      tokenRequired: "Token overlay (obbligatorio)",
       tokenHint: "Usa un token Overlay di lunga durata che inizi con bblt_. I token di accesso non possono essere condivisi qui.",
       url: "URL sovrimpressione",
       previewHint: "L’anteprima parte solo dopo un clic. Modificare le opzioni la chiude. Copia l’URL in OBS.",

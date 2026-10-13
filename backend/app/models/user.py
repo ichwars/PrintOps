@@ -45,6 +45,7 @@ class User(Base):
 
     # NULL means all printers. A non-empty JSON list narrows printer-bound
     # resources after the regular Own/All permission check.
+    # None grants all printers; [] denies every printer and must survive edits/restarts.
     allowed_printer_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     # Per-user Bambu Cloud credentials (when auth is enabled, each user has their own)

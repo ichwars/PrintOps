@@ -88,11 +88,14 @@ def require_camera_stream_token_if_auth_enabled():
     """
     from backend.app.core import auth
 
-    async def checker(token: str | None = None) -> None:
+    async def checker(printer_id: int, token: str | None = None) -> None:
         async with auth.async_session() as db:
             if not await auth.is_auth_enabled(db):
                 return  # Auth disabled, allow access
-        if not token or not await auth.verify_camera_stream_token(token):
+        access_status = await auth.camera_stream_token_status(token, printer_id) if token else 401
+        if access_status == 403:
+            raise HTTPException(status_code=403, detail="Printer access denied.")
+        if access_status != 200:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Valid camera stream token required. Obtain one from POST /api/v1/printers/camera/stream-token",

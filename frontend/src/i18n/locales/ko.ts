@@ -5808,6 +5808,7 @@ export default {
       landscape: "가로",
       fps: "초당 프레임 수",
       token: "오버레이 토큰 (선택 사항)",
+      tokenRequired: "오버레이 토큰 (필수)",
       tokenHint: "bblt_로 시작하는 장기 Overlay 토큰을 사용하세요. 로그인 토큰은 여기서 공유할 수 없습니다.",
       url: "오버레이 URL",
       previewHint: "미리 보기는 클릭한 후에 시작됩니다. 옵션을 변경하면 닫힙니다. URL을 복사하여 OBS에 붙여 넣으세요.",

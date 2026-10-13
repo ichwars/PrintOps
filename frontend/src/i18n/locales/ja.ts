@@ -5983,6 +5983,7 @@ export default {
       landscape: "横向き",
       fps: "毎秒フレーム数",
       token: "オーバーレイトークン（任意）",
+      tokenRequired: "オーバーレイトークン（必須）",
       tokenHint: "bblt_で始まる長期Overlayトークンを使用してください。ログイントークンはここでは共有できません。",
       url: "オーバーレイURL",
       previewHint: "プレビューはクリック後に開始します。設定を変更すると閉じます。URLをコピーしてOBSに貼り付けてください。",

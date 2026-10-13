@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, screen, render, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { render } from '../utils';
+import { setAuthToken } from '../../api/client';
+import { useAuth } from '../../contexts/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
@@ -46,7 +49,7 @@ describe('overlay share links', () => {
       server.use(http.get('/api/v1/printers', () => HttpResponse.json([{ id: 7, name: 'Studio printer' }])));
       render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><form onSubmit={event => { event.preventDefault(); submitted.push('submitted'); }}><StreamOverlayBuilder /></form></QueryClientProvider>);
       await screen.findByText('Studio printer');
-      fireEvent.change(screen.getByLabelText('Overlay token (optional)'), { target: { value: 'bblt_fixture' } });
+      fireEvent.change(screen.getByLabelText(/Overlay token/), { target: { value: 'bblt_fixture' } });
       fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
       await waitFor(() => expect(writeText).toHaveBeenCalledWith('http://localhost:3000/overlay/7?token=bblt_fixture'));
       expect(screen.queryByTitle('Stream Overlay')).not.toBeInTheDocument();
@@ -60,3 +63,56 @@ describe('overlay share links', () => {
   });
 
 });
+
+// Real AuthProvider state, with only the HTTP backend fixture replaced.
+function signedIn(scope: number[] | null) {
+  setAuthToken('fixture-session');
+  server.use(
+    http.get('/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })),
+    http.get('/api/v1/auth/me', () => HttpResponse.json({ id: 4, username: 'viewer', is_admin: false, is_active: true, permissions: ['printers:read', 'camera:view'], allowed_printer_ids: scope })),
+    http.get('/api/v1/printers', () => HttpResponse.json([{ id: 2, name: 'Private printer' }, { id: 7, name: 'Allowed studio' }])),
+  );
+}
+
+describe('authenticated sharing boundaries', () => {
+  it('offers only allowed printers and defaults to the first authorized printer', async () => {
+    signedIn([7]);
+    render(<StreamOverlayBuilder />);
+    await screen.findByText('Allowed studio');
+    fireEvent.click(screen.getByRole('combobox', { name: 'Printer' }));
+    expect(screen.getAllByRole('option')).toHaveLength(1);
+    expect(screen.queryByText('Private printer')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: 'Allowed studio' }));
+    fireEvent.change(screen.getByLabelText(/Overlay token/), { target: { value: 'bblt_fixture' } });
+    expect(screen.getByRole('textbox', { name: 'Overlay URL' })).toHaveValue('http://localhost:3000/overlay/7?token=bblt_fixture');
+  });
+  it('offers no printer or share action for a deny-all scope', async () => {
+    signedIn([]);
+    render(<><StreamOverlayBuilder /><ScopeReady /></>);
+    await screen.findByText('scope:[]');
+    await waitFor(() => expect(screen.queryByText('Private printer')).not.toBeInTheDocument());
+    expect(screen.getByRole('textbox', { name: 'Overlay URL' })).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Show preview' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Copy' })).not.toBeInTheDocument();
+  });
+  it('requires an Overlay token for share/copy/preview even with a live login', async () => {
+    signedIn(null);
+    render(<StreamOverlayBuilder />);
+    await screen.findByText('Private printer');
+    expect(screen.getByRole('button', { name: 'Show preview' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Copy' })).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Overlay URL' })).toHaveValue('');
+    fireEvent.change(screen.getByLabelText(/Overlay token/), { target: { value: 'bblt_fixture' } });
+    expect(screen.getByRole('button', { name: 'Copy' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Show preview' }));
+    expect(screen.getByTitle('Stream Overlay')).toHaveAttribute('src', 'http://localhost:3000/overlay/2?token=bblt_fixture');
+    fireEvent.change(screen.getByLabelText(/Overlay token/), { target: { value: '' } });
+    expect(screen.queryByTitle('Stream Overlay')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show preview' })).toBeDisabled();
+  });
+});
+
+function ScopeReady() {
+  const { user } = useAuth();
+  return <output>{user ? `scope:${JSON.stringify(user.allowed_printer_ids)}` : 'loading scope'}</output>;
+}

@@ -5986,6 +5986,7 @@ export default {
       landscape: "Yatay",
       fps: "Saniyedeki kare sayısı",
       token: "Katman belirteci (isteğe bağlı)",
+      tokenRequired: "Kaplama belirteci (gerekli)",
       tokenHint: "bblt_ ile başlayan uzun ömürlü Overlay belirteci kullanın. Oturum açma belirteçleri burada paylaşılamaz.",
       url: "Katman URL’si",
       previewHint: "Önizleme yalnızca tıklayınca başlar. Seçenekleri değiştirmek onu kapatır. URL’yi OBS’ye kopyalayın.",

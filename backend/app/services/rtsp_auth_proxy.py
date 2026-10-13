@@ -221,6 +221,8 @@ async def _authenticate(
                 return None
             continue
 
+        # No trusted per-printer binding here: Overlay tokens fail closed.
+        # Camera-stream/Cam Wall credentials keep their established contracts.
         if req.token and await verify_camera_stream_token(req.token):
             return req
 

@@ -2320,13 +2320,10 @@ async def run_migrations(conn):
     # Migration: Add auth_source column to users for LDAP support (#794)
     await _safe_execute(conn, "ALTER TABLE users ADD COLUMN auth_source VARCHAR(20) DEFAULT 'local' NOT NULL")
 
-    # Migration: Add optional printer scope to users (#1727/#1620)
-    if is_sqlite():
-        await _safe_execute(conn, "ALTER TABLE users ADD COLUMN allowed_printer_ids JSON")
-        await _safe_execute(conn, "UPDATE users SET allowed_printer_ids = NULL WHERE allowed_printer_ids = '[]'")
-    else:
-        await _safe_execute(conn, "ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_printer_ids JSON")
-        await _safe_execute(conn, "UPDATE users SET allowed_printer_ids = NULL WHERE allowed_printer_ids::text = '[]'")
+    # Migration: Add user scope and normalize legacy [] only once.
+    from backend.app.core.user_printer_scope import migrate_user_printer_scope
+
+    await migrate_user_printer_scope(conn)
 
     # Migration: Make password_hash nullable for LDAP users (#794)
     # LDAP users have no local password — the column must allow NULL so auto-provisioning

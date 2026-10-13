@@ -231,3 +231,16 @@ Verbindungen. Sie erneuert auch gesunde Kameraverbindungen alle 60 Sekunden.
 Die begrenzten Fehlerwiederholungen verhindern eine schnelle Endlosschleife.
 Nach drei erfolglosen Erneuerungen stoppt sie; ein erfolgreiches
 Laden setzt das Wiederholungsbudget zurück.
+
+Overlay-Links und Kameraabrufe beachten die aktuell erlaubten Drucker des
+Token-Besitzers. Der Builder bietet nur diese Drucker an. Bei aktivierter
+Authentifizierung ist vor Kopieren oder Vorschau ein Overlay-Token nötig;
+OBS besitzt keine Browser-Anmeldesitzung. Ohne Authentifizierung bleibt der Token
+optional. Der RTSP-Proxy nimmt keine Overlay-Token an, da ihm eine vertrauenswürdige
+Druckerbindung fehlt; dafür bleiben die bisherigen Camera-Stream-Token verfügbar.
+Beim Löschen eines Druckers werden dessen Benutzerfreigaben entfernt. Nach dem
+Entfernen der letzten Freigabe bleiben keine Drucker erlaubt, auch nach Neustart
+oder Benutzerbearbeitung. Uneingeschränkten Zugriff stellt ein Administrator nur
+durch die ausdrückliche Auswahl „Alle Drucker“ wieder her. Eine einmalige
+Startmigration erhält die bisherige uneingeschränkte Bedeutung historischer
+leerer Freigabelisten.

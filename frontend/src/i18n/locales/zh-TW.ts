@@ -5971,6 +5971,7 @@ export default {
       landscape: "橫向",
       fps: "每秒影格數",
       token: "疊加層權杖（選用）",
+      tokenRequired: "疊加層權杖（必填）",
       tokenHint: "請使用以bblt_開頭的長期Overlay權杖。登入權杖無法在此分享。",
       url: "疊加層URL",
       previewHint: "點擊後才會啟動預覽。變更選項會關閉預覽。請將URL複製到OBS。",

@@ -5971,6 +5971,7 @@ export default {
       landscape: "横屏",
       fps: "每秒帧数",
       token: "叠加层令牌（可选）",
+      tokenRequired: "叠加层令牌（必填）",
       tokenHint: "请使用以bblt_开头的长期Overlay令牌。登录令牌不能在此分享。",
       url: "叠加层URL",
       previewHint: "点击后才会启动预览。更改选项会关闭预览。请将URL复制到OBS。",

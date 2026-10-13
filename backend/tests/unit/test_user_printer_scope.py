@@ -15,3 +15,11 @@ def test_user_can_access_printer_restricts_scoped_users():
 
     assert user_can_access_printer(user, 3) is True
     assert user_can_access_printer(user, 7) is False
+
+
+def test_empty_user_printer_scope_denies_printers():
+    from backend.app.core.auth import allowed_printer_ids_for_user, user_can_access_printer
+
+    user = SimpleNamespace(allowed_printer_ids=[])
+    assert allowed_printer_ids_for_user(user) == set()
+    assert user_can_access_printer(user, 7) is False

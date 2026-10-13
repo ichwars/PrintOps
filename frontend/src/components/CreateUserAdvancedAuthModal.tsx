@@ -219,7 +219,7 @@ export function CreateUserAdvancedAuthModal({
               <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
                 <label className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer">
                   <Checkbox
-                    checked={!formData.allowed_printer_ids?.length}
+                    checked={formData.allowed_printer_ids == null}
                     onChange={() => setFormData({ ...formData, allowed_printer_ids: undefined })}
                     className="w-4 h-4 rounded border-bambu-gray text-bambu-green focus:ring-bambu-green focus:ring-offset-0 bg-bambu-dark"
                   />

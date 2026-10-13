@@ -5972,6 +5972,7 @@ export default {
       landscape: "Paysage",
       fps: "Images par seconde",
       token: "Jeton de superposition (facultatif)",
+      tokenRequired: "Jeton de superposition (obligatoire)",
       tokenHint: "Utilisez un jeton Overlay de longue durée commençant par bblt_. Les jetons de connexion ne peuvent pas être partagés ici.",
       url: "URL de superposition",
       previewHint: "L’aperçu démarre uniquement après un clic. Modifier les options le ferme. Copiez l’URL dans OBS.",
